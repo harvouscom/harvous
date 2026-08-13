@@ -50,6 +50,23 @@ export function isSequenceMode(mode: string | null | undefined): boolean {
   return mode === 'sequence';
 }
 
+/**
+ * Whether this Thread has an order somebody arranged.
+ *
+ * Separate from `isSequenceMode` because the two questions came apart: a stored
+ * order is "these notes go in this order", while sequence mode adds the pacing
+ * on top — numbered steps, a current step, the read-together pulse. Reordering
+ * a collection Thread should do the first without turning on the second, so
+ * every read applies the order whenever there is one and keeps the step
+ * furniture gated on the mode.
+ *
+ * Cheap: `sequenceNoteIds` is a short JSON array on the Thread row, already
+ * loaded wherever this is asked.
+ */
+export function hasStoredThreadOrder(thread: { sequenceNoteIds?: string | null }): boolean {
+  return parseSequenceNoteIds(thread.sequenceNoteIds).length > 0;
+}
+
 export function parseSequenceNoteIds(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {

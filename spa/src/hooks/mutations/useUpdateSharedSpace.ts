@@ -9,6 +9,7 @@ import {
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { clearCachedSpaceBootstrap, type SpaceBootstrapData, type SpaceDetail } from '../queries/useSpace';
 import type { PublishCadence } from '@/utils/channel-publish-cadence';
+import type { MeetingKind } from '@/utils/space-meeting-rhythm';
 
 interface UpdateSharedSpaceInput {
   spaceId: string;
@@ -19,6 +20,14 @@ interface UpdateSharedSpaceInput {
   description?: string | null;
   /** Ministry channels only — empty string clears. */
   publishCadence?: PublishCadence | null;
+  /** 0–6, Sunday first. Omit to leave the stored rhythm alone; null clears it. */
+  meetingDay?: number | null;
+  /** 'HH:MM' wall clock. Only read when `meetingDay` is sent. */
+  meetingTime?: string | null;
+  /** 'in_person' | 'online' | 'hybrid'. Omit to leave it alone; null clears. */
+  meetingKind?: MeetingKind | null;
+  /** https only. Only read when `meetingKind` is sent. */
+  meetingUrl?: string | null;
 }
 
 type UpdateSharedSpaceResponse = {
@@ -35,6 +44,10 @@ type UpdateSharedSpaceResponse = {
     publishCadence?: PublishCadence | null;
     lastCurriculumAt?: string | null;
     cadenceStale?: boolean;
+    meetingDay?: number | null;
+    meetingTime?: string | null;
+    meetingKind?: MeetingKind | null;
+    meetingUrl?: string | null;
   };
 };
 
@@ -80,6 +93,36 @@ function resolvePatchedSpace(
         : base.lastCurriculumAt,
     cadenceStale:
       data.space?.cadenceStale !== undefined ? data.space.cadenceStale : base.cadenceStale,
+    /*
+      This hook patches the cache rather than refetching (a racey prefetch was
+      overwriting saved covers), which means anything it forgets to carry is
+      simply lost until the next cold load. Left out, the settings panel
+      reopened on `initialMeetingDay: null` seconds after saving a Wednesday.
+    */
+    meetingDay:
+      data.space?.meetingDay !== undefined
+        ? data.space.meetingDay
+        : variables.meetingDay !== undefined
+          ? variables.meetingDay
+          : base.meetingDay,
+    meetingTime:
+      data.space?.meetingTime !== undefined
+        ? data.space.meetingTime
+        : variables.meetingTime !== undefined
+          ? variables.meetingTime
+          : base.meetingTime,
+    meetingKind:
+      data.space?.meetingKind !== undefined
+        ? data.space.meetingKind
+        : variables.meetingKind !== undefined
+          ? variables.meetingKind
+          : base.meetingKind,
+    meetingUrl:
+      data.space?.meetingUrl !== undefined
+        ? data.space.meetingUrl
+        : variables.meetingUrl !== undefined
+          ? variables.meetingUrl
+          : base.meetingUrl,
   };
 }
 
@@ -107,6 +150,10 @@ export function useUpdateSharedSpace() {
       coverVariant,
       description,
       publishCadence,
+      meetingDay,
+      meetingTime,
+      meetingKind,
+      meetingUrl,
     }: UpdateSharedSpaceInput) => {
       const sid = normalizeSpaceId(spaceId);
       const form = new FormData();
@@ -118,6 +165,18 @@ export function useUpdateSharedSpace() {
       }
       if (publishCadence !== undefined) {
         form.set('publishCadence', publishCadence ?? '');
+      }
+      /* Sent as a pair or not at all. Absent, the route leaves the stored
+         rhythm alone; present with an empty day, it clears both. */
+      if (meetingDay !== undefined) {
+        form.set('meetingDay', meetingDay === null ? '' : String(meetingDay));
+        form.set('meetingTime', meetingTime ?? '');
+      }
+      /* Same pairing: absent leaves the stored place alone, present with an
+         empty kind clears both. */
+      if (meetingKind !== undefined) {
+        form.set('meetingKind', meetingKind ?? '');
+        form.set('meetingUrl', meetingUrl ?? '');
       }
       return api.post<UpdateSharedSpaceResponse>(`/api/spaces/${encodeURIComponent(sid)}/update`, form);
     },

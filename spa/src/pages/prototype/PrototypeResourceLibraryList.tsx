@@ -29,6 +29,8 @@ import {
   useSpaceLibraryActions,
   type SpaceLibraryItem,
 } from '../../hooks/queries/useSpaceLibrary';
+import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
+import { PROTO_RESOURCE_MORPH_MS } from '../../layouts/proto-motion';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
 import ProtoChipBar from './components/ProtoChipBar';
@@ -219,9 +221,15 @@ const FILE_ACCEPT =
   '.pdf,.doc,.docx,.ppt,.pptx,.txt,.md,.jpg,.jpeg,.png,.webp,.gif,.mp3,.m4a,' +
   'application/pdf,text/plain,text/markdown,image/*,audio/mpeg,audio/mp4';
 
+/**
+ * Which content the open panel is showing.
+ *
+ * No `idle` member any more: closed is "the panel is not mounted", which
+ * `useProtoOverlayMotion` already owns. Keeping a third value here would have
+ * meant two sources of truth for whether the box is open — one flipping
+ * instantly, the other waiting out the morph.
+ */
 type AddStage =
-  /** Quiet default: one button, no input competing with the search field above. */
-  | { step: 'idle' }
   /** Choosing a source — link and file shown as alternatives, not a sequence. */
   | { step: 'choose' }
   /** Naming it before it lands, so the list stays readable. */
@@ -270,7 +278,8 @@ export function AddResourceForm({
     busy: boolean;
   };
 }) {
-  const [stage, setStage] = useState<AddStage>({ step: 'idle' });
+  const [open, setOpen] = useState(false);
+  const [stage, setStage] = useState<AddStage>({ step: 'choose' });
   const [url, setUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
@@ -286,18 +295,42 @@ export function AddResourceForm({
     description: string;
   } | null>(null);
 
+  /* The panel outlives `open` by one morph, so the button does not reappear
+     while the box it grew out of is still collapsing. */
+  const { mounted, exiting } = useProtoOverlayMotion(open, { exitMs: PROTO_RESOURCE_MORPH_MS });
+
   const busy =
     preview.isPending || (destination ? destination.busy : create.isPending || upload.isPending);
 
-  const reset = () => {
-    setStage({ step: 'idle' });
+  /* Cleared on the way out, not on the way in: wiping the fields when `reset`
+     is called would empty the panel in front of the person watching it close.
+     By the time this runs the box is already gone. */
+  useEffect(() => {
+    if (mounted) return;
+    setStage({ step: 'choose' });
     setUrl('');
     setFile(null);
     setTitle('');
     setPendingMeta(null);
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+  }, [mounted]);
+
+  /*
+    Focus follows the input, not a frame after the click.
+    `requestAnimationFrame` used to be enough because the panel rendered in the
+    same commit as the click. It does not any more: mounting is the motion
+    hook's effect, so the field exists a render later and the rAF scheduled at
+    click time can win the race and focus nothing. The confirm step keeps its
+    own `autoFocus` — it is only ever reached from an interaction inside the
+    panel, or from a drop, both of which mount it already open.
+  */
+  useEffect(() => {
+    if (!mounted || stage.step !== 'choose') return;
+    urlInputRef.current?.focus();
+  }, [mounted, stage.step]);
+
+  const reset = () => setOpen(false);
 
   const adoptFile = useCallback((picked: File | null) => {
     if (!picked) return;
@@ -308,6 +341,8 @@ export function AddResourceForm({
     setTitle(picked.name.replace(/\.[^.]+$/, ''));
     setError(null);
     setStage({ step: 'confirm' });
+    // A file dropped on the list opens the panel straight at confirm.
+    setOpen(true);
   }, []);
 
   useEffect(() => {
@@ -361,7 +396,7 @@ export function AddResourceForm({
     }
   };
 
-  if (stage.step === 'idle') {
+  if (!mounted) {
     return (
       <div className="proto-resource-add">
         <button
@@ -369,7 +404,7 @@ export function AddResourceForm({
           className="proto-resource-add__open"
           onClick={() => {
             setStage({ step: 'choose' });
-            requestAnimationFrame(() => urlInputRef.current?.focus());
+            setOpen(true);
           }}
         >
           <span>Add resource</span>
@@ -377,6 +412,15 @@ export function AddResourceForm({
       </div>
     );
   }
+
+  /* `--morphing` stays on for the panel's whole life: the in-animation plays
+     once on mount, and swapping the animation-name is what restarts it as the
+     collapse. The `key` on the body is what makes a stage swap build fresh
+     children — React reconciles div-to-div by index otherwise, keeping the DOM
+     nodes, and an animation on a node that never changed does not replay. */
+  const panelClassName = `proto-resource-add proto-resource-add--open proto-resource-add--morphing${
+    exiting ? ' proto-resource-add--exiting' : ''
+  }`;
 
   const hiddenFileInput = (
     <input
@@ -390,114 +434,118 @@ export function AddResourceForm({
 
   if (stage.step === 'choose') {
     return (
-      <div className="proto-resource-add proto-resource-add--open">
-        {/* Cancel is a dismiss on the panel it closes, not a button competing in
-            the column of things you came here to press. Full-width and last, it
-            sat exactly where the eye lands after "Choose a file" — the one place
-            a "no thanks" should never be. */}
-        <div className="proto-resource-add__head">
-          <span className="proto-resource-add__head-title">Add a resource</span>
+      <div className={panelClassName}>
+        <div className="proto-resource-add__body" key={stage.step}>
+          {/* Cancel is a dismiss on the panel it closes, not a button competing in
+              the column of things you came here to press. Full-width and last, it
+              sat exactly where the eye lands after "Choose a file" — the one place
+              a "no thanks" should never be. */}
+          <div className="proto-resource-add__head">
+            <span className="proto-resource-add__head-title">Add a resource</span>
+            <button
+              type="button"
+              className="proto-resource-add__dismiss"
+              onClick={reset}
+              aria-label="Cancel adding a resource"
+            >
+              <Icon name="xmark" size={12} aria-hidden />
+            </button>
+          </div>
+
+          <div className="proto-resource-add__row">
+            <input
+              ref={urlInputRef}
+              type="url"
+              className="proto-resource-add__input"
+              placeholder="Paste a link"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void runPreview();
+                }
+                if (e.key === 'Escape') reset();
+              }}
+            />
+            <button
+              type="button"
+              className="proto-resource-add__submit"
+              disabled={busy || !url.trim()}
+              onClick={() => void runPreview()}
+            >
+              {preview.isPending ? 'Reading…' : 'Next'}
+            </button>
+          </div>
+
+          <div className="proto-resource-add__or" aria-hidden>
+            <span>or</span>
+          </div>
+
           <button
             type="button"
-            className="proto-resource-add__dismiss"
-            onClick={reset}
-            aria-label="Cancel adding a resource"
+            className="proto-resource-add__file-pick"
+            disabled={busy}
+            onClick={() => fileInputRef.current?.click()}
           >
-            <Icon name="xmark" size={12} aria-hidden />
+            <Icon name="paperclip" size={12} aria-hidden />
+            <span>Choose a file</span>
           </button>
+          <p className="proto-resource-add__hint">
+            PDF, doc, image, or audio — up to 50MB. You can also drop one on the list.
+          </p>
+          {hiddenFileInput}
+          {error ? <p className="proto-resource-add__error">{error}</p> : null}
         </div>
-
-        <div className="proto-resource-add__row">
-          <input
-            ref={urlInputRef}
-            type="url"
-            className="proto-resource-add__input"
-            placeholder="Paste a link"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void runPreview();
-              }
-              if (e.key === 'Escape') reset();
-            }}
-          />
-          <button
-            type="button"
-            className="proto-resource-add__submit"
-            disabled={busy || !url.trim()}
-            onClick={() => void runPreview()}
-          >
-            {preview.isPending ? 'Reading…' : 'Next'}
-          </button>
-        </div>
-
-        <div className="proto-resource-add__or" aria-hidden>
-          <span>or</span>
-        </div>
-
-        <button
-          type="button"
-          className="proto-resource-add__file-pick"
-          disabled={busy}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Icon name="paperclip" size={12} aria-hidden />
-          <span>Choose a file</span>
-        </button>
-        <p className="proto-resource-add__hint">
-          PDF, doc, image, or audio — up to 50MB. You can also drop one on the list.
-        </p>
-        {hiddenFileInput}
-        {error ? <p className="proto-resource-add__error">{error}</p> : null}
       </div>
     );
   }
 
   return (
-    <div className="proto-resource-add proto-resource-add--open">
-      <div className="proto-resource-add__source" title={file ? file.name : url}>
-        <Icon name="newspaper" size={11} aria-hidden />
-        <span className="proto-resource-add__source-text">
-          {file ? file.name : resourceSourceLabel(hostOf(url)) || url}
-        </span>
-        {file ? (
-          <span className="proto-resource-add__file-size">
-            {formatResourceFileBytes(file.size)}
+    <div className={panelClassName}>
+      <div className="proto-resource-add__body" key={stage.step}>
+        <div className="proto-resource-add__source" title={file ? file.name : url}>
+          <Icon name="newspaper" size={11} aria-hidden />
+          <span className="proto-resource-add__source-text">
+            {file ? file.name : resourceSourceLabel(hostOf(url)) || url}
           </span>
-        ) : null}
+          {file ? (
+            <span className="proto-resource-add__file-size">
+              {formatResourceFileBytes(file.size)}
+            </span>
+          ) : null}
+        </div>
+        <input
+          type="text"
+          className="proto-resource-add__input proto-resource-add__input--title"
+          placeholder="Title"
+          value={title}
+          autoFocus
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void save();
+            }
+            if (e.key === 'Escape') reset();
+          }}
+        />
+        <div className="proto-resource-add__actions">
+          <button type="button" className="proto-resource-add__cancel" onClick={reset}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="proto-resource-add__submit"
+            disabled={busy}
+            onClick={() => void save()}
+          >
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        {hiddenFileInput}
+        {error ? <p className="proto-resource-add__error">{error}</p> : null}
       </div>
-      <input
-        type="text"
-        className="proto-resource-add__input proto-resource-add__input--title"
-        placeholder="Title"
-        value={title}
-        autoFocus
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            void save();
-          }
-          if (e.key === 'Escape') reset();
-        }}
-      />
-      <div className="proto-resource-add__actions">
-        <button type="button" className="proto-resource-add__cancel" onClick={reset}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="proto-resource-add__submit"
-          disabled={busy}
-          onClick={() => void save()}
-        >
-          {busy ? 'Saving…' : 'Save'}
-        </button>
-      </div>
-      {hiddenFileInput}
-      {error ? <p className="proto-resource-add__error">{error}</p> : null}
     </div>
   );
 }

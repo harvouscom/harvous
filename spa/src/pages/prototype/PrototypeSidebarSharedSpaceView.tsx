@@ -1167,6 +1167,10 @@ function PrototypeSidebarSharedSpaceViewLive() {
         spaceCoverBgLight={space?.coverBgLight}
         spacePublishCadence={space?.publishCadence}
         spaceCadenceStale={space?.cadenceStale}
+        spaceMeetingDay={space?.meetingDay ?? null}
+        spaceMeetingTime={space?.meetingTime ?? null}
+        spaceMeetingKind={space?.meetingKind ?? null}
+        spaceMeetingUrl={space?.meetingUrl ?? null}
         viewerIsOwner={isSpaceOwner}
         viewerCanModerate={canModerateChannel}
         ministryChannel={isMinistryChannel}

@@ -34,6 +34,8 @@ import { useRemoveSpaceMember } from '../../hooks/mutations/useRemoveSpaceMember
 import { isDeletedSpaceUnavailableError, useDeleteSharedSpace } from '../../hooks/mutations/useDeleteSharedSpace';
 
 import PrototypeSpaceSettingsSection from './PrototypeSpaceSettingsSection';
+import PrototypeSpaceMeetingSection from './PrototypeSpaceMeetingSection';
+import { MEETING_KIND_LABELS, meetingDayLabel } from '@/utils/space-meeting-rhythm';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import SharedSpaceMemberAvatar from './SharedSpaceMemberAvatar';
 import SharedSpaceInviteExpiryPicker from './SharedSpaceInviteExpiryPicker';
@@ -52,6 +54,14 @@ export interface PrototypeSpacePeopleSheetProps {
   spaceCoverBgLight?: import('@/utils/space-cover').SpaceCoverBg | null;
   spacePublishCadence?: import('@/utils/channel-publish-cadence').PublishCadence | null;
   spaceCadenceStale?: boolean;
+  /** 0–6, Sunday first — when the room gathers. */
+  spaceMeetingDay?: number | null;
+  /** 'HH:MM' wall clock, no zone. */
+  spaceMeetingTime?: string | null;
+  /** 'in_person' | 'online' | 'hybrid' — where the room meets. */
+  spaceMeetingKind?: import('@/utils/space-meeting-rhythm').MeetingKind | null;
+  /** The room's standing video link. Members only. */
+  spaceMeetingUrl?: string | null;
   /** Nav/dashboard hint until members query resolves (keeps owner hub reachable). */
   viewerIsOwner?: boolean;
   /** Ministry channel staff (owner/leader) — follower list + settings while members load. */
@@ -104,7 +114,7 @@ export function resolvePeopleQueryState(input: {
  * rows, each drilling into its own focused sub-view. Members (non-owners) skip the
  * hub — they only have the people list — so they land on it directly.
  */
-type PeopleView = 'hub' | 'people' | 'invites' | 'details';
+type PeopleView = 'hub' | 'people' | 'invites' | 'details' | 'meeting';
 
 export default function PrototypeSpacePeopleSheet({
   open,
@@ -116,6 +126,10 @@ export default function PrototypeSpacePeopleSheet({
   spaceCoverBgLight,
   spacePublishCadence = null,
   spaceCadenceStale = false,
+  spaceMeetingDay = null,
+  spaceMeetingTime = null,
+  spaceMeetingKind = null,
+  spaceMeetingUrl = null,
   viewerIsOwner = false,
   viewerCanModerate = false,
   ministryChannel = false,
@@ -294,6 +308,12 @@ export default function PrototypeSpacePeopleSheet({
   const showBack = canManageHub && view !== 'hub';
   const peopleLabel = ministryChannel ? 'Followers' : 'People';
   const settingsLabel = ministryChannel ? 'Channel settings' : 'Space settings';
+  /* "Wednesdays · Online", or "Not set" — the row answers itself so nobody has
+     to open a page to find out a room never said. */
+  const meetingSummary =
+    [meetingDayLabel(spaceMeetingDay), spaceMeetingKind ? MEETING_KIND_LABELS[spaceMeetingKind] : null]
+      .filter(Boolean)
+      .join(' · ') || 'Not set';
   const manageLabel = ministryChannel ? 'Manage channel' : 'Manage space';
   // On a sub-view the header title becomes that section's name (the eyebrow label
   // inside the scroll is dropped as redundant); the hub keeps "Manage space".
@@ -582,6 +602,17 @@ export default function PrototypeSpacePeopleSheet({
             onClick={() => setView('invites')}
           />
         ) : null}
+        {/* Its own row rather than a block inside Space settings: a different
+            question, optional to answer, and the value line says the answer
+            without anyone having to open it. */}
+        {!ministryChannel ? (
+          <SettingsRow
+            label="Meeting"
+            sublabel="When and where you meet"
+            value={meetingSummary}
+            onClick={() => setView('meeting')}
+          />
+        ) : null}
         <SettingsRow
           label={settingsLabel}
           sublabel="Name, description, color, and cover"
@@ -600,6 +631,19 @@ export default function PrototypeSpacePeopleSheet({
     body = memberList;
   } else if (view === 'invites' && !ministryChannel) {
     body = invitesView;
+  } else if (view === 'meeting') {
+    body = (
+      <PrototypeSpaceMeetingSection
+        spaceId={spaceId}
+        spaceTitle={spaceTitle}
+        spaceColor={spaceColor}
+        spaceCoverBgLight={spaceCoverBgLight}
+        initialMeetingDay={spaceMeetingDay}
+        initialMeetingTime={spaceMeetingTime}
+        initialMeetingKind={spaceMeetingKind}
+        initialMeetingUrl={spaceMeetingUrl}
+      />
+    );
   } else if (view === 'details') {
     body = (
       <>

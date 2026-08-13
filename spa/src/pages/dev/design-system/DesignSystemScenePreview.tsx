@@ -14,6 +14,7 @@ import {
   PrototypeSectionHeader,
 } from '../../prototype/design-system';
 import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
+import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
   BG_PRESETS,
@@ -513,6 +514,82 @@ function ToastsScene() {
   );
 }
 
+/**
+ * The trail, in the grouped-row card.
+ *
+ * Both variants side by side because they are the same pattern and the thing
+ * worth checking is that they agree: the orb slot and the sequence badge share
+ * one 20px column, the spine runs between orb bottoms and never behind one, and
+ * the row bands and hairlines come from `proto-church-tools`.
+ */
+function ThreadTrailScene() {
+  const card = 'proto-glass-surface proto-glass-surface--panel proto-church-tools proto-thread-trail__card';
+  return (
+    <div className="pds-gallery-stack">
+      <div className="proto-thread-trail proto-thread-trail--carded">
+        <div className={card}>
+          <div className="proto-thread-trail__spine" role="list" aria-label="Connected notes trail">
+            {[
+              { title: 'Where it started', preview: 'Romans 8:28 — the first thread', focus: false },
+              { title: 'Suffering and hope', preview: 'Tuesday, small group', focus: true },
+              { title: 'What Paul does next', preview: 'Romans 9 outline', focus: false }
+            ].map((row) => (
+              <div
+                key={row.title}
+                className={`proto-thread-trail__step${row.focus ? ' proto-thread-trail__step--focus' : ''}`}
+                role="listitem"
+              >
+                <ProtoThreadTrailOrb active={row.focus} />
+                <div className="proto-thread-trail__step-body">
+                  <button type="button" className="proto-thread-trail__step-main">
+                    <div className="proto-thread-trail__title-line proto-note-row__title-line">
+                      <span className="pds-list-title proto-note-row__title-text">{row.title}</span>
+                      {row.focus ? <span className="proto-side-panel__current-badge">Current</span> : null}
+                    </div>
+                    <div className="pds-list-preview proto-note-row__preview">{row.preview}</div>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="proto-thread-trail proto-thread-trail--carded">
+        <div className={card}>
+          <ul className="proto-shared-thread-note-list proto-thread-trail__spine" aria-label="Sequence Thread">
+            {[
+              { title: 'Step one: the call', state: '' },
+              { title: 'Step two: the cost', state: ' proto-shared-thread-step--current' },
+              { title: 'Step three: the promise', state: ' proto-shared-thread-step--ahead' }
+            ].map((row, i) => (
+              <li
+                key={row.title}
+                className={`proto-thread-trail__step proto-shared-thread-note-row proto-shared-thread-step${row.state}`}
+              >
+                <span className="proto-thread-trail__orb" aria-hidden>
+                  <span className="proto-shared-thread-step__badge">{i + 1}</span>
+                </span>
+                <div className="proto-thread-trail__step-body">
+                  <button type="button" className="proto-thread-trail__step-main">
+                    <div className="proto-note-row__title-line">
+                      <span className="pds-list-title proto-note-row__title-text">{row.title}</span>
+                    </div>
+                    <div className="proto-shared-thread-note-row__meta">
+                      <span>Derek</span>
+                      <span>2d</span>
+                    </div>
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -539,6 +616,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <InputsScene />;
     case 'ds-12-toasts':
       return <ToastsScene />;
+    case 'ds-13-thread-trail':
+      return <ThreadTrailScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

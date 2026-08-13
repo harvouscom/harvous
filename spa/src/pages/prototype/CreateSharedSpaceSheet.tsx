@@ -22,6 +22,12 @@ import {
   listSpaceCoverVariantsForFamily,
   spaceCoverPresetUrl,
 } from '@/utils/space-cover-presets';
+import {
+  meetingKindHasUrl,
+  nextMeetingDate,
+  type MeetingKind,
+} from '@/utils/space-meeting-rhythm';
+import { markPendingPlannerIntent } from '../../lib/pending-planner-intent';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { useCreateSharedSpace } from '../../hooks/mutations/useCreateSharedSpace';
 import { useCreateChurchSharedSpace } from '../../hooks/mutations/useCreateChurchSharedSpace';
@@ -36,6 +42,7 @@ import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
+import ProtoSpaceMeetingFields from './ProtoSpaceMeetingFields';
 
 type CoverPickerMode = 'none' | 'color' | 'image';
 
@@ -62,10 +69,11 @@ export default function CreateSharedSpaceSheet({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { userId } = useAuth();
-  const { isMobileSidebar, ensureSidebarExpanded } = useProtoShell();
+  const { isMobileSidebar, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const headingId = useId();
+  const rhythmLabelId = useId();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -74,6 +82,19 @@ export default function CreateSharedSpaceSheet({
   const [pickerMode, setPickerMode] = useState<CoverPickerMode>('none');
   const [error, setError] = useState<string | null>(null);
   const [showAddonLink, setShowAddonLink] = useState(false);
+  /*
+    When the room gathers. Optional — a space with no rhythm is legal and stays
+    the default. Asked here because it is the one fact the Planner and the
+    Coming-up card both need and nothing in the app could set: `meetingDay` and
+    `meetingTime` had readers on three surfaces and no writer anywhere, so every
+    space ever created carried a null rhythm.
+  */
+  const [meetingDay, setMeetingDay] = useState<number | null>(null);
+  const [meetingTime, setMeetingTime] = useState('');
+  /* Where it meets, and the link if it meets on a call. Independent of the
+     rhythm above — a room can be online without saying when. */
+  const [meetingKind, setMeetingKind] = useState<MeetingKind | null>(null);
+  const [meetingUrl, setMeetingUrl] = useState('');
 
   const createSharedSpace = useCreateSharedSpace();
   const createChurchSharedSpace = useCreateChurchSharedSpace();
@@ -95,6 +116,10 @@ export default function CreateSharedSpaceSheet({
     setPickerMode('none');
     setError(null);
     setShowAddonLink(false);
+    setMeetingDay(null);
+    setMeetingTime('');
+    setMeetingKind(null);
+    setMeetingUrl('');
   }, [open, orgId, kind]);
 
   const cover = spaceCoverFromThreadColor(color, coverVariant);
@@ -156,6 +181,20 @@ export default function CreateSharedSpaceSheet({
         color,
         coverVariant: clampSpaceCoverVariant(coverVariant),
         description: description.trim() || null,
+        /* Both or neither: the server refuses a time with no day to sit on, and
+           clearing the day clears the time with it. A channel never sends these
+           — it publishes rather than gathers, and the server refuses them. */
+        ...(ministryChannel || meetingDay === null
+          ? {}
+          : { meetingDay, meetingTime: meetingTime || null }),
+        /* The link only travels with a kind that can carry one — the server
+           refuses it on an in-person room. */
+        ...(ministryChannel || meetingKind === null
+          ? {}
+          : {
+              meetingKind,
+              meetingUrl: meetingKindHasUrl(meetingKind) ? meetingUrl.trim() || null : null,
+            }),
       };
 
       const result = ministryChannel
@@ -180,6 +219,23 @@ export default function CreateSharedSpaceSheet({
       onOpenChange(false);
       ensureSidebarExpanded();
       onCreated?.(result.space.id);
+
+      /*
+        A room that just said when it meets is a room with a first gathering to
+        plan, and the one person who can plan it is standing right here. Same
+        one-shot intent the space's Tools row uses, with the date prefilled to
+        the next time that day comes round — `mode: 'create'` opens the editor
+        on it rather than dropping them on an empty board to find the button.
+        No rhythm, no detour: creation ends where it always did.
+      */
+      if (!ministryChannel && meetingDay !== null) {
+        markPendingPlannerIntent({
+          mode: 'create',
+          date: nextMeetingDate(meetingDay),
+          scopeSpaceId: result.space.id,
+        });
+        openExpandedSidebar('planner');
+      }
     } catch (err) {
       if (err instanceof APIError) {
         setError(err.message || `Request failed (${err.status})`);
@@ -280,6 +336,26 @@ export default function CreateSharedSpaceSheet({
               aria-label="Description"
               onChange={(e) => setDescription(e.target.value)}
             />
+
+            {/* A channel publishes rather than gathers, so it is never asked. */}
+            {!ministryChannel ? (
+              <>
+                <span className="proto-caption proto-create-shared-space__rhythm-label" id={rhythmLabelId}>
+                  When and where does it meet?
+                </span>
+                <ProtoSpaceMeetingFields
+                  meetingDay={meetingDay}
+                  meetingTime={meetingTime}
+                  meetingKind={meetingKind}
+                  meetingUrl={meetingUrl}
+                  onMeetingDayChange={setMeetingDay}
+                  onMeetingTimeChange={setMeetingTime}
+                  onMeetingKindChange={setMeetingKind}
+                  onMeetingUrlChange={setMeetingUrl}
+                  labelledBy={rhythmLabelId}
+                />
+              </>
+            ) : null}
 
             {pickerMode === 'color' ? (
               <div

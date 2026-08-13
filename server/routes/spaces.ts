@@ -94,6 +94,7 @@ import {
   isMinistryBroadcastSpaceRow,
   parsePublishCadenceInput,
 } from '../utils/channel-publish-cadence';
+import { parseMeetingPlaceInput, parseMeetingRhythmInput } from '@/utils/space-meeting-rhythm';
 import { listGroupStudyThreadsForSpace } from '../utils/shared-space-group-threads';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { awardCreationBonusXP } from '../utils/xp-system';
@@ -319,7 +320,27 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
       color?: string;
       description?: string;
       coverVariant?: number | string;
+      meetingDay?: number | string | null;
+      meetingTime?: string | null;
+      meetingKind?: string | null;
+      meetingUrl?: string | null;
     };
+    /*
+      When the room gathers, asked at creation.
+      Nothing in the app could write these columns before, so every space ever
+      created carried a null rhythm — and the Planner's week anchor and the
+      Coming-up card's "Wednesdays · 6:30 PM" both read from them. Optional: a
+      space with no rhythm is legal and stays the default.
+    */
+    const rhythm = parseMeetingRhythmInput(body.meetingDay, body.meetingTime);
+    if (rhythm.kind === 'invalid') {
+      return c.json({ error: rhythm.reason, code: 'INVALID_MEETING_RHYTHM' }, 400);
+    }
+    // Where the room meets, and the link if it meets on a call.
+    const place = parseMeetingPlaceInput(body.meetingKind, body.meetingUrl);
+    if (place.kind === 'invalid') {
+      return c.json({ error: place.reason, code: 'INVALID_MEETING_PLACE' }, 400);
+    }
     const title = (body.title ?? '').trim();
     const color = (body.color ?? 'paper').trim() || 'paper';
     const coverVariantRaw = Number(body.coverVariant);
@@ -368,6 +389,12 @@ route.post('/api/spaces/create-shared', requireAuth, rateLimit('write'), async (
         isActive: true,
         order: 0,
         createdAt: now,
+        ...(rhythm.kind === 'set'
+          ? { meetingDay: rhythm.meetingDay, meetingTime: rhythm.meetingTime }
+          : {}),
+        ...(place.kind === 'set'
+          ? { meetingKind: place.meetingKind, meetingUrl: place.meetingUrl }
+          : {}),
       }).returning())!;
 
       await tx.insert(SpaceMemberships).values({
@@ -411,6 +438,22 @@ route.post('/api/spaces/create-church-shared', requireAuth, rateLimit('write'), 
     const orgId = (body.orgId ?? '').trim();
     if (!orgId) return c.json({ error: 'orgId is required', code: 'ORG_ID_REQUIRED' }, 400);
 
+    // A church Shared Space gathers like any other room — same fields, same rules.
+    const rhythm = parseMeetingRhythmInput(
+      (body as { meetingDay?: number | string | null }).meetingDay,
+      (body as { meetingTime?: string | null }).meetingTime,
+    );
+    if (rhythm.kind === 'invalid') {
+      return c.json({ error: rhythm.reason, code: 'INVALID_MEETING_RHYTHM' }, 400);
+    }
+    const place = parseMeetingPlaceInput(
+      (body as { meetingKind?: string | null }).meetingKind,
+      (body as { meetingUrl?: string | null }).meetingUrl,
+    );
+    if (place.kind === 'invalid') {
+      return c.json({ error: place.reason, code: 'INVALID_MEETING_PLACE' }, 400);
+    }
+
     const gate = await assertCanCreateChurchSharedSpace(auth.userId, orgId);
     if (!gate.ok) {
       return c.json({ error: gate.error, code: gate.code }, gate.status);
@@ -450,6 +493,12 @@ route.post('/api/spaces/create-church-shared', requireAuth, rateLimit('write'), 
         order: 0,
         createdAt: now,
         updatedAt: now,
+        ...(rhythm.kind === 'set'
+          ? { meetingDay: rhythm.meetingDay, meetingTime: rhythm.meetingTime }
+          : {}),
+        ...(place.kind === 'set'
+          ? { meetingKind: place.meetingKind, meetingUrl: place.meetingUrl }
+          : {}),
       }).returning())!;
 
       await tx.insert(SpaceMemberships).values({
@@ -844,6 +893,21 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     if (publishCadenceParsed.kind === 'invalid') {
       return c.json({ error: 'Invalid publish cadence', code: 'INVALID_PUBLISH_CADENCE' }, 400);
     }
+    // Editable, not set-once: a group that moves to Thursdays says so here.
+    const rhythmParsed = parseMeetingRhythmInput(
+      formData.get('meetingDay'),
+      formData.get('meetingTime'),
+    );
+    if (rhythmParsed.kind === 'invalid') {
+      return c.json({ error: rhythmParsed.reason, code: 'INVALID_MEETING_RHYTHM' }, 400);
+    }
+    const placeParsed = parseMeetingPlaceInput(
+      formData.get('meetingKind'),
+      formData.get('meetingUrl'),
+    );
+    if (placeParsed.kind === 'invalid') {
+      return c.json({ error: placeParsed.reason, code: 'INVALID_MEETING_PLACE' }, 400);
+    }
     // `isPublic` is no longer accepted — sharing is governed by Spaces.type + SpaceInvites.
 
     let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
@@ -863,6 +927,24 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     if (publishCadenceParsed.kind === 'set' && !ministryChannel) {
       return c.json(
         { error: 'Publish cadence is only available on ministry channels', code: 'PUBLISH_CADENCE_MINISTRY_ONLY' },
+        400,
+      );
+    }
+    /*
+      The mirror of the cadence rule above. A ministry channel publishes rather
+      than meets — it already says how often via `publishCadence`, and letting
+      it also claim a weekly gathering would put a time on a room nobody walks
+      into. `ChurchServices.kind` draws the same line for the plan's rows.
+    */
+    if (rhythmParsed.kind === 'set' && ministryChannel) {
+      return c.json(
+        { error: 'A channel publishes rather than gathers', code: 'MEETING_RHYTHM_NOT_A_CHANNEL' },
+        400,
+      );
+    }
+    if (placeParsed.kind === 'set' && ministryChannel) {
+      return c.json(
+        { error: 'A channel publishes rather than gathers', code: 'MEETING_PLACE_NOT_A_CHANNEL' },
         400,
       );
     }
@@ -887,6 +969,12 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
       ...(description !== undefined ? { description } : {}),
       ...(publishCadenceParsed.kind === 'set' && ministryChannel
         ? { publishCadence: publishCadenceParsed.value }
+        : {}),
+      ...(rhythmParsed.kind === 'set'
+        ? { meetingDay: rhythmParsed.meetingDay, meetingTime: rhythmParsed.meetingTime }
+        : {}),
+      ...(placeParsed.kind === 'set'
+        ? { meetingKind: placeParsed.meetingKind, meetingUrl: placeParsed.meetingUrl }
         : {}),
       updatedAt: nowISO(),
     }).where(eq(Spaces.id, spaceId)).returning())!;
@@ -913,6 +1001,12 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
         coverBgLight: coverFields.coverBgLight,
         coverBgDark: coverFields.coverBgDark,
         coverVariant,
+        /* Echoed so the client patches its cache from the stored row rather
+           than from what it hoped it sent — this hook does not refetch. */
+        meetingDay: updatedSpace.meetingDay ?? null,
+        meetingTime: updatedSpace.meetingTime ?? null,
+        meetingKind: updatedSpace.meetingKind ?? null,
+        meetingUrl: updatedSpace.meetingUrl ?? null,
         ...(cadenceFields
           ? {
               publishCadence: cadenceFields.publishCadence,
@@ -2232,6 +2326,12 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
       isPublic: spaceRow.isPublic,
       type: spaceRow.type,
       orgId: spaceRow.orgId ?? null,
+      /* When the room gathers. Settings needs it to show what it is now, and
+         the plan surfaces already read the same pair off their own payloads. */
+      meetingDay: spaceRow.meetingDay ?? null,
+      meetingTime: spaceRow.meetingTime ?? null,
+      meetingKind: spaceRow.meetingKind ?? null,
+      meetingUrl: spaceRow.meetingUrl ?? null,
       ...(cadenceFields
         ? {
             publishCadence: cadenceFields.publishCadence,
@@ -2296,6 +2396,13 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
           ownerId: auth.userId,
           isOwner: true,
           memberCount,
+          /* The owner path returns before the member one below, and the owner
+             is exactly who opens the settings panel — leaving it out here meant
+             the field read "not set" for the one person who can change it. */
+          meetingDay: (ownerSpace as { meetingDay?: number | null }).meetingDay ?? null,
+          meetingTime: (ownerSpace as { meetingTime?: string | null }).meetingTime ?? null,
+          meetingKind: (ownerSpace as { meetingKind?: string | null }).meetingKind ?? null,
+          meetingUrl: (ownerSpace as { meetingUrl?: string | null }).meetingUrl ?? null,
           ...(cadenceFields
             ? {
                 publishCadence: cadenceFields.publishCadence,
@@ -2369,6 +2476,13 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
         ownerId: space.userId,
         isOwner: false,
         memberCount,
+        /* This is the payload `useSpace` actually reads — the settings panel
+           opens on it, so the rhythm has to travel here or the field shows
+           "not set" over a room that meets on Wednesdays. */
+        meetingDay: space.meetingDay ?? null,
+        meetingTime: space.meetingTime ?? null,
+        meetingKind: space.meetingKind ?? null,
+        meetingUrl: space.meetingUrl ?? null,
         ...(cadenceFields
           ? {
               publishCadence: cadenceFields.publishCadence,

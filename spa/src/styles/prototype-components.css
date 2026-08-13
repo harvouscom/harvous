@@ -2302,7 +2302,7 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   background: transparent;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease;
+  transition: background var(--pds-duration-press) ease, color var(--pds-duration-press) ease;
 }
 
 .proto-resource-add__dismiss:hover {
@@ -2310,14 +2310,227 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   color: var(--pds-text-primary);
 }
 
+/*
+ * The open panel is the same box as the button it replaced, grown.
+ *
+ * A grid with one `1fr` row rather than the flex column it used to be: `1fr` is
+ * animatable where `height: auto` is not, so the collapsed keyframe can be
+ * `0fr` + no padding and land on exactly the button's 36px footprint. Width
+ * never changes (both states fill the footer), so unlike the expanded sidebar
+ * there is nothing to pin the body to — only height and chrome morph.
+ */
 .proto-resource-add--open {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr;
+  box-sizing: border-box;
+  min-height: 36px;
   padding: 10px;
   border: 0.5px solid var(--pds-border);
   border-radius: var(--pds-radius-menu, 12px);
   background: var(--pds-bg-page);
+}
+
+/* `min-height: 0` so the row may collapse below its content; `overflow: hidden`
+   so what is clipped during the morph does not spill past the rounded corner.
+   Positioned so it stacks above the accent layer below rather than under it. */
+.proto-resource-add__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.proto-resource-add--morphing {
+  animation: proto-resource-add-morph-in var(--pds-duration-morph) var(--pds-ease-emphasized) both;
+}
+
+.proto-resource-add--morphing.proto-resource-add--exiting {
+  animation-name: proto-resource-add-morph-out;
+  animation-timing-function: var(--pds-ease-morph-exit);
+}
+
+/*
+ * The button's accent, as a layer that fades rather than a background that
+ * interpolates.
+ *
+ * `--pds-bg-accent-button` is a gradient, so putting it in the keyframes did not
+ * cross-fade at all: an image and a colour are not interpolable, and the browser
+ * swapped them discretely at the 50% mark — a flash of blue in the middle of an
+ * otherwise continuous morph. Opacity on a layer of its own has no such edge.
+ *
+ * `inset: 0` is the padding box, so the 0.5px border ring is not covered. That is
+ * one hairline on the single frame before the real button takes over, and worth
+ * less than the radius mismatch a negative inset would introduce.
+ */
+.proto-resource-add--morphing::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
+  pointer-events: none;
+  animation: proto-resource-add-accent-out var(--pds-duration-morph) var(--pds-ease-emphasized) both;
+}
+
+/* Growing back in step with the box, so the last frame is already the button. */
+.proto-resource-add--morphing.proto-resource-add--exiting::before {
+  animation-name: proto-resource-add-accent-in;
+  animation-timing-function: var(--pds-ease-morph-exit);
+}
+
+@keyframes proto-resource-add-accent-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes proto-resource-add-accent-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Every property the button and the panel disagree about, interpolated at once:
+   the row that carries the height, the padding inside it, and the chrome. The
+   fill is not here — see the accent layer above for why. */
+@keyframes proto-resource-add-morph-in {
+  from {
+    grid-template-rows: 0fr;
+    padding: 0;
+    border-radius: var(--pds-radius-button);
+    border-color: transparent;
+  }
+  to {
+    grid-template-rows: 1fr;
+    padding: 10px;
+    border-radius: var(--pds-radius-menu, 12px);
+    border-color: var(--pds-border);
+  }
+}
+
+/* Not `animation-direction: reverse` — that would also reverse the easing, and
+   an emphasized curve played backwards decelerates into the gesture instead of
+   out of it. The last frame is the button's exact box, so the real button
+   taking over at the end is a swap nobody sees. */
+@keyframes proto-resource-add-morph-out {
+  from {
+    grid-template-rows: 1fr;
+    padding: 10px;
+    border-radius: var(--pds-radius-menu, 12px);
+    border-color: var(--pds-border);
+  }
+  to {
+    grid-template-rows: 0fr;
+    padding: 0;
+    border-radius: var(--pds-radius-button);
+    border-color: transparent;
+  }
+}
+
+/*
+ * The contents leave before the box closes — fields legible while being clipped
+ * read as a scroll rather than a morph. Exit only: arrival is the children's
+ * job below.
+ */
+.proto-resource-add--exiting .proto-resource-add__body {
+  animation: proto-resource-add-body-out var(--pds-duration-morph) var(--pds-ease-emphasized) both;
+}
+
+/* Emphasized, not the exit curve the box uses: the fields have to be gone
+   early, while there is still room for them, rather than tracking the collapse
+   and staying readable as they are clipped. */
+@keyframes proto-resource-add-body-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * Arrival is staggered on the children, not faded on the body, because the same
+ * rule then covers the other content change this box has: choose → confirm.
+ * The body carries `key={stage.step}`, so a stage swap builds fresh children and
+ * replays this — without which React reconciles div-to-div by index, keeps the
+ * DOM nodes, and no animation restarts.
+ *
+ * The box itself resizes at once; there is no interpolable height between two
+ * `auto`s, and the stagger is what carries the change.
+ *
+ * Link and file are alternatives rather than steps, so the delays group them
+ * instead of counting them out one by one.
+ */
+.proto-resource-add:not(.proto-resource-add--exiting) .proto-resource-add__body > * {
+  animation: proto-resource-add-item-in var(--pds-duration-morph) var(--pds-ease-standard) both;
+}
+
+.proto-resource-add:not(.proto-resource-add--exiting) .proto-resource-add__body > *:nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.proto-resource-add:not(.proto-resource-add--exiting) .proto-resource-add__body > *:nth-child(n + 3) {
+  animation-delay: 55ms;
+}
+
+@keyframes proto-resource-add-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A collapsing panel is not a target — without this a second click during the
+   190ms lands on a field that is on its way out. */
+.proto-resource-add--exiting {
+  pointer-events: none;
+}
+
+/*
+ * Explicit rather than left to the global 0.01ms rule in animations.css — that
+ * blanket produces the jagged result documented in
+ * docs/REDUCE_MOTION_TROUBLESHOOTING.md. Each of these needs its end state, not
+ * a compressed playthrough: a `both`-filled morph cut to 0.01ms still applies
+ * the from-frame first.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .proto-resource-add--morphing,
+  .proto-resource-add--morphing::before,
+  .proto-resource-add__body,
+  .proto-resource-add__body > *,
+  .proto-resource-add__open {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Its whole job is to fade; with no animation it would just sit on top of the
+     panel in accent paint. */
+  .proto-resource-add--morphing::before {
+    display: none;
+  }
+
+  /* The panel is held mounted for the exit it is no longer playing. Nothing to
+     watch, so take it away now rather than leaving it on screen. */
+  .proto-resource-add--exiting {
+    display: none;
+  }
 }
 
 /* The gradient primary, matching the expanded planner's footer and the sheets.
@@ -2342,7 +2555,20 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   font-weight: 600;
   color: var(--pds-on-accent);
   cursor: pointer;
-  transition: filter 0.12s ease;
+  transition: filter var(--pds-duration-press) ease;
+  /* The collapse lands on this button's exact box but cannot carry its label —
+     the panel is what was mounted. Fading the label in over the handoff is what
+     stops "Add resource" appearing out of nowhere on the last frame. */
+  animation: proto-resource-add-label-in var(--pds-duration-morph) var(--pds-ease-standard) both;
+}
+
+@keyframes proto-resource-add-label-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open,
@@ -2401,7 +2627,7 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   font-weight: 500;
   color: var(--pds-text-primary);
   cursor: pointer;
-  transition: background 0.12s ease, opacity 0.12s ease;
+  transition: background var(--pds-duration-press) ease, opacity var(--pds-duration-press) ease;
 }
 
 .proto-resource-add__submit:hover:not(:disabled) {
@@ -2450,7 +2676,7 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   font-weight: 500;
   color: var(--pds-text-primary);
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background var(--pds-duration-press) ease;
 }
 
 .proto-resource-add__file-pick:hover:not(:disabled) {
@@ -8173,7 +8399,6 @@ button.proto-appearance-hero__card {
   flex-direction: column;
   gap: 0;
   --proto-trail-spine-color: var(--pds-border-control);
-  --proto-trail-divider-color: oklch(from var(--pds-text-primary) l c h / 0.14);
 }
 
 /* Line center = 10px (20px track ÷ 2) */
@@ -8226,25 +8451,6 @@ button.proto-appearance-hero__card {
   }
 }
 
-/* Top drop slot — zero layout height; hit target overlays list top padding. */
-.proto-sidebar-root:has(.proto-sidebar-thread-trail)
-  .proto-sidebar-thread-trail
-  > .proto-thread-trail__reorder-divider-item:first-child {
-  height: 0;
-  padding: 0;
-  margin: 0;
-  overflow: visible;
-}
-
-.proto-sidebar-root:has(.proto-sidebar-thread-trail)
-  .proto-sidebar-thread-trail
-  > .proto-thread-trail__reorder-divider-item:first-child
-  .proto-thread-trail__reorder-divider {
-  height: 8px;
-  min-height: 0;
-  margin-top: -8px;
-}
-
 .proto-inspector-section--thread-trail {
   flex: 1;
   display: flex;
@@ -8274,90 +8480,11 @@ button.proto-appearance-hero__card {
   padding: 2px 0 6px;
 }
 
-.proto-thread-trail__spine--dragging .proto-thread-trail__step,
-.proto-thread-trail__spine--dragging .proto-thread-trail__reorder-divider {
+/* dnd-kit drives its own transform transition while a row is lifted; the row's
+   own background transition fighting it is what made drops look like they
+   settled twice. */
+.proto-thread-trail__spine--dragging .proto-thread-trail__step {
   transition: none;
-}
-
-/* Horizontal reorder divider between trail notes — study-dock line weight (2px), 14px hit height;
-   visible handle ~half row width, centered; outer row stays full width for drop targets. */
-.proto-thread-trail__reorder-divider {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 14px;
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-.proto-thread-trail__reorder-divider-item {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.proto-thread-trail__reorder-divider__handle {
-  flex: 0 0 50%;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  width: 50%;
-  max-width: 50%;
-  height: 14px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  cursor: grab;
-  touch-action: none;
-  pointer-events: auto;
-  box-sizing: border-box;
-}
-
-.proto-thread-trail__reorder-divider__handle::before {
-  content: '';
-  display: block;
-  height: 2px;
-  width: 100%;
-  min-width: 0;
-  flex: 1 1 auto;
-  flex-shrink: 0;
-  background: var(--proto-trail-divider-color, oklch(from var(--pds-text-primary) l c h / 0.14));
-  border-radius: 1px;
-}
-
-.proto-thread-trail__reorder-divider__handle:hover {
-  background: color-mix(in srgb, var(--pds-text-primary, #000) 5%, transparent);
-}
-
-.proto-thread-trail__reorder-divider__handle:active,
-.proto-thread-trail__reorder-divider--dragging .proto-thread-trail__reorder-divider__handle {
-  cursor: grabbing;
-}
-
-.proto-thread-trail__reorder-divider--dragging .proto-thread-trail__reorder-divider__handle::before {
-  opacity: 0;
-}
-
-.proto-thread-trail__reorder-divider--dragging .proto-thread-trail__reorder-divider__handle {
-  background: transparent;
-}
-
-.proto-thread-trail__reorder-divider--drop-only .proto-thread-trail__reorder-divider__handle {
-  cursor: default;
-}
-
-.proto-thread-trail__reorder-divider--drop-only .proto-thread-trail__reorder-divider__handle::before {
-  opacity: 0;
-}
-
-.proto-thread-trail__spine--dragging .proto-thread-trail__reorder-divider__handle:focus,
-.proto-thread-trail__spine--dragging .proto-thread-trail__reorder-divider__handle:focus-visible {
-  outline: none;
 }
 
 .proto-thread-trail__spine--dragging {
@@ -8383,7 +8510,6 @@ button.proto-appearance-hero__card {
 
 :root[data-color-scheme='dark'] .proto-thread-trail__spine {
   --proto-trail-spine-color: oklch(from var(--pds-text-primary) l c h / 0.26);
-  --proto-trail-divider-color: oklch(from var(--pds-text-primary) l c h / 0.42);
 }
 
 
@@ -8393,16 +8519,9 @@ button.proto-appearance-hero__card {
 
 :root[data-color-scheme='dark'] .proto-thread-trail__spine .proto-select-orb-idle {
   border-color: oklch(from var(--pds-text-primary) l c h / 0.34);
-}
-
-:root[data-color-scheme='dark'] .proto-thread-trail__reorder-divider__handle:hover {
-  background: color-mix(in srgb, var(--pds-text-primary) 10%, transparent);
-}
-
-@media (prefers-color-scheme: dark) {
+}@media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme='light']) .proto-thread-trail__spine {
     --proto-trail-spine-color: oklch(from var(--pds-text-primary) l c h / 0.26);
-    --proto-trail-divider-color: oklch(from var(--pds-text-primary) l c h / 0.42);
   }
 
 
@@ -8412,12 +8531,7 @@ button.proto-appearance-hero__card {
 
   :root:not([data-color-scheme='light']) .proto-thread-trail__spine .proto-select-orb-idle {
     border-color: oklch(from var(--pds-text-primary) l c h / 0.34);
-  }
-
-  :root:not([data-color-scheme='light']) .proto-thread-trail__reorder-divider__handle:hover {
-    background: color-mix(in srgb, var(--pds-text-primary) 10%, transparent);
-  }
-}
+  }}
 
 .proto-thread-trail__step-body {
   flex: 1;
@@ -8518,6 +8632,154 @@ button.proto-appearance-hero__card {
   border-top: 0.5px solid var(--pds-border-control);
 }
 
+/* ── Thread trail inside the tool-group card ─────────────────────────────────
+ *
+ * The same trail, wearing the grouped-row chrome the rest of the app settled on
+ * (`proto-church-tools`). Two things have to be reconciled.
+ *
+ * The rows take the card's 13px inset, so the spine moves with them or it stops
+ * running through the orb centres: 13px of padding plus a 20px orb track puts
+ * the centre at 23px.
+ *
+ * The bigger one: the orb used to punch its own hole in a continuous line by
+ * painting `--proto-trail-dot-surface` over it. That works on an opaque page and
+ * cannot work here — the card is glass, and an opaque dot on a translucent
+ * surface is a visible disc, not a gap. So the line stops being continuous.
+ * Each step draws the segment *below* its own orb and the last step draws none,
+ * which means nothing is masked and nothing has to match a background it has no
+ * way to know.
+ */
+.proto-thread-trail__card {
+  /* proto-church-tools supplies the radius and the clip; this is only the seam
+     against whatever sits above it in the panel. */
+  margin-top: 2px;
+}
+
+/*
+ * A step stronger than the hairline. On the page the spine and the row
+ * separators never met; in the card they do, and at the same
+ * `--pds-border-control` the trail became one more divider running the wrong
+ * way. This is the weight that reads as a thread.
+ */
+.proto-thread-trail--carded .proto-thread-trail__spine {
+  gap: 0;
+  --proto-trail-spine-color: var(--pds-border-control-strong, var(--pds-border));
+}
+
+/* The continuous rule the per-step segments replace. */
+.proto-thread-trail--carded .proto-thread-trail__spine::before {
+  content: none;
+}
+
+.proto-thread-trail--carded .proto-thread-trail__step {
+  padding: 11px 13px;
+  border-top: 0.5px solid var(--pds-border-control);
+  transition: background 0.1s ease;
+}
+
+.proto-thread-trail--carded .proto-thread-trail__step:first-child {
+  border-top: none;
+}
+
+/* Orb top = 11px padding + the 1px nudge below; orb bottom = that + 20px. The
+   segment runs from there to the next step's orb top, 12px past this row's
+   bottom edge. */
+.proto-thread-trail--carded .proto-thread-trail__step::before {
+  content: '';
+  position: absolute;
+  left: 22px;
+  top: 32px;
+  bottom: -12px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--proto-trail-spine-color);
+  pointer-events: none;
+}
+
+.proto-thread-trail--carded .proto-thread-trail__step:last-child::before {
+  content: none;
+}
+
+/* Aligns the orb with the title's cap height rather than the old 8px drop,
+   which assumed a row with its own padding above the text. */
+.proto-thread-trail--carded .proto-thread-trail__orb {
+  margin-top: 1px;
+}
+
+/*
+ * The band is the target now, so the inner pill stops being one. Two nested
+ * hover surfaces on one row read as a control inside a row rather than a row.
+ */
+.proto-thread-trail--carded .proto-thread-trail__step-body,
+.proto-thread-trail--carded .proto-thread-trail__step-body:hover {
+  border-radius: 0;
+  background: transparent;
+}
+
+.proto-thread-trail--carded .proto-thread-trail__step-main {
+  padding: 0;
+  border-radius: 0;
+}
+
+/*
+ * Hover only. The current note is said once, by the filled check orb in the
+ * spine — a permanent band under it as well read as "this row is selected",
+ * which is a different claim, and left the row you were hovering competing with
+ * the row you were on.
+ */
+.proto-thread-trail--carded .proto-thread-trail__step:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+/*
+ * No ring around the row itself.
+ *
+ * A `:focus-within` outline on the band meant that reaching the grip — by
+ * mouse or by keyboard — drew a hard accent rectangle around the whole row,
+ * which no other list in the app does. The row is not the thing that has focus;
+ * the grip is, and it says so on its own below.
+ */
+
+/* The card clips, so a dragged row lifting out of it would be cut off. */
+.proto-thread-trail--carded .proto-thread-trail__step--dragging {
+  opacity: 0.35;
+}
+
+/*
+ * The sidebar drilldown's own trail rules predate the card and are written
+ * against `.proto-sidebar-root:has(…)`, which outranks every `--carded` rule
+ * above by two classes. They have to be answered at their own specificity
+ * rather than lowered: the list's padding is the card's job now, and the
+ * `> li { padding: 0 }` in the desktop block would otherwise flatten every row
+ * back to a bare line of text inside a card built for banded rows.
+ */
+/*
+ * `.proto-sidebar-thread-trail` carries the sidebar's own gutter — `margin: 0
+ * 8px` AND `width: calc(100% - 16px)`, which is the pair that has to be undone
+ * together. Zeroing only the margin left the width in place, so the list simply
+ * sat 16px narrow inside the card and the hover band stopped short of both
+ * edges. The gutter is the card's job now; the list fills it.
+ */
+.proto-sidebar-root:has(.proto-sidebar-thread-trail) .proto-thread-trail--carded .proto-sidebar-thread-trail {
+  padding: 0;
+  margin-inline: 0;
+  width: 100%;
+}
+
+@media (min-width: 601px) {
+  .proto-sidebar-root:has(.proto-sidebar-thread-trail)
+    .proto-thread-trail--carded
+    .proto-sidebar-thread-trail
+    > li {
+    padding: 11px 13px;
+  }
+}
+
+/* Sits in the scrolling list, so it needs the gutter the rows used to have. */
+.proto-sidebar-thread-trail-card {
+  margin: 8px 12px 16px;
+}
+
 .proto-thread-trail__also-list {
   display: flex;
   flex-direction: column;
@@ -8591,38 +8853,55 @@ button.proto-appearance-hero__card {
   z-index: 80;
 }
 
-/* Trail ⋮: click opens menu; hold-drag reorders (same affordance as space switcher grip). */
-.proto-note-row__menu--reorder .proto-note-row__menu-trigger {
+/*
+ * The reorder grip — revealed on hover, the same bargain the space switcher's
+ * strikes (`.proto-space-switcher__drag-handle`).
+ *
+ * It is the only control on a trail row now: the ⋮ menu is gone, so the grip is
+ * not competing with a second glyph for the same corner. `bars` at 12px, to
+ * match the switcher exactly.
+ */
+.proto-thread-trail__drag-handle {
+  flex: 0 0 auto;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
   cursor: grab;
-  background: transparent !important;
-  box-shadow: none !important;
-  transform: translateX(1px);
+  opacity: 0;
+  transition: opacity var(--pds-duration-press) ease;
 }
 
-.proto-note-row__menu--reorder .proto-note-row__menu-trigger:hover:not(:disabled),
-.proto-note-row__menu--reorder .proto-note-row__menu-trigger:focus-visible,
-.proto-thread-trail__step-body:hover .proto-note-row__menu--reorder .proto-note-row__menu-trigger {
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--pds-text-secondary);
+.proto-thread-trail__step:hover .proto-thread-trail__drag-handle,
+.proto-thread-trail__step:focus-within .proto-thread-trail__drag-handle {
+  opacity: 0.75;
 }
 
-.proto-note-row__menu--reorder .proto-note-row__menu-trigger:active {
+/*
+ * Touch has no hover, so a reveal-on-hover grip is one nobody there ever sees.
+ * Held visible instead — the gesture works on touch (200ms hold on the row),
+ * and this is what says so.
+ */
+@media (pointer: coarse) {
+  .proto-thread-trail__drag-handle {
+    opacity: 0.45;
+  }
+}
+
+/* The soft accent ring the rest of the app uses, on the grip alone — not the
+   hard rectangle, and not around the row. */
+.proto-thread-trail__drag-handle:focus-visible {
+  opacity: 1;
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--pds-accent-focus-ring) 34%, transparent);
+}
+
+.proto-thread-trail__drag-handle:active {
   cursor: grabbing;
-  background: transparent !important;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .proto-thread-trail__step .proto-note-row__menu--reorder .proto-note-row__menu-trigger {
-    opacity: 0.55;
-    pointer-events: auto;
-  }
-
-  .proto-thread-trail__step:hover .proto-note-row__menu--reorder .proto-note-row__menu-trigger,
-  .proto-thread-trail__step:focus-within .proto-note-row__menu--reorder .proto-note-row__menu-trigger,
-  .proto-thread-trail__step:has(.proto-note-row__menu--open) .proto-note-row__menu--reorder .proto-note-row__menu-trigger {
-    opacity: 1;
-  }
 }
 
 /* Connect action */
@@ -11068,6 +11347,25 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   border-top: none;
 }
 
+/*
+ * The card had no hover and no focus ring at all — it grew up as a short list of
+ * staff destinations, where the marquee starting to scroll was signal enough
+ * that a row was live. That stopped being true the moment threads adopted it:
+ * a trail is the primary way you move between notes, and a list you navigate by
+ * keyboard has to say where you are.
+ *
+ * `--status` rows are labels rather than destinations, so they are excluded
+ * along with the disabled ones.
+ */
+.proto-church-tools__row:not(:disabled):not(.proto-church-tools__row--status):hover {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-church-tools__row:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: -2px;
+}
+
 /* ─── Team invite row ───────────────────────────────────────────────────────
    Field and action on one line. The `proto-church-staff__*` classes this
    replaces had no CSS at all, so the form rendered as stacked full-width
@@ -12568,6 +12866,270 @@ p.proto-teaching-plan__divider {
   color: var(--pds-text-tertiary);
 }
 
+/* ── "When does it meet?" — the room's rhythm, asked at creation ───────────
+   Seven chips rather than a select: the whole week fits, and picking a day is
+   one tap instead of open-scroll-choose. Optional throughout — no day means no
+   rhythm, which is what every space had before this field existed. */
+/* One row: seven chips and the time sit together, because they are one answer
+   ("Wednesdays at 6:30") rather than two questions. `wrap` keeps the label and
+   the note on their own lines and lets the time drop below the chips only if
+   the panel is genuinely too narrow for both. */
+.proto-create-shared-space__rhythm {
+  /* One height for every control in this group, matched to the settings text
+     input (8px padding + 14px text + hairline = 38px). */
+  --proto-meeting-control-h: 38px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 6px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.proto-create-shared-space__rhythm-label {
+  flex: 1 1 100%;
+  text-align: center;
+  color: var(--pds-text-tertiary);
+}
+
+/* Settings puts every other field as a label over a left-aligned control; a
+   centred block was the one thing floating in the middle of the column. */
+.proto-create-shared-space__rhythm--start {
+  justify-content: flex-start;
+  gap: 8px 6px;
+}
+
+.proto-create-shared-space__rhythm--start .proto-create-shared-space__place {
+  justify-content: flex-start;
+}
+
+.proto-create-shared-space__rhythm-days {
+  display: flex;
+  flex: 0 1 auto;
+  gap: 3px;
+}
+
+/*
+ * Sized against the settings text input beside them — 38px tall, 14px text,
+ * `--pds-border-control`. They were 24px chips with 11px labels, which read as
+ * a toolbar dropped into a column of full-size fields; a control that takes an
+ * answer should be the size of the other controls that take answers.
+ */
+.proto-create-shared-space__rhythm-day {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--proto-meeting-control-h);
+  height: var(--proto-meeting-control-h);
+  padding: 0;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 50%;
+  background: var(--pds-bg-card, var(--pds-bg-subtle));
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--pds-duration-press) ease,
+    color var(--pds-duration-press) ease;
+}
+
+.proto-create-shared-space__rhythm-day:hover {
+  background: var(--pds-bg-control-hover);
+}
+
+.proto-create-shared-space__rhythm-day--selected {
+  border-color: transparent;
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
+  color: var(--pds-on-accent);
+}
+
+/* Same override the create button needs — the prototype route pins every
+   proto button's colour with !important. */
+html.harvous-prototype-route
+  button[class*='proto-'].proto-create-shared-space__rhythm-day--selected {
+  color: var(--pds-on-accent) !important;
+}
+
+/*
+ * These chips live in a sheet outside `.proto-theme`, so the app's blanket
+ * `button:focus-visible { outline: none }` never reached them and the browser's
+ * own ring drew through — loudest on the accent-filled selected chip, where it
+ * read as a gold band around a blue pill. Same soft accent ring the themed
+ * checkboxes and radios use, so a keyboard user still sees where they are.
+ */
+.proto-create-shared-space__rhythm-day:focus-visible,
+.proto-create-shared-space__place-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--pds-accent-focus-ring) 34%, transparent);
+}
+
+/* The selected chip's own lift is a box-shadow too, and a bare focus ring would
+   replace it — so the focused-and-selected state carries both. */
+.proto-create-shared-space__rhythm-day--selected:focus-visible,
+.proto-create-shared-space__place-chip--selected:focus-visible {
+  box-shadow:
+    var(--pds-shadow-accent-button),
+    0 0 0 3px color-mix(in oklab, var(--pds-accent-focus-ring) 34%, transparent);
+}
+
+/* Only appears once a day is chosen, so it never asks for an hour on a rhythm
+   that does not exist. */
+/* ── Where it meets ────────────────────────────────────────────────────────
+   Its own row under the day chips: where is a different question from when,
+   and a room can answer either without the other. Word chips rather than a
+   select — three options fit, and a select would hide two of them. */
+.proto-create-shared-space__place {
+  display: flex;
+  flex: 1 1 100%;
+  justify-content: center;
+  gap: 4px;
+}
+
+.proto-create-shared-space__place-chip {
+  appearance: none;
+  min-height: var(--proto-meeting-control-h);
+  padding: 0 14px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-button);
+  background: var(--pds-bg-card, var(--pds-bg-subtle));
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--pds-duration-press) ease,
+    color var(--pds-duration-press) ease;
+}
+
+.proto-create-shared-space__place-chip:hover {
+  background: var(--pds-bg-control-hover);
+}
+
+.proto-create-shared-space__place-chip--selected {
+  border-color: transparent;
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
+  color: var(--pds-on-accent);
+}
+
+html.harvous-prototype-route
+  button[class*='proto-'].proto-create-shared-space__place-chip--selected {
+  color: var(--pds-on-accent) !important;
+}
+
+/*
+ * Only rendered for a kind that can carry a link, so it never asks an in-person
+ * room for a URL it would be refused for storing.
+ *
+ * The glyph sits inside the field, mirroring the native time control's clock —
+ * at the leading edge, because it labels what the field is for rather than
+ * opening anything. Positioned rather than laid out, so the input keeps the
+ * full width of the row.
+ */
+.proto-create-shared-space__place-link {
+  position: relative;
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+}
+
+.proto-create-shared-space__place-link > span:first-child {
+  position: absolute;
+  left: 11px;
+  display: inline-flex;
+  align-items: center;
+  pointer-events: none;
+  color: var(--pds-text-tertiary);
+}
+
+.proto-create-shared-space__place-url {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The settings panel styles every `input[type='time']` inside a field to full
+   width, at a higher specificity than the rule above. Here the time sits beside
+   the day chips rather than under a label of its own. */
+.proto-shared-space-settings__field input[type='time'].proto-create-shared-space__rhythm-time {
+  width: auto;
+  max-width: 138px;
+}
+
+/* The one place a member sees the room's link. Deliberately absent from the
+   public join page — see SharedSpaceAboutLetter. */
+.proto-shared-space-about__meeting-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 6px auto 0;
+  padding: 5px 12px;
+  border-radius: var(--pds-radius-button);
+  background: var(--pds-bg-chip);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+  text-decoration: none;
+  transition: background var(--pds-duration-press) ease;
+}
+
+.proto-shared-space-about__meeting-link:hover {
+  background: var(--pds-bg-control-hover);
+}
+
+/* Under the title in the About card — what the room is, in its own words. */
+.proto-shared-space-about__rhythm {
+  margin: -4px 0 0;
+  text-align: center;
+  color: var(--pds-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The time and the link are the same control as the settings text input, so
+ * they are stated in the same terms rather than inheriting the resource-panel
+ * sizing they were borrowing. Wide enough for "06:30 PM" plus the native picker
+ * glyph — at 106px Chrome clipped the meridiem, which is the half of the value
+ * that matters.
+ */
+.proto-create-shared-space__rhythm-time,
+.proto-create-shared-space__place-url {
+  box-sizing: border-box;
+  min-height: var(--proto-meeting-control-h);
+  padding: 8px 10px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 10px;
+  background: var(--pds-bg-card, var(--pds-bg-subtle));
+  font-size: 14px;
+  color: var(--pds-text-primary);
+}
+
+/* An explicit height, not a minimum: the native time control's picker glyph
+   gives it ~40px of intrinsic content, so `min-height` left it two pixels
+   taller than everything beside it. */
+.proto-create-shared-space__rhythm-time {
+  flex: 0 1 auto;
+  width: auto;
+  height: var(--proto-meeting-control-h);
+  max-width: 138px;
+  padding-block: 0;
+  text-align: center;
+}
+
+/* After the shared `padding` shorthand above, or it is overwritten by it.
+   Clears the glyph sitting inside the field's leading edge. */
+.proto-create-shared-space__place-url {
+  padding-left: 30px;
+}
+
 .proto-create-shared-space__actions {
   display: flex;
   gap: 8px;
@@ -13038,24 +13600,8 @@ p.proto-teaching-plan__divider {
   background: transparent;
 }
 
-/* Trail ghost: step-body only (no spine orb), with roomy card chrome. */
-.proto-thread-trail__drag-preview {
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
-  padding: 10px 12px 10px 14px;
-  background: var(--pds-bg-popover-solid, var(--pds-bg-page)) !important;
-}
-
-.proto-thread-trail__drag-preview .proto-thread-trail__step-main {
-  padding: 2px 4px 2px 2px;
-}
-
-.proto-thread-trail__drag-preview .proto-note-row__menu-trigger {
-  opacity: 0.55 !important;
-  pointer-events: none !important;
-  transform: none;
-}
+/* The HTML5 trail ghost is gone with the drag implementation that needed one —
+   dnd-kit transforms the row itself, so there is nothing to paint a copy of. */
 
 .proto-thread-trail__step--dragging {
   opacity: 0.35;

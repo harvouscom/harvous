@@ -16,10 +16,7 @@ import { api } from '../../lib/api';
 import type { SpaceGroupStudyThread } from '../../hooks/queries/useSpaceGroupThreads';
 import { useSpaceNotes } from '../../hooks/queries/useSpace';
 import { useUpdateSharedThread } from '../../hooks/mutations/useUpdateSharedThread';
-import {
-  reorderSequenceStep,
-  useUpdateThreadSequence,
-} from '../../hooks/mutations/useUpdateThreadSequence';
+import { useUpdateThreadSequence } from '../../hooks/mutations/useUpdateThreadSequence';
 import { validSharedThreadColor } from '../../hooks/mutations/useCreateSharedThread';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
@@ -27,6 +24,12 @@ import { noteParamSlug } from './proto-route-slugs';
 import { protoRelativeCaption } from './proto-time';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import ProtoThreadTrailOrb from './ProtoThreadTrailOrb';
+import {
+  ProtoThreadTrailSortableList,
+  ProtoThreadTrailSortableRow,
+} from './ProtoThreadTrailSortable';
+import { arrayMove } from '@dnd-kit/sortable';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
@@ -172,6 +175,57 @@ export default function PrototypeSharedThreadDrilldown({
     } catch (error: any) {
       setSequenceError(error?.message || 'Could not update the study plan.');
     }
+  }
+
+  /*
+    Reordering is not the same act as making a study plan.
+
+    `orderedNoteIds` was already accepted on its own by the sequence endpoint —
+    it writes the order and leaves `mode` alone — and the reads now apply a
+    stored order whatever the mode is. So a collection Thread can be arranged
+    without acquiring step numbers, a current step and a read-together pulse it
+    never asked for. Who may arrange it is unchanged: this order is shared with
+    the room, unlike the per-viewer one on a connected-notes trail.
+  */
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const displayNotes = useMemo(() => {
+    if (!dragOrder) return notes;
+    const byId = new Map(notes.map((note) => [note.id, note]));
+    const placed = new Set<string>();
+    const out: typeof notes = [];
+    for (const id of dragOrder) {
+      const note = byId.get(id);
+      if (note) {
+        out.push(note);
+        placed.add(id);
+      }
+    }
+    // A note that arrived while the drag was in flight keeps its own place.
+    for (const note of notes) if (!placed.has(note.id)) out.push(note);
+    return out;
+  }, [notes, dragOrder]);
+
+  useEffect(() => {
+    if (!dragOrder) return;
+    const server = notes.map((note) => note.id);
+    // The server caught up — stop holding the optimistic list over it.
+    if (server.length === dragOrder.length && server.every((id, i) => id === dragOrder[i])) {
+      setDragOrder(null);
+    }
+  }, [notes, dragOrder]);
+
+  function handleReorder(activeId: string, overId: string | null) {
+    setDraggingId(null);
+    if (!overId || overId === activeId) return;
+    const current = displayNotes.map((note) => note.id);
+    const from = current.indexOf(activeId);
+    const to = current.indexOf(overId);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = arrayMove(current, from, to);
+    setDragOrder(next);
+    void applySequence({ orderedNoteIds: next });
   }
   const candidateNotes = useMemo(
     () => candidateNotesQuery.data?.pages.flatMap((page) => page.notes) ?? [],
@@ -485,8 +539,24 @@ export default function PrototypeSharedThreadDrilldown({
         ) : null}
         {state === 'ready' ? (
           <>
-            <ul className="proto-shared-thread-note-list" aria-label={`Notes in ${thread.title}`}>
-              {notes.map((note, index) => {
+            {/* Same grouped-row card and spine the connected-notes trail wears.
+                A Thread should not look like a different feature because it was
+                opened inside a space. */}
+            <div className="proto-thread-trail proto-thread-trail--carded proto-shared-thread-trail-card">
+            <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-thread-trail__card">
+            <ul
+              className={`proto-shared-thread-note-list proto-thread-trail__spine${
+                draggingId ? ' proto-thread-trail__spine--dragging' : ''
+              }`}
+              aria-label={`Notes in ${thread.title}`}
+            >
+              <ProtoThreadTrailSortableList
+                items={displayNotes.map((note) => note.id)}
+                onDragStart={setDraggingId}
+                onDragEnd={handleReorder}
+                onDragCancel={() => setDraggingId(null)}
+              >
+              {displayNotes.map((note) => {
                 const preview = notePreview(note);
                 const date = protoRelativeCaption(note.lastUpdated);
                 /*
@@ -504,21 +574,36 @@ export default function PrototypeSharedThreadDrilldown({
                 const isCurrentStep = isSequence && step.isCurrent;
                 const isAhead = isSequence && step.isAhead;
                 return (
+                  <ProtoThreadTrailSortableRow key={note.id} id={note.id}>
+                  {(sortable) => (
                   <li
-                    key={note.id}
-                    className={`proto-note-row-item proto-shared-thread-note-row${
+                    ref={canManageSequence ? sortable.setNodeRef : undefined}
+                    className={`proto-thread-trail__step proto-shared-thread-note-row${
                       isSequence ? ' proto-shared-thread-step' : ''
                     }${isCurrentStep ? ' proto-shared-thread-step--current' : ''}${
                       isAhead ? ' proto-shared-thread-step--ahead' : ''
-                    }`}
+                    }${draggingId === note.id ? ' proto-thread-trail__step--dragging' : ''}`}
+                    style={canManageSequence ? sortable.style : undefined}
+                    {...(canManageSequence ? sortable.listeners ?? {} : {})}
                   >
-                    <button type="button" className="proto-note-row__main" onClick={() => openNote(note.id)}>
+                    {/* The badge takes the orb's slot rather than sitting beside
+                        the title: both are "what position is this in the trail",
+                        and two answers in two places is one too many. A
+                        collection Thread has no step number, so it gets the orb. */}
+                    {isSequence ? (
+                      <span className="proto-thread-trail__orb" aria-hidden>
+                        <span className="proto-shared-thread-step__badge">{stepNumber}</span>
+                      </span>
+                    ) : (
+                      <ProtoThreadTrailOrb />
+                    )}
+                    <div className="proto-thread-trail__step-body">
+                    <button
+                      type="button"
+                      className="proto-thread-trail__step-main"
+                      onClick={() => openNote(note.id)}
+                    >
                       <div className="proto-note-row__title-line">
-                        {isSequence ? (
-                          <span className="proto-shared-thread-step__badge" aria-hidden>
-                            {stepNumber}
-                          </span>
-                        ) : null}
                         <span className="pds-list-title proto-note-row__title-text">
                           {isSequence ? (
                             <span className="proto-visually-hidden">{`Step ${stepNumber}${
@@ -544,51 +629,47 @@ export default function PrototypeSharedThreadDrilldown({
                         ) : null}
                       </div>
                     </button>
-                    {isSequence && canManageSequence ? (
+                    {/* The up/down carets are gone: two clicks per position on a
+                        list you can now simply drag, and they were the only
+                        reorder anywhere in the app that was not a drag. The pin
+                        stays — moving the group's current step is a different
+                        act from arranging the plan. */}
+                    {canManageSequence ? (
+                      <span
+                        ref={sortable.setActivatorNodeRef}
+                        className="proto-thread-trail__drag-handle"
+                        aria-label={`Reorder ${noteTitle(note)}`}
+                        title="Drag to reorder"
+                        {...sortable.attributes}
+                      >
+                        <Icon name="bars" size={12} />
+                      </span>
+                    ) : null}
+                    {isSequence && canManageSequence && !isCurrentStep ? (
                       <div className="proto-shared-thread-step__controls">
                         <button
                           type="button"
                           className="proto-toolbar-icon-btn"
-                          aria-label={`Move ${noteTitle(note)} earlier`}
-                          disabled={index === 0 || updateSequence.isPending}
-                          onClick={() =>
-                            void applySequence({
-                              orderedNoteIds: reorderSequenceStep(orderedNoteIds, note.id, 'up'),
-                            })
-                          }
+                          aria-label={`Make ${noteTitle(note)} the current step`}
+                          disabled={updateSequence.isPending}
+                          /* The row carries the drag listeners. */
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => void applySequence({ currentNoteId: note.id })}
                         >
-                          <Icon name="caret-up" size={11} />
+                          <Icon name="thumbtack" size={11} />
                         </button>
-                        <button
-                          type="button"
-                          className="proto-toolbar-icon-btn"
-                          aria-label={`Move ${noteTitle(note)} later`}
-                          disabled={index === notes.length - 1 || updateSequence.isPending}
-                          onClick={() =>
-                            void applySequence({
-                              orderedNoteIds: reorderSequenceStep(orderedNoteIds, note.id, 'down'),
-                            })
-                          }
-                        >
-                          <Icon name="caret-down" size={11} />
-                        </button>
-                        {!isCurrentStep ? (
-                          <button
-                            type="button"
-                            className="proto-toolbar-icon-btn"
-                            aria-label={`Make ${noteTitle(note)} the current step`}
-                            disabled={updateSequence.isPending}
-                            onClick={() => void applySequence({ currentNoteId: note.id })}
-                          >
-                            <Icon name="thumbtack" size={11} />
-                          </button>
-                        ) : null}
                       </div>
                     ) : null}
+                    </div>
                   </li>
+                  )}
+                  </ProtoThreadTrailSortableRow>
                 );
               })}
+              </ProtoThreadTrailSortableList>
             </ul>
+            </div>
+            </div>
             {notesQuery.isFetchNextPageError ? (
               <p className="proto-connect-note-sheet__error" role="alert">
                 Could not load more notes. Try again.

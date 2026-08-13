@@ -210,10 +210,16 @@
   margin: 0;
 }
 
+/* Padding belongs to the card's rows now; the list is only the spine. */
 .proto-shared-thread-note-list {
   margin: 0;
-  padding: 8px;
+  padding: 0;
   list-style: none;
+}
+
+/* The gutter the list's own 8px used to give it, moved out to the card. */
+.proto-shared-thread-trail-card {
+  margin: 8px;
 }
 
 .proto-shared-thread-note-row__meta {
@@ -234,24 +240,18 @@
   Dimming stops at the row's own opacity — the row stays clickable, because a
   member who wants to read ahead was always able to.
 */
-.proto-shared-thread-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-}
-
-.proto-shared-thread-step .proto-note-row__main {
-  flex: 1;
-  min-width: 0;
-}
-
+/*
+  The step number sits in the trail's orb slot rather than beside the title —
+  the orb and the badge answer the same question ("where in the trail is this"),
+  and the row only has room for one answer. Layout comes from
+  `.proto-thread-trail__step`; what is left here is the badge itself and the
+  pacing.
+*/
 .proto-shared-thread-step__badge {
-  flex: none;
   display: inline-grid;
   place-items: center;
   width: 18px;
   height: 18px;
-  margin-right: 7px;
   border-radius: 50%;
   background: var(--pds-bg-surface-raised, rgb(0 0 0 / 6%));
   color: var(--pds-text-tertiary);
@@ -265,7 +265,7 @@
   color: var(--pds-text-on-accent, #fff);
 }
 
-.proto-shared-thread-step--ahead .proto-note-row__main {
+.proto-shared-thread-step--ahead .proto-thread-trail__step-main {
   opacity: 0.55;
 }
 

@@ -41,6 +41,11 @@ import {
 } from './shared-space-thread-list';
 import PrototypeCreateSharedThreadSheet from './PrototypeCreateSharedThreadSheet';
 import PrototypeSharedThreadDrilldown from './PrototypeSharedThreadDrilldown';
+import {
+  ProtoThreadTrailSortableList,
+  ProtoThreadTrailSortableRow,
+  type ThreadTrailSortable,
+} from './ProtoThreadTrailSortable';
 import { sharedThreadNoteCountPreview } from './shared-space-dashboard';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
 import { sortDrillNoteBriefsByLastUpdated, sortNotesByLastUpdated } from '@/utils/sorting';
@@ -215,23 +220,15 @@ type PrototypeSidebarNoteRowProps = {
   folderRemoval?: { folderName: string };
   /** Vertical trail dots + spine (thread drilldown). */
   trailLayout?: boolean;
-  /** Thread-trail reorder: mark the source step while its ghost follows the cursor. */
+  /** Thread-trail reorder: dim the source step while it is lifted. */
   isDragging?: boolean;
   /**
-   * Thread-trail row reorder (⋮ hold-to-drag). Click still opens the note menu when present.
+   * Thread-trail row reorder. Present only in `trailLayout`, and only when the
+   * list has something to reorder — supplies dnd-kit's bindings. The row gets
+   * the listeners (touch has no hover, so the gesture starts from the row); the
+   * grip gets the activator ref and the aria attributes.
    */
-  trailReorder?: {
-    noteId: string;
-    reorderIndex: number;
-    onDragStart: (
-      event: React.DragEvent<HTMLElement>,
-      noteId: string,
-      previewSource?: HTMLElement | null,
-    ) => void;
-    onDragEnd: (event: React.DragEvent<HTMLElement>) => void;
-    onDragOver: (event: React.DragEvent<HTMLElement>, insertBeforeIndex: number) => void;
-    onDrop: (event: React.DragEvent<HTMLElement>) => void;
-  } | null;
+  trailSortable?: ThreadTrailSortable | null;
   /** Roster lookup for shared-space author avatars on list rows. */
   sharedSpaceMemberByUserId?: Map<string, SpaceMemberRow>;
   /** Actual shared-space owner, not leader/member moderation role. */
@@ -837,7 +834,7 @@ function PrototypeSidebarNoteRow({
   folderRemoval,
   trailLayout = false,
   isDragging = false,
-  trailReorder = null,
+  trailSortable = null,
   sharedSpaceMemberByUserId,
   viewerIsSpaceOwner = false,
   selectMode = false,
@@ -1031,7 +1028,8 @@ function PrototypeSidebarNoteRow({
           </span>
         ) : null}
         <span className="pds-list-title proto-note-row__title-text">{title}</span>
-        {trailLayout && active ? <span className="proto-side-panel__current-badge">Current</span> : null}
+        {/* No "Current" chip on a trail row — the filled check orb in the spine
+            already says which note you are on. */}
         {trailLayout && pinned ? (
           <span className="proto-note-row__pin" aria-hidden>
             <Icon name="thumbtack" size={12} />
@@ -1092,64 +1090,48 @@ function PrototypeSidebarNoteRow({
     </button>
   );
 
-  const canTrailReorder = Boolean(trailReorder);
-  const showMenuChrome = !rowHideMenu || canTrailReorder;
+  /*
+    The grip is its own control now.
+    It used to be the ⋮ menu trigger wearing a second job — `draggable`, an
+    aria-label that had to describe both, and a suppressed click so a finished
+    drag would not also open the menu. That was a consequence of HTML5 drag
+    needing a `draggable` element; dnd-kit does not, so the two separate.
+  */
+  const canTrailReorder = Boolean(trailSortable);
+  const showMenuChrome = !rowHideMenu;
+
+  const dragHandle = !trailSortable ? null : (
+    <span
+      ref={trailSortable.setActivatorNodeRef}
+      className="proto-thread-trail__drag-handle"
+      aria-label={`Reorder ${rowTitle}`}
+      title="Drag to reorder"
+      {...trailSortable.attributes}
+    >
+      <Icon name="bars" size={12} />
+    </span>
+  );
 
   const menuBlock = !showMenuChrome ? null : (
       <div
-        className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}${
-          canTrailReorder ? ' proto-note-row__menu--reorder' : ''
-        }`}
+        className={`proto-menu proto-note-row__menu${menuOpen ? ' proto-note-row__menu--open' : ''}`}
         ref={menuRootRef}
       >
         <button
           type="button"
           className="proto-note-row__menu-trigger"
-          aria-expanded={rowHideMenu ? undefined : menuOpen}
-          aria-haspopup={rowHideMenu ? undefined : 'menu'}
-          aria-label={
-            canTrailReorder
-              ? rowHideMenu
-                ? `Reorder ${rowTitle}`
-                : `Note actions, drag to reorder ${rowTitle}`
-              : 'Note actions'
-          }
-          title={canTrailReorder ? 'Drag to reorder' : undefined}
-          draggable={canTrailReorder}
-          disabled={
-            !canTrailReorder && (pinNote.isPending || deleteNote.isPending || containerActionPending)
-          }
-          onMouseDown={(e) => {
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          aria-label="Note actions"
+          disabled={pinNote.isPending || deleteNote.isPending || containerActionPending}
+          /* The row carries the drag listeners; without this a press that
+             started on the menu would lift the row instead of opening it. */
+          onPointerDown={(e) => {
             if (canTrailReorder) e.stopPropagation();
           }}
-          onDragStart={
-            canTrailReorder && trailReorder
-              ? (e) => {
-                  suppressMenuClickRef.current = true;
-                  setMenuOpen(false);
-                  const step = e.currentTarget.closest('.proto-thread-trail__step') as HTMLElement | null;
-                  trailReorder.onDragStart(e, trailReorder.noteId, step);
-                }
-              : undefined
-          }
-          onDragEnd={
-            canTrailReorder && trailReorder
-              ? (e) => {
-                  trailReorder.onDragEnd(e);
-                  window.setTimeout(() => {
-                    suppressMenuClickRef.current = false;
-                  }, 0);
-                }
-              : undefined
-          }
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (suppressMenuClickRef.current) {
-              suppressMenuClickRef.current = false;
-              return;
-            }
-            if (rowHideMenu) return;
             setMenuOpen((o) => !o);
           }}
         >
@@ -1252,36 +1234,29 @@ function PrototypeSidebarNoteRow({
     );
 
   if (trailLayout) {
-    const reorderIndex = trailReorder?.reorderIndex ?? 0;
-    const insertBeforeFromPointer = (e: React.DragEvent<HTMLElement>) => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      return e.clientY < rect.top + rect.height / 2 ? reorderIndex : reorderIndex + 1;
-    };
     return (
       <li
-        ref={rowRef}
+        ref={(node) => {
+          rowRef.current = node;
+          trailSortable?.setNodeRef(node);
+        }}
         className={`proto-thread-trail__step${active ? ' proto-thread-trail__step--focus' : ''}${
           isDragging ? ' proto-thread-trail__step--dragging' : ''
         }`}
         data-active={active ? 'true' : 'false'}
         role="listitem"
         aria-current={active ? 'true' : undefined}
-        onDragEnter={
-          trailReorder
-            ? (e) => trailReorder.onDragOver(e, insertBeforeFromPointer(e))
-            : undefined
-        }
-        onDragOver={
-          trailReorder
-            ? (e) => trailReorder.onDragOver(e, insertBeforeFromPointer(e))
-            : undefined
-        }
-        onDrop={trailReorder ? trailReorder.onDrop : undefined}
+        style={trailSortable?.style}
+        /* On the row, not the grip — see ProtoThreadTrailSortable. */
+        {...(trailSortable?.listeners ?? {})}
       >
         <ProtoThreadTrailOrb active={active} />
+        {/* No ⋮ here. A trail row's one job is to be moved and opened, and the
+            note's own actions are a tap away inside it — the menu was a second
+            glyph fighting the grip for the same corner. */}
         <div className="proto-thread-trail__step-body">
           {mainButton}
-          {menuBlock}
+          {dragHandle}
         </div>
         {deleteDialog}
       </li>
@@ -3916,7 +3891,10 @@ export default function PrototypeSidebar({
 
             {mode === 'threads' && sidebarThreadDrilldownId && !isSharedSpaceThreadDrillId(sidebarThreadDrilldownId) ? (
               <>
-                {threadDrillQuery.isLoading ? (
+                {/* Same disabled-query flash as the Thread lists — here it read
+                    as "No notes in this thread" on the way into a thread that
+                    has notes. */}
+                {threadDrillQuery.isPending ? (
                   <ProtoSpaceLoading label="Loading Thread" />
                 ) : threadDrillQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
@@ -3946,11 +3924,21 @@ export default function PrototypeSidebar({
                     </button>
                   </div>
                 ) : (
+                  /* Same grouped-row card the note-page trail wears, so a Thread
+                     reads the same whichever way it was opened. */
+                  <div className="proto-thread-trail proto-thread-trail--carded proto-sidebar-thread-trail-card">
+                  <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-thread-trail__card">
                   <ul
                     className={`proto-note-list proto-thread-trail__spine proto-thread-trail__spine--fill proto-sidebar-thread-trail${threadDrillDrag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
                     role="list"
                   >
-                    {threadDrillDisplayNodes.map((node, index) => {
+                    <ProtoThreadTrailSortableList
+                      items={threadDrillDrag.displayOrderedIds}
+                      onDragStart={threadDrillDrag.handleDragStart}
+                      onDragEnd={threadDrillDrag.handleDragEnd}
+                      onDragCancel={threadDrillDrag.handleDragCancel}
+                    >
+                    {threadDrillDisplayNodes.map((node) => {
                       const row = resolveDrillNoteRow({
                         id: node.id,
                         title: node.title || node.resourceTitle || null,
@@ -3958,8 +3946,9 @@ export default function PrototypeSidebar({
                         updatedAt: node.updatedAt,
                       });
                       return (
+                        <ProtoThreadTrailSortableRow key={node.id} id={node.id}>
+                          {(sortable) => (
                           <PrototypeSidebarNoteRow
-                            key={node.id}
                             row={row}
                             active={!!(activeNoteFullId && node.id === activeNoteFullId)}
                             homeSpaceId={homeSpaceId}
@@ -3970,26 +3959,20 @@ export default function PrototypeSidebar({
                             prefetchNote={prefetchNote}
                             trailLayout
                             isDragging={threadDrillDrag.draggingId === node.id}
-                            trailReorder={
-                              threadDrillDrag.showDragHandle
-                                ? {
-                                    noteId: node.id,
-                                    reorderIndex: index,
-                                    onDragStart: threadDrillDrag.handleDragStart,
-                                    onDragEnd: threadDrillDrag.handleDragEnd,
-                                    onDragOver: threadDrillDrag.handleDragOver,
-                                    onDrop: threadDrillDrag.handleDrop,
-                                  }
-                                : null
-                            }
+                            trailSortable={threadDrillDrag.showDragHandle ? sortable : null}
                             threadRemoval={{ memberIds: threadDrillMemberIds }}
                             onOpenNote={(r) => {
                               onNoteRow(r);
                             }}
                           />
+                          )}
+                        </ProtoThreadTrailSortableRow>
                       );
                     })}
+                    </ProtoThreadTrailSortableList>
                   </ul>
+                  </div>
+                  </div>
                 )}
               </>
             ) : null}
@@ -3997,7 +3980,8 @@ export default function PrototypeSidebar({
             {mode === 'threads' && !sidebarThreadDrilldownId ? (
               isScopedSharedSpace ? (
               <>
-                {groupThreadsQuery.isLoading ? (
+                {/* Same disabled-query flash as the personal list below. */}
+                {groupThreadsQuery.isPending ? (
                   <ProtoSpaceLoading label="Loading Threads" />
                 ) : groupThreadsQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>
@@ -4082,7 +4066,14 @@ export default function PrototypeSidebar({
               </>
               ) : (
               <>
-                {studyThreadsQuery.isLoading ? (
+                {/* `isPending`, not `isLoading`. A query that is still disabled
+                    — `enabled` flips on with `mode === 'threads'`, and again
+                    with `useAuthReady` — reports `isLoading: false` because it
+                    is not fetching yet, while its data is still undefined. The
+                    list read that as "loaded, and empty" and flashed "No
+                    Threads" for a frame before the dots appeared. `isPending`
+                    is true until there is data either way. */}
+                {studyThreadsQuery.isPending ? (
                   <ProtoSpaceLoading label="Loading Threads" />
                 ) : studyThreadsQuery.isError ? (
                   <p className="proto-caption" style={{ padding: '12px 18px', textAlign: 'center' }}>

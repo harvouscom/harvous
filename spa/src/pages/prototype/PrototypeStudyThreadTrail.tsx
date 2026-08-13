@@ -18,6 +18,11 @@ import {
   threadTrailRowUpdatedAt,
 } from './proto-thread-trail-row';
 import ProtoThreadTrailOrb from './ProtoThreadTrailOrb';
+import {
+  ProtoThreadTrailSortableList,
+  ProtoThreadTrailSortableRow,
+  type ThreadTrailSortable,
+} from './ProtoThreadTrailSortable';
 
 function findEdge(aId: string, bId: string, edges: StudyThreadEdge[]): StudyThreadEdge | undefined {
   return edges.find(
@@ -33,18 +38,8 @@ interface ThreadTrailStepProps {
   edges: StudyThreadEdge[];
   onOpen: (id: string) => void;
   isDragging?: boolean;
-  trailReorder?: {
-    noteId: string;
-    reorderIndex: number;
-    onDragStart: (
-      event: React.DragEvent<HTMLElement>,
-      noteId: string,
-      previewSource?: HTMLElement | null,
-    ) => void;
-    onDragEnd: (event: React.DragEvent<HTMLElement>) => void;
-    onDragOver: (event: React.DragEvent<HTMLElement>, insertBeforeIndex: number) => void;
-    onDrop: (event: React.DragEvent<HTMLElement>) => void;
-  } | null;
+  /** Present when this list is reorderable; supplies the dnd-kit bindings. */
+  sortable?: ThreadTrailSortable | null;
 }
 
 function ThreadTrailStep({
@@ -55,12 +50,11 @@ function ThreadTrailStep({
   edges,
   onOpen,
   isDragging,
-  trailReorder = null,
+  sortable = null,
 }: ThreadTrailStepProps) {
   const disconnectNote = useDisconnectNote();
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suppressClickRef = useRef(false);
 
   const edge = showDisconnect ? findEdge(focusNoteId, node.id, edges) : undefined;
   const title = threadTrailRowTitle(node);
@@ -80,24 +74,15 @@ function ThreadTrailStep({
     disconnectNote.mutate({ fromNoteId: edge.fromId, toNoteId: edge.toId });
   };
 
-  const reorderIndex = trailReorder?.reorderIndex ?? 0;
-  const insertBeforeFromPointer = (e: React.DragEvent<HTMLElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    return e.clientY < rect.top + rect.height / 2 ? reorderIndex : reorderIndex + 1;
-  };
-
   return (
     <div
+      ref={sortable?.setNodeRef}
       className={`proto-thread-trail__step${isFocus ? ' proto-thread-trail__step--focus' : ''}${isDragging ? ' proto-thread-trail__step--dragging' : ''}`}
       role="listitem"
       aria-current={isFocus ? 'location' : undefined}
-      onDragEnter={
-        trailReorder ? (e) => trailReorder.onDragOver(e, insertBeforeFromPointer(e)) : undefined
-      }
-      onDragOver={
-        trailReorder ? (e) => trailReorder.onDragOver(e, insertBeforeFromPointer(e)) : undefined
-      }
-      onDrop={trailReorder ? trailReorder.onDrop : undefined}
+      style={sortable?.style}
+      /* On the row, not the handle — see ProtoThreadTrailSortable. */
+      {...(sortable?.listeners ?? {})}
     >
       <ProtoThreadTrailOrb active={isFocus} />
       <div className="proto-thread-trail__step-body">
@@ -107,44 +92,30 @@ function ThreadTrailStep({
           onClick={() => onOpen(node.id)}
           aria-label={`Open ${title}`}
         >
+          {/* No "Current" chip and no highlighted band — the filled check orb
+              already says which note you are on, and three signals for one fact
+              made the row look like it was also selected. */}
           <div className="proto-thread-trail__title-line proto-note-row__title-line">
             <span className="pds-list-title proto-note-row__title-text">{title}</span>
-            {isFocus ? <span className="proto-side-panel__current-badge">Current</span> : null}
           </div>
           <ProtoThreadTrailRecencyLine rel={rel} preview={preview} />
         </button>
 
-        {trailReorder ? (
-          <div className="proto-menu proto-note-row__menu proto-note-row__menu--reorder">
-            <button
-              type="button"
-              className="proto-note-row__menu-trigger"
-              draggable
-              aria-label={`Reorder ${title}`}
-              title="Drag to reorder"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (suppressClickRef.current) {
-                  suppressClickRef.current = false;
-                }
-              }}
-              onDragStart={(e) => {
-                suppressClickRef.current = true;
-                const step = e.currentTarget.closest('.proto-thread-trail__step') as HTMLElement | null;
-                trailReorder.onDragStart(e, trailReorder.noteId, step);
-              }}
-              onDragEnd={(e) => {
-                trailReorder.onDragEnd(e);
-                window.setTimeout(() => {
-                  suppressClickRef.current = false;
-                }, 0);
-              }}
-            >
-              <Icon name="ellipsis-vertical" size={14} />
-            </button>
-          </div>
+        {sortable ? (
+          /* A grip, not an ellipsis. The old icon was the same glyph the row
+             menus use, so the one control on the row that could not be clicked
+             open was the one that looked most like a menu. `attributes` go here
+             rather than on the row so a screen reader gets the drag
+             instructions on something focusable. */
+          <span
+            ref={sortable.setActivatorNodeRef}
+            className="proto-thread-trail__drag-handle"
+            aria-label={`Reorder ${title}`}
+            title="Drag to reorder"
+            {...sortable.attributes}
+          >
+            <Icon name="bars" size={12} />
+          </span>
         ) : null}
 
         {edge ? (
@@ -214,36 +185,40 @@ export default function PrototypeStudyThreadTrail({
   }
 
   return (
-    <div className="proto-thread-trail">
-      <div
-        className={`proto-thread-trail__spine proto-thread-trail__spine--fill${drag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
-        role="list"
-        aria-label="Connected notes trail"
-      >
-        {displayMembers.map((node, index) => (
-          <ThreadTrailStep
-            key={node.id}
-            node={node}
-            isFocus={node.id === focusNoteId}
-            showDisconnect={node.id !== focusNoteId}
-            focusNoteId={focusNoteId}
-            edges={edges}
-            onOpen={onOpen}
-            isDragging={drag.draggingId === node.id}
-            trailReorder={
-              drag.showDragHandle
-                ? {
-                    noteId: node.id,
-                    reorderIndex: index,
-                    onDragStart: drag.handleDragStart,
-                    onDragEnd: drag.handleDragEnd,
-                    onDragOver: drag.handleDragOver,
-                    onDrop: drag.handleDrop,
-                  }
-                : null
-            }
-          />
-        ))}
+    <div className="proto-thread-trail proto-thread-trail--carded">
+      {/* The grouped-row card the rest of the app uses. The trail keeps its
+          spine and orbs inside it — see the `--carded` block in
+          prototype-components.css for how the two are reconciled. */}
+      <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-thread-trail__card">
+        <div
+          className={`proto-thread-trail__spine proto-thread-trail__spine--fill${drag.draggingId ? ' proto-thread-trail__spine--dragging' : ''}`}
+          role="list"
+          aria-label="Connected notes trail"
+        >
+          <ProtoThreadTrailSortableList
+            items={drag.displayOrderedIds}
+            onDragStart={drag.handleDragStart}
+            onDragEnd={drag.handleDragEnd}
+            onDragCancel={drag.handleDragCancel}
+          >
+            {displayMembers.map((node) => (
+              <ProtoThreadTrailSortableRow key={node.id} id={node.id}>
+                {(sortable) => (
+                  <ThreadTrailStep
+                    node={node}
+                    isFocus={node.id === focusNoteId}
+                    showDisconnect={node.id !== focusNoteId}
+                    focusNoteId={focusNoteId}
+                    edges={edges}
+                    onOpen={onOpen}
+                    isDragging={drag.draggingId === node.id}
+                    sortable={drag.showDragHandle ? sortable : null}
+                  />
+                )}
+              </ProtoThreadTrailSortableRow>
+            ))}
+          </ProtoThreadTrailSortableList>
+        </div>
       </div>
     </div>
   );

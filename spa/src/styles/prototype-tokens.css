@@ -360,8 +360,27 @@
      and 260ms read as the panel deciding whether to open. Paired with
      PROTO_EXPANDED_SIDEBAR_EXIT_MS, not PROTO_PANEL_EXIT_MS. */
   --pds-duration-panel-expand: 190ms;
+  /* A control growing into the panel it opens — the Add resource button today.
+     Same 190ms as the expanded sidebar because it is the same gesture at a
+     smaller scale: one box unfurling in place, not an overlay arriving. Paired
+     with PROTO_RESOURCE_MORPH_MS. */
+  --pds-duration-morph: 190ms;
   --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
   --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /*
+   * For a collapse whose last frame has to line up with something mounting.
+   *
+   * Both curves above are entrances — front-loaded, ~99% done by a third of
+   * their duration. That is right when the end state is invisible (the expanded
+   * sidebar fades to nothing) and wrong when it is not: the resource panel's
+   * last frame is the button's own box, so finishing at 70ms of 190ms read as a
+   * snap followed by 120ms of dead air before the real button appeared.
+   *
+   * Mirroring --pds-ease-emphasized to cubic-bezier(0.8, 0, 0.8, 0.2) overshoots
+   * the other way — the box barely moved for 130ms, then dropped in one frame.
+   * Symmetric is what actually spends the time.
+   */
+  --pds-ease-morph-exit: cubic-bezier(0.45, 0, 0.55, 1);
 
   /* Layering — web overlays only */
   --pds-z-base: 0;

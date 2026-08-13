@@ -90,33 +90,3 @@ export function applyHtml5DragPreview(
   return { cleanup: preview.cleanup };
 }
 
-/** Walk up from a trail reorder handle to the note card that should float with the cursor. */
-export function resolveThreadTrailDragPreviewSource(handle: HTMLElement): HTMLElement | null {
-  const step = handle.closest('.proto-thread-trail__step');
-  if (step instanceof HTMLElement) {
-    const body = step.querySelector(':scope > .proto-thread-trail__step-body');
-    if (body instanceof HTMLElement) return body;
-    return step;
-  }
-
-  // Legacy divider handles (tests / older markup): previous sibling is the step.
-  const dividerLi = handle.closest('li.proto-thread-trail__reorder-divider-item');
-  if (dividerLi?.previousElementSibling instanceof HTMLElement) {
-    const prev = dividerLi.previousElementSibling;
-    if (prev.classList.contains('proto-thread-trail__step')) {
-      const body = prev.querySelector(':scope > .proto-thread-trail__step-body');
-      if (body instanceof HTMLElement) return body;
-      return prev;
-    }
-  }
-  const divider = handle.closest('.proto-thread-trail__reorder-divider');
-  if (divider?.previousElementSibling instanceof HTMLElement) {
-    const prev = divider.previousElementSibling;
-    if (prev.classList.contains('proto-thread-trail__step')) {
-      const body = prev.querySelector(':scope > .proto-thread-trail__step-body');
-      if (body instanceof HTMLElement) return body;
-      return prev;
-    }
-  }
-  return null;
-}

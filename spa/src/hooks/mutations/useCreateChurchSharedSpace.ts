@@ -1,6 +1,7 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import type { MeetingKind } from '@/utils/space-meeting-rhythm';
 import {
   appendOwnedSpaceToNavCache,
   navigationQueryKeyPrefix,
@@ -12,6 +13,14 @@ export interface CreateChurchSharedSpaceBody {
   color?: string;
   description?: string | null;
   coverVariant?: number;
+  /** 0–6, Sunday first. When the room gathers — display and defaults only. */
+  meetingDay?: number | null;
+  /** 'HH:MM' 24h wall clock. Needs a day. */
+  meetingTime?: string | null;
+  /** 'in_person' | 'online' | 'hybrid'. */
+  meetingKind?: MeetingKind | null;
+  /** https only, and only on an online or hybrid room. */
+  meetingUrl?: string | null;
 }
 
 interface CreateChurchSharedSpaceResponse {

@@ -115,7 +115,14 @@ export default function SharedSpaceAboutSheet({
             <Icon name="xmark" size={12} />
           </button>
         </div>
-        <SharedSpaceAboutLetter space={letterSpace} members={rosterMembers} />
+        <SharedSpaceAboutLetter
+          space={letterSpace}
+          members={rosterMembers}
+          meetingDay={space?.meetingDay ?? null}
+          meetingTime={space?.meetingTime ?? null}
+          meetingKind={space?.meetingKind ?? null}
+          meetingUrl={space?.meetingUrl ?? null}
+        />
       </div>
     </>
   );

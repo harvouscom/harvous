@@ -30,7 +30,7 @@ import {
 } from './purge-onboarding-content';
 import { serializeSharedCanonicalNote } from './shared-note-serializer';
 import { requireThreadReadAccess } from './shared-space-lifecycle';
-import { isSequenceMode, sortNotesBySequence } from './thread-sequence';
+import { hasStoredThreadOrder, sortNotesBySequence } from './thread-sequence';
 
 /**
  * Ceiling on how many steps a sequence Thread pages in memory. A study plan is
@@ -404,6 +404,8 @@ export async function getSpacesWithCounts(userId: string) {
         coverBgLight: Spaces.coverBgLight, coverBgDark: Spaces.coverBgDark,
         isPublic: Spaces.isPublic, isActive: Spaces.isActive, type: Spaces.type,
         orgId: Spaces.orgId,
+        meetingDay: Spaces.meetingDay, meetingTime: Spaces.meetingTime,
+        meetingKind: Spaces.meetingKind, meetingUrl: Spaces.meetingUrl,
         createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
         lastVisited: Spaces.lastVisited,
         threadCount: count(Threads.id),
@@ -483,6 +485,11 @@ export async function getSpacesWithCounts(userId: string) {
       coverBgDark: space.coverBgDark ?? null,
       isPublic: space.isPublic, isActive: space.isActive, type: space.type,
       orgId: space.orgId ?? null,
+      // Prefetch owner path reads these too — same reason as the covers above.
+      meetingDay: space.meetingDay ?? null,
+      meetingTime: space.meetingTime ?? null,
+      meetingKind: space.meetingKind ?? null,
+      meetingUrl: space.meetingUrl ?? null,
       createdAt: space.createdAt, updatedAt: space.updatedAt,
       lastVisited: space.lastVisited,
       threadCount: space.threadCount || 0,
@@ -1027,9 +1034,22 @@ const NOTE_LIST_SELECT = {
   contentLength: sql<number>`length(${Notes.content})`,
 } as const;
 
-export async function getNotesForThread(threadId: string, userId: string, limit = 20, offset = 0) {
+/**
+ * `orderedThread` carries the Thread's stored order when the caller already has
+ * the row — the personal path never loads it otherwise, and a second query for
+ * one JSON column on every thread open would be a poor trade. Absent, the list
+ * falls back to recency, which is what an unarranged Thread has always done.
+ */
+export async function getNotesForThread(
+  threadId: string,
+  userId: string,
+  limit = 20,
+  offset = 0,
+  orderedThread?: { sequenceNoteIds?: string | null } | null,
+) {
   try {
-    const fetchLimit = limit + offset + 1;
+    const arranged = Boolean(orderedThread && hasStoredThreadOrder(orderedThread));
+    const fetchLimit = arranged ? SEQUENCE_THREAD_FETCH_CAP : limit + offset + 1;
     let allNotes: any[] = [];
 
     if (threadId === 'thread_unorganized') {
@@ -1121,7 +1141,10 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     const mappedNotes = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
     const sortedAllNotes = isOnboardingThread(threadId)
       ? sortOnboardingThreadNotes(mappedNotes)
-      : sortByLastVisited(mappedNotes);
+      // An order someone arranged outranks recency — same rule as the member path.
+      : arranged
+        ? sortNotesBySequence(mappedNotes, orderedThread!)
+        : sortByLastVisited(mappedNotes);
 
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
@@ -1245,14 +1268,21 @@ export async function getNotesForThreadForMember(
         hand back the wrong steps. Study plans are tens of steps, so fetch the
         plan and page it in memory, under a cap that is far above any real one.
       */
-      .limit(isSequenceMode(contextThread.mode) ? SEQUENCE_THREAD_FETCH_CAP : fetchLimit);
+      .limit(hasStoredThreadOrder(contextThread) ? SEQUENCE_THREAD_FETCH_CAP : fetchLimit);
 
     const mappedMember = junctionNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
     const sortedAllNotes = isOnboardingThread(threadId)
       ? sortOnboardingThreadNotes(mappedMember)
-      // A sequence Thread is read in the order someone authored, not the order
-      // it was last touched — recency is exactly what a study plan overrides.
-      : isSequenceMode(contextThread.mode)
+      /*
+        An arranged Thread is read in the order someone chose, not the order it
+        was last touched — recency is exactly what arranging overrides.
+
+        Keyed on the stored order rather than on `mode`, so reordering a
+        collection Thread sticks without also turning it into a study plan.
+        The step numbers, the current step and the pulse stay behind
+        `isSequenceMode`; this is only which order the rows come back in.
+      */
+      : hasStoredThreadOrder(contextThread)
         ? sortNotesBySequence(mappedMember, contextThread)
         : sortNotesByLastUpdated(mappedMember);
     const hasMore = sortedAllNotes.length > offset + limit;

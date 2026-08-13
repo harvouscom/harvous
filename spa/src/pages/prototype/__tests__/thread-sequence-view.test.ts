@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sequenceStepFor } from '../../../hooks/queries/useThreadNotes';
 import { sequenceStepLabel } from '../../../hooks/queries/useSpaceGroupThreads';
-import { reorderSequenceStep } from '../../../hooks/mutations/useUpdateThreadSequence';
 
 function thread(overrides: Partial<Parameters<typeof sequenceStepLabel>[0]> = {}) {
   return {
@@ -51,27 +50,5 @@ describe('sequenceStepFor', () => {
 
   it('treats nothing as ahead when no step is current', () => {
     expect(sequenceStepFor('d', order, null).isAhead).toBe(false);
-  });
-});
-
-describe('reorderSequenceStep', () => {
-  it('swaps a step with its neighbour', () => {
-    expect(reorderSequenceStep(['a', 'b', 'c'], 'b', 'up')).toEqual(['b', 'a', 'c']);
-    expect(reorderSequenceStep(['a', 'b', 'c'], 'b', 'down')).toEqual(['a', 'c', 'b']);
-  });
-
-  it('refuses to move past either end rather than wrapping', () => {
-    expect(reorderSequenceStep(['a', 'b'], 'a', 'up')).toEqual(['a', 'b']);
-    expect(reorderSequenceStep(['a', 'b'], 'b', 'down')).toEqual(['a', 'b']);
-  });
-
-  it('leaves the order alone when the step is not in it', () => {
-    expect(reorderSequenceStep(['a', 'b'], 'gone', 'up')).toEqual(['a', 'b']);
-  });
-
-  it('does not mutate the order it was given', () => {
-    const order = ['a', 'b', 'c'];
-    reorderSequenceStep(order, 'b', 'up');
-    expect(order).toEqual(['a', 'b', 'c']);
   });
 });

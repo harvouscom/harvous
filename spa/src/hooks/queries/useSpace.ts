@@ -95,6 +95,14 @@ export interface SpaceDetail {
   publishCadence?: import('@/utils/channel-publish-cadence').PublishCadence | null;
   lastCurriculumAt?: string | null;
   cadenceStale?: boolean;
+  /** 0–6, Sunday first — when the room gathers. Null until somebody says. */
+  meetingDay?: number | null;
+  /** 'HH:MM' wall clock, no zone. */
+  meetingTime?: string | null;
+  /** 'in_person' | 'online' | 'hybrid' — where the room meets. */
+  meetingKind?: import('@/utils/space-meeting-rhythm').MeetingKind | null;
+  /** The room's standing video link. Members only — never on a join page. */
+  meetingUrl?: string | null;
 }
 
 export interface SpaceItem {

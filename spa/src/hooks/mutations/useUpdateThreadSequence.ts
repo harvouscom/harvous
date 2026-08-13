@@ -29,21 +29,6 @@ export type ThreadSequenceResult = {
   };
 };
 
-/** Move a step one place up or down, returning the whole new order to send. */
-export function reorderSequenceStep(
-  orderedNoteIds: string[],
-  noteId: string,
-  direction: 'up' | 'down',
-): string[] {
-  const from = orderedNoteIds.indexOf(noteId);
-  if (from < 0) return orderedNoteIds;
-  const to = direction === 'up' ? from - 1 : from + 1;
-  if (to < 0 || to >= orderedNoteIds.length) return orderedNoteIds;
-  const next = [...orderedNoteIds];
-  [next[from], next[to]] = [next[to], next[from]];
-  return next;
-}
-
 export function useUpdateThreadSequence() {
   const queryClient = useQueryClient();
 

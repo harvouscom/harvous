@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  applyHtml5DragPreview,
-  resolveThreadTrailDragPreviewSource,
-} from '@/utils/html5-drag-preview';
+import { arrayMove } from '@dnd-kit/sortable';
 import {
   patchStudyThreadMemberOrderInCache,
   useUpdateStudyThreadMemberOrder,
 } from './mutations/useUpdateStudyThreadMemberOrder';
-import { computeStudyThreadMemberMoveIndex } from './study-thread-member-move-index';
-import { useCoarsePointer } from '../lib/use-coarse-pointer';
 
 interface UseStudyThreadMemberDragReorderOptions {
   anchorNoteId: string;
@@ -29,7 +24,18 @@ function sameIdOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
 }
 
-/** HTML5 drag reorder for study-thread member lists (sidebar drill + thread panel). */
+/**
+ * Order state for one study-thread member list (sidebar drill + thread panel).
+ *
+ * The gesture itself belongs to dnd-kit — see `ProtoThreadTrailSortable`, and
+ * `useSharedSpaceSwitcherDragReorder`, which made this move first. This owns the
+ * optimistic order and the write-back, nothing else.
+ *
+ * It used to own an HTML5 drag implementation too, which is why reordering was
+ * desktop-only: `draggable` + dragstart/dragover/drop do not fire on touch at
+ * all, so the handle was hidden on coarse pointers rather than degrading.
+ * Pointer/touch sensors replaced it.
+ */
 export function useStudyThreadMemberDragReorder({
   anchorNoteId,
   spaceId,
@@ -41,12 +47,7 @@ export function useStudyThreadMemberDragReorder({
   const draggingIdRef = useRef<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [displayOrderedIds, setDisplayOrderedIds] = useState(orderedNoteIds);
-  const orderedIdsRef = useRef(orderedNoteIds);
-  const pendingOrderRef = useRef<string[] | null>(null);
-  const lastOrderKeyRef = useRef<string | null>(null);
-  const dragStartOrderRef = useRef<string[] | null>(null);
   const optimisticOrderRef = useRef<string[] | null>(null);
-  const dragPreviewCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (draggingIdRef.current) return;
@@ -57,7 +58,6 @@ export function useStudyThreadMemberDragReorder({
       } else if (sameIdMembership(optimisticOrderRef.current, orderedNoteIds)) {
         // Same notes, different order — the server just hasn't caught up with the drag
         // that is already on screen. Holding the optimistic order is the whole point.
-        orderedIdsRef.current = optimisticOrderRef.current;
         setDisplayOrderedIds(optimisticOrderRef.current);
         return;
       } else {
@@ -72,127 +72,46 @@ export function useStudyThreadMemberDragReorder({
       }
     }
 
-    orderedIdsRef.current = orderedNoteIds;
     setDisplayOrderedIds(orderedNoteIds);
   }, [orderedNoteIds]);
 
-  useEffect(() => {
-    return () => {
-      dragPreviewCleanupRef.current?.();
-      dragPreviewCleanupRef.current = null;
-    };
-  }, []);
-
   /**
-   * No drag handle on touch — same reasoning as the space switcher's reorder:
-   * this is HTML5 drag-and-drop, which never fires on touch, so the handle is
-   * an inert target competing with the row's own tap.
+   * The handle is a cue and a keyboard activator, not the drag surface — touch
+   * starts the gesture from the row. So this is no longer gated on pointer type;
+   * it only asks whether there is anything to reorder.
    */
-  const coarsePointer = useCoarsePointer();
-  const showDragHandle = enabled && orderedNoteIds.length > 1 && !coarsePointer;
+  const showDragHandle = enabled && orderedNoteIds.length > 1;
 
-  const moveMember = useCallback((draggedId: string, insertBeforeIndex: number) => {
-    const currentIds = orderedIdsRef.current;
-    const fromIndex = currentIds.indexOf(draggedId);
-    if (fromIndex < 0) return;
-
-    const toIndex = computeStudyThreadMemberMoveIndex(fromIndex, insertBeforeIndex);
-    if (toIndex === null) return;
-
-    const next = [...currentIds];
-    const [item] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, item!);
-
-    const orderKey = next.join('\0');
-    if (lastOrderKeyRef.current === orderKey) return;
-
-    orderedIdsRef.current = next;
-    lastOrderKeyRef.current = orderKey;
-    pendingOrderRef.current = next;
-    setDisplayOrderedIds(next);
+  const handleDragStart = useCallback((id: string) => {
+    draggingIdRef.current = id;
+    setDraggingId(id);
   }, []);
 
-  const finishDrag = useCallback(() => {
+  const handleDragCancel = useCallback(() => {
     draggingIdRef.current = null;
     setDraggingId(null);
-    lastOrderKeyRef.current = null;
-    dragPreviewCleanupRef.current?.();
-    dragPreviewCleanupRef.current = null;
   }, []);
 
-  const persistPendingOrder = useCallback(() => {
-    const next = pendingOrderRef.current ?? orderedIdsRef.current;
-    const baseline = dragStartOrderRef.current;
-    pendingOrderRef.current = null;
-    dragStartOrderRef.current = null;
-    if (!next || !anchorNoteId) return;
-    if (baseline && sameIdOrder(baseline, next)) {
-      optimisticOrderRef.current = null;
-      return;
-    }
-    optimisticOrderRef.current = [...next];
-    patchStudyThreadMemberOrderInCache(queryClient, spaceId, next);
-    updateOrder.mutate({ anchorNoteId, spaceId, orderedNoteIds: next });
-  }, [anchorNoteId, queryClient, spaceId, updateOrder]);
-
-  const handleDragStart = useCallback(
-    (event: React.DragEvent<HTMLElement>, noteId: string, previewSource?: HTMLElement | null) => {
-      draggingIdRef.current = noteId;
-      dragStartOrderRef.current = [...orderedIdsRef.current];
-      setDraggingId(noteId);
-      lastOrderKeyRef.current = null;
-      event.dataTransfer.setData('text/plain', noteId);
-      event.dataTransfer.effectAllowed = 'move';
-
-      dragPreviewCleanupRef.current?.();
-      const source =
-        resolveThreadTrailDragPreviewSource(previewSource ?? event.currentTarget) ??
-        previewSource ??
-        null;
-      const preview = applyHtml5DragPreview(event, source, {
-        className: 'proto-thread-trail__drag-preview',
-      });
-      dragPreviewCleanupRef.current = preview?.cleanup ?? null;
-
-      event.stopPropagation();
-      const handle = event.currentTarget;
-      handle.blur();
-      if (document.activeElement instanceof HTMLElement && document.activeElement !== handle) {
-        document.activeElement.blur();
-      }
-    },
-    [],
-  );
-
+  /** `overId` is the row the pointer released on; null / same id is a no-op drop. */
   const handleDragEnd = useCallback(
-    (event: React.DragEvent<HTMLElement>) => {
-      persistPendingOrder();
-      finishDrag();
-      event.currentTarget.blur();
-    },
-    [finishDrag, persistPendingOrder],
-  );
+    (activeId: string, overId: string | null) => {
+      draggingIdRef.current = null;
+      setDraggingId(null);
+      if (!overId || overId === activeId || !anchorNoteId) return;
 
-  const handleDragOver = useCallback(
-    (event: React.DragEvent<HTMLElement>, insertBeforeIndex: number) => {
-      event.preventDefault();
-      event.stopPropagation();
-      event.dataTransfer.dropEffect = 'move';
-      const dragged = draggingIdRef.current;
-      if (!dragged) return;
-      moveMember(dragged, insertBeforeIndex);
-    },
-    [moveMember],
-  );
+      setDisplayOrderedIds((current) => {
+        const fromIndex = current.indexOf(activeId);
+        const toIndex = current.indexOf(overId);
+        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return current;
 
-  const handleDrop = useCallback(
-    (event: React.DragEvent<HTMLElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      persistPendingOrder();
-      finishDrag();
+        const next = arrayMove(current, fromIndex, toIndex);
+        optimisticOrderRef.current = next;
+        patchStudyThreadMemberOrderInCache(queryClient, spaceId, next);
+        updateOrder.mutate({ anchorNoteId, spaceId, orderedNoteIds: next });
+        return next;
+      });
     },
-    [finishDrag, persistPendingOrder],
+    [anchorNoteId, queryClient, spaceId, updateOrder]
   );
 
   return {
@@ -201,8 +120,7 @@ export function useStudyThreadMemberDragReorder({
     showDragHandle,
     handleDragStart,
     handleDragEnd,
-    handleDragOver,
-    handleDrop,
-    isReordering: updateOrder.isPending,
+    handleDragCancel,
+    isReordering: updateOrder.isPending
   };
 }

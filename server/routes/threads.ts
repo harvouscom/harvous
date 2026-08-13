@@ -700,7 +700,7 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
     let thread = await getThreadWithCount(threadId, threadOwnerUserId);
     let notesResult: { notes: any[]; hasMore: boolean } | any = accessThread?.spaceId
       ? await getNotesForThreadForMember(threadId, auth.userId, 20, 0)
-      : await getNotesForThread(threadId, auth.userId, 20, 0);
+      : await getNotesForThread(threadId, auth.userId, 20, 0, readAccess.thread);
     let noteTypeCounts = await getThreadNoteTypeCounts(threadId, threadOwnerUserId);
 
     if (!thread) {
@@ -854,7 +854,9 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
     await repairMissingNoteThreadJunctionsForUser(auth.userId);
     let result = threadAccessRow?.spaceId
       ? await getNotesForThreadForMember(threadId, auth.userId, limit, offset)
-      : await getNotesForThread(threadId, auth.userId, limit, offset);
+      // The row is already in hand from the read gate, so the personal path can
+      // honour an arranged order without a second query for it.
+      : await getNotesForThread(threadId, auth.userId, limit, offset, readAccess.thread);
     if (Array.isArray(result)) {
       result = { notes: [], hasMore: false };
     }

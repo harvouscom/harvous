@@ -25,22 +25,69 @@ export const Spaces = pgTable(
      */
     publishCadence: text('publishCadence'),
     /**
-     * When this org space gathers — "Youth meets Wednesdays at 6:30".
+     * When this space gathers — "Youth meets Wednesdays at 6:30".
      *
-     * Org spaces only (ministry channel or church Shared Space). The church's
-     * own times live in `ChurchServiceTimes`, which is a *list* because a church
-     * holds several services on one morning; a space gathers once, so a single
-     * day/time is the honest shape rather than a second slot table.
+     * **Any room that gathers, not org spaces only.** Written when a Shared
+     * Space is created and editable in its settings; a churchless book club
+     * that meets on Tuesdays keeps its rhythm here exactly as a church Shared
+     * Space does. Refused only for ministry channels, which publish on a
+     * `publishCadence` rather than meeting — the same line `ChurchServices.kind`
+     * draws for the plan's rows.
+     *
+     * (These columns were org-only in intent for their first month, and had no
+     * writer at all in that time: every reference was a read, so the Planner's
+     * week anchor and the Coming-up card's day/time label were null for every
+     * space in existence.)
+     *
+     * The church's own times live in `ChurchServiceTimes`, which is a *list*
+     * because a church holds several services on one morning; a space gathers
+     * once, so a single day/time is the honest shape rather than a second slot
+     * table.
      *
      * Display and defaults only — this seeds the space plan's date picker and
-     * labels its card. Nothing here schedules, reminds, or recurs; staff still
-     * enter every gathering by hand. See
+     * labels its card. Nothing here schedules, reminds, or recurs; whoever runs
+     * the room still enters every gathering by hand. See
      * docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
      */
     /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
     meetingDay: integer('meetingDay'),
-    /** 'HH:MM' 24h on the church's wall clock; the zone is Churches.timezone. */
+    /**
+     * 'HH:MM' 24h wall clock. The zone is `Churches.timezone` when a church is
+     * behind the room, and nothing at all when there is not — a churchless
+     * Shared Space has no zone to name, so its time is shown bare. Inventing
+     * one would be a promise the app cannot keep, and this is a label rather
+     * than an appointment.
+     */
     meetingTime: text('meetingTime'),
+    /**
+     * Whether the room meets in a place, on a call, or both.
+     *
+     * `'in_person' | 'online' | 'hybrid'`, NULL = has not said — which is every
+     * space that existed before this column, and stays a legal answer. Refused
+     * on ministry channels for the same reason `meetingDay` is: a channel
+     * publishes rather than meets.
+     *
+     * Its real job is `meetingUrl` below. It also decides whether a timezone
+     * will ever be needed: people join an online meeting from other zones,
+     * which is the one case a bare wall clock cannot serve — see
+     * docs/future/SPACE_MEETING_RHYTHM_AND_CALENDAR.md Phase 3.
+     */
+    meetingKind: text('meetingKind'),
+    /**
+     * The room's standing video link — Meet, Zoom, Teams.
+     *
+     * **Not an invite, and it must never travel like one.** A join link is
+     * handed to people who are not members yet; this is the key to the room
+     * itself. It is returned only to members, and deliberately absent from
+     * `/api/spaces/invite-preview/:token` (unauthenticated) and from
+     * `PublicJoinSpaceLetter`. Nothing auto-opens or embeds it.
+     *
+     * https only, and only meaningful when `meetingKind` is 'online' or
+     * 'hybrid' — a link on a room that meets in a building is a contradiction,
+     * so the write routes refuse it there rather than storing something no
+     * surface would show.
+     */
+    meetingUrl: text('meetingUrl'),
     color: text('color'),
     backgroundGradient: text('backgroundGradient'),
     /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */

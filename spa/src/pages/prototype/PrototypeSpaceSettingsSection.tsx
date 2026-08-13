@@ -173,6 +173,9 @@ export default function PrototypeSpaceSettingsSection({
         color,
         coverVariant,
         description: normalizedDescription || null,
+        /* No meeting fields here — they live on their own page now, and an
+           omitted field means "leave it alone" to the update route, so saving
+           the room's name cannot disturb its rhythm. */
         ...(ministryChannel ? { publishCadence: publishCadence || null } : {}),
       },
       {

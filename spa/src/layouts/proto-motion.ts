@@ -55,6 +55,16 @@ export const PROTO_VOTD_SHEET_MOTION_MS = 220;
 export const PROTO_ROUTE_PENDING_DELAY_MS = 150;
 export const PROTO_ROUTE_PENDING_MIN_MS = 300;
 
+/**
+ * A control morphing into the panel it opens — the resource-library "Add
+ * resource" button growing into its form.
+ *
+ * The panel has to stay mounted for exactly this long after it is dismissed, or
+ * the collapse is cut off and the button reappears mid-morph. MUST stay in
+ * lockstep with `--pds-duration-morph` in `prototype-tokens.css`.
+ */
+export const PROTO_RESOURCE_MORPH_MS = 190;
+
 /** Founder letter paper leaf fan — MUST stay in lockstep with `.proto-paper-leaf` transition in prototype-components.css. */
 export const PROTO_FOUNDER_LETTER_PAPER_MS = 900;
 

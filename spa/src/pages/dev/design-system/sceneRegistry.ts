@@ -151,6 +151,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-12-toasts',
     visualBaseline: true,
   },
+  {
+    id: 'ds-13-thread-trail',
+    title: 'Thread trail card',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeStudyThreadTrail.tsx',
+      'spa/src/pages/prototype/PrototypeSharedThreadDrilldown.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-13-thread-trail',
+    visualBaseline: true,
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

@@ -88,11 +88,28 @@ describe('GET /api/threads/:threadId/notes', () => {
 });
 
 describe('member thread ordering', () => {
-  it('overrides recency with the authored order for a sequence', () => {
+  it('overrides recency with the order somebody arranged', () => {
     const text = source('server/utils/dashboard-data.ts');
     const block = text.slice(text.indexOf('export async function getNotesForThreadForMember'));
-    expect(block).toContain('isSequenceMode(contextThread.mode)');
+    expect(block).toContain('hasStoredThreadOrder(contextThread)');
     expect(block).toContain('sortNotesBySequence(mappedMember, contextThread)');
+  });
+
+  it('keys the order on the stored list, never on the mode', () => {
+    /*
+      Reordering a collection Thread has to stick without also turning it into a
+      study plan. Keyed on `mode`, the drag wrote an order the read then ignored,
+      and the only way to make it apply was to hand the room step numbers, a
+      current step and a read-together pulse nobody asked for.
+    */
+    const text = source('server/utils/dashboard-data.ts');
+    const block = text.slice(text.indexOf('export async function getNotesForThreadForMember'));
+    expect(block).not.toContain('isSequenceMode(');
+  });
+
+  it('still gates the step furniture on the mode', () => {
+    // The order is one thing; "Step 3 of 8" and the pulse are another.
+    expect(threadRoutes()).toContain('isSequenceMode(sequenceThread.mode)');
   });
 
   it('does not slice a recency-ordered page before applying the plan order', () => {
