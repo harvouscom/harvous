@@ -40,6 +40,22 @@ const SECTION_CATEGORY = {
   performance: "Improvement",
 };
 
+/**
+ * Sections that stay in the developer changelog and never reach harvous.com.
+ *
+ * An unrecognised section is NOT skipped — it falls through to `inferCategoryFromLine` and
+ * publishes. So this is the only way to write something down for developers without telling
+ * users about it, and it needs to hold every heading meant to stay in.
+ *
+ * "Internal" was added after a CI change published the line "We've fixed an issue: Sync release
+ * notes with a deploy key instead of an expiring token" to the public feed. Filing it under a
+ * heading that merely wasn't in SECTION_CATEGORY did nothing.
+ *
+ * Better still, infrastructure work should be committed as `chore:`, which bump-version.js does
+ * not bump — then no changelog file is generated at all.
+ */
+const PRIVATE_SECTIONS = new Set(["documentation", "internal", "chore", "ci", "build"]);
+
 function resolveCsvPath(cliPath) {
   if (cliPath) return cliPath;
   if (process.env.HARVOUS_COM_CSV_PATH) return process.env.HARVOUS_COM_CSV_PATH;
@@ -136,7 +152,7 @@ function parseChangelogMarkdown(content, version) {
 
     const title = bullet[1].trim();
     if (!title || title.length < 4) continue;
-    if (currentSection === "documentation") continue;
+    if (PRIVATE_SECTIONS.has(currentSection)) continue;
 
     let category = SECTION_CATEGORY[currentSection];
     if (!category) {
