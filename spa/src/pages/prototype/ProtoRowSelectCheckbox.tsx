@@ -17,6 +17,7 @@ export default function ProtoRowSelectCheckbox({
   label,
   onToggle,
   onRangeTo,
+  className = 'proto-note-row__select',
 }: {
   selected: boolean;
   /** The row's title — what "Select …" / "Deselect …" names for a screen reader. */
@@ -24,11 +25,18 @@ export default function ProtoRowSelectCheckbox({
   onToggle?: () => void;
   /** Shift-click extends from the last row touched. Omit where a range is meaningless. */
   onRangeTo?: () => void;
+  /**
+   * Folder and Thread cards are a different shape from list rows and have their own
+   * `proto-collection-card__select` geometry. Only the class differs — the behaviour
+   * (swallowing the row's click, the aria-checked contract, shift-to-extend) is identical,
+   * and both cards used to hand-roll their own copy of it without the range support.
+   */
+  className?: string;
 }) {
   return (
     <button
       type="button"
-      className="proto-note-row__select"
+      className={className}
       role="checkbox"
       aria-checked={selected}
       aria-label={selected ? `Deselect ${label}` : `Select ${label}`}

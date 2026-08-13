@@ -94,6 +94,20 @@ export function notePurposeModel(input: {
    * correctly for them too.
    */
   startedInChurchSpace?: boolean;
+  /**
+   * Whether the reader is looking at this note in the context it was started in.
+   *
+   * `startedFromServiceId/Title` is a permanent column that travels with the note, and nothing
+   * clears it when the note is later filed into a study, copied to another space, or opened
+   * from My Home. So a note that began as sermon notes used to announce that sermon inside
+   * every room it ever joined — "adding notes to a shared space study creates this wrong header
+   * context of relating to sermon". The provenance is still true; it is just not what this
+   * reader is doing right now, and a register above the paper is about right now.
+   *
+   * Undefined means "not established" and is treated as in-context, so callers that don't know
+   * behave exactly as before rather than silently losing the banner.
+   */
+  readingInStartedContext?: boolean;
   dismissed?: boolean;
 }): NotePurpose | null {
   if (input.dismissed) return null;
@@ -119,7 +133,7 @@ export function notePurposeModel(input: {
     docblock.
   */
   const service = input.startedFromServiceTitle?.trim();
-  if (service) {
+  if (service && input.readingInStartedContext !== false) {
     return {
       kind: 'service',
       label: input.startedInChurchSpace ? 'The next sermon' : "This week's sermon",

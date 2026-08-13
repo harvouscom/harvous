@@ -170,7 +170,19 @@ export function planTruncatedDraftRestore(input: {
   // write). Slicing a "tail" from an already-merged server body and appending it to this
   // stale draft would duplicate the draft's own text. If the server already says
   // everything the draft says, there's nothing left to recover.
-  if (serverContent.startsWith(draftContent)) return { action: 'skip-clear' };
+  //
+  // Compared as plain text, not as markup. A literal `serverContent.startsWith(draftContent)`
+  // fails the moment the server rewrites the body around text the editor already sent —
+  // scripture processing wraps a bare reference in a pill on *every* save
+  // (transformCanonicalScriptureContent). When that rewrite lands after the seam offset the
+  // seam still validates, the literal prefix check misses, and the merge below appends the
+  // draft's own words onto a body that already contains them. That is the duplicated content;
+  // and because the draft is per-device and survives, deleting the duplicate on one device
+  // let the other put it straight back. `plainForCompare` is the same comparator the no-seam
+  // branch above already uses for exactly this reason.
+  if (plainForCompare(serverContent).startsWith(plainForCompare(draftContent))) {
+    return { action: 'skip-clear' };
+  }
 
   const tail = serverContent.slice(draftPreviewLength);
   return tail ? { action: 'restore-merged', content: draftContent + tail } : { action: 'restore' };

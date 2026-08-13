@@ -887,9 +887,13 @@ export default function PrototypeResourceLibraryList({
     and the kind on the shell's selection is what keeps them from being read as
     note ids by the note list's own bar.
   */
-  const { sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection } = useProtoShell();
+  const { sidebarSelectMode, sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection } =
+    useProtoShell();
+  // The `sidebarSelectMode ||` term is what lets the *first* item be selected: without it the
+  // flag is false until something is selected, the CSS hides the checkbox until the flag is
+  // true, and the checkbox is the only way in. See PrototypeSidebar's noteSelectionActive.
   const resourceSelectionActive =
-    sidebarSelectionKind === 'resource' && sidebarSelectedIds.length > 0;
+    sidebarSelectMode || (sidebarSelectionKind === 'resource' && sidebarSelectedIds.length > 0);
   const selectedResourceIds = useMemo(
     () => new Set(resourceSelectionActive ? sidebarSelectedIds : []),
     [resourceSelectionActive, sidebarSelectedIds],

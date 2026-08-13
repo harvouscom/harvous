@@ -1309,6 +1309,23 @@ export default function PrototypeNotePage() {
             normalizePrototypeApiSpaceId(resolvedSpaceFromNote) !==
               normalizePrototypeApiSpaceId(personalHomeSpaceId),
         ),
+        /*
+          Only name the sermon where the sermon is what you're doing.
+
+          `contextSpaceId` is the room you are reading *through* (the `?space=` param); the
+          note's own `spaceId` is where it lives. Reading a sermon note inside some other
+          room's study means the sermon is provenance, not the current occasion — and the
+          column that carries it is permanent, so without this the banner followed the note
+          into every study it was ever added to.
+
+          No context param means My Home's canonical view, which is where a "This Sunday"
+          note belongs, so that still shows.
+        */
+        readingInStartedContext:
+          !contextSpaceId ||
+          !resolvedSpaceFromNote ||
+          normalizePrototypeApiSpaceId(contextSpaceId) ===
+            normalizePrototypeApiSpaceId(resolvedSpaceFromNote),
         dismissed: isPurposeDismissed(isDraft ? null : noteId),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1316,6 +1333,7 @@ export default function PrototypeNotePage() {
       composePurpose,
       note?.startedFromServiceTitle,
       resolvedSpaceFromNote,
+      contextSpaceId,
       personalHomeSpaceId,
       isDraft,
       noteId,

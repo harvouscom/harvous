@@ -204,6 +204,7 @@ function buildQuoteContent(
   sourceNoteId: string,
   attributionPillAccent: string | null | undefined,
   includeAttribution: boolean,
+  includeTrailingParagraph: boolean,
 ) {
   const trimmed = excerpt.replace(/\s+/g, ' ').trim();
   if (!trimmed) return null;
@@ -249,8 +250,28 @@ function buildQuoteContent(
     });
   }
 
-  nodes.push({ type: 'paragraph' });
+  if (includeTrailingParagraph) nodes.push({ type: 'paragraph' });
   return nodes;
+}
+
+/**
+ * Whether the quote needs a blank paragraph after it.
+ *
+ * Only when the quote lands at the very end of the note, where it would otherwise be the last
+ * block and leave the caret nowhere to keep typing. Anywhere else the note already continues,
+ * and adding one puts a blank line between the quote and the reader's own next sentence —
+ * which is the "inserting a quote adds an extra line" report. It used to be appended
+ * unconditionally, and `canonicalizeNoteHtmlLineBreaks` rewrites `<p></p>` to `<p><br></p>`, so
+ * it persisted as a visible gap rather than collapsing.
+ *
+ * `size - 1` rather than `size` because the last block's closing token counts toward
+ * `content.size`, so a caret at the end of the final paragraph sits one short of it.
+ */
+export function quoteInsertNeedsTrailingParagraph(
+  doc: Editor['state']['doc'],
+  insertPos: number,
+): boolean {
+  return clampQuoteInsertPos(doc, insertPos) >= doc.content.size - 1;
 }
 
 /** Resolve live pill boundaries from stored dock session positions. */
@@ -344,6 +365,7 @@ export function insertScriptureQuoteAt(editor: Editor, ctx: ScriptureQuoteInsert
     ctx.sourceNoteId,
     ctx.attributionPillAccent,
     !omitAttribution,
+    quoteInsertNeedsTrailingParagraph(editor.state.doc, insertPos),
   );
   if (!content) return null;
 

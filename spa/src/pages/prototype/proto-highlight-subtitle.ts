@@ -13,11 +13,26 @@ function truncateHighlightListTitle(s: string): string {
   return `${t.slice(0, HIGHLIGHT_LIST_TITLE_MAX - 1).trimEnd()}…`;
 }
 
-export function isScripturePassageHighlightRow(row: Pick<StudyThreadEntryDetail, 'entryKind' | 'scripturePassageExcerpt' | 'scripturePassageTranslation'>): boolean {
+/**
+ * A highlight that is a scripture passage, and can therefore open the scripture dock.
+ *
+ * `scriptureReference` is part of the test because opening the dock needs a canonical
+ * reference to open *on*. It used not to be, and `onHighlightRow` checked for it separately —
+ * so a row with an excerpt and a translation but a blank reference passed here, failed there,
+ * and silently fell through to the highlight dock instead. Two predicates for one question is
+ * how they drift; keep this the single answer.
+ */
+export function isScripturePassageHighlightRow(
+  row: Pick<
+    StudyThreadEntryDetail,
+    'entryKind' | 'scripturePassageExcerpt' | 'scripturePassageTranslation' | 'scriptureReference'
+  >,
+): boolean {
   if (row.entryKind !== 'scriptureLink') return false;
   const excerpt = (row.scripturePassageExcerpt ?? '').trim();
   const trans = (row.scripturePassageTranslation ?? '').trim();
-  return excerpt.length > 0 && trans.length > 0;
+  const ref = (row.scriptureReference ?? '').trim();
+  return excerpt.length > 0 && trans.length > 0 && ref.length > 0;
 }
 
 /**

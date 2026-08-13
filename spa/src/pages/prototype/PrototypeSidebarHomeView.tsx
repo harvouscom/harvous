@@ -8,11 +8,12 @@
  */
 import { useUser } from '@clerk/clerk-react';
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
-import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { isPrototypeNotePath, prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
@@ -619,6 +620,7 @@ export default function PrototypeSidebarHomeView({
   } = fingerprintsQuery;
 
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const queryClient = useQueryClient();
   const {
     setSidebarListMode,
@@ -630,6 +632,7 @@ export default function PrototypeSidebarHomeView({
     beginPrototypeComposeSession,
     isMobileSidebar,
     closeDrawer,
+    openStandaloneScripturePassage,
   } = useProtoShell();
 
   const tagsSettled = isQuerySettled(tagsQuery.isPending, tagsQuery.data != null);
@@ -942,10 +945,32 @@ export default function PrototypeSidebarHomeView({
     ensureSidebarExpanded,
   ]);
 
+  /**
+   * "A passage you keep returning to — John 3:16" opens the passage.
+   *
+   * It used to call `onOpenScripturePassage`, which only drills the *sidebar* to that passage's
+   * note list: the list mode changed and no dock opened, so the card with a scroll icon
+   * promising a passage showed you a list of notes instead. The standalone passage pane is the
+   * same surface a scripture highlight falls back to when it has no source note to anchor a
+   * dock in, which is exactly this card's situation — it points at a passage, not at a note.
+   */
   const openPassageConnection = useCallback(() => {
     if (!passageConnection) return;
-    onOpenScripturePassage(passageConnection.bookOrder, passageConnection.passageKey);
-  }, [passageConnection, onOpenScripturePassage]);
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+    if (isPrototypeNotePath(pathname)) navigate({ to: prototypeHomeRouteTo() });
+    openStandaloneScripturePassage({
+      canonicalReference: passageConnection.displayRef,
+      translationCode: getEffectiveDefaultTranslation(),
+      focusedHighlightThreadId: '',
+    });
+  }, [
+    passageConnection,
+    isMobileSidebar,
+    closeDrawer,
+    pathname,
+    navigate,
+    openStandaloneScripturePassage,
+  ]);
 
   // Memory layer Workstream C: a study arc — a theme that keeps returning across your notes over
   // weeks or months ("living commentary on your life"). Joins each note's fingerprint themes/tone
@@ -1075,7 +1100,12 @@ export default function PrototypeSidebarHomeView({
       navigate({
         to: prototypeNoteRouteTo(),
         params: { noteId: noteParamSlug(noteId) },
+        // Spread the nav-search base rather than building the search from scratch. Dropping it
+        // drops `space`, and onHighlightRow carries an explicit warning about exactly that: a
+        // note reachable only through a shared space 404s ("Note not found") without it.
+        // Harmless while recall only runs on My Home; a latent bug the moment it doesn't.
         search: {
+          ...PROTOTYPE_NOTE_LIST_NAV_SEARCH,
           scriptureRef: gap.from.displayRef,
           scriptureTranslation: gap.fromTranslation,
           crossRefTarget: gap.to.displayRef,

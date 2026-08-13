@@ -200,3 +200,82 @@ describe('shouldOmitScriptureQuoteAttribution', () => {
     }
   });
 });
+
+/**
+ * Block structure, which nothing asserted before — the existing tests only counted pills and
+ * checked accents, which is how "inserting a quote adds an extra line after the quote" shipped.
+ * The trailing blank paragraph used to be appended unconditionally, and
+ * canonicalizeNoteHtmlLineBreaks turns `<p></p>` into `<p><br></p>`, so it persisted as a
+ * visible gap between the quote and whatever the reader wrote next.
+ */
+describe('quote insert block structure', () => {
+  const blockShape = (editor: Editor) => {
+    const out: string[] = [];
+    editor.state.doc.forEach((node) => {
+      out.push(node.content.size === 0 ? `${node.type.name}:empty` : node.type.name);
+    });
+    return out;
+  };
+
+  const insertAt = (editor: Editor, caret: number | null) =>
+    insertScriptureQuoteAt(editor, {
+      excerpt: 'For God so loved the world',
+      reference: 'John 3:16',
+      translation: 'NET',
+      sourceNoteId: 'note_1',
+      sourcePillBoundaries: null,
+      sourcePillReference: 'John 3:16',
+      sourcePillTranslation: 'NET',
+      lastEditorSelection: caret === null ? null : { from: caret, to: caret, at: Date.now() },
+    });
+
+  it('leaves a place to keep typing when the quote lands at the end of the note', () => {
+    const editor = new Editor({ extensions, content: '<p>My own thoughts here</p>' });
+    try {
+      const end = editor.state.doc.content.size - 1;
+      insertAt(editor, end);
+      expect(blockShape(editor)).toEqual(['paragraph', 'blockquote', 'paragraph', 'paragraph:empty']);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('does not add a blank line when the note continues after the quote', () => {
+    const editor = new Editor({ extensions, content: '<p>Hello world here</p>' });
+    try {
+      insertAt(editor, 6);
+      expect(blockShape(editor)).toEqual(['paragraph', 'blockquote', 'paragraph', 'paragraph']);
+      expect(blockShape(editor).filter((b) => b === 'paragraph:empty')).toHaveLength(0);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('does not stack a second blank line onto one the note already ended with', () => {
+    const editor = new Editor({ extensions, content: '<p>My own thoughts here</p><p></p>' });
+    try {
+      const end = editor.state.doc.content.size - 1;
+      insertAt(editor, end);
+      expect(blockShape(editor).filter((b) => b === 'paragraph:empty')).toHaveLength(1);
+    } finally {
+      editor.destroy();
+    }
+  });
+
+  it('emits exactly one empty paragraph at most, wherever the caret was', () => {
+    for (const [content, caret] of [
+      ['<p>One</p>', null],
+      ['<p>One</p><p>Two</p>', 3],
+      ['<p></p>', 1],
+    ] as const) {
+      const editor = new Editor({ extensions, content });
+      try {
+        insertAt(editor, caret);
+        const empties = blockShape(editor).filter((b) => b === 'paragraph:empty');
+        expect(empties.length, `content=${content} caret=${caret}`).toBeLessThanOrEqual(1);
+      } finally {
+        editor.destroy();
+      }
+    }
+  });
+});

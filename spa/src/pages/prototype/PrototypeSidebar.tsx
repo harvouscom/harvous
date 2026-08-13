@@ -293,26 +293,12 @@ function PrototypeSidebarFolderCard({
           hand over and no room to inset, so the checkbox overlays a corner the
           way that menu already does. */}
       {selectable ? (
-        <button
-          type="button"
+        <ProtoRowSelectCheckbox
+          selected={selected}
+          label={title}
+          onToggle={onToggleSelected}
           className="proto-collection-card__select"
-          role="checkbox"
-          aria-checked={selected}
-          aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleSelected?.();
-          }}
-        >
-          {selected ? (
-            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
-              <Icon name="check" size={11} />
-            </span>
-          ) : (
-            <span className="proto-select-orb-idle" />
-          )}
-        </button>
+        />
       ) : null}
       <button
         type="button"
@@ -449,26 +435,12 @@ function PrototypeSidebarThreadCard({
         .join(' ')}
     >
       {selectable ? (
-        <button
-          type="button"
+        <ProtoRowSelectCheckbox
+          selected={selected}
+          label={title}
+          onToggle={onToggleSelected}
           className="proto-collection-card__select"
-          role="checkbox"
-          aria-checked={selected}
-          aria-label={selected ? `Deselect ${title}` : `Select ${title}`}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onToggleSelected?.();
-          }}
-        >
-          {selected ? (
-            <span className="proto-accent-check-orb proto-accent-check-orb--selected">
-              <Icon name="check" size={11} />
-            </span>
-          ) : (
-            <span className="proto-select-orb-idle" />
-          )}
-        </button>
+        />
       ) : null}
       <button
         type="button"
@@ -2096,8 +2068,18 @@ export default function PrototypeSidebar({
    * one is deselected or Esc clears the set.
    */
   const selectionActive = sidebarSelectMode || sidebarSelectedIds.length > 0;
-  /* A note row is in a selecting frame of mind only when *notes* are being
-     selected — a standing highlight selection must not retarget its click. */
+  /*
+   * A row is in a selecting frame of mind only when *its own kind* is being selected — a
+   * standing highlight selection must not retarget a note row's click.
+   *
+   * Every kind needs the leading `sidebarSelectMode ||` term, and for a while only this one
+   * had it. The other five derived their flag from ids alone, which deadlocked the moment the
+   * checkbox stopped revealing itself on hover: the flag is what adds `--selectable`, the CSS
+   * hides the checkbox without it, and the checkbox is the only way to select a first item. So
+   * folders, Threads, highlights, resources and search results could not be selected at all —
+   * ⌘-click still worked, because it is gated on `selectable` rather than on select mode, which
+   * is why this read as broken on touch and merely odd on a desktop.
+   */
   const noteSelectionActive =
     sidebarSelectMode || (sidebarSelectionKind === 'note' && sidebarSelectedIds.length > 0);
 
@@ -2211,7 +2193,8 @@ export default function PrototypeSidebar({
   const searchResultSelection = useMemo(
     () => ({
       for: (kind: 'note' | 'highlight', id: string, label: string) => {
-        const active = sidebarSelectionKind === kind && sidebarSelectedIds.length > 0;
+        const active =
+          sidebarSelectMode || (sidebarSelectionKind === kind && sidebarSelectedIds.length > 0);
         const selected = active && sidebarSelectedIds.includes(id);
         const base = sidebarSelectionKind === kind ? sidebarSelectedIds : [];
         const onToggle = () => {
@@ -2423,7 +2406,7 @@ export default function PrototypeSidebar({
     is what keeps the two from being confused for one another.
   */
   const highlightSelectionActive =
-    sidebarSelectionKind === 'highlight' && sidebarSelectedIds.length > 0;
+    sidebarSelectMode || (sidebarSelectionKind === 'highlight' && sidebarSelectedIds.length > 0);
   const selectedHighlightIdSet = useMemo(
     () => new Set(highlightSelectionActive ? sidebarSelectedIds : []),
     [highlightSelectionActive, sidebarSelectedIds],
@@ -2837,7 +2820,7 @@ export default function PrototypeSidebar({
     on, so it never carries a checkbox.
   */
   const folderSelectionActive =
-    sidebarSelectionKind === 'folder' && sidebarSelectedIds.length > 0;
+    sidebarSelectMode || (sidebarSelectionKind === 'folder' && sidebarSelectedIds.length > 0);
   const folderSelectedIdSet = useMemo(
     () => new Set(folderSelectionActive ? sidebarSelectedIds : []),
     [folderSelectionActive, sidebarSelectedIds],
@@ -2904,7 +2887,7 @@ export default function PrototypeSidebar({
     why the confirm says so rather than calling it a delete.
   */
   const threadSelectionActive =
-    sidebarSelectionKind === 'thread' && sidebarSelectedIds.length > 0;
+    sidebarSelectMode || (sidebarSelectionKind === 'thread' && sidebarSelectedIds.length > 0);
   const threadSelectedIdSet = useMemo(
     () => new Set(threadSelectionActive ? sidebarSelectedIds : []),
     [threadSelectionActive, sidebarSelectedIds],
@@ -3099,7 +3082,12 @@ export default function PrototypeSidebar({
 
   const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
     if (!homeSpaceId) return;
-    if (!r.parentNoteId) return;
+    // Deliberately no `if (!r.parentNoteId) return;` here. That guard used to sit at the top and
+    // made a highlight with no source note do nothing at all on tap — no navigation, no
+    // fallback, no message — while also rendering the standalone-passage fallback further down
+    // unreachable. The parent note is only required by the branches that actually anchor to
+    // one; each checks for itself.
+    //
     // Same space scoping as onNoteRow — a note reachable only through a shared space 404s
     // ("Note not found") if the dock deep-link drops `?space=`.
     const navSearch = prototypeNoteListNavigationSearch({
@@ -3144,6 +3132,9 @@ export default function PrototypeSidebar({
         return;
       }
     }
+    // The highlight and reference docks both live inside a note, so without a source note
+    // there is nothing to open them on.
+    if (!r.parentNoteId) return;
     dismissStandaloneScripturePassage();
     const isReferenceRow = r.entryKind === 'reference';
     navigate({

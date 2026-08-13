@@ -185,3 +185,57 @@ describe('planTruncatedDraftRestore', () => {
     ).toEqual({ action: 'restore' });
   });
 });
+
+describe('planTruncatedDraftRestore — server re-marked the body after the seam', () => {
+  const seam = '<p>Opening thoughts</p>';
+
+  it('drops the draft instead of appending its own words back onto the note', () => {
+    /*
+      The reported bug: content duplicated between the PWA and the desktop, and deleting the
+      duplicate brought it back.
+
+      The seam still validates because scripture processing rewrote the body *after* the seam
+      offset — it wraps a bare reference in pill markup on every save
+      (transformCanonicalScriptureContent). The old guard here was a literal
+      `serverContent.startsWith(draftContent)`, which markup drift defeats, so the merge below
+      spliced the draft's own paragraph onto a server body that already contained it. The draft
+      is per-device, so erasing the result on one device left the other free to re-post it.
+    */
+    const draftContent = `${seam}<p>Romans 8:1</p>`;
+    const serverContent =
+      `${seam}<p><span data-scripture-reference="Romans 8:1" data-note-id="note_1" ` +
+      `data-scripture-translation="NET" class="scripture-pill">Romans 8:1</span></p><p>Later thought</p>`;
+
+    const plan = planTruncatedDraftRestore({
+      draftContent,
+      draftPreviewHtml: seam,
+      draftPreviewLength: seam.length,
+      serverContent,
+      serverIsTruncated: false,
+    });
+
+    expect(plan.action).toBe('skip-clear');
+  });
+
+  it('still merges a genuine tail the draft never saw', () => {
+    // The case the merge exists for must keep working: the draft says something the server
+    // does not, so its words are real unsaved work and the server's tail is real new content.
+    const draftContent = `${seam}<p>My unsaved sentence</p>`;
+    const serverContent = `${seam}<p>Someone else's later paragraph</p>`;
+
+    const plan = planTruncatedDraftRestore({
+      draftContent,
+      draftPreviewHtml: seam,
+      draftPreviewLength: seam.length,
+      serverContent,
+      serverIsTruncated: false,
+    });
+
+    expect(plan.action).toBe('restore-merged');
+    if (plan.action === 'restore-merged') {
+      expect(plan.content).toContain('My unsaved sentence');
+      expect(plan.content).toContain("Someone else's later paragraph");
+      expect(plan.content.split('My unsaved sentence').length - 1).toBe(1);
+    }
+  });
+});

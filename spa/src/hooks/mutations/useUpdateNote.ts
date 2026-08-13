@@ -256,10 +256,38 @@ export async function rollbackFailedNoteUpdate(
     let draftedAttempt = false;
     if (typeof attempted?.content === 'string') {
       try {
-        const { saveNoteDraft } = await import('@/utils/note-draft-store');
-        saveNoteDraft(noteId, {
+        const store = await import('@/utils/note-draft-store');
+        // Carry the seam forward if this note already had a truncated draft. Writing
+        // `{ title, content }` alone strips `bodyTruncated` / `previewHtml` / `previewLength`,
+        // which turns a known-incomplete prefix into what looks like a complete body — and the
+        // next open then restores that prefix over the full note instead of merging the tail
+        // back on. A stale seam is harmless by comparison: `planTruncatedDraftRestore` checks
+        // it against the server body and drops the draft when it no longer lines up.
+        //
+        // Wrapped separately from the save: preserving the seam is an improvement, preserving
+        // the text the user just typed is the point. A failure to read the old draft must not
+        // be allowed to skip the write.
+        let seam: {
+          bodyTruncated?: boolean;
+          previewHtml?: string;
+          previewLength?: number;
+        } = {};
+        try {
+          const existing = store.getNoteDraft?.(noteId);
+          if (existing?.bodyTruncated) {
+            seam = {
+              bodyTruncated: true,
+              previewHtml: existing.previewHtml,
+              previewLength: existing.previewLength,
+            };
+          }
+        } catch {
+          /* seam is a bonus; the save below is not */
+        }
+        store.saveNoteDraft(noteId, {
           title: attempted.title ?? '',
           content: attempted.content,
+          ...seam,
         });
         draftedAttempt = true;
       } catch {

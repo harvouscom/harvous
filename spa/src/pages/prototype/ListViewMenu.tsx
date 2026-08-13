@@ -5,7 +5,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
-import { useProtoShell, type SidebarListMode } from '../../layouts/proto-shell-context';
+import {
+  sidebarSelectionKindForListMode,
+  useProtoShell,
+  type SidebarListMode,
+  type SidebarSelectionKind,
+} from '../../layouts/proto-shell-context';
 import {
   PROTO_TOOLBAR_ICON_SIZE,
   PROTO_TOOLBAR_ORB_ICON_SIZE,
@@ -16,6 +21,16 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { SIDEBAR_LIST_MODES } from './proto-sidebar-list-modes';
+
+/** Menu label for each selection kind. "Threads" keeps its capital — it is a product noun. */
+const SELECT_NOUN_BY_KIND: Record<SidebarSelectionKind, string> = {
+  note: 'notes',
+  highlight: 'highlights',
+  folder: 'folders',
+  thread: 'Threads',
+  sharedThread: 'Threads',
+  resource: 'resources',
+};
 
 const MENU_Z_INDEX = 6000;
 const LIST_VIEW_POPOVER_WIDTH = 260;
@@ -210,24 +225,11 @@ export default function ListViewMenu({
    * Resources is a different entity entirely.
    */
   /* The only way into selecting — there is no hover reveal any more, so this
-     entry tracks every selectable mode rather than staying at notes. */
-  const canSelect =
-    sidebarListMode === 'notes' ||
-    sidebarListMode === 'scripture' ||
-    sidebarListMode === 'highlights' ||
-    sidebarListMode === 'folders' ||
-    sidebarListMode === 'threads' ||
-    sidebarListMode === 'resources';
-  const selectNoun =
-    sidebarListMode === 'highlights'
-      ? 'highlights'
-      : sidebarListMode === 'folders'
-        ? 'folders'
-        : sidebarListMode === 'threads'
-          ? 'Threads'
-        : sidebarListMode === 'resources'
-          ? 'resources'
-          : 'notes';
+     entry tracks every selectable mode rather than staying at notes. Scripture is not one
+     of them: its rows carry no select affordance, so the entry was a visible no-op there. */
+  const selectionKind = sidebarSelectionKindForListMode(sidebarListMode);
+  const canSelect = selectionKind !== null;
+  const selectNoun = selectionKind ? SELECT_NOUN_BY_KIND[selectionKind] : 'notes';
   const selectSection = canSelect ? (
     <div className="proto-menu-section" role="group">
       <button
@@ -238,8 +240,10 @@ export default function ListViewMenu({
           const on = selectingNow;
           setSidebarSelectMode(!on);
           /* Leaving has to drop the set as well as the flag, or the checkboxes
-             stay lit and the action bar keeps standing with no way back. */
-          if (on) setSidebarSelection('note', []);
+             stay lit and the action bar keeps standing with no way back. Entering has to
+             set the *kind*, or the list you are looking at never sees itself as selecting —
+             this used to always say 'note', so folders and Threads could never start. */
+          setSidebarSelection(on ? 'note' : (selectionKind ?? 'note'), []);
           ensureSidebarExpanded();
           setOpen(false);
         }}

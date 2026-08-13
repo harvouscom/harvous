@@ -76,3 +76,34 @@ describe('notePurposeModel', () => {
     }
   });
 });
+
+describe('notePurposeModel reading context', () => {
+  const sermon = { composePurpose: null, startedFromServiceTitle: 'The Weight of Grace' };
+
+  it('names the sermon when read where the note was started', () => {
+    expect(notePurposeModel({ ...sermon, readingInStartedContext: true })?.kind).toBe('service');
+  });
+
+  it('stays silent when the note is being read through a different room', () => {
+    // The bug: startedFromServiceId/Title is a permanent column that nothing clears when a
+    // note is filed into a study, so a note that began as sermon notes announced that sermon
+    // inside every space it was ever added to — "adding notes to shared space study creates
+    // this wrong header context of relating to sermon".
+    expect(notePurposeModel({ ...sermon, readingInStartedContext: false })).toBeNull();
+  });
+
+  it('treats an unstated reading context as in-context', () => {
+    // Callers that don't know must behave as they did before rather than lose the banner.
+    expect(notePurposeModel(sermon)?.kind).toBe('service');
+    expect(notePurposeModel({ ...sermon, readingInStartedContext: undefined })?.kind).toBe('service');
+  });
+
+  it('still lets a template beat an in-context sermon', () => {
+    const purpose = notePurposeModel({
+      ...sermon,
+      composePurpose: 'template',
+      readingInStartedContext: true,
+    });
+    expect(purpose?.kind).toBe('template');
+  });
+});

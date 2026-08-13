@@ -6,9 +6,12 @@ import type { NoteDetail } from '../../queries/useNote';
 
 const saveNoteDraft = vi.fn();
 const clearNoteDraft = vi.fn();
+const getNoteDraft = vi.fn(() => null as unknown);
 vi.mock('@/utils/note-draft-store', () => ({
   saveNoteDraft: (...args: unknown[]) => saveNoteDraft(...args),
   clearNoteDraft: (...args: unknown[]) => clearNoteDraft(...args),
+  // The conflict path reads the existing draft to carry a truncation seam forward.
+  getNoteDraft: (...args: unknown[]) => getNoteDraft(...(args as [])),
 }));
 
 /** Toasts ride a window CustomEvent — capture them to assert on what the user is told. */
@@ -24,6 +27,8 @@ function captureToasts(): { messages: string[]; stop: () => void } {
 beforeEach(() => {
   saveNoteDraft.mockClear();
   clearNoteDraft.mockClear();
+  getNoteDraft.mockReset();
+  getNoteDraft.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -162,6 +167,75 @@ describe('rollbackFailedNoteUpdate on a version conflict', () => {
 
     expect(clearNoteDraft).not.toHaveBeenCalled();
     expect(toasts.messages).toHaveLength(1);
+  });
+
+  it('carries a truncation seam forward when re-drafting the attempt', async () => {
+    /*
+      A draft written from a list-truncated body records the seam it was cut at, and that is
+      the only thing that lets the missing tail be reattached later. Re-drafting the attempt
+      as a bare { title, content } stripped it, so a known-incomplete prefix started looking
+      like a complete body — and the next open restored that prefix over the full note.
+    */
+    getNoteDraft.mockReturnValue({
+      title: 'T',
+      content: '<p>preview</p>',
+      savedAt: Date.now(),
+      bodyTruncated: true,
+      previewHtml: '<p>preview</p>',
+      previewLength: 14,
+    });
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { queryFn: async () => note({ content: '<p>a co-editor wrote this</p>' }), retry: false },
+      },
+    });
+    qc.setQueryData<NoteDetail>(['note', 'note_1'], note({ content: '<p>a co-editor wrote this</p>' }));
+    const toasts = captureToasts();
+
+    await rollbackFailedNoteUpdate(
+      qc,
+      new APIError(409, 'conflict', 'NOTE_VERSION_CONFLICT'),
+      'note_1',
+      { previousNotes: [] },
+      { title: 'T', content: '<p>but I wrote that</p>' },
+    );
+    toasts.stop();
+
+    expect(saveNoteDraft).toHaveBeenCalledWith('note_1', {
+      title: 'T',
+      content: '<p>but I wrote that</p>',
+      bodyTruncated: true,
+      previewHtml: '<p>preview</p>',
+      previewLength: 14,
+    });
+  });
+
+  it('still saves the attempt when the existing draft cannot be read', async () => {
+    // The seam is a bonus; the text the user just typed is the point. A throwing read must
+    // not be allowed to skip the write that preserves it.
+    getNoteDraft.mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: { queryFn: async () => note({ content: '<p>a co-editor wrote this</p>' }), retry: false },
+      },
+    });
+    const toasts = captureToasts();
+
+    await rollbackFailedNoteUpdate(
+      qc,
+      new APIError(409, 'conflict', 'NOTE_VERSION_CONFLICT'),
+      'note_1',
+      { previousNotes: [] },
+      { title: 'T', content: '<p>but I wrote that</p>' },
+    );
+    toasts.stop();
+
+    expect(saveNoteDraft).toHaveBeenCalledWith('note_1', {
+      title: 'T',
+      content: '<p>but I wrote that</p>',
+    });
   });
 
   it('still restores the snapshot for non-conflict failures', async () => {

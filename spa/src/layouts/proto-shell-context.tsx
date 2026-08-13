@@ -73,6 +73,37 @@ export type SidebarSelectionKind =
   | 'thread'
   | 'sharedThread';
 
+/**
+ * What entering select mode in a given list selects — and `null` for lists that cannot be
+ * selected at all.
+ *
+ * One mapping, used both to label the menu item and to set the selection kind. They used to be
+ * separate: the label had its own `sidebarListMode` chain while the enter/exit handler called
+ * `setSidebarSelectMode` with no kind at all and hardcoded `'note'` on the way out, so leaving
+ * select mode in a folders list cleared a note selection that was never there.
+ *
+ * Scripture maps to null on purpose. Its rows render no select affordance at any level — the
+ * books and passages levels are plain cards and rows — so offering "Select" there was a visible
+ * no-op. The type has never had a 'scripture' member, which is the same statement in a
+ * different place.
+ */
+export function sidebarSelectionKindForListMode(mode: SidebarListMode): SidebarSelectionKind | null {
+  switch (mode) {
+    case 'notes':
+      return 'note';
+    case 'highlights':
+      return 'highlight';
+    case 'folders':
+      return 'folder';
+    case 'threads':
+      return 'thread';
+    case 'resources':
+      return 'resource';
+    case 'scripture':
+      return null;
+  }
+}
+
 /** Sidebar layer — Home space dashboard vs the list views. Only 'space' layer content today is My Home. */
 export type SidebarLayer = 'space' | 'list';
 
