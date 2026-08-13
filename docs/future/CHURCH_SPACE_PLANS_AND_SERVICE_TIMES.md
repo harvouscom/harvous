@@ -6,6 +6,11 @@ engagement (§10)** (Aug 2026); P3–P4 design only. Decided August 2026. Compan
 [MY_CHURCH_SIDEBAR.md](./MY_CHURCH_SIDEBAR.md), and
 [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) (items 7, 9, 10, 11).
 
+**Where this goes next:**
+[SPACE_MEETING_RHYTHM_AND_CALENDAR.md](./SPACE_MEETING_RHYTHM_AND_CALENDAR.md) —
+multiple meeting days, in-person/online + meeting link, the timezone this design
+deliberately does without, and whether a room may reach a member's calendar.
+
 ---
 
 ## Why this exists
