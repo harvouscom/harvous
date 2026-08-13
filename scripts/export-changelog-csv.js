@@ -54,7 +54,19 @@ const SECTION_CATEGORY = {
  * Better still, infrastructure work should be committed as `chore:`, which bump-version.js does
  * not bump — then no changelog file is generated at all.
  */
-const PRIVATE_SECTIONS = new Set(["documentation", "internal", "chore", "ci", "build"]);
+const PRIVATE_SECTIONS = new Set([
+  "documentation",
+  "internal",
+  "chore",
+  "ci",
+  "build",
+  // generate-changelog.js's catch-all bucket for every commit type that isn't
+  // feat/fix/improvement/perf/docs — so `chore:`, `test:`, `ci:`, `refactor:`, `style:`. None of
+  // those describe something a reader can see. It published "Stop tracking Playwright run
+  // artifacts" and "Fail the build when a marquee label renders zero pixels wide" before it was
+  // added here.
+  "other changes",
+]);
 
 function resolveCsvPath(cliPath) {
   if (cliPath) return cliPath;
