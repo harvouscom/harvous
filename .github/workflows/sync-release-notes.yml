@@ -17,12 +17,36 @@ jobs:
       - name: Checkout app repo
         uses: actions/checkout@v4
 
+      # Fails early and by name. This job previously died inside actions/checkout with a bare
+      # "Bad credentials" from the REST API, which reads like a GitHub outage rather than an
+      # expired secret — it went unnoticed for nine days and six versions.
+      #
+      # Passed through `env`, not interpolated into the script. A private key is multi-line, and
+      # `${{ }}` pastes it in literally — the shell would see several lines rather than one test.
+      - name: Check the deploy key is present
+        env:
+          DEPLOY_KEY: ${{ secrets.HARVOUS_COM_SYNC_DEPLOY_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::HARVOUS_COM_SYNC_DEPLOY_KEY is not set. This job pushes to"
+            echo "::error::harvouscom/harvous.com and needs a write-enabled deploy key for it."
+            echo "::error::See docs/RELEASE_NOTES_SYNC_SETUP.md."
+            exit 1
+          fi
+
+      # A deploy key rather than a personal access token, deliberately.
+      #
+      # The token this replaced was a PAT that expired ~30 days after it was minted, taking the
+      # sync down silently: the workflow went red on every run from August 5th and the marketing
+      # site simply stopped receiving release notes. A deploy key does not expire, so the same
+      # lapse cannot recur, and it is scoped to this one repository rather than carrying the
+      # minter's whole account.
       - name: Checkout marketing site
         uses: actions/checkout@v4
         with:
           repository: harvouscom/harvous.com
           path: harvous.com
-          token: ${{ secrets.HARVOUS_COM_SYNC_TOKEN }}
+          ssh-key: ${{ secrets.HARVOUS_COM_SYNC_DEPLOY_KEY }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
