@@ -106,5 +106,20 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      # App.tsx throws "Missing VITE_CLERK_PUBLISHABLE_KEY" at module scope, so without a key the
+      # SPA never mounts and every scene selector times out with "element(s) not found" — which
+      # is exactly how this job failed on its first run. Locally the key comes from .env; a CI
+      # runner has none.
+      #
+      # The key below is fabricated and points at a domain that does not exist, which is fine
+      # because nothing here talks to Clerk: the dev galleries are fixtures and the assertions
+      # measure rendered widths. Publishable keys are public by design — they ship inside the
+      # client bundle — so this is not a secret being committed, it is a syntactically valid
+      # placeholder that satisfies the boot check.
+      #
+      # Verified by hiding .env locally and running with only this value, which reproduces the
+      # CI environment: all three galleries render and pass.
       - name: Measure marquee widths across the dev galleries
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
         run: npx playwright test --config playwright.gallery.config.ts marquee-width --workers=1
