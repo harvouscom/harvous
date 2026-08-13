@@ -74,3 +74,8 @@ server/data/scripture-knowledge/_subjects-batch.json
 # Cursor IDE
 .cursor/
 .dev-note-saves.log
+
+# Playwright run artifacts. `.last-run.json` was tracked by accident and churns on every local
+# run — a test-status file committed into the repo says nothing true about anyone else's checkout.
+test-results/
+playwright-report/
