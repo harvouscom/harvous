@@ -65,6 +65,17 @@ export const PROTO_ROUTE_PENDING_MIN_MS = 300;
  */
 export const PROTO_RESOURCE_MORPH_MS = 190;
 
+/**
+ * Note sheet stacking over / off the Bible reader paper — MUST stay in lockstep with
+ * `--pds-duration-paper-stack` and `.pds-reader-stack__sheet` in prototype-components.css.
+ *
+ * Longer than a panel (260ms) on purpose. A panel reveals; this one *moves a sheet the
+ * reader is watching* to a resting place above another sheet, and the eye needs to see
+ * it arrive or the two papers read as one screen replacing another. Neither sheet
+ * unmounts during the move, so this is animation time only — no work is blocked on it.
+ */
+export const PROTO_PAPER_STACK_MS = 320;
+
 /** Founder letter paper leaf fan — MUST stay in lockstep with `.proto-paper-leaf` transition in prototype-components.css. */
 export const PROTO_FOUNDER_LETTER_PAPER_MS = 900;
 

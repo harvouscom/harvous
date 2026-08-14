@@ -23,6 +23,9 @@ import {
   imagePresetUrl,
   presetDisplayLabel,
 } from '../../../lib/prototype-background';
+import PassageContextStrip, { primePassageContextCache } from '@/components/react/PassageContextStrip';
+import PrototypeReaderInspectorPane from '../../prototype/PrototypeReaderInspectorPane';
+import type { FontChoice } from '../../../lib/proto-font-prefs';
 import type { DesignSystemScene } from './sceneRegistry';
 
 function Swatch({ label, varName }: { label: string; varName: string }) {
@@ -590,6 +593,341 @@ function ThreadTrailScene() {
   );
 }
 
+/** John 1 fixture — verse-per-entry, because a verse is the reader's selection unit. */
+const READER_VERSES: { num: number; text: string; notes?: number; highlighted?: boolean }[] = [
+  {
+    num: 1,
+    text: 'In the beginning was the Word, and the Word was with God, and the Word was God.',
+    notes: 1,
+  },
+  { num: 2, text: 'He was with God in the beginning.' },
+  {
+    num: 3,
+    text: 'Through him all things were made; without him nothing was made that has been made.',
+    notes: 3,
+    highlighted: true,
+  },
+  { num: 4, text: 'In him was life, and that life was the light of all mankind.' },
+  { num: 5, text: 'The light shines in the darkness, and the darkness has not overcome it.' },
+];
+
+function ReaderMarker({ count }: { count: number }) {
+  const label = count === 1 ? '1 note on this verse' : `${count} notes on this verse`;
+  return (
+    <button type="button" className="pds-reader__marker" aria-label={label}>
+      {count === 1 ? (
+        <span className="pds-reader__marker-dot" />
+      ) : (
+        <span className="pds-reader__marker-capsule">
+          {/* Two dots read as "more than one" — the capsule carries the meaning,
+              not an exact count, which the dock shows on tap. */}
+          <span className="pds-reader__marker-dot" />
+          <span className="pds-reader__marker-dot" />
+        </span>
+      )}
+    </button>
+  );
+}
+
+function ReaderScene() {
+  const [selected, setSelected] = useState<number | null>(4);
+  // Roving tabindex: the chapter is ONE tab stop and arrows move between verses.
+  // A focusable-per-verse model would put 31 tab stops in John 1 and 176 in
+  // Psalm 119, which is why the verse is an option in a listbox, not a button.
+  const [focusedVerse, setFocusedVerse] = useState(READER_VERSES[0].num);
+
+  const moveFocus = (from: number, delta: number) => {
+    const i = READER_VERSES.findIndex((v) => v.num === from);
+    const next = READER_VERSES[Math.min(READER_VERSES.length - 1, Math.max(0, i + delta))];
+    setFocusedVerse(next.num);
+    document.querySelector<HTMLElement>(`[data-verse="${next.num}"]`)?.focus();
+  };
+
+  return (
+    <div className="pds-gallery-stack">
+      <PrototypeSectionHeader>Reading canvas</PrototypeSectionHeader>
+      <p className="pds-caption">
+        Text role <code>.pds-reader-text</code>; size/leading come from{' '}
+        <code>--pds-reader-font-size</code> so the inspector re-sets one variable. Geometry mirrors{' '}
+        <code>HarvousReaderLayout</code>. Selection snaps to whole verses — click one, or tab into
+        the chapter once and use ↑/↓ then Enter.
+      </p>
+
+      <div className="pds-reader pds-gallery-reader">
+        <div className="pds-reader__scroll">
+          <div className="pds-reader__column">
+            <div className="pds-reader__chapter-heading">
+              <h2 className="pds-reader-chapter-title">John 1</h2>
+              <p className="pds-reader__chapter-meta pds-caption">New International Version</p>
+            </div>
+
+            <div role="listbox" aria-label="John 1 verses">
+              {READER_VERSES.map((verse) => (
+                <div className="pds-reader__block" role="none" key={verse.num}>
+                  {verse.notes ? <ReaderMarker count={verse.notes} /> : null}
+                  <p className="pds-reader-text" role="none">
+                    <span
+                      className="pds-reader__verse"
+                      role="option"
+                      data-verse={verse.num}
+                      aria-selected={selected === verse.num}
+                      tabIndex={focusedVerse === verse.num ? 0 : -1}
+                      data-selected={selected === verse.num ? 'true' : 'false'}
+                      data-highlighted={verse.highlighted ? 'true' : 'false'}
+                      onFocus={() => setFocusedVerse(verse.num)}
+                      onClick={() => setSelected((n) => (n === verse.num ? null : verse.num))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelected((n) => (n === verse.num ? null : verse.num));
+                        } else if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          moveFocus(verse.num, 1);
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          moveFocus(verse.num, -1);
+                        }
+                      }}
+                    >
+                      <sup className="pds-reader-verse-num">{verse.num}</sup>
+                      {verse.text}
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <PrototypeSectionHeader>Margin notifiers</PrototypeSectionHeader>
+      <p className="pds-caption">
+        One dot = one note on that verse; a capsule of stacked dots = several. Colour comes from{' '}
+        <code>--pds-reader-notifier-color</code> (defaults to the warm-amber highlight accent). The
+        gutter is reserved even when empty, so text never reflows when the first note lands.
+      </p>
+      <div className="pds-gallery-reader-markers">
+        <div className="pds-gallery-reader-marker-item">
+          <ReaderMarker count={1} />
+          <span className="pds-footnote">One note</span>
+        </div>
+        <div className="pds-gallery-reader-marker-item">
+          <ReaderMarker count={3} />
+          <span className="pds-footnote">Several</span>
+        </div>
+      </div>
+
+      <PrototypeSectionHeader>Reading states</PrototypeSectionHeader>
+      <div className="pds-gallery-empty-grid">
+        <div className="pds-gallery-empty-panel pds-gallery-empty-panel--pane">
+          <PrototypePaneEmptyState
+            icon="scroll"
+            title="Pick up where you left off"
+            description="Open a book to start reading."
+          />
+        </div>
+        <div className="pds-gallery-empty-panel pds-gallery-empty-panel--pane">
+          <PrototypePaneEmptyState
+            icon="cloud"
+            title="Not downloaded yet"
+            description="This translation isn't available offline. Reconnect, or download it in Translations."
+          />
+        </div>
+      </div>
+      <p className="pds-caption">
+        Loading a chapter shows the real passage arriving, not a skeleton — see the design system on
+        placeholder loaders.
+      </p>
+    </div>
+  );
+}
+
+function PaperStackScene() {
+  const [stacked, setStacked] = useState(true);
+
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        The reader is the base paper; a note stacks over it, leaving the reader&apos;s top edge
+        visible as the way back. Neither sheet unmounts, so reading position and note draft both
+        survive the move — <code>PROTO_PAPER_STACK_MS</code> ↔{' '}
+        <code>--pds-duration-paper-stack</code>.
+      </p>
+
+      <div className="pds-gallery-btn-row">
+        <button
+          type="button"
+          className="proto-share-popover__copy"
+          onClick={() => setStacked((s) => !s)}
+          aria-pressed={stacked}
+        >
+          {stacked ? 'Close note' : 'Start a note from John 1:3'}
+        </button>
+      </div>
+
+      <div className="pds-reader-stack pds-gallery-reader-stack">
+        <div className="pds-reader-stack__base pds-reader">
+          <div className="pds-reader__scroll">
+            <div className="pds-reader__column">
+              <div className="pds-reader__chapter-heading">
+                <h2 className="pds-reader-chapter-title">John 1</h2>
+              </div>
+              <div className="pds-reader__block">
+                <p className="pds-reader-text">
+                  <span className="pds-reader__verse">
+                    <sup className="pds-reader-verse-num">3</sup>
+                    Through him all things were made; without him nothing was made that has been
+                    made.
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {stacked ? (
+          <button type="button" className="pds-reader-stack__peek" onClick={() => setStacked(false)}>
+            <Icon name="chevron-down" size={12} aria-hidden />
+            <span className="pds-caption">John 1</span>
+          </button>
+        ) : null}
+
+        <div className="pds-reader-stack__sheet" data-stacked={stacked ? 'true' : 'false'}>
+          <div className="pds-gallery-reader-note">
+            <p className="pds-compose-title">Untitled note</p>
+            <p className="pds-caption">John 1:3 · NIV</p>
+            <p className="pds-body">Everything that exists traces back through him…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The dock beside the reading surface, rendering the real `PassageContextStrip` over a
+ * primed cache — the gallery has no session, and restating the strip's markup here would
+ * drift from production the first time that component changed.
+ */
+const DOCK_REF = 'Romans 8:28';
+const DOCK_TRANSLATION = 'NET';
+primePassageContextCache(DOCK_REF, DOCK_TRANSLATION, {
+  themes: [
+    { topicId: 't1', slug: 'providence', label: 'Providence', relevance: 92 },
+    { topicId: 't2', slug: 'suffering', label: 'Suffering', relevance: 78 },
+  ],
+  crossReferences: [
+    { book: 'Ephesians', chapterStart: 1, chapterEnd: 1, verseStart: 11, verseEnd: 11, votes: 34 },
+    { book: 'Genesis', chapterStart: 50, chapterEnd: 50, verseStart: 20, verseEnd: 20, votes: 28 },
+  ],
+  people: [{ id: 'p1', slug: 'paul', name: 'Paul' }],
+  places: [{ id: 'pl1', slug: 'rome', name: 'Rome' }],
+  relatedNotes: [
+    { noteId: 'n1', title: 'Start of it', reason: 'Same passage' },
+    { noteId: 'n2', title: 'No Condemnation', reason: 'Cross-reference' },
+  ],
+});
+
+function ReaderDockScene() {
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        <code>PassageContextStrip</code> — one strip, shown wherever a passage is: inside a
+        note&rsquo;s scripture dock, and in the Bible reader. The reader has no dock of its own,
+        because a scripture dock <em>is</em> a snippet view of the reader.
+      </p>
+      <p className="pds-caption">
+        Related passages are cross-references; people, places and themes are the dictionary,
+        from <code>BiblePeople</code> / <code>BiblePlaces</code> / <code>ScriptureTopics</code>.
+        Those three came back from <code>/api/scripture/passage-context</code> unrendered for a
+        long time — this scene is where a missing section would now be visible.
+      </p>
+
+      <div className="pds-gallery-reader-dock-stage">
+        <div className="pds-reader-with-dock">
+          <div className="pds-reader">
+            <div className="pds-reader__scroll">
+              <div className="pds-reader__column">
+                <div className="pds-reader__chapter-heading">
+                  <h2 className="pds-reader-chapter-title">Romans 8</h2>
+                </div>
+                <div className="pds-reader__block">
+                  <p className="pds-reader-text">
+                    <span className="pds-reader__verse" data-selected="true">
+                      <sup className="pds-reader-verse-num">28</sup>
+                      And we know that all things work together for good…
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <aside className="pds-gallery-context-strip">
+            <PassageContextStrip
+              reference={DOCK_REF}
+              translation={DOCK_TRANSLATION}
+              active
+              showCrossRefs
+              showRelatedNotes
+              showKnowledge
+              onOpenScripturePassage={() => undefined}
+              onOpenEntity={() => undefined}
+              onNavigateNote={() => undefined}
+            />
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Reader details in the shared inspector chrome. Live controls: the text-size segments and
+ * the verse-number toggle write real reading preferences, which is the point — they set CSS
+ * vars the reading canvas above reads, so the effect is visible in the same view.
+ */
+function ReaderInspectorScene() {
+  const [translation, setTranslation] = useState('NET');
+  const [fontOverride, setFontOverride] = useState<FontChoice | null>(null);
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        Pane chrome, sections and rows are the note inspector's — only the controls are
+        reader-specific. Text size writes <code>--pds-reader-font-size</code>, so the sample
+        below reflows as you change it.
+      </p>
+
+      <div className="pds-gallery-reader-inspector-stage">
+        <div className="pds-reader">
+          <div className="pds-reader__scroll">
+            <div className="pds-reader__column">
+              <div className="pds-reader__block">
+                <p className="pds-reader-text">
+                  <span className="pds-reader__verse">
+                    <sup className="pds-reader-verse-num">1</sup>
+                    In the beginning was the Word, and the Word was with God.
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="proto-inspector-desktop pds-gallery-inspector-frame">
+          <PrototypeReaderInspectorPane
+            book="John"
+            chapter={1}
+            translation={translation}
+            verseCount={51}
+            onChangeTranslation={setTranslation}
+            fontOverride={fontOverride}
+            onChangeFontOverride={setFontOverride}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -618,6 +956,14 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <ToastsScene />;
     case 'ds-13-thread-trail':
       return <ThreadTrailScene />;
+    case 'ds-14-reader':
+      return <ReaderScene />;
+    case 'ds-15-paper-stack':
+      return <PaperStackScene />;
+    case 'ds-16-reader-dock':
+      return <ReaderDockScene />;
+    case 'ds-17-reader-inspector':
+      return <ReaderInspectorScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

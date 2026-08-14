@@ -240,6 +240,29 @@ export type StandaloneScripturePassageState = {
   focusedHighlightThreadId: string;
 };
 
+/**
+ * Reader paper the note sheet is stacked over.
+ *
+ * Shell state rather than route state on purpose. Saving a compose draft navigates to
+ * `/{noteId}`, so a stack derived from the URL would collapse the moment the note saved —
+ * exactly when the reader most needs to still be there. Holding the chapter here lets the
+ * URL follow the top sheet (the note, which is what you are focused on) while the reader
+ * underneath stays mounted and keeps its scroll position.
+ */
+export type ReaderStackState = {
+  book: string;
+  chapter: number;
+  translation: string;
+  /** Verse the note was started from — the reader restores focus here on flip-back. */
+  fromVerse?: number;
+  /**
+   * Whether the note sheet is up. Flipping down sets this false and leaves the sheet
+   * mounted below the fold, so the draft is still there when you flip back — closing it
+   * for real is `unstackNoteFromReader`.
+   */
+  open: boolean;
+};
+
 /** Bottom chrome on note routes — format bar, scripture dock, etc. */
 export type PrototypeEditorChromeMode =
   | 'format'
@@ -404,6 +427,12 @@ type ProtoShellContextValue = {
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
   dismissStandaloneScripturePassage: () => void;
+  /** Non-null while a note sheet is stacked over the Bible reader. */
+  readerStack: ReaderStackState | null;
+  stackNoteOverReader: (value: Omit<ReaderStackState, 'open'>) => void;
+  /** Flip the sheet down (or back up) without unmounting it. */
+  setReaderSheetOpen: (open: boolean) => void;
+  unstackNoteFromReader: () => void;
   /** Note editor bottom chrome (shell grid row — spans sidebar + main). */
   editorChromeMode: PrototypeEditorChromeMode;
   setEditorChromeMode: (mode: PrototypeEditorChromeMode) => void;
@@ -518,6 +547,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
   );
+  const [readerStack, setReaderStack] = useState<ReaderStackState | null>(null);
   const [editorChromeMode, setEditorChromeMode] = useState<PrototypeEditorChromeMode>('hidden');
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [studyDockCarouselHostEl, setStudyDockCarouselHostEl] = useState<HTMLDivElement | null>(null);
@@ -1172,6 +1202,16 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setStandaloneScripturePassage(null);
   }, []);
 
+  const stackNoteOverReader = useCallback((value: Omit<ReaderStackState, 'open'>) => {
+    setReaderStack({ ...value, open: true });
+  }, []);
+  const setReaderSheetOpen = useCallback((open: boolean) => {
+    setReaderStack((current) => (current ? { ...current, open } : current));
+  }, []);
+  const unstackNoteFromReader = useCallback(() => {
+    setReaderStack(null);
+  }, []);
+
   const value = useMemo(
     () => ({
       drawerOpen,
@@ -1249,6 +1289,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
+      readerStack,
+      stackNoteOverReader,
+      setReaderSheetOpen,
+      unstackNoteFromReader,
       editorChromeMode,
       setEditorChromeMode,
       formatToolbarHostEl,
@@ -1331,6 +1375,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
+      readerStack,
+      stackNoteOverReader,
+      setReaderSheetOpen,
+      unstackNoteFromReader,
       editorChromeMode,
       formatToolbarHostEl,
       studyDockCarouselHostEl,

@@ -26,8 +26,23 @@ import {
 } from '../../../lib/prototype-background';
 import { AppearancePreviewTile } from './AppearancePreviewTile';
 import { SettingsGroup, SettingsShell } from './SettingsShell';
+import {
+  FONT_CHOICES,
+  getFontPrefsServerSnapshot,
+  getFontPrefsSnapshot,
+  subscribeFontPrefs,
+  writeFontPrefs,
+  type FontPrefs,
+} from '../../../lib/proto-font-prefs';
 
-type BgKind = 'colors' | 'photos';
+/**
+ * What the carousel below the toggle is showing.
+ *
+ * Typeface joins colour and imagery rather than sitting in its own section further down:
+ * they are the same question ("how should this look?") answered with the same control, and
+ * a separate block wedged between the toggle and its own carousel split that pairing apart.
+ */
+type BgKind = 'colors' | 'photos' | 'type';
 
 export default function PrototypeAppearancePage() {
   const [lightBg, setLightBg] = useState<ProtoBg>(() => readBackgroundForMode('light'));
@@ -107,6 +122,7 @@ export default function PrototypeAppearancePage() {
         effectiveMode={effectiveMode}
         editingMode={editingMode}
         onTapCard={isAuto ? onSwitchEditingMode : undefined}
+        showTypeSpecimen
       />
 
       <div className="proto-settings__inset">
@@ -141,16 +157,52 @@ export default function PrototypeAppearancePage() {
         </div>
       </div>
 
-      <BgCarousel
-        mode={editingMode}
-        bgKind={bgKind}
-        activeBg={activeBg}
-        imagePresets={imagePresets}
-        colorScheme={editingMode}
-        onPickColor={onPickColorPreset}
-        onPickImage={onPickImagePreset}
-      />
+      {bgKind === 'type' ? (
+        <TypefaceCarousel />
+      ) : (
+        <BgCarousel
+          mode={editingMode}
+          bgKind={bgKind}
+          activeBg={activeBg}
+          imagePresets={imagePresets}
+          colorScheme={editingMode}
+          onPickColor={onPickColorPreset}
+          onPickImage={onPickImagePreset}
+        />
+      )}
     </SettingsShell>
+  );
+}
+
+/**
+ * Typeface — the face the Bible reader sets Scripture in.
+ *
+ * Reading only. Notes are written among app chrome and in the app's own voice, so a second
+ * face there mostly fights the interface; sustained reading is where a serif — or
+ * OpenDyslexic — actually changes how well the page works.
+ *
+ * Each tile shows "Aa" in the face it selects, because naming a font in a different font
+ * asks you to imagine the answer.
+ */
+function TypefaceCarousel() {
+  const prefs = useSyncExternalStore(
+    subscribeFontPrefs,
+    getFontPrefsSnapshot,
+    getFontPrefsServerSnapshot,
+  );
+
+  return (
+    <div className="proto-appearance-carousel" role="listbox" aria-label="Reading typeface" style={{ marginTop: 12 }}>
+      {FONT_CHOICES.map((choice) => (
+        <AppearancePreviewTile
+          key={choice.id}
+          label={choice.label}
+          selected={prefs.reading === choice.id}
+          sampleFont={choice.id}
+          onClick={() => writeFontPrefs({ reading: choice.id })}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -190,9 +242,25 @@ type ActiveHeroProps = {
   effectiveMode: 'light' | 'dark';
   editingMode: 'light' | 'dark';
   onTapCard?: (mode: 'light' | 'dark') => void;
+  /** Show the reading face as an "Aa" in the mockup. Always on — a reader picking a colour
+   *  should still see what their Bible will read like. */
+  showTypeSpecimen?: boolean;
 };
 
-function ActiveHero({ lightBg, darkBg, isAuto, effectiveMode, editingMode, onTapCard }: ActiveHeroProps) {
+function ActiveHero({
+  lightBg,
+  darkBg,
+  isAuto,
+  effectiveMode,
+  editingMode,
+  onTapCard,
+  showTypeSpecimen,
+}: ActiveHeroProps) {
+  const fontPrefs = useSyncExternalStore(
+    subscribeFontPrefs,
+    getFontPrefsSnapshot,
+    getFontPrefsServerSnapshot,
+  );
   const cards: { mode: 'light' | 'dark'; bg: ProtoBg }[] = isAuto
     ? [{ mode: 'light', bg: lightBg }, { mode: 'dark', bg: darkBg }]
     : [{ mode: effectiveMode, bg: effectiveMode === 'dark' ? darkBg : lightBg }];
@@ -221,7 +289,16 @@ function ActiveHero({ lightBg, darkBg, isAuto, effectiveMode, editingMode, onTap
                 <span className="proto-appearance-hero__toolbar" />
                 <span className="proto-appearance-hero__body">
                   <span className="proto-appearance-hero__sidebar" />
-                  <span className="proto-appearance-hero__main" />
+                  <span className="proto-appearance-hero__main">
+                    {/* While Type is being edited the hero stops being an abstract mockup
+                        and shows the face itself — otherwise choosing a typeface previews
+                        in a tile the size of a stamp while the big card ignores it. */}
+                    {showTypeSpecimen ? (
+                      <span className="proto-appearance-hero__specimen" data-font={fontPrefs.reading}>
+                        Aa
+                      </span>
+                    ) : null}
+                  </span>
                 </span>
               </div>
               {isEditing ? (
@@ -338,6 +415,7 @@ const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string }[] = 
 const BG_KIND_OPTIONS: { value: BgKind; label: string }[] = [
   { value: 'colors', label: 'Colors' },
   { value: 'photos', label: 'Imagery' },
+  { value: 'type', label: 'Type' },
 ];
 
 const rowStyle: React.CSSProperties = {

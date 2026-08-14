@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import type { FontChoice } from '../../../lib/proto-font-prefs';
 import Icon from '@/components/react/Icon';
 
 export type AppearancePreviewTileProps = {
@@ -13,6 +14,10 @@ export type AppearancePreviewTileProps = {
   photoEmpty?: boolean;
   /** Image wallpaper uses translucent blur; presets use canvas color-mix glass. */
   glassMode?: 'preset' | 'image';
+  /** Typeface tiles: render an "Aa" specimen in this face instead of the mini shell. */
+  sampleFont?: FontChoice;
+  /** Small chip under the label — marks one tile as the standing choice (e.g. "Default"). */
+  badge?: string;
 };
 
 type PreviewCanvasStyle = CSSProperties & {
@@ -27,6 +32,8 @@ export function AppearancePreviewTile({
   canvasImageUrl,
   photoEmpty = false,
   glassMode = 'preset',
+  sampleFont,
+  badge,
 }: AppearancePreviewTileProps) {
   const canvasStyle: PreviewCanvasStyle = {
     '--preview-canvas': canvasColor ?? 'var(--pds-canvas-default)',
@@ -52,13 +59,19 @@ export function AppearancePreviewTile({
       role="option"
       className={className}
       title={label}
-      aria-label={label}
+      aria-label={badge ? `${label} (${badge})` : label}
       aria-pressed={selected}
       aria-selected={selected}
       onClick={onClick}
     >
       <span className="proto-appearance-preview__canvas" style={canvasStyle} aria-hidden>
-        {photoEmpty ? (
+        {sampleFont ? (
+          /* Typeface tiles show the face itself. A row of identical mini-app mockups
+             cannot tell three fonts apart — the specimen is the preview. */
+          <span className="proto-appearance-preview__specimen" data-font={sampleFont}>
+            Aa
+          </span>
+        ) : photoEmpty ? (
           <span className="proto-appearance-preview__photo-icon">
             <Icon name="file-image" size={18} />
           </span>
@@ -78,6 +91,7 @@ export function AppearancePreviewTile({
         ) : null}
       </span>
       <span className="proto-appearance-preview__label">{label}</span>
+      {badge ? <span className="proto-appearance-preview__badge">{badge}</span> : null}
     </button>
   );
 }

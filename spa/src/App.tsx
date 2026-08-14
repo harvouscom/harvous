@@ -38,6 +38,7 @@ import {
   type PrototypeFeedbackToastVariant,
 } from '@/utils/prototype-feedback-toast';
 import { setSupabaseRealtimeAccessTokenGetter } from '@/lib/supabase-client';
+import { stripToastPunctuation } from '@/utils/toast-copy';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -76,10 +77,10 @@ if (!clerkPublishableKey) {
   throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY env var');
 }
 
-// Build window.toast from the same sonner instance used by <Toaster>
-function stripPunctuation(msg: string) {
-  return msg.replace(/[.!]/g, '');
-}
+// Build window.toast from the same sonner instance used by <Toaster>.
+// Shared with src/utils/toast.ts — a second private copy here is how the
+// multi-sentence toast bug survived in one path after being fixed in the other.
+const stripPunctuation = stripToastPunctuation;
 
 /**
  * Route a toast to whichever renderer the current shell actually mounts.

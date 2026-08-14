@@ -6,11 +6,10 @@ import {
   type ShowPrototypeFeedbackToastOptions,
 } from '@/utils/prototype-feedback-toast';
 import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
+import { stripToastPunctuation } from '@/utils/toast-copy';
 
-// Helper function to strip periods and exclamation marks from toast messages
-function stripPunctuation(message: string): string {
-  return message.replace(/[.!]/g, '');
-}
+/** Shared with `spa/src/App.tsx` — see `toast-copy.ts` for why it lives in its own module. */
+const stripPunctuation = stripToastPunctuation;
 
 // Helper function to ensure toaster portal exists before showing toast
 function ensurePortalExists(callback: () => void, maxRetries = 10, attempt = 0): void {

@@ -65,6 +65,7 @@ import {
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
@@ -4238,7 +4239,7 @@ export default function PrototypeSidebar({
                 ) : (
                   <ul className="proto-note-list">
                     {passagesForDrill.map((p) => (
-                      <li key={p.passageKey}>
+                      <li key={p.passageKey} className="proto-scripture-passage-row">
                         <button
                           type="button"
                           className="proto-note-row"
@@ -4254,6 +4255,28 @@ export default function PrototypeSidebar({
                           <div className="pds-list-preview">
                             {p.noteCount} note{p.noteCount !== 1 ? 's' : ''}
                           </div>
+                        </button>
+                        {/* The row itself still drills to this passage's notes — reading the
+                            chapter is a second, distinct intent, so it gets its own target
+                            rather than overloading the row and taking the notes drill away. */}
+                        <button
+                          type="button"
+                          className="proto-scripture-passage-row__read"
+                          aria-label={`Read ${p.displayRef} in the Bible reader`}
+                          title="Read chapter"
+                          onClick={() => {
+                            const bookTitle = scriptureBooks.find(
+                              (b) => b.bookOrder === p.bookOrder,
+                            )?.title;
+                            if (!bookTitle) return;
+                            void navigate({
+                              to: prototypeReadRouteTo(),
+                              params: { book: bookTitle, chapter: String(p.chapter) },
+                              search: { v: String(p.verseStart), t: undefined },
+                            });
+                          }}
+                        >
+                          <Icon name="book-open" size={14} aria-hidden />
                         </button>
                       </li>
                     ))}

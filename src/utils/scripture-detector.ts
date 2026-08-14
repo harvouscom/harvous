@@ -496,26 +496,64 @@ function validateAndWarn(ref: ScriptureReference): ScriptureReference {
 }
 
 // Resolve a raw book substring (e.g. "Exodus", "1 cor") to its canonical book name, or null.
+/**
+ * Resolve a typed book name to its canonical form.
+ *
+ * Scores every candidate variation and takes the best, rather than returning the first
+ * one that happens to match. First-match-wins silently resolved "Philemon" to
+ * **Philippians**: `"philemon".startsWith("phil")` is true, and `phil` — a Philippians
+ * synonym — appears earlier in the list than Philemon's own entry. A note reading
+ * "Philemon 1:6" got a pill full of Philippians.
+ *
+ * Ranking, strongest first:
+ *   3. exact match — what the user typed *is* a known name or abbreviation
+ *   2. the variation is a prefix of what they typed ("philemon" ⊃ "phil"), longest wins,
+ *      so a book's own full name always beats another book's shorter abbreviation
+ *   1. what they typed is a prefix of the variation ("rom" → "Romans"), longest wins
+ *
+ * A tie inside a rank keeps list order, so genuinely ambiguous input ("Phil") still
+ * resolves the way it always has — to Philippians, whose declared synonym it is.
+ */
 function resolveCanonicalBookName(bookPart: string, bookNames: string[]): string | null {
   const normalizedBookPart = normalizeText(bookPart);
+  if (!normalizedBookPart) return null;
+
+  let best: { rank: number; weight: number; bookName: string } | null = null;
+
   for (const bookName of bookNames) {
     const normalizedBookName = normalizeText(bookName);
-    if (
-      normalizedBookPart === normalizedBookName ||
-      normalizedBookPart.startsWith(normalizedBookName) ||
-      normalizedBookName.startsWith(normalizedBookPart)
-    ) {
-      return (
-        BIBLE_STUDY_KEYWORDS.find(
-          k =>
-            k.category === 'book' &&
-            (k.name.toLowerCase() === bookName.toLowerCase() ||
-              k.synonyms.some(s => s.toLowerCase() === bookName.toLowerCase())),
-        )?.name || bookName
-      );
+    if (!normalizedBookName) continue;
+
+    let rank = 0;
+    let weight = 0;
+    if (normalizedBookPart === normalizedBookName) {
+      rank = 3;
+      weight = normalizedBookName.length;
+    } else if (normalizedBookPart.startsWith(normalizedBookName)) {
+      rank = 2;
+      weight = normalizedBookName.length;
+    } else if (normalizedBookName.startsWith(normalizedBookPart)) {
+      rank = 1;
+      weight = normalizedBookPart.length;
+    } else {
+      continue;
+    }
+
+    if (!best || rank > best.rank || (rank === best.rank && weight > best.weight)) {
+      best = { rank, weight, bookName };
     }
   }
-  return null;
+
+  if (!best) return null;
+
+  return (
+    BIBLE_STUDY_KEYWORDS.find(
+      k =>
+        k.category === 'book' &&
+        (k.name.toLowerCase() === best!.bookName.toLowerCase() ||
+          k.synonyms.some(s => s.toLowerCase() === best!.bookName.toLowerCase())),
+    )?.name || best.bookName
+  );
 }
 
 // Parse scripture reference from text
@@ -565,24 +603,13 @@ const parseReference = (match: string): ScriptureReference | null => {
     const matchResult = normalizedMatch.match(pattern);
     if (!matchResult) continue;
 
-    let bookPart = matchResult[1].trim();
+    const bookPart = matchResult[1].trim();
     const chapter = parseInt(matchResult[2]);
 
-    // Try to match book name
-    for (const bookName of bookNames) {
-      const normalizedBookName = normalizeText(bookName);
-      const normalizedBookPart = normalizeText(bookPart);
-
-      if (normalizedBookPart === normalizedBookName || 
-          normalizedBookPart.startsWith(normalizedBookName) ||
-          normalizedBookName.startsWith(normalizedBookPart)) {
-        // Get canonical book name
-        const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
-          k => k.category === 'book' && 
-          (k.name.toLowerCase() === bookName.toLowerCase() || 
-           k.synonyms.some(s => s.toLowerCase() === bookName.toLowerCase()))
-        )?.name || bookName;
-
+    // One shared resolver rather than a second copy of the matching rules — the copy
+    // that used to live here is how the Philemon bug reached two code paths at once.
+    const canonicalBook = resolveCanonicalBookName(bookPart, bookNames);
+    if (canonicalBook) {
         if (matchResult.length === 4 && matchResult[3].includes(',')) {
           // Comma-separated verse groups detected (e.g., "6-13, 17-30")
           const verseGroups = matchResult[3].trim();
@@ -675,7 +702,6 @@ const parseReference = (match: string): ScriptureReference | null => {
             });
           }
         }
-      }
     }
   }
 
@@ -687,24 +713,11 @@ const parseReference = (match: string): ScriptureReference | null => {
       const startCh = parseInt(chapterRangeMatch[2], 10);
       const endCh = parseInt(chapterRangeMatch[3], 10);
       if (!isNaN(startCh) && !isNaN(endCh) && endCh > startCh) {
-        for (const bookName of bookNames) {
-          const normalizedBookName = normalizeText(bookName);
-          const normalizedBookPart = normalizeText(bookPart);
-          if (
-            normalizedBookPart === normalizedBookName ||
-            normalizedBookPart.startsWith(normalizedBookName) ||
-            normalizedBookName.startsWith(normalizedBookPart)
-          ) {
-            const canonicalBook =
-              BIBLE_STUDY_KEYWORDS.find(
-                k =>
-                  k.category === 'book' &&
-                  (k.name.toLowerCase() === bookName.toLowerCase() ||
-                    k.synonyms.some(s => s.toLowerCase() === bookName.toLowerCase()))
-              )?.name || bookName;
-            const vrStart = getChapterVerseRange(canonicalBook, startCh);
-            const vrEnd = getChapterVerseRange(canonicalBook, endCh);
-            if (!vrStart || !vrEnd) continue;
+        const canonicalBook = resolveCanonicalBookName(bookPart, bookNames);
+        if (canonicalBook) {
+          const vrStart = getChapterVerseRange(canonicalBook, startCh);
+          const vrEnd = getChapterVerseRange(canonicalBook, endCh);
+          if (vrStart && vrEnd) {
             return validateAndWarn({
               book: canonicalBook,
               chapter: startCh,
@@ -722,25 +735,11 @@ const parseReference = (match: string): ScriptureReference | null => {
       const bookPart = chapterOnlyMatch[1].trim();
       const ch = parseInt(chapterOnlyMatch[2], 10);
       if (!isNaN(ch)) {
-        for (const bookName of bookNames) {
-          const normalizedBookName = normalizeText(bookName);
-          const normalizedBookPart = normalizeText(bookPart);
-          if (
-            normalizedBookPart === normalizedBookName ||
-            normalizedBookPart.startsWith(normalizedBookName) ||
-            normalizedBookName.startsWith(normalizedBookPart)
-          ) {
-            const canonicalBook =
-              BIBLE_STUDY_KEYWORDS.find(
-                k =>
-                  k.category === 'book' &&
-                  (k.name.toLowerCase() === bookName.toLowerCase() ||
-                    k.synonyms.some(s => s.toLowerCase() === bookName.toLowerCase()))
-              )?.name || bookName;
-            const expanded = normalizeChapterReference(canonicalBook, ch);
-            if (!expanded) continue;
-            const vr = getChapterVerseRange(canonicalBook, ch);
-            if (!vr) continue;
+        const canonicalBook = resolveCanonicalBookName(bookPart, bookNames);
+        if (canonicalBook) {
+          const expanded = normalizeChapterReference(canonicalBook, ch);
+          const vr = getChapterVerseRange(canonicalBook, ch);
+          if (expanded && vr) {
             return validateAndWarn({
               book: canonicalBook,
               chapter: ch,

@@ -170,6 +170,29 @@ describe('syncFormatToolbarPaperInset', () => {
     expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-right-inset')).toBe('140px');
   });
 
+  it('measures the Bible reader sheet as paper too', () => {
+    // The reader is a document like a note, and its verse actions share the note's format bar.
+    // If only `.proto-editor-paper` counted, the bar would find no paper on a reading route,
+    // clear the insets, and run the full width of the shell.
+    const shell = document.createElement('div');
+    shell.className = 'proto-shell';
+    document.body.appendChild(shell);
+
+    const chromeRow = document.createElement('div');
+    chromeRow.className = 'proto-shell__editor-chrome-row';
+    mockRect(chromeRow, { left: 14, width: 1052, height: 44 });
+    document.body.appendChild(chromeRow);
+
+    const readerPaper = document.createElement('div');
+    readerPaper.className = 'pds-reader__column';
+    mockRect(readerPaper, { left: 332, width: 720, height: 600 });
+    document.body.appendChild(readerPaper);
+
+    expect(syncFormatToolbarPaperInset()).toBe(318);
+    expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-inset')).toBe('318px');
+    expect(shell.style.getPropertyValue('--proto-format-toolbar-paper-right-inset')).toBe('14px');
+  });
+
   it('clamps to 0 when paper sits left of the chrome row', () => {
     const shell = document.createElement('div');
     shell.className = 'proto-shell proto-shell--note-chrome';

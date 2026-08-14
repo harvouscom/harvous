@@ -7984,11 +7984,25 @@ button.proto-appearance-hero__card {
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
-.proto-appearance-segmented__btn--active {
+/*
+ * Selected segment — the same raised-pill treatment as a selected chip, so "the one that
+ * is on" looks identical wherever the app asks you to pick one of a few.
+ *
+ * Matches both forms on purpose. `data-*` is the convention for state (see
+ * HARVOUS_BUILD_CONVENTIONS §6), but this control shipped with a `--active` modifier
+ * class, so callers exist for each. A control whose selected segment is styled under only
+ * one of them renders with no selection at all — which is exactly what the reader
+ * inspector's text-size control did.
+ *
+ * Shadow comes from `--pds-shadow-chip-selected` rather than a literal, so the segment and
+ * the chip cannot drift apart in dark mode.
+ */
+.proto-appearance-segmented__btn--active,
+.proto-appearance-segmented__btn[data-active='true'] {
   background: var(--pds-bg-page);
   color: var(--pds-text-primary);
   font-weight: 600;
-  box-shadow: 0 1px 3px oklch(0% 0 0 / 0.08);
+  box-shadow: var(--pds-shadow-chip-selected);
 }
 
 /* ─── Appearance carousel ─────────────────────────────────────────────── */
@@ -8240,6 +8254,31 @@ button.proto-appearance-hero__card {
 .proto-appearance-preview--selected .proto-appearance-preview__label {
   color: var(--pds-text-primary);
   font-weight: 600;
+}
+
+/* "Default" chip — the capsule recipe from the scripture dock's translation pill
+   (`.harvous-menu-pill__trigger`: pill radius on --pds-bg-control), at label scale and
+   stripped of its interactive states. It states which face is the standing choice; the tile
+   under it is the control, so the chip must not read as a second thing to press. */
+.proto-appearance-preview__badge {
+  align-self: center;
+  /* The tile's 6px column gap is the rhythm between canvas and label; reusing it here would
+     make the chip read as a third stacked item rather than an annotation on the label. */
+  margin-top: -3px;
+  border-radius: var(--pds-radius-pill, 999px);
+  padding: 1px 6px;
+  background: var(--pds-bg-control);
+  font-family: var(--pds-font-body);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  color: var(--pds-text-tertiary);
+  pointer-events: none;
+}
+
+.proto-appearance-preview--selected .proto-appearance-preview__badge {
+  color: var(--pds-text-secondary);
 }
 
 /* ── Side panel chrome (header + body — shared by thread panel + future panels) ─ */
@@ -17368,4 +17407,774 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* ─── Bible reader ───────────────────────────────────────────────────────────
+ *
+ * The reading canvas is the most typographic surface in Harvous: Scripture leads,
+ * chrome recedes. Geometry mirrors HarvousReaderLayout (Swift); the text role is
+ * .pds-reader-text, whose size the inspector re-sets via --pds-reader-font-size.
+ *
+ * Gallery: /__dev/design-system → ds-14-reader, ds-15-paper-stack
+ */
+
+.pds-reader {
+  --pds-reader-notifier-color: var(--pds-highlight-warm-amber);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Fill the main pane and scroll internally rather than growing to the length of the
+     chapter. The pane is itself a scroller, so an auto-height reader would hand scrolling
+     upward and put the selection bar 4,000px below the fold — its `bottom` would resolve
+     to the end of Revelation, not the end of the screen. */
+  flex: 1 1 auto;
+  min-height: 0;
+  /* No sheet here. A chapter is a document like a note, so it sits on the same paper the
+     editor uses — a centred column with the canvas visible either side — rather than flooding
+     the pane edge to edge. Painting it here made the reader the only surface that hid the
+     canvas, which read as a different kind of screen rather than a different document.
+     The sheet is `.pds-reader__column` below; this stays a transparent frame. */
+}
+
+/* Mirrors `.proto-editor-scroll` + `.proto-editor-content-wrap`: the same top inset that
+   lines the note's paper up with sidebar search, and no horizontal padding, so both documents
+   start at the same height and the same width. */
+.pds-reader__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pds-editor-paper-inset-top) var(--pds-editor-paper-inset-x) 0;
+}
+
+/* The sheet — same 720px centred paper as `.proto-editor-paper`, same fill, same shadow, same
+   square corners. Its 32px side padding leaves 656px of text, which is exactly the measure the
+   reading column used before, so the line length is unchanged; only the paper around it is new. */
+.pds-reader__column {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+  box-sizing: border-box;
+  background-color: var(--pds-paper-sheet);
+  box-shadow: var(--pds-paper-shadow-subtle);
+  padding: var(--pds-editor-paper-padding-top) var(--pds-editor-paper-padding-x)
+    var(--pds-editor-paper-padding-bottom);
+}
+
+@container (max-width: 640px) {
+  .pds-reader__column {
+    padding: var(--pds-editor-paper-padding-top-narrow) var(--pds-editor-paper-padding-x-narrow)
+      var(--pds-editor-paper-padding-bottom);
+  }
+}
+
+/* Heading clears the gutter so it starts on the same edge as the reading text. */
+.pds-reader__chapter-heading {
+  margin: 0 0 var(--pds-space-5);
+  padding-inline-start: calc(var(--pds-reader-gutter) + var(--pds-space-2));
+}
+
+.pds-reader__chapter-meta {
+  margin: var(--pds-space-1) 0 0;
+}
+
+/* One block per paragraph of Scripture, each its own gutter+text grid so a
+   marker stays locked to the line it belongs to at any text size. The gutter is
+   always reserved — see --pds-reader-gutter. */
+.pds-reader__block {
+  display: grid;
+  grid-template-columns: var(--pds-reader-gutter) minmax(0, 1fr);
+  column-gap: var(--pds-space-2);
+  margin: 0 0 var(--pds-reader-paragraph-gap);
+}
+
+/* Text always sits in the second track, marker or no marker. The block owns the
+   paragraph rhythm, so the text element carries none of its own. */
+.pds-reader__block > .pds-reader-text {
+  grid-column: 2;
+  margin: 0;
+}
+
+/* No hanging indent for the opening verse number.
+ *
+ * It used to hang in the padding so the first line's prose lined up with the wrapped ones.
+ * But that made verse 1 the odd one out: every other verse number sits inline in the flow,
+ * and only the first sat outside the text block. Consistency between verses reads better
+ * than a perfectly flush first line — a printed Bible does the same. */
+
+.pds-reader__block:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Verse: the unit of selection ──
+   Selection snaps to whole verses, so each verse advertises itself as a target on approach
+   and holds a mark once chosen.
+
+   Both states are drawn in the note's highlight language — transparent ground, 2px underline
+   at 3px offset (see `mark` in prototype-editor.css) — not a background wash. A highlight is
+   one thing in this app whether it lands on a verse in the reader or on a pill in a note, so
+   it has to look like one thing; a fill here would read as a different feature that happens
+   to mean the same. It also keeps the page a page: washes stack into blocks of colour across
+   a chapter, while underlines leave the text as the figure. */
+/* Verses are separated by a real space in the markup, not a margin here.
+ *
+ * A margin between verses becomes a *first-line indent* whenever the browser breaks a line
+ * at that boundary — which is most lines in a chapter — so paragraphs ended up with their
+ * opening lines flush and every later line pushed right. Horizontal padding did the same
+ * thing through `box-decoration-break: clone`, which re-applies padding to each fragment of
+ * a wrapped inline box.
+ *
+ * A space character is what typography actually calls for and it collapses at a line break,
+ * which is exactly the behaviour we want. Vertical padding stays: it only affects the
+ * highlight wash's height, never horizontal alignment. */
+.pds-reader__verse {
+  /* `--mark-accent` carries the per-verse highlight colour, exactly as note marks do, so the
+     state rules below never re-list a palette. */
+  --mark-accent: var(--pds-highlight-warm-amber);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 1px 0;
+  /* The underline is always present and always transparent when idle.
+   *
+   * `text-decoration-color` initially resolves to `currentcolor` — near-black body text — so
+   * animating in from the unset state ran black → grey and read as a flicker. Declaring the
+   * line up front and starting it transparent means the only thing that ever changes is the
+   * colour's alpha: it fades up from nothing instead of darkening down from the text. */
+  text-decoration-line: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 140ms var(--pds-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader__verse {
+    transition: none;
+  }
+}
+
+/* `text-decoration-line`, never the `text-decoration` shorthand: the shorthand also resets
+   thickness, so `text-decoration: underline` here would silently throw away the 2px set above
+   and fall back to the font's hairline default. */
+
+/* Hover and selection are both GREY, deliberately — never a colour from the highlight palette.
+ *
+ * Selecting verses is a thing you are doing right now; highlighting is a thing you have kept.
+ * If the selection borrowed the accent (or any swatch colour) the two would be told apart only
+ * by hue, so a blue selection and a blue highlight would look like the same mark — and you
+ * could not see what a highlight is about to become while choosing its colour. Grey says
+ * "pending" and leaves the whole palette to mean "saved". */
+.pds-reader__verse:hover {
+  text-decoration-color: color-mix(in oklab, var(--pds-text-tertiary) 55%, transparent);
+}
+
+.pds-reader__verse[data-selected='true'] {
+  text-decoration-color: var(--pds-text-tertiary);
+}
+
+.pds-reader__verse[data-highlighted='true'] {
+  text-decoration-color: var(--mark-accent);
+}
+
+/* A selected highlight keeps its own colour. The highlight is the fact; selection is a mode
+   the verse is temporarily in, and greying it out would look like the colour was lost. */
+.pds-reader__verse[data-highlighted='true'][data-selected='true'] {
+  text-decoration-color: var(--mark-accent);
+}
+
+/* Dictionary suggestion inside Scripture — the same faint dotted hint a note body and a
+   scripture dock show, so "there is an entry for this word" looks identical wherever you meet
+   it. Deliberately lighter than a highlight's solid 2px underline: it is an offer to look
+   something up, not a mark you made.
+
+   `text-decoration-line` is set on the inner span rather than shorthand so it composes with a
+   highlighted verse — a highlighted verse containing a dotted word keeps both. */
+.pds-reader-text .reference-suggestion {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--pds-text-tertiary);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.pds-reader-text .reference-suggestion:hover {
+  text-decoration-color: var(--pds-text-secondary);
+  background: color-mix(in srgb, var(--pds-text-tertiary) 12%, transparent);
+}
+
+/* Highlight colours, aliased to the same tokens the note marks use. */
+.pds-reader__verse[data-highlight-color='neutral'] { --mark-accent: var(--pds-highlight-neutral); }
+.pds-reader__verse[data-highlight-color='warmAmber'] { --mark-accent: var(--pds-highlight-warm-amber); }
+.pds-reader__verse[data-highlight-color='skyBlue'] { --mark-accent: var(--pds-highlight-sky-blue); }
+.pds-reader__verse[data-highlight-color='violet'] { --mark-accent: var(--pds-highlight-violet); }
+.pds-reader__verse[data-highlight-color='mintGreen'] { --mark-accent: var(--pds-highlight-mint-green); }
+.pds-reader__verse[data-highlight-color='coralRose'] { --mark-accent: var(--pds-highlight-coral-rose); }
+
+.pds-reader__verse:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+/* ── Margin notifiers ──
+   A dot means one note on this verse; a capsule of stacked dots means several.
+   Quiet at rest: this is a presence signal you notice while reading, not a
+   control competing with the text. */
+.pds-reader__marker {
+  grid-column: 1;
+  justify-self: end;
+  align-self: start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  /* Tap target exceeds the visible mark — the dot itself is 7px. */
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: var(--pds-radius-pill);
+  transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.pds-reader__marker:hover {
+  background-color: var(--pds-bg-control-hover);
+}
+
+.pds-reader__marker:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+/* Colour falls back on the marker itself, not just the .pds-reader surface, so a
+   marker renders correctly anywhere it is used (docks, gallery, list rows) while
+   a surface or a single verse can still override the variable. */
+.pds-reader__marker-dot {
+  width: var(--pds-reader-notifier-dot);
+  height: var(--pds-reader-notifier-dot);
+  border-radius: var(--pds-radius-pill);
+  background-color: var(--pds-reader-notifier-color, var(--pds-highlight-warm-amber));
+}
+
+/* Multiple notes: the dots stack inside a hairline capsule so the count reads
+   at a glance without a number. */
+.pds-reader__marker-capsule {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: var(--pds-reader-notifier-capsule-width);
+  padding: 3px 0;
+  border-radius: var(--pds-radius-pill);
+  border: 1.5px solid var(--pds-reader-notifier-color, var(--pds-highlight-warm-amber));
+}
+
+.pds-reader__marker-capsule .pds-reader__marker-dot {
+  width: 5px;
+  height: 5px;
+}
+
+/* ── Paper stack ──
+   The reader is the base paper; a note stacks over it. The reader's top edge
+   stays visible and is itself the way back — the same affordance Basecamp uses
+   for a card opened over its parent. */
+.pds-reader-stack {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  /* Both papers are absolutely positioned, so the stack has no intrinsic height and
+     would collapse to 0 — visibly empty, with the whole stack still in the DOM. It has
+     to take its height from the pane. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pds-reader-stack__base {
+  position: absolute;
+  inset: 0;
+  z-index: var(--pds-z-base);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Peeking edge: the strip of reader left uncovered. Labelled with where you
+   will land, because an unlabelled strip reads as a rendering seam. */
+.pds-reader-stack__peek {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: var(--pds-z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  width: 100%;
+  height: var(--pds-reader-stack-peek, 44px);
+  padding: 0 var(--pds-space-4);
+  border: none;
+  cursor: pointer;
+  text-align: start;
+  color: var(--pds-text-secondary);
+  /* Opaque, and the same paper composite as the sheet: this strip is the reader's
+     own top edge. Left transparent it shows a sliced chapter heading, which reads
+     as a rendering seam rather than a document waiting underneath. */
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+}
+
+.pds-reader-stack__peek:hover {
+  color: var(--pds-text-primary);
+}
+
+.pds-reader-stack__peek:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: -2px;
+  border-radius: var(--pds-radius-button);
+}
+
+.pds-reader-stack__sheet {
+  position: absolute;
+  inset: 0;
+  z-index: var(--pds-z-dropdown);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* Paper is translucent by design so the canvas reads through it. A stacked
+     sheet has another document directly behind it, so it composites that same
+     paper over an opaque canvas — otherwise the reader bleeds through the note
+     and the two papers read as one screen. Both tokens carry dark/wallpaper
+     overrides, so the sheet follows appearance without a bespoke colour. */
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
+  /* Hairline above the card shadow: in dark the shadow alone barely separates two
+     papers of near-identical value, and the sheet's top edge is the one line that
+     has to stay readable for the stack to read as a stack. */
+  box-shadow: 0 -0.5px 0 0 var(--pds-border), var(--pds-shadow-card);
+  transform: translateY(var(--pds-reader-stack-peek, 44px));
+  transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
+}
+
+/* Resting off-screen. Kept mounted — the draft and the reading position both
+   survive, which is the whole point of stacking rather than routing. */
+.pds-reader-stack__sheet[data-stacked='false'] {
+  transform: translateY(100%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader-stack__sheet {
+    transition: none;
+  }
+
+  .pds-reader__verse,
+  .pds-reader__marker {
+    transition: none;
+  }
+}
+
+/* Chapter navigation — the reader's one piece of persistent chrome, at the end of
+   the text where finishing a chapter is what prompts it, rather than in a toolbar
+   competing with the reading surface. */
+.pds-reader__chapter-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+  margin-top: var(--pds-space-10);
+  padding-inline-start: calc(var(--pds-reader-gutter) + var(--pds-space-2));
+}
+
+.pds-reader__chapter-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-2) var(--pds-space-3);
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-button);
+  background: none;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: background-color var(--pds-duration-press) var(--pds-ease-standard),
+    color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.pds-reader__chapter-nav-btn:hover {
+  background-color: var(--pds-bg-control-hover);
+  color: var(--pds-text-primary);
+}
+
+.pds-reader__chapter-nav-btn:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+.pds-reader__chapter-nav-btn--next {
+  margin-inline-start: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader__chapter-nav-btn {
+    transition: none;
+  }
+}
+
+/* Scripture passage row — the row drills to the passage's notes; the trailing
+   control opens the chapter in the reader. Quiet until the row is approached, so
+   the list still reads as a list of passages rather than a row of buttons. */
+.proto-scripture-passage-row {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-1);
+}
+
+.proto-scripture-passage-row > .proto-note-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.proto-scripture-passage-row__read {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-inline-end: var(--pds-space-2);
+  border: none;
+  border-radius: var(--pds-radius-input);
+  background: none;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--pds-duration-press) var(--pds-ease-standard),
+    background-color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-scripture-passage-row:hover .proto-scripture-passage-row__read,
+.proto-scripture-passage-row__read:focus-visible {
+  opacity: 1;
+}
+
+/* Touch has no hover to reveal it, so it stays visible there. */
+@media (pointer: coarse) {
+  .proto-scripture-passage-row__read {
+    opacity: 1;
+  }
+}
+
+.proto-scripture-passage-row__read:hover {
+  background-color: var(--pds-bg-control-hover);
+  color: var(--pds-text-primary);
+}
+
+.proto-scripture-passage-row__read:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-scripture-passage-row__read {
+    transition: none;
+  }
+}
+
+/* Verse actions — a floating menu at the selection, not the shell's bottom bar.
+ *
+ * `position: fixed` and portaled to the body so the scroller cannot clip it; the anchor is
+ * re-measured on scroll, which is what keeps it under the verse. Chrome is the shared
+ * `.pds-native-selection-bar` capsule, so this rule only handles placement. */
+.pds-reader-menu {
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: var(--pds-z-popover, 100);
+}
+
+/* Way back up to a note flipped below the fold. Sits where the sheet went down, so the
+   note reads as parked rather than discarded. */
+.pds-reader-stack__resume {
+  position: absolute;
+  left: 50%;
+  bottom: var(--pds-space-5);
+  transform: translateX(-50%);
+  z-index: var(--pds-z-sticky);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-2) var(--pds-space-4);
+  border: none;
+  border-radius: var(--pds-radius-pill);
+  background-color: var(--pds-bg-popover-solid);
+  box-shadow: var(--pds-shadow-popover);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pds-reader-stack__resume:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+/* ─── Reader dock ────────────────────────────────────────────────────────────
+ * Side panel beside the reading surface. A side panel rather than a sheet because
+ * its whole purpose is comparison — you read the verse and its connections at the
+ * same time — and because following a cross-reference moves the reader behind it,
+ * which you want to see happen.
+ */
+.pds-reader-with-dock {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.pds-reader-with-dock > .pds-reader {
+  min-width: 0;
+}
+
+.pds-reader-dock {
+  flex: 0 0 auto;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-inline-start: 0.5px solid var(--pds-border);
+  background-color: var(--pds-bg-sidebar);
+  backdrop-filter: var(--pds-glass-blur);
+}
+
+.pds-reader-dock__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-4) var(--pds-space-3) var(--pds-space-2) var(--pds-space-4);
+}
+
+.pds-reader-dock__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pds-reader-dock__ref {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Way back from a dictionary entry to the passage it was found in. Sits above the title, so
+   the panel reads as one level down from the passage rather than a new place. */
+.pds-reader-dock__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--pds-text-tertiary);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.pds-reader-dock__back:hover {
+  color: var(--pds-text-secondary);
+}
+
+.pds-reader-dock__back .pds-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pds-reader-dock__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--pds-radius-pill);
+  background: none;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.pds-reader-dock__close:hover {
+  background-color: var(--pds-bg-control-hover);
+  color: var(--pds-text-primary);
+}
+
+.pds-reader-dock__close:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+.pds-reader-dock__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--pds-space-3) var(--pds-space-5);
+}
+
+/* Narrow viewports have no room for two columns of prose — the dock takes the pane and
+   the reader waits behind it, rather than squeezing both into an unreadable measure. */
+@media (max-width: 899px) {
+  .pds-reader-dock {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    z-index: var(--pds-z-dropdown);
+    border-inline-start: none;
+  }
+
+  .pds-reader-with-dock {
+    position: relative;
+  }
+}
+
+/* ─── Reader inspector ───────────────────────────────────────────────────────
+ * Content for the shared inspector pane when a chapter is the open document. The
+ * pane chrome, sections and rows come from the note inspector; only these controls
+ * are reader-specific.
+ */
+.proto-reader-inspector__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-reader-inspector__translation-name {
+  margin: var(--pds-space-2) 0 0;
+  /* `.proto-marquee` zeroes its own intrinsic width, so it must sit in a block that
+     supplies one — this <p> fills the inspector section, which does. */
+  width: 100%;
+}
+
+.proto-reader-inspector__setting + .proto-reader-inspector__setting {
+  margin-top: var(--pds-space-3);
+}
+
+.proto-reader-inspector__setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+}
+
+.proto-reader-inspector__setting-label {
+  min-width: 0;
+  font-family: var(--pds-font-body);
+  font-size: 0.8125rem;
+  color: var(--pds-text-primary);
+}
+
+/* Two segments only, so it should size to them rather than stretching across the panel
+   the way a four-step size control wants to. */
+.proto-reader-inspector__switch {
+  flex: 0 0 auto;
+}
+
+
+/* Verse numbers off — the locator goes away, the prose does not reflow, because the
+   number keeps its box. Hiding it entirely would shift every verse's first word. */
+.harvous-reader-hide-verse-nums .pds-reader-verse-num {
+  visibility: hidden;
+}
+
+/* Typeface specimen inside an appearance preview tile — the tile's mini-app mockup is
+   replaced by the letterforms themselves, since three fonts rendered as three identical
+   mockups would be indistinguishable. */
+.proto-appearance-preview__specimen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--pds-text-primary);
+}
+
+/* Face previews have to out-specify the prototype button reset, not just carry `!important`.
+ *
+ * `prototype-route-overrides.css` pins `html.harvous-prototype-route button[class*='proto-'] *`
+ * to `--pds-font-body !important` — specificity 0-2-2, and it loads last. A plain
+ * `.specimen[data-font=…] { … !important }` is 0-2-0, so it loses and all three "different"
+ * fonts render identically in the app face. An inline `style` loses too, because `!important`
+ * outranks it. Mirroring the override's own prefix is what wins.
+ *
+ * Stacks come from the tokens; this is placement, not a second definition. */
+html.harvous-prototype-route button[class*='proto-'] .proto-appearance-preview__specimen[data-font='sans'] {
+  font-family: var(--pds-font-choice-sans) !important;
+}
+
+html.harvous-prototype-route button[class*='proto-'] .proto-appearance-preview__specimen[data-font='serif'] {
+  font-family: var(--pds-font-choice-serif) !important;
+}
+
+html.harvous-prototype-route button[class*='proto-'] .proto-appearance-preview__specimen[data-font='hand'] {
+  font-family: var(--pds-font-choice-hand) !important;
+}
+
+/* Hero specimen — the big card previews the chosen face while Type is being edited. */
+.proto-appearance-hero__specimen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 34px;
+  line-height: 1;
+  color: var(--pds-text-primary);
+}
+
+html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='sans'] {
+  font-family: var(--pds-font-choice-sans) !important;
+}
+
+html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='serif'] {
+  font-family: var(--pds-font-choice-serif) !important;
+}
+
+html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='hand'] {
+  font-family: var(--pds-font-choice-hand) !important;
+}
+
+html.harvous-prototype-route button[class*='proto-'] .proto-appearance-preview__specimen[data-font='dyslexic'] {
+  font-family: var(--pds-font-choice-dyslexic) !important;
+}
+
+html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexic'] {
+  font-family: var(--pds-font-choice-dyslexic) !important;
+}
+
+
+
+/* Face tiles inside the reader inspector — the settings carousel at panel scale. It already
+   scrolls horizontally, so five tiles in a 300px panel need no wrapping or shrinking. */
+.proto-reader-inspector__faces {
+  padding: 0 0 var(--pds-space-2);
+  gap: var(--pds-space-2);
+  scroll-padding-inline: 0;
+}
+
+.proto-reader-inspector__faces .proto-appearance-preview {
+  flex: 0 0 auto;
+  width: 64px;
 }
