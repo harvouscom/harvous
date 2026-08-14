@@ -50,6 +50,21 @@ enum HarvousFeedListLayout {
     static let sidebarRowContentHInset: CGFloat = 10
 }
 
+/// Bible reader canvas geometry — mirrored by `--pds-reader-*` on web.
+enum HarvousReaderLayout {
+    /// Comfortable reading measure. Wider than this and the eye loses the line return.
+    static let measure: CGFloat = 620
+    /// Left gutter reserved for margin note notifiers. Always reserved, even with no
+    /// notes on screen, so text does not reflow when the first note lands.
+    static let marginGutter: CGFloat = 28
+    /// Single-note notifier dot.
+    static let notifierDotSize: CGFloat = 7
+    /// Multi-note notifier capsule width (dots stack vertically inside).
+    static let notifierCapsuleWidth: CGFloat = 15
+    /// Vertical gap between paragraph blocks in the reading canvas.
+    static let paragraphSpacing: CGFloat = 18
+}
+
 /// Typography / fill tuning for raster + SwiftUI scripture pills (keep in sync across surfaces).
 enum HarvousScripturePillStyle {
     /// Softer than full `label` so reference + translation read as part of the tinted chip.

@@ -36,6 +36,7 @@ import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import {
   isPrototypeHomePath,
   isPrototypeNotePath,
+  isPrototypeReadPath,
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
 } from '@/lib/prototype-path';
@@ -278,13 +279,22 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const showShiftHints = usePrototypeShiftHints();
 
-  const showNoteDetailsOrb = prototypeToolbarNoteDetailsAvailable({
-    isOnNotePage,
-    toolbarNoteId,
-    toolbarNoteLoading,
-    hasToolbarNote: !!toolbarNote,
-    isDraftNoteRoute,
-  });
+  /**
+   * The reader is a document too, so it gets the same details orb in the same slot —
+   * a second, differently-placed control for "show me this document's panel" would be
+   * two vocabularies for one idea. Its availability is simpler than a note's: a chapter
+   * is always loadable, so there is nothing to wait on.
+   */
+  const isOnReadPage = isPrototypeReadPath(pathname);
+
+  const showNoteDetailsOrb =
+    prototypeToolbarNoteDetailsAvailable({
+      isOnNotePage,
+      toolbarNoteId,
+      toolbarNoteLoading,
+      hasToolbarNote: !!toolbarNote,
+      isDraftNoteRoute,
+    }) || isOnReadPage;
 
   useEffect(() => {
     if (!showNoteDetailsOrb && (inspectorOpen || inspectorExiting)) {
@@ -512,8 +522,24 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 type="button"
                 className="proto-toolbar-icon-btn"
                 data-active={inspectorOpen ? 'true' : 'false'}
-                title={inspectorOpen ? 'Hide note details' : 'Show note details'}
-                aria-label={inspectorOpen ? 'Hide note details' : 'Show note details'}
+                title={
+                  isOnReadPage
+                    ? inspectorOpen
+                      ? 'Hide reading details'
+                      : 'Show reading details'
+                    : inspectorOpen
+                      ? 'Hide note details'
+                      : 'Show note details'
+                }
+                aria-label={
+                  isOnReadPage
+                    ? inspectorOpen
+                      ? 'Hide reading details'
+                      : 'Show reading details'
+                    : inspectorOpen
+                      ? 'Hide note details'
+                      : 'Show note details'
+                }
                 onClick={toggleInspector}
               >
                 <SplitColumnToggleIcon

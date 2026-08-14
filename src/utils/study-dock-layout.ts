@@ -145,16 +145,23 @@ export function syncStudyDockCenterOffset(track?: HTMLElement | null): number {
 }
 
 /**
- * Measure editor paper edges vs the shell chrome row and sync
+ * Measure the open document's paper edges vs the shell chrome row and sync
  * `--proto-format-toolbar-paper-inset` / `--proto-format-toolbar-paper-right-inset`
  * on `.proto-shell` for format bar host padding.
+ *
+ * "Paper" is whichever document is open: a note's `.proto-editor-paper` or a chapter's
+ * `.pds-reader__column`. Both are the same 720px centred sheet, and the bar is inset to
+ * whichever one is on screen — otherwise it spans the whole shell and stops looking like it
+ * belongs to the document it is acting on.
  */
+const PAPER_SELECTOR = '.proto-editor-paper, .pds-reader__column';
+
 export function syncFormatToolbarPaperInset(): number {
   if (typeof document === 'undefined') return 0;
 
   const shellEl = document.querySelector('.proto-shell');
   const shell = shellEl instanceof HTMLElement ? shellEl : null;
-  const paperEl = document.querySelector('.proto-editor-paper');
+  const paperEl = document.querySelector(PAPER_SELECTOR);
   const chromeRowEl = document.querySelector('.proto-shell__editor-chrome-row');
 
   if (

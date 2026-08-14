@@ -35,6 +35,7 @@ import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSi
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
+import PrototypeReaderPaperStack from '../pages/prototype/PrototypeReaderPaperStack';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -55,6 +56,8 @@ import { useNote } from '../hooks/queries/useNote';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
 import { ProtoShellProvider, resolveVisibleComposeTarget, useProtoShell } from './proto-shell-context';
+import { applyReadingPrefs, readReadingPrefs } from '../lib/proto-reading-prefs';
+import { applyFontPrefs, readFontPrefs } from '../lib/proto-font-prefs';
 import { consumePendingComposeSession } from '../lib/pending-compose-session';
 import { consumeComposeRestore } from '../lib/compose-session-restore';
 import { noteParamSlug } from '../pages/prototype/proto-route-slugs';
@@ -74,6 +77,7 @@ import {
 import {
   isPrototypeHomePath,
   isPrototypeNotePath,
+  isPrototypeReadPath,
   isPrototypeAdminPath,
   isPrototypeSettingsPath,
   isPrototypeShellPath,
@@ -81,6 +85,7 @@ import {
   prototypeHomePath,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
 import {
   clearMainFreezeLayer,
@@ -141,6 +146,10 @@ export default function SimplifiedPrototypeLayout() {
   useLayoutEffect(() => {
     const el = document.documentElement;
     applyColorSchemePreference(readColorSchemePreference());
+    // Reading size/leading are CSS vars, so they must be on the root before the reader
+    // paints — otherwise a large-text reader gets one frame at the default size.
+    applyReadingPrefs(readReadingPrefs());
+    applyFontPrefs(readFontPrefs());
     el.classList.add(PROTO_ROUTE_CLASS);
     void applyBackgroundWithImageTint(readActiveBackground());
     initAppearanceAccountSync();
@@ -227,6 +236,7 @@ export default function SimplifiedPrototypeLayout() {
 
 function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
+  const chromeRouter = useRouter();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const { isSharedSpace, activeSpaceId: resolvedActiveSpaceId } = useActiveSpace();
   useRealtimeSync(userId, { homeSpaceId, activeSpaceId: isSharedSpace ? resolvedActiveSpaceId : null });
@@ -251,6 +261,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     activeSpaceId: shellActiveSpaceId,
     activeChurchOrgId,
     composeDraftActive,
+    readerStack,
+    setReaderSheetOpen,
     clearComposeDraftActive,
     beginPrototypeComposeSession,
     expandedSidebarTool,
@@ -285,12 +297,48 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     }
   }, [pathname, composeDraftActive, clearComposeDraftActive]);
 
-  const isNoteRoute = isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname));
+  // A compose draft started from the reader stays on `/read/...` until it saves, so the
+  // editor has to mount there too — otherwise the sheet slides up empty.
+  const isNoteRoute =
+    isPrototypeNotePath(pathname) ||
+    (composeDraftActive && (isPrototypeHomePath(pathname) || isPrototypeReadPath(pathname)));
   /**
    * Host the note editor in the shell (not the route Outlet) so compose-on-`/` →
    * `/{slug}` keeps one PrototypeNotePage instance — no TipTap/inspector remount flash.
    */
   const hostNoteInLayout = isNoteRoute;
+
+  /**
+   * Flip the note down and read again.
+   *
+   * The URL follows whichever paper is on top, so once a note has saved the address is
+   * `/{noteId}` — leaving it there would show the chapter under a note's URL, and a
+   * refresh would reopen the note. Send the address back to the chapter; the sheet stays
+   * mounted below the fold with the draft intact.
+   *
+   * The note's own id is remembered so flipping back up can restore its URL.
+   */
+  const stackedNoteHrefRef = useRef<string | null>(null);
+  const handleFlipSheetDown = useCallback(() => {
+    const stack = readerStack;
+    if (!stack) return;
+    stackedNoteHrefRef.current = isPrototypeReadPath(pathname) ? null : pathname;
+    setReaderSheetOpen(false);
+    if (isPrototypeReadPath(pathname)) return; // compose never left the chapter
+    void chromeRouter.navigate({
+      to: prototypeReadRouteTo(),
+      params: { book: stack.book, chapter: String(stack.chapter) },
+      search: { v: stack.fromVerse ? String(stack.fromVerse) : undefined, t: stack.translation },
+    });
+  }, [readerStack, setReaderSheetOpen, pathname, chromeRouter]);
+
+  const handleFlipSheetUp = useCallback(() => {
+    setReaderSheetOpen(true);
+    const href = stackedNoteHrefRef.current;
+    stackedNoteHrefRef.current = null;
+    // An unsaved compose draft has no address of its own; it simply reappears.
+    if (href) void chromeRouter.navigate({ to: href });
+  }, [setReaderSheetOpen, chromeRouter]);
   const isAdminRoute = isPrototypeAdminPath(pathname);
   const isSettingsRoute = isPrototypeSettingsPath(pathname);
   /** Desktop modal: keep last main paint under the settings portal. Mobile sheet keeps current Outlet. */
@@ -748,7 +796,19 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             hidden={desktopSettingsKeepAlive || undefined}
             aria-hidden={desktopSettingsKeepAlive || undefined}
           >
-            {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
+            {readerStack ? (
+              <PrototypeReaderPaperStack
+                stack={readerStack}
+                onFlipDown={handleFlipSheetDown}
+                onFlipUp={handleFlipSheetUp}
+              >
+                {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
+              </PrototypeReaderPaperStack>
+            ) : hostNoteInLayout ? (
+              <PrototypeNotePage />
+            ) : (
+              <Outlet />
+            )}
           </div>
         </main>
 
@@ -762,7 +822,18 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           />
         ) : null}
 
-        {isNoteRoute ? <PrototypeEditorChromeBar /> : null}
+        {/* The bottom chrome is the shell's, not the editor's — a note fills it with the
+            format toolbar, the reader fills it with verse actions. Both go through
+            `editorChromeMode`, which stays 'hidden' (bar collapsed to zero height) until a
+            surface asks for it, so mounting it on a reading route costs nothing until verses
+            are selected.
+
+            It still goes down with a stacked note sheet: with the note flipped away the bar
+            below it belongs to the chapter, and leaving the note's toolbar hovering over
+            Scripture would also cover the way back up to the note. */}
+        {(isNoteRoute || isPrototypeReadPath(pathname)) && (!readerStack || readerStack.open) ? (
+          <PrototypeEditorChromeBar />
+        ) : null}
         </div>
       </div>
     </>

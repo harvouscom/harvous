@@ -439,7 +439,16 @@ export const StudyThreadEntries = pgTable(
   {
     id: text('id').primaryKey(),
     userId: text('userId').notNull(),
-    parentNoteId: text('parentNoteId').notNull(),
+    /**
+     * Where this entry was made — NOT who can see it. NULL means "made while reading", i.e. a
+     * highlight created in the Bible reader, which has no parent note.
+     *
+     * Scripture-anchored entries are scoped by `scriptureReference` + `userId` instead, so a
+     * highlight on a verse is one highlight wherever that verse is shown. Scoping them by
+     * parent note is what used to make the reader and a note's scripture dock two separate
+     * layers over the same passage. See server/db/manual/unify-scripture-highlights.sql.
+     */
+    parentNoteId: text('parentNoteId'),
     spaceId: text('spaceId'),
     entryKindRaw: text('entryKindRaw').notNull().default('miniNote'),
     highlightAccentRaw: text('highlightAccentRaw').notNull().default('warmAmber'),

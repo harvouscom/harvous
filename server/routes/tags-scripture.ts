@@ -9,11 +9,13 @@
  *   POST   /api/scripture/check-existing
  *   POST   /api/scripture/detect
  *   POST   /api/scripture/fetch-verse
+ *   GET    /api/scripture/chapter
  */
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, Threads, VerseTextCache, eq, and, count, isNotNull } from '../db';
+import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, Threads, VerseTextCache, BibleVerses, eq, and, count, isNotNull } from '../db';
+import { bookChapterCount } from '@/utils/bible-book-chapters';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
@@ -303,6 +305,85 @@ app.post('/api/scripture/fetch-verse', async (c) => {
     return c.json({ reference, book: parsed.book, chapter: parsed.chapter, verse: verseNumber, verseEnd, translation, text: verseText });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/fetch-verse', action: 'fetch_verse' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * GET /api/scripture/chapter — a whole chapter as structured verses, for the Bible reader.
+ *
+ * Deliberately not `fetch-verse`. That route returns one formatted HTML blob, which is right
+ * for a pill or a dock card but cannot carry the reader's per-verse affordances: selection
+ * snaps to a verse, margin notifiers anchor to a verse, and a highlight is stored against a
+ * verse range. Parsing verse numbers back out of rendered HTML to recover that structure
+ * would be inventing a boundary the database already has.
+ */
+app.get('/api/scripture/chapter', async (c) => {
+  try {
+    const bookParam = (c.req.query('book') ?? '').trim();
+    const chapterParam = (c.req.query('chapter') ?? '').trim();
+    const translation = (c.req.query('translation') ?? 'NET').trim().toUpperCase();
+
+    if (!bookParam) return c.json({ error: 'book is required', code: 'BOOK_REQUIRED' }, 400);
+
+    const chapter = Number.parseInt(chapterParam, 10);
+    if (!Number.isInteger(chapter) || chapter < 1) {
+      return c.json({ error: 'chapter must be a positive integer', code: 'INVALID_CHAPTER' }, 400);
+    }
+
+    // Route through the same canonicaliser the pills use, so "1 jn" / "Song of Solomon"
+    // resolve to the spelling stored in BibleVerses instead of missing silently.
+    //
+    // Resolve the book against chapter 1 rather than the requested chapter: the parser
+    // rejects an out-of-range chapter by returning null for the whole reference, which
+    // would report a perfectly real book ("Jude 5") as an unknown one.
+    const parsed = parseScriptureReference(`${bookParam} 1`);
+    if (!parsed) return c.json({ error: 'Unknown book', code: 'INVALID_BOOK' }, 400);
+
+    const knownChapters = bookChapterCount(parsed.book);
+    if (knownChapters != null && chapter > knownChapters) {
+      return c.json(
+        {
+          error: `${parsed.book} has ${knownChapters} chapter${knownChapters === 1 ? '' : 's'}`,
+          code: 'CHAPTER_OUT_OF_RANGE',
+        },
+        404,
+      );
+    }
+
+    const rows = await db
+      .select({ verse: BibleVerses.verse, text: BibleVerses.text })
+      .from(BibleVerses)
+      .where(and(
+        eq(BibleVerses.translationId, translation),
+        eq(BibleVerses.book, parsed.book),
+        eq(BibleVerses.chapter, chapter),
+      ))
+      .orderBy(BibleVerses.verse);
+
+    if (rows.length === 0) {
+      return c.json({ error: 'No verses found for this chapter', code: 'CHAPTER_NOT_FOUND' }, 404);
+    }
+
+    const chapterCount = bookChapterCount(parsed.book);
+
+    // Scripture text is immutable and identical for every reader, so it overrides the API's
+    // default `private, max-age=30`. Paging back a chapter should not re-hit the database.
+    c.res.headers.set('Cache-Control', 'public, max-age=86400, immutable');
+
+    return c.json({
+      book: parsed.book,
+      chapter,
+      translation,
+      // Lets the reader render prev/next affordances without a second round trip or
+      // shipping the whole chapter-count table to the client.
+      chapterCount,
+      hasPrevChapter: chapter > 1,
+      hasNextChapter: chapterCount != null ? chapter < chapterCount : false,
+      verses: rows.map((r) => ({ number: r.verse, text: r.text })),
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/scripture/chapter', action: 'fetch_chapter' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

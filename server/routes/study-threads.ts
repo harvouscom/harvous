@@ -6,6 +6,8 @@
  * GET    /api/notes/:parentNoteId/study-threads/by-scripture
  * PATCH  /api/study-threads/:id
  * DELETE /api/study-threads/:id
+ * GET    /api/scripture/highlights        — a chapter's highlights, however they were made
+ * POST   /api/scripture/highlights        — highlight made while reading (no parent note)
  */
 
 import { Hono } from 'hono';
@@ -24,12 +26,14 @@ import {
   and,
   desc,
   isNull,
+  like,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { generateStudyThreadEntryId, generateNoteId } from '@/utils/ids';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { isStudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
 import { broadcastInvalidation } from '../utils/realtime';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
@@ -69,20 +73,38 @@ export function immutableSharedResponsePatchFields(body: Record<string, unknown>
 }
 
 type StudyEntryParentContext = {
-  note: typeof Notes.$inferSelect;
+  /**
+   * NULL for an entry made while reading rather than inside a note. Sharing, permissions and
+   * "edited at" all hang off the parent note, so a reading entry has none of them: it is
+   * personal, unshared, and there is nothing to touch.
+   */
+  note: typeof Notes.$inferSelect | null;
   spaceId: string | null;
   isShared: boolean;
 };
 
+/** Narrows to the note-backed case, for paths that cannot run without a parent note. */
+function requireParentNote(ctx: StudyEntryParentContext): typeof Notes.$inferSelect {
+  if (!ctx.note) {
+    throw new SharedStudyThreadAccessError(404, 'Note not found');
+  }
+  return ctx.note;
+}
+
 async function resolveStudyEntryParentContext(
   executor: any,
   input: {
-    parentNoteId: string;
+    parentNoteId: string | null;
     actorId: string;
     contextSpaceId: string | null;
     lock?: boolean;
   },
 ): Promise<StudyEntryParentContext> {
+  // Made in the Bible reader: no parent note, so no space and nothing to share through.
+  if (!input.parentNoteId) {
+    return { note: null, spaceId: null, isShared: false };
+  }
+
   let noteQuery = executor.select().from(Notes).where(eq(Notes.id, input.parentNoteId));
   if (input.lock) noteQuery = noteQuery.for('update');
   const note = first(await noteQuery.limit(1)) as typeof Notes.$inferSelect | undefined;
@@ -353,6 +375,19 @@ route.get('/api/notes/:parentNoteId/study-threads/by-scripture', requireAuth, as
     }
 
     const unioned = parentCtx.isShared;
+    /**
+     * Personal lookups are scoped by REFERENCE, not by parent note.
+     *
+     * A highlight on Exodus 5:1 is one highlight — the same one whether it was made in the
+     * Bible reader, in this note, or in another note six months ago. Scoping this query by
+     * `parentNoteId` used to mean each surface saw only what was made there, which turned one
+     * study Bible into a pile of disconnected margins. `parentNoteId` still says where it came
+     * from (see `madeHere` below); it no longer decides who may see it.
+     *
+     * Shared spaces stay note-scoped: there the entries are a conversation attached to one
+     * shared note, and unioning them across a member's whole library would leak their private
+     * highlights into someone else's note.
+     */
     const byScriptureWhere = unioned
       ? and(
           eq(StudyThreadEntries.parentNoteId, parentNoteId),
@@ -361,11 +396,7 @@ route.get('/api/notes/:parentNoteId/study-threads/by-scripture', requireAuth, as
           eq(StudyThreadEntries.scripturePassageTranslation, translation),
         )
       : and(
-          eq(StudyThreadEntries.parentNoteId, parentNoteId),
           eq(StudyThreadEntries.userId, auth.userId),
-          parentCtx.spaceId
-            ? eq(StudyThreadEntries.spaceId, parentCtx.spaceId)
-            : isNull(StudyThreadEntries.spaceId),
           eq(StudyThreadEntries.scriptureReference, norm),
           eq(StudyThreadEntries.scripturePassageTranslation, translation),
         );
@@ -375,7 +406,18 @@ route.get('/api/notes/:parentNoteId/study-threads/by-scripture', requireAuth, as
       .where(byScriptureWhere)
       .orderBy(desc(StudyThreadEntries.createdAt));
 
-    const studyThreads = unioned ? await mapUnionedRows(rows, auth.userId) : rows.map(mapStudyRow);
+    const studyThreads = unioned
+      ? await mapUnionedRows(rows, auth.userId)
+      : rows.map((row) => ({
+          ...mapStudyRow(row),
+          /**
+           * Was this made in the note asking? The dock leads with these and marks the rest as
+           * carried in from elsewhere, so widening the scope adds context without the panel
+           * filling up with things the reader did not put there.
+           */
+          madeHere: row.parentNoteId === parentNoteId,
+          madeWhileReading: row.parentNoteId === null,
+        }));
 
     return c.json({
       success: true,
@@ -428,7 +470,8 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
           lock: true,
         });
         const currentVersion = await ensureAnchorableCurrentNoteVersion(tx, {
-          note: lockedContext.note,
+          // This route is addressed by parent note, so there is always one.
+          note: requireParentNote(lockedContext),
           now,
         });
         const actor = first(
@@ -521,7 +564,7 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
       return handleStudyThreadAccessError(c, err);
     }
 
-    await touchParentNoteEditedAt(parentNoteId, parentCtx.note.userId, auth.userId);
+    await touchParentNoteEditedAt(parentNoteId, requireParentNote(parentCtx).userId, auth.userId);
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
 
     const mapped = row ? mapStudyRow(row) : null;
@@ -621,7 +664,9 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
           body.anchorLocation !== undefined ||
           body.anchorLength !== undefined ||
           body.anchorTextSnapshot !== undefined;
-        if (anchorChanged) {
+        // Re-anchoring resolves a quote against the parent note's HTML. A reading entry is
+        // anchored to a verse reference instead, so there is no document to re-resolve against.
+        if (anchorChanged && context.note) {
           const anchorLocation =
             typeof body.anchorLocation === 'number' ? body.anchorLocation : locked.anchorLocation;
           const anchorLength =
@@ -658,7 +703,9 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
             .where(
               and(
                 eq(StudyThreadEntries.id, id),
-                eq(StudyThreadEntries.parentNoteId, locked.parentNoteId),
+                locked.parentNoteId
+                  ? eq(StudyThreadEntries.parentNoteId, locked.parentNoteId)
+                  : isNull(StudyThreadEntries.parentNoteId),
                 context.spaceId
                   ? eq(StudyThreadEntries.spaceId, context.spaceId)
                   : isNull(StudyThreadEntries.spaceId),
@@ -674,8 +721,11 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
       return handleStudyThreadAccessError(c, err);
     }
 
-    await touchParentNoteEditedAt(existing.parentNoteId, parentCtx.note.userId, auth.userId);
-    broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
+    // Nothing to touch or invalidate for a reading entry: no note was edited.
+    if (existing.parentNoteId && parentCtx.note) {
+      await touchParentNoteEditedAt(existing.parentNoteId, parentCtx.note.userId, auth.userId);
+      broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
+    }
 
     return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
   } catch (error: any) {
@@ -728,8 +778,11 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
                 .limit(1),
             )?.role
           : null;
+        // Moderation hangs off the parent note's author. A reading entry has no parent note
+        // and is never shared, so its own author stands in — which makes them its owner.
+        const parentAuthorUserId = context.note?.userId ?? locked.userId;
         const viewerRole =
-          context.note.userId === auth.userId
+          parentAuthorUserId === auth.userId
             ? 'owner'
             : membershipRole === 'owner' || membershipRole === 'leader' || membershipRole === 'member'
               ? membershipRole
@@ -738,7 +791,7 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
           !viewerRole ||
           !canModerateStudyThreadEntry({
             annotatorUserId: locked.userId,
-            parentAuthorUserId: context.note.userId,
+            parentAuthorUserId,
             viewerUserId: auth.userId,
             viewerSpaceRole: viewerRole,
           })
@@ -754,13 +807,16 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
           .where(
             and(
               eq(StudyThreadEntries.id, id),
-              eq(StudyThreadEntries.parentNoteId, locked.parentNoteId),
+              locked.parentNoteId
+                ? eq(StudyThreadEntries.parentNoteId, locked.parentNoteId)
+                : isNull(StudyThreadEntries.parentNoteId),
               context.spaceId
                 ? eq(StudyThreadEntries.spaceId, context.spaceId)
                 : isNull(StudyThreadEntries.spaceId),
             ),
           );
-        if (locked.entryKindRaw === 'linkedNote' && locked.linkedNoteId) {
+        // A note-to-note connection needs both ends; a reading entry has no `from` note.
+        if (locked.entryKindRaw === 'linkedNote' && locked.linkedNoteId && locked.parentNoteId) {
           await tx
             .delete(NoteConnections)
             .where(
@@ -780,12 +836,149 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
       return handleStudyThreadAccessError(c, err);
     }
 
-    await touchParentNoteEditedAt(existing.parentNoteId, parentCtx.note.userId, auth.userId);
-    broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
+    // Nothing to touch or invalidate for a reading entry: no note was edited.
+    if (existing.parentNoteId && parentCtx.note) {
+      await touchParentNoteEditedAt(existing.parentNoteId, parentCtx.note.userId, auth.userId);
+      broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
+    }
 
     return c.json({ success: true, deletedId: id });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/study-threads/[id]', action: 'delete_study_thread' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── Reading highlights: the same store, addressed by passage instead of by note ──────
+//
+// The Bible reader is not a second highlight system. These two routes are the reader's way
+// into `StudyThreadEntries`, which is where every highlight already lives — the difference is
+// only that a chapter is addressed by book + chapter rather than by a parent note id.
+
+// ─── GET /api/scripture/highlights?book=&chapter=&translation= ───────────────
+route.get('/api/scripture/highlights', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const book = (c.req.query('book') ?? '').trim();
+    const chapter = Number.parseInt(c.req.query('chapter') ?? '', 10);
+    const translation = (c.req.query('translation') ?? '').trim() || 'NET';
+    if (!book || !Number.isFinite(chapter)) {
+      return c.json({ error: 'book and chapter query params are required' }, 400);
+    }
+
+    // Owner-scoped and reference-scoped, with no parent-note filter — that is the whole point:
+    // highlights made while reading and highlights made in any note come back together.
+    const rows = await db
+      .select()
+      .from(StudyThreadEntries)
+      .where(
+        and(
+          eq(StudyThreadEntries.userId, auth.userId),
+          eq(StudyThreadEntries.scripturePassageTranslation, translation),
+          like(StudyThreadEntries.scriptureReference, `${book} ${chapter}:%`),
+        ),
+      )
+      .orderBy(desc(StudyThreadEntries.createdAt));
+
+    return c.json({
+      success: true,
+      highlights: rows.map((row) => ({
+        ...mapStudyRow(row),
+        madeWhileReading: row.parentNoteId === null,
+      })),
+    });
+  } catch (error: any) {
+    const e = handleAPIError(error, {
+      endpoint: '/api/scripture/highlights',
+      action: 'list_scripture_highlights',
+    });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/scripture/highlights ─────────────────────────────────────────
+route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const refRaw = typeof body.reference === 'string' ? body.reference.trim() : '';
+    const norm = normalizeScriptureReference(refRaw) ?? refRaw;
+    if (!norm) return c.json({ error: 'reference is required' }, 400);
+
+    const accent =
+      typeof body.accent === 'string' && isStudyHighlightAccentKey(body.accent)
+        ? body.accent
+        : 'warmAmber';
+    const translation =
+      typeof body.translation === 'string' && body.translation.trim()
+        ? body.translation.trim()
+        : 'NET';
+
+    const now = nowISO();
+
+    /**
+     * Highlighting the same verses again re-colours the existing row rather than adding one.
+     *
+     * A highlight is a property of a passage, not an event: pressing highlight twice on one
+     * verse means "make it this colour", not "make two highlights". Inserting unconditionally
+     * stacked duplicate rows that all painted the same verse, so the reader looked correct
+     * while the row count climbed — and deleting the highlight would only remove the topmost.
+     */
+    const existing = first(
+      await db
+        .select()
+        .from(StudyThreadEntries)
+        .where(
+          and(
+            eq(StudyThreadEntries.userId, auth.userId),
+            isNull(StudyThreadEntries.parentNoteId),
+            eq(StudyThreadEntries.scriptureReference, norm),
+            eq(StudyThreadEntries.scripturePassageTranslation, translation),
+          ),
+        )
+        .limit(1),
+    ) as typeof StudyThreadEntries.$inferSelect | undefined;
+
+    if (existing) {
+      const updated = first(
+        await db
+          .update(StudyThreadEntries)
+          .set({ highlightAccentRaw: accent, updatedAt: now } as any)
+          .where(eq(StudyThreadEntries.id, existing.id))
+          .returning(),
+      );
+      return c.json({ success: true, highlight: updated ? mapStudyRow(updated) : null });
+    }
+
+    const row = first(
+      await db
+        .insert(StudyThreadEntries)
+        .values({
+          id: generateStudyThreadEntryId(),
+          userId: auth.userId,
+          // Null on purpose: made while reading, so there is no note it came from. It is still
+          // the same kind of row a scripture dock writes, and every surface reads it the same.
+          parentNoteId: null,
+          spaceId: null,
+          entryKindRaw: 'scriptureLink',
+          highlightAccentRaw: accent,
+          scriptureReference: norm,
+          scripturePassageTranslation: translation,
+          scripturePassageExcerpt: typeof body.excerpt === 'string' ? body.excerpt : '',
+          sourceSnippet: typeof body.excerpt === 'string' ? body.excerpt : '',
+          miniNoteBody: typeof body.miniNoteBody === 'string' ? body.miniNoteBody : '',
+          createdAt: now,
+          updatedAt: now,
+        } as any)
+        .returning(),
+    );
+
+    return c.json({ success: true, highlight: row ? mapStudyRow(row) : null });
+  } catch (error: any) {
+    const e = handleAPIError(error, {
+      endpoint: '/api/scripture/highlights',
+      action: 'create_scripture_highlight',
+    });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
