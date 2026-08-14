@@ -105,6 +105,8 @@ export interface OfflineUserMetadata extends BaseOfflineEntity {
   churchAddedAt: Date | null;
   /** Account-synced appearance preferences (JSON string) or null if never set. */
   appearanceSettings: string | null;
+  /** Account-synced last reading position (JSON string) or null if nothing read yet. */
+  lastReadPosition: string | null;
 }
 
 // Sync operation for mutation queue

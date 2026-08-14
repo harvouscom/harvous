@@ -6,8 +6,10 @@
 import { db, ReadingEvents } from '../db';
 import { nowISO } from '../db/dates';
 import { generateTimestampId } from '@/utils/ids';
-import { getBookChapterCount } from '@/utils/scripture-detector';
-import { canonicalBookOrderMap } from '@/utils/scripture-passage-drill';
+import {
+  normalizeTranslationCode,
+  resolveScriptureChapterTarget,
+} from '@/utils/scripture-chapter-target';
 import {
   isReadingDwellBucket,
   readingDwellStrength,
@@ -93,28 +95,15 @@ export function validateReadingEventInput(body: unknown): RecordReadingEventInpu
   if (!body || typeof body !== 'object') return null;
   const { book, chapter, translation, dwellBucket } = body as Record<string, unknown>;
 
-  if (typeof book !== 'string' || !book.trim()) return null;
-  const trimmedBook = book.trim();
-  const bookOrder = canonicalBookOrderMap().get(trimmedBook);
-  if (bookOrder === undefined) return null;
+  const target = resolveScriptureChapterTarget(book, chapter);
+  if (!target) return null;
 
-  if (typeof chapter !== 'number' || !Number.isInteger(chapter) || chapter < 1) return null;
-  const chapterCount = getBookChapterCount(trimmedBook);
-  if (!chapterCount || chapter > chapterCount) return null;
-
-  if (typeof translation !== 'string' || !translation.trim()) return null;
-  const trimmedTranslation = translation.trim().toUpperCase();
-  if (trimmedTranslation.length > 16) return null;
+  const translationCode = normalizeTranslationCode(translation);
+  if (!translationCode) return null;
 
   if (typeof dwellBucket !== 'string' || !isReadingDwellBucket(dwellBucket)) return null;
 
-  return {
-    book: trimmedBook,
-    bookOrder,
-    chapter,
-    translation: trimmedTranslation,
-    dwellBucket,
-  };
+  return { ...target, translation: translationCode, dwellBucket };
 }
 
 export async function recordReadingEvent(

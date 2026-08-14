@@ -1531,6 +1531,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         createdAt: UserMetadata.createdAt, updatedAt: UserMetadata.updatedAt,
         lockPinHash: UserMetadata.lockPinHash,
         appearanceSettings: UserMetadata.appearanceSettings,
+        lastReadPosition: UserMetadata.lastReadPosition,
       }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1),
     ]);
 
@@ -1739,6 +1740,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         createdAt: UserMetadata.createdAt, updatedAt: UserMetadata.updatedAt,
         lockPinHash: UserMetadata.lockPinHash,
         appearanceSettings: UserMetadata.appearanceSettings,
+        lastReadPosition: UserMetadata.lastReadPosition,
       }).from(UserMetadata).where(and(eq(UserMetadata.userId, auth.userId), or(gt(UserMetadata.updatedAt, sinceDate), gt(UserMetadata.createdAt, sinceDate)))).limit(1),
 
       loadDeletedEntitiesSince(auth.userId, sinceDate),

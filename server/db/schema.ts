@@ -1170,6 +1170,13 @@ export const UserMetadata = pgTable('UserMetadata', {
    */
   appearanceSettings: text('appearanceSettings'),
   /**
+   * Where the reader was last, for continue-reading. JSON string:
+   * `{ book, bookOrder, chapter, translation, verse?, readAt }`. See
+   * src/utils/last-read-position.ts for why this is stored rather than derived
+   * from ReadingEvents. `null` = has never read a chapter.
+   */
+  lastReadPosition: text('lastReadPosition'),
+  /**
    * Per-user My Home space-switcher order for personal Shared Spaces (hosted + joined).
    * JSON `string[]` of space ids. Not `Spaces.order` — preference only.
    */

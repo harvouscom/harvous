@@ -12,7 +12,7 @@
 import { useEffect, useRef } from 'react';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { nextReadingDwellReport, type ReadingDwellBucket } from '@/utils/reading-event-kinds';
-import { recordReadingEvent } from '../pages/prototype/proto-reading-events';
+import { recordLastReadPosition, recordReadingEvent } from '../pages/prototype/proto-reading-events';
 
 type ReadingSession = {
   book: string;
@@ -51,6 +51,14 @@ export function useReadingSession({
       resumedAt: Date.now(),
       reportedBucket: null,
     };
+
+    // Position is marked at the start of the session and the event is logged at the end,
+    // so a read that never finishes still leaves somewhere to continue from.
+    recordLastReadPosition({
+      book: parsed.book,
+      chapter: parsed.chapter,
+      translation: translationCode,
+    });
 
     const elapsedMs = (session: ReadingSession): number =>
       session.accumulatedMs + (session.resumedAt === null ? 0 : Date.now() - session.resumedAt);

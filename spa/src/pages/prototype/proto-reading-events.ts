@@ -23,3 +23,32 @@ export function recordReadingEvent(input: {
       // offline, signed out, or table not pushed yet — reading continues either way
     });
 }
+
+/**
+ * Mark where the reader is, so Home can offer to continue from it.
+ *
+ * Sent when the chapter opens rather than when reading ends: someone who closes a laptop
+ * mid-chapter is exactly who continue-reading is for, and no reading event exists for them.
+ */
+export function recordLastReadPosition(input: {
+  book: string;
+  chapter: number;
+  translation: string;
+  /** Only when the surface tracks one — chapter-level surfaces omit it. */
+  verse?: number;
+}): void {
+  const { book, chapter, translation, verse } = input;
+  if (!book || !translation) return;
+  if (!Number.isInteger(chapter) || chapter < 1) return;
+
+  void api
+    .post<{ success?: boolean }>('/api/user/update-last-read', {
+      book,
+      chapter,
+      translation,
+      ...(verse === undefined ? {} : { verse }),
+    })
+    .catch(() => {
+      // same contract as the event log: reading never waits on, or fails with, this
+    });
+}
