@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { serializeNoteToPortable, type PortableHighlight, type PortableNoteMeta } from '../portable-markdown';
 import { parseImportFiles } from '../../../server/utils/parse-import-files';
+import type { ParsedMarkdownNote } from '../markdown-import-parser';
 
 // jsdom's File doesn't implement arrayBuffer()/text(); the server runs on undici where it does.
 function fileFromBytes(name: string, bytes: Uint8Array): File {
@@ -77,8 +78,11 @@ describe('reader-origin highlight → export → import', () => {
     // The passage note itself comes back as a scripture note, so the highlight
     // still has a passage to belong to after import.
     expect(row.title).toBe('John 3');
-    expect(row.note.scriptureReference).toBe('John 3');
-    expect(row.note.scriptureTranslation).toBe('ESV');
+    // A markdown import always yields ParsedMarkdownNote, which is the arm carrying the
+    // scripture fields; ParsedCSVNote has no notion of a passage.
+    const note = row.note as ParsedMarkdownNote;
+    expect(note.scriptureReference).toBe('John 3');
+    expect(note.scriptureTranslation).toBe('ESV');
 
     // The highlight came through, and kept the verse it points at.
     expect(row.highlightCount).toBe(1);
