@@ -21,7 +21,15 @@ export type ScriptureIndexBookLike = {
   passages: ScriptureIndexPassageLike[];
 };
 
-function canonicalBookOrderMap(): Map<string, number> {
+/**
+ * Canonical book order: 0-based first-seen index in bible-chapters.json (matches native ordering intent).
+ *
+ * Deliberately NOT the 1-based `bookOrder` field inside bible-chapters.json — passage keys
+ * (`bookOrder:chapter:verseStart:verseEnd`) are built from this map on both the client and the server,
+ * so switching to the JSON field would shift every stored key by one. Server code imports this same
+ * implementation (via the esbuild `--alias:@=src` flag) so the two sides cannot drift apart.
+ */
+export function canonicalBookOrderMap(): Map<string, number> {
   const data = bibleChaptersData as BibleChapterRow[];
   const m = new Map<string, number>();
   let i = 0;

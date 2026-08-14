@@ -9,6 +9,8 @@ import {
   normalizeScriptureReference,
   parseScriptureReference,
 } from '@/utils/scripture-detector';
+// Single source of truth for the 0-based canonical order; the client keys drill targets by the same map.
+import { canonicalBookOrderMap } from '@/utils/scripture-passage-drill';
 
 type BibleChapterRow = { book: string };
 
@@ -65,23 +67,6 @@ function extractDataScriptureReferences(html: string): string[] {
     if (v) out.push(v);
   }
   return out;
-}
-
-/** Canonical book order: first-seen index in bible-chapters.json (matches native ordering intent). */
-export function canonicalBookOrderMap(): Map<string, number> {
-  const data = bibleChaptersData as BibleChapterRow[];
-  const m = new Map<string, number>();
-  let i = 0;
-  for (const row of data) {
-    if (!m.has(row.book)) {
-      m.set(row.book, i++);
-    }
-  }
-  const song = m.get('Song of Solomon');
-  if (song !== undefined && !m.has('Song of Songs')) {
-    m.set('Song of Songs', song);
-  }
-  return m;
 }
 
 /** First canonical book label per book order (walks bible-chapters in canonical sequence). */

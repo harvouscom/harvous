@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  canonicalBookOrderMap,
   findMostRecentNoteForScriptureReference,
   findScripturePassageDrill,
   findScripturePassageWithNotes,
@@ -20,6 +21,24 @@ function book(
     })),
   };
 }
+
+describe('canonicalBookOrderMap', () => {
+  // Passage keys stored by the server index and computed by the client both start with this number.
+  // If a refactor swaps this for bible-chapters.json's own 1-based `bookOrder` field, every book
+  // shifts by one and previously stored keys stop matching — these assertions catch that.
+  it('is 0-based, not the 1-based bookOrder field in bible-chapters.json', () => {
+    const map = canonicalBookOrderMap();
+    expect(map.get('Genesis')).toBe(0);
+    expect(map.get('John')).toBe(42);
+    expect(map.size).toBeGreaterThanOrEqual(66);
+  });
+
+  it('aliases "Song of Songs" to the "Song of Solomon" order', () => {
+    const map = canonicalBookOrderMap();
+    expect(map.get('Song of Songs')).toBe(map.get('Song of Solomon'));
+    expect(map.get('Song of Solomon')).toBe(21);
+  });
+});
 
 describe('findScripturePassageDrill', () => {
   it('returns null for empty reference', () => {
