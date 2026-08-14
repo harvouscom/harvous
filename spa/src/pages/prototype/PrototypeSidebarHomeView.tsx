@@ -51,9 +51,7 @@ import {
   deriveTopCanonSections,
   formatHomeNoteCount,
   greetingForHour,
-  homeContinueCardEyebrow,
   homeLeadCopyLayout,
-  homeSpotlightThreadEyebrow,
   localDayIndex,
   pickContinueNote,
   pickRevisitNote,
@@ -522,6 +520,27 @@ function HomeGreeting({
   );
 }
 
+/**
+ * A group of Home cards under one heading — the church hub's section pattern.
+ *
+ * Home used to be a flat stack where every card carried its own eyebrow, so seven different
+ * labels competed with no hierarchy and nothing said which cards belonged together. The
+ * heading now belongs to the group and the cards inside it go bare, exactly as the church
+ * hub's lanes do, so the two sidebars read as one system.
+ *
+ * Empty groups hide themselves in CSS rather than here: several children (This Sunday, the
+ * church feed) decide for themselves whether they have anything to show, and a parent cannot
+ * know that without rendering them first. `:has()` asks the question after the fact.
+ */
+function HomeSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="proto-home-section proto-home-section--group">
+      <p className="proto-caption proto-home-section__eyebrow">{title}</p>
+      <div className="proto-home-section__list">{children}</div>
+    </section>
+  );
+}
+
 /** Compact note card (continue / revisit) — shared markup. */
 function HomeNoteCard({
   eyebrow,
@@ -530,7 +549,8 @@ function HomeNoteCard({
   onOpenNote,
   prefetchNote,
 }: {
-  eyebrow: string;
+  /** Omitted inside a `HomeSection`, whose heading already says which shelf this is on. */
+  eyebrow?: string;
   iconName: IconName;
   note: SpaceNoteRow;
   onOpenNote: (row: SpaceNoteRow) => void;
@@ -547,7 +567,7 @@ function HomeNoteCard({
       onMouseEnter={() => prefetchNote(note)}
       onFocus={() => prefetchNote(note)}
     >
-      <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p>
+      {eyebrow ? <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p> : null}
       <div className="proto-home-card__body">
         <div className="proto-home-card__title-row">
           <span className="proto-home-card__icon-orb" aria-hidden>
@@ -1587,20 +1607,67 @@ export default function PrototypeSidebarHomeView({
         />
       </div>
 
-      <div className="proto-home-section">
-        <PrototypeFounderLetterPill />
-      </div>
+      {/*
+        Three shelves, in the order a reader can act on them: what you were already doing,
+        what someone else has put in front of you, then what is merely worth a look. The
+        old flat stack made all eight cards equally loud.
+      */}
+      <HomeSection title="Continue">
+        {notesListPhase === 'empty' ? null : continueNote && !continueIsActive ? (
+          <HomeNoteCard
+            iconName="pen-to-square"
+            note={continueNote}
+            onOpenNote={onOpenNote}
+            prefetchNote={prefetchNote}
+          />
+        ) : revisitOnHome ? (
+          <HomeNoteCard
+            iconName="arrow-rotate-left"
+            note={revisitOnHome}
+            onOpenNote={handleOpenRevisitNote}
+            prefetchNote={prefetchNote}
+          />
+        ) : null}
+
+        {spotlightThread ? (
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={() => openThread(spotlightThread.id)}
+          >
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="arrow-right-arrow-left" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">{spotlightThread.title}</p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="caret-right" size={11} />
+                </span>
+              </div>
+              <div className="proto-home-card__meta">
+                <span className="proto-home-card__meta-item">
+                  {spotlightThread.noteCount} {spotlightThread.noteCount === 1 ? 'note' : 'notes'}
+                </span>
+              </div>
+            </div>
+          </button>
+        ) : null}
+      </HomeSection>
 
       {/*
-        Above the daily passage on purpose: the church's Sunday is an
-        appointment, the verse of the day is a habit. Renders nothing unless the
-        viewer is connected to a church that has a plan, so for most users this
-        is a no-op and VOTD stays the first passage card on Home.
+        This Sunday sits above the founder letter: a church's Sunday is an appointment, the
+        letter is evergreen. Both render nothing when they have nothing, and the group hides
+        itself when they all do.
       */}
-      <PrototypeHomeThisSunday homeSpaceId={homeSpaceId} />
+      <HomeSection title="Following">
+        <PrototypeHomeThisSunday homeSpaceId={homeSpaceId} />
+        <PrototypeHomeChurchFeed />
+        <PrototypeFounderLetterPill />
+      </HomeSection>
 
-      {votd ? (
-        <div className="proto-home-section">
+      <HomeSection title="Suggested">
+        {votd ? (
           <PrototypeDailyPassagePill
             homeSpaceId={homeSpaceId}
             notes={notes}
@@ -1608,8 +1675,44 @@ export default function PrototypeSidebarHomeView({
             scriptureBooks={scriptureBooks}
             onOpenScripturePassage={onOpenScripturePassage}
           />
-        </div>
-      ) : null}
+        ) : null}
+
+        {looseCount >= LOOSE_MIN ? (
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={() => {
+              setSidebarListMode('folders');
+              setSidebarFolderDrilldown(null);
+              ensureSidebarExpanded();
+            }}
+          >
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="folder" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">
+                  {`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
+                </p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="caret-right" size={11} />
+                </span>
+              </div>
+            </div>
+          </button>
+        ) : null}
+
+        {recallOpportunities.length > 0 ? (
+          <PrototypeRecallCarousel
+            opportunities={recallOpportunities}
+            onSnooze={handleRecallSnooze}
+            onOpened={handleRecallOpened}
+            onRecallSynced={handleRecallSynced}
+            homeSpaceId={homeSpaceId}
+          />
+        ) : null}
+      </HomeSection>
 
       {notesListPhase === 'empty' ? (
         <div className="proto-home-section">
@@ -1632,101 +1735,8 @@ export default function PrototypeSidebarHomeView({
             </div>
           </button>
         </div>
-      ) : continueNote && !continueIsActive ? (
-        <div className="proto-home-section">
-          <HomeNoteCard
-            eyebrow={homeContinueCardEyebrow(countForLogic)}
-            iconName="pen-to-square"
-            note={continueNote}
-            onOpenNote={onOpenNote}
-            prefetchNote={prefetchNote}
-          />
-        </div>
-      ) : revisitOnHome ? (
-        <div className="proto-home-section">
-          <HomeNoteCard
-            eyebrow="Worth another look"
-            iconName="arrow-rotate-left"
-            note={revisitOnHome}
-            onOpenNote={handleOpenRevisitNote}
-            prefetchNote={prefetchNote}
-          />
-        </div>
       ) : null}
 
-      {spotlightThread ? (
-        <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={() => openThread(spotlightThread.id)}
-          >
-            <p className="proto-caption proto-home-card__eyebrow">
-              {homeSpotlightThreadEyebrow(spotlightThread.noteCount)}
-            </p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="arrow-right-arrow-left" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">{spotlightThread.title}</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">
-                  {spotlightThread.noteCount} {spotlightThread.noteCount === 1 ? 'note' : 'notes'}
-                </span>
-              </div>
-            </div>
-          </button>
-        </div>
-      ) : null}
-
-      {looseCount >= LOOSE_MIN ? (
-        <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={() => {
-              setSidebarListMode('folders');
-              setSidebarFolderDrilldown(null);
-              ensureSidebarExpanded();
-            }}
-          >
-            <p className="proto-caption proto-home-card__eyebrow">Tidy up</p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="folder" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">
-                  {`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
-                </p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-            </div>
-          </button>
-        </div>
-      ) : null}
-
-      {/* Renders nothing unless the viewer follows a ministry channel. */}
-      <PrototypeHomeChurchFeed />
-
-      {recallOpportunities.length > 0 ? (
-        <div className="proto-home-section">
-          <PrototypeRecallCarousel
-            opportunities={recallOpportunities}
-            onSnooze={handleRecallSnooze}
-            onOpened={handleRecallOpened}
-            onRecallSynced={handleRecallSynced}
-            homeSpaceId={homeSpaceId}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -6837,6 +6837,32 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding: 0 2px;
 }
 
+/* Cards under one heading — the same lane rhythm as `.proto-church-hub__list`, so a group on
+   Home and a group in the church hub stack identically. */
+.proto-home-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+  A group whose children all declined to render must not leave its heading behind.
+
+  This cannot be decided in the parent: This Sunday, the church feed and the founder letter
+  each look at their own data and return null, and a parent has no way to know that before
+  rendering them. `:has()` asks after the fact — if nothing inside the lane produced an
+  element, the whole group goes, heading and all.
+*/
+.proto-home-section--group:not(:has(.proto-home-section__list > *)) {
+  display: none;
+}
+
+/* Children that ship their own section wrapper (This Sunday) must not add a second layer of
+   spacing once they are inside a lane. */
+.proto-home-section__list > .proto-home-section {
+  margin: 0;
+}
+
 .proto-home-view--enter .proto-home-section {
   opacity: 0;
   animation: proto-home-section-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -10295,7 +10321,18 @@ html.harvous-prototype-route
   bottom: calc(
     var(--stack-peek-step-max, 10px) * 2 - var(--peek-depth) * var(--stack-peek-step, 5px)
   );
-  height: calc(var(--peek-depth) * var(--stack-peek-step, 5px) + 10px);
+  /*
+   * Each layer shows only its own exposed band — it does not run on under the card.
+   *
+   * This used to add 10px so the layer tucked behind the card, the way it would with opaque
+   * paper. These are glass: the card in front is 22% white over a blur, so anything beneath
+   * it is not hidden, it is *added*. Three translucent whites piled up in that 10px band and
+   * the deck grew a pale slab exactly where its front edge should read — brightest at the one
+   * place the eye goes looking for an edge.
+   *
+   * 1px is a seam-cover for subpixel rounding, not an overlap.
+   */
+  height: calc(var(--peek-depth) * var(--stack-peek-step, 5px) + 1px);
   border-radius: 0 0 14px 14px;
   /*
    * The same material as the card in front, composited flat.
@@ -10492,9 +10529,25 @@ html.harvous-prototype-route
   overflow: hidden;
 }
 
+/*
+ * One line, truncated — a recall card's meta is a reminder of what the note was about, not
+ * the note.
+ *
+ * `overflow: hidden` + `text-overflow: ellipsis` alone did nothing here for two reasons, and
+ * both had to go: ellipsis only ever applies to a SINGLE line that overflows, so with
+ * wrapping still allowed the text just took another line and never overflowed at all; and it
+ * does not apply to flex layout, so `inline-flex` opted the item out regardless. The item
+ * carries plain text in this card, so a block box is what it wants.
+ */
+.proto-recall-card .proto-home-card__meta {
+  flex-wrap: nowrap;
+}
+
 .proto-recall-card .proto-home-card__meta-item {
+  display: block;
   min-width: 0;
   max-width: 100%;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
