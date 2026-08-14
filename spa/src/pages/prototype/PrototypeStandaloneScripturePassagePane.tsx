@@ -4,6 +4,7 @@ import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import type { StandaloneScripturePassageState } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { usePrototypeSpaceStudyThreadsByScripture } from '../../hooks/queries/usePrototypeSpaceStudyThreadsByScripture';
+import { useReadingSession } from '../../hooks/useReadingSession';
 
 export default function PrototypeStandaloneScripturePassagePane({
   state,
@@ -29,6 +30,14 @@ export default function PrototypeStandaloneScripturePassagePane({
       cancelled = true;
     };
   }, [state.canonicalReference, state.translationCode]);
+
+  // Reading a chapter here is the only read Harvous can currently see. Logged only once the
+  // text is on screen, so a failed fetch is not counted as having read anything.
+  useReadingSession({
+    canonicalReference: state.canonicalReference,
+    translationCode: state.translationCode,
+    enabled: Boolean(html) && !loadingPassage,
+  });
 
   const { data: rows = [], isLoading: rowsLoading } = usePrototypeSpaceStudyThreadsByScripture(
     homeSpaceId ?? undefined,

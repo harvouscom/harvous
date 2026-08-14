@@ -1404,6 +1404,30 @@ export const RecallEvents = pgTable('RecallEvents', {
   index('RecallEvents_kind_action_createdAtIndex').on(table.kind, table.action, table.createdAt),
 ]);
 
+// ─── ReadingEvents (append-only log of chapters read) ──────────────────────────
+// Every other record of what someone reads is inferred from what they wrote about it, so a
+// chapter read and not noted leaves no trace. This is the direct record: one row per reading
+// session, written fire-and-forget so it can never slow the reading surface down. Feeds
+// `continueBook` recall opportunities, which until now could only see cited chapters.
+
+export const ReadingEvents = pgTable('ReadingEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** Canonical book name, e.g. "John". */
+  book: text('book').notNull(),
+  /** Canonical position (0-based, Genesis = 0) so ranking never re-resolves book names. */
+  bookOrder: integer('bookOrder').notNull(),
+  chapter: integer('chapter').notNull(),
+  /** Translation the chapter was read in, e.g. "NLT". */
+  translation: text('translation').notNull(),
+  /** glance | read | study — see src/utils/reading-event-kinds.ts. */
+  dwellBucket: text('dwellBucket').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('ReadingEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('ReadingEvents_userId_bookOrder_chapterIndex').on(table.userId, table.bookOrder, table.chapter),
+]);
+
 // ─── SupportTickets (user feedback from settings support form) ─────────────────
 
 export const SupportTickets = pgTable('SupportTickets', {
