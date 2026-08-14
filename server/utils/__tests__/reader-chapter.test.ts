@@ -3,6 +3,7 @@ import {
   buildReaderChapterStudy,
   canonicalizeReaderBook,
   chapterReferenceLikePattern,
+  chapterReferenceLikePatterns,
   versesCoveredInChapter,
   type ReaderHighlightRow,
   type ReaderPassageRow,
@@ -174,6 +175,37 @@ describe('chapterReferenceLikePattern', () => {
   it('escapes LIKE wildcards so a book name stays literal', () => {
     // `_` is a single-character wildcard in LIKE; a book name must not act as a pattern.
     expect(chapterReferenceLikePattern('Song_of Solomon', 2)).toBe('Song\\_of Solomon 2:%');
+  });
+});
+
+describe('chapterReferenceLikePatterns', () => {
+  it('returns one pattern when the book has no normalized alias', () => {
+    expect(chapterReferenceLikePatterns('John', 3)).toEqual(['John 3:%']);
+  });
+
+  it('also matches the alias normalization renames a book to', () => {
+    // Highlights written elsewhere go through normalizeScriptureReference, which stores
+    // "Song of Solomon" as "Song of Songs". Both spellings have to be searched or the
+    // reader silently omits those highlights.
+    const patterns = chapterReferenceLikePatterns('Song of Solomon', 2);
+    expect(patterns).toContain('Song of Solomon 2:%');
+    expect(patterns).toContain('Song of Songs 2:%');
+  });
+});
+
+describe('buildReaderChapterStudy — book naming', () => {
+  it('places a highlight stored under the normalized alias on its verses', () => {
+    // The SQL query has already constrained the book, so the projection must not reject a
+    // reference whose book spelling differs from the canonical one.
+    const study = buildReaderChapterStudy({
+      book: 'Song of Solomon',
+      chapter: 2,
+      maxVerse: 17,
+      passages: [],
+      highlights: [highlight({ scriptureReference: 'Song of Songs 2:1' })],
+    });
+
+    expect(study[1]?.highlights).toHaveLength(1);
   });
 });
 

@@ -9,7 +9,8 @@
  *
  * The joining is kept pure so it can be tested without a database.
  */
-import { verseKeysFromScriptureReference, verseKeyFromParts } from '@/utils/scripture-verse-keys';
+import { verseKeysFromScriptureReference } from '@/utils/scripture-verse-keys';
+import { normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
 import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
 
 let canonicalBookLookup: Map<string, string> | null = null;
@@ -146,10 +147,16 @@ export function buildReaderChapterStudy(input: {
   for (const row of highlights) {
     const reference = row.scriptureReference?.trim();
     if (!reference) continue;
-    const keys = new Set(verseKeysFromScriptureReference(reference));
-    if (keys.size === 0) continue;
+    // Match on chapter and verse only. `verseKeysFromScriptureReference` normalizes the
+    // book first, and normalization renames some books away from their canonical spelling
+    // ("Song of Solomon" becomes "Song of Songs"), so comparing whole keys would drop
+    // those highlights. The SQL query has already constrained the book.
+    const chapterVerses = new Set(
+      verseKeysFromScriptureReference(reference).map((key) => key.slice(key.indexOf('|') + 1)),
+    );
+    if (chapterVerses.size === 0) continue;
     for (let verse = 1; verse <= maxVerse; verse++) {
-      if (!keys.has(verseKeyFromParts({ book, chapter, verse }))) continue;
+      if (!chapterVerses.has(`${chapter}|${verse}`)) continue;
       ensure(verse).highlights.push({
         id: row.id,
         parentNoteId: row.parentNoteId,
@@ -168,13 +175,28 @@ export function buildReaderChapterStudy(input: {
 /**
  * SQL `LIKE` pattern matching highlights stored against a chapter.
  *
- * References are normalized on write (`normalizeScriptureReference`), so a chapter's
- * highlights all read `"<Book> <chapter>:…"`. Narrowing in SQL keeps the reference
- * expansion off every row the user owns. Underscores are escaped because `_` is a
- * single-character wildcard in `LIKE` and book names such as `Song of Solomon` are
- * otherwise literal.
+ * A chapter's highlights all read `"<Book> <chapter>:…"`, so narrowing by prefix in SQL
+ * keeps the reference expansion off every row the user owns. Underscores are escaped
+ * because `_` is a single-character wildcard in `LIKE`, and book names are literal.
  */
 export function chapterReferenceLikePattern(book: string, chapter: number): string {
   const escaped = book.replace(/([%_\\])/g, '\\$1');
   return `${escaped} ${chapter}:%`;
+}
+
+/**
+ * Every prefix a chapter's highlights might have been stored under.
+ *
+ * Highlights written elsewhere in the app run their reference through
+ * `normalizeScriptureReference`, which renames a few books away from the canonical
+ * spelling used by `BibleVerses` — `"Song of Solomon"` is stored as `"Song of Songs"`. The
+ * reader would otherwise never surface those, so match the canonical spelling and the
+ * normalized alias both.
+ */
+export function chapterReferenceLikePatterns(book: string, chapter: number): string[] {
+  const patterns = [chapterReferenceLikePattern(book, chapter)];
+  const normalized = normalizeScriptureReference(`${book} ${chapter}:1`);
+  const alias = normalized ? parseScriptureReference(normalized)?.book : null;
+  if (alias && alias !== book) patterns.push(chapterReferenceLikePattern(alias, chapter));
+  return patterns;
 }

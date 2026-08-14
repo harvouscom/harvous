@@ -22,15 +22,19 @@ import {
   asc,
   like,
   lte,
+  or,
   sql,
 } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
+import { rateLimit } from '@/utils/rate-limit';
 import { getChapterVerseRange, getBookChapterCount } from '@/utils/scripture-detector';
+import { isStudyHighlightAccentKey } from '@/utils/study-highlight-accents';
+import { materializeReaderHighlight } from '../utils/reader-passage-note';
 import { getTranslation } from '@/data/translations';
 import {
   buildReaderChapterStudy,
   canonicalizeReaderBook,
-  chapterReferenceLikePattern,
+  chapterReferenceLikePatterns,
   type ReaderHighlightRow,
   type ReaderPassageRow,
 } from '../utils/reader-chapter';
@@ -38,6 +42,22 @@ import {
 const app = new Hono();
 
 const DEFAULT_TRANSLATION = 'NET';
+
+type ResolvedBookChapter =
+  | { ok: false; message: string; code: string }
+  | { ok: true; book: string; chapter: number; chapterCount: number | null };
+
+/** Resolve a book/chapter pair from request input, or the error to return for it. */
+function resolveBookChapter(rawBook: string, rawChapter: unknown): ResolvedBookChapter {
+  const book = canonicalizeReaderBook(rawBook);
+  if (!book) return { ok: false, message: 'Unknown book', code: 'INVALID_BOOK' };
+  const chapter = typeof rawChapter === 'number' ? rawChapter : Number.parseInt(String(rawChapter ?? ''), 10);
+  const chapterCount = getBookChapterCount(book);
+  if (!Number.isFinite(chapter) || chapter < 1 || (chapterCount != null && chapter > chapterCount)) {
+    return { ok: false, message: 'Chapter out of range', code: 'INVALID_CHAPTER' };
+  }
+  return { ok: true, book, chapter, chapterCount };
+}
 
 app.get('/api/reader/chapter', requireAuth, async (c) => {
   try {
@@ -47,13 +67,9 @@ app.get('/api/reader/chapter', requireAuth, async (c) => {
     const chapter = Number.parseInt(c.req.query('chapter') ?? '', 10);
     const rawTranslation = c.req.query('translation')?.trim() || DEFAULT_TRANSLATION;
 
-    const book = canonicalizeReaderBook(rawBook);
-    if (!book) return c.json({ error: 'Unknown book', code: 'INVALID_BOOK' }, 400);
-
-    const chapterCount = getBookChapterCount(book);
-    if (!Number.isFinite(chapter) || chapter < 1 || (chapterCount != null && chapter > chapterCount)) {
-      return c.json({ error: 'Chapter out of range', code: 'INVALID_CHAPTER' }, 400);
-    }
+    const resolved = resolveBookChapter(rawBook, chapter);
+    if (!resolved.ok) return c.json({ error: resolved.message, code: resolved.code }, 400);
+    const { book, chapterCount } = resolved;
 
     // Only known translations reach the query — the column is free text otherwise.
     const translation = getTranslation(rawTranslation) ? rawTranslation : DEFAULT_TRANSLATION;
@@ -113,7 +129,11 @@ app.get('/api/reader/chapter', requireAuth, async (c) => {
         and(
           eq(StudyThreadEntries.userId, auth.userId),
           eq(StudyThreadEntries.isArchived, false),
-          like(StudyThreadEntries.scriptureReference, chapterReferenceLikePattern(book, chapter)),
+          or(
+            ...chapterReferenceLikePatterns(book, chapter).map((pattern) =>
+              like(StudyThreadEntries.scriptureReference, pattern),
+            ),
+          ),
         ),
       );
 
@@ -146,6 +166,69 @@ app.get('/api/reader/chapter', requireAuth, async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/reader/chapter',
       action: 'reader_chapter',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * Highlight a verse span from the reader.
+ *
+ * The highlight lands on the chapter's passage note, which is created on the first
+ * highlight in that chapter. Keeping it attached to a note is what lets it export and
+ * re-import like any other highlight.
+ */
+app.post('/api/reader/highlight', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return c.json({ error: 'A JSON body is required', code: 'INVALID_BODY' }, 400);
+    }
+
+    const resolved = resolveBookChapter(String(body.book ?? '').trim(), body.chapter);
+    if (!resolved.ok) return c.json({ error: resolved.message, code: resolved.code }, 400);
+    const { book, chapter } = resolved;
+
+    const chapterVerses = getChapterVerseRange(book, chapter);
+    const lastVerse = chapterVerses?.end ?? 0;
+    const verseStart = Number.parseInt(String(body.verseStart ?? ''), 10);
+    if (!Number.isFinite(verseStart) || verseStart < 1 || (lastVerse > 0 && verseStart > lastVerse)) {
+      return c.json({ error: 'Verse out of range', code: 'INVALID_VERSE' }, 400);
+    }
+
+    let verseEnd: number | null = null;
+    if (body.verseEnd != null && String(body.verseEnd).trim() !== '') {
+      const parsed = Number.parseInt(String(body.verseEnd), 10);
+      if (!Number.isFinite(parsed) || parsed < verseStart || (lastVerse > 0 && parsed > lastVerse)) {
+        return c.json({ error: 'Verse range out of range', code: 'INVALID_VERSE_RANGE' }, 400);
+      }
+      verseEnd = parsed > verseStart ? parsed : null;
+    }
+
+    const rawTranslation = String(body.translation ?? '').trim() || DEFAULT_TRANSLATION;
+    const translation = getTranslation(rawTranslation) ? rawTranslation : DEFAULT_TRANSLATION;
+
+    const rawAccent = String(body.accent ?? '').trim();
+    const accent = isStudyHighlightAccentKey(rawAccent) ? rawAccent : 'warmAmber';
+
+    const annotation = typeof body.annotation === 'string' ? body.annotation : null;
+
+    const result = await materializeReaderHighlight(auth.userId, {
+      book,
+      chapter,
+      verseStart,
+      verseEnd,
+      translation,
+      accent,
+      annotation,
+    });
+
+    return c.json({ success: true, ...result }, 201);
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/reader/highlight',
+      action: 'reader_highlight',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
