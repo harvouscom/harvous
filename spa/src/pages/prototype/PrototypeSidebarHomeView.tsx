@@ -12,7 +12,12 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
-import { isPrototypeNotePath, prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import {
+  isPrototypeNotePath,
+  prototypeHomeRouteTo,
+  prototypeNoteRouteTo,
+  prototypeReadRouteTo,
+} from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
 import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
@@ -1171,28 +1176,25 @@ export default function PrototypeSidebarHomeView({
   );
 
   /**
-   * Open the chapter itself. Same reasoning as `openPassageConnection` above: a card offering
-   * to continue reading has to land on the text, not on a list of notes about it. It carries
-   * the translation the chapter was last read in rather than the default, so continuing does
-   * not silently switch translations mid-book.
+   * Open the chapter in the reader. A card offering to continue reading has to land on the
+   * text — and now that the reader exists, on the surface built for reading it rather than the
+   * standalone passage pane this originally used.
+   *
+   * Carries the translation the chapter was last read in rather than the account default, so
+   * continuing does not silently switch translations partway through a book.
    */
   const openContinueReading = useCallback(() => {
     if (!continueReadingSuggestion) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    if (isPrototypeNotePath(pathname)) navigate({ to: prototypeHomeRouteTo() });
-    openStandaloneScripturePassage({
-      canonicalReference: `${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`,
-      translationCode: continueReadingSuggestion.translation || getEffectiveDefaultTranslation(),
-      focusedHighlightThreadId: '',
+    void navigate({
+      to: prototypeReadRouteTo(),
+      params: {
+        book: continueReadingSuggestion.book,
+        chapter: String(continueReadingSuggestion.chapter),
+      },
+      search: { v: undefined, t: continueReadingSuggestion.translation || undefined },
     });
-  }, [
-    continueReadingSuggestion,
-    isMobileSidebar,
-    closeDrawer,
-    pathname,
-    navigate,
-    openStandaloneScripturePassage,
-  ]);
+  }, [continueReadingSuggestion, isMobileSidebar, closeDrawer, navigate]);
 
   const recurringPerson = useMemo(() => {
     if (hasMoreNotes) return undefined;

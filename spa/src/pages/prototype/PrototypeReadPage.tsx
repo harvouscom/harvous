@@ -20,6 +20,7 @@ import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeReaderInspectorPane from './PrototypeReaderInspectorPane';
 import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
+import { useReadingSession } from '../../hooks/useReadingSession';
 import type { FontChoice } from '../../lib/proto-font-prefs';
 import type { ReaderVerseHighlight } from './PrototypeBibleReaderPane';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
@@ -174,6 +175,20 @@ export default function PrototypeReadPage() {
 
   // Reuses the reader's own cached chapter query, so opening the inspector costs nothing.
   const { data: chapterData } = usePrototypeBibleChapter(book, chapter, translation);
+
+  /**
+   * Record the read. Marks the position as soon as the chapter is on screen and logs how long
+   * it was held open when you leave, which is what lets Home offer to pick this back up — and
+   * what tells "read it" apart from "opened it and moved on".
+   *
+   * Gated on the verses actually being here: a chapter that failed to load was not read.
+   * `chapterData.book` rather than the URL slug, so the log stores canonical book names.
+   */
+  useReadingSession({
+    canonicalReference: chapterData ? `${chapterData.book} ${chapter}` : undefined,
+    translationCode: translation,
+    enabled: Boolean(chapterData?.verses.length),
+  });
 
   const handleChangeTranslation = useCallback(
     (next: string) => {

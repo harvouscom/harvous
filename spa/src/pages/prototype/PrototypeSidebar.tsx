@@ -68,6 +68,7 @@ import {
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { parseScriptureReference } from '@/utils/scripture-detector';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
@@ -3228,14 +3229,22 @@ export default function PrototypeSidebar({
           // A row that names a passage has to show the passage. Drilling the sidebar to
           // its note list instead is the same mismatch the Home passage card used to
           // have — a scroll icon promising Scripture, delivering a list of notes.
+          //
+          // Opens the reader now that there is one. This row shipped against the standalone
+          // passage pane because the reader did not exist yet; searching a chapter and landing
+          // on the chapter is what it was always reaching for.
           if (!result.scriptureReference) return;
-          if (isPrototypeNotePath(pathname)) {
-            navigate({ to: prototypeHomeRouteTo() });
-          }
-          openStandaloneScripturePassage({
-            canonicalReference: result.scriptureReference,
-            translationCode: getEffectiveDefaultTranslation(),
-            focusedHighlightThreadId: '',
+          const parsed = parseScriptureReference(result.scriptureReference);
+          if (!parsed) return;
+          void navigate({
+            to: prototypeReadRouteTo(),
+            params: { book: parsed.book, chapter: String(parsed.chapter) },
+            // `scriptureFocusVerse` is set only when the query named a verse, so "John 15"
+            // opens at the top of the chapter instead of scrolled to verse 1.
+            search: {
+              v: result.scriptureFocusVerse ? String(result.scriptureFocusVerse) : undefined,
+              t: undefined,
+            },
           });
           return;
         }

@@ -49,6 +49,12 @@ export type SidebarSearchResult = {
   scripturePassageKey?: string;
   /** Canonical reference to open, e.g. "John 15:1-27". Set on `scriptureReference` results. */
   scriptureReference?: string;
+  /**
+   * Verse to open at, only when the query actually named one. Absent for a chapter query,
+   * which must open at the top of the chapter rather than scrolled to verse 1 — the canonical
+   * reference cannot answer this, since "John 15" normalizes to "John 15:1-27".
+   */
+  scriptureFocusVerse?: number;
   ftsExcerpt?: string;
 };
 

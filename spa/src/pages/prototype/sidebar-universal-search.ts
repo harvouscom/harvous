@@ -341,6 +341,8 @@ export function buildScriptureReferenceResult(q: string): SidebarSearchResult | 
     title,
     subtitle: 'Read passage',
     scriptureReference: canonical,
+    // Only when the query named a verse. `isWholeChapter` is the same fact the title uses.
+    scriptureFocusVerse: isWholeChapter ? undefined : verseStart,
   };
 }
 

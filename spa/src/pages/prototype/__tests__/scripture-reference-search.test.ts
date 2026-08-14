@@ -24,6 +24,18 @@ describe('buildScriptureReferenceResult', () => {
 
   it('resolves abbreviations, casing, and numbered books', () => {
     expect(buildScriptureReferenceResult('1 cor 13')?.scriptureReference).toBe('1 Corinthians 13:1-13');
+  });
+
+  /**
+   * A chapter query normalizes to its full verse span, so the canonical reference always
+   * carries a verse and cannot say whether one was asked for. Opening "Psalm 23" scrolled to
+   * verse 1 is subtly wrong — the reader should land at the top of the chapter.
+   */
+  it('marks a focus verse only when the query named one', () => {
+    expect(buildScriptureReferenceResult('John 15')?.scriptureFocusVerse).toBeUndefined();
+    expect(buildScriptureReferenceResult('psalm 23')?.scriptureFocusVerse).toBeUndefined();
+    expect(buildScriptureReferenceResult('Jn 3:16')?.scriptureFocusVerse).toBe(16);
+    expect(buildScriptureReferenceResult('John 15:4-6')?.scriptureFocusVerse).toBe(4);
     expect(buildScriptureReferenceResult('john 15')?.scriptureReference).toBe('John 15:1-27');
     expect(buildScriptureReferenceResult('2 Tim 3:16')?.scriptureReference).toBe('2 Timothy 3:16');
   });

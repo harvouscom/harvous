@@ -92,6 +92,16 @@
       "env": {
         "VITE_API_PROXY_TARGET": "http://localhost:3011"
       }
+    },
+    {
+      "name": "spa-alt-ports",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "API_PORT=3003 VITE_API_PROXY_TARGET=http://localhost:3003 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4331 --strictPort'"
+      ],
+      "port": 4331,
+      "autoPort": false
     }
   ]
 }
