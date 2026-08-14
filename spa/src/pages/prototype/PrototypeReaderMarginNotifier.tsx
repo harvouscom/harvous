@@ -23,11 +23,18 @@ export default function PrototypeReaderMarginNotifier({
   notes,
   onOpen,
   active = false,
+  inline = false,
 }: {
   verse: number;
   notes: MarginAnchorNoteLike[];
   onOpen: (verse: number, notes: MarginAnchorNoteLike[]) => void;
   active?: boolean;
+  /**
+   * Sit in the text beside the verse number instead of in the gutter. Prose runs verses
+   * together in one block, so there is no per-verse row to sit beside — and several marked
+   * verses can land on one line, where gutter dots would stack on each other.
+   */
+  inline?: boolean;
 }) {
   const count = notes.length;
   if (count === 0) return null;
@@ -39,6 +46,7 @@ export default function PrototypeReaderMarginNotifier({
     <button
       type="button"
       className="proto-reader-margin"
+      data-inline={inline ? 'true' : undefined}
       data-multi={count > 1 ? 'true' : undefined}
       data-active={active ? 'true' : undefined}
       aria-label={text}

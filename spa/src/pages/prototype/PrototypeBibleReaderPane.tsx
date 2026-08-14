@@ -45,6 +45,12 @@ import { useEastonsSlugIndex } from '../../hooks/useEastonsSlugIndex';
 import ReferenceDockWeb from '@/components/react/ReferenceDockWeb';
 import ScripturePillChromeWeb from '@/components/react/ScripturePillChromeWeb';
 import HighlightDockWeb from '@/components/react/HighlightDockWeb';
+import PrototypeReaderMarginNotifier from './PrototypeReaderMarginNotifier';
+import type { MarginAnchorNoteLike } from '@/utils/scripture-margin-anchors';
+
+/** Stable empty array — a new `[]` per verse per render would rerender every unmarked verse. */
+const EMPTY_MARGIN_NOTES: MarginAnchorNoteLike[] = [];
+const noopOpenMarginNotes = () => undefined;
 
 /**
  * What the reader currently has open in the shell's study dock.
@@ -100,6 +106,15 @@ export interface PrototypeBibleReaderPaneProps {
    * what it is given, which is what keeps the two surfaces one layer instead of two.
    */
   highlights?: ReadonlyMap<number, ReaderVerseHighlight>;
+  /**
+   * Notes anchored to verses in this chapter, by verse number — the margin markers. Same
+   * contract as `highlights`: the page fetches, the reader paints. A marker means what a
+   * Scripture list-mode row means, so it is read from the space's passage index rather than
+   * from anything the reader owns.
+   */
+  marginNotes?: ReadonlyMap<number, MarginAnchorNoteLike[]>;
+  /** Open the notes behind a marker. Omitted on the paper stack's base, like the dock. */
+  onOpenMarginNotes?: (verse: number, notes: MarginAnchorNoteLike[]) => void;
   /** Paint the selected verses in this accent. */
   onHighlight?: (range: { start: number; end: number }, accent: StudyHighlightAccentKey) => void;
   /** Highlight, then open the study dock on it so a thought can be written straight away. */
@@ -116,6 +131,8 @@ export default function PrototypeBibleReaderPane({
   onOpenDock,
   fontOverride,
   highlights,
+  marginNotes,
+  onOpenMarginNotes,
   onHighlight,
   onAnnotate,
 }: PrototypeBibleReaderPaneProps) {
@@ -349,6 +366,21 @@ export default function PrototypeBibleReaderPane({
           }
         }}
       >
+        {/*
+          In prose the marker rides with the verse number instead of sitting in the gutter.
+          The gutter belongs to the block, and prose is one block for the whole chapter, so
+          there is no per-verse row to sit beside — and several marked verses can share a
+          line, which would stack dots on top of each other. The verse number is already the
+          per-verse anchor in flowing text, so the mark belongs with it.
+        */}
+        {verseLayout === 'prose' ? (
+          <PrototypeReaderMarginNotifier
+            verse={verse.number}
+            notes={marginNotes?.get(verse.number) ?? EMPTY_MARGIN_NOTES}
+            onOpen={onOpenMarginNotes ?? noopOpenMarginNotes}
+            inline
+          />
+        ) : null}
         <sup className="pds-reader-verse-num">{verse.number}</sup>
         <span dangerouslySetInnerHTML={verseHtml.get(verse.number) ?? { __html: '' }} />
       </span>
@@ -551,6 +583,14 @@ export default function PrototypeBibleReaderPane({
             ) : (
               verses.map((verse) => (
                 <div className="pds-reader__block" role="none" key={verse.number}>
+                  {/* The block's first grid track is the reserved gutter — this is what it
+                      was reserved for. Reserved even when empty, so the text never reflows
+                      when the first note on a chapter lands. */}
+                  <PrototypeReaderMarginNotifier
+                    verse={verse.number}
+                    notes={marginNotes?.get(verse.number) ?? EMPTY_MARGIN_NOTES}
+                    onOpen={onOpenMarginNotes ?? noopOpenMarginNotes}
+                  />
                   <p className="pds-reader-text" role="none">
                     <VerseSpan verse={verse} />
                   </p>

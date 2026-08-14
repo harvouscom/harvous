@@ -18188,6 +18188,27 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    Quiet at rest on purpose: this marks a reading surface, and a marker that
    competes with the text it marks has stopped doing its job. It gains weight
    on hover and while its notes are open, not before. */
+/* In the reader's line layout the notifier takes the block's reserved gutter track — the
+   column the reader already leaves empty so text never reflows when a note lands. */
+.pds-reader__block > .proto-reader-margin {
+  grid-column: 1;
+  justify-self: end;
+  align-self: start;
+}
+
+/* Prose has one block for the whole chapter, so the marker rides beside the verse number
+   inside the text instead. Baseline-aligned to the superscript rather than the body line,
+   and given the same right margin the verse number has, so it reads as part of that mark
+   rather than as a character in the sentence. */
+.proto-reader-margin[data-inline='true'] {
+  display: inline-flex;
+  vertical-align: super;
+  width: auto;
+  min-height: 0;
+  margin-inline-end: 2px;
+  transform: translateY(-0.1em);
+}
+
 .proto-reader-margin {
   display: flex;
   align-items: center;

@@ -149,6 +149,23 @@ export interface SyncState {
 }
 
 // Thread cache entry for caching thread content
+/**
+ * The passage→note index for one space, mirrored so the reader's margin markers survive
+ * offline. Stored as the server's own payload rather than a re-derived shape: the dots mean
+ * exactly what Scripture list mode means, and two derivations of "which notes cite this
+ * passage" would eventually disagree about which one a dot represents.
+ *
+ * Refreshed when notes sync, not when a chapter is opened — reading is the hot path and the
+ * index only changes when a note does.
+ */
+export interface ScriptureIndexCacheEntry {
+  spaceId: string;
+  userId: string;
+  /** The `books` payload from `/api/spaces/:id/scripture-index`, stored verbatim. */
+  books: unknown[];
+  updatedAt: number;
+}
+
 export interface ThreadCacheEntry {
   threadId: string;
   userId: string;
@@ -179,6 +196,7 @@ class OfflineDatabase extends Dexie {
   syncQueue!: Table<SyncOperation>;
   syncState!: Table<SyncState>;
   threadCache!: Table<ThreadCacheEntry>;
+  scriptureIndexCache!: Table<ScriptureIndexCacheEntry>;
 
   constructor() {
     super('HarvousOfflineDB');
@@ -244,6 +262,11 @@ class OfflineDatabase extends Dexie {
       syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType], [userId+id]',
       syncState: 'userId',
       threadCache: '[threadId+userId], threadId, userId, timestamp, expiresAt'
+    });
+
+    // Version 5: scripture index mirror, so the reader's margin markers render offline.
+    this.version(5).stores({
+      scriptureIndexCache: '[spaceId+userId], spaceId, userId, updatedAt'
     });
   }
 }
