@@ -1292,10 +1292,17 @@ async function processStudyThreadEntryMutation(userId: string, operation: string
     if (typeof data.isArchived === 'boolean') patch.isArchived = data.isArchived;
     if (typeof data.entryKind === 'string' && ENTRY_KINDS.has(data.entryKind)) patch.entryKindRaw = data.entryKind;
     await db.update(StudyThreadEntries).set(patch as any).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
-    await db
-      .update(Notes)
-      .set({ updatedAt: nowISO() })
-      .where(and(eq(Notes.id, existing.parentNoteId), eq(Notes.userId, userId)));
+    // A highlight made while reading has no parent note to touch. The guard is not only for
+    // types: `eq(Notes.id, null)` matches no row, so this was already a silent no-op. Being
+    // explicit also keeps it that way — `updatedAt` is both the notes-list sort key and the
+    // sync watermark, and reader activity must never move either (see the phantom
+    // save-on-open bug, and the reader's read-only note viewing rule).
+    if (existing.parentNoteId) {
+      await db
+        .update(Notes)
+        .set({ updatedAt: nowISO() })
+        .where(and(eq(Notes.id, existing.parentNoteId), eq(Notes.userId, userId)));
+    }
     return { success: true, entityId, serverId: entityId };
   }
   if (operation === 'delete') {
@@ -1315,10 +1322,17 @@ async function processStudyThreadEntryMutation(userId: string, operation: string
       }
     }
     await db.delete(StudyThreadEntries).where(and(eq(StudyThreadEntries.id, entityId), eq(StudyThreadEntries.userId, userId)));
-    await db
-      .update(Notes)
-      .set({ updatedAt: nowISO() })
-      .where(and(eq(Notes.id, existing.parentNoteId), eq(Notes.userId, userId)));
+    // A highlight made while reading has no parent note to touch. The guard is not only for
+    // types: `eq(Notes.id, null)` matches no row, so this was already a silent no-op. Being
+    // explicit also keeps it that way — `updatedAt` is both the notes-list sort key and the
+    // sync watermark, and reader activity must never move either (see the phantom
+    // save-on-open bug, and the reader's read-only note viewing rule).
+    if (existing.parentNoteId) {
+      await db
+        .update(Notes)
+        .set({ updatedAt: nowISO() })
+        .where(and(eq(Notes.id, existing.parentNoteId), eq(Notes.userId, userId)));
+    }
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };

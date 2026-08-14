@@ -117,6 +117,13 @@ export async function generateUserExport(
           scripturePassageTranslation: row.scripturePassageTranslation,
           scripturePassageExcerpt: row.scripturePassageExcerpt,
         };
+        // A highlight made while reading has no parent note. This map is keyed by note id and
+        // only ever read as `.get(note.id)`, so a null key could never come back out — and the
+        // portable format serializes highlights inside their note, leaving nowhere to put one
+        // that belongs to no note. Skipped rather than grouped under null, which would collapse
+        // every reader-origin highlight into one unreachable bucket. Representing them in the
+        // export is a format change (import has to read it too), tracked separately.
+        if (!row.parentNoteId) continue;
         if (!studyThreadsByNote.has(row.parentNoteId)) studyThreadsByNote.set(row.parentNoteId, []);
         studyThreadsByNote.get(row.parentNoteId)!.push(mapped);
       }
@@ -278,6 +285,13 @@ export async function generateUserBackupZip(
           scripturePassageTranslation: row.scripturePassageTranslation,
           scripturePassageExcerpt: row.scripturePassageExcerpt,
         };
+        // A highlight made while reading has no parent note. This map is keyed by note id and
+        // only ever read as `.get(note.id)`, so a null key could never come back out — and the
+        // portable format serializes highlights inside their note, leaving nowhere to put one
+        // that belongs to no note. Skipped rather than grouped under null, which would collapse
+        // every reader-origin highlight into one unreachable bucket. Representing them in the
+        // export is a format change (import has to read it too), tracked separately.
+        if (!row.parentNoteId) continue;
         if (!studyThreadsByNote.has(row.parentNoteId)) studyThreadsByNote.set(row.parentNoteId, []);
         studyThreadsByNote.get(row.parentNoteId)!.push(mapped);
         highlightCount++;

@@ -21,7 +21,14 @@ function mockMatchMedia(desktop: boolean) {
   );
 }
 
-function mockRect(el: HTMLElement, rect: DOMRectInit) {
+/**
+ * `DOMRectInit` carries only x/y/width/height, but every call here describes rects the way
+ * the layout code reads them — by edge. Widening the parameter is what the helper always
+ * meant; without it each `left`/`top` was an error the baseline simply absorbed.
+ */
+type MockRectInit = DOMRectInit & { left?: number; top?: number };
+
+function mockRect(el: HTMLElement, rect: MockRectInit) {
   el.getBoundingClientRect = () =>
     ({
       x: rect.x ?? rect.left ?? 0,

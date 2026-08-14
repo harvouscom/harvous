@@ -58,7 +58,16 @@ export async function buildSpaceReferenceWordConnections(
       ),
     );
 
-  const eligible = rows.filter((row) => studyThreadEligibleForHighlightList(row));
+  /**
+   * Reference rows made while reading have no parent note. They are excluded rather than
+   * passed through with a null: this derivation counts *notes* per word
+   * ("across 4 of your notes") and opens the most recent one, so a null would both inflate
+   * the count by a note that does not exist and give the card nothing to open.
+   */
+  const eligible = rows.filter(
+    (row): row is typeof row & { parentNoteId: string } =>
+      studyThreadEligibleForHighlightList(row) && Boolean(row.parentNoteId),
+  );
   const inputs = eligible.map((row) => ({
     id: row.id,
     entryKind: 'reference',
