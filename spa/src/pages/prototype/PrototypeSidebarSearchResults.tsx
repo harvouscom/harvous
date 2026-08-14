@@ -214,6 +214,14 @@ export default function PrototypeSidebarSearchResults({
   const visibleHighlightsById =
     searchScope === 'my-home' && myHomeHighlightsById ? myHomeHighlightsById : highlightsById;
 
+  /**
+   * A leading result belongs to no scope, so a scope with no matches of its own still
+   * has something to render. Without this the per-scope empty state paints over the
+   * passage row in exactly the case the row exists for — a passage no note has cited
+   * yet — which is the whole reason the row was added.
+   */
+  const hasLeadingResult = leadingResults.length > 0;
+
   const myHomeLoading = searchScope === 'my-home' && myHomeFtsQuery.isLoading && debouncedFtsQuery;
   const allScopesEmpty =
     !scriptureReferenceResult &&
@@ -257,17 +265,17 @@ export default function PrototypeSidebarSearchResults({
       <div className="proto-sidebar-search-results__body">
         {allScopesEmpty ? (
           <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noResultsInSpace} />
-        ) : searchScope === 'active' && activeResults.length === 0 ? (
+        ) : !hasLeadingResult && searchScope === 'active' && activeResults.length === 0 ? (
           <PrototypeListNoMatchEmptyState title={SIDEBAR_NO_MATCH_COPY.noMatchesInView} />
         ) : searchScope === 'elsewhere' && ftsQuery.isLoading && debouncedFtsQuery ? (
           <p className="proto-caption proto-sidebar-search-section__empty">Searching notes…</p>
-        ) : searchScope === 'elsewhere' && elsewhereResults.length === 0 ? (
+        ) : !hasLeadingResult && searchScope === 'elsewhere' && elsewhereResults.length === 0 ? (
           <PrototypeListNoMatchEmptyState
             title={elsewhereEmptyStateTitle(activeSearchContext, elsewhereTypeFilter)}
           />
         ) : searchScope === 'my-home' && myHomeLoading ? (
           <p className="proto-caption proto-sidebar-search-section__empty">Searching My Home…</p>
-        ) : searchScope === 'my-home' && myHomeResults.length === 0 ? (
+        ) : !hasLeadingResult && searchScope === 'my-home' && myHomeResults.length === 0 ? (
           <PrototypeListNoMatchEmptyState title={myHomeEmptyStateTitle(elsewhereTypeFilter)} />
         ) : (
           <SearchResultSection
