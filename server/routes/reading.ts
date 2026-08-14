@@ -12,8 +12,10 @@ import {
   recordReadingEvent,
   validateReadingEventInput,
 } from '../utils/record-reading-event';
-import { db, ReadingEvents, and, eq, gte, desc } from '../db';
+import { db, ReadingEvents, UserMetadata, and, eq, gte, desc } from '../db';
 import { isReadingEventsTableMissing } from '../utils/pg-undefined-relation';
+import { parseLastReadPosition } from '@/utils/last-read-position';
+import { first } from '../db/helpers';
 
 const route = new Hono();
 
@@ -46,17 +48,31 @@ route.post('/api/reading/event', requireAuth, rateLimit('write'), async (c) => {
 });
 
 /**
- * Which chapters have been read, collapsed to one entry each.
+ * Which chapters have been read, collapsed to one entry each, plus where the reader is.
  *
  * Read separately from the note index on purpose: every other signal Home has about
  * Scripture comes from what was written about it, so a chapter someone read and never
  * noted is invisible. This is the half that sees it.
+ *
+ * Position rides along rather than being fetched from the profile, even though it lives on
+ * UserMetadata and get-profile returns it too. Continue-reading needs the two together —
+ * where you were, and whether you finished it — and answering from one request keeps them
+ * from being read a few minutes apart and disagreeing.
  */
 route.get('/api/reading/recent', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     // ReadingEvents.createdAt is a timestamp column, so compare against a Date.
     const since = new Date(Date.now() - READING_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const meta = first(
+      await db
+        .select({ lastReadPosition: UserMetadata.lastReadPosition })
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, auth.userId))
+        .limit(1),
+    );
+    const lastRead = parseLastReadPosition(meta?.lastReadPosition);
 
     const rows = await db
       .select({
@@ -71,12 +87,12 @@ route.get('/api/reading/recent', requireAuth, rateLimit('read'), async (c) => {
       .orderBy(desc(ReadingEvents.createdAt))
       .limit(READING_HISTORY_MAX_ROWS);
 
-    return c.json({ success: true, chapters: collapseReadingHistory(rows) });
+    return c.json({ success: true, lastRead, chapters: collapseReadingHistory(rows) });
   } catch (error) {
     // Pre-migration databases have no ReadingEvents table. Continue-reading is an
     // enhancement, so degrade to "nothing read yet" rather than failing Home's data load.
     if (isReadingEventsTableMissing(error)) {
-      return c.json({ success: true, chapters: [] });
+      return c.json({ success: true, lastRead: null, chapters: [] });
     }
     const standardError = handleAPIError(error, {
       endpoint: '/api/reading/recent',

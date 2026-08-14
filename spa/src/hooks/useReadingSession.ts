@@ -9,10 +9,12 @@
  * accumulating. See `nextReadingDwellReport` for why a session can report twice.
  */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { nextReadingDwellReport, type ReadingDwellBucket } from '@/utils/reading-event-kinds';
 import { recordLastReadPosition, recordReadingEvent } from '../pages/prototype/proto-reading-events';
+import { readingHistoryQueryKey } from './queries/useReadingHistory';
 
 type ReadingSession = {
   book: string;
@@ -36,6 +38,16 @@ export function useReadingSession({
   enabled?: boolean;
 }): void {
   const sessionRef = useRef<ReadingSession | null>(null);
+  const queryClient = useQueryClient();
+
+  /**
+   * Home reads this log to decide what to offer next, and its query is deliberately slow to
+   * go stale. Without this, finishing a chapter would leave Home offering that same chapter
+   * for another five minutes — the card would be wrong exactly when someone just acted on it.
+   */
+  const refreshReadingHistory = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: readingHistoryQueryKey });
+  }, [queryClient]);
 
   useEffect(() => {
     if (!enabled || !canonicalReference || !translationCode) return;
@@ -58,6 +70,7 @@ export function useReadingSession({
       book: parsed.book,
       chapter: parsed.chapter,
       translation: translationCode,
+      onSynced: refreshReadingHistory,
     });
 
     const elapsedMs = (session: ReadingSession): number =>
@@ -74,6 +87,7 @@ export function useReadingSession({
         chapter: session.chapter,
         translation: session.translation,
         dwellBucket: bucket,
+        onSynced: refreshReadingHistory,
       });
     };
 
@@ -98,5 +112,5 @@ export function useReadingSession({
       report();
       sessionRef.current = null;
     };
-  }, [canonicalReference, translationCode, enabled]);
+  }, [canonicalReference, translationCode, enabled, refreshReadingHistory]);
 }

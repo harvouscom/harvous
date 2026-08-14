@@ -14,6 +14,8 @@ import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { isPrototypeNotePath, prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
+import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
@@ -65,6 +67,9 @@ import {
   pickRecallTrend,
   recallTrendGreetingParts,
   deriveContinueBook,
+  deriveContinueReading,
+  continueReadingEyebrow,
+  continueReadingMeta,
   deriveRecurringPerson,
   pickBareHighlight,
   isHighlightUnannotated,
@@ -603,6 +608,7 @@ export default function PrototypeSidebarHomeView({
   const { isLoaded: clerkLoaded } = useUser();
   const fingerprintsQuery = useNoteFingerprints();
   const recallHistoryQuery = useRecallEventHistory();
+  const readingHistoryQuery = useReadingHistory();
   // Declared up here, above the presentation gate, because the gate reads their settled state.
   // They used to sit further down beside the recall memo that consumes them, which put them
   // out of the gate's reach — so each one landed after Home had already painted and inserted a
@@ -1116,15 +1122,77 @@ export default function PrototypeSidebarHomeView({
     [isMobileSidebar, closeDrawer, scriptureBooks, notes, startDraftNote, navigate],
   );
 
+  /**
+   * Chapters read, whether or not anything was ever written about them. Everything else on
+   * Home is derived from notes, so without this a chapter someone read twice still looks
+   * untouched.
+   */
+  const readChapters = useMemo(
+    () =>
+      (readingHistoryQuery.data?.chapters ?? []).map((c) => ({
+        book: c.book,
+        chapter: c.chapter,
+        countsAsRead: readingDwellCountsAsRead(c.dwellBucket),
+      })),
+    [readingHistoryQuery.data],
+  );
+
   const continueBookSuggestion = useMemo(() => {
     if (hasMoreNotes) return undefined;
+    const readByBook = new Map<string, number[]>();
+    for (const c of readChapters) {
+      if (!c.countsAsRead) continue;
+      const list = readByBook.get(c.book);
+      if (list) list.push(c.chapter);
+      else readByBook.set(c.book, [c.chapter]);
+    }
     const input = scriptureBooks.map((b) => ({
       book: b.title,
       bookOrder: b.bookOrder,
       citedChapters: b.passages.map((p) => p.chapter),
+      readChapters: readByBook.get(b.title) ?? [],
     }));
     return deriveContinueBook(input, bibleBookChapterCounts(), { limit: 1 })[0];
-  }, [scriptureBooks, hasMoreNotes]);
+  }, [scriptureBooks, hasMoreNotes, readChapters]);
+
+  /**
+   * Where to pick reading back up. Kept separate from `continueBookSuggestion`, which answers a
+   * different question — that one names the next chapter of a book you have been *studying*,
+   * this one the next chapter of what you were actually *reading*, and someone can be doing
+   * both in different books at once.
+   */
+  const continueReadingSuggestion = useMemo(
+    () =>
+      deriveContinueReading(
+        { lastRead: readingHistoryQuery.data?.lastRead ?? null, readChapters },
+        bibleBookChapterCounts(),
+      ),
+    [readingHistoryQuery.data?.lastRead, readChapters],
+  );
+
+  /**
+   * Open the chapter itself. Same reasoning as `openPassageConnection` above: a card offering
+   * to continue reading has to land on the text, not on a list of notes about it. It carries
+   * the translation the chapter was last read in rather than the default, so continuing does
+   * not silently switch translations mid-book.
+   */
+  const openContinueReading = useCallback(() => {
+    if (!continueReadingSuggestion) return;
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+    if (isPrototypeNotePath(pathname)) navigate({ to: prototypeHomeRouteTo() });
+    openStandaloneScripturePassage({
+      canonicalReference: `${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`,
+      translationCode: continueReadingSuggestion.translation || getEffectiveDefaultTranslation(),
+      focusedHighlightThreadId: '',
+    });
+  }, [
+    continueReadingSuggestion,
+    isMobileSidebar,
+    closeDrawer,
+    pathname,
+    navigate,
+    openStandaloneScripturePassage,
+  ]);
 
   const recurringPerson = useMemo(() => {
     if (hasMoreNotes) return undefined;
@@ -1651,6 +1719,38 @@ export default function PrototypeSidebarHomeView({
             onOpenNote={handleOpenRevisitNote}
             prefetchNote={prefetchNote}
           />
+        </div>
+      ) : null}
+
+      {continueReadingSuggestion ? (
+        <div className="proto-home-section">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={openContinueReading}
+          >
+            <p className="proto-caption proto-home-card__eyebrow">
+              {continueReadingEyebrow(continueReadingSuggestion)}
+            </p>
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="book-open" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">
+                  {continueReadingSuggestion.book} {continueReadingSuggestion.chapter}
+                </p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="caret-right" size={11} />
+                </span>
+              </div>
+              <div className="proto-home-card__meta">
+                <span className="proto-home-card__meta-item">
+                  {continueReadingMeta(continueReadingSuggestion)}
+                </span>
+              </div>
+            </div>
+          </button>
         </div>
       ) : null}
 
