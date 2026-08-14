@@ -163,6 +163,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-13-thread-trail',
     visualBaseline: true,
   },
+  {
+    id: 'ds-14-reader-margin',
+    title: 'Reader margin notifier',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeReaderMarginNotifier.tsx',
+      'src/utils/scripture-margin-anchors.ts',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-14-reader-margin',
+    visualBaseline: true,
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

@@ -17369,3 +17369,92 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   flex-direction: column;
   gap: 4px;
 }
+
+/* ── Reader › left-margin note notifier ─────────────────────────────────────
+   A dot in the gutter beside a verse someone has written about. It sits in the
+   left margin rather than the right so it reads as annotation on the text —
+   the side a marginal note has always been on — and so it never collides with
+   the verse numbers or a selection running to the end of a line.
+
+   Quiet at rest on purpose: this marks a reading surface, and a marker that
+   competes with the text it marks has stopped doing its job. It gains weight
+   on hover and while its notes are open, not before. */
+.proto-reader-margin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  min-height: 18px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--pds-radius-button);
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--pds-duration-press) var(--pds-ease-standard),
+    opacity var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-reader-margin:hover,
+.proto-reader-margin[data-active='true'] {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-reader-margin:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+/* Stacked rather than spread: several notes on one verse should still read as
+   one mark in the margin, not as a row of separate things to count. */
+.proto-reader-margin__stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.proto-reader-margin__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pds-text-muted);
+  transition:
+    background var(--pds-duration-press) var(--pds-ease-standard),
+    transform var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-reader-margin:hover .proto-reader-margin__dot,
+.proto-reader-margin[data-active='true'] .proto-reader-margin__dot {
+  background: var(--pds-accent);
+}
+
+/* The capsule: stacked dots tighten into a single vertical mark. */
+.proto-reader-margin[data-multi='true'] .proto-reader-margin__dot {
+  width: 4px;
+  height: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-reader-margin,
+  .proto-reader-margin__dot {
+    transition: none;
+  }
+}
+
+/* The row geometry the notifier needs to sit in a margin at all: a fixed gutter
+   column, then the verse. Deliberately only the gutter — verse typography
+   belongs to the reader, not to the marker that hangs beside it. */
+.proto-reader-margin-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: var(--pds-space-2);
+}
+
+.proto-reader-margin-row__gutter {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
