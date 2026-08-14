@@ -191,4 +191,112 @@ For by ==grace== you have been saved.
     }
     XCTAssertEqual(HarvousVaultMarkdown.datePrefix(for: date), "2025-03-07")
   }
+
+  /// The TypeScript exporter writes `highlights:` as a YAML block sequence, not the
+  /// native `highlightsJSON` one-liner. Parsing it is what lets a web backup — including
+  /// highlights made while reading a passage — import without losing its metadata.
+  func testParseDocumentReadsHighlightsBlockSequenceFromWebExport() {
+    let md = """
+---
+id: "550E8400-E29B-41D4-A716-446655440000"
+title: John 3
+noteType: scripture
+scriptureReference: John 3
+scriptureTranslation: ESV
+highlights:
+  - kind: miniNote
+    accent: warmAmber
+    id: study_reader_john_3_16
+    anchorText: For God so loved the world
+    annotation: The hinge of the whole chapter.
+    scriptureReference: John 3:16
+    scriptureTranslation: ESV
+  - kind: scriptureLink
+    accent: warmAmber
+    anchorText: whoever believes in him
+    scriptureReference: John 3:16
+    scriptureExcerpt: that whoever believes in him should not perish
+pinned: true
+---
+# John 3
+
+==For God so loved the world==, that he gave his only Son.
+
+"""
+
+    let doc = HarvousVaultMarkdown.parseDocument(md)
+
+    // The highlight rows must not leak into the note's own fields: before `highlights:`
+    // was consumed as a sequence, the nested `id:` line parsed as the note id and wiped
+    // it, and the nested `scriptureReference:` overwrote the note's passage.
+    XCTAssertEqual(doc.id?.uuidString.lowercased(), "550e8400-e29b-41d4-a716-446655440000")
+    XCTAssertEqual(doc.noteType, "scripture")
+    XCTAssertEqual(doc.scriptureReference, "John 3")
+    XCTAssertEqual(doc.scriptureTranslation, "ESV")
+    // Keys after the sequence are still read.
+    XCTAssertTrue(doc.pinned)
+
+    XCTAssertEqual(doc.highlights.count, 2)
+
+    let first = doc.highlights[0]
+    XCTAssertEqual(first.kind, "miniNote")
+    XCTAssertEqual(first.accent, "warmAmber")
+    XCTAssertEqual(first.id, "study_reader_john_3_16")
+    XCTAssertEqual(first.anchorText, "For God so loved the world")
+    XCTAssertEqual(first.annotation, "The hinge of the whole chapter.")
+    XCTAssertEqual(first.scriptureReference, "John 3:16")
+    XCTAssertEqual(first.scriptureTranslation, "ESV")
+
+    let second = doc.highlights[1]
+    XCTAssertEqual(second.kind, "scriptureLink")
+    XCTAssertEqual(second.anchorText, "whoever believes in him")
+    XCTAssertEqual(second.scriptureExcerpt, "that whoever believes in him should not perish")
+  }
+
+  /// A passage highlight has no anchor text in the body — only frontmatter and a callout.
+  func testParseDocumentKeepsPassageOnlyHighlightFromBlockSequence() {
+    let md = """
+---
+title: Romans 8
+noteType: scripture
+scriptureReference: Romans 8
+highlights:
+  - kind: scriptureLink
+    accent: warmAmber
+    scriptureReference: Romans 8:1
+    scriptureExcerpt: There is therefore now no condemnation
+---
+# Romans 8
+
+"""
+
+    let doc = HarvousVaultMarkdown.parseDocument(md)
+
+    XCTAssertEqual(doc.highlights.count, 1)
+    XCTAssertEqual(doc.highlights[0].scriptureReference, "Romans 8:1")
+    XCTAssertNil(doc.highlights[0].anchorText)
+    // No inline `==mark==` exists, so this must have come from the sequence rather than
+    // the inferred-from-body fallback.
+    XCTAssertEqual(doc.highlights[0].kind, "scriptureLink")
+  }
+
+  /// `highlights:` wins over `highlightsJSON` when a document somehow carries both.
+  func testHighlightsBlockSequenceTakesPrecedenceOverHighlightsJSON() {
+    let md = """
+---
+title: Both
+highlightsJSON: "[{\\"kind\\":\\"miniNote\\",\\"anchorText\\":\\"legacy\\"}]"
+highlights:
+  - kind: miniNote
+    anchorText: authoritative
+---
+# Both
+
+"""
+
+    let doc = HarvousVaultMarkdown.parseDocument(md)
+
+    XCTAssertEqual(doc.highlights.count, 1)
+    XCTAssertEqual(doc.highlights[0].anchorText, "authoritative")
+  }
 }

@@ -126,6 +126,12 @@ enum HarvousVaultMarkdown {
     /// Array-valued frontmatter keys that may be emitted as YAML block sequences.
     private static let blockArrayKeys: Set<String> = ["folders", "collections", "tags", "refs"]
 
+    /// Frontmatter keys whose value is a YAML block sequence of mappings (`- key: value`).
+    private static let blockMappingKeys: Set<String> = ["highlights"]
+
+    /// Block-scalar indicators js-yaml uses for long or multi-line values.
+    private static let blockScalarIndicators: Set<String> = ["|", "|-", "|+", ">", ">-", ">+"]
+
     private static func parseFrontmatterLines(_ block: String, into doc: inout HarvousVaultParsedDocument) {
         let lines = block.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var i = 0
@@ -142,6 +148,19 @@ enum HarvousVaultMarkdown {
                 let items = collectBlockArrayItems(lines, from: &i)
                 if !items.isEmpty {
                     assignArrayKey(key, items, into: &doc)
+                    continue
+                }
+            }
+
+            // `highlights:` as a block sequence of mappings — the authoritative form in
+            // docs/PORTABLE_MARKDOWN_FORMAT.md, and what the TypeScript exporter writes.
+            // These rows must be consumed here: left to fall through, their indented
+            // `id:` / `scriptureReference:` lines hit the note-level switch below and
+            // overwrite the note's own identity.
+            if val.isEmpty, blockMappingKeys.contains(key) {
+                let rows = collectBlockMappingItems(lines, from: &i)
+                if !rows.isEmpty {
+                    doc.highlights = highlightsFromBlockMappings(rows)
                     continue
                 }
             }
@@ -183,7 +202,11 @@ enum HarvousVaultMarkdown {
             case "scripturepillaccentsjson", "accents":
                 doc.accentJSON = stripQuotes(val)
             case "highlightsjson":
-                doc.highlights = decodeHighlightsJSON(stripQuotes(val))
+                // `highlights:` is authoritative when a document carries both, matching
+                // the TypeScript reader's precedence regardless of which key came first.
+                if doc.highlights.isEmpty {
+                    doc.highlights = decodeHighlightsJSON(stripQuotes(val))
+                }
             default:
                 break
             }
@@ -456,6 +479,109 @@ enum HarvousVaultMarkdown {
             i += 1
         }
         return out
+    }
+
+    /// Split `key: value` at the first colon, rejecting prose that merely contains one
+    /// (frontmatter keys are single-word identifiers, so a space disqualifies the match).
+    private static func splitFrontmatterPair(_ s: String) -> (key: String, value: String)? {
+        guard let colon = s.firstIndex(of: ":") else { return nil }
+        let key = String(s[..<colon]).trimmingCharacters(in: .whitespaces).lowercased()
+        guard !key.isEmpty, !key.contains(" "), !key.contains("\"") else { return nil }
+        let value = String(s[s.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
+        return (key, value)
+    }
+
+    /// Consume a YAML block sequence of mappings, advancing `i` past it: `- key: value`
+    /// opens each row and indented `key: value` lines continue it. Wrapped and block-scalar
+    /// values (js-yaml folds at its line width) are re-joined onto the key they belong to.
+    private static func collectBlockMappingItems(_ lines: [String], from i: inout Int) -> [[String: String]] {
+        var out: [[String: String]] = []
+        var current: [String: String]?
+        var lastKey: String?
+        var literalKeys: Set<String> = []
+
+        func absorb(_ pair: (key: String, value: String)) {
+            if blockScalarIndicators.contains(pair.value) {
+                // Value starts on the following lines; `|` variants keep their newlines.
+                current?[pair.key] = ""
+                if pair.value.hasPrefix("|") { literalKeys.insert(pair.key) }
+            } else {
+                current?[pair.key] = stripQuotes(pair.value)
+            }
+            lastKey = pair.key
+        }
+
+        func flush() {
+            if let c = current, !c.isEmpty { out.append(c) }
+            current = nil
+            lastKey = nil
+            literalKeys = []
+        }
+
+        while i < lines.count {
+            let raw = lines[i]
+            let trimmed = raw.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty { i += 1; continue }
+            let isSequenceEntry = trimmed == "-" || trimmed.hasPrefix("- ")
+
+            // An unindented line that does not open a row ends the sequence.
+            if raw.prefix(while: { $0 == " " }).isEmpty, !isSequenceEntry { break }
+
+            if isSequenceEntry {
+                flush()
+                current = [:]
+                let rest = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces)
+                if !rest.isEmpty, let pair = splitFrontmatterPair(rest) { absorb(pair) }
+                i += 1
+                continue
+            }
+
+            guard current != nil else { break }
+
+            if let pair = splitFrontmatterPair(trimmed) {
+                absorb(pair)
+                i += 1
+                continue
+            }
+
+            // Not a `key: value` line, so it continues the value above it.
+            if let k = lastKey {
+                let existing = current?[k] ?? ""
+                let joiner = existing.isEmpty ? "" : (literalKeys.contains(k) ? "\n" : " ")
+                current?[k] = existing + joiner + trimmed
+                i += 1
+                continue
+            }
+
+            break
+        }
+        flush()
+        return out
+    }
+
+    /// Map parsed YAML rows (keys lowercased by `splitFrontmatterPair`) onto highlights.
+    static func highlightsFromBlockMappings(_ rows: [[String: String]]) -> [HarvousVaultPortableHighlight] {
+        rows.compactMap { row in
+            var h = HarvousVaultPortableHighlight()
+            h.id = row["id"]
+            h.kind = row["kind"]
+            h.accent = row["accent"]
+            h.anchorText = row["anchortext"]
+            h.anchorLocation = row["anchorlocation"].flatMap { Int($0) }
+            h.anchorLength = row["anchorlength"].flatMap { Int($0) }
+            h.annotation = row["annotation"]
+            h.focusTitle = row["focustitle"]
+            h.notesBody = row["notesbody"]
+            h.scriptureReference = row["scripturereference"]
+            h.scriptureTranslation = row["scripturetranslation"]
+            h.scriptureExcerpt = row["scriptureexcerpt"]
+            h.linkedNoteId = row["linkednoteid"]
+            h.linkedNoteTitle = row["linkednotetitle"]
+            // A row with no anchor, passage, or prose of its own carries nothing.
+            let carriesContent = h.anchorText != nil || h.scriptureReference != nil
+                || h.annotation != nil || h.notesBody != nil || h.focusTitle != nil
+            return carriesContent ? h : nil
+        }
     }
 
     private static func assignArrayKey(_ key: String, _ items: [String], into doc: inout HarvousVaultParsedDocument) {
