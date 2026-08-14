@@ -79,3 +79,7 @@ server/data/scripture-knowledge/_subjects-batch.json
 # run — a test-status file committed into the repo says nothing true about anyone else's checkout.
 test-results/
 playwright-report/
+
+# Row backups written by scripts/reconcile-null-parent-study-threads.ts before it
+# deletes anything. These hold real user content — keep them out of the repo.
+scripts/backups/

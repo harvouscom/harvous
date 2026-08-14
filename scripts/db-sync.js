@@ -9,6 +9,11 @@
  * where stdin is not reliably a TTY, so it never asks a question it might not be
  * able to hear the answer to. Pass `--auto-push` (or run `npm run db:push`) to
  * actually apply the schema.
+ *
+ * This only knows whether schema.ts changed, never whether the database took the
+ * change. Whether a push actually applied is `scripts/db-push.js`'s job: it exits
+ * non-zero when drizzle-kit reports an error, so the --auto-push branch below
+ * fails instead of printing success over a half-applied schema.
  */
 
 import { execSync } from 'child_process';
@@ -38,6 +43,9 @@ try {
     console.log('✅ No database schema changes detected.');
   }
 } catch (error) {
+  // A failed `db:push` lands here. Its own output has already streamed above, so
+  // this only needs to make clear that the schema is not synchronized.
   console.error('❌ Error:', error.message);
+  console.error('   The database schema was NOT synchronized.');
   process.exit(1);
 }
