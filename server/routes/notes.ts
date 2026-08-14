@@ -943,7 +943,22 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       startedFromTemplateName: startedFromTemplateNameRaw,
       saveOrigin: saveOriginRaw,
     } = body;
-    if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
+    /*
+      The only 4xx on this route that used to carry no `code`, which made it the
+      one save failure a reader could not name from the response body. It is
+      also the only one that fires before the save trail below logs `attempt`,
+      so it leaves no trace on either side — a save that failed with nothing to
+      say about it, anywhere.
+
+      The code does not change how the client treats it: `classifySaveFailure`
+      branches on HTTP status alone, so every 400 is already `fatal` and
+      non-retryable, which is right — replaying a body with no id fails
+      identically forever. This is for whoever has to diagnose it next.
+
+      A client sending a save with no note id is the actual bug when it happens;
+      this only makes it say so.
+    */
+    if (!noteId) return c.json({ error: 'Note ID is required', code: 'NOTE_ID_REQUIRED' }, 400);
     noteIdForLog = noteId;
     saveOriginForLog = typeof saveOriginRaw === 'string' ? saveOriginRaw : null;
     logNoteSaveTrail({
