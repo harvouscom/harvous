@@ -12,6 +12,7 @@ import PrototypeSidebarSearchResultItem, {
 import { SIDEBAR_NO_MATCH_COPY } from './sidebar-no-match-copy';
 import {
   SIDEBAR_ELSEWHERE_TYPE_OPTIONS,
+  elsewhereTypeFilterMatches,
   type HighlightKindFilter,
   type SidebarElsewhereTypeFilter,
   type SidebarSearchResult,
@@ -21,6 +22,7 @@ import {
   activeSearchSectionHeader,
   buildActiveViewResults,
   buildElsewhereResults,
+  buildScriptureReferenceResult,
   elsewhereEmptyStateTitle,
   myHomeEmptyStateTitle,
   type ActiveSearchContext,
@@ -169,6 +171,20 @@ export default function PrototypeSidebarSearchResults({
     );
   }, [trimmed, myHomeSearchData, elsewhereTypeFilter, resolveClusterTitle]);
 
+  /**
+   * A named passage is a destination, not a match inside one space, so it leads every
+   * scope rather than belonging to one — switching tabs should not make the passage you
+   * just asked for disappear. It respects the Elsewhere type chips like any other row.
+   */
+  const scriptureReferenceResult = useMemo(() => buildScriptureReferenceResult(trimmed), [trimmed]);
+  const leadingResults = useMemo(() => {
+    if (!scriptureReferenceResult) return [];
+    if (searchScope !== 'active' && !elsewhereTypeFilterMatches(elsewhereTypeFilter, 'scriptureReference')) {
+      return [];
+    }
+    return [scriptureReferenceResult];
+  }, [scriptureReferenceResult, searchScope, elsewhereTypeFilter]);
+
   const activeViewLabel = activeSearchSectionHeader(activeSearchContext);
   const scopeOptions = useMemo(() => {
     const opts: { id: SidebarSearchScope; label: string; iconName?: string }[] = [
@@ -185,12 +201,14 @@ export default function PrototypeSidebarSearchResults({
     searchScope === 'active' && activeSearchContext.mode === 'highlights';
   const showElsewhereTypeBar = searchScope === 'elsewhere' || searchScope === 'my-home';
 
-  const visibleResults =
-    searchScope === 'active'
+  const visibleResults = [
+    ...leadingResults,
+    ...(searchScope === 'active'
       ? activeResults
       : searchScope === 'my-home'
         ? myHomeResults
-        : elsewhereResults;
+        : elsewhereResults),
+  ];
   const visibleNotesById =
     searchScope === 'my-home' && myHomeNotesById ? myHomeNotesById : notesById;
   const visibleHighlightsById =
@@ -198,6 +216,7 @@ export default function PrototypeSidebarSearchResults({
 
   const myHomeLoading = searchScope === 'my-home' && myHomeFtsQuery.isLoading && debouncedFtsQuery;
   const allScopesEmpty =
+    !scriptureReferenceResult &&
     activeResults.length === 0 &&
     elsewhereResults.length === 0 &&
     myHomeResults.length === 0 &&

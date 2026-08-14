@@ -66,6 +66,7 @@ export default function PrototypeSidebarSearchResultItem({
     case 'folder':
     case 'threadCluster':
     case 'scriptureBook':
+    case 'scriptureReference':
       return (
         <InlineKindSearchResultItem result={result} active={active} onActivate={onActivate} />
       );
@@ -223,6 +224,8 @@ function collectionIconName(kind: SidebarSearchResult['kind']): string {
       return 'arrow-right-arrow-left';
     case 'scriptureBook':
       return 'book';
+    case 'scriptureReference':
+      return 'book-open';
     default:
       return 'folder';
   }

@@ -6,7 +6,9 @@ export type SidebarSearchResultKind =
   | 'threadCluster'
   | 'highlight'
   | 'scriptureBook'
-  | 'scripturePassage';
+  | 'scripturePassage'
+  /** A passage the query itself names, whether or not any note cites it. */
+  | 'scriptureReference';
 
 export type SidebarElsewhereTypeFilter =
   | 'all'
@@ -45,6 +47,8 @@ export type SidebarSearchResult = {
   highlightId?: string;
   scriptureBookOrder?: number;
   scripturePassageKey?: string;
+  /** Canonical reference to open, e.g. "John 15:1-27". Set on `scriptureReference` results. */
+  scriptureReference?: string;
   ftsExcerpt?: string;
 };
 
@@ -69,6 +73,7 @@ export function sidebarSearchResultIcon(
       return 'arrow-right-arrow-left';
     case 'scriptureBook':
     case 'scripturePassage':
+    case 'scriptureReference':
       return 'book-open';
     default:
       return 'note-sticky';
@@ -90,6 +95,8 @@ export function sidebarSearchResultAriaLabel(
       return 'Scripture book';
     case 'scripturePassage':
       return 'Scripture passage';
+    case 'scriptureReference':
+      return 'Read passage';
     case 'highlight':
       switch (highlightEntryKind) {
         case 'linkedNote':
@@ -121,7 +128,9 @@ export function elsewhereTypeFilterMatches(
     case 'highlights':
       return kind === 'highlight';
     case 'scripture':
-      return kind === 'scriptureBook' || kind === 'scripturePassage';
+      return (
+        kind === 'scriptureBook' || kind === 'scripturePassage' || kind === 'scriptureReference'
+      );
     default:
       return true;
   }

@@ -66,6 +66,7 @@ import {
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
 } from '@/lib/prototype-path';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
@@ -3222,6 +3223,21 @@ export default function PrototypeSidebar({
             passageKey: result.scripturePassageKey,
           });
           return;
+        case 'scriptureReference': {
+          // A row that names a passage has to show the passage. Drilling the sidebar to
+          // its note list instead is the same mismatch the Home passage card used to
+          // have — a scroll icon promising Scripture, delivering a list of notes.
+          if (!result.scriptureReference) return;
+          if (isPrototypeNotePath(pathname)) {
+            navigate({ to: prototypeHomeRouteTo() });
+          }
+          openStandaloneScripturePassage({
+            canonicalReference: result.scriptureReference,
+            translationCode: getEffectiveDefaultTranslation(),
+            focusedHighlightThreadId: '',
+          });
+          return;
+        }
         default:
           return;
       }
@@ -3233,6 +3249,9 @@ export default function PrototypeSidebar({
       setSidebarListMode,
       setActiveFolderKey,
       setSidebarThreadDrilldownId,
+      pathname,
+      navigate,
+      openStandaloneScripturePassage,
     ],
   );
 
