@@ -102,7 +102,9 @@ export type NoteDockOriginInput = {
  * note re-opens its dock on a fresh nonce, so it is minted at collapse time instead.
  */
 export function buildNoteDockOrigin(input: NoteDockOriginInput): PaperStackOrigin {
-  const title = stripServerAutoUntitledNoteTitleForDisplay(input.noteTitle) || 'Your note';
+  // `New Note` for an untitled one, matching note rows, search and the mention picker.
+  // "Your note" named the pane rather than the note, and read as a label for all of them.
+  const title = stripServerAutoUntitledNoteTitleForDisplay(input.noteTitle) || 'New Note';
   const space = input.spaceId?.trim() || undefined;
   return {
     kind: 'noteDock',

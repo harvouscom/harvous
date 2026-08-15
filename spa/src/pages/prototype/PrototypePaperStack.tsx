@@ -18,6 +18,7 @@
  */
 import { type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import type { PaperStackState } from '../../layouts/proto-shell-context';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 
@@ -37,6 +38,9 @@ export default function PrototypePaperStack({
 }) {
   const { origin } = stack;
   const collapses = origin.kind === 'noteDock';
+  /** `New Note` is what every other surface calls a note with no title yet — rows, search,
+      the mention picker. The edge is one more of those, so it uses the same word. */
+  const parkedLabel = stripServerAutoUntitledNoteTitleForDisplay(stack.noteTitle ?? '') || 'New Note';
 
   return (
     <div className="pds-paper-stack" data-origin-kind={origin.kind} data-exiting={exiting ? 'true' : undefined}>
@@ -51,11 +55,11 @@ export default function PrototypePaperStack({
             focusVerse={origin.base.fromVerse}
           />
         ) : collapses ? (
-          // The note whose dock expanded is parked below the reader, and a parked note only
-          // ever shows the top band of its paper — never a word of its content. So the layer
-          // behind is exactly that: the note's own paper, at the note's own width and lip,
-          // empty because nothing more was ever visible. Restating it as a card put a second
-          // copy of the note on screen, centred, ghosting up through the chapter text.
+          // The note whose dock expanded shows exactly as much of itself as any base does:
+          // the top band of its paper, never a word of its content. So the layer behind is
+          // that — the note's own paper, at the note's own width and lip, empty because
+          // nothing more is ever on screen. Restating it as a card put a second copy of the
+          // note in the middle of the pane, ghosting up through the chapter text.
           <div className="proto-editor-surface pds-paper-stack__origin-paper" aria-hidden>
             <div className="proto-editor-scroll">
               <div className="proto-editor-content-wrap">
@@ -84,11 +88,7 @@ export default function PrototypePaperStack({
       {stack.open ? (
         <button
           type="button"
-          // A note's home is the bottom of the pane, whichever way you got here: parked under
-          // a reader you flipped up, or parked under a reader its own dock expanded into. The
-          // reader's home is the top. So the edge follows the paper it belongs to rather than
-          // the direction of travel, and `--parked` is that placement in both cases.
-          className={`pds-paper-stack__edge${collapses ? ' pds-paper-stack__edge--parked' : ''}`}
+          className="pds-paper-stack__edge"
           onClick={onFlipDown}
           aria-label={collapses ? `Back to ${origin.label}` : `Show ${origin.label}`}
         >
@@ -100,14 +100,18 @@ export default function PrototypePaperStack({
         // the mirror of the base peeking above it when it is up. Its edge is the way back,
         // the same gesture at the other end of the pane; a floating "back to your note"
         // button would say the sheet had gone somewhere, and it has not.
+        //
+        // Labelled with the note's own title, like every other row that stands for a note.
+        // "Your note" was the same words over every note you ever parked, which told you
+        // which pane you were looking at and nothing about which note was in it.
         <button
           type="button"
           className="pds-paper-stack__edge pds-paper-stack__edge--parked"
           onClick={onFlipUp}
-          aria-label="Bring your note back up"
+          aria-label={`Bring ${parkedLabel} back up`}
         >
           <Icon name="note-sticky" size={12} aria-hidden />
-          <span className="pds-caption">Your note</span>
+          <span className="pds-caption">{parkedLabel}</span>
         </button>
       )}
 

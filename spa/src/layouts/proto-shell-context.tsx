@@ -292,6 +292,13 @@ export type PaperStackState = {
    */
   noteId?: string;
   /**
+   * The stacked note's title, as it reads right now — the parked edge is the note's own
+   * label, so it has to follow a title being typed, not the one it had when it was stacked.
+   * Reported by the note page while it is the sheet; absent until it says so, and absent
+   * for a blank draft, where the edge falls back to the app's word for an untitled note.
+   */
+  noteTitle?: string;
+  /**
    * Whether the sheet is up. Flipping down sets this false and leaves the sheet mounted
    * below the fold, so the draft is still there when you flip back — closing it for real
    * is `clearPaperStack`.
@@ -474,6 +481,8 @@ type ProtoShellContextValue = {
    * layout's teardown effect, not by surfaces.
    */
   adoptStackNoteId: (noteId: string) => void;
+  /** Keep the parked edge's label in step with the title the note currently has. */
+  setStackNoteTitle: (noteTitle: string) => void;
   clearPaperStack: () => void;
   /** Note editor bottom chrome (shell grid row — spans sidebar + main). */
   editorChromeMode: PrototypeEditorChromeMode;
@@ -1253,6 +1262,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const adoptStackNoteId = useCallback((noteId: string) => {
     setPaperStack((current) => (current && !current.noteId ? { ...current, noteId } : current));
   }, []);
+  const setStackNoteTitle = useCallback((noteTitle: string) => {
+    setPaperStack((current) =>
+      current && current.noteTitle !== noteTitle ? { ...current, noteTitle } : current,
+    );
+  }, []);
   const clearPaperStack = useCallback(() => {
     setPaperStack(null);
   }, []);
@@ -1338,6 +1352,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       stackNote,
       setStackSheetOpen,
       adoptStackNoteId,
+      setStackNoteTitle,
       clearPaperStack,
       editorChromeMode,
       setEditorChromeMode,
@@ -1425,6 +1440,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       stackNote,
       setStackSheetOpen,
       adoptStackNoteId,
+      setStackNoteTitle,
       clearPaperStack,
       editorChromeMode,
       formatToolbarHostEl,

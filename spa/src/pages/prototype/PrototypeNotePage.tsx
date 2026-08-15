@@ -314,6 +314,7 @@ export default function PrototypeNotePage() {
     openDrawer,
     stackNote,
     paperStack,
+    setStackNoteTitle,
   } = useProtoShell();
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   /**
@@ -2103,6 +2104,21 @@ export default function PrototypeNotePage() {
     liveNoteSnapshot.title || prototypeDisplayTitle,
     liveNoteSnapshot.content || editorNote.content,
   );
+
+  /**
+   * Tell the shell what to call this note on the parked edge.
+   *
+   * Live rather than captured when the stack is made: a compose draft started from the
+   * reader has no title yet, and the one you type a moment later is exactly the title the
+   * edge should carry. Skipped for a `noteDock` stack, where the note is the origin and
+   * already labelled, and skipped when the stack holds a different note than this page.
+   */
+  const stackedNoteTitle = liveNoteSnapshot.title || prototypeDisplayTitle || '';
+  useEffect(() => {
+    if (!paperStack || paperStack.origin.kind === 'noteDock') return;
+    if (paperStack.noteId && paperStack.noteId !== noteId) return;
+    setStackNoteTitle(stackedNoteTitle);
+  }, [paperStack, noteId, stackedNoteTitle, setStackNoteTitle]);
   const showTemplatesInInspector = !isForeignSharedNote && !readOnlyInSharedSpace && isEditable;
   const canAttachSpaceTemplate =
     !!templateSpaceAccess.access &&

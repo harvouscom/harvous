@@ -116,8 +116,10 @@ describe('buildNoteDockOrigin', () => {
     expect(origin.returnTo.search?.dockReq).toBeUndefined();
   });
 
-  it('gives an untitled note something to say on the edge', () => {
-    expect(buildNoteDockOrigin({ ...input, noteTitle: '' }).label).toBe('Your note');
+  // The same word note rows, search and the mention picker use, so the edge does not
+  // invent a second name for the state of having no title yet.
+  it('calls an untitled note what the rest of the app calls it', () => {
+    expect(buildNoteDockOrigin({ ...input, noteTitle: '' }).label).toBe('New Note');
   });
 });
 
