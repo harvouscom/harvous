@@ -17474,6 +17474,17 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 .pds-reader {
   --pds-reader-notifier-color: var(--pds-highlight-warm-amber);
+  /*
+   * The margin reserve — the bar lane plus its gap — mirrored on BOTH sides of the text.
+   *
+   * The lane only exists on the left, and reserving it only on the left is what made the
+   * column sit off-centre on its own paper: 68px of air to the left of the words and 32px
+   * to the right, so the page looked shoved sideways. Reserving the same width on the
+   * right costs a little measure and buys a text block that is square on the sheet, with
+   * the paper's own side padding left exactly as it was. Named once because the heading,
+   * the paragraphs and the chapter nav all have to agree on it or they drift apart.
+   */
+  --pds-reader-text-inset: calc(var(--pds-reader-gutter) + var(--pds-space-2));
   position: relative;
   display: flex;
   flex-direction: column;
@@ -17528,10 +17539,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 }
 
-/* Heading clears the gutter so it starts on the same edge as the reading text. */
+/* Heading clears the gutter so it starts on the same edge as the reading text — and ends
+   on the same edge too, or the title's line would run wider than the Scripture under it. */
 .pds-reader__chapter-heading {
   margin: 0 0 var(--pds-space-5);
-  padding-inline-start: calc(var(--pds-reader-gutter) + var(--pds-space-2));
+  padding-inline: var(--pds-reader-text-inset);
 }
 
 /*
@@ -17651,6 +17663,9 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   grid-template-columns: var(--pds-reader-gutter) minmax(0, 1fr);
   column-gap: var(--pds-space-2);
   margin: 0 0 var(--pds-reader-paragraph-gap);
+  /* The left inset is the grid's own gutter track; this is its mirror, so the paragraph
+     is centred on the paper rather than pushed right by the lane. */
+  padding-inline-end: var(--pds-reader-text-inset);
 }
 
 /* Text always sits in the second track, marker or no marker. The block owns the
@@ -17765,8 +17780,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 .pds-reader__note-card {
   position: absolute;
+  /* Overhangs the text by the grid's column gap at each end, so the card reads as backing
+     the passage rather than boxing it. Both ends, now that the text is inset both ends. */
   left: calc(var(--pds-editor-paper-padding-x) + var(--pds-reader-gutter));
-  right: var(--pds-editor-paper-padding-x);
+  right: calc(var(--pds-editor-paper-padding-x) + var(--pds-reader-gutter));
   /* `auto`, not `0` — the two paint the same but only one of them traps its children.
      A positioned element with z-index 0 opens a stacking context, which capped the chrome
      at the card's own level however high its z-index went: the pill rendered under the
@@ -17825,7 +17842,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   justify-content: flex-end;
   pointer-events: auto;
   padding: 4px 6px;
-  border-radius: var(--pds-radius-menu);
+  /* Concentric with the pill it wraps. The note button inside is fully round, so a 12px
+     corner out here read as a rounded box with a pill loose in it. Full rounding on a
+     29px-tall row is a 14.5px corner — the inner pill's 10.5px plus this row's 4px of
+     padding — which is exactly the curve that keeps the two looking like one control. */
+  border-radius: 999px;
   background-color: var(--pds-bg-popover-solid);
   box-shadow: var(--pds-shadow-popover);
 }
@@ -18132,7 +18153,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    trailing edge rather than guessing at the centred column's right-hand side. */
 .pds-paper-stack__edge-row {
   position: absolute;
-  top: var(--pds-editor-paper-inset-top);
+  /* Flush with the top of the peek. The band the label sits in runs from the layer's top
+     down to the peek height, so an offset here pushed the row past the bottom of that band
+     and left the label riding low with dead space above it. The lip the offset used to
+     compensate for is now taken out of the base's own transform instead. */
+  top: 0;
   left: 50%;
   width: min(var(--pds-paper-column), 100%);
   transform: translateX(-50%);
@@ -18384,7 +18409,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   gap: var(--pds-space-3);
   margin-top: var(--pds-space-10);
   padding-top: var(--pds-space-5);
-  padding-inline-start: calc(var(--pds-reader-gutter) + var(--pds-space-2));
+  padding-inline: var(--pds-reader-text-inset);
   /*
    * Closes the chapter, the way the note header's rule opens a note.
    *
