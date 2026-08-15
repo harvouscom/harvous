@@ -18162,33 +18162,23 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /* Dismiss: sits at the trailing end of the band, over the edge rather than inside it —
-   a button cannot nest in a button, and the back target wants the whole strip. */
+   a button cannot nest in a button, and the back target wants the whole strip.
+   Size, radius, colour and hover all come from `.proto-side-panel__action-btn`; this
+   rule only places it and says when it shows.
+
+   Inset by the same `--pds-space-5` the edge pads its label with, so the dismiss stops
+   where the label would — the band has one margin, not one for text and a tighter one
+   for the control. */
 .pds-paper-stack__edge-dismiss {
   position: absolute;
   top: 50%;
-  right: var(--pds-space-3);
+  right: var(--pds-space-5);
   transform: translateY(-50%);
   z-index: calc(var(--pds-z-sticky) + 1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: var(--pds-radius-full);
-  background: none;
-  cursor: pointer;
-  color: var(--pds-text-secondary);
   transition:
     opacity var(--pds-duration-press) var(--pds-ease-standard),
-    color var(--pds-duration-press) var(--pds-ease-standard),
-    background-color var(--pds-duration-press) var(--pds-ease-standard);
-}
-
-.pds-paper-stack__edge-dismiss:hover {
-  color: var(--pds-text-primary);
-  background-color: var(--pds-surface-hover, rgb(0 0 0 / 0.05));
+    background 0.12s ease,
+    color 0.12s ease;
 }
 
 /* On a pointer device it stays out of the way until you are looking at the band; on touch

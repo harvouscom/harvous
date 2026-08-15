@@ -125,11 +125,14 @@ export default function PrototypePaperStack({
           */}
           <button
             type="button"
-            className="pds-paper-stack__edge-dismiss"
+            // The shell's icon block, the same one every other dismiss in the app sits in —
+            // side panels, toasts, the founder pill. Only placement and when it shows are
+            // this component's business; the button itself is not a new kind of button.
+            className="proto-side-panel__action-btn pds-paper-stack__edge-dismiss"
             onClick={onDismiss}
             aria-label={`Stop showing ${origin.label} behind this`}
           >
-            <Icon name="xmark" size={11} aria-hidden />
+            <Icon name="xmark" size={12} aria-hidden />
           </button>
         </div>
       ) : (
