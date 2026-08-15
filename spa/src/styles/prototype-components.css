@@ -18044,39 +18044,31 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow: hidden;
 }
 
-/* Two papers, the reference way. Each layer is an opaque sheet exactly the width of the
-   paper column, centred — the note editor's paper and the reader's text column are that
-   same 720px, so the layer and the paper inside it are one surface, edge for edge. The
-   sheet sits offset down by the peek, and the base's own top band, the same width, is
-   the way back. Nothing is painted outside the papers: the pane's canvas shows either
-   side, as it does either side of any note. Square corners, a hairline, no shadow —
-   the offset is the whole cue. */
+/* The stack paints NOTHING. The note view — one sheet, `.proto-editor-paper`, with its own
+   surface and shadow — is the design, and it renders inside the stack exactly as it does
+   outside it. The base layer likewise just positions the reader, whose text column is its
+   own paper. The one visible addition is that reader paper peeking up behind the note's,
+   which needs no chrome of its own to say "behind": it is a paper, showing at the top.
+   Five passes painted a layer around these papers and called it the paper. */
 .pds-paper-stack__base {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: min(var(--pds-paper-column), 100%);
-  transform: translateX(-50%);
+  inset: 0;
   z-index: var(--pds-z-base);
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background-color: var(--pds-paper-flat);
-  border: 0.5px solid var(--pds-border);
-  border-bottom: 0;
+  transform-origin: top center;
 }
 
-/* The papers inside the layers already draw a translucent surface for the canvas to
-   read through; on top of the layer's opaque one it would double up, and its own
-   inline margins would inset it from an edge it now IS. Flatten both. */
-.pds-paper-stack__base .pds-reader__column,
-.pds-paper-stack__sheet .proto-editor-content-wrap,
+/* The note's paper is translucent by design so the canvas reads through it. Stacked, what
+   is behind it is the reader, and the chapter read straight through the title. Inside the
+   stack only, the same translucent fill is laid over the opaque canvas colour — its look
+   is unchanged, it just no longer shows the paper beneath. Nothing else about the note's
+   sheet is touched: same width, same shadow, same everything as unstacked. */
 .pds-paper-stack__sheet .proto-editor-paper {
-  background: transparent;
-  max-width: none;
-  margin-inline: 0;
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
 }
 
 /* Origin card — what a non-reader base shows. Restates the card that sent you,
@@ -18108,9 +18100,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   margin: 0;
 }
 
-/* The edge: the base paper's own top band, its full width, the way back. The label reads
-   like the reference's — a bold link, centred on the paper — not a caption floating over
-   the pane. Transparent: the base's surface beneath it is the visual. */
+/* The edge: a hit target over the strip of base paper peeking above the note, sized to
+   the paper column so it sits on the paper and not across the pane. It paints nothing —
+   the peeking paper is the visual — and its label is set in the app's own caption type,
+   accent-coloured, so it reads as the paper's title-line and the way back. */
 .pds-paper-stack__edge {
   position: absolute;
   top: 0;
@@ -18128,19 +18121,12 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   background: none;
   cursor: pointer;
   color: var(--pds-accent);
-  font-family: var(--pds-font-body);
-  font-size: 0.9375rem;
-  font-weight: 700;
   transition: color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-/* The label is bold link text, not a caption. */
 .pds-paper-stack__edge .pds-caption {
-  font: inherit;
   color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 1.5px;
+  font-weight: 600;
 }
 
 .pds-paper-stack__edge:hover {
@@ -18154,18 +18140,12 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 .pds-paper-stack__sheet {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: min(var(--pds-paper-column), 100%);
+  inset: 0;
   z-index: var(--pds-z-dropdown);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background-color: var(--pds-paper-flat);
-  border: 0.5px solid var(--pds-border);
-  border-bottom: 0;
-  transform: translate(-50%, var(--pds-paper-stack-peek));
+  transform: translateY(var(--pds-paper-stack-peek));
   transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }
 
@@ -18188,7 +18168,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 /* Hover on the edge nudges the sheet down a touch — "show me a little more of the
    paper" — so the tap it invites is already half-happening. */
 .pds-paper-stack:has(.pds-paper-stack__edge:hover) .pds-paper-stack__sheet[data-stacked='true'] {
-  transform: translate(-50%, calc(var(--pds-paper-stack-peek) + 4px));
+  transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
 }
 
 /* Parked: the sheet drops until only its top edge shows above the pane's bottom, and
@@ -18199,7 +18179,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    end. Kept mounted — the draft survives — and only its peeking band is interactive. */
 .pds-paper-stack__sheet[data-stacked='false'] {
   z-index: var(--pds-z-base);
-  transform: translate(-50%, calc(100% - var(--pds-paper-stack-peek)));
+  transform: translateY(calc(100% - var(--pds-paper-stack-peek)));
   pointer-events: none;
 }
 
@@ -18221,24 +18201,24 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 @keyframes pds-paper-stack-enter {
-  from { transform: translate(-50%, 100%); }
-  to { transform: translate(-50%, var(--pds-paper-stack-peek)); }
+  from { transform: translateY(100%); }
+  to { transform: translateY(var(--pds-paper-stack-peek)); }
 }
 
 @keyframes pds-paper-stack-settle {
-  0% { transform: translateX(-50%) scale(1); }
-  55% { transform: translateX(-50%) scale(0.99); }
-  100% { transform: translateX(-50%) scale(1); }
+  0% { transform: scale(1); }
+  55% { transform: scale(0.99); }
+  100% { transform: scale(1); }
 }
 
 @keyframes pds-paper-stack-expand {
-  from { transform: translate(-50%, var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
-  to { transform: translate(-50%, var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
+  from { transform: translateY(var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
+  to { transform: translateY(var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
 }
 
 @keyframes pds-paper-stack-collapse {
-  from { transform: translate(-50%, var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
-  to { transform: translate(-50%, var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
+  from { transform: translateY(var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
+  to { transform: translateY(var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
 }
 
 /* Phones: the toolbar's sidebar toggle already owns the top of the pane, so the
