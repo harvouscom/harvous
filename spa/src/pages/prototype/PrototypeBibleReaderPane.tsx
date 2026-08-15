@@ -22,7 +22,10 @@ import {
 } from 'react';
 import Icon from '@/components/react/Icon';
 import { PrototypePaneEmptyState } from './design-system';
-import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
+import {
+  usePrefetchAdjacentChapters,
+  usePrototypeBibleChapter,
+} from '../../hooks/queries/usePrototypeBibleChapter';
 import {
   getReadingPrefsServerSnapshot,
   getReadingPrefsSnapshot,
@@ -42,6 +45,10 @@ import {
   type ReferenceProvider,
 } from '@/components/react/TiptapReferenceSuggestion';
 import { useEastonsSlugIndex } from '../../hooks/useEastonsSlugIndex';
+import {
+  assignAnchorLanes,
+  usePrototypeChapterNotes,
+} from '../../hooks/queries/usePrototypeChapterNotes';
 import ReferenceDockWeb from '@/components/react/ReferenceDockWeb';
 import ScripturePillChromeWeb from '@/components/react/ScripturePillChromeWeb';
 import HighlightDockWeb from '@/components/react/HighlightDockWeb';
@@ -60,6 +67,9 @@ type ReaderDockState =
   | { kind: 'passage'; reference: string }
   | { kind: 'highlight'; reference: string; excerpt: string; accent: StudyHighlightAccentKey }
   | null;
+
+/** Breathing room above and below the passage a note card holds up. */
+const CARD_BLEED = 6;
 
 /** Text → HTML, so a verse can carry suggestion spans without carrying anything else. */
 function escapeHtml(text: string): string {
@@ -104,6 +114,8 @@ export interface PrototypeBibleReaderPaneProps {
   onHighlight?: (range: { start: number; end: number }, accent: StudyHighlightAccentKey) => void;
   /** Highlight, then open the study dock on it so a thought can be written straight away. */
   onAnnotate?: (range: { start: number; end: number }, accent: StudyHighlightAccentKey) => void;
+  /** Open a margin note, with its scripture dock already on the passage the bar marked. */
+  onOpenNoteAtReference?: (noteId: string, reference: string) => void;
 }
 
 export default function PrototypeBibleReaderPane({
@@ -118,9 +130,10 @@ export default function PrototypeBibleReaderPane({
   highlights,
   onHighlight,
   onAnnotate,
+  onOpenNoteAtReference,
 }: PrototypeBibleReaderPaneProps) {
   const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
-  const { verseLayout } = useSyncExternalStore(
+  const { verseLayout, showMarginNotes } = useSyncExternalStore(
     subscribeReadingPrefs,
     getReadingPrefsSnapshot,
     getReadingPrefsServerSnapshot,
@@ -139,6 +152,12 @@ export default function PrototypeBibleReaderPane({
    */
   const { studyDockCarouselHostEl } = useProtoShell();
 
+
+  /* Warm the neighbours so paging through a book never shows a loading line. */
+  usePrefetchAdjacentChapters(book, chapter, translation, {
+    hasPrev: data?.hasPrevChapter,
+    hasNext: data?.hasNextChapter,
+  });
 
   const verses = useMemo(() => data?.verses ?? [], [data]);
 
@@ -173,6 +192,19 @@ export default function PrototypeBibleReaderPane({
     return map;
   }, [verses, eastonsIndex, referenceProviders]);
 
+  /**
+   * Notes anchored to verses in this chapter, laid out as bars in lanes.
+   *
+   * Read-only: opening a chapter must never touch a note. `updatedAt` is both the sort key and
+   * the sync watermark here, so a write on read would silently re-sort the sidebar — a bug
+   * this codebase has had more than once.
+   */
+  const { data: chapterAnchors } = usePrototypeChapterNotes(book, chapter);
+  const anchorLanes = useMemo(
+    () => (showMarginNotes ? assignAnchorLanes(chapterAnchors, verses.length) : []),
+    [chapterAnchors, verses.length, showMarginNotes],
+  );
+
   /** What the shell's study dock is showing on behalf of the reader; null when closed. */
   const [dock, setDock] = useState<ReaderDockState>(null);
   /** The menu is showing colours for the highlight just made, rather than the action list. */
@@ -189,6 +221,109 @@ export default function PrototypeBibleReaderPane({
     setFocusedVerse(null);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [book, chapter, translation]);
+
+  /**
+   * Margin bars, measured rather than laid out.
+   *
+   * The obvious approach — a gutter cell in each block's grid — only works in `lines` layout,
+   * where a block IS a verse. In `prose` the whole chapter is one paragraph, so there is no
+   * per-verse box for a grid cell to sit beside, and a bar would land against the paragraph
+   * rather than against verses 1–3.
+   *
+   * So the bars live in one absolutely-positioned layer and take their extent from client
+   * rects: the top of the start verse's FIRST rect down to the bottom of the end verse's LAST
+   * rect. Both ends matter — a verse that wraps across four lines has four rects, and using
+   * the bounding box instead would start the bar at the wrong line whenever a range begins
+   * mid-paragraph. One mechanism serves both layouts, re-measured whenever the text reflows:
+   * layout mode, text size, typeface, or column width all move the lines a range spans.
+   */
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  type MarginBar = {
+    key: string;
+    top: number;
+    height: number;
+    lane: number;
+    startVerse: number;
+    endVerse: number;
+    reference: string;
+    notes: { noteId: string; title: string }[];
+    label: string;
+    heat: number;
+  };
+  const [bars, setBars] = useState<MarginBar[]>([]);
+
+  useEffect(() => {
+    const column = columnRef.current;
+    if (!column || anchorLanes.length === 0) {
+      setBars([]);
+      return;
+    }
+    const measure = () => {
+      const base = column.getBoundingClientRect().top;
+      const next: MarginBar[] = [];
+      for (const a of anchorLanes) {
+        const startEl = column.querySelector(`[data-reader-verse="${a.startVerse}"]`);
+        const endEl = column.querySelector(`[data-reader-verse="${a.endVerse}"]`);
+        if (!(startEl instanceof HTMLElement) || !(endEl instanceof HTMLElement)) continue;
+        const startRects = startEl.getClientRects();
+        const endRects = endEl.getClientRects();
+        const first = startRects[0];
+        const last = endRects[endRects.length - 1];
+        if (!first || !last) continue;
+        const notes = a.notes.map((n) => ({
+          noteId: n.noteId,
+          title: n.title?.trim() || 'Untitled note',
+        }));
+        next.push({
+          key: `${a.startVerse}-${a.endVerse}:${a.lane}`,
+          top: Math.round(first.top - base),
+          height: Math.max(4, Math.round(last.bottom - first.top)),
+          lane: a.lane,
+          startVerse: a.startVerse,
+          endVerse: a.endVerse,
+          reference: a.reference,
+          notes,
+          label:
+            notes.length > 1
+              ? `${notes.length} notes — ${a.reference}`
+              : `${notes[0]?.title ?? 'Note'} — ${a.reference}`,
+          // Same discrete buckets the church heatmap uses, so "more here" reads the same way
+          // across the app. One note is the base weight; the ramp starts above that.
+          heat: Math.min(4, a.mergedCount),
+        });
+      }
+      setBars(next);
+    };
+    const raf = requestAnimationFrame(measure);
+    // Width, text size and typeface all reflow the column; a bar measured against the old
+    // flow spans the wrong lines. Observing the column catches all three.
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [anchorLanes, verseLayout, verses]);
+
+  /**
+   * The bar being pointed at or pinned — the note whose card is showing.
+   *
+   * Hover reveals it and leaving hides it again; a tap pins it, because on touch there is no
+   * hover to hold and the card carries an action worth aiming at. Pinning also survives the
+   * pointer crossing the gap between the gutter and the card.
+   */
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [pinnedKey, setPinnedKey] = useState<string | null>(null);
+
+  /*
+   * Derived from the live bars, never stored.
+   *
+   * Holding the bar object itself froze its measurements at the moment of hover, so a card
+   * left open while the text reflowed — a typeface swap, a text-size change, the sidebar
+   * opening — kept pointing at where the passage used to be. Looking it up by key each render
+   * means a re-measure flows straight through to the open card.
+   */
+  const activeBar = activeKey ? (bars.find((b) => b.key === activeKey) ?? null) : null;
 
   /**
    * Where the floating menu sits — under the last selected verse, in viewport coordinates.
@@ -320,6 +455,11 @@ export default function PrototypeBibleReaderPane({
         data-selected={selected ? 'true' : 'false'}
         data-highlighted={highlight ? 'true' : undefined}
         data-highlight-color={highlight?.accent}
+        data-in-focus={
+          activeBar && verse.number >= activeBar.startVerse && verse.number <= activeBar.endVerse
+            ? 'true'
+            : undefined
+        }
         onFocus={() => setFocusedVerse(verse.number)}
         onClick={(e) => {
           // A dotted word is its own target: tapping it asks "who/what is this?", which is a
@@ -516,7 +656,7 @@ export default function PrototypeBibleReaderPane({
       style={fontOverride ? ({ '--pds-font-reading': FONT_STACKS[fontOverride] } as CSSProperties) : undefined}
     >
       <div className="pds-reader__scroll" ref={scrollRef}>
-        <div className="pds-reader__column">
+        <div className="pds-reader__column" ref={columnRef}>
           <div className="pds-reader__chapter-heading">
             <h1 className="pds-reader-chapter-title">
               {data.book} {data.chapter}
@@ -533,7 +673,103 @@ export default function PrototypeBibleReaderPane({
             only the wrapper differs — so selection, roving focus, and anything that
             anchors to `[data-reader-verse]` behave identically in either.
           */}
-          <div role="listbox" aria-label={`${data.book} ${data.chapter} verses`}>
+          {/* One bar per note, spanning the verses it covers. `aria-hidden` on the layer: every
+              bar duplicates a route the verse itself already offers, and a screen reader
+              walking the chapter should hear Scripture, not a list of marks interleaved. */}
+          {/* The card sits behind the verses it covers, so pointing at a bar lifts exactly
+              that passage off the page. Its own layer, below the text in z-order. */}
+          {activeBar ? (
+            <div
+              className="pds-reader__note-card"
+              /* CARD_BLEED above and below, so the card holds the passage rather than
+                 clipping its first and last lines. */
+              style={{ top: activeBar.top - CARD_BLEED, height: activeBar.height + CARD_BLEED * 2 }}
+              onMouseEnter={() => setActiveKey(activeBar.key)}
+              onMouseLeave={() => {
+                if (!pinnedKey) setActiveKey(null);
+              }}
+            >
+              {/* Above the card, never over the words. One row per note, because several
+                  notes can cite exactly these verses and picking between them is the whole
+                  question the card is answering. */}
+              <div className="pds-reader__note-card-chrome">
+                {/* Says "note" in words, because a title is often just a date — "August 9,
+                    2026" beside a passage reads as a date stamp on the passage, not as
+                    something you wrote. The count doubles as the label. */}
+                <span className="pds-reader__note-card-ref pds-footnote">
+                  {activeBar.notes.length === 1
+                    ? 'In your note'
+                    : `In ${activeBar.notes.length} of your notes`}
+                </span>
+                {activeBar.notes.map((note) => (
+                  <button
+                    key={note.noteId}
+                    type="button"
+                    className="pds-reader__note-card-item"
+                    title={`Open ${note.title}`}
+                    aria-label={`Open your note ${note.title}, which cites ${activeBar.reference}`}
+                    onClick={() => onOpenNoteAtReference?.(note.noteId, activeBar.reference)}
+                  >
+                    {/* The note glyph carries the meaning when the title cannot — the same
+                        icon the sidebar and Home cards use for a note. */}
+                    <Icon name="note-sticky" size={10} aria-hidden />
+                    <span className="pds-reader__note-card-item-title">{note.title}</span>
+                    {/* Caret, not an external-link glyph: the note opens in place, and that
+                        glyph means "leaves the app" everywhere else. Matches the chevron every
+                        other navigating row in the app ends with. */}
+                    <Icon name="caret-right" size={10} aria-hidden />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="pds-reader__margin" aria-hidden>
+            {bars.map((bar) => (
+              <button
+                key={bar.key}
+                type="button"
+                className="pds-reader__bar"
+                style={
+                  {
+                    top: bar.top,
+                    height: bar.height,
+                    '--lane': bar.lane,
+                  } as CSSProperties
+                }
+                data-heat={bar.heat}
+                data-active={activeBar?.key === bar.key ? 'true' : undefined}
+                tabIndex={-1}
+                title={bar.label}
+                onMouseEnter={() => {
+                  if (!pinnedKey) setActiveKey(bar.key);
+                }}
+                onMouseLeave={() => {
+                  if (!pinnedKey) setActiveKey(null);
+                }}
+                onClick={() => {
+                  // Tap pins; tapping the pinned bar again lets it go.
+                  const next = pinnedKey === bar.key ? null : bar.key;
+                  setPinnedKey(next);
+                  setActiveKey(next);
+                }}
+              >
+                <span className="pds-reader__bar-line" />
+              </button>
+            ))}
+          </div>
+
+          {/* Above the note card. A positioned element paints over in-flow content regardless
+              of order, so without this the card would cover the very passage it is holding up. */}
+          <div
+            className="pds-reader__verses"
+            /* With a card up, the rest of the chapter recedes so the passage it holds is the
+               only thing in focus. Marking the container rather than each verse keeps it one
+               state to reason about — and lets the fade be a single transition. */
+            data-focus={activeBar ? 'true' : undefined}
+            role="listbox"
+            aria-label={`${data.book} ${data.chapter} verses`}
+          >
             {verseLayout === 'prose' ? (
               <div className="pds-reader__block" role="none">
                 <p className="pds-reader-text" role="none">

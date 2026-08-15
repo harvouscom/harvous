@@ -221,6 +221,35 @@ export default function PrototypeReaderInspectorPane({
             </button>
           </div>
         </div>
+
+        {/* The margin bars are a reminder of your own work; sometimes you want only the text. */}
+        <div className="proto-reader-inspector__setting">
+          <span className="proto-reader-inspector__setting-label">Margin notes</span>
+          <div
+            className="proto-appearance-segmented proto-reader-inspector__switch"
+            role="group"
+            aria-label="Margin notes"
+          >
+            <button
+              type="button"
+              className="proto-appearance-segmented__btn"
+              data-active={prefs.showMarginNotes ? 'true' : 'false'}
+              aria-pressed={prefs.showMarginNotes}
+              onClick={() => writeReadingPrefs({ ...prefs, showMarginNotes: true })}
+            >
+              On
+            </button>
+            <button
+              type="button"
+              className="proto-appearance-segmented__btn"
+              data-active={!prefs.showMarginNotes ? 'true' : 'false'}
+              aria-pressed={!prefs.showMarginNotes}
+              onClick={() => writeReadingPrefs({ ...prefs, showMarginNotes: false })}
+            >
+              Off
+            </button>
+          </div>
+        </div>
       </section>
     </div>
   );

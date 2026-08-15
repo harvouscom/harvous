@@ -172,6 +172,25 @@ export default function PrototypeReadPage() {
     [book, chapter, translation, focusVerse, stackNoteOverReader, navigate],
   );
 
+  /**
+   * Open a margin note with its scripture dock already on the passage you tapped.
+   *
+   * `scriptureRef` is the note page's existing way in — the same parameter the Home cards use
+   * — so this lands you exactly where the passage is under discussion rather than at the top
+   * of a note you then have to search. The reader stays stacked behind it.
+   */
+  const handleOpenNoteAtReference = useCallback(
+    (noteId: string, reference: string) => {
+      stackNoteOverReader({ book, chapter, translation, fromVerse: focusVerse });
+      void navigate({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(noteId) },
+        search: { scriptureRef: reference, scriptureTranslation: translation },
+      });
+    },
+    [book, chapter, translation, focusVerse, stackNoteOverReader, navigate],
+  );
+
   // Reuses the reader's own cached chapter query, so opening the inspector costs nothing.
   const { data: chapterData } = usePrototypeBibleChapter(book, chapter, translation);
 
@@ -258,6 +277,7 @@ export default function PrototypeReadPage() {
           // Annotate records the highlight; the pane opens the highlight dock over it, so the
           // dock lifecycle stays with the surface that owns the selection.
           onAnnotate={applyHighlight}
+          onOpenNoteAtReference={handleOpenNoteAtReference}
         />
       </div>
     </PrototypeMainPaneShell>

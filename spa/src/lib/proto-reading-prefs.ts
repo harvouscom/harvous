@@ -42,6 +42,11 @@ export interface ReadingPrefs {
   /** Verse numbers are a locator; some readers want the prose uninterrupted. */
   showVerseNumbers: boolean;
   verseLayout: ReaderVerseLayout;
+  /**
+   * Bars in the gutter marking verses your notes cover. On by default — a chapter you have
+   * written about should say so — but a reader who wants only Scripture can put them away.
+   */
+  showMarginNotes: boolean;
 }
 
 const STORAGE_KEY = 'harvous-proto-reading-prefs';
@@ -74,6 +79,7 @@ export const DEFAULT_READING_PREFS: ReadingPrefs = {
   textSize: 'medium',
   showVerseNumbers: true,
   verseLayout: 'prose',
+  showMarginNotes: true,
 };
 
 function isTextSize(value: unknown): value is ReaderTextSize {
@@ -104,6 +110,15 @@ export function readReadingPrefs(): ReadingPrefs {
       verseLayout: isVerseLayout(parsed?.verseLayout)
         ? parsed.verseLayout
         : DEFAULT_READING_PREFS.verseLayout,
+      /*
+       * No version bump for this field. Each key falls back independently, so a stored v2
+       * blob written before it existed simply lands on the default — while bumping the
+       * version would re-run the v1 text-size migration over already-migrated values.
+       */
+      showMarginNotes:
+        typeof parsed?.showMarginNotes === 'boolean'
+          ? parsed.showMarginNotes
+          : DEFAULT_READING_PREFS.showMarginNotes,
     };
   } catch {
     return DEFAULT_READING_PREFS;

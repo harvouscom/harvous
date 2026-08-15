@@ -17507,6 +17507,9 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   max-width: 720px;
   margin-inline: auto;
   box-sizing: border-box;
+  /* Positioning context for `.pds-reader__margin`, whose marks are measured against this
+     element's top. */
+  position: relative;
   background-color: var(--pds-paper-sheet);
   box-shadow: var(--pds-paper-shadow-subtle);
   padding: var(--pds-editor-paper-padding-top) var(--pds-editor-paper-padding-x)
@@ -17634,6 +17637,145 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   text-decoration-color: var(--mark-accent);
 }
 
+/*
+ * Pointing at a bar lifts the passage it marks onto a card.
+ *
+ * A flat wash on the verses was the first attempt and it was the wrong object: it tinted text
+ * that might already be highlighted, so two meanings shared one channel. A card is a surface
+ * *behind* the words — it can hold the passage up without recolouring a single glyph, and it
+ * has somewhere to put an action.
+ *
+ * Sits below the text in z-order and passes clicks through; only its chrome is interactive,
+ * so the Scripture on top of it stays selectable.
+ */
+.pds-reader__verses {
+  position: relative;
+  z-index: 1;
+}
+
+.pds-reader__note-card {
+  position: absolute;
+  left: calc(var(--pds-editor-paper-padding-x) + var(--pds-reader-gutter));
+  right: var(--pds-editor-paper-padding-x);
+  z-index: 0;
+  pointer-events: none;
+  /* Just off square. The paper it sits on is `border-radius: 0`, so a card with real rounding
+     reads as a widget dropped onto the page — but 2px takes the hard corner off without
+     pretending to be a separate surface. */
+  border-radius: 2px;
+  background-color: var(--pds-bg-faint);
+  box-shadow: 0 0 0 1px var(--pds-border-control-soft);
+  /* The breathing room around the passage is added to `top`/`height` when the card is
+     rendered, not with padding here. `.proto-shell *` forces `border-box` on everything, so
+     padding would eat into the measured height and leave the card short of the last line it
+     is meant to be holding up — and losing that specificity fight quietly is worse than
+     doing the arithmetic where it can be seen. */
+  animation: pds-reader-note-card-in 140ms var(--pds-ease-standard) both;
+}
+
+@keyframes pds-reader-note-card-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * The card's chrome sits ABOVE the card, clear of the words.
+ *
+ * It used to overlap the passage's first line, which put a pill on top of the very text the
+ * card exists to hold up — and with a long note title it crowded the verse number too. Lifted
+ * fully out, it reads as a label on the card rather than something dropped onto Scripture.
+ */
+.pds-reader__note-card-chrome {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  pointer-events: auto;
+  padding: 4px 6px;
+  border-radius: var(--pds-radius-menu);
+  background-color: var(--pds-bg-popover-solid);
+  box-shadow: var(--pds-shadow-popover);
+}
+
+.pds-reader__note-card-ref {
+  padding-inline: var(--pds-space-2);
+  color: var(--pds-text-tertiary);
+  white-space: nowrap;
+}
+
+/* One row per note on this passage. Several notes can cite exactly these verses, and choosing
+   between them is the question the card answers — so each is its own target, not a count. */
+.pds-reader__note-card-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 24ch;
+  margin: 0;
+  padding: 3px 8px;
+  border: none;
+  border-radius: var(--pds-radius-pill);
+  background-color: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.pds-reader__note-card-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pds-reader__note-card-item:hover {
+  background-color: var(--pds-bg-control-strong);
+}
+
+.pds-reader__note-card-item:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+/*
+ * With a card up, the rest of the chapter recedes.
+ *
+ * Opacity on the verses only — not a scrim over the column — so the paper, the margin bars and
+ * the card itself stay at full strength and only the words step back. A scrim would also dim
+ * the card it is meant to be isolating.
+ */
+.pds-reader__verses[data-focus='true'] .pds-reader__verse {
+  opacity: 0.32;
+  transition: opacity 160ms var(--pds-ease-standard);
+}
+
+.pds-reader__verses[data-focus='true'] .pds-reader__verse[data-in-focus='true'] {
+  opacity: 1;
+}
+
+.pds-reader__verses .pds-reader__verse {
+  transition: opacity 160ms var(--pds-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader__note-card {
+    animation: none;
+  }
+
+  .pds-reader__verses .pds-reader__verse {
+    transition: none;
+  }
+}
+
 /* Dictionary suggestion inside Scripture — the same faint dotted hint a note body and a
    scripture dock show, so "there is an entry for this word" looks identical wherever you meet
    it. Deliberately lighter than a highlight's solid 2px underline: it is an offer to look
@@ -17673,60 +17815,101 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    A dot means one note on this verse; a capsule of stacked dots means several.
    Quiet at rest: this is a presence signal you notice while reading, not a
    control competing with the text. */
-.pds-reader__marker {
-  grid-column: 1;
-  justify-self: end;
-  align-self: start;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/*
+ * The margin layer sits over the column's gutter track.
+ *
+ * `pointer-events: none` on the layer, restored on each mark: the layer spans the column's
+ * full height, and left solid it would swallow clicks on the first words of every line whose
+ * verse happens to start near it.
+ */
+.pds-reader__margin {
+  position: absolute;
+  /* Flush to the column's border box, NOT inset by its padding: each mark's `top` is measured
+     from that same origin, so insetting the layer would count the padding twice and drop every
+     mark a line and a half below the verse it belongs to. */
+  top: 0;
+  bottom: 0;
+  left: var(--pds-editor-paper-padding-x);
+  width: var(--pds-reader-gutter);
+  pointer-events: none;
+  /*
+   * Above the verses, or the bars cannot be clicked at all.
+   *
+   * `.pds-reader__verses` is lifted to z-index 1 so the note card can sit behind the text —
+   * but that container's box spans the column's full content width, gutter included. Being
+   * transparent there does not matter: an element still hit-tests across its whole box, so it
+   * was swallowing every pointer aimed at a bar. The layer stays `pointer-events: none`, so
+   * only the bars themselves take the clicks it now receives.
+   */
+  z-index: 2;
+}
+
+/*
+ * A note's span, drawn as a bar.
+ *
+ * Length is the whole point: a one-verse note is a short tick, a five-verse note is a long
+ * rule, and two notes over the same verses are two bars side by side. Dots could say only
+ * "something is here", which is the least interesting thing the margin knows.
+ *
+ * The bar itself is the 2px/1px-radius rule used for every spine in the app
+ * (`.proto-thread-trail__spine`); the button around it is a wider invisible hit area, because
+ * a 2px pointer target is not a target.
+ */
+.pds-reader__bar {
+  position: absolute;
+  /* Lanes fill inward from the text edge, so the first note sits closest to what it marks. */
+  right: calc(var(--lane, 0) * var(--pds-reader-lane-step));
+  width: var(--pds-reader-lane-step);
   padding: 0;
   border: none;
   background: none;
   cursor: pointer;
-  /* Tap target exceeds the visible mark — the dot itself is 7px. */
-  min-width: 24px;
-  min-height: 24px;
-  border-radius: var(--pds-radius-pill);
-  transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
+  pointer-events: auto;
+  display: flex;
+  justify-content: flex-end;
 }
 
-.pds-reader__marker:hover {
-  background-color: var(--pds-bg-control-hover);
+/*
+ * Grey, not amber — deliberately.
+ *
+ * The highlight palette means "you kept this, in this colour". A margin bar means "a note
+ * touches these verses", which is structure, not a colour you chose. In amber the two were
+ * the same language: a bar beside an amber highlight looked like part of it, and a bar beside
+ * a violet one looked like a highlight that had lost its colour. Grey is the same register
+ * the reader already uses for hover and selection — present, unclaimed, out of the way.
+ */
+.pds-reader__bar-line {
+  width: 2px;
+  height: 100%;
+  border-radius: 1px;
+  /* Discrete steps, not a continuous ramp — the church heatmap's treatment, for the same
+     reason: at this size a smooth ramp is indistinguishable from noise. */
+  background-color: color-mix(in srgb, var(--pds-text-tertiary) 55%, transparent);
+  transition:
+    background-color var(--pds-duration-press) var(--pds-ease-standard),
+    width var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-.pds-reader__marker:focus-visible {
+.pds-reader__bar[data-heat='2'] .pds-reader__bar-line {
+  background-color: color-mix(in srgb, var(--pds-text-tertiary) 75%, transparent);
+}
+
+.pds-reader__bar[data-heat='3'] .pds-reader__bar-line,
+.pds-reader__bar[data-heat='4'] .pds-reader__bar-line {
+  background-color: var(--pds-text-tertiary);
+}
+
+.pds-reader__bar:hover .pds-reader__bar-line,
+.pds-reader__bar:focus-visible .pds-reader__bar-line,
+.pds-reader__bar[data-active='true'] .pds-reader__bar-line {
+  background-color: var(--pds-text-secondary);
+  width: 3px;
+}
+
+.pds-reader__bar:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: 1px;
-}
-
-/* Colour falls back on the marker itself, not just the .pds-reader surface, so a
-   marker renders correctly anywhere it is used (docks, gallery, list rows) while
-   a surface or a single verse can still override the variable. */
-.pds-reader__marker-dot {
-  width: var(--pds-reader-notifier-dot);
-  height: var(--pds-reader-notifier-dot);
   border-radius: var(--pds-radius-pill);
-  background-color: var(--pds-reader-notifier-color, var(--pds-highlight-warm-amber));
-}
-
-/* Multiple notes: the dots stack inside a hairline capsule so the count reads
-   at a glance without a number. */
-.pds-reader__marker-capsule {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: var(--pds-reader-notifier-capsule-width);
-  padding: 3px 0;
-  border-radius: var(--pds-radius-pill);
-  border: 1.5px solid var(--pds-reader-notifier-color, var(--pds-highlight-warm-amber));
-}
-
-.pds-reader__marker-capsule .pds-reader__marker-dot {
-  width: 5px;
-  height: 5px;
 }
 
 /* ── Paper stack ──
@@ -17823,7 +18006,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 
   .pds-reader__verse,
-  .pds-reader__marker {
+  .pds-reader__bar-line {
     transition: none;
   }
 }

@@ -10,11 +10,12 @@
  *   POST   /api/scripture/detect
  *   POST   /api/scripture/fetch-verse
  *   GET    /api/scripture/chapter
+ *   GET    /api/scripture/chapter-notes
  */
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, Threads, VerseTextCache, BibleVerses, eq, and, count, isNotNull } from '../db';
+import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, SpaceNotes, NoteThreads, Threads, VerseTextCache, BibleVerses, eq, and, count, isNotNull, isNull } from '../db';
 import { bookChapterCount } from '@/utils/bible-book-chapters';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { handleAPIError } from '@/utils/error-handling';
@@ -692,6 +693,71 @@ app.get('/api/scripture/passage-context', requireAuth, async (c) => {
     return c.json({ success: true, ...context });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/passage-context', action: 'passage_context' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/scripture/chapter-notes?book=&chapter= ─────────────────────────
+/**
+ * Which of your notes are anchored to verses in this chapter — the index behind the reader's
+ * margin dots.
+ *
+ * `ScriptureMetadata` is already the passage→note index: one row per reference in a note,
+ * carrying book / chapter / verse / verseEnd. Nothing new has to be recorded for the margin
+ * to know what to mark; it only has to be asked by chapter instead of by note.
+ *
+ * Read-only by construction — it selects, so opening the reader can never bump a note's
+ * `updatedAt`. That matters here specifically: `updatedAt` doubles as sort key and sync
+ * watermark, and "merely looking re-sorted my notes" is a bug this codebase has had before.
+ */
+app.get('/api/scripture/chapter-notes', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const book = (c.req.query('book') ?? '').trim();
+    const chapter = Number.parseInt((c.req.query('chapter') ?? '').trim(), 10);
+    if (!book) return c.json({ error: 'book is required', code: 'BOOK_REQUIRED' }, 400);
+    if (!Number.isFinite(chapter)) {
+      return c.json({ error: 'chapter is required', code: 'CHAPTER_REQUIRED' }, 400);
+    }
+
+    /*
+     * Joined to Notes for ownership — ScriptureMetadata carries no userId of its own, so
+     * without this a chapter query would return every user's anchors for that chapter.
+     *
+     * Joined to SpaceNotes to skip removed ones. A note is deleted by stamping
+     * `SpaceNotes.removedAt`, not by dropping the Notes row, and its scripture anchors
+     * outlive that — so without this the margin would mark verses with dots that open
+     * nothing. `innerJoin` also means a note belonging to no space contributes no dot, which
+     * is right: there is nowhere for the tap to go.
+     */
+    const rows = await db
+      .select({
+        noteId: ScriptureMetadata.noteId,
+        reference: ScriptureMetadata.reference,
+        verse: ScriptureMetadata.verse,
+        verseEnd: ScriptureMetadata.verseEnd,
+        chapterEnd: ScriptureMetadata.chapterEnd,
+        title: Notes.title,
+        updatedAt: Notes.updatedAt,
+      })
+      .from(ScriptureMetadata)
+      .innerJoin(Notes, eq(Notes.id, ScriptureMetadata.noteId))
+      .innerJoin(SpaceNotes, eq(SpaceNotes.noteId, ScriptureMetadata.noteId))
+      .where(
+        and(
+          eq(ScriptureMetadata.book, book),
+          eq(ScriptureMetadata.chapter, chapter),
+          eq(Notes.userId, auth.userId),
+          isNull(SpaceNotes.removedAt),
+        ),
+      );
+
+    return c.json({ success: true, anchors: rows });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/scripture/chapter-notes',
+      action: 'chapter_notes',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

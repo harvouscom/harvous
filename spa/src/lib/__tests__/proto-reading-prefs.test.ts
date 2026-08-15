@@ -24,17 +24,43 @@ describe('reading prefs', () => {
       textSize: 'medium',
       showVerseNumbers: true,
       verseLayout: 'prose',
+      showMarginNotes: true,
     });
     // The default must be the comfortable middle, not the smallest option.
     expect(px('medium')).toBe(17);
   });
 
   it('round-trips a written preference', () => {
-    writeReadingPrefs({ textSize: 'large', showVerseNumbers: false, verseLayout: 'lines' });
+    writeReadingPrefs({
+      textSize: 'large',
+      showVerseNumbers: false,
+      verseLayout: 'lines',
+      showMarginNotes: false,
+    });
     expect(readReadingPrefs()).toEqual({
       textSize: 'large',
       showVerseNumbers: false,
       verseLayout: 'lines',
+      showMarginNotes: false,
+    });
+  });
+
+  it('fills a field added after the blob was written, without a version bump', () => {
+    /*
+     * A v2 blob saved before `showMarginNotes` existed. Each field falls back independently,
+     * so the missing key lands on its default and the rest survive untouched — which is why
+     * adding it needed no version bump. Bumping would have been actively wrong: it would
+     * re-run the v1 text-size migration over an already-migrated value.
+     */
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ version: 2, textSize: 'large', showVerseNumbers: false, verseLayout: 'lines' }),
+    );
+    expect(readReadingPrefs()).toEqual({
+      textSize: 'large',
+      showVerseNumbers: false,
+      verseLayout: 'lines',
+      showMarginNotes: true,
     });
   });
 

@@ -563,8 +563,9 @@
   /* Reserved even when nothing is on screen, so text never reflows when the first
      margin note lands. */
   --pds-reader-gutter: 28px;
-  --pds-reader-notifier-dot: 7px;
-  --pds-reader-notifier-capsule-width: 15px;
+  /* Lane pitch for margin note bars: 3 lanes fit the gutter, each wide enough to aim at
+     while the drawn rule inside stays 2px. */
+  --pds-reader-lane-step: 9px;
   --pds-reader-paragraph-gap: 18px;
 
   /* Native study dock accents — see src/styles/study-highlight-accent-colors.css */

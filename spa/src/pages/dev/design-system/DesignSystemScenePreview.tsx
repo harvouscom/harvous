@@ -2,7 +2,7 @@
  * Fixture previews for design-system foundation scenes.
  * Uses production tokens + primitives — edit linked files; HMR updates here.
  */
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
@@ -611,20 +611,33 @@ const READER_VERSES: { num: number; text: string; notes?: number; highlighted?: 
   { num: 5, text: 'The light shines in the darkness, and the darkness has not overcome it.' },
 ];
 
-function ReaderMarker({ count }: { count: number }) {
-  const label = count === 1 ? '1 note on this verse' : `${count} notes on this verse`;
+/**
+ * One margin bar. In production `top`/`height`/`lane` are measured from the verses a note
+ * covers; here they are given, so the specimen can show spans and lanes side by side.
+ */
+function ReaderBar({
+  top,
+  height,
+  lane = 0,
+  heat = 1,
+  label,
+}: {
+  top: number;
+  height: number;
+  lane?: number;
+  heat?: number;
+  label: string;
+}) {
   return (
-    <button type="button" className="pds-reader__marker" aria-label={label}>
-      {count === 1 ? (
-        <span className="pds-reader__marker-dot" />
-      ) : (
-        <span className="pds-reader__marker-capsule">
-          {/* Two dots read as "more than one" — the capsule carries the meaning,
-              not an exact count, which the dock shows on tap. */}
-          <span className="pds-reader__marker-dot" />
-          <span className="pds-reader__marker-dot" />
-        </span>
-      )}
+    <button
+      type="button"
+      className="pds-reader__bar"
+      style={{ top, height, '--lane': lane } as CSSProperties}
+      data-heat={heat}
+      aria-label={label}
+      title={label}
+    >
+      <span className="pds-reader__bar-line" />
     </button>
   );
 }
@@ -643,6 +656,52 @@ function ReaderScene() {
     document.querySelector<HTMLElement>(`[data-verse="${next.num}"]`)?.focus();
   };
 
+  /*
+   * The scene measures its bars the way the reader does, rather than hardcoding offsets.
+   * A fixture with baked-in pixel tops would drift the moment the type scale moved, and a
+   * gallery that quietly disagrees with production is worse than no gallery.
+   */
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  const [galleryBars, setGalleryBars] = useState<
+    { key: string; top: number; height: number; lane: number; heat: number; label: string }[]
+  >([]);
+
+  useLayoutEffect(() => {
+    const column = columnRef.current;
+    if (!column) return;
+    const measure = () => {
+      const base = column.getBoundingClientRect().top;
+      const spans = [
+        { key: 'a', from: 1, to: 1, lane: 0, heat: 1, label: 'One note — John 1:1' },
+        { key: 'b', from: 3, to: 5, lane: 0, heat: 1, label: 'One note — John 1:3-5' },
+        { key: 'c', from: 3, to: 4, lane: 1, heat: 3, label: '3 notes — John 1:3-4' },
+      ];
+      setGalleryBars(
+        spans.flatMap((s) => {
+          const a = column.querySelector(`[data-verse="${s.from}"]`);
+          const b = column.querySelector(`[data-verse="${s.to}"]`);
+          if (!(a instanceof HTMLElement) || !(b instanceof HTMLElement)) return [];
+          const first = a.getClientRects()[0];
+          const rects = b.getClientRects();
+          const last = rects[rects.length - 1];
+          if (!first || !last) return [];
+          return [{
+            key: s.key,
+            top: Math.round(first.top - base),
+            height: Math.max(4, Math.round(last.bottom - first.top)),
+            lane: s.lane,
+            heat: s.heat,
+            label: s.label,
+          }];
+        }),
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="pds-gallery-stack">
       <PrototypeSectionHeader>Reading canvas</PrototypeSectionHeader>
@@ -655,7 +714,12 @@ function ReaderScene() {
 
       <div className="pds-reader pds-gallery-reader">
         <div className="pds-reader__scroll">
-          <div className="pds-reader__column">
+          <div className="pds-reader__column" ref={columnRef}>
+            <div className="pds-reader__margin" aria-hidden>
+              {galleryBars.map(({ key, ...bar }) => (
+                <ReaderBar key={key} {...bar} />
+              ))}
+            </div>
             <div className="pds-reader__chapter-heading">
               <h2 className="pds-reader-chapter-title">John 1</h2>
               <p className="pds-reader__chapter-meta pds-caption">New International Version</p>
@@ -664,7 +728,6 @@ function ReaderScene() {
             <div role="listbox" aria-label="John 1 verses">
               {READER_VERSES.map((verse) => (
                 <div className="pds-reader__block" role="none" key={verse.num}>
-                  {verse.notes ? <ReaderMarker count={verse.notes} /> : null}
                   <p className="pds-reader-text" role="none">
                     <span
                       className="pds-reader__verse"
@@ -702,18 +765,38 @@ function ReaderScene() {
 
       <PrototypeSectionHeader>Margin notifiers</PrototypeSectionHeader>
       <p className="pds-caption">
-        One dot = one note on that verse; a capsule of stacked dots = several. Colour comes from{' '}
-        <code>--pds-reader-notifier-color</code> (defaults to the warm-amber highlight accent). The
-        gutter is reserved even when empty, so text never reflows when the first note lands.
+        One bar per note, its length the verses that note covers — a single verse is a tick, a
+        range is a rule. Overlapping notes take parallel lanes (three, then further notes merge
+        into the innermost bar and deepen it). Colour comes from{' '}
+        <code>--pds-reader-notifier-color</code>; intensity uses the same discrete steps as the
+        church scripture heatmap. The gutter is reserved even when empty, so text never reflows
+        when the first note lands.
       </p>
       <div className="pds-gallery-reader-markers">
         <div className="pds-gallery-reader-marker-item">
-          <ReaderMarker count={1} />
-          <span className="pds-footnote">One note</span>
+          <span className="pds-gallery-reader-bar-stage">
+            <ReaderBar top={8} height={18} label="One verse" />
+          </span>
+          <span className="pds-footnote">One verse</span>
         </div>
         <div className="pds-gallery-reader-marker-item">
-          <ReaderMarker count={3} />
-          <span className="pds-footnote">Several</span>
+          <span className="pds-gallery-reader-bar-stage">
+            <ReaderBar top={8} height={64} label="A range" />
+          </span>
+          <span className="pds-footnote">A range</span>
+        </div>
+        <div className="pds-gallery-reader-marker-item">
+          <span className="pds-gallery-reader-bar-stage">
+            <ReaderBar top={8} height={48} lane={0} label="First note" />
+            <ReaderBar top={30} height={50} lane={1} label="Overlapping note" />
+          </span>
+          <span className="pds-footnote">Overlapping</span>
+        </div>
+        <div className="pds-gallery-reader-marker-item">
+          <span className="pds-gallery-reader-bar-stage">
+            <ReaderBar top={8} height={64} heat={4} label="Several notes merged" />
+          </span>
+          <span className="pds-footnote">Merged</span>
         </div>
       </div>
 
