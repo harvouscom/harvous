@@ -6,8 +6,13 @@
  * note. So a note written months ago, in Classic, from a pill you typed by hand, already marks
  * its verse the first time you open that chapter.
  */
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthReady } from '../useAuthReady';
+import { chapterAnchorsFromScriptureIndex } from '@/utils/chapter-anchors-from-scripture-index';
+import { getScriptureIndexLocal } from '@/utils/offline-scripture-index';
+import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 
 export interface ChapterNoteAnchor {
   noteId: string;
@@ -26,10 +31,15 @@ export function chapterNotesKey(book: string, chapter: number) {
   return ['prototype', 'scripture-chapter-notes', book, chapter] as const;
 }
 
-export function usePrototypeChapterNotes(book: string, chapter: number) {
+/**
+ * @param spaceId The space whose scripture index is mirrored offline. Only the fallback
+ *   needs it; the live endpoint is scoped by user. Omit it and the hook is online-only.
+ */
+export function usePrototypeChapterNotes(book: string, chapter: number, spaceId?: string | null) {
   // Cold-start 401s are a recurring bug class here; every query waits for auth.
   const authReady = useAuthReady();
-  return useQuery({
+  const { userId } = useAuth();
+  const query = useQuery({
     queryKey: chapterNotesKey(book, chapter),
     enabled: authReady && !!book && Number.isFinite(chapter),
     queryFn: async (): Promise<ChapterNoteAnchor[]> => {
@@ -42,6 +52,34 @@ export function usePrototypeChapterNotes(book: string, chapter: number) {
       return (data.anchors ?? []) as ChapterNoteAnchor[];
     },
   });
+
+  /**
+   * Offline fallback: the space's scripture index, mirrored into IndexedDB on every fetch
+   * and refreshed whenever a note changes. Read only while the live answer is absent —
+   * before the first fetch lands, or when it cannot — so a bar is never a stale one when
+   * the real answer is available. Nothing here writes; opening a chapter must not touch
+   * a note.
+   */
+  const apiSpaceId = normalizePrototypeApiSpaceId(spaceId ?? undefined);
+  const live = query.data;
+  const [mirrored, setMirrored] = useState<ChapterNoteAnchor[] | null>(null);
+  useEffect(() => {
+    if (live || !userId || !apiSpaceId || !book || !Number.isFinite(chapter)) return;
+    let cancelled = false;
+    void (async () => {
+      const books = await getScriptureIndexLocal(userId, apiSpaceId);
+      if (cancelled) return;
+      setMirrored(
+        books ? (chapterAnchorsFromScriptureIndex(books as never, book, chapter) as ChapterNoteAnchor[]) : null,
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [live, userId, apiSpaceId, book, chapter]);
+
+  const data = useMemo(() => live ?? mirrored ?? undefined, [live, mirrored]);
+  return { ...query, data };
 }
 
 /** One note behind a bar. */

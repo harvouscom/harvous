@@ -53,6 +53,7 @@ import {
   type ReferenceProvider,
 } from '@/components/react/TiptapReferenceSuggestion';
 import { useEastonsSlugIndex } from '../../hooks/useEastonsSlugIndex';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import {
   assignAnchorLanes,
   usePrototypeChapterNotes,
@@ -268,7 +269,9 @@ export default function PrototypeBibleReaderPane({
    * the sync watermark here, so a write on read would silently re-sort the sidebar — a bug
    * this codebase has had more than once.
    */
-  const { data: chapterAnchors } = usePrototypeChapterNotes(book, chapter);
+  // The space id only feeds the offline fallback — the mirrored scripture index is per space.
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const { data: chapterAnchors } = usePrototypeChapterNotes(book, chapter, homeSpaceId);
   const anchorLanes = useMemo(
     () => (showMarginNotes ? assignAnchorLanes(chapterAnchors, verses.length) : []),
     [chapterAnchors, verses.length, showMarginNotes],
