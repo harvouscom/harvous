@@ -78,6 +78,26 @@ describe('resolvePaperStackAfterNavigation', () => {
       expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/', helpers)).toBe('clear');
       expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/settings', helpers)).toBe('clear');
     });
+
+    /**
+     * An unsaved compose draft is still a stack that can be walked away from.
+     *
+     * The layout used to exempt exactly this shape — a draft with no note id yet — from the
+     * whole check whenever the path was not a note path, which meant a draft started from
+     * the reader pinned the chapter behind Settings, behind Home, behind everything. The
+     * resolver never needed that exemption: it keeps the stack on read paths and adopts on
+     * the save navigation, and the case below is why it must be allowed to answer at all.
+     */
+    it('clears an unsaved compose draft that walks off to somewhere unrelated', () => {
+      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin), '/settings/account', helpers)).toBe(
+        'clear',
+      );
+      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin), '/', helpers)).toBe('clear');
+    });
+
+    it('keeps an unsaved compose draft while it is still on the chapter it started from', () => {
+      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin), '/read/John/15', helpers)).toBe('keep');
+    });
   });
 
   describe('homeCard origin (a card is the base, a note is the sheet)', () => {

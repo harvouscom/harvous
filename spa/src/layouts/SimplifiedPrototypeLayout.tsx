@@ -338,8 +338,21 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
    */
   useEffect(() => {
     if (!paperStack) return;
-    // A compose draft on the origin's own path has not navigated anywhere yet.
-    if (composeDraftActive && !paperStack.noteId && !isPrototypeNotePath(pathname)) return;
+    /*
+     * No compose exemption here, and that matters.
+     *
+     * There used to be one — skip the whole check while an unsaved compose draft had no note
+     * id and the path was not a note. It was meant to say "a draft still sitting on the
+     * origin's own path has not gone anywhere", but that is not what it tested: every path
+     * that is not a note path matched it, so a draft started from the reader pinned the stack
+     * to Settings, to Home, to everywhere, with the chapter still mounted behind them. That is
+     * the phantom reader this effect exists to prevent, in a narrower disguise.
+     *
+     * The exemption was unnecessary as well as wrong. The resolver already keeps a reader
+     * origin on any read path, and already ADOPTS a note path when the stack has no id — the
+     * save navigation — so both halves of the compose story are handled there, where they can
+     * be tested. Anything else really is somewhere the stack no longer describes.
+     */
     const verdict = resolvePaperStackAfterNavigation(paperStack, pathname, {
       isNotePath: isPrototypeNotePath,
       noteIdAt: (p) => {
@@ -352,7 +365,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     });
     if (verdict === 'clear') clearPaperStack();
     else if (verdict !== 'keep') adoptStackNoteId(verdict.adoptNoteId);
-  }, [paperStack, pathname, composeDraftActive, clearPaperStack, adoptStackNoteId]);
+  }, [paperStack, pathname, clearPaperStack, adoptStackNoteId]);
 
   // Switching spaces can keep the same pathname; the origin belonged to the space you left.
   const prevStackSpaceRef = useRef(resolvedActiveSpaceId);
