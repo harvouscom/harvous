@@ -18524,3 +18524,66 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   flex: 0 0 auto;
   width: 64px;
 }
+
+/* ── Translations settings: a translation row and its offline state ──────────── */
+
+/*
+ * Two controls in one row, doing different things: the row itself picks the default
+ * translation, and the strip beneath it manages the offline copy. Nesting the second inside
+ * the first would make "Remove" a way to change your default by accident, so they are
+ * siblings and only the top one is a button.
+ */
+.proto-translation-row {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 0.5px solid var(--pds-border);
+}
+
+.proto-translation-row:last-child {
+  border-bottom: 0;
+}
+
+.proto-translation-row__choose {
+  border-bottom: 0;
+}
+
+.proto-translation-row__offline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 10px;
+  /* Reads as a footnote to the row above rather than a row of its own. */
+  margin-top: -4px;
+}
+
+.proto-translation-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-translation-row__status[data-state='ready'] {
+  color: var(--pds-success);
+}
+
+.proto-translation-row__action {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  font-family: var(--pds-font-body) !important;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-link);
+  cursor: pointer;
+}
+
+.proto-translation-row__action:hover {
+  text-decoration-line: underline;
+}
+
+/* Pushes the actions to the trailing edge, so the status reads first. */
+.proto-translation-row__status + .proto-translation-row__action {
+  margin-left: auto;
+}

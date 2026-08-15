@@ -70,9 +70,87 @@ export function bibleChapterQueryOptions(
         chapter: String(chapter),
         translation,
       });
-      return api.get<BibleChapterResponse>(`/api/scripture/chapter?${params.toString()}`);
+      try {
+        const response = await api.get<BibleChapterResponse>(
+          `/api/scripture/chapter?${params.toString()}`,
+        );
+        // Keep the book on the way past. The bytes for this chapter were already paid for;
+        // fetching its neighbours costs one background request and means the chapters
+        // someone actually reads are the ones most likely to be there offline.
+        void cacheBookInBackground(book!, translation);
+        return response;
+      } catch (error) {
+        /*
+         * Fall back to the offline copy, if there is one. Only for transport failures — a 404
+         * means this translation genuinely lacks the chapter, and answering it from a stale
+         * pack would hide a real gap behind old text.
+         */
+        const status = (error as { status?: number } | null)?.status;
+        if (status != null) throw error;
+
+        const offline = await readOfflineChapter(book!, chapter!, translation);
+        if (offline) return offline;
+        throw error;
+      }
     },
   };
+}
+
+/** A chapter assembled from the offline pack, shaped exactly like the endpoint's answer. */
+async function readOfflineChapter(
+  book: string,
+  chapter: number,
+  translation: string,
+): Promise<BibleChapterResponse | null> {
+  const { readPackedChapter } = await import('@/utils/bible-pack-store');
+  const { bookChapterCount } = await import('@/utils/bible-book-chapters');
+
+  const verses = await readPackedChapter(translation, book, chapter);
+  if (!verses || verses.length === 0) return null;
+
+  const chapterCount = bookChapterCount(book);
+  return {
+    book,
+    chapter,
+    translation,
+    chapterCount,
+    hasPrevChapter: chapter > 1,
+    hasNextChapter: chapterCount != null ? chapter < chapterCount : false,
+    verses,
+  };
+}
+
+/**
+ * Store the book this chapter belongs to, quietly, once.
+ *
+ * Deliberately not awaited by the query: the reader has its text and must not wait on a
+ * megabyte of neighbouring chapters. `inFlight` keeps paging through a book from queuing the
+ * same download once per chapter.
+ */
+const inFlight = new Set<string>();
+
+async function cacheBookInBackground(book: string, translation: string): Promise<void> {
+  const key = `${translation}:${book}`;
+  if (inFlight.has(key)) return;
+  inFlight.add(key);
+
+  try {
+    const { readPackedBook, writePackedBook } = await import('@/utils/bible-pack-store');
+    if (await readPackedBook(translation, book)) return;
+
+    const params = new URLSearchParams({ book, translation });
+    const payload = await api.get<{
+      book: string;
+      translation: string;
+      version: string;
+      chapters: { chapter: number; verses: { number: number; text: string }[] }[];
+    }>(`/api/scripture/book?${params.toString()}`);
+    await writePackedBook(payload);
+  } catch {
+    // A book that did not cache is a book that is not offline. Nothing else changes.
+  } finally {
+    inFlight.delete(key);
+  }
 }
 
 /**
