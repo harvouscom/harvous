@@ -18063,6 +18063,17 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transform-origin: top center;
 }
 
+/* When the sheet is parked the base is the front paper, so it stops short of the
+   pane's bottom by the peek — the parked sheet's band shows below it, mirroring the
+   base's own band showing above the sheet when the sheet is up. Widening to the full
+   pane at the same time completes the swap: front paper full width, back paper inset. */
+.pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false']) .pds-paper-stack__base {
+  inset: 0 0 var(--pds-paper-stack-peek);
+  z-index: var(--pds-z-dropdown);
+  transition:
+    inset var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
+}
+
 /* Origin card — what a non-reader base shows. Restates the card that sent you,
    centred where the sheet's shadow falls, so a flip-down lands on "this is why you
    were here" rather than on a blank paper. */
@@ -18161,12 +18172,15 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
 }
 
-/* Parked: the sheet drops until only its top edge shows above the pane's bottom, the
-   mirror of the base peeking above it when it is up. Kept mounted — the draft and the
-   reading position both survive, which is the whole point of stacking rather than
-   routing — and its own edge is the way back, so no floating button has to be. Only
-   the peeking strip stays interactive; the rest is below the fold. */
+/* Parked: the sheet drops until only its top edge shows above the pane's bottom, and
+   the roles mirror. Up, the sheet is the front paper and the base peeks above it,
+   narrower. Parked, the sheet is the BACK paper — so it takes the inset and drops
+   behind the base in z, and its top band peeks past the base's bottom exactly the way
+   the base's shoulders peek past the sheet's top. One construction, read from either
+   end. Kept mounted — the draft survives — and only its peeking band is interactive. */
 .pds-paper-stack__sheet[data-stacked='false'] {
+  inset: 0 var(--pds-paper-stack-inset) 0;
+  z-index: var(--pds-z-base);
   transform: translateY(calc(100% - var(--pds-paper-stack-peek)));
   pointer-events: none;
 }
@@ -18366,7 +18380,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    the two directions of the flip read as one gesture at two ends of the pane. */
 .pds-paper-stack__edge--parked {
   inset: auto 0 0;
-  z-index: var(--pds-z-dropdown);
+  /* Above the base, which is the front paper (z-dropdown) while the sheet is parked. */
+  z-index: calc(var(--pds-z-dropdown) + 1);
 }
 
 /* ─── Reader dock ────────────────────────────────────────────────────────────
@@ -18630,106 +18645,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    Quiet at rest on purpose: this marks a reading surface, and a marker that
    competes with the text it marks has stopped doing its job. It gains weight
    on hover and while its notes are open, not before. */
-/* In the reader's line layout the notifier takes the block's reserved gutter track — the
-   column the reader already leaves empty so text never reflows when a note lands. */
-.pds-reader__block > .proto-reader-margin {
-  grid-column: 1;
-  justify-self: end;
-  align-self: start;
-}
-
-/* Prose has one block for the whole chapter, so the marker rides beside the verse number
-   inside the text instead. Baseline-aligned to the superscript rather than the body line,
-   and given the same right margin the verse number has, so it reads as part of that mark
-   rather than as a character in the sentence. */
-.proto-reader-margin[data-inline='true'] {
-  display: inline-flex;
-  vertical-align: super;
-  width: auto;
-  min-height: 0;
-  margin-inline-end: 2px;
-  transform: translateY(-0.1em);
-}
-
-.proto-reader-margin {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  min-height: 18px;
-  padding: 2px;
-  border: 0;
-  border-radius: var(--pds-radius-button);
-  background: transparent;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    background var(--pds-duration-press) var(--pds-ease-standard),
-    opacity var(--pds-duration-press) var(--pds-ease-standard);
-}
-
-.proto-reader-margin:hover,
-.proto-reader-margin[data-active='true'] {
-  background: var(--pds-bg-row-hover);
-}
-
-.proto-reader-margin:focus-visible {
-  outline: 2px solid var(--pds-accent);
-  outline-offset: 1px;
-}
-
-/* Stacked rather than spread: several notes on one verse should still read as
-   one mark in the margin, not as a row of separate things to count. */
-.proto-reader-margin__stack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.proto-reader-margin__dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--pds-text-muted);
-  transition:
-    background var(--pds-duration-press) var(--pds-ease-standard),
-    transform var(--pds-duration-press) var(--pds-ease-standard);
-}
-
-.proto-reader-margin:hover .proto-reader-margin__dot,
-.proto-reader-margin[data-active='true'] .proto-reader-margin__dot {
-  background: var(--pds-accent);
-}
-
-/* The capsule: stacked dots tighten into a single vertical mark. */
-.proto-reader-margin[data-multi='true'] .proto-reader-margin__dot {
-  width: 4px;
-  height: 4px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .proto-reader-margin,
-  .proto-reader-margin__dot {
-    transition: none;
-  }
-}
-
-/* The row geometry the notifier needs to sit in a margin at all: a fixed gutter
-   column, then the verse. Deliberately only the gutter — verse typography
-   belongs to the reader, not to the marker that hangs beside it. */
-.proto-reader-margin-row {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  align-items: start;
-  gap: var(--pds-space-2);
-}
-
-.proto-reader-margin-row__gutter {
-  display: flex;
-  justify-content: center;
-  padding-top: 2px;
-}
 
 /* ── Translations settings: a translation row and its offline state ──────────── */
 

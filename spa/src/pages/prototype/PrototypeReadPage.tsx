@@ -22,7 +22,6 @@ import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeReaderInspectorPane from './PrototypeReaderInspectorPane';
 import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
 import { useReadingSession } from '../../hooks/useReadingSession';
-import { useChapterMarginAnchors } from '../../hooks/queries/useChapterMarginAnchors';
 import type { FontChoice } from '../../lib/proto-font-prefs';
 import type { ReaderVerseHighlight } from './PrototypeBibleReaderPane';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
@@ -259,34 +258,6 @@ export default function PrototypeReadPage() {
     enabled: Boolean(chapterData?.verses.length),
   });
 
-  /**
-   * Which verses in this chapter already have notes about them, for the margin markers.
-   * Read from the space's passage index — the same source Scripture list mode drills — so a
-   * marker means exactly what a row there means, and the reader gains no second opinion about
-   * which notes cite what.
-   */
-  const marginAnchors = useChapterMarginAnchors(
-    homeSpaceId ?? undefined,
-    chapterData?.book ?? book,
-    chapter,
-  );
-
-  /**
-   * A marker opens the note it stands for, through the same path as any other note opened
-   * from the reader — stacked over the chapter, so the passage stays behind it.
-   *
-   * With several notes on one verse it opens the most recently touched, which is the one
-   * `buildChapterMarginAnchors` sorts to the front. A picker would spend a tap answering a
-   * question the ordering already answers, and the notes list is one flip away regardless.
-   */
-  const handleOpenMarginNotes = useCallback(
-    (_verse: number, notes: { id: string }[]) => {
-      const noteId = notes[0]?.id;
-      if (noteId) handleOpenNote(noteId);
-    },
-    [handleOpenNote],
-  );
-
   const handleChangeTranslation = useCallback(
     (next: string) => {
       void navigate({
@@ -366,8 +337,6 @@ export default function PrototypeReadPage() {
           onOpenDock={handleOpenReference}
           fontOverride={fontOverride}
           highlights={highlights}
-          marginNotes={marginAnchors.byVerse}
-          onOpenMarginNotes={handleOpenMarginNotes}
           onHighlight={applyHighlight}
           // Annotate records the highlight; the pane opens the highlight dock over it, so the
           // dock lifecycle stays with the surface that owns the selection.

@@ -4,7 +4,6 @@ import {
   getScriptureIndexLocal,
   saveScriptureIndexLocal,
 } from '../offline-scripture-index';
-import { buildChapterMarginAnchors } from '../scripture-margin-anchors';
 import { offlineDB } from '../offline-db';
 
 /**
@@ -73,17 +72,4 @@ describe('offline scripture index mirror', () => {
     expect(await getScriptureIndexLocal('', '')).toBeNull();
   });
 
-  /** The point of the mirror: markers derive from it exactly as they do from the live index. */
-  it('feeds the same margin anchors the live index would', async () => {
-    await saveScriptureIndexLocal(userId, spaceId, books);
-    const mirrored = await getScriptureIndexLocal(userId, spaceId);
-
-    const fromMirror = buildChapterMarginAnchors(mirrored as never, 'Romans', 8);
-    const fromLive = buildChapterMarginAnchors(books as never, 'Romans', 8);
-
-    expect([...fromMirror.byVerse.keys()]).toEqual([...fromLive.byVerse.keys()]);
-    expect(fromMirror.byVerse.get(1)?.[0]?.id).toBe('n1');
-    expect(fromMirror.byVerse.get(11)?.[0]?.id).toBe('n1');
-    expect(fromMirror.byVerse.has(12)).toBe(false);
-  });
 });

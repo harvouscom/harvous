@@ -14,7 +14,6 @@ import {
   PrototypeSectionHeader,
 } from '../../prototype/design-system';
 import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
-import PrototypeReaderMarginNotifier from '../../prototype/PrototypeReaderMarginNotifier';
 import PrototypePaperStack from '../../prototype/PrototypePaperStack';
 import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
@@ -1044,84 +1043,6 @@ function ReaderInspectorScene() {
   );
 }
 
-/**
- * The margin notifier against text, because it cannot be judged on its own.
- *
- * The question this scene exists to answer is whether the dots stay quiet enough
- * to read past — so the verses are real length, the marked verses are scattered
- * the way they actually fall, and one verse carries more notes than the capsule
- * shows. Rendered inert; hover and open states sit beside rest to be compared.
- */
-function ReaderMarginScene() {
-  const note = (id: string) => ({
-    id,
-    title: `Note ${id}`,
-    updatedAt: '2026-01-01T00:00:00.000Z',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  });
-
-  const verses: { verse: number; text: string; notes: ReturnType<typeof note>[] }[] = [
-    { verse: 1, text: 'I am the true vine, and my Father is the vinedresser.', notes: [note('a')] },
-    {
-      verse: 2,
-      text: 'Every branch in me that bears no fruit he takes away, and every branch that does bear fruit he prunes, that it may bear more fruit.',
-      notes: [],
-    },
-    { verse: 3, text: 'Already you are clean because of the word that I have spoken to you.', notes: [] },
-    {
-      verse: 4,
-      text: 'Abide in me, and I in you. As the branch cannot bear fruit by itself, unless it abides in the vine, neither can you, unless you abide in me.',
-      notes: [note('b'), note('c')],
-    },
-    {
-      verse: 5,
-      text: 'I am the vine; you are the branches. Whoever abides in me and I in him, he it is that bears much fruit, for apart from me you can do nothing.',
-      notes: [note('d'), note('e'), note('f'), note('g')],
-    },
-    { verse: 6, text: 'If anyone does not abide in me he is thrown away like a branch and withers.', notes: [] },
-  ];
-
-  return (
-    <div className="pds-gallery-stack pds-gallery-stack--narrow">
-      <PrototypeSectionHeader>In the margin</PrototypeSectionHeader>
-      <p className="pds-caption">
-        One dot for one note, a tightened stack for more. Verse 5 carries four notes and still shows
-        three dots — the count lives in the label, not the gutter.
-      </p>
-      <div className="pds-gallery-stack">
-        {verses.map((row) => (
-          <div key={row.verse} className="proto-reader-margin-row">
-            <span className="proto-reader-margin-row__gutter">
-              <PrototypeReaderMarginNotifier verse={row.verse} notes={row.notes} onOpen={() => undefined} />
-            </span>
-            <p className="pds-body" style={{ margin: 0 }}>
-              <span className="pds-footnote" style={{ marginRight: 6 }}>
-                {row.verse}
-              </span>
-              {row.text}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <PrototypeSectionHeader>States</PrototypeSectionHeader>
-      <p className="pds-caption">
-        Rest, one note, several, and open. Hover matches the open treatment.
-      </p>
-      <div className="pds-gallery-btn-row">
-        <PrototypeReaderMarginNotifier verse={1} notes={[note('a')]} onOpen={() => undefined} />
-        <PrototypeReaderMarginNotifier verse={2} notes={[note('a'), note('b')]} onOpen={() => undefined} />
-        <PrototypeReaderMarginNotifier
-          verse={3}
-          notes={[note('a'), note('b'), note('c')]}
-          onOpen={() => undefined}
-        />
-        <PrototypeReaderMarginNotifier verse={4} notes={[note('a')]} onOpen={() => undefined} active />
-      </div>
-    </div>
-  );
-}
-
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1158,8 +1079,6 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <ReaderDockScene />;
     case 'ds-17-reader-inspector':
       return <ReaderInspectorScene />;
-    case 'ds-18-reader-margin':
-      return <ReaderMarginScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

@@ -211,18 +211,6 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-17-reader-inspector',
     // Interactive (text-size + verse-number controls write real prefs).
   },
-  {
-    id: 'ds-18-reader-margin',
-    title: 'Reader margin notifier',
-    phase: 'Patterns',
-    editFiles: [
-      'spa/src/pages/prototype/PrototypeReaderMarginNotifier.tsx',
-      'src/utils/scripture-margin-anchors.ts',
-      'spa/src/styles/prototype-components.css',
-    ],
-    screenshotSlug: 'ds-18-reader-margin',
-    visualBaseline: true,
-  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

@@ -795,11 +795,15 @@ app.get('/api/scripture/chapter-notes', requireAuth, async (c) => {
      * Joined to Notes for ownership — ScriptureMetadata carries no userId of its own, so
      * without this a chapter query would return every user's anchors for that chapter.
      *
-     * Joined to SpaceNotes to skip removed ones. A note is deleted by stamping
-     * `SpaceNotes.removedAt`, not by dropping the Notes row, and its scripture anchors
-     * outlive that — so without this the margin would mark verses with dots that open
-     * nothing. `innerJoin` also means a note belonging to no space contributes no dot, which
-     * is right: there is nowhere for the tap to go.
+     * LEFT-joined to SpaceNotes to skip removed ones. A note shared into a space is removed
+     * by stamping `SpaceNotes.removedAt`, not by dropping the Notes row, and its scripture
+     * anchors outlive that — so a removed note's bars must not mark verses that open nothing.
+     *
+     * Left, not inner: `SpaceNotes` is the SHARED-space membership table. A personal-space
+     * note has `Notes.spaceId` and no `SpaceNotes` row at all — on a real account that is
+     * most notes — and an inner join dropped every one of them, so the margin was empty for
+     * exactly the notes people write most. A note is kept when it has no SpaceNotes row
+     * (personal) or a live one (shared and not removed).
      */
     const rows = await db
       .select({
@@ -813,12 +817,13 @@ app.get('/api/scripture/chapter-notes', requireAuth, async (c) => {
       })
       .from(ScriptureMetadata)
       .innerJoin(Notes, eq(Notes.id, ScriptureMetadata.noteId))
-      .innerJoin(SpaceNotes, eq(SpaceNotes.noteId, ScriptureMetadata.noteId))
+      .leftJoin(SpaceNotes, eq(SpaceNotes.noteId, ScriptureMetadata.noteId))
       .where(
         and(
           eq(ScriptureMetadata.book, book),
           eq(ScriptureMetadata.chapter, chapter),
           eq(Notes.userId, auth.userId),
+          // No SpaceNotes row (personal) or a live one — either way `removedAt` is null.
           isNull(SpaceNotes.removedAt),
         ),
       );
