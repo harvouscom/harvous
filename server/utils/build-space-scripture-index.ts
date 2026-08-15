@@ -77,6 +77,12 @@ export function canonicalBookOrderMap(): Map<string, number> {
       m.set(row.book, i++);
     }
   }
+  /*
+   * Legacy tolerance, no longer a workaround. Both canons now say "Song of Solomon", but an
+   * older native build's tag suggester said "Song of Songs", so a thread or tag name written
+   * on that build can still arrive carrying it. Without the alias such a reference sorts to
+   * the end of the canon instead of between Ecclesiastes and Isaiah.
+   */
   const song = m.get('Song of Solomon');
   if (song !== undefined && !m.has('Song of Songs')) {
     m.set('Song of Songs', song);

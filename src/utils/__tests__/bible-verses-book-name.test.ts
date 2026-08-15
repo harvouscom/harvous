@@ -4,13 +4,16 @@ import { orderedCanonBooks } from '../bible-book-chapters';
 import { parseScriptureReference } from '../scripture-detector';
 
 describe('bibleVersesBookName', () => {
-  it('maps the detector name onto the stored spelling', () => {
-    // The one book where the two canons disagree. Before this, `WHERE book = 'Song of Songs'`
-    // matched nothing and the book was unreachable in the reader.
-    expect(bibleVersesBookName('Song of Songs')).toBe('Song of Solomon');
+  it('resolves Song of Solomon by every spelling it is written with', () => {
+    // The book the two canons used to disagree about. The detector now canonicalises all of
+    // these to the stored spelling, so they arrive here already correct.
+    for (const written of ['Song of Solomon', 'Song of Songs', 'Canticles', 'SOS']) {
+      const parsed = parseScriptureReference(`${written} 2:1`);
+      expect(bibleVersesBookName(parsed?.book ?? written)).toBe('Song of Solomon');
+    }
   });
 
-  it('leaves the sixty-five that already agree alone', () => {
+  it('leaves the canon alone while both spellings agree', () => {
     expect(bibleVersesBookName('Genesis')).toBe('Genesis');
     expect(bibleVersesBookName('1 Corinthians')).toBe('1 Corinthians');
     expect(bibleVersesBookName('Revelation')).toBe('Revelation');

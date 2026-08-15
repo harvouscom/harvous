@@ -1,17 +1,21 @@
 /**
  * Translate a detector-canonical book name into the spelling `BibleVerses` stores.
  *
- * The app has two canons and they do not quite agree. `parseScriptureReference` resolves to
- * the name in `BIBLE_STUDY_KEYWORDS`, while the verse rows — and `bible-chapters.json`, and
- * therefore every book list in the UI — use the spelling the translations shipped with. For
- * sixty-five books these are the same string. For one they are not: the detector says "Song of
- * Songs" and the text is filed under "Song of Solomon", so `WHERE book = 'Song of Songs'`
- * matched nothing and the book was simply unreachable — no chapter, no pack, no error beyond
- * a 404 that looked like missing data rather than a missing translation step.
+ * The app has two canons: `parseScriptureReference` resolves to the name in
+ * `BIBLE_STUDY_KEYWORDS`, while the verse rows — and `bible-chapters.json`, and therefore
+ * every book list in the UI — use the spelling the translations shipped with. They agree on
+ * all sixty-six today, so this is currently the identity function.
  *
- * Resolved by asking the question backwards: the storage name is whichever book in the
- * chapters data the detector *itself* canonicalises to the name in hand. That keeps working if
- * another spelling drifts, and needs no hand-maintained alias list to be kept in step.
+ * It is kept because they have not always agreed, and the failure was invisible. The detector
+ * said "Song of Songs" where the text was filed under "Song of Solomon", so
+ * `WHERE book = 'Song of Songs'` matched nothing and the book was simply unreachable — no
+ * chapter, no pack, and a 404 that read like missing data rather than a missing translation
+ * step. Three separate places grew hand-written aliases before anyone noticed the cause.
+ *
+ * The mapping is derived, not declared: the storage name is whichever book in the chapters
+ * data the detector itself canonicalises to the name in hand. So a future divergence — a
+ * reseed under a different spelling, a renamed keyword — is absorbed here instead of
+ * silently removing a book.
  */
 
 import { orderedCanonBooks } from './bible-book-chapters';
@@ -23,7 +27,7 @@ function buildMap(): Map<string, string> {
   const built = new Map<string, string>();
   for (const storageName of orderedCanonBooks()) {
     const parsed = parseScriptureReference(`${storageName} 1`);
-    // Identity for the sixty-five that agree; the divergent one lands under its own key.
+    // Identity while the canons agree; a divergent name lands under its own key.
     built.set(parsed?.book ?? storageName, storageName);
   }
   return built;
