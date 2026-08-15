@@ -181,6 +181,7 @@ import {
   type StudyDockEntry,
   type StudyDockStack,
 } from '@/utils/study-dock-stack';
+import { saveReferenceStudyThread } from '@/utils/save-reference-study-thread';
 import { hasSeenSharedHighlightTip, markSharedHighlightTipSeen } from '@/utils/shared-highlight-tip';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 import { backfillOrphanHighlights } from '@/utils/orphan-highlight-backfill';
@@ -5816,37 +5817,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       passage: { reference: string; translation: string; sourceNoteId: string },
     ): Promise<string | null> => {
       if (editorChromeMode !== 'prototypeNative') return null;
-      const norm = normalizeScriptureReference(passage.reference.trim()) ?? passage.reference.trim();
-      const defaultAccent: StudyHighlightAccentKey = 'warmAmber';
-      try {
-        const res = await fetch(`/api/notes/${passage.sourceNoteId}/study-threads`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            withStudyThreadContext(
-              {
-                entryKind: 'reference',
-                sourceSnippet: word,
-                focusTitle: word,
-                highlightAccentRaw: defaultAccent,
-                scriptureReference: norm,
-                scripturePassageTranslation: passage.translation,
-                scripturePassageExcerpt: word,
-              },
-              contextSpaceId,
-            ),
-          ),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          syncStudyThreadList(passage.sourceNoteId);
-          return data.studyThread?.id ?? null;
-        }
-      } catch {
-        /* ignore */
-      }
-      return null;
+      // The POST itself lives in `saveReferenceStudyThread`, shared with the Bible reader
+      // so both surfaces save the same thing. What stays here is the editor's own part:
+      // refreshing this note's thread list once the entry exists.
+      const studyId = await saveReferenceStudyThread({
+        noteId: passage.sourceNoteId,
+        word,
+        reference: passage.reference,
+        translation: passage.translation,
+        spaceId: contextSpaceId,
+      });
+      if (studyId) syncStudyThreadList(passage.sourceNoteId);
+      return studyId;
     },
     [contextSpaceId, editorChromeMode, syncStudyThreadList],
   );

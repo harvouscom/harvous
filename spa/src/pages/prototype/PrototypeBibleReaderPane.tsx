@@ -72,7 +72,11 @@ import HighlightDockWeb from '@/components/react/HighlightDockWeb';
  * the other.
  */
 type ReaderDockState =
-  | { kind: 'reference'; query: string }
+  /** `anchor` is where the word was read, and it is what a saved reference points back at:
+      the single verse when the word was tapped in the chapter, the whole passage when it was
+      tapped inside a passage card. `verse` is set only in the first case — it is the verse a
+      newly started note returns the reader to, and a passage has no single one. */
+  | { kind: 'reference'; query: string; anchor: string; verse?: number }
   | { kind: 'passage'; reference: string }
   | { kind: 'highlight'; reference: string; excerpt: string; accent: StudyHighlightAccentKey }
   | null;
@@ -153,6 +157,17 @@ export interface PrototypeBibleReaderPaneProps {
   onAnnotate?: (range: { start: number; end: number }, accent: StudyHighlightAccentKey) => void;
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
+  /**
+   * Keep a looked-up word as a reference, and what to call doing so.
+   *
+   * The reader can show you what a word means but has no note of its own to keep it in — a
+   * saved reference is an entry on a note's study thread. So the page above decides where
+   * it lands and names the action accordingly, and the pane only reports the word and where
+   * it was read. Omitted while a chapter is the base of a paper stack: the note on top owns
+   * the saving there, and two Save buttons for one word is a question nobody asked.
+   */
+  onSaveReference?: (input: { word: string; reference: string; verse?: number }) => void;
+  saveReferenceLabel?: string;
 }
 
 export default function PrototypeBibleReaderPane({
@@ -168,6 +183,8 @@ export default function PrototypeBibleReaderPane({
   onHighlight,
   onAnnotate,
   onOpenNoteAtReference,
+  onSaveReference,
+  saveReferenceLabel,
 }: PrototypeBibleReaderPaneProps) {
   const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
   const { verseLayout, showMarginNotes } = useSyncExternalStore(
@@ -610,7 +627,13 @@ export default function PrototypeBibleReaderPane({
             e.stopPropagation();
             const query =
               suggestion.dataset.referenceWord || suggestion.textContent?.trim() || '';
-            if (query) setDock({ kind: 'reference', query });
+            if (query)
+              setDock({
+                kind: 'reference',
+                query,
+                anchor: `${book} ${chapter}:${verse.number}`,
+                verse: verse.number,
+              });
             return;
           }
           selectVerse(verse.number, e.shiftKey);
@@ -1025,7 +1048,28 @@ export default function PrototypeBibleReaderPane({
       {dock && studyDockCarouselHostEl
         ? createPortal(
             dock.kind === 'reference' ? (
-              <ReferenceDockWeb initialQuery={dock.query} onDone={() => setDock(null)} />
+              <ReferenceDockWeb
+                initialQuery={dock.query}
+                onDone={() => setDock(null)}
+                // Always "pending" here: the reader has no note, so a word looked up from a
+                // chapter is never already kept. Whether it CAN be kept is the page's call,
+                // and without a handler the dock shows no save at all — same as before.
+                pendingSuggestion={!!onSaveReference}
+                saveReferenceLabel={saveReferenceLabel}
+                onSaveReference={
+                  onSaveReference
+                    ? () => {
+                        onSaveReference({
+                          word: dock.query,
+                          reference: dock.anchor,
+                          verse: dock.verse,
+                        });
+                        setDock(null);
+                      }
+                    : undefined
+                }
+                onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
+              />
             ) : dock.kind === 'passage' ? (
               <ScripturePillChromeWeb
                 reference={dock.reference}
@@ -1036,7 +1080,9 @@ export default function PrototypeBibleReaderPane({
                 editorChromeMode="prototypeNative"
                 onDone={() => setDock(null)}
                 onApply={() => undefined}
-                onOpenPassageReference={(word) => setDock({ kind: 'reference', query: word })}
+                onOpenPassageReference={(word) =>
+                  setDock({ kind: 'reference', query: word, anchor: dock.reference })
+                }
                 onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
               />
             ) : (
