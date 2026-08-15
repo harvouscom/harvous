@@ -449,7 +449,11 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           params: origin.returnTo.params ?? {},
           search: noteDockReturnSearch(origin),
         });
-      }, PROTO_RESOURCE_MORPH_MS);
+        // Held exactly as long as the animation that is playing, and the two are not the
+        // same length: closing a clip back onto the dock's rect is the paper-stack move,
+        // while the no-rect fallback is the shorter resource morph. Clearing early cuts the
+        // chapter off mid-close; clearing late leaves a dead page on screen.
+      }, origin.morphFrom ? PROTO_PAPER_STACK_MS : PROTO_RESOURCE_MORPH_MS);
       return;
     }
 

@@ -16,7 +16,7 @@
  * Timing is `PROTO_PAPER_STACK_MS` ↔ `--pds-duration-paper-stack`; the noteDock morph is
  * `PROTO_RESOURCE_MORPH_MS` ↔ `--pds-duration-morph`.
  */
-import { type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import type { PaperStackState } from '../../layouts/proto-shell-context';
@@ -51,12 +51,42 @@ export default function PrototypePaperStack({
       the mention picker. The edge is one more of those, so it uses the same word. */
   const parkedLabel = stripServerAutoUntitledNoteTitleForDisplay(stack.noteTitle ?? '') || 'New Note';
 
+  /*
+   * The chapter is revealed out of the dock's rectangle, not scaled up from it.
+   *
+   * A transform would have to squash a page of text to the shape of a dock card and stretch
+   * it back, and the reader is the one surface where distorted words are unacceptable. A
+   * clip-path costs nothing in layout: the chapter lays out once, at full size, and only the
+   * visible region grows — which is what "growing out of the dock" actually looked like.
+   *
+   * The four insets are measured against the stack's own box because clip-path is relative
+   * to the element, while the rect we captured is in viewport coordinates. Measured in a
+   * layout effect rather than at render: the stack's position is not knowable until it is in
+   * the document, and this runs before paint, so the first animated frame already has them.
+   */
+  const morph = collapses ? origin.morphFrom : undefined;
+  const rootRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el || !morph) return;
+    const box = el.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) return;
+    const top = Math.max(0, morph.top - box.top);
+    const left = Math.max(0, morph.left - box.left);
+    el.style.setProperty('--pds-morph-inset-top', `${top}px`);
+    el.style.setProperty('--pds-morph-inset-left', `${left}px`);
+    el.style.setProperty('--pds-morph-inset-right', `${Math.max(0, box.width - left - morph.width)}px`);
+    el.style.setProperty('--pds-morph-inset-bottom', `${Math.max(0, box.height - top - morph.height)}px`);
+  }, [morph]);
+
   return (
     <div
       className="pds-paper-stack"
       data-origin-kind={origin.kind}
       data-exiting={exiting ? 'true' : undefined}
       data-retiring={retiring ? 'true' : undefined}
+      data-morph={morph ? 'true' : undefined}
+      ref={rootRef}
     >
       <div className="pds-paper-stack__base">
         {origin.base.type === 'reader' ? (
@@ -69,18 +99,11 @@ export default function PrototypePaperStack({
             focusVerse={origin.base.fromVerse}
           />
         ) : collapses ? (
-          // The note whose dock expanded shows exactly as much of itself as any base does:
-          // the top band of its paper, never a word of its content. So the layer behind is
-          // that — the note's own paper, at the note's own width and lip, empty because
-          // nothing more is ever on screen. Restating it as a card put a second copy of the
-          // note in the middle of the pane, ghosting up through the chapter text.
-          <div className="proto-editor-surface pds-paper-stack__origin-paper" aria-hidden>
-            <div className="proto-editor-scroll">
-              <div className="proto-editor-content-wrap">
-                <div className="proto-editor-paper" />
-              </div>
-            </div>
-          </div>
+          // Nothing. A dock expansion is a morph, not a stack: the chapter grows out of the
+          // card that asked for it and fills the pane, so there is no paper behind it and no
+          // band of one peeking. The note is not underneath — it is where you came from, and
+          // the collapse control says so.
+          null
         ) : (
           // Home has no main-pane document to stand behind a note, so the base restates the
           // card that sent you: flipping down lands on "this is why you were here", not a blank.
@@ -99,7 +122,26 @@ export default function PrototypePaperStack({
         )}
       </div>
 
-      {stack.open ? (
+      {collapses ? (
+        /*
+         * A corner control, not an edge.
+         *
+         * The edge means "the paper behind, tap to go back to it", and after the morph there
+         * is no paper behind — the chapter is the page. Keeping the band would have promised
+         * a layer that is not there, and put a second way to do what this button does. So the
+         * noteDock origin trades it for the gesture its shape actually implies: close this,
+         * go back to the note it came out of.
+         */
+        <button
+          type="button"
+          className="proto-side-panel__action-btn pds-paper-stack__collapse"
+          onClick={onFlipDown}
+          aria-label={`Back to ${origin.label}`}
+          title={`Back to ${origin.label}`}
+        >
+          <Icon name="down-left-and-up-right-to-center" size={13} aria-hidden />
+        </button>
+      ) : stack.open ? (
         <div className="pds-paper-stack__edge-row">
           <button
             type="button"

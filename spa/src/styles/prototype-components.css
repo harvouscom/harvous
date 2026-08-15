@@ -18300,19 +18300,31 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transform: scale(1);
 }
 
-/* ─── Dock expansion: the note is the paper behind ────────────────────────────
- * The origin edge is always at the top, whatever the origin is. It answers one question
- * — "where did I come from" — and a breadcrumb that answers it from a different place
- * depending on the kind of origin is a rule nobody can learn. So a dock expansion stacks
- * like everything else: chapter over note, note's edge above it.
+/* ─── Dock expansion: a morph, not a stack ────────────────────────────────────
+ * Every other origin leaves a paper behind the sheet and a band of it peeking. A dock
+ * expansion does not: the chapter grows out of the card that asked for it and becomes the
+ * page. There is nothing underneath, so there is no band, no label, and no edge — the way
+ * back is the corner control, which is the gesture this shape already implies.
  *
- * The lip: the note's paper starts that far into its own layer, so without pulling the
- * layer up by it the band would be part canvas and only part paper. Same correction the
- * parked sheet makes at the other end of the pane, for the same reason. */
-.pds-paper-stack[data-origin-kind='noteDock'] .pds-paper-stack__base {
-  transform:
-    translateY(calc(-1 * var(--pds-editor-paper-inset-top)))
-    scale(var(--pds-paper-stack-back-scale));
+ * The sheet takes the whole pane. `inset` cannot be used here because the reveal animates
+ * clip-path against this box, and a box defined by all four edges has no stable size for
+ * the insets to be measured from. */
+.pds-paper-stack[data-origin-kind='noteDock'] .pds-paper-stack__sheet {
+  inset: auto;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+}
+
+/* Back to the note the dock belongs to. Top-right, in the shell's icon block, over the
+   chapter's own top margin where it lands clear of the first line at every width. */
+.pds-paper-stack__collapse {
+  position: absolute;
+  top: var(--pds-space-3);
+  right: var(--pds-space-4);
+  z-index: calc(var(--pds-z-dropdown) + 1);
 }
 
 /* The note's paper behind is still the note's paper: same opaque composite as when it
@@ -18356,17 +18368,65 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transition: opacity var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }
 
-/* A dock expanding into the reader is a MORPH, not a slide: the chapter grows up out of
-   where the dock sat in the bottom chrome. Same duration as the resource morph it is a
-   cousin of. */
-.pds-paper-stack[data-origin-kind='noteDock'] .pds-paper-stack__sheet[data-stacked='true'] {
+/* The reveal. The chapter is already laid out at full size behind a clip the shape of the
+   dock card; the clip opens to the whole pane, so the page appears to grow out of exactly
+   where the dock was without a single word being scaled. Longer than the 190ms resource
+   morph — this is a page arriving, not a panel, and the eye has further to travel. */
+.pds-paper-stack[data-morph='true'] .pds-paper-stack__sheet[data-stacked='true'] {
+  animation: pds-paper-stack-morph-in var(--pds-duration-paper-stack) var(--pds-ease-emphasized)
+    backwards;
+}
+
+.pds-paper-stack[data-morph='true'][data-exiting='true'] .pds-paper-stack__sheet {
+  /* `forwards`: the clip must stay closed on the last frame until the stack unmounts, or
+     the chapter flashes back to full for one frame on the way out. */
+  animation: pds-paper-stack-morph-out var(--pds-duration-paper-stack) var(--pds-ease-emphasized)
+    forwards;
+  pointer-events: none;
+}
+
+/* No captured rect — a keyboard path, or a card that had already gone. The chapter still
+   has to arrive, so it does what it did before: grows and fades into place. */
+.pds-paper-stack[data-origin-kind='noteDock']:not([data-morph='true'])
+  .pds-paper-stack__sheet[data-stacked='true'] {
   transform-origin: bottom center;
   animation: pds-paper-stack-expand var(--pds-duration-morph) var(--pds-ease-emphasized) backwards;
 }
 
-/* Collapse: the reverse morph, held on screen just long enough to play before the
-   stack clears and the note's own dock enter-animation finishes the story. */
-.pds-paper-stack[data-origin-kind='noteDock'][data-exiting='true'] .pds-paper-stack__sheet {
+@keyframes pds-paper-stack-morph-in {
+  from {
+    clip-path: inset(
+      var(--pds-morph-inset-top, 0) var(--pds-morph-inset-right, 0)
+        var(--pds-morph-inset-bottom, 0) var(--pds-morph-inset-left, 0)
+        round var(--pds-radius-menu)
+    );
+    opacity: 0.55;
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 0);
+    opacity: 1;
+  }
+}
+
+@keyframes pds-paper-stack-morph-out {
+  from {
+    clip-path: inset(0 0 0 0 round 0);
+    opacity: 1;
+  }
+  to {
+    clip-path: inset(
+      var(--pds-morph-inset-top, 0) var(--pds-morph-inset-right, 0)
+        var(--pds-morph-inset-bottom, 0) var(--pds-morph-inset-left, 0)
+        round var(--pds-radius-menu)
+    );
+    opacity: 0.55;
+  }
+}
+
+/* Collapse without a captured rect — the fallback's own reverse. The clip version above
+   takes precedence when there is a rect to close onto. */
+.pds-paper-stack[data-origin-kind='noteDock']:not([data-morph='true'])[data-exiting='true']
+  .pds-paper-stack__sheet {
   /* `forwards` here on purpose: the sheet must stay faded at the end frame until the
      stack clears, or it would pop back to full opacity for a frame before unmounting. */
   animation: pds-paper-stack-collapse var(--pds-duration-morph) var(--pds-ease-emphasized) forwards;
@@ -18411,7 +18471,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      is that this stack does not animate at all when motion is unwelcome. */
   .pds-paper-stack__edge-row,
   .pds-paper-stack__edge,
-  .pds-paper-stack__edge-dismiss {
+  .pds-paper-stack__edge-dismiss,
+  /* The clip reveal too: it is the largest move the stack makes. Without motion the
+     chapter is simply there, which is the correct answer to "no animations please". */
+  .pds-paper-stack[data-morph='true'] .pds-paper-stack__sheet,
+  .pds-paper-stack__collapse {
     animation: none;
     transition: none;
   }

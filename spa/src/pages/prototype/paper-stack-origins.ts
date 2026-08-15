@@ -7,7 +7,7 @@ import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path
 import { recallKindCreatesNote, recallKindDisplayLabel } from '@/utils/recall-opportunity-kinds';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
-import type { PaperStackOrigin } from '../../layouts/proto-shell-context';
+import type { PaperStackMorphFrom, PaperStackOrigin } from '../../layouts/proto-shell-context';
 import { noteParamSlug } from './proto-route-slugs';
 
 /**
@@ -91,6 +91,8 @@ export type NoteDockOriginInput = {
   reference: string;
   translation: string;
   spaceId?: string | null;
+  /** The dock card's on-screen rect, so the chapter can grow out of it. */
+  morphFrom?: PaperStackMorphFrom;
 };
 
 /**
@@ -110,6 +112,7 @@ export function buildNoteDockOrigin(input: NoteDockOriginInput): PaperStackOrigi
     kind: 'noteDock',
     label: title,
     icon: 'note-sticky',
+    morphFrom: input.morphFrom,
     returnTo: {
       to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(input.noteId) },

@@ -263,8 +263,25 @@ export type PaperStackReturnTo = {
  * `label` + `icon` are all the peeking edge shows. `base` is what renders underneath —
  * a chapter for the reader, an origin card for everything else.
  */
+/**
+ * Where on screen the sheet grew out of — viewport coordinates, captured at stack time.
+ *
+ * Only a `noteDock` sets it, and only so the chapter can morph out of the dock card that
+ * asked for it instead of cross-fading in from nowhere. Measured rather than assumed
+ * because the dock's position depends on the sidebar, the note's width and how many cards
+ * are in the carousel; a guess would be wrong on most screens.
+ */
+export type PaperStackMorphFrom = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
 export type PaperStackOrigin = {
   kind: 'reader' | 'homeCard' | 'noteDock';
+  /** See `PaperStackMorphFrom`. Absent means "no morph" — the sheet just arrives. */
+  morphFrom?: PaperStackMorphFrom;
   /** Sub-kind for `homeCard` (a RecallOpportunityKind or 'revisit'). Telemetry only. */
   cardKind?: string;
   label: string;

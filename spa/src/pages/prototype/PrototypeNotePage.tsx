@@ -754,6 +754,14 @@ export default function PrototypeNotePage() {
       const parsed = parseScriptureReference(reference);
       if (!parsed) return;
       const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      /*
+       * Measure the card before anything moves, so the chapter can grow out of exactly where
+       * the dock was rather than from a guess. Read now, in the click, because the dock is
+       * unmounted by the navigation on the next line — a frame later there is nothing left
+       * to measure. Absent (a keyboard path, a card mid-animation) simply means no morph.
+       */
+      const dockCard = document.querySelector('.study-dock-card');
+      const rect = dockCard instanceof HTMLElement ? dockCard.getBoundingClientRect() : null;
       stackNote(
         buildNoteDockOrigin({
           noteId,
@@ -761,6 +769,15 @@ export default function PrototypeNotePage() {
           reference,
           translation,
           spaceId: contextSpaceId,
+          morphFrom:
+            rect && rect.width > 0 && rect.height > 0
+              ? {
+                  top: Math.round(rect.top),
+                  left: Math.round(rect.left),
+                  width: Math.round(rect.width),
+                  height: Math.round(rect.height),
+                }
+              : undefined,
         }),
         noteId,
       );
