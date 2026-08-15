@@ -18044,14 +18044,20 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow: hidden;
 }
 
-/* The two papers, as in the reference: plain flat sheets with square corners and a
-   hairline, the back one visibly NARROWER than the front — that inset is the whole
-   "there is a sheet behind this one" cue, and it needs no radius, no gradient and no
-   shadow to say it. Earlier passes reached for the app's rounded card surface and it
-   read as cards, not papers. */
+/* Two papers, the reference way. Each layer is an opaque sheet exactly the width of the
+   paper column, centred — the note editor's paper and the reader's text column are that
+   same 720px, so the layer and the paper inside it are one surface, edge for edge. The
+   sheet sits offset down by the peek, and the base's own top band, the same width, is
+   the way back. Nothing is painted outside the papers: the pane's canvas shows either
+   side, as it does either side of any note. Square corners, a hairline, no shadow —
+   the offset is the whole cue. */
 .pds-paper-stack__base {
   position: absolute;
-  inset: 0 var(--pds-paper-stack-inset) 0;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: min(var(--pds-paper-column), 100%);
+  transform: translateX(-50%);
   z-index: var(--pds-z-base);
   display: flex;
   flex-direction: column;
@@ -18060,18 +18066,17 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   background-color: var(--pds-paper-flat);
   border: 0.5px solid var(--pds-border);
   border-bottom: 0;
-  transform-origin: top center;
 }
 
-/* When the sheet is parked the base is the front paper, so it stops short of the
-   pane's bottom by the peek — the parked sheet's band shows below it, mirroring the
-   base's own band showing above the sheet when the sheet is up. Widening to the full
-   pane at the same time completes the swap: front paper full width, back paper inset. */
-.pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false']) .pds-paper-stack__base {
-  inset: 0 0 var(--pds-paper-stack-peek);
-  z-index: var(--pds-z-dropdown);
-  transition:
-    inset var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
+/* The papers inside the layers already draw a translucent surface for the canvas to
+   read through; on top of the layer's opaque one it would double up, and its own
+   inline margins would inset it from an edge it now IS. Flatten both. */
+.pds-paper-stack__base .pds-reader__column,
+.pds-paper-stack__sheet .proto-editor-content-wrap,
+.pds-paper-stack__sheet .proto-editor-paper {
+  background: transparent;
+  max-width: none;
+  margin-inline: 0;
 }
 
 /* Origin card — what a non-reader base shows. Restates the card that sent you,
@@ -18103,31 +18108,43 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   margin: 0;
 }
 
-/* The edge: a transparent hit target over the exposed top of the base. It paints
-   nothing of its own — the base's corners and surface are the visual — so it can be
-   generous about height without ever looking like a bar. Sits over the base only;
-   the sheet's own top edge is below it. */
+/* The edge: the base paper's own top band, its full width, the way back. The label reads
+   like the reference's — a bold link, centred on the paper — not a caption floating over
+   the pane. Transparent: the base's surface beneath it is the visual. */
 .pds-paper-stack__edge {
   position: absolute;
-  inset: 0 0 auto;
+  top: 0;
+  left: 50%;
+  width: min(var(--pds-paper-column), 100%);
+  transform: translateX(-50%);
   z-index: var(--pds-z-sticky);
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--pds-space-2);
-  width: 100%;
   height: var(--pds-paper-stack-peek);
   padding: 0 var(--pds-space-5);
-  justify-content: center;
   border: none;
   background: none;
   cursor: pointer;
-  text-align: center;
-  color: var(--pds-text-secondary);
+  color: var(--pds-accent);
+  font-family: var(--pds-font-body);
+  font-size: 0.9375rem;
+  font-weight: 700;
   transition: color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
+/* The label is bold link text, not a caption. */
+.pds-paper-stack__edge .pds-caption {
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+
 .pds-paper-stack__edge:hover {
-  color: var(--pds-text-primary);
+  color: var(--pds-accent-hover, var(--pds-accent));
 }
 
 .pds-paper-stack__edge:focus-visible {
@@ -18137,16 +18154,18 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 .pds-paper-stack__sheet {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: min(var(--pds-paper-column), 100%);
   z-index: var(--pds-z-dropdown);
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* Opaque and flat: a document over another document, so nothing behind reads through. */
   background-color: var(--pds-paper-flat);
   border: 0.5px solid var(--pds-border);
   border-bottom: 0;
-  transform: translateY(var(--pds-paper-stack-peek));
+  transform: translate(-50%, var(--pds-paper-stack-peek));
   transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }
 
@@ -18169,7 +18188,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 /* Hover on the edge nudges the sheet down a touch — "show me a little more of the
    paper" — so the tap it invites is already half-happening. */
 .pds-paper-stack:has(.pds-paper-stack__edge:hover) .pds-paper-stack__sheet[data-stacked='true'] {
-  transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
+  transform: translate(-50%, calc(var(--pds-paper-stack-peek) + 4px));
 }
 
 /* Parked: the sheet drops until only its top edge shows above the pane's bottom, and
@@ -18179,9 +18198,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    the base's shoulders peek past the sheet's top. One construction, read from either
    end. Kept mounted — the draft survives — and only its peeking band is interactive. */
 .pds-paper-stack__sheet[data-stacked='false'] {
-  inset: 0 var(--pds-paper-stack-inset) 0;
   z-index: var(--pds-z-base);
-  transform: translateY(calc(100% - var(--pds-paper-stack-peek)));
+  transform: translate(-50%, calc(100% - var(--pds-paper-stack-peek)));
   pointer-events: none;
 }
 
@@ -18203,24 +18221,24 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 @keyframes pds-paper-stack-enter {
-  from { transform: translateY(100%); }
-  to { transform: translateY(var(--pds-paper-stack-peek)); }
+  from { transform: translate(-50%, 100%); }
+  to { transform: translate(-50%, var(--pds-paper-stack-peek)); }
 }
 
 @keyframes pds-paper-stack-settle {
-  0% { transform: scale(1); }
-  55% { transform: scale(0.99); }
-  100% { transform: scale(1); }
+  0% { transform: translateX(-50%) scale(1); }
+  55% { transform: translateX(-50%) scale(0.99); }
+  100% { transform: translateX(-50%) scale(1); }
 }
 
 @keyframes pds-paper-stack-expand {
-  from { transform: translateY(var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
-  to { transform: translateY(var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
+  from { transform: translate(-50%, var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
+  to { transform: translate(-50%, var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
 }
 
 @keyframes pds-paper-stack-collapse {
-  from { transform: translateY(var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
-  to { transform: translateY(var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
+  from { transform: translate(-50%, var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
+  to { transform: translate(-50%, var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
 }
 
 /* Phones: the toolbar's sidebar toggle already owns the top of the pane, so the
@@ -18379,7 +18397,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    sheet still showing at the bottom. Same shape as the base's edge at the top, so
    the two directions of the flip read as one gesture at two ends of the pane. */
 .pds-paper-stack__edge--parked {
-  inset: auto 0 0;
+  top: auto;
+  bottom: 0;
   /* Above the base, which is the front paper (z-dropdown) while the sheet is parked. */
   z-index: calc(var(--pds-z-dropdown) + 1);
 }

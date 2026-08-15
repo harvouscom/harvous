@@ -455,6 +455,10 @@
   /* The papers themselves: opaque and flat, the same solid the popovers use, so a
      document over a document composites cleanly and neither reads as a card. */
   --pds-paper-flat: var(--pds-bg-popover-solid);
+  /* The paper column — the note editor's paper and the reader's text column are both
+     this wide, centred. The stack paints its two sheets at exactly this width, so what
+     stacks is the papers themselves and nothing shows outside them. */
+  --pds-paper-column: 720px;
   --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
   --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
   /*
