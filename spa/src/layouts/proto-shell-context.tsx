@@ -241,24 +241,60 @@ export type StandaloneScripturePassageState = {
 };
 
 /**
- * Reader paper the note sheet is stacked over.
+ * Where a stacked sheet should go back to — captured the moment the stack is made, so a
+ * flip-down or collapse lands where you actually came from even after the sheet's own URL
+ * has changed (a compose draft saves to `/{noteId}`; an expanded reader wanders chapters).
+ */
+export type PaperStackReturnTo = {
+  to: string;
+  params?: Record<string, string>;
+  search?: Record<string, string | undefined>;
+};
+
+/**
+ * The paper a sheet is stacked over: why you got here, and how to get back.
  *
+ * `kind` is the origin surface. Two are the same pattern in opposite directions — the
+ * reader is the *base* under a note (`reader`) or the *sheet* over a note (`noteDock`,
+ * where a scripture dock expanded into the chapter it is a snippet of). `homeCard` is a
+ * Home recall/revisit card, whose base is a small card restating why you were sent here,
+ * because Home has no main-pane document to stand behind the note.
+ *
+ * `label` + `icon` are all the peeking edge shows. `base` is what renders underneath —
+ * a chapter for the reader, an origin card for everything else.
+ */
+export type PaperStackOrigin = {
+  kind: 'reader' | 'homeCard' | 'noteDock';
+  /** Sub-kind for `homeCard` (a RecallOpportunityKind or 'revisit'). Telemetry only. */
+  cardKind?: string;
+  label: string;
+  icon: string;
+  returnTo: PaperStackReturnTo;
+  base:
+    | { type: 'reader'; book: string; chapter: number; translation: string; fromVerse?: number }
+    | { type: 'originCard'; eyebrow?: string; title: string; meta?: string; icon: string };
+};
+
+/**
  * Shell state rather than route state on purpose. Saving a compose draft navigates to
  * `/{noteId}`, so a stack derived from the URL would collapse the moment the note saved —
- * exactly when the reader most needs to still be there. Holding the chapter here lets the
- * URL follow the top sheet (the note, which is what you are focused on) while the reader
- * underneath stays mounted and keeps its scroll position.
+ * exactly when the origin most needs to still be there. Holding it here lets the URL follow
+ * the top sheet while the paper underneath stays mounted and keeps its scroll position.
+ *
+ * Exactly one edge: a new `stackNote` replaces whatever was stacked before.
  */
-export type ReaderStackState = {
-  book: string;
-  chapter: number;
-  translation: string;
-  /** Verse the note was started from — the reader restores focus here on flip-back. */
-  fromVerse?: number;
+export type PaperStackState = {
+  origin: PaperStackOrigin;
   /**
-   * Whether the note sheet is up. Flipping down sets this false and leaves the sheet
-   * mounted below the fold, so the draft is still there when you flip back — closing it
-   * for real is `unstackNoteFromReader`.
+   * The stacked note's id once it has one. A compose draft stacks without one; the layout's
+   * teardown effect adopts the first note path it sees (the save navigation), which is what
+   * keeps saving from reading as "navigated to a different note" and clearing the stack.
+   */
+  noteId?: string;
+  /**
+   * Whether the sheet is up. Flipping down sets this false and leaves the sheet mounted
+   * below the fold, so the draft is still there when you flip back — closing it for real
+   * is `clearPaperStack`.
    */
   open: boolean;
 };
@@ -427,12 +463,18 @@ type ProtoShellContextValue = {
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
   dismissStandaloneScripturePassage: () => void;
-  /** Non-null while a note sheet is stacked over the Bible reader. */
-  readerStack: ReaderStackState | null;
-  stackNoteOverReader: (value: Omit<ReaderStackState, 'open'>) => void;
+  /** Non-null while a sheet is stacked over an origin paper (reader, Home card, note). */
+  paperStack: PaperStackState | null;
+  /** Stack a sheet over an origin. Replaces any existing stack — there is exactly one edge. */
+  stackNote: (origin: PaperStackOrigin, noteId?: string) => void;
   /** Flip the sheet down (or back up) without unmounting it. */
-  setReaderSheetOpen: (open: boolean) => void;
-  unstackNoteFromReader: () => void;
+  setStackSheetOpen: (open: boolean) => void;
+  /**
+   * Record the stacked note's id once a compose draft has saved and has one. Called by the
+   * layout's teardown effect, not by surfaces.
+   */
+  adoptStackNoteId: (noteId: string) => void;
+  clearPaperStack: () => void;
   /** Note editor bottom chrome (shell grid row — spans sidebar + main). */
   editorChromeMode: PrototypeEditorChromeMode;
   setEditorChromeMode: (mode: PrototypeEditorChromeMode) => void;
@@ -547,7 +589,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
   );
-  const [readerStack, setReaderStack] = useState<ReaderStackState | null>(null);
+  const [paperStack, setPaperStack] = useState<PaperStackState | null>(null);
   const [editorChromeMode, setEditorChromeMode] = useState<PrototypeEditorChromeMode>('hidden');
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [studyDockCarouselHostEl, setStudyDockCarouselHostEl] = useState<HTMLDivElement | null>(null);
@@ -1202,14 +1244,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setStandaloneScripturePassage(null);
   }, []);
 
-  const stackNoteOverReader = useCallback((value: Omit<ReaderStackState, 'open'>) => {
-    setReaderStack({ ...value, open: true });
+  const stackNote = useCallback((origin: PaperStackOrigin, noteId?: string) => {
+    setPaperStack({ origin, noteId, open: true });
   }, []);
-  const setReaderSheetOpen = useCallback((open: boolean) => {
-    setReaderStack((current) => (current ? { ...current, open } : current));
+  const setStackSheetOpen = useCallback((open: boolean) => {
+    setPaperStack((current) => (current ? { ...current, open } : current));
   }, []);
-  const unstackNoteFromReader = useCallback(() => {
-    setReaderStack(null);
+  const adoptStackNoteId = useCallback((noteId: string) => {
+    setPaperStack((current) => (current && !current.noteId ? { ...current, noteId } : current));
+  }, []);
+  const clearPaperStack = useCallback(() => {
+    setPaperStack(null);
   }, []);
 
   const value = useMemo(
@@ -1289,10 +1334,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
-      readerStack,
-      stackNoteOverReader,
-      setReaderSheetOpen,
-      unstackNoteFromReader,
+      paperStack,
+      stackNote,
+      setStackSheetOpen,
+      adoptStackNoteId,
+      clearPaperStack,
       editorChromeMode,
       setEditorChromeMode,
       formatToolbarHostEl,
@@ -1375,10 +1421,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
-      readerStack,
-      stackNoteOverReader,
-      setReaderSheetOpen,
-      unstackNoteFromReader,
+      paperStack,
+      stackNote,
+      setStackSheetOpen,
+      adoptStackNoteId,
+      clearPaperStack,
       editorChromeMode,
       formatToolbarHostEl,
       studyDockCarouselHostEl,

@@ -444,6 +444,10 @@
      spatial move the eye follows to a resting place, not a reveal. Paired with
      PROTO_PAPER_STACK_MS. */
   --pds-duration-paper-stack: 320ms;
+  /* How much of the base paper stays visible above a stacked sheet — the edge you
+     tap to go back. Enough for a line of caption with breathing room; tightened on
+     phones where the toolbar already owns the top of the pane. */
+  --pds-paper-stack-peek: 48px;
   --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
   --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
   /*
@@ -481,6 +485,9 @@
     0 2px 8px oklch(var(--pds-lch-shadow-card-a)),
     0 1px 2px oklch(var(--pds-lch-shadow-card-b));
   --pds-shadow-card-elevated: 0 4px 16px oklch(var(--pds-lch-shadow-card-elevated));
+  /* The base paper of a stack: one step lighter than the sheet's --pds-shadow-card,
+     so the sheet reads as the nearer of the two papers. */
+  --pds-shadow-paper-stack-base: 0 1px 2px oklch(var(--pds-lch-shadow-card-b));
   --pds-shadow-shell:
     0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),
     0 1px 3px oklch(var(--pds-lch-shadow-shell-b));

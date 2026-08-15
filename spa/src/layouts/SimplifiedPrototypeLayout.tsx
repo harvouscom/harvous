@@ -18,6 +18,7 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
   useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
@@ -35,7 +36,10 @@ import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSi
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
-import PrototypeReaderPaperStack from '../pages/prototype/PrototypeReaderPaperStack';
+import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
+import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
+import { noteDockReturnSearch } from '../pages/prototype/paper-stack-origins';
+import { PROTO_RESOURCE_MORPH_MS } from './proto-motion';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -85,7 +89,6 @@ import {
   prototypeHomePath,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
-  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
 import {
   clearMainFreezeLayer,
@@ -261,8 +264,11 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     activeSpaceId: shellActiveSpaceId,
     activeChurchOrgId,
     composeDraftActive,
-    readerStack,
-    setReaderSheetOpen,
+    paperStack,
+    setStackSheetOpen,
+    adoptStackNoteId,
+    clearPaperStack,
+    openDrawer,
     clearComposeDraftActive,
     beginPrototypeComposeSession,
     expandedSidebarTool,
@@ -309,36 +315,110 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const hostNoteInLayout = isNoteRoute;
 
   /**
-   * Flip the note down and read again.
+   * Does the stack still describe where we are?
+   *
+   * The stack is shell state, so nothing clears it for free — and for a while nothing
+   * cleared it at all: once a note had been stacked over the reader, the reader stayed
+   * mounted behind every route visited afterwards. The rules live in
+   * `resolvePaperStackAfterNavigation` (pure, tested); this effect just applies the verdict
+   * on every pathname change. It also adopts the note id when a compose draft saves, which
+   * is the one navigation that must NOT read as "went to a different note".
+   */
+  useEffect(() => {
+    if (!paperStack) return;
+    // A compose draft on the origin's own path has not navigated anywhere yet.
+    if (composeDraftActive && !paperStack.noteId && !isPrototypeNotePath(pathname)) return;
+    const verdict = resolvePaperStackAfterNavigation(paperStack, pathname, {
+      isNotePath: isPrototypeNotePath,
+      noteIdAt: (p) => {
+        const slug = matchPrototypeNoteId(p);
+        if (!slug || isPrototypeDraftNoteSlug(slug)) return null;
+        return normalizeNoteIdFromParam(slug);
+      },
+      isReadPath: isPrototypeReadPath,
+      isHomePath: isPrototypeHomePath,
+    });
+    if (verdict === 'clear') clearPaperStack();
+    else if (verdict !== 'keep') adoptStackNoteId(verdict.adoptNoteId);
+  }, [paperStack, pathname, composeDraftActive, clearPaperStack, adoptStackNoteId]);
+
+  // Switching spaces can keep the same pathname; the origin belonged to the space you left.
+  const prevStackSpaceRef = useRef(resolvedActiveSpaceId);
+  useEffect(() => {
+    const prev = prevStackSpaceRef.current;
+    prevStackSpaceRef.current = resolvedActiveSpaceId;
+    if (paperStack && prev && resolvedActiveSpaceId && prev !== resolvedActiveSpaceId) {
+      clearPaperStack();
+    }
+  }, [resolvedActiveSpaceId, paperStack, clearPaperStack]);
+
+  /**
+   * Flip the sheet down and look at where you came from.
    *
    * The URL follows whichever paper is on top, so once a note has saved the address is
-   * `/{noteId}` — leaving it there would show the chapter under a note's URL, and a
-   * refresh would reopen the note. Send the address back to the chapter; the sheet stays
-   * mounted below the fold with the draft intact.
+   * `/{noteId}` — leaving it there would show the origin under a note's URL, and a refresh
+   * would reopen the note. Send the address to the origin's `returnTo`, captured when the
+   * stack was made; the sheet stays mounted below the fold with the draft intact. The
+   * sheet's own href is remembered so flipping back up can restore it.
    *
-   * The note's own id is remembered so flipping back up can restore its URL.
+   * A `noteDock` origin does not flip — it collapses. The reader is the sheet there, and the
+   * dock it expanded from is already the reader's parked form; parking the reader below the
+   * note as well would be the same paper in two places. So the edge plays the reverse morph,
+   * clears the stack, and returns to the note with a fresh dock nonce so the dock reopens.
    */
   const stackedNoteHrefRef = useRef<string | null>(null);
+  const [paperStackExiting, setPaperStackExiting] = useState(false);
   const handleFlipSheetDown = useCallback(() => {
-    const stack = readerStack;
+    const stack = paperStack;
     if (!stack) return;
-    stackedNoteHrefRef.current = isPrototypeReadPath(pathname) ? null : pathname;
-    setReaderSheetOpen(false);
-    if (isPrototypeReadPath(pathname)) return; // compose never left the chapter
+    const { origin } = stack;
+
+    if (origin.kind === 'noteDock') {
+      if (paperStackExiting) return;
+      setPaperStackExiting(true);
+      window.setTimeout(() => {
+        setPaperStackExiting(false);
+        clearPaperStack();
+        void chromeRouter.navigate({
+          to: origin.returnTo.to,
+          params: origin.returnTo.params ?? {},
+          search: noteDockReturnSearch(origin),
+        });
+      }, PROTO_RESOURCE_MORPH_MS);
+      return;
+    }
+
+    const alreadyOnOrigin =
+      origin.kind === 'reader' ? isPrototypeReadPath(pathname) : isPrototypeHomePath(pathname);
+    stackedNoteHrefRef.current = alreadyOnOrigin ? null : pathname;
+    setStackSheetOpen(false);
+    // On a phone the Home cards live in the drawer, so flipping down to Home has to open it
+    // or the flip lands on an empty pane with the reason you came nowhere in sight.
+    if (origin.kind === 'homeCard' && isMobileSidebar) openDrawer();
+    if (alreadyOnOrigin) return; // compose never left the origin
     void chromeRouter.navigate({
-      to: prototypeReadRouteTo(),
-      params: { book: stack.book, chapter: String(stack.chapter) },
-      search: { v: stack.fromVerse ? String(stack.fromVerse) : undefined, t: stack.translation },
+      to: origin.returnTo.to,
+      params: origin.returnTo.params ?? {},
+      search: origin.returnTo.search ?? {},
     });
-  }, [readerStack, setReaderSheetOpen, pathname, chromeRouter]);
+  }, [
+    paperStack,
+    paperStackExiting,
+    setStackSheetOpen,
+    clearPaperStack,
+    openDrawer,
+    isMobileSidebar,
+    pathname,
+    chromeRouter,
+  ]);
 
   const handleFlipSheetUp = useCallback(() => {
-    setReaderSheetOpen(true);
+    setStackSheetOpen(true);
     const href = stackedNoteHrefRef.current;
     stackedNoteHrefRef.current = null;
     // An unsaved compose draft has no address of its own; it simply reappears.
     if (href) void chromeRouter.navigate({ to: href });
-  }, [setReaderSheetOpen, chromeRouter]);
+  }, [setStackSheetOpen, chromeRouter]);
   const isAdminRoute = isPrototypeAdminPath(pathname);
   const isSettingsRoute = isPrototypeSettingsPath(pathname);
   /** Desktop modal: keep last main paint under the settings portal. Mobile sheet keeps current Outlet. */
@@ -796,14 +876,15 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             hidden={desktopSettingsKeepAlive || undefined}
             aria-hidden={desktopSettingsKeepAlive || undefined}
           >
-            {readerStack ? (
-              <PrototypeReaderPaperStack
-                stack={readerStack}
+            {paperStack ? (
+              <PrototypePaperStack
+                stack={paperStack}
+                exiting={paperStackExiting}
                 onFlipDown={handleFlipSheetDown}
                 onFlipUp={handleFlipSheetUp}
               >
                 {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
-              </PrototypeReaderPaperStack>
+              </PrototypePaperStack>
             ) : hostNoteInLayout ? (
               <PrototypeNotePage />
             ) : (
@@ -831,7 +912,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             It still goes down with a stacked note sheet: with the note flipped away the bar
             below it belongs to the chapter, and leaving the note's toolbar hovering over
             Scripture would also cover the way back up to the note. */}
-        {(isNoteRoute || isPrototypeReadPath(pathname)) && (!readerStack || readerStack.open) ? (
+        {(isNoteRoute || isPrototypeReadPath(pathname)) && (!paperStack || paperStack.open) ? (
           <PrototypeEditorChromeBar />
         ) : null}
         </div>

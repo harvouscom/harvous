@@ -309,6 +309,12 @@ interface TiptapEditorProps {
   /** Opens a file library item (signed-URL resolve lives with the SPA's data layer). */
   onOpenResourceFile?: (libraryItemId: string) => void;
   /**
+   * Prototype-only: a scripture dock expanding one step further, into the Bible reader. The
+   * SPA stacks the reader over this note and collapses back to the dock; the editor only
+   * hands over what the dock is showing.
+   */
+  onExpandScriptureToReader?: (payload: { reference: string; translation: string }) => void;
+  /**
    * Prototype-only: when provided, the prototype-native format toolbar is rendered
    * via `createPortal` into this element instead of inline. This lets the parent
    * pin the bar to the bottom of the editor column (sibling of the scroll
@@ -4117,6 +4123,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   onReferenceDeepLinkHandoff,
   initialResourceDock = null,
   onOpenResourceFile,
+  onExpandScriptureToReader,
   prototypeScripturePillOpenRequest = null,
   onPrototypeScripturePillOpenRequestConsumed,
   onPrototypeScripturePillOpenRequestUnresolved,
@@ -9752,6 +9759,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       reference={entry.session.reference}
                       translation={entry.session.translation}
                       sourceNoteId={sourceNoteId ?? null}
+                      onExpandToReader={onExpandScriptureToReader}
                       initialPillAccent={entry.session.pillAccent}
                       interactionActive={isActive}
                       animateEnter={false}

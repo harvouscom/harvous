@@ -20,6 +20,7 @@ import {
 } from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
+import { buildRevisitCardStackOrigin } from './paper-stack-origins';
 import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -644,6 +645,7 @@ export default function PrototypeSidebarHomeView({
     isMobileSidebar,
     closeDrawer,
     openStandaloneScripturePassage,
+    stackNote,
   } = useProtoShell();
 
   const tagsSettled = isQuerySettled(tagsQuery.isPending, tagsQuery.data != null);
@@ -857,12 +859,23 @@ export default function PrototypeSidebarHomeView({
   ]);
   const revisitOnHome = continueIsActive ? revisitNote : undefined;
 
-  // Opening the resurfaced note re-engages it: lengthen its forgetting interval before routing.
+  /**
+   * The resurfaced note opens as a sheet over the card that surfaced it, so the edge above the
+   * note says why it is open — "Worth another look" — and flipping it down shows the card
+   * again rather than a blank pane. Stacked before routing; the navigation itself is unchanged.
+   */
   const handleOpenRevisitNote = useCallback(
     (row: SpaceNoteRow) => {
+      stackNote(
+        buildRevisitCardStackOrigin({
+          title: row.title,
+          meta: protoRelativeCaptionAbbrev(row.updatedAt ?? row.createdAt ?? null),
+        }),
+        row.id,
+      );
       onOpenNote(row);
     },
-    [onOpenNote],
+    [onOpenNote, stackNote],
   );
   const handleRecallSynced = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] });

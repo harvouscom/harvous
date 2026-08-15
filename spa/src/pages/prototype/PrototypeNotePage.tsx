@@ -8,6 +8,7 @@ import {
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
 import {
   normalizePrototypeApiSpaceId,
@@ -16,7 +17,8 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
-import { detectScriptureReferences } from '@/utils/scripture-detector';
+import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
+import { buildNoteDockOrigin } from './paper-stack-origins';
 import {
   getNoteIdFromCreateResponse,
   shouldUseNoteOnlyParentThreadCache,
@@ -309,6 +311,7 @@ export default function PrototypeNotePage() {
     setSidebarLayer,
     ensureSidebarExpanded,
     openDrawer,
+    stackNote,
   } = useProtoShell();
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   // Compose-on-home has no note segment — treat as draft slug while the shell session is active.
@@ -2077,6 +2080,41 @@ export default function PrototypeNotePage() {
     shared space: a sermon draft is private, and "add this to the church's plan"
     is not an offer to make about somebody else's note in somebody else's room.
   */
+  /**
+   * A scripture dock expanding one step further, into the Bible reader.
+   *
+   * The reader stacks over this note as a sheet, the inverse of a note over the reader; the
+   * edge above the chapter says this note's title, and tapping it collapses back to the note
+   * with its dock reopened. `returnTo` is captured here, at expand time, and that is the
+   * anchor rule: read three chapters on and collapse, and the dock comes back on the pill's
+   * reference, because the reader never touches what was captured. A draft has no address to
+   * return to, so it does not offer this.
+   */
+  const handleExpandScriptureToReader = useCallback(
+    ({ reference, translation }: { reference: string; translation: string }) => {
+      if (isDraft || !noteId) return;
+      const parsed = parseScriptureReference(reference);
+      if (!parsed) return;
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      stackNote(
+        buildNoteDockOrigin({
+          noteId,
+          noteTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
+          reference,
+          translation,
+          spaceId: contextSpaceId,
+        }),
+        noteId,
+      );
+      void navigate({
+        to: prototypeReadRouteTo(),
+        params: { book: parsed.book, chapter: String(parsed.chapter) },
+        search: { v: verseStart ? String(verseStart) : undefined, t: translation },
+      });
+    },
+    [isDraft, noteId, liveNoteSnapshot.title, prototypeDisplayTitle, contextSpaceId, stackNote, navigate],
+  );
+
   const canManageChurchPlan = canChurchForTemplates('manage_teaching_plan');
   const inspectorTeachingPlan =
     canManageChurchPlan && churchOrgId && !isDraft && noteId && !sharedActionSpaceId
@@ -2378,6 +2416,7 @@ export default function PrototypeNotePage() {
                 initialReferenceRequestKey={initialReferenceRequestKey}
                 initialResourceDock={initialResourceDock}
                 onOpenResourceFile={(libraryItemId) => void openLibraryFileItem(libraryItemId)}
+                onExpandScriptureToReader={handleExpandScriptureToReader}
                 initialScriptureDock={initialScriptureDock}
                 initialCrossRefTarget={initialCrossRefTarget}
                 initialHighlightDock={initialHighlightDock}

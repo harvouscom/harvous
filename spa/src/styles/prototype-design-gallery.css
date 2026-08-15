@@ -409,10 +409,15 @@
 }
 
 .pds-gallery-reader-stack {
+  /* A flex column so the real PrototypePaperStack (flex: 1 1 auto, absolute children) takes
+     the frame's height instead of collapsing to nothing. */
+  display: flex;
+  flex-direction: column;
   height: 300px;
   border: 0.5px solid var(--pds-border);
   border-radius: var(--pds-radius-card);
   background-color: var(--pds-bg-page);
+  overflow: hidden;
 }
 
 .pds-gallery-reader-note {

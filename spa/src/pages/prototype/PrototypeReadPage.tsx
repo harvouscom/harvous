@@ -11,7 +11,7 @@ import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useProtoShell, type PaperStackOrigin } from '../../layouts/proto-shell-context';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { noteParamSlug } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -59,7 +59,7 @@ export default function PrototypeReadPage() {
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const {
     beginPrototypeComposeSession,
-    stackNoteOverReader,
+    stackNote,
     inspectorOpen,
     inspectorExiting,
     closeInspector,
@@ -121,6 +121,26 @@ export default function PrototypeReadPage() {
   );
 
   /**
+   * This chapter as the paper a note stacks over. `returnTo` is where flipping the note down
+   * lands — this chapter, at the verse the note was started from, in this translation — and
+   * it is captured now so it still points here after the note's own URL has changed.
+   */
+  const readerOrigin = useCallback(
+    (fromVerse: number | undefined): PaperStackOrigin => ({
+      kind: 'reader',
+      label: `${book} ${chapter}`,
+      icon: 'scroll',
+      returnTo: {
+        to: prototypeReadRouteTo(),
+        params: { book, chapter: String(chapter) },
+        search: { v: fromVerse ? String(fromVerse) : undefined, t: translation },
+      },
+      base: { type: 'reader', book, chapter, translation, fromVerse },
+    }),
+    [book, chapter, translation],
+  );
+
+  /**
    * The signature move: chosen verses become a note that slides over the chapter.
    *
    * No navigation — the compose session opens on this same `/read/...` address and the
@@ -136,9 +156,9 @@ export default function PrototypeReadPage() {
         targetSpaceId: homeSpaceId ?? undefined,
         seed: { contentHtml: buildVotdScripturePillHtml(reference, translation) },
       });
-      stackNoteOverReader({ book, chapter, translation, fromVerse: start });
+      stackNote(readerOrigin(start));
     },
-    [book, chapter, translation, homeSpaceId, beginPrototypeComposeSession, stackNoteOverReader],
+    [homeSpaceId, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
   );
 
   /**
@@ -164,14 +184,14 @@ export default function PrototypeReadPage() {
     (noteId: string) => {
       // Stack it over the chapter rather than replacing it — the passage is the context
       // the note was written about, and the reader should still be there behind it.
-      stackNoteOverReader({ book, chapter, translation, fromVerse: focusVerse });
+      stackNote(readerOrigin(focusVerse), noteId);
       void navigate({
         to: prototypeNoteRouteTo(),
         params: { noteId: noteParamSlug(noteId) },
         search: {},
       });
     },
-    [book, chapter, translation, focusVerse, stackNoteOverReader, navigate],
+    [focusVerse, stackNote, readerOrigin, navigate],
   );
 
   // Reuses the reader's own cached chapter query, so opening the inspector costs nothing.

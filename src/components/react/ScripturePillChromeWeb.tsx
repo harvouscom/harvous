@@ -124,6 +124,13 @@ export interface ScripturePillChromeWebProps {
   ) => void;
   /** Related note tapped in the passage context strip — caller navigates to it. */
   onNavigateNote?: (noteId: string) => void;
+  /**
+   * Expand one step further than the dock can: into the full Bible reader at this reference.
+   * A scripture dock is a snippet view of the reader, so this is the dock growing into the
+   * surface it is a snippet of; the caller stacks the reader over the note and collapses back
+   * to the dock. Offered only when the caller can take you back — omitted for read-only cards.
+   */
+  onExpandToReader?: (payload: { reference: string; translation: string }) => void;
   /** Cross-reference tapped in the context strip — caller opens it as a read-only passage card. */
   onOpenScripturePassage?: (reference: string, translation: string) => void;
   /** Read-only passage card (e.g. a cross-reference) — no pill write-back or highlight chrome. */
@@ -150,6 +157,7 @@ export default function ScripturePillChromeWeb({
   editorChromeMode = 'default',
   onOpenPassageReference,
   onNavigateNote,
+  onExpandToReader,
   onOpenScripturePassage,
   readOnly = false,
 }: ScripturePillChromeWebProps) {
@@ -762,6 +770,17 @@ export default function ScripturePillChromeWeb({
       // there; a colour change is not a one-tap-per-visit action.
       headerPrimaryActions={
         <>
+          {onExpandToReader && !readOnly ? (
+            <button
+              type="button"
+              className="study-dock-card__header-btn"
+              onClick={() => onExpandToReader({ reference: displayRefString, translation: trans })}
+              title="Open in the Bible reader"
+              aria-label="Open in the Bible reader"
+            >
+              <Icon name="up-right-and-down-left-from-center" size={12} />
+            </button>
+          ) : null}
           <button
             type="button"
             className={`study-dock-card__header-btn${showCrossRefs ? ' study-dock-card__header-btn--active' : ''}`}

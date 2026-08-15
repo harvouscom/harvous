@@ -17681,10 +17681,16 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /* ── Paper stack ──
-   The reader is the base paper; a note stacks over it. The reader's top edge
-   stays visible and is itself the way back — the same affordance Basecamp uses
-   for a card opened over its parent. */
-.pds-reader-stack {
+   A sheet stacked over the paper it came from — the reader under a note, a Home
+   card under a note, a note under an expanded reader. The origin's top edge stays
+   visible and is itself the way back, the affordance Basecamp uses for a card
+   opened over its parent.
+
+   The edge is the base paper's OWN edge. Earlier this was a painted strip pinned to
+   the pane's top, which read as a toolbar breadcrumb; the sliced heading it hid was
+   a symptom of the base having no chrome of its own. Now the base is inset with its
+   own rounded corners and surface, and the geometry does what the paint used to. */
+.pds-paper-stack {
   position: relative;
   isolation: isolate;
   display: flex;
@@ -17696,18 +17702,58 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow: hidden;
 }
 
-.pds-reader-stack__base {
+/* The base paper: inset so canvas shows around it, so its top edge reads as a card
+   sitting behind the sheet and not as the pane's own background. Same opaque paper
+   composite as the sheet, one step lighter in shadow so the sheet reads nearer. */
+.pds-paper-stack__base {
   position: absolute;
-  inset: 0;
+  inset: var(--pds-space-2) var(--pds-space-3) 0;
   z-index: var(--pds-z-base);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  box-shadow: var(--pds-shadow-paper-stack-base);
+  transform-origin: top center;
 }
 
-/* Peeking edge: the strip of reader left uncovered. Labelled with where you
-   will land, because an unlabelled strip reads as a rendering seam. */
-.pds-reader-stack__peek {
+/* Origin card — what a non-reader base shows. Restates the card that sent you,
+   centred where the sheet's shadow falls, so a flip-down lands on "this is why you
+   were here" rather than on a blank paper. */
+.pds-paper-stack__origin-card {
+  margin: auto;
+  max-width: 360px;
+  padding: var(--pds-space-6) var(--pds-space-5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pds-space-2);
+  text-align: center;
+  color: var(--pds-text-primary);
+}
+
+.pds-paper-stack__origin-orb {
+  margin-bottom: var(--pds-space-1);
+}
+
+.pds-paper-stack__origin-eyebrow,
+.pds-paper-stack__origin-meta {
+  margin: 0;
+  color: var(--pds-text-secondary);
+}
+
+.pds-paper-stack__origin-title {
+  margin: 0;
+}
+
+/* The edge: a transparent hit target over the exposed top of the base. It paints
+   nothing of its own — the base's corners and surface are the visual — so it can be
+   generous about height without ever looking like a bar. Sits over the base only;
+   the sheet's own top edge is below it. */
+.pds-paper-stack__edge {
   position: absolute;
   inset: 0 0 auto;
   z-index: var(--pds-z-sticky);
@@ -17715,30 +17761,27 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   align-items: center;
   gap: var(--pds-space-2);
   width: 100%;
-  height: var(--pds-reader-stack-peek, 44px);
-  padding: 0 var(--pds-space-4);
+  height: calc(var(--pds-paper-stack-peek) + var(--pds-space-2));
+  padding: 0 var(--pds-space-5);
   border: none;
+  background: none;
   cursor: pointer;
   text-align: start;
   color: var(--pds-text-secondary);
-  /* Opaque, and the same paper composite as the sheet: this strip is the reader's
-     own top edge. Left transparent it shows a sliced chapter heading, which reads
-     as a rendering seam rather than a document waiting underneath. */
-  background-color: var(--pds-canvas-default);
-  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  transition: color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-.pds-reader-stack__peek:hover {
+.pds-paper-stack__edge:hover {
   color: var(--pds-text-primary);
 }
 
-.pds-reader-stack__peek:focus-visible {
+.pds-paper-stack__edge:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: -2px;
-  border-radius: var(--pds-radius-button);
+  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
 }
 
-.pds-reader-stack__sheet {
+.pds-paper-stack__sheet {
   position: absolute;
   inset: 0;
   z-index: var(--pds-z-dropdown);
@@ -17747,7 +17790,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   min-height: 0;
   /* Paper is translucent by design so the canvas reads through it. A stacked
      sheet has another document directly behind it, so it composites that same
-     paper over an opaque canvas — otherwise the reader bleeds through the note
+     paper over an opaque canvas — otherwise the base bleeds through the note
      and the two papers read as one screen. Both tokens carry dark/wallpaper
      overrides, so the sheet follows appearance without a bespoke colour. */
   background-color: var(--pds-canvas-default);
@@ -17757,19 +17800,89 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      papers of near-identical value, and the sheet's top edge is the one line that
      has to stay readable for the stack to read as a stack. */
   box-shadow: 0 -0.5px 0 0 var(--pds-border), var(--pds-shadow-card);
-  transform: translateY(var(--pds-reader-stack-peek, 44px));
+  transform: translateY(var(--pds-paper-stack-peek));
   transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
+}
+
+/* Entrance: the sheet slides up over the base. Runs once on mount, and only while
+   the sheet is up — a finished keyframe with `fill: both` would pin the sheet's
+   transform at the keyframe's last frame, so the flip-down rule below could never
+   move it. Scoped to the stacked state, the animation ends, and the transition
+   owns every move after it. */
+.pds-paper-stack__sheet[data-stacked='true'] {
+  animation: pds-paper-stack-enter var(--pds-duration-paper-stack) var(--pds-ease-emphasized) backwards;
+}
+
+/* The playful touch: the base visibly takes the sheet's weight as it lands — a
+   settle, delayed a beat so it reads as a consequence rather than a coincidence.
+   Transform only, one layer; `backwards` so it never pins a scale after finishing. */
+.pds-paper-stack__base {
+  animation: pds-paper-stack-settle var(--pds-duration-paper-stack) var(--pds-ease-emphasized) 80ms backwards;
+}
+
+/* Hover on the edge nudges the sheet down a touch — "show me a little more of the
+   paper" — so the tap it invites is already half-happening. */
+.pds-paper-stack:has(.pds-paper-stack__edge:hover) .pds-paper-stack__sheet[data-stacked='true'] {
+  transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
 }
 
 /* Resting off-screen. Kept mounted — the draft and the reading position both
    survive, which is the whole point of stacking rather than routing. */
-.pds-reader-stack__sheet[data-stacked='false'] {
+.pds-paper-stack__sheet[data-stacked='false'] {
   transform: translateY(100%);
   pointer-events: none;
 }
 
+/* A scripture dock expanding into the reader is a MORPH, not a slide: the sheet
+   grows up out of where the dock sat in the bottom chrome. Same duration as the
+   resource morph it is a cousin of. */
+.pds-paper-stack[data-origin-kind='noteDock'] .pds-paper-stack__sheet[data-stacked='true'] {
+  transform-origin: bottom center;
+  animation: pds-paper-stack-expand var(--pds-duration-morph) var(--pds-ease-emphasized) backwards;
+}
+
+/* Collapse: the reverse morph, held on screen just long enough to play before the
+   stack clears and the note's own dock enter-animation finishes the story. */
+.pds-paper-stack[data-origin-kind='noteDock'][data-exiting='true'] .pds-paper-stack__sheet {
+  /* `forwards` here on purpose: the sheet must stay faded at the end frame until the
+     stack clears, or it would pop back to full opacity for a frame before unmounting. */
+  animation: pds-paper-stack-collapse var(--pds-duration-morph) var(--pds-ease-emphasized) forwards;
+  pointer-events: none;
+}
+
+@keyframes pds-paper-stack-enter {
+  from { transform: translateY(100%); }
+  to { transform: translateY(var(--pds-paper-stack-peek)); }
+}
+
+@keyframes pds-paper-stack-settle {
+  0% { transform: scale(1); }
+  55% { transform: scale(0.99); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pds-paper-stack-expand {
+  from { transform: translateY(var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
+  to { transform: translateY(var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
+}
+
+@keyframes pds-paper-stack-collapse {
+  from { transform: translateY(var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
+  to { transform: translateY(var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
+}
+
+/* Phones: the toolbar's sidebar toggle already owns the top of the pane, so the
+   edge tightens rather than competing for it. */
+@media (max-width: 899px) {
+  .pds-paper-stack {
+    --pds-paper-stack-peek: 40px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pds-reader-stack__sheet {
+  .pds-paper-stack__sheet,
+  .pds-paper-stack__base {
+    animation: none;
     transition: none;
   }
 
@@ -17901,7 +18014,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 /* Way back up to a note flipped below the fold. Sits where the sheet went down, so the
    note reads as parked rather than discarded. */
-.pds-reader-stack__resume {
+.pds-paper-stack__resume {
   position: absolute;
   left: 50%;
   bottom: var(--pds-space-5);
@@ -17922,7 +18035,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   cursor: pointer;
 }
 
-.pds-reader-stack__resume:focus-visible {
+.pds-paper-stack__resume:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: 2px;
 }

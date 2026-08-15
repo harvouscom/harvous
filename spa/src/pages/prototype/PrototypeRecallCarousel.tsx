@@ -5,6 +5,8 @@ import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { recordRecallOpportunityEvent } from './proto-recall-events';
 import { recordRecallSectionEngaged } from './proto-recall-cooldown';
 import PrototypeCardStack from './PrototypeCardStack';
+import { useProtoShell } from '../../layouts/proto-shell-context';
+import { buildRecallCardStackOrigin } from './paper-stack-origins';
 
 /**
  * One swipeable carousel of recall opportunities on the prototype Home — a fading meaningful note, a
@@ -43,6 +45,7 @@ export default function PrototypeRecallCarousel({
   onRecallSynced?: () => void;
   homeSpaceId?: string | null;
 }) {
+  const { stackNote } = useProtoShell();
   const lastImpressionIdRef = useRef<string | null>(null);
 
   /**
@@ -107,6 +110,18 @@ export default function PrototypeRecallCarousel({
       recordRecallSectionEngaged(homeSpaceId, op.canonSection);
     }
     onOpened?.(op.id);
+    /**
+     * When the card opens a note, that note stacks over the card: the edge above it says why
+     * it is open, and flipping it down brings the card back. Only for kinds that open an
+     * existing note — generative kinds create a draft, and sidebar-layer kinds put nothing over
+     * anything — see `buildRecallCardStackOrigin`.
+     *
+     * The stack is set here, at the one place every card passes through, rather than in each
+     * of the dozen `onOpen` closures. `op.noteId` is not passed along: for highlight kinds it is
+     * the highlight row id, and the layout adopts the note id from wherever the open lands.
+     */
+    const origin = buildRecallCardStackOrigin(op);
+    if (origin) stackNote(origin);
     op.onOpen();
   };
 
