@@ -166,6 +166,20 @@ export async function materializeReaderHighlight(
   });
 
   return db.transaction(async (tx) => {
+    // Take the per-user lock before looking for the chapter's note. Two highlights landing
+    // in the same chapter at once would otherwise both find nothing and both create one,
+    // leaving the chapter with two passage notes. Locking first makes find-or-create atomic
+    // per user; the row is needed for simpleNoteId on the create path anyway.
+    const metadata = first(
+      await tx
+        .select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId })
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, userId))
+        .for('update')
+        .limit(1),
+    );
+    if (!metadata) throw new Error('User metadata missing while creating a reader passage note');
+
     // The reader keeps one note per chapter, identified by its provenance plus the
     // passage its metadata records.
     const existing = first(
@@ -209,17 +223,6 @@ export async function materializeReaderHighlight(
       noteId = generateNoteId();
       const title = readerPassageNoteTitle(input.book, input.chapter);
 
-      // simpleNoteId is a per-user counter; lock the metadata row the way the scripture
-      // note path does so two concurrent highlights cannot claim the same number.
-      const metadata = first(
-        await tx
-          .select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId })
-          .from(UserMetadata)
-          .where(eq(UserMetadata.userId, userId))
-          .for('update')
-          .limit(1),
-      );
-      if (!metadata) throw new Error('User metadata missing while creating a reader passage note');
       const latestNote = first(
         await tx
           .select({ simpleNoteId: Notes.simpleNoteId })

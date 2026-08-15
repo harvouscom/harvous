@@ -2,9 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import { parseScriptureReference } from '@/utils/scripture-detector';
-import { isStudyHighlightAccentKey, studyDockAccentCssVar } from '@/utils/study-highlight-accents';
+import { toast } from '@/utils/toast';
+import {
+  isStudyHighlightAccentKey,
+  studyDockAccentCssVar,
+  STUDY_HIGHLIGHT_ACCENT_LABELS,
+  STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL,
+  type StudyHighlightAccentKey,
+} from '@/utils/study-highlight-accents';
 import type { StandaloneScripturePassageState } from '../../layouts/proto-shell-context';
 import { useReaderChapter, type ReaderVerseStudy } from '../../hooks/queries/useReaderChapter';
+import { useCreateReaderHighlight } from '../../hooks/mutations/useCreateReaderHighlight';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 
 /**
  * Swatch fill for a highlight's row in the study list. The verse text itself is painted by
@@ -75,6 +84,31 @@ export default function PrototypeStandaloneScripturePassagePane({
 
   const heading = chapterData ? `${chapterData.book} ${chapterData.chapter}` : state.canonicalReference;
 
+  // Highlighting: pick a pen, then tap a verse. The highlight attaches to the chapter's
+  // passage note, which the server creates on the first highlight here.
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const [pen, setPen] = useState<StudyHighlightAccentKey>('warmAmber');
+  const createHighlight = useCreateReaderHighlight();
+
+  const highlightVerse = (verse: number) => {
+    if (!chapterData || createHighlight.isPending) return;
+    if (study[String(verse)]?.highlights.length) return;
+    createHighlight.mutate(
+      {
+        book: chapterData.book,
+        chapter: chapterData.chapter,
+        verseStart: verse,
+        translation: chapterData.translation,
+        accent: pen,
+        homeSpaceId,
+      },
+      {
+        // The optimistic mark is rolled back by the hook; say why it vanished.
+        onError: () => toast.error('Could not save that highlight'),
+      },
+    );
+  };
+
   return (
     <div className="proto-standalone-passage proto-theme" style={{ padding: '20px 24px', maxWidth: 720, margin: '0 auto' }}>
       <div
@@ -99,6 +133,39 @@ export default function PrototypeStandaloneScripturePassagePane({
           Done
         </button>
       </div>
+
+      {parsed && verses.length > 0 ? (
+        <div
+          role="radiogroup"
+          aria-label="Highlight colour"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}
+        >
+          {STUDY_HIGHLIGHT_SWATCHES_NO_NEUTRAL.map((accent) => (
+            <button
+              key={accent}
+              type="button"
+              role="radio"
+              aria-checked={pen === accent}
+              aria-label={STUDY_HIGHLIGHT_ACCENT_LABELS[accent]}
+              title={STUDY_HIGHLIGHT_ACCENT_LABELS[accent]}
+              onClick={() => setPen(accent)}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 6,
+                padding: 0,
+                cursor: 'pointer',
+                background: studyDockAccentCssVar(accent),
+                border:
+                  pen === accent ? '2px solid var(--pds-text-primary)' : '0.5px solid var(--pds-border)',
+              }}
+            />
+          ))}
+          <span className="proto-caption" style={{ marginLeft: 4 }}>
+            {createHighlight.isPending ? 'Saving…' : 'Tap a verse to highlight'}
+          </span>
+        </div>
+      ) : null}
 
       <div
         className="proto-standalone-passage__body"
@@ -139,6 +206,10 @@ export default function PrototypeStandaloneScripturePassagePane({
               const topHighlight = slot?.highlights[0];
               const isFocused =
                 focusStart != null && focusEnd != null && v.verse >= focusStart && v.verse <= focusEnd;
+              const alreadyHighlighted = Boolean(slot?.highlights.length);
+              // The verse text has to stay inline for the passage to read as prose, so it
+              // carries the button role rather than being wrapped in one.
+              const interactive = !alreadyHighlighted && !createHighlight.isPending;
               return (
                 <p
                   key={v.verse}
@@ -146,9 +217,23 @@ export default function PrototypeStandaloneScripturePassagePane({
                   className="proto-standalone-passage__verse"
                   data-verse={v.verse}
                   data-focused={isFocused ? 'true' : 'false'}
+                  role={interactive ? 'button' : undefined}
+                  tabIndex={interactive ? 0 : undefined}
+                  aria-label={interactive ? `Highlight verse ${v.verse}` : undefined}
+                  onClick={interactive ? () => highlightVerse(v.verse) : undefined}
+                  onKeyDown={
+                    interactive
+                      ? (e) => {
+                          if (e.key !== 'Enter' && e.key !== ' ') return;
+                          e.preventDefault();
+                          highlightVerse(v.verse);
+                        }
+                      : undefined
+                  }
                   style={{
                     margin: '0 0 8px',
                     lineHeight: 1.6,
+                    cursor: interactive ? 'pointer' : 'default',
                     // The verses this pane was opened for stay legible against the rest.
                     opacity: focusStart == null || isFocused ? 1 : 0.72,
                   }}
