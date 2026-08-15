@@ -507,63 +507,45 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   flex-shrink: 0;
 }
 
-.proto-sidebar-back-row__button {
+/*
+  Where you are, and the way back out of it — the same anatomy as the shared-space Thread
+  drilldown: a tile you press to leave, then the name with its kind beneath it.
+
+  This used to be a single flat text row — small chevron, kind as a pill, label — which made
+  the way back a line of prose to read rather than a target to hit, and made the same
+  destination look like two different controls depending on which drilldown you were in.
+*/
+.proto-sidebar-back-row__meta {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation);
-  color: var(--pds-text-primary);
-  line-height: 1.35;
-}
-
-.proto-sidebar-back-row__button:hover {
-  color: var(--pds-text-primary);
-}
-
-.proto-sidebar-back-row__button:focus-visible {
-  outline: none;
-  border-radius: var(--pds-radius-menu-item);
-  box-shadow: none;
-}
-
-.proto-sidebar-back-row__chevron {
-  flex-shrink: 0;
-  color: var(--pds-text-secondary);
-}
-
-.proto-sidebar-back-row__kind {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--pds-bg-faint);
-  border: 0.5px solid var(--pds-border-control);
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation-chip);
-  line-height: 1.4;
-  color: var(--pds-text-secondary);
-  white-space: nowrap;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .proto-sidebar-back-row__label {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--pds-text-primary);
+}
+
+/* The kind sits under the name as a caption, not beside it as a pill: it says what sort of
+   thing this is, which is context for the title rather than a peer of it.
+ *
+ * Its line-height is pinned rather than inherited. `.proto-shell` sets 1.45, which on 13px
+ * text reserves ~3px of empty leading above the glyphs — so the pair read as loosely spaced
+ * no matter how small the flex `gap` was, because the space was inside the caption's own box
+ * rather than between the two boxes. The drilldown this mirrors pins its own for the same
+ * reason. */
+.proto-sidebar-back-row__kind {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+  color: var(--pds-text-secondary);
 }
 
 /* Menu row labels — list-title typography (matches note-row .pds-list-title). */
@@ -12506,13 +12488,25 @@ p.proto-teaching-plan__divider {
   drift — `.proto-church-tools__back` used to carry no CSS whatsoever, leaving
   the church one styled entirely by the icon tile it borrowed.
 
-  Sizing comes from the tile class it is used with; this adds the interaction.
+  Self-sufficient: it used to carry interaction only and take its size from whatever tile class
+  it was paired with, which meant it could not be used anywhere that had no such tile to borrow
+  from. The values below are the ones `.proto-shared-space-header__church-icon` already
+  supplies, so the two existing call sites are unchanged by stating them here.
 */
 .proto-sidebar-back-tile {
   appearance: none;
   border: none;
   cursor: pointer;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
 }
 
 @media (hover: hover) {
@@ -13649,13 +13643,11 @@ html.harvous-prototype-route
  * press-and-hold on the row itself, which is why the drag listeners live on the row
  * rather than here (see SpaceSwitcherRow).
  */
+/* In flow at the trailing edge, matching `.proto-thread-trail__drag-handle`. Absolute
+   positioning over the left edge meant the grip covered the space icon, and it made this the
+   only reorderable list in the app you dragged from the left. */
 .proto-space-switcher__row--reorderable .proto-space-switcher__drag-handle {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  height: auto;
-  z-index: 1;
+  align-self: center;
   opacity: 0;
   transition: opacity 0.12s;
 }
@@ -13673,10 +13665,14 @@ html.harvous-prototype-route
   opacity: 0.75;
 }
 
-.proto-space-switcher__row--reorderable:hover .proto-menu-item__icon--space,
-.proto-space-switcher__row--reorderable:has(:focus-visible) .proto-menu-item__icon--space {
-  opacity: 0;
-}
+/*
+ * The space icon stays put on hover and while dragging.
+ *
+ * It used to fade to nothing here, because the grip was positioned on top of it and the two
+ * could not both be seen — so pointing at a row cost you the one mark that told the rows
+ * apart, right at the moment you were choosing between them. With the grip moved to the
+ * trailing edge there is nothing to make room for.
+ */
 
 .proto-space-switcher__row--dragging {
   opacity: 0.35;
@@ -13749,9 +13745,9 @@ html.harvous-prototype-route
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  height: 22px;
+  border-radius: 6px;
   opacity: 0.55;
-  /* Match menu-item leading icon optical center (plus row below). */
-  transform: translateX(3px);
 }
 
 /*
