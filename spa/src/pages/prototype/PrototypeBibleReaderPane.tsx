@@ -32,6 +32,7 @@ import {
   usePrefetchAdjacentChapters,
   usePrototypeBibleChapter,
 } from '../../hooks/queries/usePrototypeBibleChapter';
+import { useRecordReadingEvent } from '../../hooks/useRecordReadingEvent';
 import {
   getReadingPrefsServerSnapshot,
   getReadingPrefsSnapshot,
@@ -191,6 +192,13 @@ export default function PrototypeBibleReaderPane({
 
   /* Warm the neighbours so paging never shows a loading line — across books, too. */
   usePrefetchAdjacentChapters(book, chapter, translation);
+
+  /*
+   * Remember this was read — but only once it has arrived. Logging a chapter the reader is
+   * still waiting for would record intent rather than reading, and a chapter this translation
+   * does not carry would record a page that showed nothing.
+   */
+  useRecordReadingEvent(book, chapter, translation, { enabled: Boolean(data) });
 
   const verses = useMemo(() => data?.verses ?? [], [data]);
 

@@ -19,6 +19,8 @@ import {
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
 import { parseReaderQuery } from '@/utils/parse-reader-query';
+import { readingPositionReference } from '@/utils/reading-position';
+import { useReadingPosition } from '../../hooks/queries/useReadingPosition';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -624,6 +626,7 @@ export default function PrototypeSidebarHomeView({
   const crossRefConnectionsQuery = usePrototypeSpaceScriptureConnections(homeSpaceId);
   const referenceWordConnectionsQuery = usePrototypeSpaceReferenceWordConnections(homeSpaceId);
   const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
+  const readingPositionQuery = useReadingPosition({ enabled: Boolean(homeSpaceId) });
   // Only the greeting's first name needs Clerk, but presenting before it loads means the
   // greeting line rewrites itself a beat later — one more thing moving after first paint.
   const { isLoaded: clerkLoaded } = useUser();
@@ -698,6 +701,12 @@ export default function PrototypeSidebarHomeView({
     churchSermonsQuery.data != null,
   );
   const churchFeedSettled = isQuerySettled(churchFeedQuery.isPending, churchFeedQuery.data != null);
+  /*
+   * `data != null` will not do here: "no bookmark" is a legitimate answer and arrives as
+   * `null`, so waiting for data would hold Home forever for anyone who has not read yet.
+   */
+  const readingPositionSettled =
+    !readingPositionQuery.isPending || readingPositionQuery.isFetched || Boolean(readingPositionQuery.isError);
 
   // Home used to paint the moment notes resolved, then insert or remove a whole section
   // each time one of ~9 independent queries landed — the visible jumping. Wait for them
@@ -718,6 +727,7 @@ export default function PrototypeSidebarHomeView({
     recallHistorySettled,
     churchSermonsSettled,
     churchFeedSettled,
+    readingPositionSettled,
   });
 
   // Backstop: a disabled query stays `isPending` forever in React Query v5, so without a
@@ -750,6 +760,14 @@ export default function PrototypeSidebarHomeView({
    * fallback rather than Genesis 1: someone opening a Bible app for the first time is more
    * likely to be looking for Jesus than for a genealogy.
    */
+  /*
+   * Where reading actually stopped, which is a different question from which chapters the
+   * notes cite. Most reading leaves no note behind, and the chapter someone stopped in is
+   * precisely the one they have not written about — so inferring "keep going" from citations
+   * always pointed at where they had already been.
+   */
+  const readingPosition = readingPositionQuery.data ?? null;
+
   const firstRunPassage = useMemo(() => {
     const parsed = votd?.reference ? parseReaderQuery(votd.reference) : null;
     if (parsed) return parsed;
@@ -1341,7 +1359,38 @@ export default function PrototypeSidebarHomeView({
     }
 
     // ── Generative opportunities ("go make something new") ──
-    if (continueBookSuggestion) {
+    /*
+     * A real bookmark outranks the inference. When we know where reading stopped, "keep
+     * going" means go back to that chapter and read on — so this card opens the reader
+     * rather than a blank note, and the citation-derived guess below is left for accounts
+     * that have not read anything in-app yet.
+     */
+    if (readingPosition) {
+      const ref = readingPositionReference(readingPosition);
+      out.push({
+        id: `reading:${readingPosition.book}:${readingPosition.chapter}`,
+        kind: 'continueBook',
+        isGenerative: true,
+        score: 0.9,
+        eyebrow: 'Pick up where you left off',
+        title: ref,
+        meta: `Back to ${readingPosition.book} ${readingPosition.chapter}`,
+        iconName: 'book-open',
+        onOpen: () => {
+          void navigate({
+            to: prototypeReadRouteTo(),
+            params: {
+              book: readingPosition.book,
+              chapter: String(readingPosition.chapter),
+            },
+            search: {
+              v: readingPosition.verse ? String(readingPosition.verse) : undefined,
+              t: undefined,
+            },
+          });
+        },
+      });
+    } else if (continueBookSuggestion) {
       const ref = `${continueBookSuggestion.book} ${continueBookSuggestion.nextChapter}`;
       const chapterHighlight = findUnannotatedHighlightForChapter(
         highlightsWithRecency,
@@ -1494,6 +1543,8 @@ export default function PrototypeSidebarHomeView({
     openCrossRefConnection,
     openPassageConnection,
     continueBookSuggestion,
+    readingPosition,
+    navigate,
     recurringPerson,
     bareHighlight,
     highlightsWithRecency,

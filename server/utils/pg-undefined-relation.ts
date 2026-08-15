@@ -63,6 +63,10 @@ export function isRecallEventsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'RecallEvents');
 }
 
+export function isReadingEventsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'ReadingEvents');
+}
+
 export function isSupportTicketsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SupportTickets');
 }
@@ -117,6 +121,11 @@ export function isStudyThreadNamingColumnMissing(error: unknown): boolean {
     isPgUndefinedColumn(error, 'studyThreadLastAutoSuggestedAt') ||
     isPgUndefinedColumn(error, 'studyThreadTitle')
   );
+}
+
+/** The reading bookmark's column, before `create-reading-events.sql` has been applied. */
+export function isLastReadPositionColumnMissing(error: unknown): boolean {
+  return isPgUndefinedColumn(error, 'lastReadPosition');
 }
 
 export function isPrototypeFolderStatsColumnMissing(error: unknown): boolean {

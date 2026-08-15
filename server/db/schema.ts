@@ -1193,6 +1193,16 @@ export const UserMetadata = pgTable('UserMetadata', {
   tier: text('tier').notNull().default('free'),
   /** Polar customer id for portal sessions and subscription sync. */
   polarCustomerId: text('polarCustomerId'),
+  /**
+   * Where reading left off. JSON string:
+   * `{ book: string, chapter: number, verse?: number, translation?: string, at: ISO }`.
+   *
+   * Denormalized from the newest `ReadingEvents` row on purpose. "Where was I" is asked on
+   * every Home render and answered by one column read; deriving it would mean an ordered
+   * scan of an append-only log that only ever grows. The log stays the record of what was
+   * read; this is the bookmark.
+   */
+  lastReadPosition: text('lastReadPosition'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
@@ -1411,6 +1421,33 @@ export const RecallEvents = pgTable('RecallEvents', {
 }, (table) => [
   index('RecallEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('RecallEvents_kind_action_createdAtIndex').on(table.kind, table.action, table.createdAt),
+]);
+
+// ─── ReadingEvents (what chapters were actually read) ──────────────────────────
+
+/**
+ * Append-only log of chapters opened in the reader.
+ *
+ * Deliberately shaped like `RecallEvents`: one flat row per event, no updates, no deletes.
+ * A reading history is the sort of thing that becomes valuable in aggregate long after it is
+ * recorded — which chapters get returned to, what gets started and abandoned, how a habit
+ * actually looks — and none of that survives a table that overwrites itself.
+ *
+ * `Home`'s "continue" card reads the denormalized `UserMetadata.lastReadPosition` instead;
+ * this log is what the position is derived *from*, not what it is served from.
+ */
+export const ReadingEvents = pgTable('ReadingEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  /** Which text was in front of them — the same chapter reads differently in NLT and KJV. */
+  translation: text('translation'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('ReadingEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  // "How often has this chapter been read" without scanning a user's whole history.
+  index('ReadingEvents_userId_bookChapterIndex').on(table.userId, table.book, table.chapter),
 ]);
 
 // ─── SupportTickets (user feedback from settings support form) ─────────────────

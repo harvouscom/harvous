@@ -53,6 +53,7 @@ describe('isPrototypeHomePresentationReady', () => {
     recallHistorySettled: true,
     churchSermonsSettled: true,
     churchFeedSettled: true,
+    readingPositionSettled: true,
   };
 
   it('returns true when all presentation deps are settled', () => {
@@ -88,6 +89,7 @@ describe('isPrototypeHomePresentationReady', () => {
     ['recallHistorySettled'],
     ['churchSermonsSettled'],
     ['churchFeedSettled'],
+    ['readingPositionSettled'],
   ] as const)('returns false while %s is still loading', (flag) => {
     expect(isPrototypeHomePresentationReady({ ...readyBase, [flag]: false })).toBe(false);
   });
@@ -109,6 +111,7 @@ describe('home readiness composition', () => {
     recallHistorySettled: true,
     churchSermonsSettled: true,
     churchFeedSettled: true,
+    readingPositionSettled: true,
   };
 
   it('is not ready on notes alone', () => {
