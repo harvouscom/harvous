@@ -27,6 +27,7 @@ import {
   bookChapterCount,
   orderedCanonBooks,
 } from '@/utils/bible-book-chapters';
+import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
 import { PrototypePaneEmptyState } from './design-system';
 import {
   usePrefetchAdjacentChapters,
@@ -203,8 +204,21 @@ export default function PrototypeBibleReaderPane({
   const verses = useMemo(() => data?.verses ?? [], [data]);
 
   /* Options for the heading pickers, and where prev/next actually lead. */
+  /*
+   * Books under the sections the app already speaks in — Law, History, Wisdom, the prophets,
+   * the Gospels, Paul's letters. Home says "mostly in Law" from this same taxonomy, so the
+   * picker groups by it rather than inventing a second way to carve up the canon.
+   *
+   * It turns "scroll through sixty-six" into "find the section, then the book": twelve minor
+   * prophets is a glance, whereas the run from Hosea to Malachi in a flat list is not.
+   */
   const bookOptions = useMemo(
-    () => orderedCanonBooks().map((b) => ({ value: b, label: b })),
+    () =>
+      orderedCanonBooks().map((b) => ({
+        value: b,
+        label: b,
+        group: canonGroupForBook(b)?.label,
+      })),
     [],
   );
   const chapterOptions = useMemo(() => {

@@ -30,6 +30,12 @@ const OFFSET = 6;
 export type ProtoSelectOption<T extends string | number> = {
   value: T;
   label: string;
+  /**
+   * Optional heading this option sits under. Consecutive options sharing a group render
+   * beneath one sticky label — for lists long enough that "which part am I in" is a real
+   * question. Omit it and the menu is a flat list exactly as before.
+   */
+  group?: string;
 };
 
 export default function ProtoSelectMenu<T extends string | number>({
@@ -57,6 +63,7 @@ export default function ProtoSelectMenu<T extends string | number>({
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const menuId = useId();
 
@@ -104,6 +111,16 @@ export default function ProtoSelectMenu<T extends string | number>({
       );
     };
     update();
+
+    /*
+     * Open where you already are. A 66-book list that always starts at Genesis makes the
+     * reader scroll to find the chapter they are currently in before they can leave it —
+     * the one place in the list they did not need to be shown. `block: 'center'` rather
+     * than 'nearest' so the neighbours either side come with it, which is what makes the
+     * position legible as a position.
+     */
+    selectedRef.current?.scrollIntoView({ block: 'center' });
+
     /* Capture-phase: these open inside scrolling sheets, and a menu that stays
        put while its trigger slides away points at nothing. */
     window.addEventListener('resize', update);
@@ -171,34 +188,67 @@ export default function ProtoSelectMenu<T extends string | number>({
                 zIndex: 6000,
               }}
             >
-              <div className="proto-menu-section" role="group">
-                {options.map((option) => {
-                  const checked = option.value === value;
-                  return (
-                    <button
-                      key={String(option.value)}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={checked}
-                      className="proto-menu-item"
-                      onClick={() => {
-                        onChange(option.value);
-                        setOpen(false);
-                        triggerRef.current?.focus();
-                      }}
-                    >
-                      <span className="proto-menu-item__label">{option.label}</span>
-                      <span className="proto-menu-item__check" aria-hidden>
-                        {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              {groupOptions(options).map((section) => (
+                <div
+                  key={section.label ?? '__ungrouped__'}
+                  className="proto-menu-section"
+                  role="group"
+                  aria-label={section.label ?? undefined}
+                >
+                  {section.label ? (
+                    <div className="proto-menu-section-label proto-menu-section-label--sticky">
+                      {section.label}
+                    </div>
+                  ) : null}
+                  {section.options.map((option) => {
+                    const checked = option.value === value;
+                    return (
+                      <button
+                        key={String(option.value)}
+                        ref={checked ? selectedRef : undefined}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={checked}
+                        className="proto-menu-item"
+                        onClick={() => {
+                          onChange(option.value);
+                          setOpen(false);
+                          triggerRef.current?.focus();
+                        }}
+                      >
+                        <span className="proto-menu-item__label">{option.label}</span>
+                        <span className="proto-menu-item__check" aria-hidden>
+                          {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
             </ProtoPopoverShell>,
             document.body,
           )
         : null}
     </>
   );
+}
+
+/**
+ * Split options into consecutive runs sharing a group label.
+ *
+ * Runs, not a keyed bucket: the order the caller gave is the order that matters — for books
+ * that is the canon — and grouping by key would quietly reorder it. A list with no groups
+ * comes back as one unlabelled section, which renders exactly as the flat list it was.
+ */
+function groupOptions<T extends string | number>(
+  options: ProtoSelectOption<T>[],
+): { label: string | null; options: ProtoSelectOption<T>[] }[] {
+  const sections: { label: string | null; options: ProtoSelectOption<T>[] }[] = [];
+  for (const option of options) {
+    const label = option.group ?? null;
+    const current = sections[sections.length - 1];
+    if (current && current.label === label) current.options.push(option);
+    else sections.push({ label, options: [option] });
+  }
+  return sections;
 }

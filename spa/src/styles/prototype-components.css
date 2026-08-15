@@ -18592,3 +18592,18 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 .proto-translation-row__status + .proto-translation-row__action {
   margin-left: auto;
 }
+
+/*
+ * A section label that stays put while its own books scroll past it.
+ *
+ * Only for menus long enough to scroll — sticky is what makes the grouping useful mid-scroll
+ * rather than only at rest, since the whole question it answers ("which part of the canon am
+ * I looking at") is asked while moving. The popover is the scroll container, so the label
+ * needs its own background or the rows would read straight through it.
+ */
+.proto-menu-section-label--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--pds-bg-popover-solid);
+}
