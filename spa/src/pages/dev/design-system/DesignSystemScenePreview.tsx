@@ -837,10 +837,9 @@ function ReaderDockScene() {
         because a scripture dock <em>is</em> a snippet view of the reader.
       </p>
       <p className="pds-caption">
-        Related passages are cross-references; people, places and themes are the dictionary,
-        from <code>BiblePeople</code> / <code>BiblePlaces</code> / <code>ScriptureTopics</code>.
-        Those three came back from <code>/api/scripture/passage-context</code> unrendered for a
-        long time — this scene is where a missing section would now be visible.
+        Cross-references and your own notes only. People, places and themes come back from
+        the same endpoint but surface as dotted underlines on the passage text, not as lists
+        here — a name is answered where you met it.
       </p>
 
       <div className="pds-gallery-reader-dock-stage">
@@ -869,7 +868,6 @@ function ReaderDockScene() {
               active
               showCrossRefs
               showRelatedNotes
-              showKnowledge
               onOpenScripturePassage={() => undefined}
               onOpenEntity={() => undefined}
               onNavigateNote={() => undefined}

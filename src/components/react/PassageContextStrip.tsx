@@ -46,15 +46,6 @@ export interface PassageContextStripProps {
   showCrossRefs: boolean;
   /** Whether the "Your notes" section is visible (toggled from the dock chrome). Defaults on. */
   showRelatedNotes?: boolean;
-  /**
-   * Whether the dictionary sections (people, places, themes) are visible. Defaults on.
-   *
-   * These come back from `/api/scripture/passage-context` on every request and were, until
-   * now, fetched and dropped — the strip rendered only cross-references and notes. They are
-   * the same knowledge tables the recall system already reads (`BiblePeople`, `BiblePlaces`,
-   * `ScriptureTopics`); this is the first surface that shows them.
-   */
-  showKnowledge?: boolean;
   /** Cross-reference tapped — open it as a read-only passage card. */
   onOpenScripturePassage: (reference: string) => void;
   /** Person/place tapped — open the reference dock for the entity. */
@@ -146,7 +137,6 @@ export default function PassageContextStrip({
   active,
   showCrossRefs,
   showRelatedNotes = true,
-  showKnowledge = true,
   onOpenScripturePassage,
   onOpenEntity,
   onNavigateNote,
@@ -203,9 +193,6 @@ export default function PassageContextStrip({
   // returns — hooks must run unconditionally on every render (Rules of Hooks).
   const hasCrossRefs = !!ctx && showCrossRefs && ctx.crossReferences.length > 0;
   const hasNotes = !!ctx && showRelatedNotes && ctx.relatedNotes.length > 0;
-  const hasPeople = !!ctx && showKnowledge && ctx.people.length > 0;
-  const hasPlaces = !!ctx && showKnowledge && ctx.places.length > 0;
-  const hasThemes = !!ctx && showKnowledge && ctx.themes.length > 0;
 
   // Fire on every false→true transition of cross-refs visibility, not just once:
   // the strip stays mounted across toggles (only the section inside shows/hides), so a
@@ -222,7 +209,7 @@ export default function PassageContextStrip({
   if (loading && !ctx) return null;
   if (!ctx) return null;
 
-  if (!hasCrossRefs && !hasNotes && !hasPeople && !hasPlaces && !hasThemes) return null;
+  if (!hasCrossRefs && !hasNotes) return null;
 
   return (
     <div className="passage-context-strip" aria-label="Passage connections">
@@ -242,49 +229,10 @@ export default function PassageContextStrip({
         </Section>
       ) : null}
 
-      {/* The dictionary. People and places before themes because a passage's "who" and "where"
-          are the questions a reader asks first; themes are an interpretation on top of those.
-          Each row opens the reference dock, which is the surface that already answers
-          "who is this?" — so this section is a way in, not a dead end. */}
-      {hasPeople ? (
-        <Section title="People">
-          {ctx.people.map((p) => (
-            <NavRow
-              key={p.id}
-              icon="user"
-              label={p.name}
-              onClick={() => onOpenEntity(p.name, p.slug)}
-            />
-          ))}
-        </Section>
-      ) : null}
-
-      {hasPlaces ? (
-        <Section title="Places">
-          {ctx.places.map((p) => (
-            <NavRow
-              key={p.id}
-              icon="location-dot"
-              label={p.name}
-              onClick={() => onOpenEntity(p.name, p.slug)}
-            />
-          ))}
-        </Section>
-      ) : null}
-
-      {hasThemes ? (
-        <Section title="Themes">
-          {ctx.themes.map((t) => (
-            <NavRow
-              key={t.topicId}
-              icon="tag"
-              label={t.label}
-              onClick={() => onOpenEntity(t.label, t.slug)}
-            />
-          ))}
-        </Section>
-      ) : null}
-
+      {/* No People / Places / Themes sections here, deliberately. The endpoint returns them and
+          they are worth surfacing — but as the dotted `reference-suggestion` underlines on the
+          passage text itself, where a name is answered in the place you met it. Listing them
+          again underneath restated the same words as a menu and pushed the passage up the card. */}
       {hasNotes ? (
         <Section title="Your notes">
           {ctx.relatedNotes.map((n) => (
