@@ -18044,21 +18044,22 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow: hidden;
 }
 
-/* The base paper: the pane's full width, its top corners rounded and nothing else. Two
-   papers, not three — an earlier pass inset this into its own card with canvas showing
-   around it, which put a third plane between the sheet and the pane. Basecamp has the
-   parent's corners peeking above the child and no other chrome, and neither does this. */
+/* The two papers, as in the reference: plain flat sheets with square corners and a
+   hairline, the back one visibly NARROWER than the front — that inset is the whole
+   "there is a sheet behind this one" cue, and it needs no radius, no gradient and no
+   shadow to say it. Earlier passes reached for the app's rounded card surface and it
+   read as cards, not papers. */
 .pds-paper-stack__base {
   position: absolute;
-  inset: 0;
+  inset: 0 var(--pds-paper-stack-inset) 0;
   z-index: var(--pds-z-base);
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
-  background-color: var(--pds-canvas-default);
-  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  background-color: var(--pds-paper-flat);
+  border: 0.5px solid var(--pds-border);
+  border-bottom: 0;
   transform-origin: top center;
 }
 
@@ -18105,10 +18106,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   width: 100%;
   height: var(--pds-paper-stack-peek);
   padding: 0 var(--pds-space-5);
+  justify-content: center;
   border: none;
   background: none;
   cursor: pointer;
-  text-align: start;
+  text-align: center;
   color: var(--pds-text-secondary);
   transition: color var(--pds-duration-press) var(--pds-ease-standard);
 }
@@ -18120,7 +18122,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-paper-stack__edge:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: -2px;
-  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
 }
 
 .pds-paper-stack__sheet {
@@ -18130,18 +18131,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* Paper is translucent by design so the canvas reads through it. A stacked
-     sheet has another document directly behind it, so it composites that same
-     paper over an opaque canvas — otherwise the base bleeds through the note
-     and the two papers read as one screen. Both tokens carry dark/wallpaper
-     overrides, so the sheet follows appearance without a bespoke colour. */
-  background-color: var(--pds-canvas-default);
-  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
-  border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
-  /* Hairline above the card shadow: in dark the shadow alone barely separates two
-     papers of near-identical value, and the sheet's top edge is the one line that
-     has to stay readable for the stack to read as a stack. */
-  box-shadow: 0 -0.5px 0 0 var(--pds-border), var(--pds-shadow-card);
+  /* Opaque and flat: a document over another document, so nothing behind reads through. */
+  background-color: var(--pds-paper-flat);
+  border: 0.5px solid var(--pds-border);
+  border-bottom: 0;
   transform: translateY(var(--pds-paper-stack-peek));
   transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }

@@ -448,6 +448,13 @@
      tap to go back. Enough for a line of caption with breathing room; tightened on
      phones where the toolbar already owns the top of the pane. */
   --pds-paper-stack-peek: 48px;
+  /* How much narrower the back paper is than the front, per side. The inset is the
+     entire "behind" cue — a sheet showing its shoulders past the one over it — so it
+     needs no radius or shadow to read. */
+  --pds-paper-stack-inset: 20px;
+  /* The papers themselves: opaque and flat, the same solid the popovers use, so a
+     document over a document composites cleanly and neither reads as a card. */
+  --pds-paper-flat: var(--pds-bg-popover-solid);
   --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
   --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
   /*
