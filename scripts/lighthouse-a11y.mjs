@@ -112,7 +112,7 @@ async function main() {
           // Reported, never gated. Lighthouse performance is lab-simulated and noisy enough
           // between runs that a threshold here would either be meaningless or block merges at
           // random. The gate that has teeth is `npm run perf:check` (deterministic bytes); this
-          // is for the field metrics bytes can't show. See the performance-agent skill,
+          // is for the field metrics bytes can't show. See the engineer skill,
           // invariant 3 — interaction latency outranks page-load scores anyway.
           const score = runnerResult.lhr.categories.performance.score;
           console.log(`  performance: ${score == null ? 'n/a' : Math.round(score * 100)}`);
