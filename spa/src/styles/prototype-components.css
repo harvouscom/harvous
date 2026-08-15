@@ -17767,7 +17767,13 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   position: absolute;
   left: calc(var(--pds-editor-paper-padding-x) + var(--pds-reader-gutter));
   right: var(--pds-editor-paper-padding-x);
-  z-index: 0;
+  /* `auto`, not `0` — the two paint the same but only one of them traps its children.
+     A positioned element with z-index 0 opens a stacking context, which capped the chrome
+     at the card's own level however high its z-index went: the pill rendered under the
+     verse text, so its opaque fill looked see-through and the words above it took the
+     clicks meant for the note. With `auto` there is no context to escape, and the card
+     body still sits under the text because the text carries z-index 1. */
+  z-index: auto;
   pointer-events: none;
   /* Just off square. The paper it sits on is `border-radius: 0`, so a card with real rounding
      reads as a widget dropped onto the page — but 2px takes the hard corner off without
@@ -17780,7 +17786,12 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      padding would eat into the measured height and leave the card short of the last line it
      is meant to be holding up — and losing that specificity fight quietly is worse than
      doing the arithmetic where it can be seen. */
-  animation: pds-reader-note-card-in 140ms var(--pds-ease-standard) both;
+  /* `backwards`, not `both`. An animation on opacity opens a stacking context for as long
+     as it is in effect, and `both` leaves it in effect permanently — which would put the
+     trap back the moment the fade finished. `backwards` only holds the first frame before
+     the animation starts; afterwards the card is a plain opaque-enough element again, and
+     the end state is opacity 1 either way. */
+  animation: pds-reader-note-card-in 140ms var(--pds-ease-standard) backwards;
 }
 
 @keyframes pds-reader-note-card-in {
@@ -17803,6 +17814,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   position: absolute;
   bottom: calc(100% + 6px);
   right: 0;
+  /* Above `.pds-reader__verses` (1). The card body belongs under the words it is holding
+     up; its chrome is a control and belongs over them, or the line it happens to sit
+     across wins every click aimed at the note. */
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: var(--pds-space-2);
