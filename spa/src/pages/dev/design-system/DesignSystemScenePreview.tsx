@@ -869,9 +869,10 @@ function PaperStackScene() {
   return (
     <div className="pds-gallery-stack">
       <p className="pds-caption">
-        A sheet stacked over the paper it came from. The origin&apos;s top edge stays visible
-        as its own card — rounded corners, own surface, the sheet&apos;s shadow on it — and is
-        the way back. Neither paper unmounts, so position and draft both survive the move —{' '}
+        A sheet stacked over the paper it came from. Two papers and nothing else: the
+        origin&apos;s top corners peek above the sheet and are the way back; flipped down, the
+        sheet&apos;s own top edge peeks from the bottom and is the way back up. Neither paper
+        unmounts, so position and draft both survive the move —{' '}
         <code>PROTO_PAPER_STACK_MS</code> ↔ <code>--pds-duration-paper-stack</code>. A{' '}
         <code>noteDock</code> origin (the reader expanded out of a scripture dock) enters with the
         expansion morph instead of the slide.

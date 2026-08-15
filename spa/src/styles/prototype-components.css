@@ -18044,12 +18044,13 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow: hidden;
 }
 
-/* The base paper: inset so canvas shows around it, so its top edge reads as a card
-   sitting behind the sheet and not as the pane's own background. Same opaque paper
-   composite as the sheet, one step lighter in shadow so the sheet reads nearer. */
+/* The base paper: the pane's full width, its top corners rounded and nothing else. Two
+   papers, not three — an earlier pass inset this into its own card with canvas showing
+   around it, which put a third plane between the sheet and the pane. Basecamp has the
+   parent's corners peeking above the child and no other chrome, and neither does this. */
 .pds-paper-stack__base {
   position: absolute;
-  inset: var(--pds-space-2) var(--pds-space-3) 0;
+  inset: 0;
   z-index: var(--pds-z-base);
   display: flex;
   flex-direction: column;
@@ -18058,7 +18059,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   border-radius: var(--pds-radius-card) var(--pds-radius-card) 0 0;
   background-color: var(--pds-canvas-default);
   background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
-  box-shadow: var(--pds-shadow-paper-stack-base);
   transform-origin: top center;
 }
 
@@ -18103,7 +18103,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   align-items: center;
   gap: var(--pds-space-2);
   width: 100%;
-  height: calc(var(--pds-paper-stack-peek) + var(--pds-space-2));
+  height: var(--pds-paper-stack-peek);
   padding: 0 var(--pds-space-5);
   border: none;
   background: none;
@@ -18168,10 +18168,13 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
 }
 
-/* Resting off-screen. Kept mounted — the draft and the reading position both
-   survive, which is the whole point of stacking rather than routing. */
+/* Parked: the sheet drops until only its top edge shows above the pane's bottom, the
+   mirror of the base peeking above it when it is up. Kept mounted — the draft and the
+   reading position both survive, which is the whole point of stacking rather than
+   routing — and its own edge is the way back, so no floating button has to be. Only
+   the peeking strip stays interactive; the rest is below the fold. */
 .pds-paper-stack__sheet[data-stacked='false'] {
-  transform: translateY(100%);
+  transform: translateY(calc(100% - var(--pds-paper-stack-peek)));
   pointer-events: none;
 }
 
@@ -18365,30 +18368,12 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 /* Way back up to a note flipped below the fold. Sits where the sheet went down, so the
    note reads as parked rather than discarded. */
-.pds-paper-stack__resume {
-  position: absolute;
-  left: 50%;
-  bottom: var(--pds-space-5);
-  transform: translateX(-50%);
-  z-index: var(--pds-z-sticky);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pds-space-2);
-  padding: var(--pds-space-2) var(--pds-space-4);
-  border: none;
-  border-radius: var(--pds-radius-pill);
-  background-color: var(--pds-bg-popover-solid);
-  box-shadow: var(--pds-shadow-popover);
-  color: var(--pds-text-primary);
-  font-family: var(--pds-font-body);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.pds-paper-stack__resume:focus-visible {
-  outline: 2px solid var(--pds-accent);
-  outline-offset: 2px;
+/* The parked sheet's peeking edge: a transparent hit target laid over the strip of
+   sheet still showing at the bottom. Same shape as the base's edge at the top, so
+   the two directions of the flip read as one gesture at two ends of the pane. */
+.pds-paper-stack__edge--parked {
+  inset: auto 0 0;
+  z-index: var(--pds-z-dropdown);
 }
 
 /* ─── Reader dock ────────────────────────────────────────────────────────────

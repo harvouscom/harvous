@@ -80,11 +80,18 @@ export default function PrototypePaperStack({
           <span className="pds-caption">{origin.label}</span>
         </button>
       ) : (
-        // The note is still there, just below the fold. Without a way back it would be a
-        // draft the reader can see no trace of.
-        <button type="button" className="pds-paper-stack__resume" onClick={onFlipUp}>
-          <Icon name="note-sticky" size={13} aria-hidden />
-          <span>Back to your note</span>
+        // The parked sheet is still there, its top edge showing above the pane's bottom —
+        // the mirror of the base peeking above it when it is up. Its edge is the way back,
+        // the same gesture at the other end of the pane; a floating "back to your note"
+        // button would say the sheet had gone somewhere, and it has not.
+        <button
+          type="button"
+          className="pds-paper-stack__edge pds-paper-stack__edge--parked"
+          onClick={onFlipUp}
+          aria-label="Bring your note back up"
+        >
+          <Icon name="note-sticky" size={12} aria-hidden />
+          <span className="pds-caption">Your note</span>
         </button>
       )}
 
