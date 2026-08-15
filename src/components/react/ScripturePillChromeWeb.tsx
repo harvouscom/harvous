@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 // @ts-ignore — JSON resolveJsonModule
 import bibleChaptersData from '@/data/bible-chapters.json';
+import { orderedCanonBooks } from '@/utils/bible-book-chapters';
 import {
   getChapterVerseRange,
   normalizeScriptureReference,
@@ -43,18 +44,6 @@ import '@/styles/scripture-pill-chrome.css';
 import '@/styles/highlight-dock-web.css';
 
 type BibleChapterRow = { book: string; chapter: number };
-
-function orderedCanonBooks(): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const row of bibleChaptersData as BibleChapterRow[]) {
-    if (!seen.has(row.book)) {
-      seen.add(row.book);
-      out.push(row.book);
-    }
-  }
-  return out;
-}
 
 function maxChapterForBook(book: string): number {
   let max = 0;

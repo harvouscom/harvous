@@ -258,6 +258,12 @@ function InlineKindSearchResultItem({
   );
 }
 
+/**
+ * A chapter to open, rather than something already written.
+ *
+ * Carries the book icon so it reads as a destination among rows that are otherwise notes and
+ * folders — this is the one result that is not a thing you own but a place you can go.
+ */
 function ScripturePassageSearchResultItem({
   result,
   active,

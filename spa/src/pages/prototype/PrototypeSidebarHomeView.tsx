@@ -20,6 +20,7 @@ import {
 } from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
+import { parseReaderQuery } from '@/utils/parse-reader-query';
 import { buildRevisitCardStackOrigin } from './paper-stack-origins';
 import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
@@ -59,9 +60,7 @@ import {
   deriveTopCanonSections,
   formatHomeNoteCount,
   greetingForHour,
-  homeContinueCardEyebrow,
   homeLeadCopyLayout,
-  homeSpotlightThreadEyebrow,
   localDayIndex,
   pickContinueNote,
   pickRevisitNote,
@@ -141,7 +140,7 @@ import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import PrototypeHomeChurchFeed, { HOME_FEED_LIMIT } from './PrototypeHomeChurchFeed';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import { noteParamSlug } from './proto-route-slugs';
-import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
+import { bibleBookChapterCounts, bookSlug } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
@@ -533,6 +532,27 @@ function HomeGreeting({
   );
 }
 
+/**
+ * A group of Home cards under one heading — the church hub's section pattern.
+ *
+ * Home used to be a flat stack where every card carried its own eyebrow, so seven different
+ * labels competed with no hierarchy and nothing said which cards belonged together. The
+ * heading now belongs to the group and the cards inside it go bare, exactly as the church
+ * hub's lanes do, so the two sidebars read as one system.
+ *
+ * Empty groups hide themselves in CSS rather than here: several children (This Sunday, the
+ * church feed) decide for themselves whether they have anything to show, and a parent cannot
+ * know that without rendering them first. `:has()` asks the question after the fact.
+ */
+function HomeSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="proto-home-section proto-home-section--group">
+      <p className="proto-caption proto-home-section__eyebrow">{title}</p>
+      <div className="proto-home-section__list">{children}</div>
+    </section>
+  );
+}
+
 /** Compact note card (continue / revisit) — shared markup. */
 function HomeNoteCard({
   eyebrow,
@@ -541,7 +561,8 @@ function HomeNoteCard({
   onOpenNote,
   prefetchNote,
 }: {
-  eyebrow: string;
+  /** Omitted inside a `HomeSection`, whose heading already says which shelf this is on. */
+  eyebrow?: string;
   iconName: IconName;
   note: SpaceNoteRow;
   onOpenNote: (row: SpaceNoteRow) => void;
@@ -558,7 +579,7 @@ function HomeNoteCard({
       onMouseEnter={() => prefetchNote(note)}
       onFocus={() => prefetchNote(note)}
     >
-      <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p>
+      {eyebrow ? <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p> : null}
       <div className="proto-home-card__body">
         <div className="proto-home-card__title-row">
           <span className="proto-home-card__icon-orb" aria-hidden>
@@ -685,6 +706,12 @@ export default function PrototypeSidebarHomeView({
     churchSermonsQuery.data != null,
   );
   const churchFeedSettled = isQuerySettled(churchFeedQuery.isPending, churchFeedQuery.data != null);
+  /*
+   * `data != null` will not do here: "no bookmark" is a legitimate answer and arrives as
+   * `null`, so waiting for data would hold Home forever for anyone who has not read yet.
+   */
+  const readingPositionSettled =
+    !readingHistoryQuery.isPending || readingHistoryQuery.isFetched || Boolean(readingHistoryQuery.isError);
 
   // Home used to paint the moment notes resolved, then insert or remove a whole section
   // each time one of ~9 independent queries landed — the visible jumping. Wait for them
@@ -705,6 +732,7 @@ export default function PrototypeSidebarHomeView({
     recallHistorySettled,
     churchSermonsSettled,
     churchFeedSettled,
+    readingPositionSettled,
   });
 
   // Backstop: a disabled query stays `isPending` forever in React Query v5, so without a
@@ -728,6 +756,27 @@ export default function PrototypeSidebarHomeView({
   const threads = threadsQuery.data ?? [];
   const highlights = highlightsQuery.data ?? [];
   const votd = votdQuery.data;
+
+  /*
+   * Where a brand-new account is invited to start reading.
+   *
+   * Today's verse of the day when there is one — it is already the app's answer to "what
+   * should I read", and a first run is exactly when that question is loudest. John 1 is the
+   * fallback rather than Genesis 1: someone opening a Bible app for the first time is more
+   * likely to be looking for Jesus than for a genealogy.
+   */
+  /*
+   * Where reading actually stopped, which is a different question from which chapters the
+   * notes cite. Most reading leaves no note behind, and the chapter someone stopped in is
+   * precisely the one they have not written about — so inferring "keep going" from citations
+   * always pointed at where they had already been.
+   */
+
+  const firstRunPassage = useMemo(() => {
+    const parsed = votd?.reference ? parseReaderQuery(votd.reference) : null;
+    if (parsed) return parsed;
+    return { book: 'John', chapter: 1, verse: null, reference: 'John 1' };
+  }, [votd?.reference]);
 
   // When all pages are loaded, the flat list is authoritative; otherwise prefer server total.
   const exactTotal = noteTotal ?? null;
@@ -1202,7 +1251,7 @@ export default function PrototypeSidebarHomeView({
     void navigate({
       to: prototypeReadRouteTo(),
       params: {
-        book: continueReadingSuggestion.book,
+        book: bookSlug(continueReadingSuggestion.book),
         chapter: String(continueReadingSuggestion.chapter),
       },
       search: { v: undefined, t: continueReadingSuggestion.translation || undefined },
@@ -1537,6 +1586,7 @@ export default function PrototypeSidebarHomeView({
     openCrossRefConnection,
     openPassageConnection,
     continueBookSuggestion,
+    navigate,
     recurringPerson,
     bareHighlight,
     highlightsWithRecency,
@@ -1670,75 +1720,29 @@ export default function PrototypeSidebarHomeView({
         />
       </div>
 
-      <div className="proto-home-section">
-        <PrototypeFounderLetterPill />
-      </div>
-
       {/*
-        Above the daily passage on purpose: the church's Sunday is an
-        appointment, the verse of the day is a habit. Renders nothing unless the
-        viewer is connected to a church that has a plan, so for most users this
-        is a no-op and VOTD stays the first passage card on Home.
+        Three shelves, in the order a reader can act on them: what you were already doing,
+        what someone else has put in front of you, then what is merely worth a look. The
+        old flat stack made all eight cards equally loud.
       */}
-      <PrototypeHomeThisSunday homeSpaceId={homeSpaceId} />
-
-      {votd ? (
-        <div className="proto-home-section">
-          <PrototypeDailyPassagePill
-            homeSpaceId={homeSpaceId}
-            notes={notes}
-            votd={votd}
-            scriptureBooks={scriptureBooks}
-            onOpenScripturePassage={onOpenScripturePassage}
-          />
-        </div>
-      ) : null}
-
-      {notesListPhase === 'empty' ? (
-        <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={onCreateFirstNote}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="note-sticky" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">No notes yet</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <p className="pds-list-preview proto-home-card__preview">Create your first note...</p>
-            </div>
-          </button>
-        </div>
-      ) : continueNote && !continueIsActive ? (
-        <div className="proto-home-section">
+      <HomeSection title="Continue">
+        {notesListPhase === 'empty' ? null : continueNote && !continueIsActive ? (
           <HomeNoteCard
-            eyebrow={homeContinueCardEyebrow(countForLogic)}
             iconName="pen-to-square"
             note={continueNote}
             onOpenNote={onOpenNote}
             prefetchNote={prefetchNote}
           />
-        </div>
-      ) : revisitOnHome ? (
-        <div className="proto-home-section">
+        ) : revisitOnHome ? (
           <HomeNoteCard
-            eyebrow="Worth another look"
             iconName="arrow-rotate-left"
             note={revisitOnHome}
             onOpenNote={handleOpenRevisitNote}
             prefetchNote={prefetchNote}
           />
-        </div>
-      ) : null}
+        ) : null}
 
-      {continueReadingSuggestion ? (
-        <div className="proto-home-section">
+        {continueReadingSuggestion ? (
           <button
             type="button"
             className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
@@ -1766,19 +1770,14 @@ export default function PrototypeSidebarHomeView({
               </div>
             </div>
           </button>
-        </div>
-      ) : null}
+        ) : null}
 
-      {spotlightThread ? (
-        <div className="proto-home-section">
+        {spotlightThread ? (
           <button
             type="button"
             className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
             onClick={() => openThread(spotlightThread.id)}
           >
-            <p className="proto-caption proto-home-card__eyebrow">
-              {homeSpotlightThreadEyebrow(spotlightThread.noteCount)}
-            </p>
             <div className="proto-home-card__body">
               <div className="proto-home-card__title-row">
                 <span className="proto-home-card__icon-orb" aria-hidden>
@@ -1796,11 +1795,32 @@ export default function PrototypeSidebarHomeView({
               </div>
             </div>
           </button>
-        </div>
-      ) : null}
+        ) : null}
+      </HomeSection>
 
-      {looseCount >= LOOSE_MIN ? (
-        <div className="proto-home-section">
+      {/*
+        This Sunday sits above the founder letter: a church's Sunday is an appointment, the
+        letter is evergreen. Both render nothing when they have nothing, and the group hides
+        itself when they all do.
+      */}
+      <HomeSection title="Following">
+        <PrototypeHomeThisSunday homeSpaceId={homeSpaceId} />
+        <PrototypeHomeChurchFeed />
+        <PrototypeFounderLetterPill />
+      </HomeSection>
+
+      <HomeSection title="Suggested">
+        {votd ? (
+          <PrototypeDailyPassagePill
+            homeSpaceId={homeSpaceId}
+            notes={notes}
+            votd={votd}
+            scriptureBooks={scriptureBooks}
+            onOpenScripturePassage={onOpenScripturePassage}
+          />
+        ) : null}
+
+        {looseCount >= LOOSE_MIN ? (
           <button
             type="button"
             className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
@@ -1810,7 +1830,6 @@ export default function PrototypeSidebarHomeView({
               ensureSidebarExpanded();
             }}
           >
-            <p className="proto-caption proto-home-card__eyebrow">Tidy up</p>
             <div className="proto-home-card__body">
               <div className="proto-home-card__title-row">
                 <span className="proto-home-card__icon-orb" aria-hidden>
@@ -1825,14 +1844,9 @@ export default function PrototypeSidebarHomeView({
               </div>
             </div>
           </button>
-        </div>
-      ) : null}
+        ) : null}
 
-      {/* Renders nothing unless the viewer follows a ministry channel. */}
-      <PrototypeHomeChurchFeed />
-
-      {recallOpportunities.length > 0 ? (
-        <div className="proto-home-section">
+        {recallOpportunities.length > 0 ? (
           <PrototypeRecallCarousel
             opportunities={recallOpportunities}
             onSnooze={handleRecallSnooze}
@@ -1840,8 +1854,72 @@ export default function PrototypeSidebarHomeView({
             onRecallSynced={handleRecallSynced}
             homeSpaceId={homeSpaceId}
           />
+        ) : null}
+      </HomeSection>
+
+      {/*
+        First run leads with reading, not writing.
+        A blank account used to open on "Create your first note", which asks someone to
+        produce something before they have been given anything. Harvous has the whole Bible
+        in it now, so the first move offered is to open it — today's passage when there is
+        one, John 1 otherwise. Writing is still one tap away, underneath, where it belongs
+        once there is something to write about.
+      */}
+      {notesListPhase === 'empty' ? (
+        <div className="proto-home-section">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={() => {
+              void navigate({
+                to: prototypeReadRouteTo(),
+                params: {
+                  book: bookSlug(firstRunPassage.book),
+                  chapter: String(firstRunPassage.chapter),
+                },
+                search: {
+                  v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
+                  t: undefined,
+                },
+              });
+            }}
+          >
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="book-open" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">Start reading</p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="caret-right" size={11} />
+                </span>
+              </div>
+              <p className="pds-list-preview proto-home-card__preview">
+                {firstRunPassage.reference} — highlight a verse to begin a note from it.
+              </p>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={onCreateFirstNote}
+          >
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="note-sticky" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">Write a note</p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="caret-right" size={11} />
+                </span>
+              </div>
+              <p className="pds-list-preview proto-home-card__preview">Start from a blank page instead.</p>
+            </div>
+          </button>
         </div>
       ) : null}
+
     </div>
   );
 }

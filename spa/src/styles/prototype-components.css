@@ -507,63 +507,45 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   flex-shrink: 0;
 }
 
-.proto-sidebar-back-row__button {
+/*
+  Where you are, and the way back out of it — the same anatomy as the shared-space Thread
+  drilldown: a tile you press to leave, then the name with its kind beneath it.
+
+  This used to be a single flat text row — small chevron, kind as a pill, label — which made
+  the way back a line of prose to read rather than a target to hit, and made the same
+  destination look like two different controls depending on which drilldown you were in.
+*/
+.proto-sidebar-back-row__meta {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 5px;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation);
-  color: var(--pds-text-primary);
-  line-height: 1.35;
-}
-
-.proto-sidebar-back-row__button:hover {
-  color: var(--pds-text-primary);
-}
-
-.proto-sidebar-back-row__button:focus-visible {
-  outline: none;
-  border-radius: var(--pds-radius-menu-item);
-  box-shadow: none;
-}
-
-.proto-sidebar-back-row__chevron {
-  flex-shrink: 0;
-  color: var(--pds-text-secondary);
-}
-
-.proto-sidebar-back-row__kind {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--pds-bg-faint);
-  border: 0.5px solid var(--pds-border-control);
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation-chip);
-  line-height: 1.4;
-  color: var(--pds-text-secondary);
-  white-space: nowrap;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .proto-sidebar-back-row__label {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--pds-text-primary);
+}
+
+/* The kind sits under the name as a caption, not beside it as a pill: it says what sort of
+   thing this is, which is context for the title rather than a peer of it.
+ *
+ * Its line-height is pinned rather than inherited. `.proto-shell` sets 1.45, which on 13px
+ * text reserves ~3px of empty leading above the glyphs — so the pair read as loosely spaced
+ * no matter how small the flex `gap` was, because the space was inside the caption's own box
+ * rather than between the two boxes. The drilldown this mirrors pins its own for the same
+ * reason. */
+.proto-sidebar-back-row__kind {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+  color: var(--pds-text-secondary);
 }
 
 /* Menu row labels — list-title typography (matches note-row .pds-list-title). */
@@ -1066,6 +1048,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
      guard is what actually binds on a short window; only the pixel term moved. */
   max-height: min(440px, 72vh);
   overflow-y: auto;
+  /* Reaching the end of a menu must not start scrolling whatever is behind it. The book
+     picker is 66 rows over a reading surface, so scrolling to Revelation handed the rest of
+     the gesture to the page, which slid the trigger away and took the menu with it — the
+     menu appeared to drift on its own. Every other scroller in this file already contains. */
+  overscroll-behavior: contain;
   /* Side padding gives the inset hover-pill on each row a visible gutter. */
   padding: 5px;
   background: var(--pds-bg-popover-solid);
@@ -6837,6 +6824,32 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding: 0 2px;
 }
 
+/* Cards under one heading — the same lane rhythm as `.proto-church-hub__list`, so a group on
+   Home and a group in the church hub stack identically. */
+.proto-home-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+  A group whose children all declined to render must not leave its heading behind.
+
+  This cannot be decided in the parent: This Sunday, the church feed and the founder letter
+  each look at their own data and return null, and a parent has no way to know that before
+  rendering them. `:has()` asks after the fact — if nothing inside the lane produced an
+  element, the whole group goes, heading and all.
+*/
+.proto-home-section--group:not(:has(.proto-home-section__list > *)) {
+  display: none;
+}
+
+/* Children that ship their own section wrapper (This Sunday) must not add a second layer of
+   spacing once they are inside a lane. */
+.proto-home-section__list > .proto-home-section {
+  margin: 0;
+}
+
 .proto-home-view--enter .proto-home-section {
   opacity: 0;
   animation: proto-home-section-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -10295,7 +10308,18 @@ html.harvous-prototype-route
   bottom: calc(
     var(--stack-peek-step-max, 10px) * 2 - var(--peek-depth) * var(--stack-peek-step, 5px)
   );
-  height: calc(var(--peek-depth) * var(--stack-peek-step, 5px) + 10px);
+  /*
+   * Each layer shows only its own exposed band — it does not run on under the card.
+   *
+   * This used to add 10px so the layer tucked behind the card, the way it would with opaque
+   * paper. These are glass: the card in front is 22% white over a blur, so anything beneath
+   * it is not hidden, it is *added*. Three translucent whites piled up in that 10px band and
+   * the deck grew a pale slab exactly where its front edge should read — brightest at the one
+   * place the eye goes looking for an edge.
+   *
+   * 1px is a seam-cover for subpixel rounding, not an overlap.
+   */
+  height: calc(var(--peek-depth) * var(--stack-peek-step, 5px) + 1px);
   border-radius: 0 0 14px 14px;
   /*
    * The same material as the card in front, composited flat.
@@ -10492,9 +10516,25 @@ html.harvous-prototype-route
   overflow: hidden;
 }
 
+/*
+ * One line, truncated — a recall card's meta is a reminder of what the note was about, not
+ * the note.
+ *
+ * `overflow: hidden` + `text-overflow: ellipsis` alone did nothing here for two reasons, and
+ * both had to go: ellipsis only ever applies to a SINGLE line that overflows, so with
+ * wrapping still allowed the text just took another line and never overflowed at all; and it
+ * does not apply to flex layout, so `inline-flex` opted the item out regardless. The item
+ * carries plain text in this card, so a block box is what it wants.
+ */
+.proto-recall-card .proto-home-card__meta {
+  flex-wrap: nowrap;
+}
+
 .proto-recall-card .proto-home-card__meta-item {
+  display: block;
   min-width: 0;
   max-width: 100%;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -12453,13 +12493,25 @@ p.proto-teaching-plan__divider {
   drift — `.proto-church-tools__back` used to carry no CSS whatsoever, leaving
   the church one styled entirely by the icon tile it borrowed.
 
-  Sizing comes from the tile class it is used with; this adds the interaction.
+  Self-sufficient: it used to carry interaction only and take its size from whatever tile class
+  it was paired with, which meant it could not be used anywhere that had no such tile to borrow
+  from. The values below are the ones `.proto-shared-space-header__church-icon` already
+  supplies, so the two existing call sites are unchanged by stating them here.
 */
 .proto-sidebar-back-tile {
   appearance: none;
   border: none;
   cursor: pointer;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
 }
 
 @media (hover: hover) {
@@ -13596,13 +13648,11 @@ html.harvous-prototype-route
  * press-and-hold on the row itself, which is why the drag listeners live on the row
  * rather than here (see SpaceSwitcherRow).
  */
+/* In flow at the trailing edge, matching `.proto-thread-trail__drag-handle`. Absolute
+   positioning over the left edge meant the grip covered the space icon, and it made this the
+   only reorderable list in the app you dragged from the left. */
 .proto-space-switcher__row--reorderable .proto-space-switcher__drag-handle {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  height: auto;
-  z-index: 1;
+  align-self: center;
   opacity: 0;
   transition: opacity 0.12s;
 }
@@ -13620,10 +13670,14 @@ html.harvous-prototype-route
   opacity: 0.75;
 }
 
-.proto-space-switcher__row--reorderable:hover .proto-menu-item__icon--space,
-.proto-space-switcher__row--reorderable:has(:focus-visible) .proto-menu-item__icon--space {
-  opacity: 0;
-}
+/*
+ * The space icon stays put on hover and while dragging.
+ *
+ * It used to fade to nothing here, because the grip was positioned on top of it and the two
+ * could not both be seen — so pointing at a row cost you the one mark that told the rows
+ * apart, right at the moment you were choosing between them. With the grip moved to the
+ * trailing edge there is nothing to make room for.
+ */
 
 .proto-space-switcher__row--dragging {
   opacity: 0.35;
@@ -13696,9 +13750,9 @@ html.harvous-prototype-route
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  height: 22px;
+  border-radius: 6px;
   opacity: 0.55;
-  /* Match menu-item leading icon optical center (plus row below). */
-  transform: translateX(3px);
 }
 
 /*
@@ -17458,6 +17512,9 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   max-width: 720px;
   margin-inline: auto;
   box-sizing: border-box;
+  /* Positioning context for `.pds-reader__margin`, whose marks are measured against this
+     element's top. */
+  position: relative;
   background-color: var(--pds-paper-sheet);
   box-shadow: var(--pds-paper-shadow-subtle);
   padding: var(--pds-editor-paper-padding-top) var(--pds-editor-paper-padding-x)
@@ -17475,6 +17532,111 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-reader__chapter-heading {
   margin: 0 0 var(--pds-space-5);
   padding-inline-start: calc(var(--pds-reader-gutter) + var(--pds-space-2));
+}
+
+/*
+ * The chapter title, doubling as the book/chapter picker.
+ *
+ * It has to read as a title first and a control second — a reader glancing up to check where
+ * they are should see "Exodus 17", not two form fields. So the triggers inherit the title's
+ * face and size and drop every chip affordance at rest; the surface only appears under the
+ * pointer, which is where "you can change this" belongs.
+ */
+/*
+ * Chapter numbers as a grid.
+ *
+ * `.proto-menu-item` carries `min-width: 148px` — right for a menu of labels, but it made a
+ * narrow numbers menu overflow sideways, and widening the menu to suit would have given a
+ * single column 40 rows long (150 in Psalms) to pick "3" from. Numbers are scannable in two
+ * dimensions, so they get laid out that way and the min-width is released here.
+ */
+.pds-reader__chapter-menu .proto-menu-section {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+}
+
+.pds-reader__chapter-menu .proto-menu-item {
+  min-width: 0;
+  justify-content: center;
+  padding: 8px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The checkmark is a column's worth of space for one glyph, and in a grid the highlighted
+   cell already says which chapter is current. */
+.pds-reader__chapter-menu .proto-menu-item__check {
+  display: none;
+}
+
+.pds-reader__chapter-menu .proto-menu-item__label {
+  flex: none;
+  text-align: center;
+}
+
+.pds-reader__chapter-menu .proto-menu-item[aria-checked='true'] {
+  background: var(--pds-bg-row-selected);
+  font-weight: 600;
+}
+
+.pds-reader__chapter-picker {
+  display: flex;
+  align-items: baseline;
+  /* No gap. "Exodus 40" is one phrase, and the triggers' own padding already separates them —
+     adding a gap on top pulled the book and its chapter apart into two labels. */
+  gap: 0;
+  flex-wrap: wrap;
+  margin-inline-start: -6px;
+}
+
+.pds-reader__chapter-picker .proto-select-menu__trigger,
+.pds-reader__picker-trigger {
+  width: auto;
+  min-height: 0;
+  padding: 2px 6px;
+  /* Tight to its caret, so the caret reads as punctuation on the word rather than a
+     separate mark floating between book and chapter. */
+  gap: 3px;
+  border: none;
+  background: none;
+  border-radius: var(--pds-radius-row);
+  /* Inherit the display face and size from the title above. */
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-variation-settings: inherit;
+  line-height: inherit;
+  color: inherit;
+  transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.pds-reader__chapter-picker .proto-select-menu__trigger:hover,
+.pds-reader__chapter-picker .proto-select-menu__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-control);
+}
+
+/* The caret is the only standing hint that the title is a control, so it stays — quiet enough
+   to read as punctuation until the title is approached. Selected structurally: `ProtoSelectMenu`
+   renders it as a bare `Icon` with no class of its own, next to `__value`. */
+.pds-reader__chapter-picker .proto-select-menu__trigger > span:not(.proto-select-menu__value) {
+  opacity: 0.4;
+  transition: opacity var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.pds-reader__chapter-picker
+  .proto-select-menu__trigger:hover
+  > span:not(.proto-select-menu__value),
+.pds-reader__chapter-picker
+  .proto-select-menu__trigger[aria-expanded='true']
+  > span:not(.proto-select-menu__value) {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader__chapter-picker .proto-select-menu__trigger,
+  .pds-reader__chapter-picker .proto-select-menu__trigger > span {
+    transition: none;
+  }
 }
 
 .pds-reader__chapter-meta {
@@ -17585,6 +17747,145 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   text-decoration-color: var(--mark-accent);
 }
 
+/*
+ * Pointing at a bar lifts the passage it marks onto a card.
+ *
+ * A flat wash on the verses was the first attempt and it was the wrong object: it tinted text
+ * that might already be highlighted, so two meanings shared one channel. A card is a surface
+ * *behind* the words — it can hold the passage up without recolouring a single glyph, and it
+ * has somewhere to put an action.
+ *
+ * Sits below the text in z-order and passes clicks through; only its chrome is interactive,
+ * so the Scripture on top of it stays selectable.
+ */
+.pds-reader__verses {
+  position: relative;
+  z-index: 1;
+}
+
+.pds-reader__note-card {
+  position: absolute;
+  left: calc(var(--pds-editor-paper-padding-x) + var(--pds-reader-gutter));
+  right: var(--pds-editor-paper-padding-x);
+  z-index: 0;
+  pointer-events: none;
+  /* Just off square. The paper it sits on is `border-radius: 0`, so a card with real rounding
+     reads as a widget dropped onto the page — but 2px takes the hard corner off without
+     pretending to be a separate surface. */
+  border-radius: 2px;
+  background-color: var(--pds-bg-faint);
+  box-shadow: 0 0 0 1px var(--pds-border-control-soft);
+  /* The breathing room around the passage is added to `top`/`height` when the card is
+     rendered, not with padding here. `.proto-shell *` forces `border-box` on everything, so
+     padding would eat into the measured height and leave the card short of the last line it
+     is meant to be holding up — and losing that specificity fight quietly is worse than
+     doing the arithmetic where it can be seen. */
+  animation: pds-reader-note-card-in 140ms var(--pds-ease-standard) both;
+}
+
+@keyframes pds-reader-note-card-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * The card's chrome sits ABOVE the card, clear of the words.
+ *
+ * It used to overlap the passage's first line, which put a pill on top of the very text the
+ * card exists to hold up — and with a long note title it crowded the verse number too. Lifted
+ * fully out, it reads as a label on the card rather than something dropped onto Scripture.
+ */
+.pds-reader__note-card-chrome {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  pointer-events: auto;
+  padding: 4px 6px;
+  border-radius: var(--pds-radius-menu);
+  background-color: var(--pds-bg-popover-solid);
+  box-shadow: var(--pds-shadow-popover);
+}
+
+.pds-reader__note-card-ref {
+  padding-inline: var(--pds-space-2);
+  color: var(--pds-text-tertiary);
+  white-space: nowrap;
+}
+
+/* One row per note on this passage. Several notes can cite exactly these verses, and choosing
+   between them is the question the card answers — so each is its own target, not a count. */
+.pds-reader__note-card-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 24ch;
+  margin: 0;
+  padding: 3px 8px;
+  border: none;
+  border-radius: var(--pds-radius-pill);
+  background-color: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.pds-reader__note-card-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pds-reader__note-card-item:hover {
+  background-color: var(--pds-bg-control-strong);
+}
+
+.pds-reader__note-card-item:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+/*
+ * With a card up, the rest of the chapter recedes.
+ *
+ * Opacity on the verses only — not a scrim over the column — so the paper, the margin bars and
+ * the card itself stay at full strength and only the words step back. A scrim would also dim
+ * the card it is meant to be isolating.
+ */
+.pds-reader__verses[data-focus='true'] .pds-reader__verse {
+  opacity: 0.32;
+  transition: opacity 160ms var(--pds-ease-standard);
+}
+
+.pds-reader__verses[data-focus='true'] .pds-reader__verse[data-in-focus='true'] {
+  opacity: 1;
+}
+
+.pds-reader__verses .pds-reader__verse {
+  transition: opacity 160ms var(--pds-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader__note-card {
+    animation: none;
+  }
+
+  .pds-reader__verses .pds-reader__verse {
+    transition: none;
+  }
+}
+
 /* Dictionary suggestion inside Scripture — the same faint dotted hint a note body and a
    scripture dock show, so "there is an entry for this word" looks identical wherever you meet
    it. Deliberately lighter than a highlight's solid 2px underline: it is an offer to look
@@ -17624,60 +17925,101 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    A dot means one note on this verse; a capsule of stacked dots means several.
    Quiet at rest: this is a presence signal you notice while reading, not a
    control competing with the text. */
-.pds-reader__marker {
-  grid-column: 1;
-  justify-self: end;
-  align-self: start;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/*
+ * The margin layer sits over the column's gutter track.
+ *
+ * `pointer-events: none` on the layer, restored on each mark: the layer spans the column's
+ * full height, and left solid it would swallow clicks on the first words of every line whose
+ * verse happens to start near it.
+ */
+.pds-reader__margin {
+  position: absolute;
+  /* Flush to the column's border box, NOT inset by its padding: each mark's `top` is measured
+     from that same origin, so insetting the layer would count the padding twice and drop every
+     mark a line and a half below the verse it belongs to. */
+  top: 0;
+  bottom: 0;
+  left: var(--pds-editor-paper-padding-x);
+  width: var(--pds-reader-gutter);
+  pointer-events: none;
+  /*
+   * Above the verses, or the bars cannot be clicked at all.
+   *
+   * `.pds-reader__verses` is lifted to z-index 1 so the note card can sit behind the text —
+   * but that container's box spans the column's full content width, gutter included. Being
+   * transparent there does not matter: an element still hit-tests across its whole box, so it
+   * was swallowing every pointer aimed at a bar. The layer stays `pointer-events: none`, so
+   * only the bars themselves take the clicks it now receives.
+   */
+  z-index: 2;
+}
+
+/*
+ * A note's span, drawn as a bar.
+ *
+ * Length is the whole point: a one-verse note is a short tick, a five-verse note is a long
+ * rule, and two notes over the same verses are two bars side by side. Dots could say only
+ * "something is here", which is the least interesting thing the margin knows.
+ *
+ * The bar itself is the 2px/1px-radius rule used for every spine in the app
+ * (`.proto-thread-trail__spine`); the button around it is a wider invisible hit area, because
+ * a 2px pointer target is not a target.
+ */
+.pds-reader__bar {
+  position: absolute;
+  /* Lanes fill inward from the text edge, so the first note sits closest to what it marks. */
+  right: calc(var(--lane, 0) * var(--pds-reader-lane-step));
+  width: var(--pds-reader-lane-step);
   padding: 0;
   border: none;
   background: none;
   cursor: pointer;
-  /* Tap target exceeds the visible mark — the dot itself is 7px. */
-  min-width: 24px;
-  min-height: 24px;
-  border-radius: var(--pds-radius-pill);
-  transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
+  pointer-events: auto;
+  display: flex;
+  justify-content: flex-end;
 }
 
-.pds-reader__marker:hover {
-  background-color: var(--pds-bg-control-hover);
+/*
+ * Grey, not amber — deliberately.
+ *
+ * The highlight palette means "you kept this, in this colour". A margin bar means "a note
+ * touches these verses", which is structure, not a colour you chose. In amber the two were
+ * the same language: a bar beside an amber highlight looked like part of it, and a bar beside
+ * a violet one looked like a highlight that had lost its colour. Grey is the same register
+ * the reader already uses for hover and selection — present, unclaimed, out of the way.
+ */
+.pds-reader__bar-line {
+  width: 2px;
+  height: 100%;
+  border-radius: 1px;
+  /* Discrete steps, not a continuous ramp — the church heatmap's treatment, for the same
+     reason: at this size a smooth ramp is indistinguishable from noise. */
+  background-color: color-mix(in srgb, var(--pds-text-tertiary) 55%, transparent);
+  transition:
+    background-color var(--pds-duration-press) var(--pds-ease-standard),
+    width var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-.pds-reader__marker:focus-visible {
+.pds-reader__bar[data-heat='2'] .pds-reader__bar-line {
+  background-color: color-mix(in srgb, var(--pds-text-tertiary) 75%, transparent);
+}
+
+.pds-reader__bar[data-heat='3'] .pds-reader__bar-line,
+.pds-reader__bar[data-heat='4'] .pds-reader__bar-line {
+  background-color: var(--pds-text-tertiary);
+}
+
+.pds-reader__bar:hover .pds-reader__bar-line,
+.pds-reader__bar:focus-visible .pds-reader__bar-line,
+.pds-reader__bar[data-active='true'] .pds-reader__bar-line {
+  background-color: var(--pds-text-secondary);
+  width: 3px;
+}
+
+.pds-reader__bar:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: 1px;
-}
-
-/* Colour falls back on the marker itself, not just the .pds-reader surface, so a
-   marker renders correctly anywhere it is used (docks, gallery, list rows) while
-   a surface or a single verse can still override the variable. */
-.pds-reader__marker-dot {
-  width: var(--pds-reader-notifier-dot);
-  height: var(--pds-reader-notifier-dot);
   border-radius: var(--pds-radius-pill);
-  background-color: var(--pds-reader-notifier-color, var(--pds-highlight-warm-amber));
-}
-
-/* Multiple notes: the dots stack inside a hairline capsule so the count reads
-   at a glance without a number. */
-.pds-reader__marker-capsule {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  width: var(--pds-reader-notifier-capsule-width);
-  padding: 3px 0;
-  border-radius: var(--pds-radius-pill);
-  border: 1.5px solid var(--pds-reader-notifier-color, var(--pds-highlight-warm-amber));
-}
-
-.pds-reader__marker-capsule .pds-reader__marker-dot {
-  width: 5px;
-  height: 5px;
 }
 
 /* ── Paper stack ──
@@ -17887,7 +18229,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 
   .pds-reader__verse,
-  .pds-reader__marker {
+  .pds-reader__bar-line {
     transition: none;
   }
 }
@@ -17901,7 +18243,16 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   justify-content: space-between;
   gap: var(--pds-space-3);
   margin-top: var(--pds-space-10);
+  padding-top: var(--pds-space-5);
   padding-inline-start: calc(var(--pds-reader-gutter) + var(--pds-space-2));
+  /*
+   * Closes the chapter, the way the note header's rule opens a note.
+   *
+   * `--pds-border-on-paper`, not `--pds-border`: this sits on the paper sheet rather than on
+   * the canvas, and the ordinary border token is effectively invisible against it — the same
+   * reason the note's audience bar reaches for this token (see prototype-tokens.css).
+   */
+  border-top: 0.5px solid var(--pds-border-on-paper);
 }
 
 .pds-reader__chapter-nav-btn {
@@ -18400,4 +18751,162 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   display: flex;
   justify-content: center;
   padding-top: 2px;
+}
+
+/* ── Translations settings: a translation row and its offline state ──────────── */
+
+/*
+ * Two controls in one row, doing different things: the row itself picks the default
+ * translation, and the strip beneath it manages the offline copy. Nesting the second inside
+ * the first would make "Remove" a way to change your default by accident, so they are
+ * siblings and only the top one is a button.
+ */
+.proto-translation-row {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 0.5px solid var(--pds-border);
+}
+
+.proto-translation-row:last-child {
+  border-bottom: 0;
+}
+
+.proto-translation-row__choose {
+  border-bottom: 0;
+}
+
+.proto-translation-row__offline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 10px;
+  /* Reads as a footnote to the row above rather than a row of its own. */
+  margin-top: -4px;
+}
+
+.proto-translation-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-translation-row__status[data-state='ready'] {
+  color: var(--pds-success);
+}
+
+.proto-translation-row__action {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  font-family: var(--pds-font-body) !important;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-link);
+  cursor: pointer;
+}
+
+.proto-translation-row__action:hover {
+  text-decoration-line: underline;
+}
+
+/* Pushes the actions to the trailing edge, so the status reads first. */
+.proto-translation-row__status + .proto-translation-row__action {
+  margin-left: auto;
+}
+
+/*
+ * A section label that stays put while its own books scroll past it.
+ *
+ * Only for menus long enough to scroll — sticky is what makes the grouping useful mid-scroll
+ * rather than only at rest, since the whole question it answers ("which part of the canon am
+ * I looking at") is asked while moving. The popover is the scroll container, so the label
+ * needs its own background or the rows would read straight through it.
+ */
+.proto-menu-section-label--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--pds-bg-popover-solid);
+}
+
+/* ── A menu whose groups are tabs rather than headings ───────────────────────── */
+
+.proto-menu-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 4px;
+  border-radius: var(--pds-radius-menu);
+  /*
+   * Two layers, and both are needed. `--pds-bg-input` is a 5.5%-opaque tint meant to sit on a
+   * solid surface — used alone on a sticky bar, the rows scrolling underneath showed straight
+   * through it, so "1Kgs" and "2Kgs" appeared to be printed across the toggle. The gradient
+   * paints that tint over an opaque base rather than over whatever is passing behind.
+   */
+  background:
+    linear-gradient(var(--pds-bg-input), var(--pds-bg-input)),
+    var(--pds-bg-popover-solid);
+  /* Stays put while its own books scroll under it — the toggle is how you leave, so it
+     should never be something you have to scroll back up to reach. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.proto-menu-tab {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: calc(var(--pds-radius-menu) - 2px);
+  padding: 5px 8px;
+  background: none;
+  font-family: var(--pds-font-body) !important;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-menu-tab[aria-selected='true'] {
+  background: var(--pds-bg-popover-solid);
+  color: var(--pds-text-primary);
+  box-shadow: var(--pds-shadow-control, none);
+}
+
+/* ── The reader's book picker: a testament at a time, as a grid of short names ── */
+
+.pds-reader__book-menu .proto-menu-section {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  /* A gutter down both sides so the outer columns are not pressed against the popover edge. */
+  padding: 0 4px 4px;
+}
+
+.pds-reader__book-menu .proto-menu-tabs {
+  /* Matches the grid's own side gutter so the toggle lines up with the columns under it. */
+  margin: 0 4px 6px;
+}
+
+.pds-reader__book-menu .proto-menu-item {
+  /* Released from the label-menu minimum: these are 2–6 character codes, not sentences. */
+  min-width: 0;
+  justify-content: center;
+  /* Enough side padding that a code is never flush against its cell wall, but not so much
+     that the longest of them — "1Thess", "2Thess" — gets ellipsised out of readability. */
+  padding: 8px 5px;
+  font-size: 12px;
+}
+
+.pds-reader__book-menu .proto-menu-item__check {
+  display: none;
+}
+
+/* The same selected treatment the chapter grid uses — one picker, one idea of "you are here". */
+.pds-reader__book-menu .proto-menu-item[aria-checked='true'] {
+  background: var(--pds-bg-row-selected);
+  font-weight: 600;
 }

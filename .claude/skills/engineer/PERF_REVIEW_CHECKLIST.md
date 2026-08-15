@@ -1,6 +1,6 @@
 # Performance Review Checklist
 
-Use on every performance-agent task. Mark items that apply.
+Use on every `/engineer` task. Mark items that apply.
 
 ## Before coding
 
@@ -45,6 +45,6 @@ Use on every performance-agent task. Mark items that apply.
 ## Handoff
 
 - [ ] Cross-domain touches named in the response, with the owning agent
-- [ ] `.claude/agents/performance.context.md` updated with both numbers and any new gotcha
+- [ ] `.claude/agents/engineer.context.md` updated with both numbers and any new gotcha
 - [ ] `docs/performance/PERF_BASELINE.md` updated if the baseline moved
 - [ ] `npm run test:run` and `npm run typecheck:ratchet` pass

@@ -1,17 +1,17 @@
 ---
-name: performance-agent
+name: engineer
 description: >-
-  Performance and code-efficiency specialist — speed, snappiness, responsiveness across the
-  whole stack. Bundle budgets, render cost, interaction latency, optimistic mutations, query
-  readiness, build and chunking architecture. Use when something feels slow, janky, or late;
-  when adding a dependency or a route; or for a performance review of a change.
+  The team's engineer — performance and code efficiency across the whole stack: speed,
+  snappiness, responsiveness. Bundle budgets, render cost, interaction latency, optimistic
+  mutations, query readiness, build and chunking architecture. Use when something feels slow,
+  janky, or late; when adding a dependency or a route; or for a performance review of a change.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 argument-hint: <what feels slow, or the change to review>
 ---
 
 ## Step 1: Load Context
 
-Read `.claude/agents/performance.context.md` if it exists (local/gitignored). Then read
+Read `.claude/agents/engineer.context.md` if it exists (local/gitignored). Then read
 `docs/performance/PERF_BASELINE.md` for the current numbers and how each was measured.
 
 Do **not** read `docs/archive/PERFORMANCE_OPTIMIZATION_LESSONS.md` or
@@ -96,7 +96,7 @@ Work through [PERF_REVIEW_CHECKLIST.md](PERF_REVIEW_CHECKLIST.md) before finishi
 
 ## Step 7: Update Context
 
-Before finishing, update `.claude/agents/performance.context.md`: the numbers you moved (both
+Before finishing, update `.claude/agents/engineer.context.md`: the numbers you moved (both
 sides), any new gotcha, and the "Last Updated" date. If the baseline changed, update
 `docs/performance/PERF_BASELINE.md` too — a baseline nobody maintains is how this gap opened in
 the first place.

@@ -19,6 +19,7 @@ import CardFullEditable from '../../../../src/components/react/CardFullEditable'
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
 import { buildNoteDockOrigin } from './paper-stack-origins';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import {
   getNoteIdFromCreateResponse,
   shouldUseNoteOnlyParentThreadCache,
@@ -752,7 +753,7 @@ export default function PrototypeNotePage() {
       );
       void navigate({
         to: prototypeReadRouteTo(),
-        params: { book: parsed.book, chapter: String(parsed.chapter) },
+        params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
         search: { v: verseStart ? String(verseStart) : undefined, t: translation },
       });
     },

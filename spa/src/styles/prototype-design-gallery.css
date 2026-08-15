@@ -399,13 +399,25 @@
 .pds-gallery-reader-markers {
   display: flex;
   gap: var(--pds-space-5);
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .pds-gallery-reader-marker-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--pds-space-2);
+}
+
+/* Stand-in for the reader's gutter: bars are absolutely positioned against the column they
+   were measured in, so a specimen needs a positioned box of its own to sit in. Two lanes wide
+   so the overlapping pair has somewhere to go. */
+.pds-gallery-reader-bar-stage {
+  position: relative;
+  display: block;
+  width: calc(var(--pds-reader-lane-step) * 2);
+  height: 88px;
 }
 
 .pds-gallery-reader-stack {

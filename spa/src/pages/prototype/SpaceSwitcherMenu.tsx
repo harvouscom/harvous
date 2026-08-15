@@ -109,18 +109,6 @@ function SpaceSwitcherRow({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...listeners}
     >
-      {/* Cue and keyboard activator. `attributes` (role, tabIndex, aria-describedby) go
-          here so screen readers get the drag instructions on a focusable element, while
-          the pointer/touch gesture belongs to the whole row above. */}
-      <span
-        ref={setActivatorNodeRef}
-        className="proto-space-switcher__drag-handle"
-        aria-label={`Reorder ${row.title}`}
-        title="Drag to reorder"
-        {...attributes}
-      >
-        <Icon name="bars" size={12} />
-      </span>
       <button
         type="button"
         role="menuitemradio"
@@ -144,6 +132,21 @@ function SpaceSwitcherRow({
           {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
         </span>
       </button>
+      {/* Trailing, in flow — the same place and the same grip the thread trail reorders by.
+          It used to sit absolutely positioned over the row's left edge, on top of the space
+          icon, so the one list in the app you reorder from the left was this one.
+
+          `attributes` (role, tabIndex, aria-describedby) live here so a screen reader gets the
+          drag instructions on something focusable, while the pointer gesture stays on the row. */}
+      <span
+        ref={setActivatorNodeRef}
+        className="proto-space-switcher__drag-handle"
+        aria-label={`Reorder ${row.title}`}
+        title="Drag to reorder"
+        {...attributes}
+      >
+        <Icon name="bars" size={12} />
+      </span>
     </div>
   );
 }

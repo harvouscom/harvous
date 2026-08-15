@@ -69,6 +69,7 @@ import {
 } from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { parseScriptureReference } from '@/utils/scripture-detector';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
@@ -3238,7 +3239,7 @@ export default function PrototypeSidebar({
           if (!parsed) return;
           void navigate({
             to: prototypeReadRouteTo(),
-            params: { book: parsed.book, chapter: String(parsed.chapter) },
+            params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
             // `scriptureFocusVerse` is set only when the query named a verse, so "John 15"
             // opens at the top of the chapter instead of scrolled to verse 1.
             search: {
@@ -3369,13 +3370,23 @@ export default function PrototypeSidebar({
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
       {backTarget && !isHomeLayer ? (
         <div className="proto-sidebar-back-row">
-          <button type="button" className="proto-sidebar-back-row__button" onClick={backTarget.action}>
-            <Icon name="caret-left" size={13} className="proto-sidebar-back-row__chevron" aria-hidden />
-            {backTarget.kind ? (
-              <span className="proto-sidebar-back-row__kind">{backTarget.kind}</span>
-            ) : null}
-            <span className="proto-sidebar-back-row__label">{backTarget.label}</span>
+          {/* Same back affordance as the shared-space Thread drilldown: a tile to press, with
+              the name and its kind beside it. The tile is the target — the name is a heading,
+              not a second control wearing the same job. */}
+          <button
+            type="button"
+            className="proto-sidebar-back-tile"
+            onClick={backTarget.action}
+            aria-label={`Back to ${backTarget.label}`}
+          >
+            <Icon name="caret-left" size={16} aria-hidden />
           </button>
+          <div className="proto-sidebar-back-row__meta">
+            <span className="pds-list-title proto-sidebar-back-row__label">{backTarget.label}</span>
+            {backTarget.kind ? (
+              <p className="proto-caption proto-sidebar-back-row__kind">{backTarget.kind}</p>
+            ) : null}
+          </div>
           {showFolderAddNotes || showThreadAddNotes ? (
             <button
               type="button"
@@ -4299,7 +4310,7 @@ export default function PrototypeSidebar({
                             if (!bookTitle) return;
                             void navigate({
                               to: prototypeReadRouteTo(),
-                              params: { book: bookTitle, chapter: String(p.chapter) },
+                              params: { book: bookSlug(bookTitle), chapter: String(p.chapter) },
                               search: { v: String(p.verseStart), t: undefined },
                             });
                           }}

@@ -90,6 +90,7 @@ import {
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
 } from '@/lib/prototype-path';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import {
   clearMainFreezeLayer,
   freezeMainInnerIntoLayer,

@@ -183,6 +183,26 @@ export interface ThreadCacheEntry {
   expiresAt: number;
 }
 
+/**
+ * One book of one translation, held for offline reading.
+ *
+ * Keyed by `[translationId+book]` rather than by a synthetic id so a pack's chunks can be
+ * counted, read and deleted by translation without a secondary lookup — the three things the
+ * Translations page does.
+ *
+ * Not user-partitioned, unlike everything else in this database. Scripture is the same text
+ * for every reader, and partitioning it would mean re-downloading 4MB for each account that
+ * signs in on a shared device to read the identical bytes.
+ */
+export interface OfflineBiblePack {
+  translationId: string;
+  book: string;
+  /** Server-supplied stamp; a mismatch means the stored copy is stale. */
+  version: string;
+  chapters: { chapter: number; verses: { number: number; text: string }[] }[];
+  savedAt: number;
+}
+
 // Offline database class
 class OfflineDatabase extends Dexie {
   spaces!: Table<OfflineSpace>;
@@ -197,6 +217,7 @@ class OfflineDatabase extends Dexie {
   syncState!: Table<SyncState>;
   threadCache!: Table<ThreadCacheEntry>;
   scriptureIndexCache!: Table<ScriptureIndexCacheEntry>;
+  biblePacks!: Table<OfflineBiblePack>;
 
   constructor() {
     super('HarvousOfflineDB');
@@ -267,6 +288,24 @@ class OfflineDatabase extends Dexie {
     // Version 5: scripture index mirror, so the reader's margin markers render offline.
     this.version(5).stores({
       scriptureIndexCache: '[spaceId+userId], spaceId, userId, updatedAt'
+    });
+
+    // Version 6: Offline Bible packs — a translation's text, book by book.
+    this.version(6).stores({
+      spaces: 'id, userId, syncStatus, lastModified, [userId+syncStatus], [userId+id]',
+      threads: 'id, userId, spaceId, syncStatus, lastModified, [userId+spaceId], [userId+syncStatus], [userId+id]',
+      notes: 'id, userId, threadId, spaceId, syncStatus, lastModified, simpleNoteId, [userId+threadId], [userId+spaceId], [userId+syncStatus], [userId+simpleNoteId], [userId+id]',
+      noteThreads: 'id, userId, noteId, threadId, [userId+noteId], [userId+threadId], [noteId+threadId], [userId+noteId+threadId], [userId+id]',
+      noteConnections:
+        'id, userId, fromNoteId, toNoteId, spaceId, [userId+fromNoteId], [userId+toNoteId], [userId+id]',
+      tags: 'id, userId, syncStatus, [userId+syncStatus], [userId+id]',
+      noteTags: 'id, userId, noteId, tagId, [userId+noteId], [userId+tagId], [userId+id]',
+      userMetadata: 'id, userId, [userId+id]',
+      syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType], [userId+id]',
+      syncState: 'userId',
+      threadCache: '[threadId+userId], threadId, userId, timestamp, expiresAt',
+      scriptureIndexCache: '[spaceId+userId], spaceId, userId, updatedAt',
+      biblePacks: '[translationId+book], translationId, book, savedAt'
     });
   }
 }

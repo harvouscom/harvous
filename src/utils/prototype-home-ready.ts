@@ -48,6 +48,8 @@ export interface PrototypeHomePresentationReadyInput {
   churchSermonsSettled: boolean;
   /** Church feed — self-gates on its own query. */
   churchFeedSettled: boolean;
+  /** Reading bookmark — *replaces* the continue-book card, so its arrival reorders the deck. */
+  readingPositionSettled: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export function isPrototypeHomePresentationReady(input: PrototypeHomePresentatio
     input.connectSuggestionsSettled &&
     input.recallHistorySettled &&
     input.churchSermonsSettled &&
-    input.churchFeedSettled
+    input.churchFeedSettled &&
+    input.readingPositionSettled
   );
 }

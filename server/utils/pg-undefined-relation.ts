@@ -123,6 +123,7 @@ export function isStudyThreadNamingColumnMissing(error: unknown): boolean {
   );
 }
 
+
 export function isPrototypeFolderStatsColumnMissing(error: unknown): boolean {
   return (
     isPgUndefinedColumn(error, 'primaryCollection') ||

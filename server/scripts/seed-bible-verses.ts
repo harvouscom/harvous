@@ -47,10 +47,12 @@ const BIBLES_DIR = resolve(__dirname, '../data/bibles');
 // Common book name variants → canonical name
 const BOOK_NAME_MAP: Record<string, string> = {
   'psalm': 'Psalms',
-  'song of solomon': 'Song of Songs',
-  'song of songs': 'Song of Songs',
-  'canticles': 'Song of Songs',
-  'sirach': 'Song of Songs',
+  // Normalises to the spelling the rows actually carry. This mapped to "Song of Songs"
+  // while every seeded row said "Song of Solomon", so re-running the seeder would have
+  // produced a book the reader could not open.
+  'song of solomon': 'Song of Solomon',
+  'song of songs': 'Song of Solomon',
+  'canticles': 'Song of Solomon',
   '1samuel': '1 Samuel',
   '2samuel': '2 Samuel',
   '1kings': '1 Kings',

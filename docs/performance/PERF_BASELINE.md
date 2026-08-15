@@ -1,6 +1,6 @@
 # Performance Baseline
 
-Current numbers, how each was measured, and how to reproduce them. Owned by `/performance-agent`.
+Current numbers, how each was measured, and how to reproduce them. Owned by `/engineer`.
 
 **Last measured:** 2026-08-13
 

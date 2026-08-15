@@ -292,6 +292,7 @@ function scripturePassageToResult(bookOrder: number, passage: ScriptureIndexPass
   };
 }
 
+
 function ftsNoteToResult(result: SearchResult): SidebarSearchResult {
   const title = noteSearchTitle(result);
   const excerpt = (result as { excerpt?: string | null }).excerpt ?? undefined;
