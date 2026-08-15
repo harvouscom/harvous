@@ -514,7 +514,7 @@ function validateAndWarn(ref: ScriptureReference): ScriptureReference {
  * A tie inside a rank keeps list order, so genuinely ambiguous input ("Phil") still
  * resolves the way it always has — to Philippians, whose declared synonym it is.
  */
-function resolveCanonicalBookName(bookPart: string, bookNames: string[]): string | null {
+export function resolveCanonicalBookName(bookPart: string, bookNames: string[]): string | null {
   const normalizedBookPart = normalizeText(bookPart);
   if (!normalizedBookPart) return null;
 

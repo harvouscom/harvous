@@ -71,6 +71,8 @@ export default function PrototypeSidebarSearchResultItem({
       );
     case 'scripturePassage':
       return <ScripturePassageSearchResultItem result={result} active={active} onActivate={onActivate} />;
+    case 'readerChapter':
+      return <ReaderChapterSearchResultItem result={result} active={active} onActivate={onActivate} />;
     default:
       return null;
   }
@@ -244,6 +246,38 @@ function InlineKindSearchResultItem({
         <div className="proto-note-row__title-line">
           <span className="proto-note-row__kind-icon" aria-hidden>
             <Icon name={iconName} size={11} />
+          </span>
+          <span className="pds-list-title proto-note-row__title-text">{result.title}</span>
+        </div>
+        {result.subtitle ? (
+          <div className="pds-list-preview proto-note-row__preview">{result.subtitle}</div>
+        ) : null}
+      </button>
+    </li>
+  );
+}
+
+/**
+ * A chapter to open, rather than something already written.
+ *
+ * Carries the book icon so it reads as a destination among rows that are otherwise notes and
+ * folders — this is the one result that is not a thing you own but a place you can go.
+ */
+function ReaderChapterSearchResultItem({
+  result,
+  active,
+  onActivate,
+}: {
+  result: SidebarSearchResult;
+  active: boolean;
+  onActivate: () => void;
+}) {
+  return (
+    <li className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
+      <button type="button" className="proto-note-row__main" onClick={onActivate}>
+        <div className="proto-note-row__title-line">
+          <span className="proto-note-row__kind-icon" aria-hidden>
+            <Icon name="book-open" size={12} />
           </span>
           <span className="pds-list-title proto-note-row__title-text">{result.title}</span>
         </div>

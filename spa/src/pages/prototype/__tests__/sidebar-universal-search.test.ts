@@ -180,6 +180,46 @@ describe('sidebar-universal-search', () => {
     expect(elsewhere.length).toBeGreaterThan(0);
   });
 
+  it('buildElsewhereResults offers the chapter a typed reference names', () => {
+    // Nahum is not in sampleData at all — the point is that the Bible is there regardless.
+    const results = buildElsewhereResults('Nahum 2', sampleData, new Set(), 'all', (c) => c.title ?? '');
+    const reader = results.find((r) => r.kind === 'readerChapter');
+    expect(reader).toMatchObject({ title: 'Nahum 2', readerBook: 'Nahum', readerChapter: 2 });
+  });
+
+  it('ranks the chapter above notes that merely mention it', () => {
+    const data: UniversalSearchData = {
+      ...sampleData,
+      notes: [
+        {
+          id: 'note_r',
+          title: 'Romans 8 study',
+          content: '<p>nothing</p>',
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-02',
+        },
+      ] as UniversalSearchData['notes'],
+    };
+    const results = buildElsewhereResults('Romans 8', data, new Set(), 'all', (c) => c.title ?? '');
+    expect(results[0]?.kind).toBe('readerChapter');
+  });
+
+  it('leaves ordinary searches alone', () => {
+    const results = buildElsewhereResults('romans', sampleData, new Set(), 'all', (c) => c.title ?? '');
+    // "romans" is six letters and resolves as a book, so the chapter is offered — but a
+    // phrase that is not a reference must not conjure one.
+    const prose = buildElsewhereResults('grace and faith', sampleData, new Set(), 'all', (c) => c.title ?? '');
+    expect(results.some((r) => r.kind === 'readerChapter')).toBe(true);
+    expect(prose.some((r) => r.kind === 'readerChapter')).toBe(false);
+  });
+
+  it('respects the Scripture type filter for chapter results', () => {
+    const scripture = buildElsewhereResults('Nahum 2', sampleData, new Set(), 'scripture', (c) => c.title ?? '');
+    const notesOnly = buildElsewhereResults('Nahum 2', sampleData, new Set(), 'notes', (c) => c.title ?? '');
+    expect(scripture.some((r) => r.kind === 'readerChapter')).toBe(true);
+    expect(notesOnly.some((r) => r.kind === 'readerChapter')).toBe(false);
+  });
+
   it('buildActiveViewResults matches notes on tags alone', () => {
     // "In Notes" previously only saw title + body, so a tag-only hit resolved server-side
     // (Elsewhere) but never in the active view. Brings web to parity with native.

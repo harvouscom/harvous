@@ -3223,6 +3223,17 @@ export default function PrototypeSidebar({
             passageKey: result.scripturePassageKey,
           });
           return;
+        case 'readerChapter': {
+          // The one result that leaves the sidebar's own lists behind — it is a place in the
+          // Bible, and the reader is where that place lives.
+          if (!result.readerBook || !result.readerChapter) return;
+          void navigate({
+            to: prototypeReadRouteTo(),
+            params: { book: result.readerBook, chapter: String(result.readerChapter) },
+            search: { v: result.readerVerse ? String(result.readerVerse) : undefined, t: undefined },
+          });
+          return;
+        }
         default:
           return;
       }
@@ -3234,6 +3245,7 @@ export default function PrototypeSidebar({
       setSidebarListMode,
       setActiveFolderKey,
       setSidebarThreadDrilldownId,
+      navigate,
     ],
   );
 

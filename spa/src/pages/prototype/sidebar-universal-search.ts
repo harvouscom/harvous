@@ -11,6 +11,7 @@ import { noteFolderMembershipLabels, noteBelongsToFolderBucket, normalizeFolderK
 import { sortFolderBucketsAlphabetically } from '@/utils/sorting';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { parseReaderQuery } from '@/utils/parse-reader-query';
 import {
   prototypeHighlightListTitle,
   prototypeHighlightSubtitlePreview,
@@ -286,6 +287,28 @@ function scripturePassageToResult(bookOrder: number, passage: ScriptureIndexPass
   };
 }
 
+/**
+ * The chapter a typed reference points at, whether or not anything has been written on it.
+ *
+ * Every other result here is something the reader already owns — a note, a folder, a passage
+ * they annotated. This one is the text itself, and it is the only result that can exist for a
+ * book nobody has touched yet. Without it, searching "Nahum 2" in an app that contains the
+ * whole Bible answered "no matches".
+ */
+function readerChapterToResult(match: ReturnType<typeof parseReaderQuery>): SidebarSearchResult | null {
+  if (!match) return null;
+  return {
+    id: sidebarSearchResultStableId('readerChapter', `${match.book}:${match.chapter}:${match.verse ?? ''}`),
+    kind: 'readerChapter',
+    title: match.reference,
+    // Says which of the two things it is: the chapter you named, or the one we picked for you.
+    subtitle: match.chapterAssumed ? 'Open the book at chapter 1' : 'Read this chapter',
+    readerBook: match.book,
+    readerChapter: match.chapter,
+    readerVerse: match.verse,
+  };
+}
+
 function ftsNoteToResult(result: SearchResult): SidebarSearchResult {
   const title = noteSearchTitle(result);
   const excerpt = (result as { excerpt?: string | null }).excerpt ?? undefined;
@@ -420,6 +443,14 @@ function collectAllElsewhereCandidates(
 
   const results: SidebarSearchResult[] = [];
   const locallyMatchedNoteIds = new Set<string>();
+
+  /*
+   * First, so that when ranking ties — "John 3" is an exact title prefix, and so is a note
+   * called "John 3 notes" — the passage itself wins. Someone who types a reference is asking
+   * to go there; their notes on it are one row below, which is where they should be.
+   */
+  const readerResult = readerChapterToResult(parseReaderQuery(query));
+  if (readerResult) results.push(readerResult);
 
   for (const note of filterNotesByQuery(data.notes, query)) {
     locallyMatchedNoteIds.add(note.id);

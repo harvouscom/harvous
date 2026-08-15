@@ -6,7 +6,8 @@ export type SidebarSearchResultKind =
   | 'threadCluster'
   | 'highlight'
   | 'scriptureBook'
-  | 'scripturePassage';
+  | 'scripturePassage'
+  | 'readerChapter';
 
 export type SidebarElsewhereTypeFilter =
   | 'all'
@@ -45,6 +46,9 @@ export type SidebarSearchResult = {
   highlightId?: string;
   scriptureBookOrder?: number;
   scripturePassageKey?: string;
+  readerBook?: string;
+  readerChapter?: number;
+  readerVerse?: number | null;
   ftsExcerpt?: string;
 };
 
@@ -69,6 +73,7 @@ export function sidebarSearchResultIcon(
       return 'arrow-right-arrow-left';
     case 'scriptureBook':
     case 'scripturePassage':
+    case 'readerChapter':
       return 'book-open';
     default:
       return 'note-sticky';
@@ -90,6 +95,8 @@ export function sidebarSearchResultAriaLabel(
       return 'Scripture book';
     case 'scripturePassage':
       return 'Scripture passage';
+    case 'readerChapter':
+      return 'Read in the Bible';
     case 'highlight':
       switch (highlightEntryKind) {
         case 'linkedNote':
@@ -121,7 +128,7 @@ export function elsewhereTypeFilterMatches(
     case 'highlights':
       return kind === 'highlight';
     case 'scripture':
-      return kind === 'scriptureBook' || kind === 'scripturePassage';
+      return kind === 'scriptureBook' || kind === 'scripturePassage' || kind === 'readerChapter';
     default:
       return true;
   }

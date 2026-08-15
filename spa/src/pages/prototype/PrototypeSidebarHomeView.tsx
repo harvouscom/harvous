@@ -12,7 +12,13 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
-import { isPrototypeNotePath, prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import {
+  isPrototypeNotePath,
+  prototypeHomeRouteTo,
+  prototypeNoteRouteTo,
+  prototypeReadRouteTo,
+} from '@/lib/prototype-path';
+import { parseReaderQuery } from '@/utils/parse-reader-query';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -735,6 +741,20 @@ export default function PrototypeSidebarHomeView({
   const threads = threadsQuery.data ?? [];
   const highlights = highlightsQuery.data ?? [];
   const votd = votdQuery.data;
+
+  /*
+   * Where a brand-new account is invited to start reading.
+   *
+   * Today's verse of the day when there is one — it is already the app's answer to "what
+   * should I read", and a first run is exactly when that question is loudest. John 1 is the
+   * fallback rather than Genesis 1: someone opening a Bible app for the first time is more
+   * likely to be looking for Jesus than for a genealogy.
+   */
+  const firstRunPassage = useMemo(() => {
+    const parsed = votd?.reference ? parseReaderQuery(votd.reference) : null;
+    if (parsed) return parsed;
+    return { book: 'John', chapter: 1, verse: null, reference: 'John 1' };
+  }, [votd?.reference]);
 
   // When all pages are loaded, the flat list is authoritative; otherwise prefer server total.
   const exactTotal = noteTotal ?? null;
@@ -1714,8 +1734,48 @@ export default function PrototypeSidebarHomeView({
         ) : null}
       </HomeSection>
 
+      {/*
+        First run leads with reading, not writing.
+        A blank account used to open on "Create your first note", which asks someone to
+        produce something before they have been given anything. Harvous has the whole Bible
+        in it now, so the first move offered is to open it — today's passage when there is
+        one, John 1 otherwise. Writing is still one tap away, underneath, where it belongs
+        once there is something to write about.
+      */}
       {notesListPhase === 'empty' ? (
         <div className="proto-home-section">
+          <button
+            type="button"
+            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+            onClick={() => {
+              void navigate({
+                to: prototypeReadRouteTo(),
+                params: {
+                  book: firstRunPassage.book,
+                  chapter: String(firstRunPassage.chapter),
+                },
+                search: {
+                  v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
+                  t: undefined,
+                },
+              });
+            }}
+          >
+            <div className="proto-home-card__body">
+              <div className="proto-home-card__title-row">
+                <span className="proto-home-card__icon-orb" aria-hidden>
+                  <Icon name="book-open" size={13} />
+                </span>
+                <p className="pds-list-title proto-home-card__title">Start reading</p>
+                <span className="proto-home-card__chevron" aria-hidden>
+                  <Icon name="caret-right" size={11} />
+                </span>
+              </div>
+              <p className="pds-list-preview proto-home-card__preview">
+                {firstRunPassage.reference} — highlight a verse to begin a note from it.
+              </p>
+            </div>
+          </button>
           <button
             type="button"
             className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
@@ -1726,12 +1786,12 @@ export default function PrototypeSidebarHomeView({
                 <span className="proto-home-card__icon-orb" aria-hidden>
                   <Icon name="note-sticky" size={13} />
                 </span>
-                <p className="pds-list-title proto-home-card__title">No notes yet</p>
+                <p className="pds-list-title proto-home-card__title">Write a note</p>
                 <span className="proto-home-card__chevron" aria-hidden>
                   <Icon name="caret-right" size={11} />
                 </span>
               </div>
-              <p className="pds-list-preview proto-home-card__preview">Create your first note...</p>
+              <p className="pds-list-preview proto-home-card__preview">Start from a blank page instead.</p>
             </div>
           </button>
         </div>
