@@ -98,9 +98,9 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "API_PORT=3003 VITE_API_PROXY_TARGET=http://localhost:3003 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4331 --strictPort'"
+        "API_PORT=3002 VITE_API_PROXY_TARGET=http://localhost:3002 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4326 --strictPort'"
       ],
-      "port": 4331,
+      "port": 4326,
       "autoPort": false
     }
   ]

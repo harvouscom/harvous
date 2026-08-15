@@ -720,6 +720,46 @@ export default function PrototypeNotePage() {
     });
   }, [navigate, noteSlugParam, initialScriptureRef, contextSpaceId]);
 
+  /**
+   * A scripture dock expanding one step further, into the Bible reader.
+   *
+   * The reader stacks over this note as a sheet, the inverse of a note over the reader; the
+   * edge above the chapter says this note's title, and tapping it collapses back to the note
+   * with its dock reopened. `returnTo` is captured here, at expand time, and that is the
+   * anchor rule: read three chapters on and collapse, and the dock comes back on the pill's
+   * reference, because the reader never touches what was captured. A draft has no address to
+   * return to, so it does not offer this.
+   *
+   * Declared up here with the other hooks, above the loading/not-found early returns — a hook
+   * below them is skipped on the loading render and appears on the next, which React reports
+   * as "rendered more hooks than during the previous render".
+   */
+  const handleExpandScriptureToReader = useCallback(
+    ({ reference, translation }: { reference: string; translation: string }) => {
+      if (isDraft || !noteId) return;
+      const parsed = parseScriptureReference(reference);
+      if (!parsed) return;
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      stackNote(
+        buildNoteDockOrigin({
+          noteId,
+          noteTitle: liveNoteSnapshot.title || note?.title,
+          reference,
+          translation,
+          spaceId: contextSpaceId,
+        }),
+        noteId,
+      );
+      void navigate({
+        to: prototypeReadRouteTo(),
+        params: { book: parsed.book, chapter: String(parsed.chapter) },
+        search: { v: verseStart ? String(verseStart) : undefined, t: translation },
+      });
+    },
+    [isDraft, noteId, liveNoteSnapshot.title, note?.title, contextSpaceId, stackNote, navigate],
+  );
+
+
   const onReferenceDeepLinkHandoff = useCallback(() => {
     if (!initialReferenceWord) return;
     navigate({
@@ -2080,41 +2120,6 @@ export default function PrototypeNotePage() {
     shared space: a sermon draft is private, and "add this to the church's plan"
     is not an offer to make about somebody else's note in somebody else's room.
   */
-  /**
-   * A scripture dock expanding one step further, into the Bible reader.
-   *
-   * The reader stacks over this note as a sheet, the inverse of a note over the reader; the
-   * edge above the chapter says this note's title, and tapping it collapses back to the note
-   * with its dock reopened. `returnTo` is captured here, at expand time, and that is the
-   * anchor rule: read three chapters on and collapse, and the dock comes back on the pill's
-   * reference, because the reader never touches what was captured. A draft has no address to
-   * return to, so it does not offer this.
-   */
-  const handleExpandScriptureToReader = useCallback(
-    ({ reference, translation }: { reference: string; translation: string }) => {
-      if (isDraft || !noteId) return;
-      const parsed = parseScriptureReference(reference);
-      if (!parsed) return;
-      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-      stackNote(
-        buildNoteDockOrigin({
-          noteId,
-          noteTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
-          reference,
-          translation,
-          spaceId: contextSpaceId,
-        }),
-        noteId,
-      );
-      void navigate({
-        to: prototypeReadRouteTo(),
-        params: { book: parsed.book, chapter: String(parsed.chapter) },
-        search: { v: verseStart ? String(verseStart) : undefined, t: translation },
-      });
-    },
-    [isDraft, noteId, liveNoteSnapshot.title, prototypeDisplayTitle, contextSpaceId, stackNote, navigate],
-  );
-
   const canManageChurchPlan = canChurchForTemplates('manage_teaching_plan');
   const inspectorTeachingPlan =
     canManageChurchPlan && churchOrgId && !isDraft && noteId && !sharedActionSpaceId
