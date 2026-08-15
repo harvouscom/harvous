@@ -17511,7 +17511,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  padding: var(--pds-editor-paper-inset-top) var(--pds-editor-paper-inset-x) 0;
+  /* No top lip. The note's paper carries one so its first line clears the sidebar search;
+     the reader's paper has nothing to clear and its own 48px of top padding inside, so the
+     lip only added a band of dead space above the chapter — most visible stacked, where it
+     opened a gap between the peeking edge and the paper right under it. */
+  padding: 0 var(--pds-editor-paper-inset-x) 0;
 }
 
 /* The sheet — same 720px centred paper as `.proto-editor-paper`, same fill, same shadow, same

@@ -166,12 +166,15 @@ export default function PrototypeReaderInspectorPane({
             size. A single highlighted chip in a track reads as a segmented control missing
             its other option — you cannot tell whether it is a state or the only choice.
             Spelling out both ends removes the guess. */}
+        {/* Said the way a reader would say it, not the way a typesetter would. "Prose" and
+            "Lines" name the typography; "Paragraphs" and "One per line" name what you will
+            actually see on the page, which is the only thing being chosen between. */}
         <div className="proto-reader-inspector__setting">
-          <span className="proto-reader-inspector__setting-label">Layout</span>
+          <span className="proto-reader-inspector__setting-label">Verses</span>
           <div
             className="proto-appearance-segmented proto-reader-inspector__switch"
             role="group"
-            aria-label="Verse layout"
+            aria-label="How verses are arranged"
           >
             <button
               type="button"
@@ -180,7 +183,7 @@ export default function PrototypeReaderInspectorPane({
               aria-pressed={prefs.verseLayout === 'prose'}
               onClick={() => writeReadingPrefs({ ...prefs, verseLayout: 'prose' })}
             >
-              Prose
+              Paragraphs
             </button>
             <button
               type="button"
@@ -189,7 +192,7 @@ export default function PrototypeReaderInspectorPane({
               aria-pressed={prefs.verseLayout === 'lines'}
               onClick={() => writeReadingPrefs({ ...prefs, verseLayout: 'lines' })}
             >
-              Lines
+              One per line
             </button>
           </div>
         </div>
@@ -222,13 +225,15 @@ export default function PrototypeReaderInspectorPane({
           </div>
         </div>
 
-        {/* The margin bars are a reminder of your own work; sometimes you want only the text. */}
+        {/* The margin bars are a reminder of your own work; sometimes you want only the text.
+            "Margin notes" describes where the marks are drawn; "My notes" describes whose
+            they are, which is what you are deciding about when you reach for this. */}
         <div className="proto-reader-inspector__setting">
-          <span className="proto-reader-inspector__setting-label">Margin notes</span>
+          <span className="proto-reader-inspector__setting-label">My notes</span>
           <div
             className="proto-appearance-segmented proto-reader-inspector__switch"
             role="group"
-            aria-label="Margin notes"
+            aria-label="Marks in the margin where your notes cite this chapter"
           >
             <button
               type="button"
