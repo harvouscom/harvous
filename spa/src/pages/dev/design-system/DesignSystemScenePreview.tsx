@@ -898,9 +898,12 @@ function PaperStackScene() {
       <div className="pds-gallery-reader-stack">
         <PrototypePaperStack
           key={originKind}
-          stack={{ origin, noteId: 'gallery', open }}
+          stack={{ origin, noteId: 'gallery', noteTitle: 'The vine and the branches', open }}
           onFlipDown={() => setOpen(false)}
           onFlipUp={() => setOpen(true)}
+          // The gallery keeps the paper: dismissing here would leave an empty frame with no
+          // way to get the scene back short of a reload.
+          onDismiss={() => setOpen(true)}
         >
           <div className="pds-gallery-reader-note">
             <p className="pds-compose-title">

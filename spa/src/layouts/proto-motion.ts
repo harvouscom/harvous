@@ -76,6 +76,17 @@ export const PROTO_RESOURCE_MORPH_MS = 190;
  */
 export const PROTO_PAPER_STACK_MS = 320;
 
+/**
+ * How long a Home origin's edge stays up before retiring itself.
+ *
+ * Not a motion duration — a reading one. The Home edge explains why the app sent you to a
+ * note ("Worth another look"), and unlike the reader and note origins it is not holding any
+ * state for you to come back to. Once the label has been read the job is done. Long enough
+ * to read a short phrase without hurrying and glance back if you missed it; short enough
+ * that it is gone before it becomes furniture.
+ */
+export const PROTO_HOME_ORIGIN_RETIRE_MS = 8000;
+
 /** Founder letter paper leaf fan — MUST stay in lockstep with `.proto-paper-leaf` transition in prototype-components.css. */
 export const PROTO_FOUNDER_LETTER_PAPER_MS = 900;
 

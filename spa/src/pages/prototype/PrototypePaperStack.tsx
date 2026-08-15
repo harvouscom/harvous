@@ -25,15 +25,24 @@ import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 export default function PrototypePaperStack({
   stack,
   exiting = false,
+  retiring = false,
   onFlipDown,
   onFlipUp,
+  onDismiss,
   children,
 }: {
   stack: PaperStackState;
   /** The sheet is on its way out — plays the reverse morph before the stack clears. */
   exiting?: boolean;
+  /**
+   * The origin is retiring itself — the sheet settles to where an unstacked page sits and
+   * the edge fades, then the stack clears. Only Home does this; see the layout for why.
+   */
+  retiring?: boolean;
   onFlipDown: () => void;
   onFlipUp: () => void;
+  /** Put the origin down: the stack clears and the sheet becomes an ordinary page. */
+  onDismiss: () => void;
   children: ReactNode;
 }) {
   const { origin } = stack;
@@ -43,7 +52,12 @@ export default function PrototypePaperStack({
   const parkedLabel = stripServerAutoUntitledNoteTitleForDisplay(stack.noteTitle ?? '') || 'New Note';
 
   return (
-    <div className="pds-paper-stack" data-origin-kind={origin.kind} data-exiting={exiting ? 'true' : undefined}>
+    <div
+      className="pds-paper-stack"
+      data-origin-kind={origin.kind}
+      data-exiting={exiting ? 'true' : undefined}
+      data-retiring={retiring ? 'true' : undefined}
+    >
       <div className="pds-paper-stack__base">
         {origin.base.type === 'reader' ? (
           // A background layer, seen for its top edge and during a flip-down pause — the
@@ -86,15 +100,38 @@ export default function PrototypePaperStack({
       </div>
 
       {stack.open ? (
-        <button
-          type="button"
-          className="pds-paper-stack__edge"
-          onClick={onFlipDown}
-          aria-label={collapses ? `Back to ${origin.label}` : `Show ${origin.label}`}
-        >
-          <Icon name={origin.icon as IconName} size={12} aria-hidden />
-          <span className="pds-caption">{origin.label}</span>
-        </button>
+        <div className="pds-paper-stack__edge-row">
+          <button
+            type="button"
+            className="pds-paper-stack__edge"
+            onClick={onFlipDown}
+            aria-label={collapses ? `Back to ${origin.label}` : `Show ${origin.label}`}
+          >
+            <Icon name={origin.icon as IconName} size={12} aria-hidden />
+            <span className="pds-caption">{origin.label}</span>
+          </button>
+          {/*
+            Put the origin down for good.
+
+            Automatic teardown already handles the cases that are stale by definition — a
+            different note, a different space, off to Settings. What it cannot know is
+            whether you are finished with where you came from, and no rule guesses that
+            well: it would either clear the edge while you still wanted it or leave it up
+            long after you did not. So the answer is a gesture, not a heuristic.
+
+            Only on the origin edge, never on a parked note: dismissing the paper you came
+            from puts a breadcrumb down, while dismissing a parked note would throw away a
+            mounted draft. Those are not the same act and must not share a control.
+          */}
+          <button
+            type="button"
+            className="pds-paper-stack__edge-dismiss"
+            onClick={onDismiss}
+            aria-label={`Stop showing ${origin.label} behind this`}
+          >
+            <Icon name="xmark" size={11} aria-hidden />
+          </button>
+        </div>
       ) : (
         // The parked sheet is still there, its top edge showing above the pane's bottom —
         // the mirror of the base peeking above it when it is up. Its edge is the way back,
@@ -104,15 +141,17 @@ export default function PrototypePaperStack({
         // Labelled with the note's own title, like every other row that stands for a note.
         // "Your note" was the same words over every note you ever parked, which told you
         // which pane you were looking at and nothing about which note was in it.
-        <button
-          type="button"
-          className="pds-paper-stack__edge pds-paper-stack__edge--parked"
-          onClick={onFlipUp}
-          aria-label={`Bring ${parkedLabel} back up`}
-        >
-          <Icon name="note-sticky" size={12} aria-hidden />
-          <span className="pds-caption">{parkedLabel}</span>
-        </button>
+        <div className="pds-paper-stack__edge-row pds-paper-stack__edge-row--parked">
+          <button
+            type="button"
+            className="pds-paper-stack__edge"
+            onClick={onFlipUp}
+            aria-label={`Bring ${parkedLabel} back up`}
+          >
+            <Icon name="note-sticky" size={12} aria-hidden />
+            <span className="pds-caption">{parkedLabel}</span>
+          </button>
+        </div>
       )}
 
       {/* Stays mounted either way — that is what makes this a flip and not a navigation:

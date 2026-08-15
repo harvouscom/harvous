@@ -39,7 +39,11 @@ import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
 import { noteDockReturnSearch } from '../pages/prototype/paper-stack-origins';
-import { PROTO_RESOURCE_MORPH_MS } from './proto-motion';
+import {
+  PROTO_HOME_ORIGIN_RETIRE_MS,
+  PROTO_PAPER_STACK_MS,
+  PROTO_RESOURCE_MORPH_MS,
+} from './proto-motion';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -359,6 +363,46 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       clearPaperStack();
     }
   }, [resolvedActiveSpaceId, paperStack, clearPaperStack]);
+
+  /**
+   * A Home origin retires itself once you have arrived.
+   *
+   * The other two origins hold something perishable — the reader's exact place in a chapter,
+   * a note's live draft and the dock anchor under it — so their edge is a way back to state
+   * you would otherwise have to rebuild. Home holds nothing: it is stateless, identical when
+   * you return, and one tap away in the shell. Its edge is doing a different job, which is
+   * telling you why the app sent you here, and that job finishes on its own a few seconds
+   * after you have read the label. Leaving it up after that is a breadcrumb to a room you
+   * never left.
+   *
+   * Only while the sheet is up: if you flipped it down to look at Home, Home is what you are
+   * reading and the stack is in use. `PROTO_HOME_ORIGIN_RETIRE_MS` after arrival the sheet
+   * settles to where an unstacked note sits, then the stack clears — so the edge leaves the
+   * way it came rather than blinking out.
+   */
+  const [homeOriginRetiring, setHomeOriginRetiring] = useState(false);
+  const homeOriginLive =
+    Boolean(paperStack) && paperStack?.origin.kind === 'homeCard' && paperStack.open;
+  useEffect(() => {
+    if (!homeOriginLive) {
+      setHomeOriginRetiring(false);
+      return;
+    }
+    const start = window.setTimeout(
+      () => setHomeOriginRetiring(true),
+      PROTO_HOME_ORIGIN_RETIRE_MS,
+    );
+    return () => window.clearTimeout(start);
+  }, [homeOriginLive]);
+
+  useEffect(() => {
+    if (!homeOriginRetiring) return;
+    const done = window.setTimeout(() => {
+      clearPaperStack();
+      setHomeOriginRetiring(false);
+    }, PROTO_PAPER_STACK_MS);
+    return () => window.clearTimeout(done);
+  }, [homeOriginRetiring, clearPaperStack]);
 
   /**
    * Flip the sheet down and look at where you came from.
@@ -888,8 +932,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
               <PrototypePaperStack
                 stack={paperStack}
                 exiting={paperStackExiting}
+                retiring={homeOriginRetiring}
                 onFlipDown={handleFlipSheetDown}
                 onFlipUp={handleFlipSheetUp}
+                onDismiss={clearPaperStack}
               >
                 {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
               </PrototypePaperStack>

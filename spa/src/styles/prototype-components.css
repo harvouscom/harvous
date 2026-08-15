@@ -18066,12 +18066,15 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }
 
-/* The note's paper is translucent by design so the canvas reads through it. Stacked, what
-   is behind it is the reader, and the chapter read straight through the title. Inside the
-   stack only, the same translucent fill is laid over the opaque canvas colour — its look
-   is unchanged, it just no longer shows the paper beneath. Nothing else about the note's
-   sheet is touched: same width, same shadow, same everything as unstacked. */
-.pds-paper-stack__sheet .proto-editor-paper {
+/* Both papers are translucent by design so the canvas reads through them, and both are
+   built on the same `--pds-paper-sheet` fill. Stacked, that means whichever one is in
+   front shows the one behind it: the chapter read through the note's title, and the note's
+   paper read through the chapter. Inside the stack only, the same translucent fill is laid
+   over the opaque canvas colour — the look is unchanged, it just stops being see-through.
+   Listed for both because either can be the sheet: a note over a chapter, a chapter over
+   the note whose dock expanded. Nothing else is touched — same width, shadow, everything. */
+.pds-paper-stack__sheet .proto-editor-paper,
+.pds-paper-stack__sheet .pds-reader__column {
   background-color: var(--pds-canvas-default);
   background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
 }
@@ -18110,18 +18113,28 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    layers, so an edge pinned to the layer top sat above the paper rather than on it, which
    is what made the label ride high in the band. Paints nothing; the peeking paper is the
    visual, and the label is its title line. */
-.pds-paper-stack__edge {
+/* The band itself: the geometry lives here so the dismiss can anchor to the paper's
+   trailing edge rather than guessing at the centred column's right-hand side. */
+.pds-paper-stack__edge-row {
   position: absolute;
   top: var(--pds-editor-paper-inset-top);
   left: 50%;
   width: min(var(--pds-paper-column), 100%);
   transform: translateX(-50%);
   z-index: var(--pds-z-sticky);
+  height: var(--pds-paper-stack-peek);
+}
+
+.pds-paper-stack__edge {
+  position: absolute;
+  /* Fills the band: the whole strip of paper is the way back, and the dismiss sits over
+     it at one end. A label-sized target in a 48px band would waste the band. */
+  inset: 0;
+  z-index: var(--pds-z-sticky);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--pds-space-2);
-  height: var(--pds-paper-stack-peek);
   padding: 0 var(--pds-space-5);
   border: none;
   background: none;
@@ -18146,6 +18159,55 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-paper-stack__edge:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: -2px;
+}
+
+/* Dismiss: sits at the trailing end of the band, over the edge rather than inside it —
+   a button cannot nest in a button, and the back target wants the whole strip. */
+.pds-paper-stack__edge-dismiss {
+  position: absolute;
+  top: 50%;
+  right: var(--pds-space-3);
+  transform: translateY(-50%);
+  z-index: calc(var(--pds-z-sticky) + 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--pds-radius-full);
+  background: none;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+  transition:
+    opacity var(--pds-duration-press) var(--pds-ease-standard),
+    color var(--pds-duration-press) var(--pds-ease-standard),
+    background-color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.pds-paper-stack__edge-dismiss:hover {
+  color: var(--pds-text-primary);
+  background-color: var(--pds-surface-hover, rgb(0 0 0 / 0.05));
+}
+
+/* On a pointer device it stays out of the way until you are looking at the band; on touch
+   there is no hover to reveal it with, so it is simply always there. */
+@media (hover: hover) {
+  .pds-paper-stack__edge-dismiss {
+    opacity: 0;
+  }
+
+  .pds-paper-stack__edge-row:hover .pds-paper-stack__edge-dismiss,
+  .pds-paper-stack__edge-row:focus-within .pds-paper-stack__edge-dismiss {
+    opacity: 1;
+  }
+}
+
+.pds-paper-stack__edge-dismiss:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
 }
 
 .pds-paper-stack__sheet {
@@ -18177,8 +18239,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /* Hover on the edge nudges the sheet down a touch — "show me a little more of the
-   paper" — so the tap it invites is already half-happening. */
-.pds-paper-stack:has(.pds-paper-stack__edge:hover) .pds-paper-stack__sheet[data-stacked='true'] {
+   paper" — so the tap it invites is already half-happening. Keyed off the band rather
+   than the button, so crossing onto the dismiss does not drop the nudge mid-hover. */
+.pds-paper-stack:has(.pds-paper-stack__edge-row:hover)
+  .pds-paper-stack__sheet[data-stacked='true'] {
   transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
 }
 
@@ -18227,6 +18291,22 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 /* Nothing to scroll: only the top band is ever on screen. */
 .pds-paper-stack__origin-paper .proto-editor-scroll {
   overflow: hidden;
+}
+
+/* ─── A Home origin putting itself away ───────────────────────────────────────
+ * The sheet settles the last of its peek away, landing exactly where an unstacked page
+ * sits, and the base and its edge fade behind it. When the stack clears a beat later the
+ * sheet is already at rest, so nothing jumps — the note simply stops having a paper
+ * behind it. Same duration as the flip, because it is the same sheet moving. */
+.pds-paper-stack[data-retiring='true'] .pds-paper-stack__sheet[data-stacked='true'] {
+  transform: translateY(0);
+}
+
+.pds-paper-stack[data-retiring='true'] .pds-paper-stack__base,
+.pds-paper-stack[data-retiring='true'] .pds-paper-stack__edge-row {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }
 
 /* A dock expanding into the reader is a MORPH, not a slide: the chapter grows up out of
@@ -18422,8 +18502,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    note reads as parked rather than discarded. */
 /* The parked sheet's peeking edge: a transparent hit target laid over the strip of
    sheet still showing at the bottom. Same shape as the base's edge at the top, so
-   the two directions of the flip read as one gesture at two ends of the pane. */
-.pds-paper-stack__edge--parked {
+   the two directions of the flip read as one gesture at two ends of the pane.
+   No dismiss on this one — see the component: putting down a breadcrumb and throwing
+   away a mounted draft are different acts and do not share a control. */
+.pds-paper-stack__edge-row--parked {
   top: auto;
   bottom: 0;
   /* The parked note stays in front — it is the sheet that slid down, not one that went
