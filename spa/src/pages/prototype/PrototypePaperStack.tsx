@@ -50,10 +50,22 @@ export default function PrototypePaperStack({
             translation={origin.base.translation}
             focusVerse={origin.base.fromVerse}
           />
+        ) : collapses ? (
+          // The note whose dock expanded is parked below the reader, and a parked note only
+          // ever shows the top band of its paper — never a word of its content. So the layer
+          // behind is exactly that: the note's own paper, at the note's own width and lip,
+          // empty because nothing more was ever visible. Restating it as a card put a second
+          // copy of the note on screen, centred, ghosting up through the chapter text.
+          <div className="proto-editor-surface pds-paper-stack__origin-paper" aria-hidden>
+            <div className="proto-editor-scroll">
+              <div className="proto-editor-content-wrap">
+                <div className="proto-editor-paper" />
+              </div>
+            </div>
+          </div>
         ) : (
-          // Home has no main-pane document to stand behind a note, and a note whose dock
-          // expanded is itself the origin. Either way the base restates the card that sent
-          // you, so flipping down lands on "this is why you were here" and not on a blank.
+          // Home has no main-pane document to stand behind a note, so the base restates the
+          // card that sent you: flipping down lands on "this is why you were here", not a blank.
           <div className="pds-paper-stack__origin-card" aria-hidden>
             <span className="proto-home-card__icon-orb pds-paper-stack__origin-orb">
               <Icon name={origin.base.icon as IconName} size={13} />
@@ -72,7 +84,11 @@ export default function PrototypePaperStack({
       {stack.open ? (
         <button
           type="button"
-          className="pds-paper-stack__edge"
+          // A note's home is the bottom of the pane, whichever way you got here: parked under
+          // a reader you flipped up, or parked under a reader its own dock expanded into. The
+          // reader's home is the top. So the edge follows the paper it belongs to rather than
+          // the direction of travel, and `--parked` is that placement in both cases.
+          className={`pds-paper-stack__edge${collapses ? ' pds-paper-stack__edge--parked' : ''}`}
           onClick={onFlipDown}
           aria-label={collapses ? `Back to ${origin.label}` : `Show ${origin.label}`}
         >

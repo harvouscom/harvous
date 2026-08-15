@@ -286,10 +286,21 @@ export default function PrototypeBibleReaderPane({
   const [selection, setSelection] = useState<[number, number] | null>(null);
   const [focusedVerse, setFocusedVerse] = useState<number | null>(null);
 
+  /**
+   * Where a deep link put you — dimmed-in like a selection, but not one.
+   *
+   * Landing used to seed `selection`, which gives the right fade but also opens the verse
+   * action menu: arriving from a note's scripture dock popped a highlight/note toolbar over
+   * a verse nobody had chosen, and it stayed there with nothing to dismiss it. Arriving
+   * somewhere is a place, not a gesture — only a gesture should offer actions.
+   */
+  const [landing, setLanding] = useState<[number, number] | null>(null);
+
   // A new chapter is a new document: keep no selection or roving focus from the
   // last one, or verse 12 of John 3 stays lit while reading John 4.
   useEffect(() => {
     setSelection(null);
+    setLanding(null);
     setFocusedVerse(null);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [book, chapter, translation]);
@@ -402,7 +413,7 @@ export default function PrototypeBibleReaderPane({
    * used.
    */
   useEffect(() => {
-    if (!pinnedKey && !selection) return;
+    if (!pinnedKey && !selection && !landing) return;
     const INSIDE = [
       '.pds-reader__verse',
       '.pds-reader-menu',
@@ -422,12 +433,14 @@ export default function PrototypeBibleReaderPane({
       setPinnedKey(null);
       setActiveKey(null);
       setSelection(null);
+      setLanding(null);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setPinnedKey(null);
       setActiveKey(null);
       setSelection(null);
+      setLanding(null);
     };
 
     document.addEventListener('pointerdown', onPointerDown);
@@ -436,7 +449,7 @@ export default function PrototypeBibleReaderPane({
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [pinnedKey, selection]);
+  }, [pinnedKey, selection, landing]);
 
   /*
    * Derived from the live bars, never stored.
@@ -489,7 +502,7 @@ export default function PrototypeBibleReaderPane({
     const el = document.querySelector<HTMLElement>(`[data-reader-verse="${focusVerse}"]`);
     if (!el) return;
     el.scrollIntoView({ block: 'center' });
-    setSelection([focusVerse, focusVerse]);
+    setLanding([focusVerse, focusVerse]);
     setFocusedVerse(focusVerse);
   }, [focusVerse, verses.length]);
 
@@ -638,7 +651,7 @@ export default function PrototypeBibleReaderPane({
    */
   const focusRange: [number, number] | null = activeBar
     ? [activeBar.startVerse, activeBar.endVerse]
-    : selection;
+    : (selection ?? landing);
 
   /** Text of the selected verses — what a highlight is *of*, for the dock's excerpt. */
   const selectedText =

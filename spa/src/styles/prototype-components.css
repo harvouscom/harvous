@@ -18177,8 +18177,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /* Hover on the edge nudges the sheet down a touch — "show me a little more of the
-   paper" — so the tap it invites is already half-happening. */
-.pds-paper-stack:has(.pds-paper-stack__edge:hover) .pds-paper-stack__sheet[data-stacked='true'] {
+   paper" — so the tap it invites is already half-happening. Not on a dock expansion:
+   there the sheet is the full-size chapter and it is the paper *behind* that moves. */
+.pds-paper-stack:not([data-origin-kind='noteDock']):has(.pds-paper-stack__edge:hover)
+  .pds-paper-stack__sheet[data-stacked='true'] {
   transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
 }
 
@@ -18202,9 +18204,51 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transform: scale(1);
 }
 
-/* A scripture dock expanding into the reader is a MORPH, not a slide: the sheet
-   grows up out of where the dock sat in the bottom chrome. Same duration as the
-   resource morph it is a cousin of. */
+/* ─── Dock expansion: the same swap, entered from the other side ───────────────
+ * Expanding a scripture dock leaves the note below and the chapter in front — which is
+ * the flipped-down state, reached without a flip. So the roles trade places: the reader
+ * fills the pane at full size, and the note's paper takes the parked transform instead
+ * of the sheet's. Everything the flip already establishes — the peek, the lip, the
+ * smaller paper behind, the edge at the bottom — is reused rather than restated. */
+.pds-paper-stack[data-origin-kind='noteDock'] .pds-paper-stack__sheet {
+  transform: none;
+}
+
+.pds-paper-stack[data-origin-kind='noteDock'] .pds-paper-stack__base {
+  transform:
+    translateY(calc(100% - var(--pds-paper-stack-peek) - var(--pds-editor-paper-inset-top)))
+    scale(var(--pds-paper-stack-back-scale));
+  /* In front, like any parked note: it did not go behind the chapter, it went under it. */
+  z-index: calc(var(--pds-z-dropdown) + 1);
+  pointer-events: none;
+  /* The base's own entrance is a recede; this paper parks instead. */
+  animation: none;
+}
+
+/* The parked note's paper is the note's paper — same opaque composite as when it is
+   the sheet, so the band at the bottom does not turn translucent on the way here. */
+.pds-paper-stack__origin-paper .proto-editor-paper {
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+}
+
+/* Nothing to scroll: only the top band is ever on screen. */
+.pds-paper-stack__origin-paper .proto-editor-scroll {
+  overflow: hidden;
+}
+
+/* Hovering the edge lifts the note a little, the same "more of the paper" hint the
+   reader's edge gives at the top — pointed the other way. */
+.pds-paper-stack[data-origin-kind='noteDock']:has(.pds-paper-stack__edge:hover)
+  .pds-paper-stack__base {
+  transform:
+    translateY(calc(100% - var(--pds-paper-stack-peek) - var(--pds-editor-paper-inset-top) - 4px))
+    scale(var(--pds-paper-stack-back-scale));
+}
+
+/* A dock expanding into the reader is a MORPH, not a slide: the chapter grows up out of
+   where the dock sat in the bottom chrome. Same duration as the resource morph it is a
+   cousin of. */
 .pds-paper-stack[data-origin-kind='noteDock'] .pds-paper-stack__sheet[data-stacked='true'] {
   transform-origin: bottom center;
   animation: pds-paper-stack-expand var(--pds-duration-morph) var(--pds-ease-emphasized) backwards;
@@ -18229,14 +18273,16 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   to { transform: scale(var(--pds-paper-stack-back-scale)); }
 }
 
+/* No translate in either: the expanding chapter fills the pane, so the morph is purely
+   the grow-and-fade out of the dock's position. */
 @keyframes pds-paper-stack-expand {
-  from { transform: translateY(var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
-  to { transform: translateY(var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 @keyframes pds-paper-stack-collapse {
-  from { transform: translateY(var(--pds-paper-stack-peek)) scale(1); opacity: 1; }
-  to { transform: translateY(var(--pds-paper-stack-peek)) scale(0.96); opacity: 0; }
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(0.96); opacity: 0; }
 }
 
 /* Phones: the toolbar's sidebar toggle already owns the top of the pane, so the
