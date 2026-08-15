@@ -18392,7 +18392,13 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 @media (prefers-reduced-motion: reduce) {
   .pds-paper-stack__sheet,
-  .pds-paper-stack__base {
+  .pds-paper-stack__base,
+  /* The band and its dismiss fade and tint on hover, and a Home origin fades the whole
+     band out when it retires itself. Small moves, but they are moves, and the rule here
+     is that this stack does not animate at all when motion is unwelcome. */
+  .pds-paper-stack__edge-row,
+  .pds-paper-stack__edge,
+  .pds-paper-stack__edge-dismiss {
     animation: none;
     transition: none;
   }
