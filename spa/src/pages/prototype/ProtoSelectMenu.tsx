@@ -16,7 +16,7 @@
  * Portaled and fixed-positioned like its siblings, so an ancestor with
  * `overflow: hidden` — every sheet and rail in this app — cannot clip it.
  */
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -30,6 +30,11 @@ const OFFSET = 6;
 export type ProtoSelectOption<T extends string | number> = {
   value: T;
   label: string;
+  /**
+   * What the trigger reads when this option is chosen, when that differs from its row.
+   * A menu may abbreviate to fit — the thing you picked should still say its own name.
+   */
+  triggerLabel?: string;
   /**
    * Optional heading this option sits under. Consecutive options sharing a group render
    * beneath one sticky label — for lists long enough that "which part am I in" is a real
@@ -47,6 +52,7 @@ export default function ProtoSelectMenu<T extends string | number>({
   className,
   menuWidth,
   menuClassName,
+  groupsAsTabs = false,
 }: {
   value: T;
   options: ProtoSelectOption<T>[];
@@ -59,6 +65,12 @@ export default function ProtoSelectMenu<T extends string | number>({
   menuWidth?: number;
   /** Extra class on the popover, for callers whose options are not a list of labels. */
   menuClassName?: string;
+  /**
+   * Render the groups as a segmented control showing one at a time, rather than as headings
+   * down a single scroll. For a list where the groups partition it evenly and you always know
+   * which half you want — the testaments — two taps beat scrolling past the other thirty.
+   */
+  groupsAsTabs?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -70,6 +82,18 @@ export default function ProtoSelectMenu<T extends string | number>({
   const selected = options.find((option) => option.value === value) ?? options[0];
   const width = menuWidth ?? FALLBACK_WIDTH;
 
+  const sections = useMemo(() => groupOptions(options), [options]);
+  /*
+   * Opens on the tab holding the current value, so the book you are in is on screen rather
+   * than one tap away. Re-keyed on that value, not held in state across opens: reopening the
+   * picker in Romans should show the New Testament even if you last browsed the Old.
+   */
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const defaultTab = selected?.group ?? sections[0]?.label ?? null;
+  const currentTab = activeTab ?? defaultTab;
+  const visibleSections =
+    groupsAsTabs && currentTab ? sections.filter((s) => s.label === currentTab) : sections;
+
   /*
    * Layout, not passive: `pos` is null on the first render, so an effect that runs after paint
    * shows one frame of the menu parked at -9999 before it lands. Measuring before the browser
@@ -78,6 +102,7 @@ export default function ProtoSelectMenu<T extends string | number>({
   useLayoutEffect(() => {
     if (!open) {
       setPos(null);
+      setActiveTab(null);
       return undefined;
     }
     const update = () => {
@@ -121,11 +146,25 @@ export default function ProtoSelectMenu<T extends string | number>({
      */
     selectedRef.current?.scrollIntoView({ block: 'center' });
 
+    /*
+     * Reposition when the menu's own box changes, not only when the window moves.
+     *
+     * `left` is derived from the measured width, so a width that settles *after* the first
+     * measurement — a late font, a scrollbar, the viewport clamp — left the menu at a stale
+     * left edge with nothing scheduled to correct it. The correction then rode in on the
+     * first scroll event, which is why the menu appeared to jump sideways the moment you
+     * started scrolling it. Observing the box applies it at open instead, where it is
+     * invisible.
+     */
+    const observer = new ResizeObserver(update);
+    if (popoverRef.current) observer.observe(popoverRef.current);
+
     /* Capture-phase: these open inside scrolling sheets, and a menu that stays
        put while its trigger slides away points at nothing. */
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => {
+      observer.disconnect();
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
@@ -168,7 +207,9 @@ export default function ProtoSelectMenu<T extends string | number>({
         disabled={disabled}
         onClick={() => setOpen((x) => !x)}
       >
-        <span className="proto-select-menu__value">{selected?.label ?? ''}</span>
+        <span className="proto-select-menu__value">
+          {selected?.triggerLabel ?? selected?.label ?? ''}
+        </span>
         <Icon name={open ? 'caret-up' : 'caret-down'} size={9} aria-hidden />
       </button>
 
@@ -188,14 +229,30 @@ export default function ProtoSelectMenu<T extends string | number>({
                 zIndex: 6000,
               }}
             >
-              {groupOptions(options).map((section) => (
+              {groupsAsTabs && sections.length > 1 ? (
+                <div className="proto-menu-tabs" role="tablist" aria-label={`${label} sections`}>
+                  {sections.map((section) => (
+                    <button
+                      key={section.label ?? ''}
+                      type="button"
+                      role="tab"
+                      aria-selected={section.label === currentTab}
+                      className="proto-menu-tab"
+                      onClick={() => setActiveTab(section.label)}
+                    >
+                      {section.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {visibleSections.map((section) => (
                 <div
                   key={section.label ?? '__ungrouped__'}
                   className="proto-menu-section"
                   role="group"
                   aria-label={section.label ?? undefined}
                 >
-                  {section.label ? (
+                  {section.label && !groupsAsTabs ? (
                     <div className="proto-menu-section-label proto-menu-section-label--sticky">
                       {section.label}
                     </div>

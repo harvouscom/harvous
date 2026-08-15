@@ -161,3 +161,20 @@ export function parseOsisRange(ref: string): OsisRange | null {
     verseEnd: endVerse,
   };
 }
+
+/**
+ * Short label for a book — the OSIS code it is already filed under.
+ *
+ * Reusing OSIS rather than writing a 66-entry abbreviation list: the codes are a published
+ * standard, they are already in this file as the keys of `OSIS_TO_CANONICAL`, and a second
+ * hand-kept list of short names is one more thing to drift. They are 2–6 characters and
+ * unambiguous where it matters most — Judg/Jude and Phil/Phlm are the pairs a careless
+ * three-letter scheme collapses.
+ */
+const canonicalToOsis = new Map<string, string>(
+  Object.entries(OSIS_TO_CANONICAL).map(([code, name]) => [name, code]),
+);
+
+export function bookAbbreviation(book: string): string {
+  return canonicalToOsis.get(book) ?? book;
+}

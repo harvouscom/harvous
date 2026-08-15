@@ -28,6 +28,7 @@ import {
   orderedCanonBooks,
 } from '@/utils/bible-book-chapters';
 import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
+import { bookAbbreviation } from '@/utils/scripture-osis';
 import { PrototypePaneEmptyState } from './design-system';
 import {
   usePrefetchAdjacentChapters,
@@ -205,19 +206,22 @@ export default function PrototypeBibleReaderPane({
 
   /* Options for the heading pickers, and where prev/next actually lead. */
   /*
-   * Books under the sections the app already speaks in — Law, History, Wisdom, the prophets,
-   * the Gospels, Paul's letters. Home says "mostly in Law" from this same taxonomy, so the
-   * picker groups by it rather than inventing a second way to carve up the canon.
+   * The canon as a grid of short names, split by testament.
    *
-   * It turns "scroll through sixty-six" into "find the section, then the book": twelve minor
-   * prophets is a glance, whereas the run from Hosea to Malachi in a flat list is not.
+   * Sixty-six full titles down one column is a long scroll for a list everyone already knows
+   * the shape of. Abbreviated, the whole of either testament fits in a glance, and the
+   * testament toggle means the half you want is never behind the half you don't. Labels are
+   * OSIS codes, which the app already stores books under — Judg/Jude and Phil/Phlm stay
+   * distinct, which a three-letter scheme would collapse.
    */
   const bookOptions = useMemo(
     () =>
       orderedCanonBooks().map((b) => ({
         value: b,
-        label: b,
-        group: canonGroupForBook(b)?.label,
+        label: bookAbbreviation(b),
+        // The grid abbreviates; the chapter's own title must not.
+        triggerLabel: b,
+        group: canonGroupForBook(b)?.testament === 'nt' ? 'New Testament' : 'Old Testament',
       })),
     [],
   );
@@ -807,7 +811,9 @@ export default function PrototypeBibleReaderPane({
                     value={data.book}
                     options={bookOptions}
                     className="pds-reader__picker-trigger"
-                    menuWidth={220}
+                    groupsAsTabs
+                    menuClassName="pds-reader__book-menu"
+                    menuWidth={272}
                     // A book you have just chosen has no meaningful chapter yet, so start at
                     // its first rather than keeping a number that belonged to another book.
                     onChange={(nextBook) => onNavigateTo(nextBook, 1)}

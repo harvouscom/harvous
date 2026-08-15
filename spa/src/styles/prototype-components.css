@@ -18607,3 +18607,70 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   z-index: 1;
   background: var(--pds-bg-popover-solid);
 }
+
+/* ── A menu whose groups are tabs rather than headings ───────────────────────── */
+
+.proto-menu-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 4px;
+  border-radius: var(--pds-radius-menu);
+  background: var(--pds-bg-input);
+  /* Stays put while its own books scroll under it — the toggle is how you leave, so it
+     should never be something you have to scroll back up to reach. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.proto-menu-tab {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: calc(var(--pds-radius-menu) - 2px);
+  padding: 5px 8px;
+  background: none;
+  font-family: var(--pds-font-body) !important;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-menu-tab[aria-selected='true'] {
+  background: var(--pds-bg-popover-solid);
+  color: var(--pds-text-primary);
+  box-shadow: var(--pds-shadow-control, none);
+}
+
+/* ── The reader's book picker: a testament at a time, as a grid of short names ── */
+
+.pds-reader__book-menu .proto-menu-section {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+}
+
+.pds-reader__book-menu .proto-menu-tabs {
+  /* Spans the grid it sits above rather than becoming a fifth cell. */
+  grid-column: 1 / -1;
+}
+
+.pds-reader__book-menu .proto-menu-item {
+  /* Released from the label-menu minimum: these are 2–6 character codes, not sentences. */
+  min-width: 0;
+  justify-content: center;
+  padding: 8px 2px;
+  font-size: 12px;
+}
+
+.pds-reader__book-menu .proto-menu-item__check {
+  display: none;
+}
+
+.pds-reader__book-menu .proto-menu-item[aria-checked='true'] {
+  background: var(--pds-accent-active-bg);
+  color: var(--pds-text-primary);
+}
