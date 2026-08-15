@@ -16,7 +16,7 @@
  * Portaled and fixed-positioned like its siblings, so an ancestor with
  * `overflow: hidden` — every sheet and rail in this app — cannot clip it.
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -63,7 +63,12 @@ export default function ProtoSelectMenu<T extends string | number>({
   const selected = options.find((option) => option.value === value) ?? options[0];
   const width = menuWidth ?? FALLBACK_WIDTH;
 
-  useEffect(() => {
+  /*
+   * Layout, not passive: `pos` is null on the first render, so an effect that runs after paint
+   * shows one frame of the menu parked at -9999 before it lands. Measuring before the browser
+   * paints means it is only ever drawn where it belongs.
+   */
+  useLayoutEffect(() => {
     if (!open) {
       setPos(null);
       return undefined;
@@ -71,6 +76,19 @@ export default function ProtoSelectMenu<T extends string | number>({
     const update = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
       if (!rect) return;
+
+      /*
+       * Once the trigger has left the viewport, close rather than follow. The positioner
+       * clamps a menu that would land off-screen to the top margin, so chasing a trigger out
+       * of view does not keep them together — it detaches the menu and slides it up the page
+       * on its own, which is what scrolling the reader behind an open book picker looked
+       * like. A menu whose trigger you can no longer see has nothing left to be anchored to.
+       */
+      if (rect.bottom <= 0 || rect.top >= window.innerHeight) {
+        setOpen(false);
+        return;
+      }
+
       const measured = popoverRef.current?.getBoundingClientRect();
       const next = computeRightAnchoredPopoverPosition(
         rect,
@@ -78,7 +96,12 @@ export default function ProtoSelectMenu<T extends string | number>({
         measured?.height || FALLBACK_HEIGHT,
         OFFSET,
       );
-      setPos({ top: next.top, left: next.left });
+      // Scroll fires per frame; re-rendering on an unchanged position is pure churn.
+      setPos((prev) =>
+        prev && prev.top === next.top && prev.left === next.left
+          ? prev
+          : { top: next.top, left: next.left },
+      );
     };
     update();
     /* Capture-phase: these open inside scrolling sheets, and a menu that stays

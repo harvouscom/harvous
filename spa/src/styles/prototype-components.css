@@ -1048,6 +1048,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
      guard is what actually binds on a short window; only the pixel term moved. */
   max-height: min(440px, 72vh);
   overflow-y: auto;
+  /* Reaching the end of a menu must not start scrolling whatever is behind it. The book
+     picker is 66 rows over a reading surface, so scrolling to Revelation handed the rest of
+     the gesture to the page, which slid the trigger away and took the menu with it — the
+     menu appeared to drift on its own. Every other scroller in this file already contains. */
+  overscroll-behavior: contain;
   /* Side padding gives the inset hover-pill on each row a visible gutter. */
   padding: 5px;
   background: var(--pds-bg-popover-solid);
