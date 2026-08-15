@@ -18126,7 +18126,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--pds-accent);
+  /* Muted, not accent: this is a breadcrumb saying where you came from, not an
+     invitation. The icon takes the same color through `currentColor`, so the mark
+     and its label read as one thing — see the route override that enforces this
+     against the blanket prototype button color. */
+  color: var(--pds-text-secondary);
   transition: color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
@@ -18136,7 +18140,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 .pds-paper-stack__edge:hover {
-  color: var(--pds-accent-hover, var(--pds-accent));
+  color: var(--pds-text-primary);
 }
 
 .pds-paper-stack__edge:focus-visible {
