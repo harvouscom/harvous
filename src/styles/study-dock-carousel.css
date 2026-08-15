@@ -91,6 +91,21 @@
     width var(--study-dock-motion-spring-layer);
 }
 
+/*
+ * An arriving card takes its width at once and only rises.
+ *
+ * The item transitions flex-basis/width so the track can re-apportion space when cards
+ * join or leave each other. On the FIRST card that same transition had nothing to
+ * re-apportion from: it ran from a collapsed box out to full width, and a flex item
+ * growing rightward from its left edge reads as the dock sliding in from the left —
+ * while every later open, with the track already sized, rose from the bottom as intended.
+ * One dock opening two different ways depending on whether it was the first is the bug;
+ * the layout transition is for cards making room for each other, not for arrivals.
+ */
+.study-dock-carousel__item--enter {
+  transition: none;
+}
+
 .study-dock-carousel__item--enter .study-dock-card__outer {
   animation: study-dock-card-enter var(--study-dock-motion-spring-layer) both;
 }

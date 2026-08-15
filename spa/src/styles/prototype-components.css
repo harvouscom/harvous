@@ -18327,6 +18327,19 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow: hidden;
 }
 
+/*
+ * The note's own lip, dropped while it is a stacked sheet.
+ *
+ * Unstacked, a note's paper starts that far down so its first line clears the sidebar
+ * search. Stacked, the thing above it is the peeking edge — which already provides that
+ * clearance — so the lip only reopened a gap between the band and the paper under it, and
+ * the label ended up with more air above it than below. The same removal the reader's own
+ * scroll got, for the same reason: the space is being paid for twice.
+ */
+.pds-paper-stack__sheet .proto-editor-content-wrap {
+  padding-top: 0;
+}
+
 /* ─── A Home origin putting itself away ───────────────────────────────────────
  * The sheet settles the last of its peek away, landing exactly where an unstacked page
  * sits, and the base and its edge fade behind it. When the stack clears a beat later the

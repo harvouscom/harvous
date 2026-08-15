@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { StudyDockEntry, StudyDockStack } from '@/utils/study-dock-stack';
 import {
+  resolveStudyDockCenterTarget,
   syncStudyDockCenterOffset,
   syncStudyDockDragHandleHeight,
   updateStudyDockExpandedMaxHeight,
@@ -323,7 +324,10 @@ export default function StudyDockCarouselWeb({
         return;
       }
 
-      const paper = document.querySelector('.proto-editor-paper');
+      // The reading column counts as a paper — see `resolveStudyDockCenterTarget`. Asking
+      // for the editor's paper by name meant every chapter in the Bible reader took the
+      // bail-out below, so a dock opened while reading never centred on anything.
+      const paper = resolveStudyDockCenterTarget();
       const card = el.querySelector<HTMLElement>('.study-dock-card__card');
       if (!(paper instanceof HTMLElement) || !(card instanceof HTMLElement)) {
         syncStudyDockCenterOffset(track);
