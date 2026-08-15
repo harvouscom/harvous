@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   adjacentChapter,
   bookChapterCount,
+  bookFromSlug,
+  bookSlug,
   orderedCanonBooks,
 } from '../bible-book-chapters';
 
@@ -62,5 +64,35 @@ describe('adjacentChapter', () => {
       const last = bookChapterCount(books[i])!;
       expect(adjacentChapter(books[i], last, 1)).toEqual({ book: books[i + 1], chapter: 1 });
     }
+  });
+});
+
+describe('bookSlug / bookFromSlug', () => {
+  it('makes a URL segment with no percent-encoding in it', () => {
+    // "Song of Solomon" in a path only ever *displays* as Song%20of%20Solomon.
+    expect(bookSlug('Song of Solomon')).toBe('song-of-solomon');
+    expect(bookSlug('1 Corinthians')).toBe('1-corinthians');
+    expect(bookSlug('John')).toBe('john');
+    expect(orderedCanonBooks().every((b) => !/[^a-z0-9-]/.test(bookSlug(b)))).toBe(true);
+  });
+
+  it('gives all sixty-six books a distinct slug that round-trips', () => {
+    const books = orderedCanonBooks();
+    const slugs = books.map(bookSlug);
+    expect(new Set(slugs).size).toBe(books.length);
+    for (const book of books) {
+      expect(bookFromSlug(bookSlug(book))).toBe(book);
+    }
+  });
+
+  it('still resolves the space form, so links shared before slugs keep working', () => {
+    expect(bookFromSlug('Song of Solomon')).toBe('Song of Solomon');
+    expect(bookFromSlug('1 Corinthians')).toBe('1 Corinthians');
+    expect(bookFromSlug('SONG OF SOLOMON')).toBe('Song of Solomon');
+  });
+
+  it('returns null for a segment that names no book', () => {
+    expect(bookFromSlug('hezekiah')).toBeNull();
+    expect(bookFromSlug('')).toBeNull();
   });
 });

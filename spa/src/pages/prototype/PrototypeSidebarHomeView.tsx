@@ -136,7 +136,7 @@ import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import PrototypeHomeChurchFeed, { HOME_FEED_LIMIT } from './PrototypeHomeChurchFeed';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import { noteParamSlug } from './proto-route-slugs';
-import { bibleBookChapterCounts } from '@/utils/bible-book-chapters';
+import { bibleBookChapterCounts, bookSlug } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { HOME_INTRO_LIST_MODES, type SidebarListModeEntry } from './proto-sidebar-list-modes';
@@ -1802,7 +1802,7 @@ export default function PrototypeSidebarHomeView({
               void navigate({
                 to: prototypeReadRouteTo(),
                 params: {
-                  book: firstRunPassage.book,
+                  book: bookSlug(firstRunPassage.book),
                   chapter: String(firstRunPassage.chapter),
                 },
                 search: {

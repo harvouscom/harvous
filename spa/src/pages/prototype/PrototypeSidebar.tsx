@@ -67,6 +67,7 @@ import {
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
@@ -3229,7 +3230,7 @@ export default function PrototypeSidebar({
           if (!result.readerBook || !result.readerChapter) return;
           void navigate({
             to: prototypeReadRouteTo(),
-            params: { book: result.readerBook, chapter: String(result.readerChapter) },
+            params: { book: bookSlug(result.readerBook), chapter: String(result.readerChapter) },
             search: { v: result.readerVerse ? String(result.readerVerse) : undefined, t: undefined },
           });
           return;
@@ -4293,7 +4294,7 @@ export default function PrototypeSidebar({
                             if (!bookTitle) return;
                             void navigate({
                               to: prototypeReadRouteTo(),
-                              params: { book: bookTitle, chapter: String(p.chapter) },
+                              params: { book: bookSlug(bookTitle), chapter: String(p.chapter) },
                               search: { v: String(p.verseStart), t: undefined },
                             });
                           }}

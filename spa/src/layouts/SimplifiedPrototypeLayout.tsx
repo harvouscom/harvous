@@ -87,6 +87,7 @@ import {
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import {
   clearMainFreezeLayer,
   freezeMainInnerIntoLayer,
@@ -327,7 +328,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     if (isPrototypeReadPath(pathname)) return; // compose never left the chapter
     void chromeRouter.navigate({
       to: prototypeReadRouteTo(),
-      params: { book: stack.book, chapter: String(stack.chapter) },
+      params: { book: bookSlug(stack.book), chapter: String(stack.chapter) },
       search: { v: stack.fromVerse ? String(stack.fromVerse) : undefined, t: stack.translation },
     });
   }, [readerStack, setReaderSheetOpen, pathname, chromeRouter]);

@@ -5,9 +5,10 @@
  * `PrototypeBibleReaderPane`, so it can also be mounted over/under other
  * surfaces later (paper stack, split view) without dragging routing along.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
+import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
@@ -68,7 +69,14 @@ export default function PrototypeReadPage() {
    * it lasts as long as you are here and never overwrites the default in Appearance.
    */
   const [fontOverride, setFontOverride] = useState<FontChoice | null>(null);
-  const book = decodeURIComponent(params.book ?? '');
+  /*
+   * The path segment is a slug — "song-of-solomon". `bookFromSlug` also accepts the older
+   * space form, so links shared before the slug existed keep resolving; falling back to the
+   * raw segment leaves an unknown book to fail where it already did, in the chapter fetch,
+   * rather than turning a typo into a blank screen here.
+   */
+  const rawBook = decodeURIComponent(params.book ?? '');
+  const book = bookFromSlug(rawBook) ?? rawBook;
   const chapter = Number.parseInt(params.chapter ?? '', 10);
   const focusVerse = search.v ? Number.parseInt(search.v, 10) : undefined;
 
@@ -97,6 +105,26 @@ export default function PrototypeReadPage() {
     return map;
   }, [chapterHighlights]);
 
+  /*
+   * Tidy an old-style address into the slug, in place.
+   *
+   * Someone arriving on `/read/Song%20of%20Solomon/2` from a link shared before slugs existed
+   * gets the chapter either way — but they may well be about to copy the URL onward, and it
+   * should be the clean one by then. `replace` so it does not cost them a back-button press,
+   * and gated on the segment actually differing so this cannot loop.
+   */
+  useEffect(() => {
+    if (!book || !Number.isInteger(chapter)) return;
+    const canonical = bookSlug(book);
+    if (rawBook === canonical) return;
+    void navigate({
+      to: prototypeReadRouteTo(),
+      params: { book: canonical, chapter: String(chapter) },
+      search: { v: search.v, t: search.t },
+      replace: true,
+    });
+  }, [book, rawBook, chapter, navigate, search.v, search.t]);
+
   const applyHighlight = useCallback(
     ({ start, end }: { start: number; end: number }, accent: StudyHighlightAccentKey) => {
       const reference =
@@ -110,7 +138,7 @@ export default function PrototypeReadPage() {
     (nextBook: string, nextChapter: number) => {
       void navigate({
         to: prototypeReadRouteTo(),
-        params: { book: nextBook, chapter: String(nextChapter) },
+        params: { book: bookSlug(nextBook), chapter: String(nextChapter) },
         // Drop `v`: a verse focus belongs to the chapter it was linked into.
         search: { v: undefined, t: search.t },
       });
@@ -151,7 +179,7 @@ export default function PrototypeReadPage() {
       const verse = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
       void navigate({
         to: prototypeReadRouteTo(),
-        params: { book: parsed.book, chapter: String(parsed.chapter) },
+        params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
         search: { v: verse ? String(verse) : undefined, t: search.t },
       });
     },
@@ -198,7 +226,7 @@ export default function PrototypeReadPage() {
     (next: string) => {
       void navigate({
         to: prototypeReadRouteTo(),
-        params: { book, chapter: String(chapter) },
+        params: { book: bookSlug(book), chapter: String(chapter) },
         // Pin it in the URL so the choice survives a reload and travels in a shared link.
         search: { v: search.v, t: next },
       });
