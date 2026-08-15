@@ -17537,6 +17537,43 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * face and size and drop every chip affordance at rest; the surface only appears under the
  * pointer, which is where "you can change this" belongs.
  */
+/*
+ * Chapter numbers as a grid.
+ *
+ * `.proto-menu-item` carries `min-width: 148px` — right for a menu of labels, but it made a
+ * narrow numbers menu overflow sideways, and widening the menu to suit would have given a
+ * single column 40 rows long (150 in Psalms) to pick "3" from. Numbers are scannable in two
+ * dimensions, so they get laid out that way and the min-width is released here.
+ */
+.pds-reader__chapter-menu .proto-menu-section {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+}
+
+.pds-reader__chapter-menu .proto-menu-item {
+  min-width: 0;
+  justify-content: center;
+  padding: 8px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The checkmark is a column's worth of space for one glyph, and in a grid the highlighted
+   cell already says which chapter is current. */
+.pds-reader__chapter-menu .proto-menu-item__check {
+  display: none;
+}
+
+.pds-reader__chapter-menu .proto-menu-item__label {
+  flex: none;
+  text-align: center;
+}
+
+.pds-reader__chapter-menu .proto-menu-item[aria-checked='true'] {
+  background: var(--pds-bg-row-selected);
+  font-weight: 600;
+}
+
 .pds-reader__chapter-picker {
   display: flex;
   align-items: baseline;

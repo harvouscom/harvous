@@ -40,6 +40,7 @@ export default function ProtoSelectMenu<T extends string | number>({
   disabled,
   className,
   menuWidth,
+  menuClassName,
 }: {
   value: T;
   options: ProtoSelectOption<T>[];
@@ -50,6 +51,8 @@ export default function ProtoSelectMenu<T extends string | number>({
   /** Extra class on the trigger, for callers that need their own width. */
   className?: string;
   menuWidth?: number;
+  /** Extra class on the popover, for callers whose options are not a list of labels. */
+  menuClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -134,7 +137,7 @@ export default function ProtoSelectMenu<T extends string | number>({
             <ProtoPopoverShell
               ref={popoverRef}
               id={menuId}
-              className="proto-menu__popover proto-menu__popover--list-view proto-select-menu__popover"
+              className={`proto-menu__popover proto-menu__popover--list-view proto-select-menu__popover${menuClassName ? ` ${menuClassName}` : ''}`}
               role="menu"
               aria-label={label}
               style={{

@@ -795,7 +795,10 @@ export default function PrototypeBibleReaderPane({
                     value={data.chapter}
                     options={chapterOptions}
                     className="pds-reader__picker-trigger"
-                    menuWidth={110}
+                    // A grid, not a list: Exodus has 40 chapters and Psalms 150, and a single
+                    // column of numbers makes you scroll past most of the book to reach them.
+                    menuClassName="pds-reader__chapter-menu"
+                    menuWidth={232}
                     onChange={(nextChapter) => onNavigateTo(data.book, nextChapter)}
                   />
                 </>
