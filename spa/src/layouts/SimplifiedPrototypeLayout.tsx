@@ -312,8 +312,15 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   /**
    * Host the note editor in the shell (not the route Outlet) so compose-on-`/` →
    * `/{slug}` keeps one PrototypeNotePage instance — no TipTap/inspector remount flash.
+   *
+   * A parked note counts too. Flipping down sends the URL to the origin, and on a reader
+   * origin that is `/read/...`, where the Outlet renders a chapter — so without this the
+   * note the user parked was unmounted and replaced by a second copy of the reader already
+   * showing behind it, and the band at the bottom said "Your note" over a chapter. Keeping
+   * it hosted is also what the whole stack claims: the draft survives the flip.
    */
-  const hostNoteInLayout = isNoteRoute;
+  const hostNoteInLayout =
+    isNoteRoute || Boolean(paperStack && !paperStack.open && paperStack.noteId);
 
   /**
    * Does the stack still describe where we are?

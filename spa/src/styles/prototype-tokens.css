@@ -448,13 +448,10 @@
      tap to go back. Enough for a line of caption with breathing room; tightened on
      phones where the toolbar already owns the top of the pane. */
   --pds-paper-stack-peek: 48px;
-  /* How much narrower the back paper is than the front, per side. The inset is the
-     entire "behind" cue — a sheet showing its shoulders past the one over it — so it
-     needs no radius or shadow to read. */
-  --pds-paper-stack-inset: 20px;
-  /* The papers themselves: opaque and flat, the same solid the popovers use, so a
-     document over a document composites cleanly and neither reads as a card. */
-  --pds-paper-flat: var(--pds-bg-popover-solid);
+  /* The paper behind is the smaller one. Scale rather than a width, so the change is one
+     GPU-composited transform that animates with the flip instead of a layout step — and so
+     the two papers stay the same object at two depths, which is what a stack is. */
+  --pds-paper-stack-back-scale: 0.96;
   /* The paper column — the note editor's paper and the reader's text column are both
      this wide, centred. The stack paints its two sheets at exactly this width, so what
      stacks is the papers themselves and nothing shows outside them. */

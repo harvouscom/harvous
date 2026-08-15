@@ -18047,9 +18047,12 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 /* The stack paints NOTHING. The note view — one sheet, `.proto-editor-paper`, with its own
    surface and shadow — is the design, and it renders inside the stack exactly as it does
    outside it. The base layer likewise just positions the reader, whose text column is its
-   own paper. The one visible addition is that reader paper peeking up behind the note's,
-   which needs no chrome of its own to say "behind": it is a paper, showing at the top.
-   Five passes painted a layer around these papers and called it the paper. */
+   own paper.
+ 
+   The one thing the stack does say is depth, and it says it the way a stack of paper does:
+   the sheet behind is the smaller one. That is a scale on the layer, so it costs no chrome,
+   animates on the GPU, and reverses when the note parks and the reader becomes the front
+   paper. */
 .pds-paper-stack__base {
   position: absolute;
   inset: 0;
@@ -18059,6 +18062,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   min-height: 0;
   overflow: hidden;
   transform-origin: top center;
+  transform: scale(var(--pds-paper-stack-back-scale));
+  transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }
 
 /* The note's paper is translucent by design so the canvas reads through it. Stacked, what
@@ -18100,13 +18105,14 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   margin: 0;
 }
 
-/* The edge: a hit target over the strip of base paper peeking above the note, sized to
-   the paper column so it sits on the paper and not across the pane. It paints nothing —
-   the peeking paper is the visual — and its label is set in the app's own caption type,
-   accent-coloured, so it reads as the paper's title-line and the way back. */
+/* The edge: a hit target laid exactly over the strip of paper that peeks, centred in it
+   both ways. It starts at the paper's own top inset — the papers begin that far into their
+   layers, so an edge pinned to the layer top sat above the paper rather than on it, which
+   is what made the label ride high in the band. Paints nothing; the peeking paper is the
+   visual, and the label is its title line. */
 .pds-paper-stack__edge {
   position: absolute;
-  top: 0;
+  top: var(--pds-editor-paper-inset-top);
   left: 50%;
   width: min(var(--pds-paper-column), 100%);
   transform: translateX(-50%);
@@ -18145,6 +18151,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   display: flex;
   flex-direction: column;
   min-height: 0;
+  transform-origin: top center;
   transform: translateY(var(--pds-paper-stack-peek));
   transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }
@@ -18162,7 +18169,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    settle, delayed a beat so it reads as a consequence rather than a coincidence.
    Transform only, one layer; `backwards` so it never pins a scale after finishing. */
 .pds-paper-stack__base {
-  animation: pds-paper-stack-settle var(--pds-duration-paper-stack) var(--pds-ease-emphasized) 80ms backwards;
+  animation: pds-paper-stack-recede var(--pds-duration-paper-stack) var(--pds-ease-emphasized) backwards;
 }
 
 /* Hover on the edge nudges the sheet down a touch — "show me a little more of the
@@ -18171,16 +18178,24 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
 }
 
-/* Parked: the sheet drops until only its top edge shows above the pane's bottom, and
-   the roles mirror. Up, the sheet is the front paper and the base peeks above it,
-   narrower. Parked, the sheet is the BACK paper — so it takes the inset and drops
-   behind the base in z, and its top band peeks past the base's bottom exactly the way
-   the base's shoulders peek past the sheet's top. One construction, read from either
-   end. Kept mounted — the draft survives — and only its peeking band is interactive. */
+/* Parked: the note slides down until only a band of its paper shows above the pane's
+   bottom — the mirror of the reader's band showing above it when it is up. It stays in
+   front, because it is the sheet that slid down, not one that went behind; what swaps is
+   which paper is the smaller one. Kept mounted, so the draft survives, and only the
+   peeking band is interactive. */
 .pds-paper-stack__sheet[data-stacked='false'] {
-  z-index: var(--pds-z-base);
-  transform: translateY(calc(100% - var(--pds-paper-stack-peek)));
+  /* The extra lip: the note's paper starts that far into its layer, so without it the
+     band at the bottom would be part canvas and only part paper. */
+  transform:
+    translateY(calc(100% - var(--pds-paper-stack-peek) - var(--pds-editor-paper-inset-top)))
+    scale(var(--pds-paper-stack-back-scale));
   pointer-events: none;
+}
+
+/* ...and the reader, now the paper you are looking at, comes back to full size. Both
+   halves of the swap are a transform, so the flip is one composited move each way. */
+.pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false']) .pds-paper-stack__base {
+  transform: scale(1);
 }
 
 /* A scripture dock expanding into the reader is a MORPH, not a slide: the sheet
@@ -18205,10 +18220,9 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   to { transform: translateY(var(--pds-paper-stack-peek)); }
 }
 
-@keyframes pds-paper-stack-settle {
-  0% { transform: scale(1); }
-  55% { transform: scale(0.99); }
-  100% { transform: scale(1); }
+@keyframes pds-paper-stack-recede {
+  from { transform: scale(1); }
+  to { transform: scale(var(--pds-paper-stack-back-scale)); }
 }
 
 @keyframes pds-paper-stack-expand {
@@ -18379,7 +18393,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-paper-stack__edge--parked {
   top: auto;
   bottom: 0;
-  /* Above the base, which is the front paper (z-dropdown) while the sheet is parked. */
+  /* The parked note stays in front — it is the sheet that slid down, not one that went
+     behind — so its edge sits just above it. */
   z-index: calc(var(--pds-z-dropdown) + 1);
 }
 

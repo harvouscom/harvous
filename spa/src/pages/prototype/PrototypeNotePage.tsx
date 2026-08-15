@@ -313,13 +313,25 @@ export default function PrototypeNotePage() {
     ensureSidebarExpanded,
     openDrawer,
     stackNote,
+    paperStack,
   } = useProtoShell();
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
+  /**
+   * A parked note has no note segment either: flipping the sheet down sends the URL to the
+   * origin — a chapter, Home — while the note itself stays mounted below the fold. The shell
+   * knows which note that is even though the address no longer says so, exactly as it does
+   * for a compose draft.
+   */
+  const parkedNoteSlug =
+    paperStack && !paperStack.open && paperStack.noteId
+      ? noteParamSlug(paperStack.noteId)
+      : null;
   // Compose-on-home has no note segment — treat as draft slug while the shell session is active.
   const noteSlugParam =
-    noteSlugFromPath ?? (composeDraftActive ? PROTOTYPE_DRAFT_NOTE_SLUG : '');
+    noteSlugFromPath ?? parkedNoteSlug ?? (composeDraftActive ? PROTOTYPE_DRAFT_NOTE_SLUG : '');
   const isDraft =
-    isPrototypeDraftNoteSlug(noteSlugParam) || (!noteSlugFromPath && composeDraftActive);
+    isPrototypeDraftNoteSlug(noteSlugParam) ||
+    (!noteSlugFromPath && !parkedNoteSlug && composeDraftActive);
   const noteId = isDraft ? DRAFT_NOTE_ID : normalizeNoteIdFromParam(noteSlugParam);
   // URL uses bare ids (`?space=1785…`); APIs / shell expect `space_*`.
   const contextSpaceId = normalizePrototypeApiSpaceId(spaceSearchParam);
