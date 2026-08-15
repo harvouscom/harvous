@@ -81,12 +81,21 @@ export function bibleChapterQueryOptions(
         return response;
       } catch (error) {
         /*
-         * Fall back to the offline copy, if there is one. Only for transport failures — a 404
-         * means this translation genuinely lacks the chapter, and answering it from a stale
-         * pack would hide a real gap behind old text.
+         * Fall back to the offline copy, if there is one.
+         *
+         * The test is whether the server ANSWERED, not whether an HTTP status came back. A 4xx
+         * is an answer about this chapter — a 404 means the translation genuinely lacks it, and
+         * serving stale text there would hide a real gap behind old words. A 5xx is not an
+         * answer at all; it is the server saying it cannot produce one, which is the same
+         * situation as the network being down.
+         *
+         * That distinction used to be drawn at "is there a status", which put 5xx on the wrong
+         * side: with a complete pack in IndexedDB and the API returning 502, the reader spent
+         * 10.8s over 12 requests to reach "That chapter didn't load", while the verses sat
+         * 0.2ms away on disk.
          */
         const status = (error as { status?: number } | null)?.status;
-        if (status != null) throw error;
+        if (status != null && status < 500) throw error;
 
         const offline = await readOfflineChapter(book!, chapter!, translation);
         if (offline) return offline;
@@ -180,9 +189,17 @@ export function usePrefetchAdjacentChapters(
     for (const dir of [1, -1] as const) {
       const target = adjacentChapter(book, chapter as number, dir);
       if (!target) continue;
-      void queryClient.prefetchQuery(
-        bibleChapterQueryOptions(target.book, target.chapter, translation),
-      );
+      /*
+       * `retry: false` is the one option a prefetch may differ on. Nobody is waiting for a
+       * neighbour, so its failure has no consequence worth three attempts — and with the
+       * default policy the two prefetches retried alongside the real query, turning one
+       * failing chapter into twelve requests and a ten-second wait. Key, fetcher and caching
+       * stay identical; only how hard it tries changes.
+       */
+      void queryClient.prefetchQuery({
+        ...bibleChapterQueryOptions(target.book, target.chapter, translation),
+        retry: false,
+      });
     }
   }, [queryClient, book, chapter, translation]);
 }

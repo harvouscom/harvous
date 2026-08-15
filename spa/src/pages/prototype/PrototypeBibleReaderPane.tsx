@@ -813,7 +813,7 @@ export default function PrototypeBibleReaderPane({
                     className="pds-reader__picker-trigger"
                     groupsAsTabs
                     menuClassName="pds-reader__book-menu"
-                    menuWidth={272}
+                    menuWidth={292}
                     // A book you have just chosen has no meaningful chapter yet, so start at
                     // its first rather than keeping a number that belonged to another book.
                     onChange={(nextBook) => onNavigateTo(nextBook, 1)}

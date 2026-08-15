@@ -121,11 +121,24 @@ export default function ProtoSelectMenu<T extends string | number>({
         return;
       }
 
-      const measured = popoverRef.current?.getBoundingClientRect();
+      /*
+       * `offsetWidth`/`offsetHeight`, not `getBoundingClientRect()`.
+       *
+       * The menu animates in under `proto-menu-pop-in`, which scales it. A client rect reports
+       * the *visually transformed* box, so measuring during those frames read 263.8px for a
+       * menu that is 272px, and `left = anchor.right - width` came out 8px too far right. The
+       * ResizeObserver could not save it either: a transform does not change the layout box,
+       * so it never fired, and the wrong position stuck until some later scroll or tab switch
+       * recomputed it — which is exactly what the sideways jump was.
+       *
+       * The offset properties report the layout box and ignore transforms, so every observer
+       * agrees and the position is right on the first frame.
+       */
+      const el = popoverRef.current;
       const next = computeRightAnchoredPopoverPosition(
         rect,
-        measured?.width || width,
-        measured?.height || FALLBACK_HEIGHT,
+        el?.offsetWidth || width,
+        el?.offsetHeight || FALLBACK_HEIGHT,
         OFFSET,
       );
       // Scroll fires per frame; re-rendering on an unchanged position is pure churn.
