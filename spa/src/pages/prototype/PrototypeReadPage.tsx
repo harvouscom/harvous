@@ -106,16 +106,16 @@ export default function PrototypeReadPage() {
     [book, chapter, createHighlight],
   );
 
-  const handleNavigateChapter = useCallback(
-    (nextChapter: number) => {
+  const handleNavigateTo = useCallback(
+    (nextBook: string, nextChapter: number) => {
       void navigate({
         to: prototypeReadRouteTo(),
-        params: { book, chapter: String(nextChapter) },
+        params: { book: nextBook, chapter: String(nextChapter) },
         // Drop `v`: a verse focus belongs to the chapter it was linked into.
         search: { v: undefined, t: search.t },
       });
     },
-    [navigate, book, search.t],
+    [navigate, search.t],
   );
 
   /**
@@ -266,7 +266,7 @@ export default function PrototypeReadPage() {
           chapter={chapter}
           translation={translation}
           focusVerse={Number.isFinite(focusVerse) ? focusVerse : undefined}
-          onNavigateChapter={handleNavigateChapter}
+          onNavigateTo={handleNavigateTo}
           onStartNote={handleStartNote}
           // A cross-reference tapped inside the scripture dock is a place to go, not another
           // card to stack — it moves the reader, and the dock re-describes where you landed.

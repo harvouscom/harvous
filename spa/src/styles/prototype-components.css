@@ -17529,6 +17529,74 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   padding-inline-start: calc(var(--pds-reader-gutter) + var(--pds-space-2));
 }
 
+/*
+ * The chapter title, doubling as the book/chapter picker.
+ *
+ * It has to read as a title first and a control second — a reader glancing up to check where
+ * they are should see "Exodus 17", not two form fields. So the triggers inherit the title's
+ * face and size and drop every chip affordance at rest; the surface only appears under the
+ * pointer, which is where "you can change this" belongs.
+ */
+.pds-reader__chapter-picker {
+  display: flex;
+  align-items: baseline;
+  /* No gap. "Exodus 40" is one phrase, and the triggers' own padding already separates them —
+     adding a gap on top pulled the book and its chapter apart into two labels. */
+  gap: 0;
+  flex-wrap: wrap;
+  margin-inline-start: -6px;
+}
+
+.pds-reader__chapter-picker .proto-select-menu__trigger,
+.pds-reader__picker-trigger {
+  width: auto;
+  min-height: 0;
+  padding: 2px 6px;
+  /* Tight to its caret, so the caret reads as punctuation on the word rather than a
+     separate mark floating between book and chapter. */
+  gap: 3px;
+  border: none;
+  background: none;
+  border-radius: var(--pds-radius-row);
+  /* Inherit the display face and size from the title above. */
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-variation-settings: inherit;
+  line-height: inherit;
+  color: inherit;
+  transition: background-color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.pds-reader__chapter-picker .proto-select-menu__trigger:hover,
+.pds-reader__chapter-picker .proto-select-menu__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-control);
+}
+
+/* The caret is the only standing hint that the title is a control, so it stays — quiet enough
+   to read as punctuation until the title is approached. Selected structurally: `ProtoSelectMenu`
+   renders it as a bare `Icon` with no class of its own, next to `__value`. */
+.pds-reader__chapter-picker .proto-select-menu__trigger > span:not(.proto-select-menu__value) {
+  opacity: 0.4;
+  transition: opacity var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.pds-reader__chapter-picker
+  .proto-select-menu__trigger:hover
+  > span:not(.proto-select-menu__value),
+.pds-reader__chapter-picker
+  .proto-select-menu__trigger[aria-expanded='true']
+  > span:not(.proto-select-menu__value) {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader__chapter-picker .proto-select-menu__trigger,
+  .pds-reader__chapter-picker .proto-select-menu__trigger > span {
+    transition: none;
+  }
+}
+
 .pds-reader__chapter-meta {
   margin: var(--pds-space-1) 0 0;
 }
@@ -18020,7 +18088,16 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   justify-content: space-between;
   gap: var(--pds-space-3);
   margin-top: var(--pds-space-10);
+  padding-top: var(--pds-space-5);
   padding-inline-start: calc(var(--pds-reader-gutter) + var(--pds-space-2));
+  /*
+   * Closes the chapter, the way the note header's rule opens a note.
+   *
+   * `--pds-border-on-paper`, not `--pds-border`: this sits on the paper sheet rather than on
+   * the canvas, and the ordinary border token is effectively invisible against it — the same
+   * reason the note's audience bar reaches for this token (see prototype-tokens.css).
+   */
+  border-top: 0.5px solid var(--pds-border-on-paper);
 }
 
 .pds-reader__chapter-nav-btn {

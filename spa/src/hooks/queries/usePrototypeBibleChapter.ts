@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { api } from '../../lib/api';
+import { adjacentChapter } from '@/utils/bible-book-chapters';
 
 export interface BibleChapterVerse {
   number: number;
@@ -89,18 +90,21 @@ export function usePrefetchAdjacentChapters(
   book: string | undefined,
   chapter: number | undefined,
   translation: string,
-  opts: { hasPrev?: boolean; hasNext?: boolean } = {},
 ) {
   const queryClient = useQueryClient();
-  const { hasPrev, hasNext } = opts;
   useEffect(() => {
     if (!book || !Number.isInteger(chapter)) return;
-    const targets: number[] = [];
-    if (hasNext) targets.push((chapter as number) + 1);
-    if (hasPrev) targets.push((chapter as number) - 1);
-    for (const target of targets) {
-      if (target < 1) continue;
-      void queryClient.prefetchQuery(bibleChapterQueryOptions(book, target, translation));
+    /*
+     * Follows the canon, not the book. The neighbour of Exodus 40 is Leviticus 1, and warming
+     * only within a book would leave exactly the boundary crossings cold — the one place a
+     * reader is most likely to hesitate.
+     */
+    for (const dir of [1, -1] as const) {
+      const target = adjacentChapter(book, chapter as number, dir);
+      if (!target) continue;
+      void queryClient.prefetchQuery(
+        bibleChapterQueryOptions(target.book, target.chapter, translation),
+      );
     }
-  }, [queryClient, book, chapter, translation, hasPrev, hasNext]);
+  }, [queryClient, book, chapter, translation]);
 }
