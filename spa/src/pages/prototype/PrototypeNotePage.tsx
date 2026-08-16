@@ -34,7 +34,7 @@ import {
   usePatchSpaceNoteOrganization,
   type NoteCollectionExtras,
 } from '../../hooks/mutations/usePatchSpaceNoteOrganization';
-import { PANE_DOCK_MIN_WIDTH } from '../../layouts/proto-inspector-layout';
+import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
@@ -845,39 +845,17 @@ export default function PrototypeNotePage() {
     initialStudyThread,
   ]);
 
-  // Dock the inspector side-by-side only when the editor pane is wide enough to
-  // seat the editor (max 720px content) beside it (~268px reserve); otherwise let
-  // it float over the editor as a quiet overlay. Measured from the actual pane
-  // element via ResizeObserver so it tracks real layout px (a viewport media
-  // query is unreliable in the native webview where CSS px != visible px).
-  const paneResizeObserverRef = useRef<ResizeObserver | null>(null);
+  // Dock the inspector side-by-side only when the pane is wide enough to seat the
+  // editor (max 720px content) beside it (~268px reserve); otherwise let it float over
+  // the editor as a quiet overlay. The reader asks the same question of the same pane,
+  // so the measurement lives in one hook — see its comment for why it is the pane's
+  // border box and not this row.
   const notePaneRowElRef = useRef<HTMLDivElement | null>(null);
-  const [paneIsWide, setPaneIsWide] = useState(false);
-
-  const syncPaneWidth = useCallback((width: number) => {
-    setPaneIsWide(width >= PANE_DOCK_MIN_WIDTH);
-  }, []);
+  const paneIsWide = useShellPaneIsWide();
 
   const notePaneRowRef = useCallback((node: HTMLDivElement | null) => {
-    paneResizeObserverRef.current?.disconnect();
-    paneResizeObserverRef.current = null;
     notePaneRowElRef.current = node;
-    if (!node || typeof ResizeObserver === 'undefined') return;
-    syncPaneWidth(node.getBoundingClientRect().width);
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        syncPaneWidth(entry.contentRect.width);
-      }
-    });
-    ro.observe(node);
-    paneResizeObserverRef.current = ro;
-  }, [syncPaneWidth]);
-
-  useLayoutEffect(() => {
-    const node = notePaneRowElRef.current;
-    if (!node) return;
-    syncPaneWidth(node.getBoundingClientRect().width);
-  }, [syncPaneWidth]);
+  }, []);
 
   useEffect(() => {
     dismissStandaloneScripturePassage();
@@ -2251,8 +2229,20 @@ export default function PrototypeNotePage() {
   const inspectorNote =
     isDraft || (!note && composeSessionActive) ? draftInspectorNote : note;
 
-  const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
-  const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
+  /*
+   * A parked note keeps its inspector to itself.
+   *
+   * When the sheet is flipped down the reader below is the page being read, and BOTH pages
+   * are mounted — this one as the parked sheet, the route as the paper in front. Both portal
+   * into the same right-panel host at the same coordinates, and this one, mounted second,
+   * won: opening the inspector over a chapter showed the note's details. The inspector
+   * belongs to whichever layer is in front, so a parked note does not offer one.
+   */
+  const parkedBehindReader = Boolean(paperStack && !paperStack.open && paperStack.noteId);
+  const inspectorBelongsHere = (inspectorOpen || inspectorExiting) && !parkedBehindReader;
+
+  const showInspectorDesktop = inspectorBelongsHere && !isMobileSidebar;
+  const showInspectorMobile = inspectorBelongsHere && isMobileSidebar;
   // Reserve (dock) only when: inspector open, on desktop (mobile uses a fixed
   // slide-over), and the pane is wide enough. When the pane is narrow the desktop
   // inspector stays mounted but floats over the editor as a quiet overlay.
@@ -2260,6 +2250,7 @@ export default function PrototypeNotePage() {
   // the empty compose canvas stays full-width until the note persists.
   const inspectorReservesEditorSpace =
     inspectorOpen &&
+    !parkedBehindReader &&
     !inspectorExiting &&
     !isDraft &&
     !!inspectorNote &&

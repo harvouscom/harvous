@@ -1017,7 +1017,12 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           </div>
         </main>
 
-        <div className="proto-shell__right-panel-host" aria-hidden={!isNoteRoute} />
+        {/* The reader portals its inspector in here too, so hiding this from assistive tech
+            on every non-note route hid the reading-details panel from anyone using one. */}
+        <div
+          className="proto-shell__right-panel-host"
+          aria-hidden={!isNoteRoute && !isPrototypeReadPath(pathname) ? true : undefined}
+        />
 
         {expandedSidebarMounted ? (
           <PrototypeExpandedSidebarHost
@@ -1096,14 +1101,24 @@ function PrototypeShortcutBridge() {
     toolbarNoteId ?? '',
     toolbarContextSpaceId,
   );
-  const showNoteDetailsOrb = prototypeToolbarNoteDetailsAvailable({
-    isOnNotePage:
-      isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),
-    toolbarNoteId,
-    toolbarNoteLoading,
-    hasToolbarNote: !!toolbarNote,
-    isDraftNoteRoute,
-  });
+  /*
+   * `|| isPrototypeReadPath` to match the toolbar's own test.
+   *
+   * NativeToolbar shows the details orb on a chapter (`|| isOnReadPage`), because the reader
+   * has an inspector too. This copy — the one the keyboard shortcut goes through — did not,
+   * so ⌘-toggling the inspector was silently a no-op everywhere in the reader while the
+   * button beside it worked.
+   */
+  const showNoteDetailsOrb =
+    isPrototypeReadPath(pathname) ||
+    prototypeToolbarNoteDetailsAvailable({
+      isOnNotePage:
+        isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),
+      toolbarNoteId,
+      toolbarNoteLoading,
+      hasToolbarNote: !!toolbarNote,
+      isDraftNoteRoute,
+    });
 
   const createPrototypeNote = useCallback(() => {
     const targetSpaceId = resolveVisibleComposeTarget({

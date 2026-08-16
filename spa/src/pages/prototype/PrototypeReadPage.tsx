@@ -22,6 +22,7 @@ import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { createPortal } from 'react-dom';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
+import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeReaderInspectorPane from './PrototypeReaderInspectorPane';
 import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
@@ -70,6 +71,7 @@ export default function PrototypeReadPage() {
     closeInspector,
     isMobileSidebar,
   } = useProtoShell();
+  const paneIsWide = useShellPaneIsWide();
   const createNoteMutation = useCreateSimpleNote();
   /**
    * Try-a-face for this reading session. Deliberately component state, not a preference:
@@ -378,6 +380,15 @@ export default function PrototypeReadPage() {
       ? document.querySelector('.proto-shell__right-panel-host') ?? document.body
       : null;
   const inspectorVisible = inspectorOpen || inspectorExiting;
+  /*
+   * Dock the panel beside the chapter when there is room, exactly as a note does.
+   *
+   * The reader used to let it float over the text unconditionally, on the theory that a
+   * centred column sits in whitespace anyway. It does not: the column is 720px wide and the
+   * panel took the last ~100px of it, so adjusting the type size covered the verses you
+   * were adjusting it for.
+   */
+  const inspectorDocked = inspectorOpen && !inspectorExiting && !isMobileSidebar && paneIsWide;
   const inspectorLayer =
     inspectorVisible && rightPanelHost
       ? createPortal(
@@ -411,7 +422,9 @@ export default function PrototypeReadPage() {
       : null;
 
   return (
-    <PrototypeMainPaneShell>
+    <PrototypeMainPaneShell
+      className={inspectorDocked ? 'proto-main-pane--inspector-docked' : undefined}
+    >
       {inspectorLayer}
       <div className="pds-reader-with-dock">
         <PrototypeBibleReaderPane
