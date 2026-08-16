@@ -35,13 +35,16 @@ describe('paper stack edge', () => {
   });
 
   /**
-   * The one that matters. Dismissing an origin puts down a breadcrumb; the parked edge
-   * belongs to a mounted note holding a live draft, and a control that reads the same in
-   * both places would throw that draft away on a click meant to tidy up.
+   * The parked edge carries one too.
+   *
+   * This test used to assert the opposite, on the reasoning that dismissing a parked note
+   * could throw away a live draft. It cannot: parking requires a note id, and a compose
+   * draft has none until it saves, so by the time a note can be parked it is persisted and
+   * dismissing only drops the stack.
    */
-  it('offers no dismiss on a parked note, whose sheet is still holding a draft', () => {
-    renderStack({ origin, noteId: 'note_1', open: false });
-    expect(screen.queryByLabelText(/^Stop showing/)).toBeNull();
+  it('offers a dismiss on a parked note too', () => {
+    renderStack({ origin, noteId: 'note_1', noteTitle: 'On patience', open: false });
+    expect(screen.getByLabelText('Stop showing On patience behind this')).toBeTruthy();
   });
 
   it('calls a parked note by its title', () => {

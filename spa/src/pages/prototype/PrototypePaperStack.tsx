@@ -199,14 +199,16 @@ export default function PrototypePaperStack({
           </button>
         </div>
       ) : (
-        // The parked sheet is still there, its top edge showing above the pane's bottom —
-        // the mirror of the base peeking above it when it is up. Its edge is the way back,
-        // the same gesture at the other end of the pane; a floating "back to your note"
-        // button would say the sheet had gone somewhere, and it has not.
-        //
-        // Labelled with the note's own title, like every other row that stands for a note.
-        // "Your note" was the same words over every note you ever parked, which told you
-        // which pane you were looking at and nothing about which note was in it.
+        /*
+         * The parked note's own edge, on the band at the top — the same gesture in the same
+         * place as the edge that put it there.
+         *
+         * It carries the dismiss too. That was left off at first on the reasoning that
+         * putting down a breadcrumb and throwing away a mounted draft are different acts,
+         * but a draft cannot reach this state: parking requires a note id, and a compose
+         * draft has none until it saves. By the time a note can be parked it is persisted,
+         * so dismissing it drops the stack and leaves the note where it already lives.
+         */
         <div className="pds-paper-stack__edge-row pds-paper-stack__edge-row--parked">
           <button
             type="button"
@@ -216,6 +218,14 @@ export default function PrototypePaperStack({
           >
             <Icon name="note-sticky" size={12} aria-hidden />
             <span className="pds-caption">{parkedLabel}</span>
+          </button>
+          <button
+            type="button"
+            className="proto-side-panel__action-btn pds-paper-stack__edge-dismiss"
+            onClick={onDismiss}
+            aria-label={`Stop showing ${parkedLabel} behind this`}
+          >
+            <Icon name="xmark" size={12} aria-hidden />
           </button>
         </div>
       )}

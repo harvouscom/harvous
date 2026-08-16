@@ -18281,7 +18281,12 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow: hidden;
   transform-origin: top center;
   transform: scale(var(--pds-paper-stack-back-scale));
-  transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
+  /* Same split as the sheet: `transform` is the flip, `translate` is the hover nudge, and
+     they need different speeds. This layer is the paper in front once the sheet parks, so
+     it is the one that gives way then. */
+  transition:
+    transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized),
+    translate var(--pds-duration-press) var(--pds-ease-standard);
 }
 
 /* Both papers are translucent by design so the canvas reads through them, and both are
@@ -18480,6 +18485,17 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    easy to miss and the band read as inert. */
 .pds-paper-stack:has(.pds-paper-stack__edge-row:hover)
   .pds-paper-stack__sheet[data-stacked='true'] {
+  translate: 0 var(--pds-paper-stack-hover-nudge);
+}
+
+/* Parked, the paper in front is the base — so that is the one that gives way, and the band
+   it uncovers is the parked note's. The nudge follows whichever paper is on top, not
+   whichever element it happens to be, which is why it had no effect at all once the two
+   swapped: the rule above still pointed at a sheet that was now behind. */
+.pds-paper-stack:has(.pds-paper-stack__edge-row:hover):has(
+    .pds-paper-stack__sheet[data-stacked='false']
+  )
+  .pds-paper-stack__base {
   translate: 0 var(--pds-paper-stack-hover-nudge);
 }
 
