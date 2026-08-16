@@ -13647,6 +13647,36 @@ html.harvous-prototype-route
   or how many weeks a run covers — where a slot carries only its time.
 */
 /*
+  "Where should this go?" — the draft's destination picker.
+
+  Hangs directly under the audience bar it belongs to rather than being placed by
+  measurement: the bar is a fixed slot at the top of the paper, so an absolutely positioned
+  sheet lands correctly without a rect. Left-aligned to the bar's own text, since that is
+  the control it answers for.
+*/
+.proto-draft-destination {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 60;
+  min-width: 208px;
+}
+
+/* The bar becomes the positioning context for the sheet. */
+.proto-editor-paper .proto-shared-readonly-banner {
+  position: relative;
+}
+
+/* The tick on the destination you are already saving to, held at the trailing edge so the
+   labels stay in one column and the answer is scannable down the right. */
+.proto-menu-item__trailing {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--pds-accent);
+}
+
+/*
   The dates a room's rhythm falls on, offered above the picker.
 
   Wraps rather than scrolls: six dates is a glance, and a horizontal scroller

@@ -45,6 +45,9 @@ import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeNoteAudienceBar from './PrototypeNoteAudienceBar';
+import PrototypeDraftDestinationSheet, {
+  draftDestinationOptions as buildDraftDestinationOptions,
+} from './PrototypeDraftDestinationSheet';
 import {
   dismissPurpose,
   getComposePurpose,
@@ -300,6 +303,7 @@ export default function PrototypeNotePage() {
     composeSessionEpoch,
     composeTargetSpaceIdOverride,
     clearComposeTargetSpaceIdOverride,
+    setComposeTargetSpaceId,
     dismissStandaloneScripturePassage,
     openStandaloneScripturePassage,
     formatToolbarHostEl,
@@ -700,6 +704,28 @@ export default function PrototypeNotePage() {
     () => isDraftSaveDestinationHome({ targetSpaceId: composeTargetSpaceId, homeSpaceId: personalHomeSpaceId }),
     [composeTargetSpaceId, personalHomeSpaceId],
   );
+
+  /*
+    Retargeting a draft mid-sentence.
+
+    Only while it is still a draft: once the note exists, moving it between spaces is a
+    different operation with different consequences (memberships, activity, who can already
+    see it), and the inspector's Shared-with section owns that. This is the cheap case —
+    nothing has been written anywhere yet, so the destination is still just a plan.
+  */
+  const [destinationOpen, setDestinationOpen] = useState(false);
+  const draftDestinationOptions = useMemo(
+    () =>
+      buildDraftDestinationOptions({
+        spaces: nav?.spaces ?? [],
+        memberOfSpaces: nav?.memberOfSpaces ?? [],
+        homeSpaceId: personalHomeSpaceId,
+      }),
+    [nav?.spaces, nav?.memberOfSpaces, personalHomeSpaceId],
+  );
+  /* Offered only when there is somewhere else to go — a viewer in no shared space has one
+     option, and a menu of one is a worse answer than a label. */
+  const canRetargetDraft = isDraft && draftDestinationOptions.length > 1;
 
   const onHighlightOpenRequestConsumed = useCallback(() => {
     setHighlightOpenRequest(null);
@@ -2470,6 +2496,7 @@ export default function PrototypeNotePage() {
                 draftDestinationLabel={draftDestinationLabel}
                 draftDestinationIsHome={draftDestinationIsHome}
                 onOpenAudience={openInspector}
+                onOpenDestination={canRetargetDraft ? () => setDestinationOpen((v) => !v) : undefined}
                 authorDisplayName={foreignNoteAuthor?.displayName ?? note?.authorDisplayName}
                 authorUserId={foreignNoteAuthor?.userId ?? note?.authorUserId ?? note?.userId}
                 authorFirstName={foreignNoteAuthor?.firstName}
@@ -2482,6 +2509,18 @@ export default function PrototypeNotePage() {
                 onPurposeAction={openInspector}
                 onDismissPurpose={handleDismissPurpose}
               />
+              {/* Anchored under the bar it belongs to, and only while the draft can move. */}
+              {canRetargetDraft ? (
+                <PrototypeDraftDestinationSheet
+                  open={destinationOpen}
+                  options={draftDestinationOptions}
+                  currentSpaceId={
+                    composeTargetSpaceId === personalHomeSpaceId ? null : composeTargetSpaceId
+                  }
+                  onChoose={(destination) => setComposeTargetSpaceId(destination.spaceId)}
+                  onDismiss={() => setDestinationOpen(false)}
+                />
+              ) : null}
               {showSharedHighlightOverlay ? (
                 <SharedStudyHighlightOverlay
                   editor={sharedOverlayEditor}
