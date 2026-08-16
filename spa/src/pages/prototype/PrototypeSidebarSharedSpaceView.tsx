@@ -49,8 +49,8 @@ import PrototypeListEmptyState from './PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
-import PrototypeHomeCardCarousel from './PrototypeHomeCardCarousel';
-import PrototypeCardStack, { type CardStackRenderMode } from './PrototypeCardStack';
+import PrototypeHomeRow from './PrototypeHomeRow';
+import HomeSection from './PrototypeHomeSection';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 import {
   buildSharedSpaceNoteCardSlots,
@@ -146,7 +146,18 @@ function noteKindIcon(noteType: string | undefined): IconName {
   return 'note-sticky';
 }
 
-function SharedSpaceNoteCard({
+/**
+ * A note as a Home row.
+ *
+ * Was a card: eyebrow, title, preview and meta each on their own line — four lines per note
+ * in a column that shows several. As a row it is one title and one meta, the preview folded
+ * in and taking its chances with the ellipsis. The author chip stays, because in a shared
+ * room *who wrote it* is half of what the row is telling you.
+ *
+ * The `preview` mode the card carried is gone along with the card stack that needed it —
+ * nothing wraps these in an outer button now, so a row can simply be a button.
+ */
+function SharedSpaceNoteRow({
   cardSlot,
   authorName,
   authorUserId,
@@ -156,7 +167,6 @@ function SharedSpaceNoteCard({
   isOwn,
   onOpen,
   showEyebrow = true,
-  mode = 'interactive',
 }: {
   cardSlot: SharedSpaceNoteCardSlot;
   authorName: string;
@@ -166,57 +176,33 @@ function SharedSpaceNoteCard({
   authorColor: string;
   isOwn: boolean;
   onOpen: () => void;
+  /** Folded into the meta line. Omitted inside a section whose heading already says it. */
   showEyebrow?: boolean;
-  /** `preview` renders inert markup for the collapsed card stack, which wraps
-   *  it in its own button — a button inside a button is invalid markup. */
-  mode?: CardStackRenderMode;
 }) {
   const { note, eyebrow } = cardSlot;
   const preview = noteRowPreview(note);
   const rel = protoRelativeCaptionAbbrev(note.lastUpdated ?? note.updatedAt ?? note.createdAt ?? null);
-  const Root = mode === 'preview' ? 'div' : 'button';
 
   return (
-    <Root
-      {...(mode === 'preview' ? {} : { type: 'button' as const, onClick: onOpen })}
-      className={`proto-glass-surface proto-glass-surface--panel proto-home-card${
-        mode === 'preview' ? '' : ' proto-home-card--tappable'
-      }`}
-    >
-      {showEyebrow ? <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p> : null}
-      <div className="proto-home-card__body">
-        <div className="proto-home-card__title-row">
-          <span className="proto-home-card__icon-orb" aria-hidden>
-            <Icon name={noteKindIcon(note.noteType)} size={13} />
-          </span>
-          <p className="pds-list-title proto-home-card__title">{noteRowTitle(note)}</p>
-          <span className="proto-home-card__chevron" aria-hidden>
-            <Icon name="caret-right" size={11} />
-          </span>
-        </div>
-        {preview ? (
-          <p className="pds-list-preview proto-home-card__preview">{preview}</p>
-        ) : null}
-        <div className="proto-home-card__meta">
-          <SharedSpaceNoteAuthorChip
-            displayName={authorName}
-            userId={authorUserId}
-            firstName={authorFirstName}
-            profileImageUrl={authorProfileImageUrl}
-            color={authorColor}
-            isSelf={isOwn}
-          />
-          {rel ? (
-            <>
-              <span className="proto-home-card__meta-sep" aria-hidden>
-                ·
-              </span>
-              <span className="proto-home-card__meta-item">{rel}</span>
-            </>
-          ) : null}
-        </div>
-      </div>
-    </Root>
+    <PrototypeHomeRow
+      icon={noteKindIcon(note.noteType)}
+      title={noteRowTitle(note)}
+      meta={[
+        showEyebrow ? eyebrow : null,
+        preview,
+        <SharedSpaceNoteAuthorChip
+          key="author"
+          displayName={authorName}
+          userId={authorUserId}
+          firstName={authorFirstName}
+          profileImageUrl={authorProfileImageUrl}
+          color={authorColor}
+          isSelf={isOwn}
+        />,
+        rel,
+      ]}
+      onClick={onOpen}
+    />
   );
 }
 
@@ -637,40 +623,37 @@ function PrototypeSidebarSharedSpaceViewLive() {
    * primary target); the others are a div carrying two sibling buttons — open
    * and "Set current" — since a button cannot contain a button.
    */
-  const renderThreadCard = (
-    thread: SpaceGroupStudyThread,
-    _index: number,
-    mode: CardStackRenderMode = 'interactive',
-  ) => {
+  /*
+    A Thread as a Home row.
+
+    Was a card with a *nested* button for the title and another for "Set current" — a button
+    inside a button, which is invalid, and the reason the title needed its own click target
+    instead of the card carrying it. `trailing` is the shape that problem wanted: the body is
+    the tap target, the action sits beside it, neither contains the other.
+  */
+  const renderThreadRow = (thread: SpaceGroupStudyThread) => {
     const isCurrent = thread.id === threadDashboard.currentThread?.id;
     const stacked = threadStackItems.length > 1;
-    const body = (
-      <div className="proto-home-card__body">
-        <div className="proto-home-card__title-row">
-          <span className="proto-home-card__icon-orb" aria-hidden>
-            <Icon name="arrow-right-arrow-left" size={13} />
-          </span>
-          {mode === 'preview' || isCurrent ? (
-            <p className="pds-list-title proto-home-card__title">{thread.title}</p>
-          ) : (
-            <button
-              type="button"
-              className="proto-shared-thread-card__open pds-list-title proto-home-card__title"
-              onClick={() => openThread(thread)}
-            >
-              {thread.title}
-            </button>
-          )}
-          {mode === 'preview' || isCurrent ? (
-            <span className="proto-home-card__chevron" aria-hidden>
-              <Icon name="caret-right" size={11} />
-            </span>
-          ) : (
+    return (
+      <PrototypeHomeRow
+        key={thread.id}
+        icon="arrow-right-arrow-left"
+        title={thread.title}
+        meta={[
+          // Only worth saying which one is current once there is more than one.
+          isCurrent && stacked ? 'Current' : null,
+          // A study plan says where the group is; a collection says how big it is.
+          sequenceStepLabel(thread) ?? sharedThreadNoteCountPreview(thread.noteCount),
+        ]}
+        onClick={() => openThread(thread)}
+        trailing={
+          !isCurrent ? (
             <button
               type="button"
               className="proto-shared-thread-action"
               disabled={setCurrentThread.isPending}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 void makeThreadCurrent(thread.id).catch((error) => {
                   setThreadPinError(
                     error instanceof Error ? error.message : 'Could not set this Thread as current.',
@@ -680,42 +663,17 @@ function PrototypeSidebarSharedSpaceViewLive() {
             >
               Set current
             </button>
-          )}
-        </div>
-        <p className="pds-list-preview proto-home-card__preview">
-          {/* Only worth saying which one is current once there is more than one. */}
-          {isCurrent && stacked ? 'Current · ' : ''}
-          {/* A study plan says where the group is; a collection says how big it is. */}
-          {sequenceStepLabel(thread) ?? sharedThreadNoteCountPreview(thread.noteCount)}
-        </p>
-      </div>
-    );
-
-    if (mode === 'preview' || !isCurrent) {
-      return (
-        <div className="proto-glass-surface proto-glass-surface--panel proto-home-card">{body}</div>
-      );
-    }
-    return (
-      <button
-        type="button"
-        className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-        onClick={() => openThread(thread)}
-      >
-        {body}
-      </button>
+          ) : undefined
+        }
+      />
     );
   };
 
-  const renderNotePreviewCard = (
-    slot: SharedSpaceNoteCardSlot,
-    showEyebrow = true,
-    mode: CardStackRenderMode = 'interactive',
-  ) => {
+  const renderNoteRow = (slot: SharedSpaceNoteCardSlot, showEyebrow = true) => {
     const author = resolveAuthor(slot.note);
     return (
-      <SharedSpaceNoteCard
-        mode={mode}
+      <SharedSpaceNoteRow
+        key={slot.note.id}
         cardSlot={slot}
         authorName={author.authorName}
         authorUserId={author.authorUserId}
@@ -992,12 +950,11 @@ function PrototypeSidebarSharedSpaceViewLive() {
               ) : null}
               {showThreadTabs && threadTab === 'available' ? (
                 <>
-                  <PrototypeCardStack
-                    items={availableThreads}
-                    ariaLabel="Available Threads"
-                    collapsedLabel="Show all Threads"
-                    renderItem={renderThreadCard}
-                  />
+                  {/* Rows in one panel, not a pile of cards to expand. A list you can read
+                      beats a stack you have to open. */}
+                  <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
+                    {availableThreads.map((thread) => renderThreadRow(thread))}
+                  </div>
                   {threadPinError ? (
                     <p className="proto-connect-note-sheet__error" role="alert">
                       {threadPinError}
@@ -1006,14 +963,9 @@ function PrototypeSidebarSharedSpaceViewLive() {
                 </>
               ) : threadStackItems.length > 0 ? (
                 <>
-                  {/* One item renders as a plain card, so a space with a single
-                      Thread keeps one-tap-to-open. */}
-                  <PrototypeCardStack
-                    items={threadStackItems}
-                    ariaLabel="Threads in this space"
-                    collapsedLabel="Show all Threads"
-                    renderItem={renderThreadCard}
-                  />
+                  <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
+                    {threadStackItems.map((thread) => renderThreadRow(thread))}
+                  </div>
                   {threadPinError ? (
                     <p className="proto-connect-note-sheet__error" role="alert">
                       {threadPinError}
@@ -1106,21 +1058,16 @@ function PrototypeSidebarSharedSpaceViewLive() {
                 </div>
               ) : null}
 
+              {/*
+                One section per group, rows inside. The heading already says which shelf
+                this is, so the rows drop their own eyebrow — the trade Home makes. A
+                single-note group is a section of one rather than a lone card, so a room
+                with one recent note looks like a room and not a different layout.
+              */}
               {noteCardGroups.map((group) => (
-                <div key={`${group.eyebrow}-${group.slots[0].note.id}`} className="proto-home-section">
-                  {group.slots.length === 1 ? (
-                    renderNotePreviewCard(group.slots[0])
-                  ) : (
-                    <>
-                      <p className="proto-caption proto-home-section__eyebrow">{group.eyebrow}</p>
-                      <PrototypeHomeCardCarousel
-                        items={group.slots.map((slot) => ({ ...slot, id: slot.note.id }))}
-                        ariaLabel={group.eyebrow}
-                        renderItem={(slot, _idx, mode) => renderNotePreviewCard(slot, false, mode)}
-                      />
-                    </>
-                  )}
-                </div>
+                <HomeSection key={`${group.eyebrow}-${group.slots[0].note.id}`} title={group.eyebrow}>
+                  {group.slots.map((slot) => renderNoteRow(slot, false))}
+                </HomeSection>
               ))}
 
             </>

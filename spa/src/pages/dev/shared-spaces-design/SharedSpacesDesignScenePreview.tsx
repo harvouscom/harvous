@@ -847,17 +847,32 @@ export default function SharedSpacesDesignScenePreview({ scene }: { scene: Share
           confirmLabel="Delete"
         />
       );
+    /*
+      Wrapped in the real shell provider, not a stub.
+
+      Both scenes threw `useProtoShell requires ProtoShellProvider` on load: the dashboard
+      mounts its About and People sheets unconditionally (closed, but mounted), and both
+      call `useProtoShell` at the top of their render. The provider takes only `children` and
+      builds its own state, so giving the scene the real one costs nothing and previews the
+      component in the environment it actually ships in — which is the whole point of a
+      gallery. A stubbed context would have been a second definition of the shell to keep in
+      step with the first.
+    */
     case '18-full-dashboard':
       return (
-        <ProtoChrome width={360}>
-          <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_DASHBOARD_FIXTURE_FULL} showFixtureBanner />
-        </ProtoChrome>
+        <ProtoShellProvider>
+          <ProtoChrome width={360}>
+            <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_DASHBOARD_FIXTURE_FULL} showFixtureBanner />
+          </ProtoChrome>
+        </ProtoShellProvider>
       );
     case '19-social-dashboard':
       return (
-        <ProtoChrome width={360}>
-          <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL} showFixtureBanner />
-        </ProtoChrome>
+        <ProtoShellProvider>
+          <ProtoChrome width={360}>
+            <SharedSpaceDashboardFixtureView fixture={SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL} showFixtureBanner />
+          </ProtoChrome>
+        </ProtoShellProvider>
       );
     case '20-join-cover-colors':
       return <JoinCoverColorsScene />;

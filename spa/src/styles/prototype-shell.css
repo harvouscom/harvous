@@ -118,6 +118,28 @@
   pointer-events: none;
 }
 
+/*
+ * A dock portalled straight into the slot, with no carousel between it and the layer.
+ *
+ * The Bible reader does this — one card, no stack to shuffle — and the carousel is where
+ * all the centring lives: it measures the paper and scrolls its track so the active card
+ * sits over it. Skipping the carousel skipped that too, so a dock opened while reading
+ * stretched across sidebar and main while the chapter sat in a 720px column in the middle,
+ * which is the "doesn't respect the middle" of it. Here the same two facts are stated in
+ * CSS instead: clear the sidebar, then sit on the paper's own width.
+ */
+.proto-shell__study-dock-layer__slot > .study-dock-card {
+  box-sizing: border-box;
+  max-width: min(var(--pds-paper-column, 720px), 100%);
+  margin-inline: auto;
+}
+
+@media (min-width: 900px) {
+  .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card) {
+    padding-left: var(--proto-sidebar-w-clamped);
+  }
+}
+
 .proto-shell__study-dock-layer__slot:not(:empty) {
   /* Only dock cards capture clicks — padded/empty slot area must not block the inspector. */
   pointer-events: none;
@@ -149,7 +171,25 @@
 
 /* Desktop note inspector (absolute in note pane) — keep the carousel clear of the
    inspector whether it's docked or floating over the editor. */
-.proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
+.proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty),
+.proto-shell:has(.proto-main-pane--inspector-docked) .proto-shell__study-dock-layer__slot:not(:empty) {
+  padding-right: var(--pds-inspector-reserve-w);
+}
+
+/* The docked inspector's reserve, taken from the whole main pane rather than from the
+   editor inside it.
+
+   Both paper-stack layers live in here, so padding the pane moves the sheet and the paper
+   behind it by the same amount. The old rule put a `margin-right` on `.proto-editor-surface`,
+   which moved only the note — open the inspector over a note stacked on a chapter and the
+   chapter stayed put, half of it under the panel.
+
+   Padding (not margin) because the pane is the scroll/clip container for both layers, and
+   because the note pane measures this element's BORDER box to decide whether to dock at all
+   (see PrototypeNotePage) — padding leaves that ruler unchanged, so the decision can't
+   undo itself. */
+.proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__main-inner,
+.proto-shell:has(.proto-main-pane--inspector-docked) .proto-shell__main-inner {
   padding-right: var(--pds-inspector-reserve-w);
 }
 
@@ -406,6 +446,17 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Inherited from the editor surface, which used to hold the inspector's reserve — the
+     pane must slide open on the same curve and in the same time as the panel arriving. */
+  padding-right: 0;
+  transition: padding-right var(--pds-inspector-transition-duration)
+    var(--pds-inspector-transition-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-shell__main-inner {
+    transition: none;
+  }
 }
 
 /* The `hidden` attribute's UA `display:none` (specificity 0,0,1) loses to the

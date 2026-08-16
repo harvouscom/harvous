@@ -27,7 +27,12 @@ This project uses a team of specialized agents as slash commands. Each agent own
 
 | Command | Domain |
 |---|---|
-| `/performance-agent` | Speed, snappiness, responsiveness — bundle budgets, render cost, interaction latency, optimistic mutations, build and chunking |
+| `/engineer` | Performance and code efficiency — speed, snappiness, responsiveness; bundle budgets, render cost, interaction latency, optimistic mutations, build and chunking |
+
+Named for the role rather than the topic, like `/theologian-agent` and `/coordinator`, and with
+no `-agent` suffix because it is not one of the domain specialists. Note the trade the name
+makes: every agent here does engineering, so `/engineer` says *who* rather than *what*. It is
+the one whose subject is how fast the thing runs.
 
 Routes differently from the specialists above: it owns measurement and budgets (`perf:check`, the
 budget ratchet, `docs/performance/`), but the slow paths live inside editor/content/data/design

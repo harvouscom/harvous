@@ -35,6 +35,7 @@ export default function PrototypeNoteAudienceBar({
   draftDestinationLabel,
   draftDestinationIsHome = false,
   onOpenAudience,
+  onOpenDestination,
   authorDisplayName,
   authorUserId,
   authorFirstName,
@@ -56,6 +57,8 @@ export default function PrototypeNoteAudienceBar({
   draftDestinationIsHome?: boolean;
   /** Opens the inspector's Shared-with section. */
   onOpenAudience?: () => void;
+  /** Opens the destination picker for a draft. Absent = the destination is fixed. */
+  onOpenDestination?: () => void;
   authorDisplayName?: string | null;
   authorUserId?: string | null;
   authorFirstName?: string | null;
@@ -119,21 +122,59 @@ export default function PrototypeNoteAudienceBar({
   // A draft has no audience yet — it has a destination. Same slot, so the bar
   // doesn't appear out of nowhere the moment the note saves.
   if (draftDestinationLabel) {
+    /*
+      Tappable when the caller can retarget the draft, inert when it cannot.
+
+      This read as a label for as long as it existed, which quietly made the
+      destination a decision you could only make *before* you started writing —
+      open compose from a shared space and there was no way back to your own
+      Home short of abandoning the draft. The shell has been able to retarget an
+      in-progress draft the whole time (`setComposeTargetSpaceId`); nothing ever
+      called it. Same chevron and the same "this opens something" grammar as the
+      audience control below, because it is the same kind of promise.
+    */
+    const icon = draftDestinationIsHome ? (
+      <ProtoHouseIcon size={11} className="proto-shared-readonly-banner__icon" />
+    ) : (
+      <Icon name="user-group" size={11} className="proto-shared-readonly-banner__icon" aria-hidden />
+    );
+
+    if (!onOpenDestination) {
+      return (
+        <div className="proto-shared-readonly-banner proto-shared-readonly-banner--quiet">
+          <span className="proto-shared-readonly-banner__status proto-shared-readonly-banner__audience pds-caption">
+            {icon}
+            {draftDestinationLabel}
+          </span>
+        </div>
+      );
+    }
+
     return (
       <div className="proto-shared-readonly-banner proto-shared-readonly-banner--quiet">
-        <span className="proto-shared-readonly-banner__status proto-shared-readonly-banner__audience pds-caption">
-          {draftDestinationIsHome ? (
-            <ProtoHouseIcon size={11} className="proto-shared-readonly-banner__icon" />
-          ) : (
-            <Icon
-              name="user-group"
-              size={11}
-              className="proto-shared-readonly-banner__icon"
-              aria-hidden
-            />
-          )}
+        <button
+          type="button"
+          className="proto-shared-readonly-banner__status proto-shared-readonly-banner__audience pds-caption"
+          onClick={onOpenDestination}
+          // Don't steal focus from the editor — the author is usually mid-sentence.
+          onMouseDown={(e) => e.preventDefault()}
+          title="Change where this note is saved"
+        >
+          {icon}
           {draftDestinationLabel}
-        </span>
+          {/*
+            Points down, not right. The audience control below goes *somewhere* — it opens
+            the inspector — and a right caret says so. This opens a short menu directly
+            beneath itself, and a right caret on it was a small lie about where the tap
+            leads, which is the kind that makes a control look decorative and go untried.
+          */}
+          <Icon
+            name="caret-down"
+            size={9}
+            className="proto-shared-readonly-banner__audience-chevron"
+            aria-hidden
+          />
+        </button>
       </div>
     );
   }

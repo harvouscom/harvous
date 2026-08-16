@@ -638,9 +638,10 @@ export function selectHomeLeadTheme(input: HomeLeadThemeInput): HomeLeadTheme {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Local-midnight epoch day index — activity counts use calendar days, not 24h windows. */
-export function localDayIndex(date: Date): number {
-  return Math.floor(new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() / DAY_MS);
-}
+/* Re-exported so Home's many callers keep one import, while the shell can reach the one
+   line without pulling this module onto the initial chunk. */
+import { localDayIndex } from './local-day-index';
+export { localDayIndex };
 
 function collectActiveDayIndices(notes: HomeContinueNoteInput[]): Set<number> {
   const activeDays = new Set<number>();
@@ -1743,6 +1744,12 @@ export interface ContinueBookInput {
   bookOrder: number;
   /** Chapters of this book the user has cited (any order, may repeat). */
   citedChapters: number[];
+  /**
+   * Chapters of this book the user has read without necessarily writing about them.
+   * Counts as studied for the same reason citing does — this card exists to avoid
+   * proposing a chapter someone has already been through.
+   */
+  readChapters?: number[];
 }
 
 export interface ContinueBookSuggestion {
@@ -1754,8 +1761,13 @@ export interface ContinueBookSuggestion {
 
 /**
  * For each book the user is working through, the next unstudied chapter — the first chapter in
- * 1..N (N = canonical chapter count) they haven't cited. Books fully cited up to N are skipped.
- * Ranked by how many distinct chapters they've cited (most-invested book first). Pure.
+ * 1..N (N = canonical chapter count) they have neither cited nor read. Books fully covered up
+ * to N are skipped. Ranked by how much of the book they have been through (most-invested book
+ * first). Pure.
+ *
+ * Reading counts alongside citing because the card's job is to name a chapter someone has not
+ * been through yet. Before the reading log existed this could only see citations, so it would
+ * cheerfully propose a chapter that had been read twice and simply never written about.
  */
 export function deriveContinueBook(
   books: ContinueBookInput[],
@@ -1767,20 +1779,98 @@ export function deriveContinueBook(
   for (const b of books) {
     const total = chapterCounts.get(b.book);
     if (!total) continue;
-    const cited = new Set(b.citedChapters.filter((c) => c >= 1 && c <= total));
-    if (cited.size === 0) continue;
+    const inRange = (c: number) => c >= 1 && c <= total;
+    const cited = new Set(b.citedChapters.filter(inRange));
+    const covered = new Set([...cited, ...(b.readChapters ?? []).filter(inRange)]);
+    if (covered.size === 0) continue;
     let next: number | null = null;
     for (let c = 1; c <= total; c++) {
-      if (!cited.has(c)) {
+      if (!covered.has(c)) {
         next = c;
         break;
       }
     }
-    if (next == null) continue; // book fully cited
-    out.push({ book: b.book, bookOrder: b.bookOrder, nextChapter: next, citedCount: cited.size });
+    if (next == null) continue; // book fully covered
+    out.push({ book: b.book, bookOrder: b.bookOrder, nextChapter: next, citedCount: covered.size });
   }
   out.sort((a, b) => b.citedCount - a.citedCount || a.bookOrder - b.bookOrder);
   return out.slice(0, Math.max(0, limit));
+}
+
+// 1b. Continue reading ───────────────────────────────────────────────────────────
+
+export interface ContinueReadingInput {
+  /** Where the reader was last, from `UserMetadata.lastReadPosition`. */
+  lastRead: { book: string; bookOrder: number; chapter: number; translation: string } | null;
+  /** Chapters the reader has been through, from the reading log. */
+  readChapters: { book: string; chapter: number; countsAsRead: boolean }[];
+}
+
+export interface ContinueReadingSuggestion {
+  book: string;
+  bookOrder: number;
+  chapter: number;
+  translation: string;
+  /**
+   * `resume` — the chapter they opened but did not read through, offered again.
+   * `next`   — the following chapter, because the last one was actually read.
+   */
+  reason: 'resume' | 'next';
+}
+
+/**
+ * The chapter to offer someone who was reading. Pure.
+ *
+ * Two cases, and the difference matters more than it looks. Someone who read a chapter through
+ * wants the next one. Someone who opened a chapter and bounced off it — closed the laptop,
+ * got interrupted — wants that same chapter again, and offering them the one after it silently
+ * skips a chapter they never read. The reading log's dwell bucket is what tells these apart;
+ * nothing else in the app can.
+ *
+ * Returns null once the book runs out rather than rolling into the next one. Where to go after
+ * finishing a book is a real question, and answering it by silently starting Leviticus is worse
+ * than leaving the slot to the other Home cards.
+ */
+export function deriveContinueReading(
+  input: ContinueReadingInput,
+  chapterCounts: Map<string, number>,
+): ContinueReadingSuggestion | null {
+  const { lastRead, readChapters } = input;
+  if (!lastRead) return null;
+
+  const total = chapterCounts.get(lastRead.book);
+  if (!total || lastRead.chapter < 1 || lastRead.chapter > total) return null;
+
+  const readThrough = new Set(
+    readChapters.filter((r) => r.book === lastRead.book && r.countsAsRead).map((r) => r.chapter),
+  );
+
+  const base = {
+    book: lastRead.book,
+    bookOrder: lastRead.bookOrder,
+    translation: lastRead.translation,
+  };
+
+  if (!readThrough.has(lastRead.chapter)) {
+    return { ...base, chapter: lastRead.chapter, reason: 'resume' };
+  }
+
+  for (let c = lastRead.chapter + 1; c <= total; c++) {
+    if (!readThrough.has(c)) return { ...base, chapter: c, reason: 'next' };
+  }
+
+  return null;
+}
+
+/** Home card copy for continue-reading. */
+export function continueReadingMeta(suggestion: ContinueReadingSuggestion): string {
+  return suggestion.reason === 'resume'
+    ? `Back to ${suggestion.book} ${suggestion.chapter}`
+    : `Next in ${suggestion.book}`;
+}
+
+export function continueReadingEyebrow(suggestion: ContinueReadingSuggestion): string {
+  return suggestion.reason === 'resume' ? 'Where you left off reading' : 'Keep reading';
 }
 
 // 2. Study a recurring person ─────────────────────────────────────────────────────

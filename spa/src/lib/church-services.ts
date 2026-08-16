@@ -34,6 +34,35 @@ export type ChurchSermonStarter = {
   content: string;
 };
 
+/**
+ * One published item claiming a service — its title, the ministry channel it
+ * came from, and which grain claimed it.
+ *
+ * `grain` is 'series' when the item was attached to the whole run rather than
+ * this week, which is how an eight-week study attaches once instead of eight
+ * times. The congregant surface may use it to say so, but must not sort by it:
+ * the server already orders this week's own material first.
+ */
+export type ChurchSermonAttachment = {
+  noteId: string;
+  title: string;
+  channelId: string;
+  channelTitle: string;
+  grain: 'service' | 'series';
+};
+
+/**
+ * Which plan a row came from.
+ *
+ * `space` carries the room's colour for identification only — a card is
+ * **never tinted** by it. Settled for companion channels in
+ * `CHURCH_STUDY_MATERIAL_LINKING.md`; tinting would say the sermon came *from*
+ * that room, and the same reasoning holds for a context card.
+ */
+export type ChurchSermonSource =
+  | { kind: 'church' }
+  | { kind: 'space'; spaceId: string; title: string; color: string | null };
+
 export type ChurchSermon = {
   id: string;
   serviceDate: string;
@@ -43,10 +72,28 @@ export type ChurchSermon = {
   viewerNoteId: string | null;
   starter: ChurchSermonStarter | null;
   /**
-   * Ministry channel carrying this service's study material, resolved by the
-   * server. Optional so a cached payload from before this shipped still parses.
+   * What this church's ministries published *for* this service — the inversion
+   * in `CHURCH_STUDY_MATERIAL_LINKING.md`, and the replacement for the `channel`
+   * pointer that used to sit here. That field named one room and promised
+   * material about the sermon; this names the material itself, and any number
+   * of ministries can speak to the same Sunday.
+   *
+   * Always sent as an array, but optional here so a payload cached before this
+   * shipped still parses. Empty is the common case and renders nothing.
    */
-  channel?: { id: string; title: string; color: string | null } | null;
+  attached?: ChurchSermonAttachment[];
+  /**
+   * Which plan this row came from. **Optional, and absent reads as the church's
+   * own plan** — that tolerance is what lets a payload cached before context
+   * cards shipped keep working, and it is why the endpoint needed no cache
+   * invalidation.
+   */
+  source?: ChurchSermonSource;
+  /**
+   * One resolved clock reading, church-local, for a context card's meta line.
+   * The church card keeps using `serviceTimes`, which can carry two.
+   */
+  serviceTime?: string | null;
   /**
    * Every time this sermon is preached, ascending 'HH:MM' on the church's own
    * wall clock, resolved by the server — never re-derived here. A church with
@@ -164,6 +211,81 @@ export function currentSermonFor<T extends SelectableSermon>(
   return upcoming ?? recentPast;
 }
 
+/**
+ * How far ahead a *context* card may look.
+ *
+ * Home is a set of imminent appointments, not a directory of every ministry's
+ * rhythm. With this bound a quarterly ministry is silent for eleven weeks
+ * instead of parked on Home forever.
+ */
+export const CONTEXT_CARD_DAYS_AHEAD = 7;
+
+/** A ministry or group reporting its own next gathering. */
+export type ChurchContextCard = {
+  source: Extract<ChurchSermonSource, { kind: 'space' }>;
+  service: ChurchSermon;
+};
+
+/** Group key for a row, tolerating a payload that predates `source`. */
+function sourceKey(service: ChurchSermon): string {
+  return service.source?.kind === 'space' ? `space:${service.source.spaceId}` : 'church';
+}
+
+/**
+ * The church's card, plus one card per context the viewer belongs to.
+ *
+ * **Nothing competes for a single slot.** An earlier design had one card
+ * drawing from a widened source set with the church winning ties; that made a
+ * channel you follow *take* something from you, and invented a competition the
+ * product does not have. Each context simply reports its own next gathering.
+ *
+ * `currentSermonFor` is unchanged and runs **once per group** — no
+ * cross-source comparator, no tie-break, no new ordering. The partial unique
+ * indexes already guarantee one service per date within a plan, so a group can
+ * never tie with itself.
+ *
+ * **The two steps are not redundant.** `currentSermonFor` can legitimately
+ * return a service weeks out when a context has nothing sooner; the window
+ * below is what keeps that off Home. The church card is never bounded — it is
+ * the anchor and follows today's rules exactly.
+ */
+export function selectHomeCards(
+  services: readonly ChurchSermon[],
+  todayIso: string = localTodayIso(),
+  churchClock: ChurchClock | null = null,
+): { church: ChurchSermon | null; contexts: ChurchContextCard[] } {
+  const groups = new Map<string, ChurchSermon[]>();
+  for (const service of services) {
+    const key = sourceKey(service);
+    const list = groups.get(key);
+    if (list) list.push(service);
+    else groups.set(key, [service]);
+  }
+
+  const church = currentSermonFor(groups.get('church') ?? [], todayIso, churchClock);
+
+  const contexts: ChurchContextCard[] = [];
+  for (const [key, rows] of groups) {
+    if (key === 'church') continue;
+    const selected = currentSermonFor(rows, todayIso, churchClock);
+    if (!selected || selected.source?.kind !== 'space') continue;
+
+    /* The context-card window, both sides. The past half is the same four-day
+       write-up grace the church card gets — a Thursday card for Wednesday's
+       gathering is the affordance Monday gives Sunday. */
+    const delta = dayDelta(todayIso, selected.serviceDate);
+    if (delta === null) continue;
+    if (delta > CONTEXT_CARD_DAYS_AHEAD) continue;
+    if (delta < -SERVICE_GRACE_DAYS) continue;
+
+    contexts.push({ source: selected.source, service: selected });
+  }
+
+  // Church first is the caller's job; contexts among themselves go by soonest.
+  contexts.sort((a, b) => a.service.serviceDate.localeCompare(b.service.serviceDate));
+  return { church, contexts };
+}
+
 /** Index = `Date.getDay()`, the same 0 = Sunday model as `Churches.defaultServiceDay`. */
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = [
@@ -226,6 +348,68 @@ export function nextOccurrenceOfDay(day: number | null | undefined, from: Date =
   const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7));
   return formatLocalDateInput(d);
+}
+
+/**
+ * How many dates the rhythm offers at once.
+ *
+ * Six, not twelve: this is a shortcut past typing a date, not bulk entry. The
+ * quarter-at-once case already has a better answer in "repeat weekly", which
+ * writes the rows rather than filling one field.
+ */
+export const RHYTHM_SUGGESTION_COUNT = 6;
+
+/**
+ * The next few dates a room's rhythm falls on, ascending and including today.
+ *
+ * **This offers dates. It does not schedule, remind, or recur.** `schema.ts`
+ * states that anti-goal about `meetingDay`/`publishCadence` directly, and it is
+ * the line this helper sits just underneath: whoever runs the room still enters
+ * every gathering deliberately — they just stop retyping a date the room
+ * already declares. Nothing here fires on a clock.
+ *
+ * `intervalDays` is 7 for a room that meets weekly and the cadence interval for
+ * a channel that publishes. A null interval — an irregular channel, or a room
+ * with no rhythm set — returns `[]`, and the caller shows nothing rather than
+ * inventing a rhythm the room never claimed.
+ *
+ * Stepping is UTC arithmetic on a wall-calendar date, matching
+ * `weeklyDatesAfter` server-side and for the same reason: adding days to a
+ * local `Date` across a DST boundary lands on a 23- or 25-hour day, which is
+ * how "every Sunday" quietly becomes a Saturday in November. The *anchor* is
+ * still local, because which Sunday is next is a question about the viewer's
+ * own calendar.
+ */
+export function rhythmDates(
+  input: {
+    /** 0 = Sunday. Null for a channel, which has no meeting day. */
+    meetingDay?: number | null;
+    /** 7 for weekly; `cadenceIntervalDays(publishCadence)` for a channel. */
+    intervalDays: number | null;
+    count?: number;
+  },
+  from: Date = new Date(),
+): string[] {
+  const { meetingDay, intervalDays } = input;
+  const count = input.count ?? RHYTHM_SUGGESTION_COUNT;
+  if (!intervalDays || intervalDays < 1 || count < 1) return [];
+
+  /* A room that meets anchors on its next meeting day; a channel with no day
+     anchors on today, because "every two weeks" says nothing about which day. */
+  const anchor =
+    meetingDay === null || meetingDay === undefined
+      ? formatLocalDateInput(from)
+      : nextOccurrenceOfDay(meetingDay, from);
+
+  const parsed = parseLocalDateInput(anchor);
+  if (!parsed) return [];
+  const startUtc = Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+
+  const dates: string[] = [];
+  for (let i = 0; i < count; i++) {
+    dates.push(new Date(startUtc + i * intervalDays * 86_400_000).toISOString().slice(0, 10));
+  }
+  return dates;
 }
 
 /**
@@ -299,6 +483,23 @@ export function sermonTimeLabel(
 export type PlanVocabulary = {
   /** The primary action's label. */
   addLabel: string;
+  /**
+   * What the primary action opens.
+   *
+   * `'entry'` is one plan row — the ordinary editor. `'series'` opens the new
+   * series sheet instead, because on a channel the usual unit of work is a run
+   * of weeks rather than a single post, and a series is what
+   * `publishSeriesAsStudyPlan` can hand to the congregation as a study.
+   *
+   * A label alone would have been a lie here: "Add a study" that opened the
+   * one-row editor would name something the click does not do.
+   */
+  addOpens: 'entry' | 'series';
+  /**
+   * The lesser action, when the primary is not the only thing you can add.
+   * Null where there is only one way to add, which is every plan but a channel.
+   */
+  secondaryAddLabel: string | null;
   /** Shown when the plan is empty and the viewer can write. */
   emptyWritable: string;
   /** One entry, lowercase, for mid-sentence use. */
@@ -320,21 +521,38 @@ export function planVocabulary(
   if (!scope.onSpacePlan) {
     return {
       addLabel: 'Add a sermon',
+      addOpens: 'entry',
+      /* The church-wide lane cannot publish a study directly, and that refusal
+         is considered rather than missing: the church plan has no single room
+         to hand one to. A study reaches the congregation by a channel claiming
+         the sermon, not by the sermon pointing at a room. */
+      secondaryAddLabel: null,
       emptyWritable: 'Plan a sermon and everyone connected to your church sees it on their Home.',
       itemNoun: 'sermon',
     };
   }
   if (scope.planKind === 'content') {
     return {
-      addLabel: 'Add content',
-      /* No "members see it inside the space" promise here: a planned entry is
-         not published, and nothing congregant-facing reads it yet. */
-      emptyWritable: 'Plan what this channel publishes — studies, devotionals, a series to come.',
+      /* The study is the object, so it is the primary verb. A channel's usual
+         work is a run of weeks — and a run is the thing that can be published
+         as a study plan the congregation walks. */
+      addLabel: 'Add a study',
+      addOpens: 'series',
+      /* A one-off still has to be possible: a devotional or a single notice is
+         not a study, and demoting it is not the same as removing it. */
+      secondaryAddLabel: 'Add a single entry',
+      /* Since material published here can claim a service, this plan finally
+         has an output to promise. Before that it deliberately promised nothing,
+         because nothing congregant-facing read these rows. */
+      emptyWritable:
+        'Plan what this channel publishes. Attach a study to a service and your congregation finds it under that week.',
       itemNoun: 'entry',
     };
   }
   return {
     addLabel: 'Add a gathering',
+    addOpens: 'entry',
+    secondaryAddLabel: null,
     emptyWritable:
       scope.hasChurch === false
         ? 'Plan what this group studies. Everyone in the space sees what is coming up.'

@@ -29,11 +29,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   {
     key: 'translation',
-    title: 'Default translation',
+    // Named for the subject, not for one of the two things done to it: the page sets the
+    // default translation *and* decides which ones are kept for offline reading.
+    title: 'Translations',
     route: prototypeHref('settings/translation'),
     // Scroll, matching how scripture is marked everywhere else in the app.
     icon: 'scroll',
-    footnote: 'The translation used across the app.',
+    footnote: 'The translation used across the app, and which ones you keep offline.',
   },
   {
     key: 'church',

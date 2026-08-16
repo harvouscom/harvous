@@ -1,30 +1,36 @@
 /**
  * Home › "This Sunday" — the church's next service, and one tap into notes on it.
  *
- * This is the congregant half of the teaching plan. Deliberately ONE service,
- * never a calendar: `docs/future/MY_CHURCH_SIDEBAR.md` locks the sermon
+ * This is the congregant half of the teaching plan. The church row is **one**
+ * service, never a calendar: `docs/future/MY_CHURCH_SIDEBAR.md` locks the sermon
  * calendar as a pastor tool, "not a calendar widget". A congregant gets the
  * appointment, not the schedule.
+ *
+ * **Amended Aug 2026 (§5): the church row, plus a row per context you belong
+ * to.** Each still shows exactly one service — the doctrine was "one service per
+ * card, never a list", and that holds. What changed is that a ministry you
+ * follow now reports its *own* next gathering rather than competing for the
+ * church's slot. An earlier draft had one card drawn from a widened source set
+ * with the church winning ties; that made a channel you follow *take* something
+ * from you, and invented a competition the product does not have.
  *
  * Renders nothing at all when the viewer has no home church or their church has
  * no plan, so it never occupies Home for the majority of users who aren't
  * connected to a church — same discipline as PrototypeHomeChurchFeed.
- *
- * Sits ABOVE the daily passage pill: the church's passage is an appointment,
- * the verse of the day is a habit, and on a Saturday the appointment wins.
  *
  * Design reference: church gallery scene `09-broadcast-note`.
  */
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
-import Icon from '@/components/react/Icon';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { useChurchSermons } from '../../hooks/queries/useChurchSermons';
 import {
   buildStarterContent,
-  currentSermonFor,
+  formatServiceTime,
   formatServiceTimes,
+  selectHomeCards,
   sermonEyebrow,
   starterFolderForSermon,
   starterNoteTitle,
@@ -42,8 +48,16 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
   const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
   const { data } = useChurchSermons();
 
-  const service = useMemo(
-    () => (data?.connected ? currentSermonFor(data.services, undefined, data.churchNow ?? null) : null),
+  /*
+    One selection pass for every source. `currentSermonFor` is unchanged and
+    runs once per group; the context window is applied only to context rows,
+    never to the church's — it is the anchor.
+  */
+  const { church, contexts } = useMemo(
+    () =>
+      data?.connected
+        ? selectHomeCards(data.services, undefined, data.churchNow ?? null)
+        : { church: null, contexts: [] },
     [data],
   );
 
@@ -74,16 +88,13 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
 
       // Series → folder, so eight weeks of one study land together instead of
       // scattering across whatever each week's text happened to be about.
-      // Set at create time on purpose: the create route takes folder fields
-      // precisely so a caller doesn't follow a create with a second write,
-      // which is what used to make a fresh note 409 its own first autosave.
       const folder = starterFolderForSermon(svc);
 
-      // Opens the editor now and creates the row behind it. This was the slowest of the
-      // "add" affordances to react, because it awaited a create that also had to resolve the
-      // series folder and both provenance ids before it knew a note id to navigate to — so
-      // the button disabled itself and nothing moved until the whole round trip landed. All
-      // of that now rides the seed into `persistDraftNote`.
+      // Opens the editor now and creates the row behind it — the seed rides into
+      // `persistDraftNote` rather than blocking on a create round trip.
+      //
+      // `startedFromServiceId` is this row's own service, so lineage works per
+      // context with no special casing: a Youth row starts a Youth-lineage note.
       beginPrototypeComposeSession({
         targetSpaceId: homeSpaceId,
         seed: {
@@ -113,60 +124,71 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
     [afterNav, beginPrototypeComposeSession, homeSpaceId, navigate, openNote],
   );
 
-  if (!data?.connected || !service) return null;
+  /*
+    One service as rows: the service itself, then whatever ministries published
+    *for* it.
 
-  const eyebrow = sermonEyebrow(service);
-  const timeLabel = formatServiceTimes(service.serviceTimes);
-  const hasNote = Boolean(service.viewerNoteId);
+    CHURCH_STUDY_MATERIAL_LINKING.md required that attached material have "a
+    real home in the card, not be a sibling of it" — written when This Sunday
+    was a single card and the old pointer left an orphaned line floating between
+    two cards. Home is hairline-separated rows in one panel now, so the rows
+    below *are* the containment that constraint was asking for: they sit inside
+    the same panel, directly under the service they belong to. The letter of the
+    rule moved; what it was protecting did not.
+
+    Zero attached is the common case and adds no rows at all.
+  */
+  const serviceRows = useCallback(
+    (service: ChurchSermon, contextTitle?: string) => {
+      const eyebrow = sermonEyebrow(service);
+      const hasNote = Boolean(service.viewerNoteId);
+      /* A context row carries the single resolved reading; the church row keeps
+         `serviceTimes`, which can legitimately hold both morning services. */
+      const timeLabel = contextTitle
+        ? formatServiceTime(service.serviceTime ?? null)
+        : formatServiceTimes(service.serviceTimes);
+
+      return [
+        <PrototypeHomeRow
+          key={service.id}
+          /* A plain glyph, never the space's coloured tile — `iconNode` is
+             exactly the affordance the do-not forbids here, because a colour
+             would claim the sermon came *from* that room. A context is named in
+             words instead, where the eyebrow now lives. */
+          icon={contextTitle ? 'user-group' : 'church'}
+          title={service.title}
+          meta={[
+            contextTitle ? `${eyebrow} · ${contextTitle}` : `${eyebrow}’s sermon`,
+            timeLabel,
+            service.seriesTitle,
+          ]}
+          aria-label={hasNote ? 'Open my note on this service' : 'New note on this service'}
+          disabled={!homeSpaceId && !hasNote}
+          onClick={() => takeNotes(service)}
+        />,
+        ...(service.attached ?? []).map((item) => (
+          <PrototypeHomeRow
+            key={`${service.id}:${item.noteId}`}
+            icon="rss"
+            title={item.title}
+            /* The room named in words, for the same reason as above. */
+            meta={['Study material', item.channelTitle]}
+            onClick={() => openNote(item.noteId)}
+          />
+        )),
+      ];
+    },
+    [homeSpaceId, openNote, takeNotes],
+  );
+
+  if (!data?.connected) return null;
+  if (!church && contexts.length === 0) return null;
 
   return (
-    <div className="proto-home-section">
-      {/*
-        Same anatomy as the continue/revisit cards: the eyebrow lives *inside*
-        the card, so this reads as one contained object rather than a floating
-        label above a row.
-
-        Deliberately no coloured space tile: a plain glyph says "church"
-        without claiming the sermon came from any particular room.
-      */}
-      <button
-        type="button"
-        className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable proto-this-sunday"
-        aria-label={hasNote ? 'Open my note on this service' : 'New note on this service'}
-        disabled={!homeSpaceId && !hasNote}
-        onClick={() => takeNotes(service)}
-      >
-        <p className="proto-caption proto-home-card__eyebrow">{eyebrow}&rsquo;s sermon</p>
-        <div className="proto-home-card__body">
-          <div className="proto-home-card__title-row">
-            <span className="proto-home-card__icon-orb" aria-hidden>
-              <Icon name="church" size={13} />
-            </span>
-            <p className="pds-list-title proto-home-card__title">{service.title}</p>
-            <span className="proto-home-card__chevron" aria-hidden>
-              <Icon name="caret-right" size={11} />
-            </span>
-          </div>
-          {/*
-            Time first, series second: the eyebrow already carries the day, so
-            the missing half of "when" is the clock. Rendered as the church's own
-            wall time, resolved server-side and never converted to the viewer's
-            zone. A church that has set no time renders exactly as before.
-          */}
-          {timeLabel || service.seriesTitle ? (
-            <div className="proto-home-card__meta">
-              {timeLabel ? <span className="proto-home-card__meta-item">{timeLabel}</span> : null}
-              {timeLabel && service.seriesTitle ? (
-                <span className="proto-home-card__meta-sep">·</span>
-              ) : null}
-              {service.seriesTitle ? (
-                <span className="proto-home-card__meta-item">{service.seriesTitle}</span>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </button>
-
-    </div>
+    <>
+      {/* Church first, always — it is the anchor and it stays first. */}
+      {church ? serviceRows(church) : null}
+      {contexts.map(({ source, service }) => serviceRows(service, source.title))}
+    </>
   );
 }

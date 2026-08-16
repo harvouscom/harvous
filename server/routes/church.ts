@@ -77,7 +77,12 @@ import {
   type ChurchRow,
 } from '../utils/church-entitlement';
 import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
-import { listServicesForChurch, resolveViewerServiceNotes } from '../utils/church-teaching-plan';
+import {
+  listServicesForChurch,
+  listServicesForViewerSources,
+  listViewerPlanSources,
+  resolveViewerServiceNotes,
+} from '../utils/church-teaching-plan';
 import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
 import {
   churchClockNow,
@@ -85,6 +90,7 @@ import {
   serviceTimeIdsByService,
 } from '../utils/church-service-times';
 import { seriesTitlesByServiceRows } from '../utils/church-series';
+import { publishedMaterialForServices } from '../utils/church-published-material';
 import {
   ClerkOrgError,
   ClerkOrgInviteError,
@@ -460,10 +466,58 @@ app.get('/api/church/services', requireAuth, async (c) => {
     if (!church) return c.json({ connected: false, services: [] });
 
     const from = serviceGraceWindowStart();
-    const services = await listServicesForChurch(church.id, {
+    /*
+      The church's own plan, exactly as before — `spaceId IS NULL`, same window,
+      same limit. Kept as its own call rather than folded into the aggregate so
+      the anchor card cannot change shape as a side effect of a viewer's rooms.
+    */
+    const churchServices = await listServicesForChurch(church.id, {
       from,
       limit: SERVICES_PAYLOAD_LIMIT,
     });
+
+    /*
+      Plus one plan per org space this viewer belongs to (§5). Following a
+      ministry channel *is* membership, so a followed channel and an
+      invite-joined small group arrive through the same query.
+
+      The limit is per source and stays 8: a busy Youth plan must never starve
+      the church plan out of the payload.
+    */
+    const sources = await listViewerPlanSources(auth.userId, church.orgId);
+    const spaceServices = await listServicesForViewerSources(church.id, sources, {
+      from,
+      limit: SERVICES_PAYLOAD_LIMIT,
+    });
+    const sourceBySpaceId = new Map(sources.map((source) => [source.spaceId, source]));
+
+    /*
+      One flat, date-ascending list; the client groups by source. Tagged here
+      because only the server knows which plan a row came from — the client sees
+      rows, not queries.
+    */
+    const entries = [
+      ...churchServices.map((row) => ({ row, source: { kind: 'church' as const } })),
+      ...[...spaceServices.entries()].flatMap(([spaceId, rows]) => {
+        const source = sourceBySpaceId.get(spaceId);
+        if (!source) return [];
+        return rows.map((row) => ({
+          row,
+          source: {
+            kind: 'space' as const,
+            spaceId: source.spaceId,
+            title: source.title,
+            color: source.color,
+          },
+        }));
+      }),
+    ].sort((a, b) => (a.row.serviceDate ?? '').localeCompare(b.row.serviceDate ?? ''));
+
+    /* Everything below reads plan rows and does not care which plan they came
+       from, so it keeps working on the flat list. Only the serializer needs the
+       tag. */
+    const services = entries.map((entry) => entry.row);
+
     if (services.length === 0) {
       return c.json({ connected: true, church: { id: church.id, name: church.name }, services: [] });
     }
@@ -500,6 +554,22 @@ app.get('/api/church/services', requireAuth, async (c) => {
     // series name, and since ChurchSeries the name lives on the series row.
     const seriesTitles = await seriesTitlesByServiceRows(services);
 
+    /*
+      What the church's ministries published *for* these services — the
+      inversion in CHURCH_STUDY_MATERIAL_LINKING.md, closing the loop that
+      `ChurchServices.channelSpaceId` opened and failed to close. Resolved for
+      the whole window in one pass, and every claim re-verified as a live
+      ministry channel in this org on the way out, so a converted or deleted
+      room drops its rows rather than surfacing a dead link.
+
+      Not sponsorship-gated, like the rest of this payload: a lapsed church
+      stops being able to publish; the congregation keeps what it already has.
+    */
+    const attachedByService = await publishedMaterialForServices(
+      services.map((service) => ({ id: service.id, seriesId: service.seriesId })),
+      church.orgId,
+    );
+
     return c.json({
       connected: true,
       church: { id: church.id, name: church.name },
@@ -509,7 +579,7 @@ app.get('/api/church/services', requireAuth, async (c) => {
         viewer's zone. The one place a timezone is ever applied.
       */
       churchNow: churchClockNow(church.timezone),
-      services: services.map((service) => {
+      services: entries.map(({ row: service, source }) => {
         const template = service.starterTemplateId
           ? templateById.get(service.starterTemplateId)
           : undefined;
@@ -533,7 +603,30 @@ app.get('/api/church/services', requireAuth, async (c) => {
           title: service.title,
           seriesTitle: service.seriesId ? seriesTitles.get(service.seriesId) ?? null : null,
           reference: service.reference,
+          /*
+            Which plan this row came from. A missing key reads as the church's
+            own plan on the client, so a payload cached before this shipped
+            still parses — the same tolerance the rest of this payload uses.
+
+            The space's colour rides along for identification only. The card
+            must never be *tinted* by it: settled for companion channels in
+            CHURCH_STUDY_MATERIAL_LINKING.md, and the same reasoning holds here.
+          */
+          source,
+          /*
+            The single resolved clock reading for this row, church-local. The
+            `serviceTimes` array below stays the church card's own answer; this
+            is the one a context card puts on its meta line.
+          */
+          serviceTime: times[0] ?? null,
           viewerNoteId: viewerNotes.get(service.id) ?? null,
+          /*
+            A list, never a button — several ministries can speak to the same
+            Sunday, which is the whole argument the removed single pointer lost.
+            Always an array: zero attached is the common case, and the client
+            renders nothing for it rather than branching on a missing key.
+          */
+          attached: attachedByService.get(service.id) ?? [],
           starter: template
             ? {
                 templateId: template.id,

@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { StudyDockEntry, StudyDockStack } from '@/utils/study-dock-stack';
 import {
+  resolveStudyDockCenterTarget,
   syncStudyDockCenterOffset,
   syncStudyDockDragHandleHeight,
   updateStudyDockExpandedMaxHeight,
@@ -323,7 +324,10 @@ export default function StudyDockCarouselWeb({
         return;
       }
 
-      const paper = document.querySelector('.proto-editor-paper');
+      // The reading column counts as a paper — see `resolveStudyDockCenterTarget`. Asking
+      // for the editor's paper by name meant every chapter in the Bible reader took the
+      // bail-out below, so a dock opened while reading never centred on anything.
+      const paper = resolveStudyDockCenterTarget();
       const card = el.querySelector<HTMLElement>('.study-dock-card__card');
       if (!(paper instanceof HTMLElement) || !(card instanceof HTMLElement)) {
         syncStudyDockCenterOffset(track);
@@ -355,7 +359,34 @@ export default function StudyDockCarouselWeb({
   useLayoutEffect(() => {
     const track = trackRef.current;
     if (!track || stack.entries.length === 0) return;
+
+    /*
+     * Place the card without animating the placement.
+     *
+     * A single dock is centred on the open document by a transform read from
+     * `--proto-study-dock-center-offset`, and that variable lives on the shell, written here
+     * from a measurement that needs the card to exist. So on the FIRST dock of a page load
+     * there is no value yet: the card mounts at translateX(0) — flush against the left of the
+     * band — and then this effect writes the real offset, which the `transition: transform`
+     * on the item happily animates. The result is a card that slides in from the left on the
+     * first open of a session and rises straight up on every one after, because by then the
+     * variable is already set. That is the "why did it come from the left that time" bug.
+     *
+     * The offset is where the card *is*, not a move it makes, so the first application is
+     * committed with transitions off: set none, write the value, read a layout property to
+     * flush it, restore. Everything after — the sidebar being dragged, the inspector docking —
+     * is a real change and still eases, including the settle below.
+     */
+    const item = track.querySelector<HTMLElement>('.study-dock-carousel__item');
+    const previousTransition = item?.style.transition ?? '';
+    if (item) item.style.transition = 'none';
     syncStudyDockCenterOffset(track);
+    if (item) {
+      void item.offsetWidth;
+      item.style.transition = previousTransition;
+    }
+
+    // ...and again once the shell's own moves have settled, this time eased.
     const afterLayout = window.setTimeout(() => syncStudyDockCenterOffset(track), 340);
     return () => window.clearTimeout(afterLayout);
   }, [stack.entries.length, stack.activeId, activeExpanded, currentIds.join(',')]);

@@ -15,6 +15,12 @@ import {
   prototypeHighlightListTitle,
   prototypeHighlightSubtitlePreview,
 } from './proto-highlight-subtitle';
+import {
+  getChapterVerseRange,
+  isResolvableScriptureReference,
+  normalizeScriptureReference,
+  parseScriptureReference,
+} from '@/utils/scripture-detector';
 import { fuzzyFilter, fuzzyMatches } from './fuzzy-search';
 import type {
   HighlightKindFilter,
@@ -286,6 +292,7 @@ function scripturePassageToResult(bookOrder: number, passage: ScriptureIndexPass
   };
 }
 
+
 function ftsNoteToResult(result: SearchResult): SidebarSearchResult {
   const title = noteSearchTitle(result);
   const excerpt = (result as { excerpt?: string | null }).excerpt ?? undefined;
@@ -296,6 +303,47 @@ function ftsNoteToResult(result: SearchResult): SidebarSearchResult {
     subtitle: result.threadTitle ?? undefined,
     noteId: result.id,
     ftsExcerpt: excerpt ?? undefined,
+  };
+}
+
+/**
+ * The passage the query itself names — "John 15", "psalm 23", "1 cor 13", "Jn 3:16".
+ *
+ * Every other scripture result in this file describes passages someone has already
+ * written about, because they are read out of the note index. So searching for a
+ * chapter nobody has touched yet returned nothing, which is the wrong answer for a
+ * Bible app: the passage exists whether or not a note cites it.
+ *
+ * Deliberately strict about what counts. `isResolvableScriptureReference` accepts
+ * "psalm 23" and "1 cor 13" while rejecting the half-typed ("Joh"), the ordinary
+ * word ("faith"), and the out-of-range ("John 99", "John 15:99") — so this row
+ * appears while someone is looking for a passage and stays away otherwise.
+ */
+export function buildScriptureReferenceResult(q: string): SidebarSearchResult | null {
+  const query = q.trim();
+  if (!query || !isResolvableScriptureReference(query)) return null;
+
+  const canonical = normalizeScriptureReference(query) ?? query;
+  const parsed = parseScriptureReference(canonical);
+  if (!parsed) return null;
+
+  // A chapter query normalizes to its full verse span ("John 15" → John 15:1-27).
+  // Show it back as the chapter, which is what was asked for and what will open.
+  const range = getChapterVerseRange(parsed.book, parsed.chapter);
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+  const isWholeChapter =
+    !parsed.endChapter && !!range && verseStart <= range.start && verseEnd >= range.end;
+  const title = isWholeChapter ? `${parsed.book} ${parsed.chapter}` : canonical;
+
+  return {
+    id: sidebarSearchResultStableId('scriptureReference', canonical),
+    kind: 'scriptureReference',
+    title,
+    subtitle: 'Read passage',
+    scriptureReference: canonical,
+    // Only when the query named a verse. `isWholeChapter` is the same fact the title uses.
+    scriptureFocusVerse: isWholeChapter ? undefined : verseStart,
   };
 }
 

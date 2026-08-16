@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
 import {
   PROTO_FOUNDER_LETTER_DISMISSED_KEY,
@@ -46,28 +47,26 @@ export default function PrototypeFounderLetterPill() {
 
   return (
     <>
-      <div className="proto-founder-letter-pill proto-daily-passage-pill" role="region" aria-label="Letter from the founder">
-        <button type="button" className="proto-daily-passage-pill__dismiss" aria-label="Dismiss" onClick={dismiss}>
-          <Icon name="xmark" size={10} aria-hidden />
-          <span>Dismiss</span>
-        </button>
-
-        <div className="proto-daily-passage-pill__content proto-daily-passage-pill__content--no-add">
-          <p className="proto-caption proto-daily-passage-pill__eyebrow">From the founder</p>
-          <p className="pds-list-title proto-daily-passage-pill__reference">Why I made Harvous</p>
-        </div>
-
-        <div className="proto-daily-passage-pill__orbs">
+      {/* A row like the rest of its group: tap the row to read, the trailing × to put it
+          away. The old pill had its own eyebrow, orb and dismiss chrome, and was the one
+          thing on Home that did not look like anything else on Home. */}
+      <PrototypeHomeRow
+        icon="book-open"
+        title="Why I made Harvous"
+        meta={['From the founder']}
+        aria-label="Read letter from the founder"
+        onClick={() => setSheetOpen(true)}
+        trailing={
           <button
             type="button"
-            className="proto-daily-passage-pill__orb"
-            aria-label="Read letter from the founder"
-            onClick={() => setSheetOpen(true)}
+            className="proto-side-panel__action-btn"
+            aria-label="Dismiss"
+            onClick={dismiss}
           >
-            <Icon name="book-open" size={12} />
+            <Icon name="xmark" size={12} aria-hidden />
           </button>
-        </div>
-      </div>
+        }
+      />
 
       <PrototypeFounderLetterSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </>

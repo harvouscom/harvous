@@ -19,6 +19,81 @@
   font-display: swap;
 }
 
+/*
+ * Optional reading faces, chosen per surface in Appearance. Both are static (no variable
+ * axes) and load only when a user actually picks them — `font-display: swap` so a reader
+ * who has not chosen them never waits on them.
+ *
+ * Self-hosted like Google Sans Flex: the app is an offline-capable PWA, so a CDN import
+ * would fail exactly when someone is reading on a plane. Until the files are vendored the
+ * stacks in proto-font-prefs.ts fall back to a system serif / handwriting face.
+ *
+ * ── size-adjust: why every optional face carries one ──
+ * A point size is not an apparent size. Two faces set at 17px look different sizes because
+ * what the eye reads as "big" is x-height, not em size — so "Medium" meant something
+ * different in each face, and picking a typeface silently resized the chapter.
+ *
+ * Each percentage normalizes the face to Google Sans Flex, measured from rendered glyph
+ * boxes at 100px (x-height, then cap height at quarter weight, since x-height governs
+ * running prose but caps keep headings from drifting):
+ *
+ *   face          x-height   cap    size-adjust
+ *   Google Sans     52.0     71.6    100% (the reference)
+ *   Neuton          43.1     60.7    120%
+ *   Patrick Hand    46.8     66.2    110%
+ *   OpenDyslexic    56.0     84.7     91%
+ *
+ * Re-measure and update these if a font file is ever re-vendored or subsetted. The
+ * descriptor must repeat on every weight of a family, or bold text jumps size.
+ */
+@font-face {
+  font-family: "Neuton";
+  src: url("/fonts/neuton/Neuton-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 120%;
+}
+
+@font-face {
+  font-family: "Neuton";
+  src: url("/fonts/neuton/Neuton-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 120%;
+}
+
+/* OpenDyslexic — weighted letter bottoms and distinct shapes that resist the rotating and
+   swapping that trips dyslexic readers. Not subsetted upstream, so it is the heaviest of
+   the optional faces; it downloads only for readers who choose it. */
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("/fonts/opendyslexic/OpenDyslexic-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 91%;
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("/fonts/opendyslexic/OpenDyslexic-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 91%;
+}
+
+@font-face {
+  font-family: "Patrick Hand";
+  src: url("/fonts/patrick-hand/PatrickHand-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 110%;
+}
+
 /* ─── Design tokens ──────────────────────────────────────────────────────── */
 :root {
   /* Clerk default theme follows system light/dark when this is set (see Clerk appearance docs). */
@@ -365,6 +440,38 @@
      smaller scale: one box unfurling in place, not an overlay arriving. Paired
      with PROTO_RESOURCE_MORPH_MS. */
   --pds-duration-morph: 190ms;
+  /* Note sheet stacking over the reader paper. Slower than a panel because it is a
+     spatial move the eye follows to a resting place, not a reveal. Paired with
+     PROTO_PAPER_STACK_MS.
+
+     Was 320ms — the top of the Standard band, and it read as slow rather than as weighty.
+     The move is legible at 260 and the sheet still arrives somewhere rather than appearing;
+     the guidelines put menus and modals at 0.25–0.35s and this is the same order of event. */
+  --pds-duration-paper-stack: 260ms;
+  /* ...and going the other way, shorter.
+     
+     An exit is not the same event as an entrance: on the way in you are being shown where
+     something came from, and on the way out you already know — waiting through the full move
+     is waiting for an answer you have. Roughly three quarters, which keeps it a move rather
+     than a cut, and it is a collapse of a full pane so it does not go under ~200ms. Paired
+     with PROTO_PAPER_STACK_EXIT_MS. */
+  --pds-duration-paper-stack-exit: 200ms;
+  /* How much of the base paper stays visible above a stacked sheet — the edge you
+     tap to go back. Enough for a line of caption with breathing room; tightened on
+     phones where the toolbar already owns the top of the pane. */
+  --pds-paper-stack-peek: 48px;
+  /* The paper behind is the smaller one. Scale rather than a width, so the change is one
+     GPU-composited transform that animates with the flip instead of a layout step — and so
+     the two papers stay the same object at two depths, which is what a stack is. */
+  --pds-paper-stack-back-scale: 0.96;
+  /* How far the sheet gives way when the pointer is on the band. A quarter of the peek —
+     enough that the paper behind visibly widens, which is the thing being offered, and not
+     so far that a pointer passing through looks like it opened something. */
+  --pds-paper-stack-hover-nudge: 12px;
+  /* The paper column — the note editor's paper and the reader's text column are both
+     this wide, centred. The stack paints its two sheets at exactly this width, so what
+     stacks is the papers themselves and nothing shows outside them. */
+  --pds-paper-column: 720px;
   --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
   --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
   /*
@@ -402,6 +509,9 @@
     0 2px 8px oklch(var(--pds-lch-shadow-card-a)),
     0 1px 2px oklch(var(--pds-lch-shadow-card-b));
   --pds-shadow-card-elevated: 0 4px 16px oklch(var(--pds-lch-shadow-card-elevated));
+  /* The base paper of a stack: one step lighter than the sheet's --pds-shadow-card,
+     so the sheet reads as the nearer of the two papers. */
+  --pds-shadow-paper-stack-base: 0 1px 2px oklch(var(--pds-lch-shadow-card-b));
   --pds-shadow-shell:
     0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),
     0 1px 3px oklch(var(--pds-lch-shadow-shell-b));
@@ -430,6 +540,19 @@
   --pds-font-body:    "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pds-font-display: "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --pds-font-body-variation: "ROND" 0;
+  /* Per-surface faces — set by proto-font-prefs.ts from the Appearance setting. Default to
+     the body face so nothing changes until a reader chooses otherwise. */
+  /* The three selectable faces. Single source of truth: proto-font-prefs.ts references
+     these vars rather than restating the stacks, and the specimen tiles style themselves
+     from them too. */
+  --pds-font-choice-sans: var(--pds-font-body);
+  --pds-font-choice-serif: "Neuton", Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --pds-font-choice-hand: "Patrick Hand", "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive;
+  --pds-font-choice-dyslexic: "OpenDyslexic", "Comic Sans MS", Verdana, sans-serif;
+  --pds-font-notes: var(--pds-font-body);
+  --pds-font-reading: var(--pds-font-body);
+  --pds-font-notes-variation: "ROND" 0;
+  --pds-font-reading-variation: "ROND" 0;
   --pds-font-display-variation: "ROND" 100;
   /* HarvousFonts axisSettings — 13px / wght 500 / default ROND (sidebar chips). */
   --pds-font-body-variation-chip: "ROND" 0, "wght" 500, "opsz" 13;
@@ -461,6 +584,20 @@
   /* Prototype shell viewport frame (web — Figma outer padding + shell radius) */
   --pds-shell-frame-inset: 14px;
   --pds-shell-frame-radius: 18px;
+
+  /* Bible reader canvas — mirrors HarvousReaderLayout / ReaderTextSize (Swift).
+     Font size + line height are re-set by the reader inspector's text-size control;
+     everything else is fixed geometry. */
+  --pds-reader-font-size: 19px;
+  --pds-reader-line-height: 1.75;
+  --pds-reader-measure: 620px;
+  /* Reserved even when nothing is on screen, so text never reflows when the first
+     margin note lands. */
+  --pds-reader-gutter: 28px;
+  /* Lane pitch for margin note bars: 3 lanes fit the gutter, each wide enough to aim at
+     while the drawn rule inside stays 2px. */
+  --pds-reader-lane-step: 9px;
+  --pds-reader-paragraph-gap: 18px;
 
   /* Native study dock accents — see src/styles/study-highlight-accent-colors.css */
   --pds-highlight-neutral: var(--study-dock-accent-neutral);
@@ -1193,6 +1330,62 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
 .proto-sidebar-scroll .proto-note-list * {
   -webkit-font-smoothing: subpixel-antialiased;
   -moz-osx-font-smoothing: auto;
+}
+
+/* HarvousTypography.readerBody — user-scalable scripture reading text.
+   Size/leading come from --pds-reader-* so the inspector's text-size control
+   re-sets one variable rather than swapping classes. */
+.pds-reader-text {
+  font-family: var(--pds-font-reading);
+  font-size: var(--pds-reader-font-size);
+  font-weight: 400;
+  /* `none` would leave a static face with no bold at all; the optional reading faces are
+     not variable, so let the browser synthesise weight where the family lacks it. */
+  font-synthesis: weight;
+  font-variation-settings: var(--pds-font-reading-variation);
+  line-height: var(--pds-reader-line-height);
+  color: var(--pds-text-primary);
+}
+
+/* The reading face has to be handed down explicitly.
+ *
+ * `.proto-shell *` above sets font-family on every descendant, and an element that matches a
+ * rule directly never inherits — so the face landed on this <p> and stopped there, while the
+ * verse <span>s that actually carry the text stayed on the body face. Nothing appeared to
+ * change no matter which face was picked. Restoring inheritance inside the reading text is
+ * the fix; the verse number re-pins its own face immediately below. */
+.proto-shell .pds-reader-text * {
+  font-family: inherit;
+  font-variation-settings: inherit;
+}
+
+/* HarvousTypography.readerVerseNumber — inline locator, never competes with the text.
+   Stays on the body face by design, so it needs to outrank the inherit rule above. */
+.proto-shell .pds-reader-text .pds-reader-verse-num,
+.pds-reader-verse-num {
+  font-family: var(--pds-font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-synthesis: none;
+  font-variation-settings: "ROND" 0, "wght" 600;
+  line-height: 1;
+  color: var(--pds-text-tertiary);
+  vertical-align: super;
+  margin-inline-end: 0.25em;
+  /* Selection in the reader snaps to whole verses; the number is not part of
+     what you are selecting. */
+  user-select: none;
+}
+
+/* HarvousTypography.readerChapterTitle — 28pt / 600 rounded */
+.pds-reader-chapter-title {
+  font-family: var(--pds-font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-synthesis: none;
+  font-variation-settings: "ROND" 100, "wght" 600;
+  line-height: 1.2;
+  color: var(--pds-text-primary);
 }
 
 /* HarvousTypography.caption — 13pt / 500 */

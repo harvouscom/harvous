@@ -22,13 +22,12 @@
   transition: margin-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
 }
 
-/* Reserve editor width for the inspector only when it's docked side-by-side.
-   The class is applied (see PrototypeNotePage) only when the pane is wide enough;
-   when narrow the class is absent, so the editor keeps full width and the
-   (position: absolute) inspector floats over it as a quiet overlay. */
-.proto-note-pane-row--inspector-open .proto-editor-surface {
-  margin-right: var(--pds-inspector-reserve-w);
-}
+/* The inspector's reserve is no longer taken out of the editor here — it is taken out of
+   the shell's main pane (`prototype-shell.css`, `.proto-shell__main-inner`), so that a
+   paper-stack's back layer shifts by the same amount as the sheet in front of it. Reserving
+   inside the note pane moved the editor and left the chapter behind it sitting under the
+   panel. The `--inspector-open` class is still what says "docked"; it just says it to the
+   shell now. */
 
 .proto-note-pane-row--thread-docked .proto-editor-surface {
   margin-right: var(--pds-inspector-reserve-w);

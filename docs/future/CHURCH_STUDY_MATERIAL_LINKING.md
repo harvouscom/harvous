@@ -1,9 +1,34 @@
 # Church study material linking
 
-**Status:** design only — the model below is decided, not built. The thing it replaces
+**Status: built (Aug 2026).** The inversion below is live end to end — staff attach in
+the channel, congregants read a list under "This Sunday". The thing it replaces
 (`ChurchServices.channelSpaceId`) was **removed entirely in Aug 2026**: column, staff
-picker, and congregant link. Nothing fills that gap today; the inversion below is what
-will. The "What shipped" section is kept as the diagnosis that led here.
+picker, and congregant link. The "What shipped" section is kept as the diagnosis that
+led here.
+
+What runs it:
+
+| Piece | Where |
+|---|---|
+| Service-grain claim | `ChurchServicePublishedNotes` (`schema.ts`) — also written by series publish |
+| Series-grain claim | `ChurchSeriesPublishedNotes` (`schema.ts`) |
+| Read + write | `server/utils/church-published-material.ts` |
+| Staff routes | `server/routes/church-published-material.ts` |
+| Congregant read path | `GET /api/church/services` → `attached[]` per service |
+| Staff control | `PrototypeInspectorPublishedForSection.tsx` ("Published for") |
+| Congregant surface | `PrototypeHomeThisSunday.tsx` |
+
+Two decisions worth carrying forward, neither of which this doc had settled:
+
+- **The series grain is its own table, not a nullable `seriesId`.** The service table's
+  uniqueness is `(serviceId, noteId)`, and Postgres compares NULLs as distinct — making
+  `serviceId` nullable would have silently retired a constraint that still *reads* as
+  though it holds.
+- **Two writers, kept off each other's rows.** `publishSeriesAsStudyPlan` writes the
+  service table too, and `publishedWeekIdsInThread` reads exactly those rows to decide
+  which weeks a republish skips. The attach control therefore refuses a note that is a
+  published step (`PUBLISHED_SERIES_STEP`) rather than replace-setting a claim it does
+  not own.
 
 How a congregant looking at "This Sunday" finds the study material their church
 published for it. Companion to
@@ -90,22 +115,28 @@ lineage idea to staff-published material.
 
 ---
 
-## What it needs
+## What it needed — all four, now built
 
-- **An attach control at publish time**, in the ministry channel — "what is
-  this for?" — offering the church's upcoming services and series.
-- **A read path** from a service to everything attached to it, org-scoped and
-  re-checked as a ministry channel on the way out, the way `channelSpaceId` is
-  resolved today in `server/routes/church.ts`.
-- **A congregant surface that is a list, not one button.** Zero attached is the
-  common case and must still render nothing.
-- **Grain: both.** Attach to a *service* (this week's discussion guide) or to a
-  *series* (the eight-week study). Series-level attachment requires promoting
-  series from a repeated string to a row first — **now decided**, as
-  `ChurchSeries` in `CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md` §9: plan-scoped
-  row, `ChurchServices.seriesId` replacing `seriesTitle` outright, gated by the
-  plan's own gate. Attach at the series grain points at `ChurchSeries.id` and
-  must respect that scope — a church-plan attachment is not a space-plan one.
+- ✅ **An attach control at publish time**, in the ministry channel — "what is
+  this for?" — offering the church's upcoming services and series. Ships as the
+  "Published for" inspector section, which appears only on a note that lives in a
+  ministry channel the viewer may author in.
+- ✅ **A read path** from a service to everything attached to it, org-scoped and
+  re-checked as a ministry channel on the way out. `publishedMaterialForServices`
+  re-resolves every claim the way `church-space-channel-links.ts` re-resolves a
+  pairing: still present, still live, still this org, still a channel. A room
+  converted to a Shared Space drops its rows rather than publishing wrongly.
+- ✅ **A congregant surface that is a list, not one button.** Zero attached
+  renders nothing at all — no heading, no divider, no empty state. Note that
+  making room for it meant the This Sunday card stopped being one `<button>` and
+  became a container whose first region is the tap target; a button cannot
+  contain buttons, which is what left the old pointer's link orphaned between
+  two cards.
+- ✅ **Grain: both.** A service (this week's discussion guide) or a series (the
+  eight-week study). Series attachment points at `ChurchSeries.id` and inherits
+  that row's own `churchId`/`spaceId` scope, so a church-plan attachment is not a
+  space-plan one — the scope is not copied down onto the claim, which would have
+  been a second source of truth for the same fact.
   `MY_CHURCH_SIDEBAR.md:62`'s deferred "this series channel" idea lands on the
   same row.
 

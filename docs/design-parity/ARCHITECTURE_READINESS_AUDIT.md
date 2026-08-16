@@ -6,7 +6,7 @@ Assessment of where the current architecture is well-positioned for the roadmap 
 
 This audit is the backlog companion to [`HARVOUS_BUILD_CONVENTIONS.md`](./HARVOUS_BUILD_CONVENTIONS.md). The three ✅ items below were fixed in the pass that produced these docs.
 
-**Performance items now have an owner.** W1, W2 and W8 — and any future perf-flavoured entry — belong to `/performance-agent`, with current numbers in [`../performance/PERF_BASELINE.md`](../performance/PERF_BASELINE.md) and a CI-enforced bundle budget. Worth noting what happened to the two line counts in this table between the first audit (June) and 2026-08-13: 539 → 1,265 and 1,448 → 4,541. An audit entry with no gate does not hold a number still; it only records where it was.
+**Performance items now have an owner.** W1, W2 and W8 — and any future perf-flavoured entry — belong to `/engineer`, with current numbers in [`../performance/PERF_BASELINE.md`](../performance/PERF_BASELINE.md) and a CI-enforced bundle budget. Worth noting what happened to the two line counts in this table between the first audit (June) and 2026-08-13: 539 → 1,265 and 1,448 → 4,541. An audit entry with no gate does not hold a number still; it only records where it was.
 
 ---
 
@@ -29,14 +29,14 @@ This audit is the backlog companion to [`HARVOUS_BUILD_CONVENTIONS.md`](./HARVOU
 
 | # | Seam / debt | Where | Roadmap pressure | Effort | Pri |
 |---|---|---|---|---|---|
-| W1 | **Monolithic shell context** — one `ProtoShellProvider` value object holds sidebar + inspector + thread-panel + editor-chrome + folder-chip + scripture-passage state. Measured 2026-08-13: a single `useMemo` with **75 dependencies** consumed by **52 files**, so any one of the 75 re-renders all 52. Owned by `/performance-agent`. | `spa/src/layouts/proto-shell-context.tsx` (**1,265 lines**; was 539 at first audit) | New panes/surfaces (AI assistant sidebar, compare panel, multi-space) all add fields here. | M | P1 |
+| W1 | **Monolithic shell context** — one `ProtoShellProvider` value object holds sidebar + inspector + thread-panel + editor-chrome + folder-chip + scripture-passage state. Measured 2026-08-13: a single `useMemo` with **75 dependencies** consumed by **52 files**, so any one of the 75 re-renders all 52. Owned by `/engineer`. | `spa/src/layouts/proto-shell-context.tsx` (**1,265 lines**; was 539 at first audit) | New panes/surfaces (AI assistant sidebar, compare panel, multi-space) all add fields here. | M | P1 |
 | W2 | **Oversized sidebar** — all 6 list-mode renderers (notes/folders/highlights/scripture/dictionary/threads) live in one component; adding a mode edits this file **and** the `ListViewMenu` order tuple **and** `SidebarListMode`/`VALID_MODES`. | `spa/src/pages/prototype/PrototypeSidebar.tsx` (**4,541 lines**; was 1,448 at first audit) | More scripture/highlight views; reading-plan & recall surfaces. | M | P1 |
 | W3 | 🟡 **Partly done (round 2).** Inline menus use `usePopoverDismiss`; portaled popovers now use `useDismissOnOutside` (4 migrated). A handful still hand-roll dismiss. | `spa/src/pages/prototype/*.tsx` | Every new menu compounds the duplication. | S | P2 |
 | W4 | **Editor-chrome portal coupling** — `formatToolbarHostEl` / `studyDockCarouselHostEl` / `referenceChromeHostEl` are untyped `HTMLDivElement|null` refs that editors must know to portal into; no factory/abstraction. | `proto-shell-context.tsx` | New dock/chrome types (commentary, AI, compare). | M | P2 |
 | W5 | **Thread-panel history is fragile** — expanded state pushed to `history.state` with a custom flag + `threadPanelHistorySkipRef` to dedupe popstate; race-prone. | `proto-shell-context.tsx` (`pushThreadPanelExpandedHistory`, `onPopState`) | Deeper study-thread navigation. | M | P2 |
 | W6 | ✅ **Done (round 2).** ~~Scripture-pill reprocess can retry-loop~~ — now bounded by a per-note attempt counter (cap 3). | `PrototypeNotePage` reprocess effect | More server-side scripture processing. | S | ✅ |
 | W7 | **Refetch-storm debounce is unexplained** — 600ms list refresh "avoids Aw Snap error 5" with no documented mechanism; risky to tune. | `SimplifiedPrototypeLayout.tsx`; see `docs/troubleshooting/PROTOTYPE_AW_SNAP_ERROR_5.md` | Realtime/collab sync will change refresh cadence. | S | P2 |
-| W8 | **No optimistic-update convention** — some mutations use `updateNoteOffline`, others don't; no shared rollback pattern. Promoted to a standing invariant ("anything user-initiated paints before the network") and owned by `/performance-agent`. Convention to copy: `usePinSpaceNote.ts` + `spa/src/lib/space-notes-cache.ts`. | `spa/src/hooks/mutations/*` | Collab + offline edits need consistent conflict UX. | M | P1 |
+| W8 | **No optimistic-update convention** — some mutations use `updateNoteOffline`, others don't; no shared rollback pattern. Promoted to a standing invariant ("anything user-initiated paints before the network") and owned by `/engineer`. Convention to copy: `usePinSpaceNote.ts` + `spa/src/lib/space-notes-cache.ts`. | `spa/src/hooks/mutations/*` | Collab + offline edits need consistent conflict UX. | M | P1 |
 
 ## 2. Native (SwiftUI)
 

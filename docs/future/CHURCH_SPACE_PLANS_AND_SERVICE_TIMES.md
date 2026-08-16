@@ -547,8 +547,11 @@ The two designs divide cleanly once the questions are named:
   surfacing a stray "Study material in <channel>" line under the This Sunday card, and
   every day it stayed taught a pattern this design replaces. P4 therefore builds the
   claims model on a clean base, with no pointer to migrate.
-- **Series-as-a-row stays deferred** exactly as that doc says. Nothing here forces it —
-  space plans reuse the free-text `seriesTitle` with per-plan autocomplete vocabularies.
+- ~~**Series-as-a-row stays deferred**~~ — **superseded Aug 2026.** `ChurchSeries` is a
+  row, `ChurchServices.seriesId` replaced the free-text `seriesTitle` outright, and the
+  column is gone. The attach-to-series grain in P4 is what forced the decision, exactly as
+  that doc anticipated it might. Space plans scope their series through the same row
+  (`ChurchSeries.spaceId`), so a space plan's series is still never the church plan's.
 
 ---
 
@@ -653,9 +656,14 @@ changes the church's publishing trust model, and should be reviewed as such.
 
 Scope:
 
-- `SpaceInvites` create accepts `role: 'leader'` and stops rejecting non-`shared` spaces
-  (redeem already honours `'leader'`); rows land with `grantSource: 'grant'`.
-- A direct promote/demote path for existing members, same provenance.
+- ~~`SpaceInvites` create accepts `role: 'leader'`~~ — **built differently (Aug 2026).**
+  Leadership is granted **directly** on an existing membership rather than through an
+  invite: `server/routes/church-space-leaders.ts` sets `role: 'leader'` with
+  `grantSource: 'grant'` on the `SpaceMemberships` row, and revokes by the same predicate.
+  The invite path was never needed — a granted leader is someone already in the room, so
+  minting an invite for them would have been a second way to say a thing that had one.
+- A direct promote/demote path for existing members, same provenance. **This is what shipped**,
+  and it is the whole of it.
 - **Who may grant:** `manage_staff` (i.e. `org:admin`) or the space's own owner. Granting
   publish rights over a channel the whole congregation follows is a real trust escalation
   — it should sit with the same people who manage the roster. Revocation must be

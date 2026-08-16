@@ -163,6 +163,77 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-13-thread-trail',
     visualBaseline: true,
   },
+  {
+    id: 'ds-14-reader',
+    title: 'Bible reader canvas',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/styles/prototype-components.css',
+      'spa/src/styles/prototype-tokens.css',
+      'native/Harvous/DesignSystem/HarvousTypography.swift',
+      'native/Harvous/DesignSystem/HarvousShape.swift',
+    ],
+    screenshotSlug: 'ds-14-reader',
+    visualBaseline: true,
+  },
+  {
+    id: 'ds-15-paper-stack',
+    title: 'Paper stack (note over reader)',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/styles/prototype-components.css',
+      'spa/src/layouts/proto-motion.ts',
+      'spa/src/styles/prototype-tokens.css',
+    ],
+    screenshotSlug: 'ds-15-paper-stack',
+    // Interactive (stack toggle) — not a stable visual baseline.
+  },
+  {
+    id: 'ds-16-reader-dock',
+    title: 'Passage context',
+    phase: 'Patterns',
+    editFiles: [
+      'src/components/react/PassageContextStrip.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-16-reader-dock',
+    visualBaseline: true,
+  },
+  {
+    id: 'ds-17-reader-inspector',
+    title: 'Reader inspector',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeReaderInspectorPane.tsx',
+      'spa/src/lib/proto-reading-prefs.ts',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-17-reader-inspector',
+    // Interactive (text-size + verse-number controls write real prefs).
+  },
+  {
+    id: 'ds-18-translation-row',
+    title: 'Translation row',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/settings/PrototypeTranslationRow.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-18-translation-row',
+    // All five offline states at once — the real component, not a copy of its markup.
+  },
+  {
+    id: 'ds-19-note-audience-bar',
+    title: 'Note audience bar',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeNoteAudienceBar.tsx',
+      'spa/src/pages/prototype/PrototypeDraftDestinationSheet.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-19-note-audience-bar',
+    // Interactive: the destination sheet retargets a fixture draft.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

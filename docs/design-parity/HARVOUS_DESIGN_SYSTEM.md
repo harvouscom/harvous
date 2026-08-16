@@ -79,6 +79,9 @@ Harvous should feel **quiet, warm, and content-first** — a study desk, not a d
 | Toolbar | `NoteToolbar`, `NativeToolbar` | Platform chrome; keep orb metrics aligned |
 | Sheet / modal | SwiftUI `.sheet`, Vaul drawer, VOTD sheet | Presentation differs by platform; outcome must match |
 | Settings nav | native settings lists / `SETTINGS_CATEGORIES` | Extend the data model, don't fork nav chrome |
+| Reading canvas | `HarvousReaderLayout` + `HarvousTypography.readerBody` | `.pds-reader*` — gallery `ds-14-reader`. The one user-scalable type role (`--pds-reader-font-size`) |
+| Margin notifier | (native TBD) | `.pds-reader__bar` — one bar per note, length = verses covered; overlapping notes take parallel lanes (`--lane`, max 3, then merged with `data-heat`) |
+| Paper stack | platform sheet | `.pds-reader-stack*` — gallery `ds-15-paper-stack`; both sheets stay mounted |
 
 > **Deprecated:** `PrototypeBanner` / `HarvousBanner` are not the product feedback pattern. Do not use in new UI.
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   EXPIRED_SPACE_PURGE_TABLES,
@@ -131,6 +133,9 @@ describe('Generation 2B lifecycle policy', () => {
     expect(EXPIRED_SPACE_PURGE_TABLES).not.toContain('Notes');
     expect(EXPIRED_SPACE_PURGE_TABLES).not.toContain('NoteVersions');
     expect(EXPIRED_SPACE_PURGE_TABLES).toContain('StudyThreadEntries');
+    /* Per-user step history. It outlived both cleanup paths until Aug 2026,
+       which made a purged room leave private rows nobody could reach. */
+    expect(EXPIRED_SPACE_PURGE_TABLES).toContain('ThreadProgress');
     expect(isExpiredSpacePurgeCandidate(patch, new Date(patch.recoveryUntil.getTime() + 1))).toBe(true);
     expect(
       isExpiredSpacePurgeCandidate(
@@ -138,6 +143,23 @@ describe('Generation 2B lifecycle policy', () => {
         new Date(patch.recoveryUntil.getTime() + 1),
       ),
     ).toBe(false);
+  });
+
+  it('deletes per-user step history on both cleanup paths, not just the list', () => {
+    /* The constant is a manifest; these are the two places that must actually
+       act on it. Asserted at the source because there is no live DB here, and
+       because a table can be added to the list and still never deleted — which
+       is exactly the state this was in. */
+    const source = readFileSync(
+      resolve(process.cwd(), 'server/utils/shared-space-lifecycle.ts'),
+      'utf8',
+    );
+    // The single-Thread delete.
+    expect(source).toContain('delete(ThreadProgress).where(eq(ThreadProgress.threadId, thread.id))');
+    // The expired-space purge, which works over every Thread in the room.
+    expect(source).toContain(
+      'delete(ThreadProgress).where(inArray(ThreadProgress.threadId, threadIds))',
+    );
   });
 
   it('requires an active, unencrypted association for shared Thread attachment', () => {

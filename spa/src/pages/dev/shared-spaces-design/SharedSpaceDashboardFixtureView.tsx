@@ -14,6 +14,8 @@ import SharedSpaceAboutSheet from '../../prototype/SharedSpaceAboutSheet';
 import PrototypeSpacePeopleSheet from '../../prototype/PrototypeSpacePeopleSheet';
 import PrototypeListEmptyState from '../../prototype/PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
+import PrototypeHomeRow from '../../prototype/PrototypeHomeRow';
+import HomeSection from '../../prototype/PrototypeHomeSection';
 import { useProtoHomeViewClassName } from '../../prototype/useProtoHomeViewEnter';
 import { sharedSpacePeopleHeaderLabel, type SharedSpaceNoteCardSlot } from '../../prototype/shared-space-dashboard';
 import type { SharedSpaceDashboardFixture } from './shared-space-dashboard-fixtures';
@@ -45,49 +47,48 @@ function noteKindIcon(noteType: string | undefined): IconName {
   return 'note-sticky';
 }
 
-function FixtureNoteCard({
+/**
+ * A note as a row, matching what the live dashboard renders.
+ *
+ * Still a fixture copy rather than the real component — the live view is bound to
+ * `useActiveSpace`, `useSpace` and the nav query, which is why this harness exists at all.
+ * But it now builds from the same `PrototypeHomeRow` the real one does, so the two can only
+ * drift in *content*, not in anatomy. They had already drifted in anatomy: the live view
+ * moved to rows and this scene kept previewing cards.
+ */
+function FixtureNoteRow({
   cardSlot,
   authorName,
   authorColor,
   isOwn,
+  showEyebrow = true,
 }: {
   cardSlot: SharedSpaceNoteCardSlot;
   authorName: string;
   authorColor: string;
   isOwn: boolean;
+  showEyebrow?: boolean;
 }) {
   const { note, eyebrow } = cardSlot;
   const preview = noteRowPreview(note);
 
   return (
-    <button
-      type="button"
-      className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+    <PrototypeHomeRow
+      icon={noteKindIcon(note.noteType)}
+      title={noteRowTitle(note)}
+      meta={[
+        showEyebrow ? eyebrow : null,
+        preview,
+        <SharedSpaceNoteAuthorChip
+          key="author"
+          displayName={authorName}
+          color={authorColor}
+          isSelf={isOwn}
+        />,
+        '2d',
+      ]}
       onClick={() => {}}
-    >
-      <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p>
-      <div className="proto-home-card__body">
-        <div className="proto-home-card__title-row">
-          <span className="proto-home-card__icon-orb" aria-hidden>
-            <Icon name={noteKindIcon(note.noteType)} size={13} />
-          </span>
-          <p className="pds-list-title proto-home-card__title">{noteRowTitle(note)}</p>
-          <span className="proto-home-card__chevron" aria-hidden>
-            <Icon name="caret-right" size={11} />
-          </span>
-        </div>
-        {preview ? (
-          <p className="pds-list-preview proto-home-card__preview">{preview}</p>
-        ) : null}
-        <div className="proto-home-card__meta">
-          <SharedSpaceNoteAuthorChip displayName={authorName} color={authorColor} isSelf={isOwn} />
-          <span className="proto-home-card__meta-sep" aria-hidden>
-            ·
-          </span>
-          <span className="proto-home-card__meta-item">2d</span>
-        </div>
-      </div>
-    </button>
+    />
   );
 }
 
@@ -256,22 +257,14 @@ export default function SharedSpaceDashboardFixtureView({
           <div className="proto-home-section">
             <p className="proto-caption proto-home-section__eyebrow">Current Thread</p>
             {currentThread ? (
-              <button type="button" className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable">
-                <div className="proto-home-card__body">
-                  <div className="proto-home-card__title-row">
-                    <span className="proto-home-card__icon-orb" aria-hidden>
-                      <Icon name="arrow-right-arrow-left" size={13} />
-                    </span>
-                    <p className="pds-list-title proto-home-card__title">{currentThread.title}</p>
-                    <span className="proto-home-card__chevron" aria-hidden>
-                      <Icon name="caret-right" size={11} />
-                    </span>
-                  </div>
-                  <p className="pds-list-preview proto-home-card__preview">
-                    {sharedThreadNoteCountPreview(currentThread.noteCount)}
-                  </p>
-                </div>
-              </button>
+              <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
+                <PrototypeHomeRow
+                  icon="arrow-right-arrow-left"
+                  title={currentThread.title}
+                  meta={[sharedThreadNoteCountPreview(currentThread.noteCount)]}
+                  onClick={() => {}}
+                />
+              </div>
             ) : (
               <div className="proto-list-create-empty">
                 <PrototypeListEmptyState iconName="arrow-right-arrow-left" title="No thread yet." />
@@ -284,69 +277,50 @@ export default function SharedSpaceDashboardFixtureView({
           ) : null}
 
           {spotlightThread ? (
-            <div className="proto-home-section">
-              <button
-                type="button"
-                className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-              >
-                <p className="proto-caption proto-home-card__eyebrow">
-                  {homeSpotlightThreadEyebrow(spotlightThread.noteCount)}
-                </p>
-                <div className="proto-home-card__body">
-                  <div className="proto-home-card__title-row">
-                    <span className="proto-home-card__icon-orb" aria-hidden>
-                      <Icon name="arrow-right-arrow-left" size={13} />
-                    </span>
-                    <p className="pds-list-title proto-home-card__title">{spotlightThread.title}</p>
-                    <span className="proto-home-card__chevron" aria-hidden>
-                      <Icon name="caret-right" size={11} />
-                    </span>
-                  </div>
-                  <div className="proto-home-card__meta">
-                    <span className="proto-home-card__meta-item">
-                      {spotlightThread.noteCount} {spotlightThread.noteCount === 1 ? 'note' : 'notes'} in this space
-                    </span>
-                  </div>
-                </div>
-              </button>
-            </div>
+            <HomeSection title={homeSpotlightThreadEyebrow(spotlightThread.noteCount)}>
+              <PrototypeHomeRow
+                icon="arrow-right-arrow-left"
+                title={spotlightThread.title}
+                meta={[
+                  `${spotlightThread.noteCount} ${spotlightThread.noteCount === 1 ? 'note' : 'notes'} in this space`,
+                ]}
+                onClick={() => {}}
+              />
+            </HomeSection>
           ) : null}
 
           {topPassage ? (
-            <div className="proto-home-section">
-              <button
-                type="button"
-                className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-              >
-                <p className="proto-caption proto-home-card__eyebrow">Showing up in your notes</p>
-                <div className="proto-home-card__body">
-                  <div className="proto-home-card__title-row">
-                    <span className="proto-home-card__icon-orb" aria-hidden>
-                      <Icon name="scroll" size={13} />
-                    </span>
-                    <p className="pds-list-title proto-home-card__title">{topPassage.displayRef}</p>
-                    <span className="proto-home-card__chevron" aria-hidden>
-                      <Icon name="caret-right" size={11} />
-                    </span>
-                  </div>
-                  <div className="proto-home-card__meta">
-                    <span className="proto-home-card__meta-item">
-                      Across {topPassage.noteCount} {topPassage.noteCount === 1 ? 'note' : 'notes'} in this space
-                    </span>
-                  </div>
-                </div>
-              </button>
-            </div>
+            <HomeSection title="Showing up in your notes">
+              <PrototypeHomeRow
+                icon="scroll"
+                title={topPassage.displayRef}
+                meta={[
+                  `Across ${topPassage.noteCount} ${topPassage.noteCount === 1 ? 'note' : 'notes'} in this space`,
+                ]}
+                onClick={() => {}}
+              />
+            </HomeSection>
           ) : null}
 
-          {noteCardSlots.map((slot) => {
-            const { isOwn, authorName, authorColor } = resolveAuthor(slot.note);
-            return (
-              <div key={slot.note.id} className="proto-home-section">
-                <FixtureNoteCard cardSlot={slot} authorName={authorName} authorColor={authorColor} isOwn={isOwn} />
-              </div>
-            );
-          })}
+          {/* Grouped into one section of rows, the way the live dashboard groups them —
+              the heading carries the eyebrow so the rows drop their own. */}
+          {noteCardSlots.length > 0 ? (
+            <HomeSection title={noteCardSlots[0].eyebrow}>
+              {noteCardSlots.map((slot) => {
+                const { isOwn, authorName, authorColor } = resolveAuthor(slot.note);
+                return (
+                  <FixtureNoteRow
+                    key={slot.note.id}
+                    cardSlot={slot}
+                    authorName={authorName}
+                    authorColor={authorColor}
+                    isOwn={isOwn}
+                    showEyebrow={false}
+                  />
+                );
+              })}
+            </HomeSection>
+          ) : null}
         </div>
       </div>
 

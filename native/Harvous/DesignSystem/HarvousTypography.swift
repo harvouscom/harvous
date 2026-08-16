@@ -1,5 +1,43 @@
 import SwiftUI
 
+/// Reader text-size steps, shared by the reading canvas and its inspector control.
+///
+/// Point sizes are the source of truth for `--pds-reader-font-size` on web — change
+/// them here first. Reading is the one place a user sets their own size, so the steps
+/// are deliberately few and each is a visible jump.
+enum ReaderTextSize: String, CaseIterable, Codable, Sendable {
+    case small
+    case medium
+    case large
+    case xlarge
+
+    var pointSize: CGFloat {
+        switch self {
+        case .small: return 17
+        case .medium: return 19
+        case .large: return 21
+        case .xlarge: return 24
+        }
+    }
+
+    /// Longer measures need more leading to stay trackable.
+    var lineHeightMultiple: CGFloat {
+        switch self {
+        case .small, .medium: return 1.75
+        case .large, .xlarge: return 1.7
+        }
+    }
+
+    var displayLabel: String {
+        switch self {
+        case .small: return "Small"
+        case .medium: return "Medium"
+        case .large: return "Large"
+        case .xlarge: return "Extra large"
+        }
+    }
+}
+
 enum HarvousTypography {
     // MARK: - App default (Google Sans Flex)
 
@@ -49,6 +87,22 @@ enum HarvousTypography {
 
     /// 16pt — body text
     static let body = HarvousFonts.font(size: 16, weight: 400, design: .default)
+
+    // MARK: - Bible reader
+
+    /// Scripture reading canvas — the one user-scalable role in the system.
+    /// Steps mirror `--pds-reader-font-size` on web; `.medium` is the default.
+    /// Reading is a sustained task, so this runs larger than `body` (16pt).
+    static func readerBody(_ size: ReaderTextSize = .medium) -> Font {
+        HarvousFonts.font(size: size.pointSize, weight: 400, design: .default)
+    }
+
+    /// Verse number set inline with reading text. Sits quiet — the text leads,
+    /// the number is a locator.
+    static let readerVerseNumber = HarvousFonts.font(size: 11, weight: 600, design: .default)
+
+    /// Chapter heading above the reading canvas. Rounded, like other display roles.
+    static let readerChapterTitle = HarvousFonts.font(size: 28, weight: 600, design: .rounded)
 
     /// 13pt — metadata, dates, tags
     static let caption = HarvousFonts.font(size: 13, weight: 500, design: .default)

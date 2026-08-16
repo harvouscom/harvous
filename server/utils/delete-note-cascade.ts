@@ -14,6 +14,7 @@ import {
   NoteFingerprints,
   RecallEvents,
   ChurchServicePublishedNotes,
+  ChurchSeriesPublishedNotes,
   and,
   eq,
   inArray,
@@ -56,6 +57,7 @@ export const NOTE_DELETE_CASCADE_TABLES = [
   'NoteFingerprints',
   'RecallEvents',
   'ChurchServicePublishedNotes',
+  'ChurchSeriesPublishedNotes',
   'Notes',
 ] as const;
 
@@ -144,6 +146,13 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
       await tx
         .delete(ChurchServicePublishedNotes)
         .where(inArray(ChurchServicePublishedNotes.noteId, chunk));
+      // The same claim at series grain. Nothing skips a republish over this one,
+      // but a stale row would keep pointing "This Sunday" at a note that is gone
+      // — the congregant read resolves titles, so the row would vanish silently
+      // from the list while staying in the table forever.
+      await tx
+        .delete(ChurchSeriesPublishedNotes)
+        .where(inArray(ChurchSeriesPublishedNotes.noteId, chunk));
       await tx
         .delete(Notes)
         .where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));

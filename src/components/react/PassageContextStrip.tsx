@@ -60,6 +60,22 @@ const contextCache = new Map<string, PassageContext>();
 const cacheKey = (ref: string, trans: string, noteId?: string | null) =>
   `${ref}|${trans}|${noteId ?? ''}`;
 
+/**
+ * Seed the context cache so a caller can render this strip without a network round trip.
+ *
+ * Exists for the design gallery, which has no session and must not hand-copy this
+ * component's markup into a fixture — a gallery that restates production markup drifts
+ * from it silently. Priming the cache means the scene renders the real component.
+ */
+export function primePassageContextCache(
+  reference: string,
+  translation: string,
+  context: PassageContext,
+  sourceNoteId?: string | null,
+): void {
+  contextCache.set(cacheKey(reference, translation, sourceNoteId), context);
+}
+
 function formatCrossRef(cr: CrossReference): string {
   if (cr.chapterEnd !== cr.chapterStart) {
     return `${cr.book} ${cr.chapterStart}:${cr.verseStart}–${cr.chapterEnd}:${cr.verseEnd}`;
@@ -213,6 +229,10 @@ export default function PassageContextStrip({
         </Section>
       ) : null}
 
+      {/* No People / Places / Themes sections here, deliberately. The endpoint returns them and
+          they are worth surfacing — but as the dotted `reference-suggestion` underlines on the
+          passage text itself, where a name is answered in the place you met it. Listing them
+          again underneath restated the same words as a menu and pushed the passage up the card. */}
       {hasNotes ? (
         <Section title="Your notes">
           {ctx.relatedNotes.map((n) => (

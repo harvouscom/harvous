@@ -2,12 +2,13 @@ import { stashComposeRestore } from '../../lib/compose-session-restore';
 import { consumePendingNoteFocus } from '../../lib/pending-note-focus';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import {
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
 import {
   normalizePrototypeApiSpaceId,
@@ -16,7 +17,10 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
-import { detectScriptureReferences } from '@/utils/scripture-detector';
+import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
+import { buildNoteDockOrigin, readPaperStackDockPlacement } from './paper-stack-origins';
+import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import {
   getNoteIdFromCreateResponse,
   shouldUseNoteOnlyParentThreadCache,
@@ -31,7 +35,7 @@ import {
   usePatchSpaceNoteOrganization,
   type NoteCollectionExtras,
 } from '../../hooks/mutations/usePatchSpaceNoteOrganization';
-import { PANE_DOCK_MIN_WIDTH } from '../../layouts/proto-inspector-layout';
+import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
@@ -41,6 +45,9 @@ import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeNoteAudienceBar from './PrototypeNoteAudienceBar';
+import PrototypeDraftDestinationSheet, {
+  draftDestinationOptions as buildDraftDestinationOptions,
+} from './PrototypeDraftDestinationSheet';
 import {
   dismissPurpose,
   getComposePurpose,
@@ -60,6 +67,8 @@ import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useNavigation } from '../../hooks/queries/useNavigation';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
+import { useChurchPlannerAccess } from '../../hooks/useChurchPlannerAccess';
+import { useNotePlannedService } from '../../hooks/queries/useNotePlannedService';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { useNoteEditLease } from '@/hooks/useNoteEditLease';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -294,6 +303,7 @@ export default function PrototypeNotePage() {
     composeSessionEpoch,
     composeTargetSpaceIdOverride,
     clearComposeTargetSpaceIdOverride,
+    setComposeTargetSpaceId,
     dismissStandaloneScripturePassage,
     openStandaloneScripturePassage,
     formatToolbarHostEl,
@@ -309,13 +319,27 @@ export default function PrototypeNotePage() {
     setSidebarLayer,
     ensureSidebarExpanded,
     openDrawer,
+    stackNote,
+    paperStack,
+    setStackNoteTitle,
   } = useProtoShell();
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
+  /**
+   * A parked note has no note segment either: flipping the sheet down sends the URL to the
+   * origin — a chapter, Home — while the note itself stays mounted below the fold. The shell
+   * knows which note that is even though the address no longer says so, exactly as it does
+   * for a compose draft.
+   */
+  const parkedNoteSlug =
+    paperStack && !paperStack.open && paperStack.noteId
+      ? noteParamSlug(paperStack.noteId)
+      : null;
   // Compose-on-home has no note segment — treat as draft slug while the shell session is active.
   const noteSlugParam =
-    noteSlugFromPath ?? (composeDraftActive ? PROTOTYPE_DRAFT_NOTE_SLUG : '');
+    noteSlugFromPath ?? parkedNoteSlug ?? (composeDraftActive ? PROTOTYPE_DRAFT_NOTE_SLUG : '');
   const isDraft =
-    isPrototypeDraftNoteSlug(noteSlugParam) || (!noteSlugFromPath && composeDraftActive);
+    isPrototypeDraftNoteSlug(noteSlugParam) ||
+    (!noteSlugFromPath && !parkedNoteSlug && composeDraftActive);
   const noteId = isDraft ? DRAFT_NOTE_ID : normalizeNoteIdFromParam(noteSlugParam);
   // URL uses bare ids (`?space=1785…`); APIs / shell expect `space_*`.
   const contextSpaceId = normalizePrototypeApiSpaceId(spaceSearchParam);
@@ -436,6 +460,7 @@ export default function PrototypeNotePage() {
   }, [isDraft, note?.secondaryCollections]);
 
   const queryClient = useQueryClient();
+  const router = useRouter();
   const updateNoteMutation = useUpdateNote();
   const createNoteMutation = useCreateSimpleNote();
   const patchSpaceNoteOrganizationMutation = usePatchSpaceNoteOrganization();
@@ -680,6 +705,28 @@ export default function PrototypeNotePage() {
     [composeTargetSpaceId, personalHomeSpaceId],
   );
 
+  /*
+    Retargeting a draft mid-sentence.
+
+    Only while it is still a draft: once the note exists, moving it between spaces is a
+    different operation with different consequences (memberships, activity, who can already
+    see it), and the inspector's Shared-with section owns that. This is the cheap case —
+    nothing has been written anywhere yet, so the destination is still just a plan.
+  */
+  const [destinationOpen, setDestinationOpen] = useState(false);
+  const draftDestinationOptions = useMemo(
+    () =>
+      buildDraftDestinationOptions({
+        spaces: nav?.spaces ?? [],
+        memberOfSpaces: nav?.memberOfSpaces ?? [],
+        homeSpaceId: personalHomeSpaceId,
+      }),
+    [nav?.spaces, nav?.memberOfSpaces, personalHomeSpaceId],
+  );
+  /* Offered only when there is somewhere else to go — a viewer in no shared space has one
+     option, and a menu of one is a worse answer than a label. */
+  const canRetargetDraft = isDraft && draftDestinationOptions.length > 1;
+
   const onHighlightOpenRequestConsumed = useCallback(() => {
     setHighlightOpenRequest(null);
   }, []);
@@ -717,6 +764,120 @@ export default function PrototypeNotePage() {
     });
   }, [navigate, noteSlugParam, initialScriptureRef, contextSpaceId]);
 
+  /**
+   * Warm the reader while the dock is still open, not when the tap comes.
+   *
+   * Expanding a dock is a morph: the chapter is revealed out of the dock's own rectangle, at
+   * full size, with nothing scaled. That only reads as one surface growing if the chapter is
+   * *there* when the clip starts opening — and until now none of it existed yet. The route is
+   * code-split, so the tap paid for a chunk import, and the chapter query started from cold,
+   * so the pane's own 250ms empty state opened inside the clip. Two loads inside the one
+   * animation that is supposed to hide that there was any.
+   *
+   * Both are idempotent and both are already-shared definitions — `bibleChapterQueryOptions`
+   * is the same options object the reader's own hook uses, so this warms the entry it will
+   * read rather than a second one beside it.
+   */
+  const warmReaderForPassage = useCallback(
+    ({ reference, translation }: { reference: string; translation: string }) => {
+      const parsed = parseScriptureReference(reference);
+      if (!parsed?.book || !parsed.chapter) return;
+      void router
+        .preloadRoute({
+          to: prototypeReadRouteTo(),
+          params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
+          // The route validates its search, so a preload without one is not the same route.
+          search: { v: undefined, t: translation },
+        })
+        .catch(() => {});
+      void queryClient
+        .prefetchQuery(bibleChapterQueryOptions(parsed.book, parsed.chapter, translation))
+        .catch(() => {});
+    },
+    [router, queryClient],
+  );
+
+  /**
+   * A scripture dock expanding one step further, into the Bible reader.
+   *
+   * The reader stacks over this note as a sheet, the inverse of a note over the reader; the
+   * edge above the chapter says this note's title, and tapping it collapses back to the note
+   * with its dock reopened. `returnTo` is captured here, at expand time, and that is the
+   * anchor rule: read three chapters on and collapse, and the dock comes back on the pill's
+   * reference, because the reader never touches what was captured. A draft has no address to
+   * return to, so it does not offer this.
+   *
+   * Declared up here with the other hooks, above the loading/not-found early returns — a hook
+   * below them is skipped on the loading render and appears on the next, which React reports
+   * as "rendered more hooks than during the previous render".
+   */
+  const handleExpandScriptureToReader = useCallback(
+    ({ reference, translation }: { reference: string; translation: string }) => {
+      if (isDraft || !noteId) return;
+      const parsed = parseScriptureReference(reference);
+      if (!parsed) return;
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      /*
+       * Measure the card before anything moves, so the chapter can grow out of exactly where
+       * the dock was rather than from a guess. Read now, in the click, because the dock is
+       * unmounted by the navigation on the next line — a frame later there is nothing left
+       * to measure. Absent (a keyboard path, a card mid-animation) simply means no morph.
+       */
+      const dockCard = document.querySelector('.study-dock-card');
+      const rect = dockCard instanceof HTMLElement ? dockCard.getBoundingClientRect() : null;
+      stackNote(
+        buildNoteDockOrigin({
+          noteId,
+          noteTitle: liveNoteSnapshot.title || note?.title,
+          reference,
+          translation,
+          spaceId: contextSpaceId,
+          morphFrom:
+            rect && rect.width > 0 && rect.height > 0
+              ? {
+                  top: Math.round(rect.top),
+                  left: Math.round(rect.left),
+                  width: Math.round(rect.width),
+                  height: Math.round(rect.height),
+                  dockPlacement: readPaperStackDockPlacement() ?? '',
+                }
+              : undefined,
+        }),
+        noteId,
+      );
+      void navigate({
+        to: prototypeReadRouteTo(),
+        params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
+        search: { v: verseStart ? String(verseStart) : undefined, t: translation },
+      });
+    },
+    [isDraft, noteId, liveNoteSnapshot.title, note?.title, contextSpaceId, stackNote, navigate],
+  );
+
+
+  /**
+   * Tell the shell what to call this note on the parked edge.
+   *
+   * Live rather than captured when the stack is made: a compose draft started from the
+   * reader has no title yet, and the one you type a moment later is exactly the title the
+   * edge should carry. Skipped for a `noteDock` stack, where the note is the origin and
+   * already labelled, and skipped when the stack holds a different note than this page.
+   *
+   * Up here with the other hooks, ABOVE the loading and not-found returns further down.
+   * This sat below them and crashed the page: a loading render stopped before it, the
+   * loaded render ran it, and React counted more hooks the second time. The title it reads
+   * is the same pair the dock expansion uses — the live snapshot, then the fetched note —
+   * because the editor's own display title is not built until after those returns, and
+   * reaching for it is what put this in the wrong place to begin with. Stripping the
+   * server's auto-untitled name happens where the label is drawn, not here.
+   */
+  const stackedNoteTitle = liveNoteSnapshot.title || note?.title || '';
+  useEffect(() => {
+    if (!paperStack || paperStack.origin.kind === 'noteDock') return;
+    if (paperStack.noteId && paperStack.noteId !== noteId) return;
+    setStackNoteTitle(stackedNoteTitle);
+  }, [paperStack, noteId, stackedNoteTitle, setStackNoteTitle]);
+
   const onReferenceDeepLinkHandoff = useCallback(() => {
     if (!initialReferenceWord) return;
     navigate({
@@ -748,39 +909,17 @@ export default function PrototypeNotePage() {
     initialStudyThread,
   ]);
 
-  // Dock the inspector side-by-side only when the editor pane is wide enough to
-  // seat the editor (max 720px content) beside it (~268px reserve); otherwise let
-  // it float over the editor as a quiet overlay. Measured from the actual pane
-  // element via ResizeObserver so it tracks real layout px (a viewport media
-  // query is unreliable in the native webview where CSS px != visible px).
-  const paneResizeObserverRef = useRef<ResizeObserver | null>(null);
+  // Dock the inspector side-by-side only when the pane is wide enough to seat the
+  // editor (max 720px content) beside it (~268px reserve); otherwise let it float over
+  // the editor as a quiet overlay. The reader asks the same question of the same pane,
+  // so the measurement lives in one hook — see its comment for why it is the pane's
+  // border box and not this row.
   const notePaneRowElRef = useRef<HTMLDivElement | null>(null);
-  const [paneIsWide, setPaneIsWide] = useState(false);
-
-  const syncPaneWidth = useCallback((width: number) => {
-    setPaneIsWide(width >= PANE_DOCK_MIN_WIDTH);
-  }, []);
+  const paneIsWide = useShellPaneIsWide();
 
   const notePaneRowRef = useCallback((node: HTMLDivElement | null) => {
-    paneResizeObserverRef.current?.disconnect();
-    paneResizeObserverRef.current = null;
     notePaneRowElRef.current = node;
-    if (!node || typeof ResizeObserver === 'undefined') return;
-    syncPaneWidth(node.getBoundingClientRect().width);
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        syncPaneWidth(entry.contentRect.width);
-      }
-    });
-    ro.observe(node);
-    paneResizeObserverRef.current = ro;
-  }, [syncPaneWidth]);
-
-  useLayoutEffect(() => {
-    const node = notePaneRowElRef.current;
-    if (!node) return;
-    syncPaneWidth(node.getBoundingClientRect().width);
-  }, [syncPaneWidth]);
+  }, []);
 
   useEffect(() => {
     dismissStandaloneScripturePassage();
@@ -1917,6 +2056,25 @@ export default function PrototypeNotePage() {
   const churchOrgId = profileForTemplates.data?.connectedOrgId ?? null;
   const { can: canChurchForTemplates } = useChurchStaffStatus(churchOrgId);
 
+  /*
+    Where this note could be planned, and whether it already is.
+
+    Up here with the other viewer-level hooks rather than beside the inspector prop they feed,
+    because two early returns sit between: the loading and not-found branches. A hook called
+    below them runs on some renders and not others, which React counts and refuses — "rendered
+    more hooks than during the previous render", visible only once a note actually had to load.
+  */
+  const canManageChurchPlan = canChurchForTemplates('manage_teaching_plan');
+  const plannerAccess = useChurchPlannerAccess(churchOrgId);
+  const hasSomewhereToPlan = canManageChurchPlan || plannerAccess.plannableSpaces.length > 0;
+  /* The note payload may not carry `plannedForServiceId` — the column has a short list of
+     permitted readers and the note route is not on it — so the "already planned" state is a
+     question of its own. */
+  const { data: plannedForServiceId } = useNotePlannedService(
+    noteId,
+    Boolean(hasSomewhereToPlan && churchOrgId && !isDraft),
+  );
+
   const noteLoadState = resolvePrototypeNoteLoadState({
     isDraft,
     isLoading,
@@ -2077,9 +2235,12 @@ export default function PrototypeNotePage() {
     shared space: a sermon draft is private, and "add this to the church's plan"
     is not an offer to make about somebody else's note in somebody else's room.
   */
-  const canManageChurchPlan = canChurchForTemplates('manage_teaching_plan');
   const inspectorTeachingPlan =
-    canManageChurchPlan && churchOrgId && !isDraft && noteId && !sharedActionSpaceId
+    hasSomewhereToPlan &&
+    churchOrgId &&
+    !isDraft &&
+    noteId &&
+    !sharedActionSpaceId
       ? {
           noteId,
           noteTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
@@ -2092,8 +2253,30 @@ export default function PrototypeNotePage() {
               (liveNoteSnapshot.content || editorNote.content || '').replace(/<[^>]*>/g, ' '),
             )[0]?.reference ?? null,
           churchOrgId,
-          plannedForServiceId: null,
+          canPlanChurchWide: canManageChurchPlan,
+          plannableSpaces: plannerAccess.plannableSpaces,
+          plannedForServiceId: plannedForServiceId ?? null,
         }
+      : null;
+
+  /*
+    "Published for" — the other direction from the plan door above.
+
+    Offered only inside a ministry channel (`type='public'`), and only to
+    someone who may author there — owner or leader, which is exactly what
+    `canAuthorInSpace` allows in a broadcast room and exactly what the server
+    re-checks. A congregant who follows the channel holds `member`, so this is
+    absent for them rather than present and refused.
+
+    Draft notes are excluded for the same reason the plan door excludes them:
+    a claim has to point at a note that exists.
+  */
+  const inspectorPublishedFor =
+    !isDraft &&
+    noteId &&
+    templateSpaceAccess.access?.space.type === 'public' &&
+    canAttachSpaceTemplate
+      ? { noteId, enabled: true }
       : null;
 
   const inspectorTemplates = showTemplatesInInspector
@@ -2154,8 +2337,20 @@ export default function PrototypeNotePage() {
   const inspectorNote =
     isDraft || (!note && composeSessionActive) ? draftInspectorNote : note;
 
-  const showInspectorDesktop = (inspectorOpen || inspectorExiting) && !isMobileSidebar;
-  const showInspectorMobile = (inspectorOpen || inspectorExiting) && isMobileSidebar;
+  /*
+   * A parked note keeps its inspector to itself.
+   *
+   * When the sheet is flipped down the reader below is the page being read, and BOTH pages
+   * are mounted — this one as the parked sheet, the route as the paper in front. Both portal
+   * into the same right-panel host at the same coordinates, and this one, mounted second,
+   * won: opening the inspector over a chapter showed the note's details. The inspector
+   * belongs to whichever layer is in front, so a parked note does not offer one.
+   */
+  const parkedBehindReader = Boolean(paperStack && !paperStack.open && paperStack.noteId);
+  const inspectorBelongsHere = (inspectorOpen || inspectorExiting) && !parkedBehindReader;
+
+  const showInspectorDesktop = inspectorBelongsHere && !isMobileSidebar;
+  const showInspectorMobile = inspectorBelongsHere && isMobileSidebar;
   // Reserve (dock) only when: inspector open, on desktop (mobile uses a fixed
   // slide-over), and the pane is wide enough. When the pane is narrow the desktop
   // inspector stays mounted but floats over the editor as a quiet overlay.
@@ -2163,6 +2358,7 @@ export default function PrototypeNotePage() {
   // the empty compose canvas stays full-width until the note persists.
   const inspectorReservesEditorSpace =
     inspectorOpen &&
+    !parkedBehindReader &&
     !inspectorExiting &&
     !isDraft &&
     !!inspectorNote &&
@@ -2223,6 +2419,7 @@ export default function PrototypeNotePage() {
               isDraftCompose={isDraft}
               templates={inspectorTemplates}
               teachingPlan={inspectorTeachingPlan}
+              publishedFor={inspectorPublishedFor}
             />
           </div>
           </>,
@@ -2257,6 +2454,7 @@ export default function PrototypeNotePage() {
                 isDraftCompose={isDraft}
                 templates={inspectorTemplates}
                 teachingPlan={inspectorTeachingPlan}
+                publishedFor={inspectorPublishedFor}
               />
             </div>
           </>,
@@ -2290,6 +2488,13 @@ export default function PrototypeNotePage() {
                   setSharedOverlayContainerEl(el);
                 }}
               >
+              {/*
+                Bar and its destination sheet share one positioned box, so "just below the
+                bar" is a fact about the DOM rather than a guess. The sheet is a *sibling*
+                of the bar, not a child — putting `position: relative` on the bar itself
+                left the sheet anchoring to whatever positioned ancestor it found next.
+              */}
+              <div className="proto-draft-destination-anchor">
               {/* Quiet "Shared with …" in My Home; the full pen banner inside a
                   shared space or the moment someone else starts writing. */}
               <PrototypeNoteAudienceBar
@@ -2298,6 +2503,7 @@ export default function PrototypeNotePage() {
                 draftDestinationLabel={draftDestinationLabel}
                 draftDestinationIsHome={draftDestinationIsHome}
                 onOpenAudience={openInspector}
+                onOpenDestination={canRetargetDraft ? () => setDestinationOpen((v) => !v) : undefined}
                 authorDisplayName={foreignNoteAuthor?.displayName ?? note?.authorDisplayName}
                 authorUserId={foreignNoteAuthor?.userId ?? note?.authorUserId ?? note?.userId}
                 authorFirstName={foreignNoteAuthor?.firstName}
@@ -2310,6 +2516,19 @@ export default function PrototypeNotePage() {
                 onPurposeAction={openInspector}
                 onDismissPurpose={handleDismissPurpose}
               />
+              {/* Anchored under the bar it belongs to, and only while the draft can move. */}
+              {canRetargetDraft ? (
+                <PrototypeDraftDestinationSheet
+                  open={destinationOpen}
+                  options={draftDestinationOptions}
+                  currentSpaceId={
+                    composeTargetSpaceId === personalHomeSpaceId ? null : composeTargetSpaceId
+                  }
+                  onChoose={(destination) => setComposeTargetSpaceId(destination.spaceId)}
+                  onDismiss={() => setDestinationOpen(false)}
+                />
+              ) : null}
+              </div>
               {showSharedHighlightOverlay ? (
                 <SharedStudyHighlightOverlay
                   editor={sharedOverlayEditor}
@@ -2378,6 +2597,8 @@ export default function PrototypeNotePage() {
                 initialReferenceRequestKey={initialReferenceRequestKey}
                 initialResourceDock={initialResourceDock}
                 onOpenResourceFile={(libraryItemId) => void openLibraryFileItem(libraryItemId)}
+                onExpandScriptureToReader={handleExpandScriptureToReader}
+                onScripturePassageShown={warmReaderForPassage}
                 initialScriptureDock={initialScriptureDock}
                 initialCrossRefTarget={initialCrossRefTarget}
                 initialHighlightDock={initialHighlightDock}

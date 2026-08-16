@@ -147,36 +147,19 @@
   text-align: right;
 }
 
-/* Pending suggestion — "Save reference" as a small accented checkmark orb in the header row
-   (sits in headerActions, same 28px footprint as the collapse/close orbs). The amber fill
-   marks it as the primary action without a large body button. */
+/*
+ * Pending suggestion — "Save reference", as one more icon in the header row.
+ *
+ * It used to be a filled amber orb, on the reasoning that a primary action should outrank
+ * the icons beside it. But amber is not a rank in this app, it is a *highlight accent*: the
+ * same warm amber a saved reference is painted with. So the button read as "this is a
+ * warm-amber highlight" rather than "keep this", and it announced a colour choice nobody
+ * had made yet — the accent is only the default the entry gets once it exists.
+ *
+ * So it takes the header block plain, like the passage toggle and the close beside it. The
+ * check glyph is what says what it does, and the tooltip says it in words. Nothing here now
+ * beyond the footprint, which is the point: the rules below were all it had.
+ */
 .reference-dock-web__save-orb {
   border-color: transparent;
-  background: var(--study-dock-accent-warmAmber, #c8893f);
-  color: #fff;
-}
-
-.reference-dock-web__save-orb:hover {
-  background: var(--study-dock-accent-warmAmber, #c8893f);
-  filter: brightness(0.95);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme='light']) .reference-dock-web__save-orb {
-    background: var(--pds-selection-bg);
-  }
-
-  :root:not([data-color-scheme='light']) .reference-dock-web__save-orb:hover {
-    background: var(--pds-selection-bg);
-    filter: brightness(1.08);
-  }
-}
-
-:root[data-color-scheme='dark'] .reference-dock-web__save-orb {
-  background: var(--pds-selection-bg);
-}
-
-:root[data-color-scheme='dark'] .reference-dock-web__save-orb:hover {
-  background: var(--pds-selection-bg);
-  filter: brightness(1.08);
 }

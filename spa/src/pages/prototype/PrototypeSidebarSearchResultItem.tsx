@@ -66,6 +66,7 @@ export default function PrototypeSidebarSearchResultItem({
     case 'folder':
     case 'threadCluster':
     case 'scriptureBook':
+    case 'scriptureReference':
       return (
         <InlineKindSearchResultItem result={result} active={active} onActivate={onActivate} />
       );
@@ -223,6 +224,8 @@ function collectionIconName(kind: SidebarSearchResult['kind']): string {
       return 'arrow-right-arrow-left';
     case 'scriptureBook':
       return 'book';
+    case 'scriptureReference':
+      return 'book-open';
     default:
       return 'folder';
   }
@@ -255,6 +258,12 @@ function InlineKindSearchResultItem({
   );
 }
 
+/**
+ * A chapter to open, rather than something already written.
+ *
+ * Carries the book icon so it reads as a destination among rows that are otherwise notes and
+ * folders — this is the one result that is not a thing you own but a place you can go.
+ */
 function ScripturePassageSearchResultItem({
   result,
   active,

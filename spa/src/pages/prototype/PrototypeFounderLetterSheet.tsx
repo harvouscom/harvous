@@ -91,11 +91,11 @@ export default function PrototypeFounderLetterSheet({ open, onClose }: Props) {
       >
         <button
           type="button"
-          className="proto-toolbar-icon-btn proto-founder-letter-sheet__close"
+          className="proto-side-panel__action-btn proto-founder-letter-sheet__close"
           aria-label="Close"
           onClick={onClose}
         >
-          <Icon name="xmark" size={22} />
+          <Icon name="xmark" size={12} aria-hidden />
         </button>
         <div className="proto-founder-letter-sheet__body">
           <FounderLetterContent firstName={firstName} paperPhase={paperPhase} />

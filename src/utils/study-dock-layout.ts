@@ -46,9 +46,24 @@ function readElementTranslateX(el: HTMLElement): number {
   return match ? parseFloat(match[1]) : 0;
 }
 
-function resolveStudyDockCenterTarget(): HTMLElement | null {
+/**
+ * The paper the dock should sit centred under.
+ *
+ * Exported because the carousel has to agree with this: it used to look for
+ * `.proto-editor-paper` itself and give up when there was none, which is every chapter in
+ * the Bible reader — so a dock opened while reading never centred on the column it belongs
+ * to, and the ladder below quietly fell through to the whole main cell instead.
+ *
+ * The reading column ranks with the note's paper because it is the same thing in the other
+ * surface: the 720px sheet the words are on. Everything after is a fallback for surfaces
+ * that have neither.
+ */
+export function resolveStudyDockCenterTarget(): HTMLElement | null {
   const paper = document.querySelector('.proto-editor-paper');
   if (paper instanceof HTMLElement) return paper;
+
+  const readerColumn = document.querySelector('.pds-reader__column');
+  if (readerColumn instanceof HTMLElement) return readerColumn;
 
   const wrap = document.querySelector('.proto-editor-content-wrap');
   if (wrap instanceof HTMLElement) return wrap;
@@ -63,11 +78,9 @@ function resolveStudyDockCenterTarget(): HTMLElement | null {
 }
 
 function syncMeasuredPaperWidth(shell: HTMLElement): void {
-  const paper = document.querySelector('.proto-editor-paper');
-  const measureEl =
-    paper instanceof HTMLElement
-      ? paper
-      : document.querySelector('.proto-editor-content-wrap');
+  // Same ladder as the centre target, so the width the dock sizes itself against and the
+  // thing it centres on are never two different papers.
+  const measureEl = resolveStudyDockCenterTarget();
   if (!(measureEl instanceof HTMLElement)) return;
   const width = measureEl.getBoundingClientRect().width;
   if (width > 0) {
@@ -145,16 +158,23 @@ export function syncStudyDockCenterOffset(track?: HTMLElement | null): number {
 }
 
 /**
- * Measure editor paper edges vs the shell chrome row and sync
+ * Measure the open document's paper edges vs the shell chrome row and sync
  * `--proto-format-toolbar-paper-inset` / `--proto-format-toolbar-paper-right-inset`
  * on `.proto-shell` for format bar host padding.
+ *
+ * "Paper" is whichever document is open: a note's `.proto-editor-paper` or a chapter's
+ * `.pds-reader__column`. Both are the same 720px centred sheet, and the bar is inset to
+ * whichever one is on screen — otherwise it spans the whole shell and stops looking like it
+ * belongs to the document it is acting on.
  */
+const PAPER_SELECTOR = '.proto-editor-paper, .pds-reader__column';
+
 export function syncFormatToolbarPaperInset(): number {
   if (typeof document === 'undefined') return 0;
 
   const shellEl = document.querySelector('.proto-shell');
   const shell = shellEl instanceof HTMLElement ? shellEl : null;
-  const paperEl = document.querySelector('.proto-editor-paper');
+  const paperEl = document.querySelector(PAPER_SELECTOR);
   const chromeRowEl = document.querySelector('.proto-shell__editor-chrome-row');
 
   if (

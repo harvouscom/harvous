@@ -240,6 +240,106 @@ export type StandaloneScripturePassageState = {
   focusedHighlightThreadId: string;
 };
 
+/**
+ * Where a stacked sheet should go back to — captured the moment the stack is made, so a
+ * flip-down or collapse lands where you actually came from even after the sheet's own URL
+ * has changed (a compose draft saves to `/{noteId}`; an expanded reader wanders chapters).
+ */
+export type PaperStackReturnTo = {
+  to: string;
+  params?: Record<string, string>;
+  search?: Record<string, string | undefined>;
+};
+
+/**
+ * The paper a sheet is stacked over: why you got here, and how to get back.
+ *
+ * `kind` is the origin surface. Two are the same pattern in opposite directions — the
+ * reader is the *base* under a note (`reader`) or the *sheet* over a note (`noteDock`,
+ * where a scripture dock expanded into the chapter it is a snippet of). `homeCard` is a
+ * Home recall/revisit card, whose base is a small card restating why you were sent here,
+ * because Home has no main-pane document to stand behind the note.
+ *
+ * `label` + `icon` are all the peeking edge shows. `base` is what renders underneath —
+ * a chapter for the reader, an origin card for everything else.
+ */
+/**
+ * Where on screen the sheet grew out of — viewport coordinates, captured at stack time.
+ *
+ * Only a `noteDock` sets it, and only so the chapter can morph out of the dock card that
+ * asked for it instead of cross-fading in from nowhere. Measured rather than assumed
+ * because the dock's position depends on the sidebar, the note's width and how many cards
+ * are in the carousel; a guess would be wrong on most screens.
+ */
+export type PaperStackMorphFrom = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  /**
+   * Where the dock band sat when this rect was measured — see `readPaperStackDockPlacement`.
+   *
+   * The rect is captured when the dock expands and reused when it collapses, and nothing can
+   * re-measure the card in between: it is unmounted, and its empty slot has no geometry. This
+   * is how the collapse knows the rect is still true.
+   */
+  dockPlacement: string;
+};
+
+export type PaperStackOrigin = {
+  kind: 'reader' | 'homeCard' | 'noteDock';
+  /** See `PaperStackMorphFrom`. Absent means "no morph" — the sheet just arrives. */
+  morphFrom?: PaperStackMorphFrom;
+  /** Sub-kind for `homeCard` (a RecallOpportunityKind or 'revisit'). Telemetry only. */
+  cardKind?: string;
+  /**
+   * The suggestion that sent you here, when one did.
+   *
+   * Present only for a recall row off Home's Suggested shelf, and it is what turns the edge
+   * from a label into something you can answer: the id is the row to put back or to rest,
+   * and the kind is what to record it as. A `revisit` card or a chapter has no suggestion —
+   * nothing proposed them — so their edge stays a plain way back.
+   */
+  suggestion?: { id: string; kind: string };
+  label: string;
+  icon: string;
+  returnTo: PaperStackReturnTo;
+  base:
+    | { type: 'reader'; book: string; chapter: number; translation: string; fromVerse?: number }
+    | { type: 'originCard'; eyebrow?: string; title: string; meta?: string; icon: string };
+};
+
+/**
+ * Shell state rather than route state on purpose. Saving a compose draft navigates to
+ * `/{noteId}`, so a stack derived from the URL would collapse the moment the note saved —
+ * exactly when the origin most needs to still be there. Holding it here lets the URL follow
+ * the top sheet while the paper underneath stays mounted and keeps its scroll position.
+ *
+ * Exactly one edge: a new `stackNote` replaces whatever was stacked before.
+ */
+export type PaperStackState = {
+  origin: PaperStackOrigin;
+  /**
+   * The stacked note's id once it has one. A compose draft stacks without one; the layout's
+   * teardown effect adopts the first note path it sees (the save navigation), which is what
+   * keeps saving from reading as "navigated to a different note" and clearing the stack.
+   */
+  noteId?: string;
+  /**
+   * The stacked note's title, as it reads right now — the parked edge is the note's own
+   * label, so it has to follow a title being typed, not the one it had when it was stacked.
+   * Reported by the note page while it is the sheet; absent until it says so, and absent
+   * for a blank draft, where the edge falls back to the app's word for an untitled note.
+   */
+  noteTitle?: string;
+  /**
+   * Whether the sheet is up. Flipping down sets this false and leaves the sheet mounted
+   * below the fold, so the draft is still there when you flip back — closing it for real
+   * is `clearPaperStack`.
+   */
+  open: boolean;
+};
+
 /** Bottom chrome on note routes — format bar, scripture dock, etc. */
 export type PrototypeEditorChromeMode =
   | 'format'
@@ -404,6 +504,25 @@ type ProtoShellContextValue = {
   standaloneScripturePassage: StandaloneScripturePassageState | null;
   openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
   dismissStandaloneScripturePassage: () => void;
+  /** Non-null while a sheet is stacked over an origin paper (reader, Home card, note). */
+  paperStack: PaperStackState | null;
+  /** Stack a sheet over an origin. Replaces any existing stack — there is exactly one edge. */
+  stackNote: (origin: PaperStackOrigin, noteId?: string) => void;
+  /** Flip the sheet down (or back up) without unmounting it. */
+  setStackSheetOpen: (open: boolean) => void;
+  /**
+   * Record the stacked note's id once a compose draft has saved and has one. Called by the
+   * layout's teardown effect, not by surfaces.
+   */
+  adoptStackNoteId: (noteId: string) => void;
+  /** Keep the parked edge's label in step with the title the note currently has. */
+  setStackNoteTitle: (noteTitle: string) => void;
+  /** While parked, move a reader origin to the chapter actually being read. */
+  retargetStackOrigin: (
+    base: { book: string; chapter: number; translation: string },
+    returnTo: PaperStackReturnTo,
+  ) => void;
+  clearPaperStack: () => void;
   /** Note editor bottom chrome (shell grid row — spans sidebar + main). */
   editorChromeMode: PrototypeEditorChromeMode;
   setEditorChromeMode: (mode: PrototypeEditorChromeMode) => void;
@@ -518,6 +637,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
     null,
   );
+  const [paperStack, setPaperStack] = useState<PaperStackState | null>(null);
   const [editorChromeMode, setEditorChromeMode] = useState<PrototypeEditorChromeMode>('hidden');
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
   const [studyDockCarouselHostEl, setStudyDockCarouselHostEl] = useState<HTMLDivElement | null>(null);
@@ -1172,6 +1292,57 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setStandaloneScripturePassage(null);
   }, []);
 
+  const stackNote = useCallback((origin: PaperStackOrigin, noteId?: string) => {
+    setPaperStack({ origin, noteId, open: true });
+  }, []);
+  const setStackSheetOpen = useCallback((open: boolean) => {
+    setPaperStack((current) => (current ? { ...current, open } : current));
+  }, []);
+  const adoptStackNoteId = useCallback((noteId: string) => {
+    setPaperStack((current) => (current && !current.noteId ? { ...current, noteId } : current));
+  }, []);
+  /**
+   * Point a parked stack's origin at the chapter now being read.
+   *
+   * The origin is captured when the note is stacked, and while the note is UP that capture is
+   * the whole anchor rule — read on, flip back, and you return to where you started. Parked is
+   * the opposite situation: the reader in front IS what you are doing, so an origin still
+   * naming the chapter you left three chapters ago is a breadcrumb to nowhere, and flipping the
+   * note back up would throw away the browsing it was parked for.
+   */
+  const retargetStackOrigin = useCallback(
+    (base: { book: string; chapter: number; translation: string }, returnTo: PaperStackReturnTo) => {
+      setPaperStack((current) => {
+        if (!current || current.origin.kind !== 'reader' || current.origin.base.type !== 'reader') {
+          return current;
+        }
+        const at = current.origin.base;
+        if (at.book === base.book && at.chapter === base.chapter && at.translation === base.translation) {
+          return current;
+        }
+        return {
+          ...current,
+          origin: {
+            ...current.origin,
+            label: `${base.book} ${base.chapter}`,
+            base: { ...at, ...base, fromVerse: undefined },
+            returnTo,
+          },
+        };
+      });
+    },
+    [],
+  );
+
+  const setStackNoteTitle = useCallback((noteTitle: string) => {
+    setPaperStack((current) =>
+      current && current.noteTitle !== noteTitle ? { ...current, noteTitle } : current,
+    );
+  }, []);
+  const clearPaperStack = useCallback(() => {
+    setPaperStack(null);
+  }, []);
+
   const value = useMemo(
     () => ({
       drawerOpen,
@@ -1249,6 +1420,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
+      paperStack,
+      stackNote,
+      setStackSheetOpen,
+      adoptStackNoteId,
+      setStackNoteTitle,
+      retargetStackOrigin,
+      clearPaperStack,
       editorChromeMode,
       setEditorChromeMode,
       formatToolbarHostEl,
@@ -1331,6 +1509,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       standaloneScripturePassage,
       openStandaloneScripturePassage,
       dismissStandaloneScripturePassage,
+      paperStack,
+      stackNote,
+      setStackSheetOpen,
+      adoptStackNoteId,
+      setStackNoteTitle,
+      retargetStackOrigin,
+      clearPaperStack,
       editorChromeMode,
       formatToolbarHostEl,
       studyDockCarouselHostEl,

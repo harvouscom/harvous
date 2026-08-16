@@ -62,7 +62,7 @@ both create buttons under that empty state.
 | Pinned or “this series” channel | Both | Later — unblocked by design | Sermon/series companions without a bulletin. Waited on series being a row rather than a repeated string; that is now decided as `ChurchSeries` ([CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md](./CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md) §9), so a channel can point at one. |
 | Followed vs not-yet-followed channels | Congregant | Later | If opted tracks win over auto-follow-all |
 | Pending connect / “your church is on Harvous” | Congregant | Connect era | Banner when HMC matches but membership isn’t accepted |
-| Per-space teaching plans + service times | Staff author; congregants see a card per ministry they joined | **Designed, not built** — [CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md](./CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md) | A ministry channel or church Shared Space may carry its own plan (Youth meets Wednesdays), plus church-level timezone and default meeting time. The church card is unchanged; each joined ministry with a plan gets **its own** card showing **one** next gathering — never a list. The anti-goal below is amended accordingly (the line becomes *services per card*, not *cards*), landing with its Phase 3, not before. |
+| Per-space teaching plans + service times | Staff author; congregants see a card per ministry they joined | **Built** (Aug 2026) | A ministry channel or church Shared Space may carry its own plan (Youth meets Wednesdays), plus church-level timezone and default meeting time. The church card is unchanged; each joined ministry with a plan gets **its own** card showing **one** next gathering — never a list. The anti-goal below is amended accordingly (the line is now *services per card*, not *cards*). |
 | Teaching plan (collapsed) | **Staff only** | **Built** (v2.19.0; read `sermon_tools` / write `manage_teaching_plan` from v2.21.0) | A staff door into planning what the church teaches — the same “administration, not the daily job” shape as the roster. **Congregants get no plan lane here**; they get one card on Home. |
 
 ## Layer 3 — Useful later; easy to put in the wrong place
@@ -70,10 +70,19 @@ both create buttons under that empty state.
 Prefer **Home**, **Settings**, or a **staff surface** unless one-line and optional:
 
 - **“From your church” feed** — Home only (home church study feed)
-- **A congregant-facing calendar** — still an anti-goal, and the v2.19.0 build honours it. The
-  staff Teaching plan lives in the hub (Layer 2 above); a congregant sees exactly **one**
-  service — the next one — as a "This Sunday" card on Home. No schedule, no "coming up" list,
-  no series page. If a congregant calendar is ever proposed again, this is the line it crosses.
+- **A congregant-facing calendar** — still an anti-goal. The staff Teaching plan lives in the
+  hub (Layer 2 above); a congregant sees exactly **one service per card** — the next one — as a
+  "This Sunday" card on Home, plus one card for each ministry they have joined that has a plan.
+  No schedule, no "coming up" list, no series page. If a congregant calendar is ever proposed
+  again, this is the line it crosses.
+
+  **Amended Aug 2026, with Phase 3.** The line was previously *one service, full stop*; it is
+  now *one service **per card***. What the anti-goal defends against is a congregant seeing the
+  church's **schedule** — and a card per joined ministry is not that: each room reports only its
+  own next gathering, and only when that gathering falls inside the coming week (plus the
+  four-day write-up grace), so a quarterly ministry is silent for eleven weeks rather than parked
+  on Home. A congregant still cannot see a second date for any room, which is the property that
+  matters. **The church card remains unbounded and first.**
   **`ChurchSeries` does not move this line.** A series page is a *staff* surface inside the
   teaching plan; the congregant still gets one card and one next gathering. A series row makes
   material attachable at series grain — it does not make the schedule visible.

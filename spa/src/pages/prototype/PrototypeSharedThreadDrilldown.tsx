@@ -17,6 +17,7 @@ import type { SpaceGroupStudyThread } from '../../hooks/queries/useSpaceGroupThr
 import { useSpaceNotes } from '../../hooks/queries/useSpace';
 import { useUpdateSharedThread } from '../../hooks/mutations/useUpdateSharedThread';
 import { useUpdateThreadSequence } from '../../hooks/mutations/useUpdateThreadSequence';
+import { useCloseThreadRun } from '../../hooks/mutations/useCloseThreadRun';
 import { validSharedThreadColor } from '../../hooks/mutations/useCreateSharedThread';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
@@ -34,7 +35,9 @@ import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
-import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
+import PrototypeSidebarRowMenuPopover, {
+  TRIGGER_ANCHOR_MIN_WIDTH,
+} from './PrototypeSidebarRowMenuPopover';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import {
   SHARED_THREAD_DRILLDOWN_ADD_EXISTING_LABEL,
@@ -131,6 +134,7 @@ export default function PrototypeSharedThreadDrilldown({
   const [renameError, setRenameError] = useState<string | null>(null);
   const [sequenceError, setSequenceError] = useState<string | null>(null);
   const updateSequence = useUpdateThreadSequence();
+  const closeRun = useCloseThreadRun();
   const loadMoreRequestRef = useRef(false);
   const skipTitleBlurSaveRef = useRef(false);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -147,6 +151,8 @@ export default function PrototypeSharedThreadDrilldown({
   */
   const firstPage = notesQuery.data?.pages?.[0];
   const isSequence = firstPage?.mode === 'sequence';
+  /* The leader's close of the run, read back from the same payload as the steps. */
+  const runClosed = Boolean(firstPage?.closedAt);
   const sequenceInfo = firstPage?.sequence ?? null;
   /* Present only when the server decided this viewer may see it — a member's
      payload has no pulse at all, so there is nothing here to conditionally hide. */
@@ -415,12 +421,46 @@ export default function PrototypeSharedThreadDrilldown({
               </button>
               <PrototypeSidebarRowMenuPopover
                 open={menuOpen}
-                rowRef={headerRef}
+                /*
+                  Anchored to the ⋯ itself, not to the header.
+
+                  Every other caller hangs this menu off a list row, where right-aligning to
+                  the row and taking its width is exactly right. This header is not a row —
+                  it is a tall block holding a back tile, a title, a meta line and Compose —
+                  so anchoring to it dropped the menu under the whole block, left-of-where it
+                  was opened and overlapping Compose. The trigger is the thing the menu
+                  belongs to; `minWidth` is what stops a 28px button capping it.
+                */
+                rowRef={menuRootRef}
+                minWidth={TRIGGER_ANCHOR_MIN_WIDTH}
                 triggerRootRef={menuRootRef}
                 onDismiss={() => setMenuOpen(false)}
                 aria-label="Thread actions"
               >
                 <div className="proto-menu-section" role="group">
+                  {/*
+                    Rename leads. The title has always been editable by clicking it, which
+                    is invisible — a menu of thread actions that omitted the most ordinary
+                    one sent people looking for it, and on a state where nothing else
+                    applied the menu collapsed to a single unrelated item.
+                  */}
+                  {isOwner ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="proto-menu-item"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        setIsEditingTitle(true);
+                      }}
+                    >
+                      <span className="proto-menu-item__icon" aria-hidden>
+                        <Icon name="pen" size={PROTO_TOOLBAR_ICON_SIZE} />
+                      </span>
+                      <span className="proto-menu-item__label">Rename</span>
+                    </button>
+                  ) : null}
                   {!thread.isPinned ? (
                     <button
                       type="button"
@@ -458,6 +498,38 @@ export default function PrototypeSharedThreadDrilldown({
                       </span>
                       <span className="proto-menu-item__label">
                         {isSequence ? 'Turn off study plan' : 'Make it a study plan'}
+                      </span>
+                    </button>
+                  ) : null}
+                  {/*
+                    Closing the run is the cohort's completion — "we're done with this
+                    study". It writes nothing on anyone's progress: someone who fell behind
+                    did not finish because the room moved on. A closed run stays readable and
+                    can still be finished late, so this is a label rather than a lock.
+
+                    Only on a sequence, and only for whoever may author it — the same gate
+                    that decides who writes the steps decides who says it is over.
+                  */}
+                  {isSequence && canManageSequence ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="proto-menu-item"
+                      disabled={closeRun.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        closeRun.mutate({ threadId: thread.id, closed: !runClosed });
+                      }}
+                    >
+                      <span className="proto-menu-item__icon" aria-hidden>
+                        <Icon
+                          name={runClosed ? 'rotate-left' : 'circle-check'}
+                          size={PROTO_TOOLBAR_ICON_SIZE}
+                        />
+                      </span>
+                      <span className="proto-menu-item__label">
+                        {runClosed ? 'Reopen this run' : 'Close this run'}
                       </span>
                     </button>
                   ) : null}

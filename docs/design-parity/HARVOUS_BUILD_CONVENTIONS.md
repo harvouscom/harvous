@@ -60,6 +60,9 @@ Native `HarvousTypography` → web `.pds-*` class. Sizes/weights match by intent
 | Footnote | `footnote` | `.pds-footnote` | 11pt · 400 |
 | Inspector body / compact | `inspectorBody` / `inspectorCompact(Medium)` | (inline) | 12pt · 400 / 11pt · 400–500 |
 | Inspector section label | `inspectorSectionLabel` | (used via section header) | 10pt · 600, uppercased, tracked |
+| Scripture reading text | `readerBody(_:)` | `.pds-reader-text` | 17/19/21/24pt · 400 · body — **user-scalable**, see `ReaderTextSize` |
+| Reader verse number | `readerVerseNumber` | `.pds-reader-verse-num` | 11pt · 600 · body, superscript |
+| Reader chapter title | `readerChapterTitle` | `.pds-reader-chapter-title` | 28pt · 600 · rounded |
 
 **Don't introduce a new font size inline.** Pick the closest role above; if a genuinely new role is needed, add it to `HarvousTypography` *and* a `.pds-*` class.
 
@@ -90,6 +93,11 @@ Web layers (all OKLCH, see `prototype-tokens.css`): `--pds-bg-page`, `--pds-bg-t
 - **Icons:** `HarvousIconSize` ↔ `--pds-icon-xs|sm|md|lg|xl`.
 - **Layers (web):** `--pds-z-sticky` (80), `--pds-z-dropdown` (100), `--pds-z-popover` (6000), `--pds-z-modal` (9800), `--pds-z-settings` (9950), `--pds-z-modal-popover` (9960; confirms/menus over Settings/modals), `--pds-z-toast` (10000). Do not invent new z-index literals.
 - **Motion (web):** `--pds-duration-press|popover|sheet|panel` must stay in lockstep with `spa/src/layouts/proto-motion.ts`.
+
+### Bible reader
+`HarvousReaderLayout` (Swift) ↔ `--pds-reader-*` (web): `measure` 620, `marginGutter` 28, `notifierDotSize` 7, `notifierCapsuleWidth` 15, `paragraphSpacing` 18. Text size/leading come from `--pds-reader-font-size` / `--pds-reader-line-height`, whose steps are `ReaderTextSize` in `HarvousTypography.swift` — the reader inspector re-sets those two variables rather than swapping classes.
+
+**Paper is translucent (0.78α) by design** so the canvas reads through it. Any surface that stacks *over another document* must composite it over an opaque base — `background-color: var(--pds-canvas-default)` plus a `linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet))` image — or the two papers blend and read as one screen. See `.pds-reader-stack__sheet`.
 
 ### Light / dark / wallpaper
 Web supports light, dark (`[data-color-scheme="dark"]` + `prefers-color-scheme`), and image-wallpaper (`html.harvous-proto-wallpaper-image`) modes — every token has overrides. Native uses `HarvousAppearanceStore` (canvas presets: Sky, Lilac, Peach, Mint, Pink, Cream + light/dark defaults). Any new color must define its dark value too.

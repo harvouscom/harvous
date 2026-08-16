@@ -395,6 +395,7 @@ export async function createNoteOffline(userId: string, data: {
       lastMonthlyVisit: null,
       churchAddedAt: null,
       appearanceSettings: null,
+      lastReadPosition: null,
       syncStatus: 'pending',
       lastModified: Date.now(),
       createdAt: new Date(),

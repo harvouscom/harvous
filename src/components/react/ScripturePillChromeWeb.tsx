@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 // @ts-ignore — JSON resolveJsonModule
 import bibleChaptersData from '@/data/bible-chapters.json';
+import { orderedCanonBooks } from '@/utils/bible-book-chapters';
 import {
   getChapterVerseRange,
   normalizeScriptureReference,
@@ -43,18 +44,6 @@ import '@/styles/scripture-pill-chrome.css';
 import '@/styles/highlight-dock-web.css';
 
 type BibleChapterRow = { book: string; chapter: number };
-
-function orderedCanonBooks(): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const row of bibleChaptersData as BibleChapterRow[]) {
-    if (!seen.has(row.book)) {
-      seen.add(row.book);
-      out.push(row.book);
-    }
-  }
-  return out;
-}
 
 function maxChapterForBook(book: string): number {
   let max = 0;
@@ -124,6 +113,23 @@ export interface ScripturePillChromeWebProps {
   ) => void;
   /** Related note tapped in the passage context strip — caller navigates to it. */
   onNavigateNote?: (noteId: string) => void;
+  /**
+   * Expand one step further than the dock can: into the full Bible reader at this reference.
+   * A scripture dock is a snippet view of the reader, so this is the dock growing into the
+   * surface it is a snippet of; the caller stacks the reader over the note and collapses back
+   * to the dock. Offered only when the caller can take you back — omitted for read-only cards.
+   */
+  onExpandToReader?: (payload: { reference: string; translation: string }) => void;
+  /**
+   * This dock is now showing a passage — the caller's cue to warm whatever expanding into it
+   * would need.
+   *
+   * Fired on mount and whenever the passage changes, not on the expand tap: by then the work
+   * it pays for is already on the critical path, and the whole point of the morph is that the
+   * chapter is there when the clip opens. The dock is the earliest honest signal that someone
+   * is looking at a passage, which is the moment expanding it becomes plausible.
+   */
+  onPassageShown?: (payload: { reference: string; translation: string }) => void;
   /** Cross-reference tapped in the context strip — caller opens it as a read-only passage card. */
   onOpenScripturePassage?: (reference: string, translation: string) => void;
   /** Read-only passage card (e.g. a cross-reference) — no pill write-back or highlight chrome. */
@@ -150,6 +156,8 @@ export default function ScripturePillChromeWeb({
   editorChromeMode = 'default',
   onOpenPassageReference,
   onNavigateNote,
+  onExpandToReader,
+  onPassageShown,
   onOpenScripturePassage,
   readOnly = false,
 }: ScripturePillChromeWebProps) {
@@ -240,6 +248,12 @@ export default function ScripturePillChromeWeb({
     () => buildReferenceString(selectedBook, chapter, verseStart, endChapter, verseEnd, useVerseRange),
     [selectedBook, chapter, verseStart, endChapter, verseEnd, useVerseRange],
   );
+
+  /* See `onPassageShown` — the caller warms the reader from here, one dock ahead of the tap. */
+  useEffect(() => {
+    if (!onPassageShown || !displayRefString) return;
+    onPassageShown({ reference: displayRefString, translation: trans });
+  }, [onPassageShown, displayRefString, trans]);
 
   // All saved passage study rows (scriptureLink highlights + reference marks) paint INLINE in
   // the passage text — native parity (`ScripturePassageView` underline painting). No list UI.
@@ -760,37 +774,28 @@ export default function ScripturePillChromeWeb({
       // The two passage toggles stay inline at every width — they are what you came to the card
       // for, and below 420px `headerActions` folds into a `…` menu. The accent swatch can live
       // there; a colour change is not a one-tap-per-visit action.
+      /*
+       * The header holds what acts on the CARD; the reference row below holds what acts on
+       * the PASSAGE. Six controls used to sit up here together — open in reader, cross-refs,
+       * related notes, accent, collapse, close — and nothing in the row said which of them
+       * would change the card and which would change what is inside it. Splitting them by
+       * what they act on is a rule you can read off the layout, rather than six icons in a
+       * line to be learnt one at a time.
+       *
+       * Which leaves exactly one thing here besides collapse and close: the one that takes
+       * you somewhere else.
+       */
       headerPrimaryActions={
-        <>
+        onExpandToReader && !readOnly ? (
           <button
             type="button"
-            className={`study-dock-card__header-btn${showCrossRefs ? ' study-dock-card__header-btn--active' : ''}`}
-            onClick={() => setShowCrossRefs((v) => !v)}
-            title={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
-            aria-pressed={showCrossRefs}
-            aria-label={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
+            className="study-dock-card__header-btn"
+            onClick={() => onExpandToReader({ reference: displayRefString, translation: trans })}
+            title="Open in the Bible reader"
+            aria-label="Open in the Bible reader"
           >
-            <Icon name="shuffle" size={12} />
+            <Icon name="up-right-and-down-left-from-center" size={12} />
           </button>
-          <button
-            type="button"
-            className={`study-dock-card__header-btn${showRelatedNotes ? ' study-dock-card__header-btn--active' : ''}`}
-            onClick={() => setShowRelatedNotes((v) => !v)}
-            title={showRelatedNotes ? 'Hide where this appears in your notes' : 'Show where this appears in your notes'}
-            aria-pressed={showRelatedNotes}
-            aria-label={
-              showRelatedNotes
-                ? 'Hide where this appears in your notes'
-                : 'Show where this appears in your notes'
-            }
-          >
-            <Icon name="note-sticky" size={12} />
-          </button>
-        </>
-      }
-      headerActions={
-        onPillAccentChange ? (
-          <DockAccentSwatchButton selection={selectedSwatchKey} onSelectionChange={onPillAccentChange} />
         ) : null
       }
     >
@@ -819,6 +824,44 @@ export default function ScripturePillChromeWeb({
           onToggleVerseRange={handleToggleVerseRange}
           translation={trans}
           onTranslationChange={setTrans}
+          tools={
+            <>
+              <button
+                type="button"
+                className={`study-dock-card__header-btn${showCrossRefs ? ' study-dock-card__header-btn--active' : ''}`}
+                onClick={() => setShowCrossRefs((v) => !v)}
+                title={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
+                aria-pressed={showCrossRefs}
+                aria-label={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
+              >
+                <Icon name="shuffle" size={12} />
+              </button>
+              <button
+                type="button"
+                className={`study-dock-card__header-btn${showRelatedNotes ? ' study-dock-card__header-btn--active' : ''}`}
+                onClick={() => setShowRelatedNotes((v) => !v)}
+                title={
+                  showRelatedNotes
+                    ? 'Hide where this appears in your notes'
+                    : 'Show where this appears in your notes'
+                }
+                aria-pressed={showRelatedNotes}
+                aria-label={
+                  showRelatedNotes
+                    ? 'Hide where this appears in your notes'
+                    : 'Show where this appears in your notes'
+                }
+              >
+                <Icon name="note-sticky" size={12} />
+              </button>
+              {onPillAccentChange ? (
+                <DockAccentSwatchButton
+                  selection={selectedSwatchKey}
+                  onSelectionChange={onPillAccentChange}
+                />
+              ) : null}
+            </>
+          }
         />
       </div>
       <div

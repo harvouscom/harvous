@@ -385,3 +385,90 @@
   text-transform: uppercase;
   vertical-align: middle;
 }
+
+/* ── Reader fixtures (ds-14-reader, ds-15-paper-stack) ──
+   Gallery-only staging: production mounts the reader in the main pane, which
+   supplies its own height. */
+.pds-gallery-reader {
+  height: 340px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-card);
+  overflow: hidden;
+}
+
+.pds-gallery-reader-markers {
+  display: flex;
+  gap: var(--pds-space-5);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.pds-gallery-reader-marker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pds-space-2);
+}
+
+/* Stand-in for the reader's gutter: bars are absolutely positioned against the column they
+   were measured in, so a specimen needs a positioned box of its own to sit in. Two lanes wide
+   so the overlapping pair has somewhere to go. */
+.pds-gallery-reader-bar-stage {
+  position: relative;
+  display: block;
+  width: calc(var(--pds-reader-lane-step) * 2);
+  height: 88px;
+}
+
+.pds-gallery-reader-stack {
+  /* A flex column so the real PrototypePaperStack (flex: 1 1 auto, absolute children) takes
+     the frame's height instead of collapsing to nothing. */
+  display: flex;
+  flex-direction: column;
+  height: 300px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-card);
+  background-color: var(--pds-bg-page);
+  overflow: hidden;
+}
+
+.pds-gallery-reader-note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-5);
+}
+
+/* Reader dock fixture (ds-16-reader-dock) — production mounts this in the main pane,
+   which supplies the height. */
+.pds-gallery-reader-dock-stage {
+  display: flex;
+  height: 360px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-card);
+  overflow: hidden;
+}
+
+/* Reader inspector fixture (ds-17-reader-inspector) — production portals the pane into the
+   shell's right-panel host; the gallery frames it in place. */
+.pds-gallery-reader-inspector-stage {
+  display: flex;
+  gap: var(--pds-space-4);
+  height: 420px;
+}
+
+.pds-gallery-reader-inspector-stage > .pds-reader {
+  flex: 1;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-card);
+  overflow: hidden;
+}
+
+.pds-gallery-inspector-frame {
+  position: static;
+  flex: 0 0 300px;
+  height: 100%;
+  overflow-y: auto;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-card);
+}

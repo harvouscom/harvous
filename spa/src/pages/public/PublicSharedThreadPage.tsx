@@ -29,6 +29,24 @@ interface SharedThreadResponse {
   meta: { noteCount: number };
 }
 
+/**
+ * The published study plan a share link can also point at.
+ *
+ * `/api/shared/thread/:token` deliberately refuses any thread in a non-personal
+ * space, because a shared room's Thread holds members' own notes and a public
+ * page must not list their titles. A *published* plan is the opposite — every
+ * step is church-authored material written to be handed out — and it has its own
+ * endpoint with its own gate ("did a series publish it"). One link, two shapes,
+ * so the page asks for the second when the first says no.
+ */
+interface SharedThreadPlanResponse {
+  plan: { title: string; subtitle: string | null; color: string | null; seriesTitle: string };
+  space: { title: string };
+  steps: { step: number; title: string; reference: string | null; serviceDate: string | null }[];
+  /** Only when the room already has a live invite — this page never mints one. */
+  joinToken: string | null;
+}
+
 export default function PublicSharedThreadPage() {
   const { shareToken } = useParams({ from: '/shared/thread/$shareToken' });
   const { isSignedIn } = useAuth();
@@ -36,6 +54,7 @@ export default function PublicSharedThreadPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [data, setData] = useState<SharedThreadResponse | null>(null);
+  const [plan, setPlan] = useState<SharedThreadPlanResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const addSharedThreadMutation = useAddSharedThread();
@@ -100,10 +119,30 @@ export default function PublicSharedThreadPage() {
   }, [addSharedThreadMutation, data, navigate, queryClient, shareToken, showToast, user?.id]);
 
   useEffect(() => {
+    let cancelled = false;
     api.get<SharedThreadResponse>(`/api/shared/thread/${shareToken}`)
-      .then(setData)
-      .catch(() => setError('not_found'))
-      .finally(() => setIsLoading(false));
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch(() =>
+        /* Not an error yet: the same token may be a published study plan, which
+           the ordinary endpoint refuses by design. Ask the plan endpoint before
+           telling anyone the link is dead. */
+        api
+          .get<SharedThreadPlanResponse>(`/api/shared/thread-plan/${shareToken}`)
+          .then((res) => {
+            if (!cancelled) setPlan(res);
+          })
+          .catch(() => {
+            if (!cancelled) setError('not_found');
+          }),
+      )
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [shareToken]);
 
   useEffect(() => {
@@ -151,6 +190,73 @@ export default function PublicSharedThreadPage() {
           <div className="public-content">
             {isLoading ? (
               <div className="page-loading" />
+            ) : plan ? (
+              /*
+                A published study plan. Deliberately the plan and nothing else:
+                each week's title and passage, which came from the church's own
+                plan rows rather than from anyone's step notes. Nothing a member
+                wrote is on this page, which is what lets it be public at all.
+              */
+              <SubtleContentMount variant="fade">
+                <>
+                  <p className="public-creator">
+                    A study plan from {plan.space.title}
+                  </p>
+
+                  <div className="public-card">
+                    <div
+                      className="public-card__color-stripe"
+                      style={{ background: `var(--color-${plan.plan.color || 'blue'})` }}
+                    />
+                    <div className="public-card__header">
+                      <h1 className="public-card__title">{plan.plan.title}</h1>
+                      <p className="public-card__meta">
+                        {plan.plan.subtitle || plan.plan.seriesTitle}
+                      </p>
+                    </div>
+
+                    <div className="public-card__scroll">
+                      {plan.steps.length === 0 ? (
+                        <div className="public-card__empty">
+                          This plan has no weeks yet.
+                        </div>
+                      ) : (
+                        <ul className="public-card__list">
+                          {plan.steps.map((step, index) => (
+                            <li
+                              key={step.step}
+                              className="public-card__list-item card-enter"
+                              style={{ animationDelay: `${100 + index * 40}ms` }}
+                            >
+                              <div className="public-plan-step">
+                                <span className="public-plan-step__number">{step.step}</span>
+                                <span className="public-plan-step__title">{step.title}</span>
+                                {step.reference ? (
+                                  <span className="public-plan-step__reference">{step.reference}</span>
+                                ) : null}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    {/*
+                      Offered only when the room already has a live invite. This
+                      page never mints one — who may join is the room's decision,
+                      not a consequence of a stranger loading a URL.
+                    */}
+                    {plan.joinToken ? (
+                      <a
+                        className="public-card__cta"
+                        href={`/spaces/join/${encodeURIComponent(plan.joinToken)}`}
+                      >
+                        Join {plan.space.title}
+                      </a>
+                    ) : null}
+                  </div>
+                </>
+              </SubtleContentMount>
             ) : (error || !thread) ? (
               <PublicErrorState
                 title="This thread isn't available"

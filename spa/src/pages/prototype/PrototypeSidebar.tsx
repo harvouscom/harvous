@@ -65,7 +65,11 @@ import {
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { parseScriptureReference } from '@/utils/scripture-detector';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
@@ -3055,8 +3059,15 @@ export default function PrototypeSidebar({
     }
   };
 
-  const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
-    if (!homeSpaceId) return;
+  /**
+   * @returns whether this landed on a note in the main pane. The recall shelf stacks a
+   * breadcrumb edge over whatever a suggestion opened, and it can only do that once it
+   * knows something opened — a highlight with no source note, or one that falls back to the
+   * standalone passage pane, leaves you where you were, and an edge there would name a way
+   * back to the page you are still on.
+   */
+  const onHighlightRow = (r: PrototypeHighlightStudyThreadRow): boolean => {
+    if (!homeSpaceId) return false;
     // Deliberately no `if (!r.parentNoteId) return;` here. That guard used to sit at the top and
     // made a highlight with no source note do nothing at all on tap — no navigation, no
     // fallback, no message — while also rendering the standalone-passage fallback further down
@@ -3092,7 +3103,7 @@ export default function PrototypeSidebar({
             },
           });
           afterNav();
-          return;
+          return true;
         }
         // No source note to anchor the dock to — fall back to the standalone passage view.
         if (isPrototypeNotePath(pathname)) {
@@ -3103,13 +3114,15 @@ export default function PrototypeSidebar({
           translationCode: trans,
           focusedHighlightThreadId: r.id,
         });
+        // The standalone passage pane is not a document in the main pane, so nothing was
+        // stacked over anything.
         afterNav();
-        return;
+        return false;
       }
     }
     // The highlight and reference docks both live inside a note, so without a source note
     // there is nothing to open them on.
-    if (!r.parentNoteId) return;
+    if (!r.parentNoteId) return false;
     dismissStandaloneScripturePassage();
     const isReferenceRow = r.entryKind === 'reference';
     navigate({
@@ -3122,6 +3135,7 @@ export default function PrototypeSidebar({
         : { ...navSearch, highlight: r.id, dockReq: String(Date.now()) },
     });
     afterNav();
+    return true;
   };
 
   /**
@@ -3222,6 +3236,29 @@ export default function PrototypeSidebar({
             passageKey: result.scripturePassageKey,
           });
           return;
+        case 'scriptureReference': {
+          // A row that names a passage has to show the passage. Drilling the sidebar to
+          // its note list instead is the same mismatch the Home passage card used to
+          // have — a scroll icon promising Scripture, delivering a list of notes.
+          //
+          // Opens the reader now that there is one. This row shipped against the standalone
+          // passage pane because the reader did not exist yet; searching a chapter and landing
+          // on the chapter is what it was always reaching for.
+          if (!result.scriptureReference) return;
+          const parsed = parseScriptureReference(result.scriptureReference);
+          if (!parsed) return;
+          void navigate({
+            to: prototypeReadRouteTo(),
+            params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
+            // `scriptureFocusVerse` is set only when the query named a verse, so "John 15"
+            // opens at the top of the chapter instead of scrolled to verse 1.
+            search: {
+              v: result.scriptureFocusVerse ? String(result.scriptureFocusVerse) : undefined,
+              t: undefined,
+            },
+          });
+          return;
+        }
         default:
           return;
       }
@@ -3233,6 +3270,9 @@ export default function PrototypeSidebar({
       setSidebarListMode,
       setActiveFolderKey,
       setSidebarThreadDrilldownId,
+      pathname,
+      navigate,
+      openStandaloneScripturePassage,
     ],
   );
 
@@ -3340,13 +3380,23 @@ export default function PrototypeSidebar({
       {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
       {backTarget && !isHomeLayer ? (
         <div className="proto-sidebar-back-row">
-          <button type="button" className="proto-sidebar-back-row__button" onClick={backTarget.action}>
-            <Icon name="caret-left" size={13} className="proto-sidebar-back-row__chevron" aria-hidden />
-            {backTarget.kind ? (
-              <span className="proto-sidebar-back-row__kind">{backTarget.kind}</span>
-            ) : null}
-            <span className="proto-sidebar-back-row__label">{backTarget.label}</span>
+          {/* Same back affordance as the shared-space Thread drilldown: a tile to press, with
+              the name and its kind beside it. The tile is the target — the name is a heading,
+              not a second control wearing the same job. */}
+          <button
+            type="button"
+            className="proto-sidebar-back-tile"
+            onClick={backTarget.action}
+            aria-label={`Back to ${backTarget.label}`}
+          >
+            <Icon name="caret-left" size={16} aria-hidden />
           </button>
+          <div className="proto-sidebar-back-row__meta">
+            <span className="pds-list-title proto-sidebar-back-row__label">{backTarget.label}</span>
+            {backTarget.kind ? (
+              <p className="proto-caption proto-sidebar-back-row__kind">{backTarget.kind}</p>
+            ) : null}
+          </div>
           {showFolderAddNotes || showThreadAddNotes ? (
             <button
               type="button"
@@ -4238,7 +4288,7 @@ export default function PrototypeSidebar({
                 ) : (
                   <ul className="proto-note-list">
                     {passagesForDrill.map((p) => (
-                      <li key={p.passageKey}>
+                      <li key={p.passageKey} className="proto-scripture-passage-row">
                         <button
                           type="button"
                           className="proto-note-row"
@@ -4254,6 +4304,28 @@ export default function PrototypeSidebar({
                           <div className="pds-list-preview">
                             {p.noteCount} note{p.noteCount !== 1 ? 's' : ''}
                           </div>
+                        </button>
+                        {/* The row itself still drills to this passage's notes — reading the
+                            chapter is a second, distinct intent, so it gets its own target
+                            rather than overloading the row and taking the notes drill away. */}
+                        <button
+                          type="button"
+                          className="proto-scripture-passage-row__read"
+                          aria-label={`Read ${p.displayRef} in the Bible reader`}
+                          title="Read chapter"
+                          onClick={() => {
+                            const bookTitle = scriptureBooks.find(
+                              (b) => b.bookOrder === p.bookOrder,
+                            )?.title;
+                            if (!bookTitle) return;
+                            void navigate({
+                              to: prototypeReadRouteTo(),
+                              params: { book: bookSlug(bookTitle), chapter: String(p.chapter) },
+                              search: { v: String(p.verseStart), t: undefined },
+                            });
+                          }}
+                        >
+                          <Icon name="book-open" size={14} aria-hidden />
                         </button>
                       </li>
                     ))}

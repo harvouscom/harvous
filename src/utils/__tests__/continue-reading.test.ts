@@ -1,0 +1,165 @@
+import { describe, expect, it } from 'vitest';
+import {
+  continueReadingEyebrow,
+  continueReadingMeta,
+  deriveContinueBook,
+  deriveContinueReading,
+} from '../prototype-home-trends';
+
+const chapterCounts = new Map([
+  ['John', 21],
+  ['Jude', 1],
+  ['Romans', 16],
+]);
+
+const lastRead = (book: string, chapter: number) => ({
+  book,
+  bookOrder: 42,
+  chapter,
+  translation: 'NLT',
+});
+
+describe('deriveContinueReading', () => {
+  it('offers the next chapter when the last one was read through', () => {
+    expect(
+      deriveContinueReading(
+        {
+          lastRead: lastRead('John', 15),
+          readChapters: [{ book: 'John', chapter: 15, countsAsRead: true }],
+        },
+        chapterCounts,
+      ),
+    ).toEqual({ book: 'John', bookOrder: 42, chapter: 16, translation: 'NLT', reason: 'next' });
+  });
+
+  it('offers the same chapter again when it was opened but not read', () => {
+    expect(
+      deriveContinueReading(
+        {
+          lastRead: lastRead('John', 15),
+          readChapters: [{ book: 'John', chapter: 15, countsAsRead: false }],
+        },
+        chapterCounts,
+      ),
+    ).toMatchObject({ chapter: 15, reason: 'resume' });
+  });
+
+  it('treats a chapter with no event at all as unfinished', () => {
+    expect(
+      deriveContinueReading({ lastRead: lastRead('John', 15), readChapters: [] }, chapterCounts),
+    ).toMatchObject({ chapter: 15, reason: 'resume' });
+  });
+
+  it('skips past chapters already read, rather than proposing them again', () => {
+    expect(
+      deriveContinueReading(
+        {
+          lastRead: lastRead('John', 15),
+          readChapters: [16, 17, 15].map((chapter) => ({ book: 'John', chapter, countsAsRead: true })),
+        },
+        chapterCounts,
+      ),
+    ).toMatchObject({ chapter: 18, reason: 'next' });
+  });
+
+  it('ignores chapters read in other books', () => {
+    expect(
+      deriveContinueReading(
+        {
+          lastRead: lastRead('John', 15),
+          readChapters: [
+            { book: 'John', chapter: 15, countsAsRead: true },
+            { book: 'Romans', chapter: 16, countsAsRead: true },
+          ],
+        },
+        chapterCounts,
+      ),
+    ).toMatchObject({ book: 'John', chapter: 16 });
+  });
+
+  it('stops at the end of the book instead of rolling into the next one', () => {
+    expect(
+      deriveContinueReading(
+        {
+          lastRead: { ...lastRead('Jude', 1), bookOrder: 64 },
+          readChapters: [{ book: 'Jude', chapter: 1, countsAsRead: true }],
+        },
+        chapterCounts,
+      ),
+    ).toBeNull();
+  });
+
+  it('has nothing to offer before anything has been read', () => {
+    expect(deriveContinueReading({ lastRead: null, readChapters: [] }, chapterCounts)).toBeNull();
+  });
+
+  it('ignores a stored position outside the canon', () => {
+    expect(
+      deriveContinueReading({ lastRead: lastRead('Hezekiah', 1), readChapters: [] }, chapterCounts),
+    ).toBeNull();
+    expect(
+      deriveContinueReading({ lastRead: lastRead('John', 99), readChapters: [] }, chapterCounts),
+    ).toBeNull();
+  });
+});
+
+describe('continue-reading copy', () => {
+  it('says something different for resuming than for moving on', () => {
+    const resume = deriveContinueReading(
+      { lastRead: lastRead('John', 15), readChapters: [] },
+      chapterCounts,
+    )!;
+    const next = deriveContinueReading(
+      {
+        lastRead: lastRead('John', 15),
+        readChapters: [{ book: 'John', chapter: 15, countsAsRead: true }],
+      },
+      chapterCounts,
+    )!;
+
+    expect(continueReadingEyebrow(resume)).toBe('Where you left off reading');
+    expect(continueReadingMeta(resume)).toBe('Back to John 15');
+    expect(continueReadingEyebrow(next)).toBe('Keep reading');
+    expect(continueReadingMeta(next)).toBe('Next in John');
+  });
+});
+
+describe('deriveContinueBook with reading', () => {
+  it('no longer proposes a chapter that was read but never written about', () => {
+    const books = [{ book: 'John', bookOrder: 42, citedChapters: [2, 3], readChapters: [1] }];
+
+    expect(deriveContinueBook(books, chapterCounts)[0]).toMatchObject({ nextChapter: 4 });
+  });
+
+  it('still works from citations alone', () => {
+    const books = [{ book: 'John', bookOrder: 42, citedChapters: [1, 2] }];
+
+    expect(deriveContinueBook(books, chapterCounts)[0]).toMatchObject({ nextChapter: 3 });
+  });
+
+  it('counts a book known only from reading', () => {
+    const books = [{ book: 'John', bookOrder: 42, citedChapters: [], readChapters: [1, 2] }];
+
+    expect(deriveContinueBook(books, chapterCounts)[0]).toMatchObject({ nextChapter: 3 });
+  });
+
+  it('skips a book finished by reading and citing together', () => {
+    const books = [
+      { book: 'Jude', bookOrder: 64, citedChapters: [], readChapters: [1] },
+      { book: 'John', bookOrder: 42, citedChapters: [1], readChapters: [] },
+    ];
+
+    const out = deriveContinueBook(books, chapterCounts);
+
+    expect(out.map((s) => s.book)).toEqual(['John']);
+  });
+
+  it('ranks by everything been through, not citations alone', () => {
+    const books = [
+      { book: 'Romans', bookOrder: 44, citedChapters: [1, 2], readChapters: [] },
+      { book: 'John', bookOrder: 42, citedChapters: [1], readChapters: [2, 3] },
+    ];
+
+    expect(deriveContinueBook(books, chapterCounts).map((s) => s.book)).toEqual(['John', 'Romans']);
+  });
+});

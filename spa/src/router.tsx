@@ -355,6 +355,23 @@ function buildPrototypeRouteBranch() {
     component: () => null,
   });
 
+  /**
+   * Bible reader — `/read/{book}/{chapter}`.
+   *
+   * A real URL rather than shell state, because a chapter is the thing people link to:
+   * a church study, a `harvo.us` short link, or a shared passage all want to open a
+   * reader on a specific chapter. `?v=` focuses a verse, `?t=` picks a translation.
+   */
+  const prototypeReadRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'read/$book/$chapter',
+    validateSearch: (search: Record<string, unknown>) => ({
+      v: typeof search.v === 'string' ? search.v : undefined,
+      t: typeof search.t === 'string' ? search.t : undefined,
+    }),
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadPage')),
+  });
+
   const prototypeLegacySpaceRedirectRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'space/$spaceId',
@@ -522,6 +539,8 @@ function buildPrototypeRouteBranch() {
     prototypeAdminVotdRoute,
     prototypeAdminChurchesRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
+    // Before the catch-all `$noteId`, which would otherwise swallow `/read`.
+    prototypeReadRoute,
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([
       prototypeSettingsIndexRoute,

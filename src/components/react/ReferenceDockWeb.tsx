@@ -51,6 +51,13 @@ export interface ReferenceDockWebProps {
   passageReferenceSaved?: boolean;
   /** Persist the pending suggestion as a real reference. */
   onSaveReference?: () => void;
+  /**
+   * What the save action is called here. A reference has to belong to a note, so the Bible
+   * reader offers this with no note in hand and the honest verb changes: saving into the
+   * note you are reading alongside, versus starting one to hold it. Defaults to the note
+   * case, which is every existing caller.
+   */
+  saveReferenceLabel?: string;
   /** Scripture reference tapped in the body — open it as a read-only passage card. */
   onOpenScripturePassage?: (reference: string) => void;
 }
@@ -124,6 +131,7 @@ export default function ReferenceDockWeb({
   passageReference = false,
   passageReferenceSaved = false,
   onSaveReference,
+  saveReferenceLabel = 'Save reference',
   onOpenScripturePassage,
 }: ReferenceDockWebProps) {
   const [query, setQuery] = useState(initialQuery);
@@ -191,8 +199,8 @@ export default function ReferenceDockWeb({
           e.stopPropagation();
           if (e.detail === 0) onSaveReference?.();
         }}
-        aria-label="Save reference"
-        title="Save reference"
+        aria-label={saveReferenceLabel}
+        title={saveReferenceLabel}
       >
         <Icon name="check" size={14} />
       </button>

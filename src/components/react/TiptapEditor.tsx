@@ -181,6 +181,7 @@ import {
   type StudyDockEntry,
   type StudyDockStack,
 } from '@/utils/study-dock-stack';
+import { saveReferenceStudyThread } from '@/utils/save-reference-study-thread';
 import { hasSeenSharedHighlightTip, markSharedHighlightTipSeen } from '@/utils/shared-highlight-tip';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 import { backfillOrphanHighlights } from '@/utils/orphan-highlight-backfill';
@@ -308,6 +309,14 @@ interface TiptapEditorProps {
   } | null;
   /** Opens a file library item (signed-URL resolve lives with the SPA's data layer). */
   onOpenResourceFile?: (libraryItemId: string) => void;
+  /**
+   * Prototype-only: a scripture dock expanding one step further, into the Bible reader. The
+   * SPA stacks the reader over this note and collapses back to the dock; the editor only
+   * hands over what the dock is showing.
+   */
+  onExpandScriptureToReader?: (payload: { reference: string; translation: string }) => void;
+  /** A scripture dock is showing this passage — see `ScripturePillChromeWeb.onPassageShown`. */
+  onScripturePassageShown?: (payload: { reference: string; translation: string }) => void;
   /**
    * Prototype-only: when provided, the prototype-native format toolbar is rendered
    * via `createPortal` into this element instead of inline. This lets the parent
@@ -4117,6 +4126,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   onReferenceDeepLinkHandoff,
   initialResourceDock = null,
   onOpenResourceFile,
+  onExpandScriptureToReader,
+  onScripturePassageShown,
   prototypeScripturePillOpenRequest = null,
   onPrototypeScripturePillOpenRequestConsumed,
   onPrototypeScripturePillOpenRequestUnresolved,
@@ -5809,37 +5820,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       passage: { reference: string; translation: string; sourceNoteId: string },
     ): Promise<string | null> => {
       if (editorChromeMode !== 'prototypeNative') return null;
-      const norm = normalizeScriptureReference(passage.reference.trim()) ?? passage.reference.trim();
-      const defaultAccent: StudyHighlightAccentKey = 'warmAmber';
-      try {
-        const res = await fetch(`/api/notes/${passage.sourceNoteId}/study-threads`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            withStudyThreadContext(
-              {
-                entryKind: 'reference',
-                sourceSnippet: word,
-                focusTitle: word,
-                highlightAccentRaw: defaultAccent,
-                scriptureReference: norm,
-                scripturePassageTranslation: passage.translation,
-                scripturePassageExcerpt: word,
-              },
-              contextSpaceId,
-            ),
-          ),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          syncStudyThreadList(passage.sourceNoteId);
-          return data.studyThread?.id ?? null;
-        }
-      } catch {
-        /* ignore */
-      }
-      return null;
+      // The POST itself lives in `saveReferenceStudyThread`, shared with the Bible reader
+      // so both surfaces save the same thing. What stays here is the editor's own part:
+      // refreshing this note's thread list once the entry exists.
+      const studyId = await saveReferenceStudyThread({
+        noteId: passage.sourceNoteId,
+        word,
+        reference: passage.reference,
+        translation: passage.translation,
+        spaceId: contextSpaceId,
+      });
+      if (studyId) syncStudyThreadList(passage.sourceNoteId);
+      return studyId;
     },
     [contextSpaceId, editorChromeMode, syncStudyThreadList],
   );
@@ -9752,6 +9744,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       reference={entry.session.reference}
                       translation={entry.session.translation}
                       sourceNoteId={sourceNoteId ?? null}
+                      onExpandToReader={onExpandScriptureToReader}
+                      onPassageShown={onScripturePassageShown}
                       initialPillAccent={entry.session.pillAccent}
                       interactionActive={isActive}
                       animateEnter={false}

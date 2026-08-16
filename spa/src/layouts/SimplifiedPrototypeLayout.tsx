@@ -18,6 +18,7 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
   useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
@@ -35,6 +36,24 @@ import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSi
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
+import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
+import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
+import {
+  morphFromIfStillPlaced,
+  noteDockReturnSearch,
+  readPaperStackDockPlacement,
+} from '../pages/prototype/paper-stack-origins';
+import {
+  notifyRecallCooldownChanged,
+  recordRecallSnoozed,
+  restoreRecallOpportunity,
+} from '../pages/prototype/proto-recall-cooldown';
+import { recordRecallOpportunityEvent } from '../pages/prototype/proto-recall-events';
+import { localDayIndex } from '@/utils/local-day-index';
+import {
+  PROTO_PAPER_STACK_EXIT_MS,
+  PROTO_RESOURCE_MORPH_MS,
+} from './proto-motion';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -55,6 +74,8 @@ import { useNote } from '../hooks/queries/useNote';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
 import { ProtoShellProvider, resolveVisibleComposeTarget, useProtoShell } from './proto-shell-context';
+import { applyReadingPrefs, readReadingPrefs } from '../lib/proto-reading-prefs';
+import { applyFontPrefs, readFontPrefs } from '../lib/proto-font-prefs';
 import { consumePendingComposeSession } from '../lib/pending-compose-session';
 import { consumeComposeRestore } from '../lib/compose-session-restore';
 import { noteParamSlug } from '../pages/prototype/proto-route-slugs';
@@ -74,14 +95,18 @@ import {
 import {
   isPrototypeHomePath,
   isPrototypeNotePath,
+  isPrototypeReadPath,
   isPrototypeAdminPath,
   isPrototypeSettingsPath,
   isPrototypeShellPath,
   matchPrototypeNoteId,
+  prototypeLogicalPath,
   prototypeHomePath,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
+import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
 import {
   clearMainFreezeLayer,
   freezeMainInnerIntoLayer,
@@ -141,6 +166,10 @@ export default function SimplifiedPrototypeLayout() {
   useLayoutEffect(() => {
     const el = document.documentElement;
     applyColorSchemePreference(readColorSchemePreference());
+    // Reading size/leading are CSS vars, so they must be on the root before the reader
+    // paints — otherwise a large-text reader gets one frame at the default size.
+    applyReadingPrefs(readReadingPrefs());
+    applyFontPrefs(readFontPrefs());
     el.classList.add(PROTO_ROUTE_CLASS);
     void applyBackgroundWithImageTint(readActiveBackground());
     initAppearanceAccountSync();
@@ -227,6 +256,7 @@ export default function SimplifiedPrototypeLayout() {
 
 function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const queryClient = useQueryClient();
+  const chromeRouter = useRouter();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const { isSharedSpace, activeSpaceId: resolvedActiveSpaceId } = useActiveSpace();
   useRealtimeSync(userId, { homeSpaceId, activeSpaceId: isSharedSpace ? resolvedActiveSpaceId : null });
@@ -251,6 +281,12 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     activeSpaceId: shellActiveSpaceId,
     activeChurchOrgId,
     composeDraftActive,
+    paperStack,
+    setStackSheetOpen,
+    adoptStackNoteId,
+    retargetStackOrigin,
+    clearPaperStack,
+    openDrawer,
     clearComposeDraftActive,
     beginPrototypeComposeSession,
     expandedSidebarTool,
@@ -285,12 +321,231 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     }
   }, [pathname, composeDraftActive, clearComposeDraftActive]);
 
-  const isNoteRoute = isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname));
+  // A compose draft started from the reader stays on `/read/...` until it saves, so the
+  // editor has to mount there too — otherwise the sheet slides up empty.
+  const isNoteRoute =
+    isPrototypeNotePath(pathname) ||
+    (composeDraftActive && (isPrototypeHomePath(pathname) || isPrototypeReadPath(pathname)));
   /**
    * Host the note editor in the shell (not the route Outlet) so compose-on-`/` →
    * `/{slug}` keeps one PrototypeNotePage instance — no TipTap/inspector remount flash.
+   *
+   * A parked note counts too. Flipping down sends the URL to the origin, and on a reader
+   * origin that is `/read/...`, where the Outlet renders a chapter — so without this the
+   * note the user parked was unmounted and replaced by a second copy of the reader already
+   * showing behind it, and the band at the bottom said "Your note" over a chapter. Keeping
+   * it hosted is also what the whole stack claims: the draft survives the flip.
    */
-  const hostNoteInLayout = isNoteRoute;
+  const hostNoteInLayout =
+    isNoteRoute || Boolean(paperStack && !paperStack.open && paperStack.noteId);
+
+  /**
+   * Does the stack still describe where we are?
+   *
+   * The stack is shell state, so nothing clears it for free — and for a while nothing
+   * cleared it at all: once a note had been stacked over the reader, the reader stayed
+   * mounted behind every route visited afterwards. The rules live in
+   * `resolvePaperStackAfterNavigation` (pure, tested); this effect just applies the verdict
+   * on every pathname change. It also adopts the note id when a compose draft saves, which
+   * is the one navigation that must NOT read as "went to a different note".
+   */
+  useEffect(() => {
+    if (!paperStack) return;
+    /*
+     * No compose exemption here, and that matters.
+     *
+     * There used to be one — skip the whole check while an unsaved compose draft had no note
+     * id and the path was not a note. It was meant to say "a draft still sitting on the
+     * origin's own path has not gone anywhere", but that is not what it tested: every path
+     * that is not a note path matched it, so a draft started from the reader pinned the stack
+     * to Settings, to Home, to everywhere, with the chapter still mounted behind them. That is
+     * the phantom reader this effect exists to prevent, in a narrower disguise.
+     *
+     * The exemption was unnecessary as well as wrong. The resolver handles both halves of the
+     * compose story itself, where they can be tested: it keeps a draft that is still on the
+     * chapter it was started from, and ADOPTS a note path when the stack has no id — the save
+     * navigation. Anything else really is somewhere the stack no longer describes.
+     */
+    const verdict = resolvePaperStackAfterNavigation(paperStack, pathname, {
+      isNotePath: isPrototypeNotePath,
+      noteIdAt: (p) => {
+        const slug = matchPrototypeNoteId(p);
+        if (!slug || isPrototypeDraftNoteSlug(slug)) return null;
+        return normalizeNoteIdFromParam(slug);
+      },
+      isReadPath: isPrototypeReadPath,
+      // Which chapter, not just "a chapter": the resolver needs to tell the origin's own
+      // page (where a compose draft sits, having never navigated) from anywhere else.
+      readTargetAt: (p) => {
+        const m = /^\/read\/([^/]+)\/([^/]+)\/?$/.exec(prototypeLogicalPath(p));
+        if (!m) return null;
+        const chapter = Number.parseInt(m[2], 10);
+        if (!Number.isFinite(chapter)) return null;
+        return { book: bookFromSlug(decodeURIComponent(m[1])) ?? decodeURIComponent(m[1]), chapter };
+      },
+      isHomePath: isPrototypeHomePath,
+    });
+    if (verdict === 'clear') clearPaperStack();
+    else if (verdict !== 'keep') adoptStackNoteId(verdict.adoptNoteId);
+  }, [paperStack, pathname, clearPaperStack, adoptStackNoteId]);
+
+  /*
+   * A parked stack follows the reading.
+   *
+   * Flip a note down, read on to the next chapter, and the edge above you should say where
+   * you now are — and flipping the note back up should leave you here rather than snapping
+   * back three chapters. The capture-at-stack-time rule still holds while the note is UP,
+   * which is what makes "read on and come back" work; parked is the other situation, where
+   * the reader in front is the thing being done.
+   */
+  useEffect(() => {
+    if (!paperStack || paperStack.open) return;
+    if (paperStack.origin.kind !== 'reader') return;
+    if (!isPrototypeReadPath(pathname)) return;
+    const m = /^\/read\/([^/]+)\/([^/]+)\/?$/.exec(prototypeLogicalPath(pathname));
+    if (!m) return;
+    const slug = decodeURIComponent(m[1]);
+    const book = bookFromSlug(slug) ?? slug;
+    const chapter = Number.parseInt(m[2], 10);
+    if (!Number.isFinite(chapter)) return;
+    // The translation the reader is actually showing, from the address; falling back to the
+    // one the origin was captured with, which is what a bare /read/... path inherits anyway.
+    const t = new URLSearchParams(window.location.search).get('t');
+    const translation =
+      t || (paperStack.origin.base.type === 'reader' ? paperStack.origin.base.translation : '');
+    retargetStackOrigin(
+      { book, chapter, translation },
+      {
+        to: prototypeReadRouteTo(),
+        params: { book: bookSlug(book), chapter: String(chapter) },
+        search: { v: undefined, t: translation || undefined },
+      },
+    );
+  }, [paperStack, pathname, retargetStackOrigin]);
+
+  // Switching spaces can keep the same pathname; the origin belonged to the space you left.
+  const prevStackSpaceRef = useRef(resolvedActiveSpaceId);
+  useEffect(() => {
+    const prev = prevStackSpaceRef.current;
+    prevStackSpaceRef.current = resolvedActiveSpaceId;
+    if (paperStack && prev && resolvedActiveSpaceId && prev !== resolvedActiveSpaceId) {
+      clearPaperStack();
+    }
+  }, [resolvedActiveSpaceId, paperStack, clearPaperStack]);
+
+  /**
+   * Flip the sheet down and look at where you came from.
+   *
+   * The URL follows whichever paper is on top, so once a note has saved the address is
+   * `/{noteId}` — leaving it there would show the origin under a note's URL, and a refresh
+   * would reopen the note. Send the address to the origin's `returnTo`, captured when the
+   * stack was made; the sheet stays mounted below the fold with the draft intact. The
+   * sheet's own href is remembered so flipping back up can restore it.
+   *
+   * A `noteDock` origin does not flip — it collapses. The reader is the sheet there, and the
+   * dock it expanded from is already the reader's parked form; parking the reader below the
+   * note as well would be the same paper in two places. So the edge plays the reverse morph,
+   * clears the stack, and returns to the note with a fresh dock nonce so the dock reopens.
+   */
+  const stackedNoteHrefRef = useRef<string | null>(null);
+  const [paperStackExiting, setPaperStackExiting] = useState(false);
+  const handleFlipSheetDown = useCallback(() => {
+    const stack = paperStack;
+    if (!stack) return;
+    const { origin } = stack;
+
+    if (origin.kind === 'noteDock') {
+      if (paperStackExiting) return;
+      setPaperStackExiting(true);
+      window.setTimeout(() => {
+        setPaperStackExiting(false);
+        clearPaperStack();
+        void chromeRouter.navigate({
+          to: origin.returnTo.to,
+          params: origin.returnTo.params ?? {},
+          search: noteDockReturnSearch(origin),
+        });
+        // Held exactly as long as the animation that is playing, and the two are not the
+        // same length: closing a clip back onto the dock's rect is the paper-stack move,
+        // while the no-rect fallback is the shorter resource morph. Clearing early cuts the
+        // chapter off mid-close; clearing late leaves a dead page on screen.
+        // Same test the stack itself makes, so the hold matches the animation that is
+        // actually playing rather than the one that was captured.
+      }, morphFromIfStillPlaced(origin.morphFrom, readPaperStackDockPlacement())
+        ? PROTO_PAPER_STACK_EXIT_MS
+        : PROTO_RESOURCE_MORPH_MS);
+      return;
+    }
+
+    const alreadyOnOrigin =
+      origin.kind === 'reader' ? isPrototypeReadPath(pathname) : isPrototypeHomePath(pathname);
+    stackedNoteHrefRef.current = alreadyOnOrigin ? null : pathname;
+    setStackSheetOpen(false);
+    // On a phone the Home cards live in the drawer, so flipping down to Home has to open it
+    // or the flip lands on an empty pane with the reason you came nowhere in sight.
+    if (origin.kind === 'homeCard' && isMobileSidebar) openDrawer();
+    if (alreadyOnOrigin) return; // compose never left the origin
+    void chromeRouter.navigate({
+      to: origin.returnTo.to,
+      params: origin.returnTo.params ?? {},
+      search: origin.returnTo.search ?? {},
+    });
+  }, [
+    paperStack,
+    paperStackExiting,
+    setStackSheetOpen,
+    clearPaperStack,
+    openDrawer,
+    isMobileSidebar,
+    pathname,
+    chromeRouter,
+  ]);
+
+  /**
+   * The two answers a suggestion's edge offers, beyond the plain × every edge has.
+   *
+   * Both end the stack, because both are decisions about the suggestion rather than about
+   * the breadcrumb. They differ in where they leave you and in what they say about the row:
+   * nevermind goes back to the shelf and puts it back on it, undoing the seven-day rest that
+   * taking it wrote; ignore stays put and rests it for the full three weeks.
+   *
+   * Neither is on a timer. The whole reason these exist is that no rule can tell from
+   * outside whether a suggestion landed.
+   */
+  const handleSuggestionNevermind = useCallback(() => {
+    const stack = paperStack;
+    const suggestion = stack?.origin.suggestion;
+    if (!stack || !suggestion) return;
+    restoreRecallOpportunity(homeSpaceId, suggestion.id);
+    clearPaperStack();
+    if (isMobileSidebar) openDrawer();
+    void chromeRouter.navigate({
+      to: stack.origin.returnTo.to,
+      params: stack.origin.returnTo.params ?? {},
+      search: stack.origin.returnTo.search ?? {},
+    });
+  }, [paperStack, homeSpaceId, clearPaperStack, isMobileSidebar, openDrawer, chromeRouter]);
+
+  const handleSuggestionIgnore = useCallback(() => {
+    const suggestion = paperStack?.origin.suggestion;
+    if (!suggestion) return;
+    recordRecallOpportunityEvent({
+      opportunityId: suggestion.id,
+      kind: suggestion.kind as never,
+      action: 'snooze',
+    });
+    recordRecallSnoozed(homeSpaceId, suggestion.id, localDayIndex(new Date()));
+    notifyRecallCooldownChanged();
+    clearPaperStack();
+  }, [paperStack, homeSpaceId, clearPaperStack]);
+
+  const handleFlipSheetUp = useCallback(() => {
+    setStackSheetOpen(true);
+    const href = stackedNoteHrefRef.current;
+    stackedNoteHrefRef.current = null;
+    // An unsaved compose draft has no address of its own; it simply reappears.
+    if (href) void chromeRouter.navigate({ to: href });
+  }, [setStackSheetOpen, chromeRouter]);
   const isAdminRoute = isPrototypeAdminPath(pathname);
   const isSettingsRoute = isPrototypeSettingsPath(pathname);
   /** Desktop modal: keep last main paint under the settings portal. Mobile sheet keeps current Outlet. */
@@ -748,11 +1003,39 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             hidden={desktopSettingsKeepAlive || undefined}
             aria-hidden={desktopSettingsKeepAlive || undefined}
           >
-            {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
+            {paperStack ? (
+              <PrototypePaperStack
+                stack={paperStack}
+                exiting={paperStackExiting}
+                onFlipDown={handleFlipSheetDown}
+                onFlipUp={handleFlipSheetUp}
+                onDismiss={clearPaperStack}
+                onSuggestionNevermind={handleSuggestionNevermind}
+                onSuggestionIgnore={handleSuggestionIgnore}
+                /* Parked: the URL is the origin's own address, so the Outlet IS the reader
+                   route — hand it down as the paper behind, which is the surface being used
+                   now. Any other time the descriptor's stand-in is right, and the Outlet is
+                   whatever the sheet is showing. */
+                baseSlot={
+                  paperStack && !paperStack.open && paperStack.noteId ? <Outlet /> : undefined
+                }
+              >
+                {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
+              </PrototypePaperStack>
+            ) : hostNoteInLayout ? (
+              <PrototypeNotePage />
+            ) : (
+              <Outlet />
+            )}
           </div>
         </main>
 
-        <div className="proto-shell__right-panel-host" aria-hidden={!isNoteRoute} />
+        {/* The reader portals its inspector in here too, so hiding this from assistive tech
+            on every non-note route hid the reading-details panel from anyone using one. */}
+        <div
+          className="proto-shell__right-panel-host"
+          aria-hidden={!isNoteRoute && !isPrototypeReadPath(pathname) ? true : undefined}
+        />
 
         {expandedSidebarMounted ? (
           <PrototypeExpandedSidebarHost
@@ -762,7 +1045,18 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           />
         ) : null}
 
-        {isNoteRoute ? <PrototypeEditorChromeBar /> : null}
+        {/* The bottom chrome is the shell's, not the editor's — a note fills it with the
+            format toolbar, the reader fills it with verse actions. Both go through
+            `editorChromeMode`, which stays 'hidden' (bar collapsed to zero height) until a
+            surface asks for it, so mounting it on a reading route costs nothing until verses
+            are selected.
+
+            It still goes down with a stacked note sheet: with the note flipped away the bar
+            below it belongs to the chapter, and leaving the note's toolbar hovering over
+            Scripture would also cover the way back up to the note. */}
+        {(isNoteRoute || isPrototypeReadPath(pathname)) && (!paperStack || paperStack.open) ? (
+          <PrototypeEditorChromeBar />
+        ) : null}
         </div>
       </div>
     </>
@@ -820,14 +1114,24 @@ function PrototypeShortcutBridge() {
     toolbarNoteId ?? '',
     toolbarContextSpaceId,
   );
-  const showNoteDetailsOrb = prototypeToolbarNoteDetailsAvailable({
-    isOnNotePage:
-      isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),
-    toolbarNoteId,
-    toolbarNoteLoading,
-    hasToolbarNote: !!toolbarNote,
-    isDraftNoteRoute,
-  });
+  /*
+   * `|| isPrototypeReadPath` to match the toolbar's own test.
+   *
+   * NativeToolbar shows the details orb on a chapter (`|| isOnReadPage`), because the reader
+   * has an inspector too. This copy — the one the keyboard shortcut goes through — did not,
+   * so ⌘-toggling the inspector was silently a no-op everywhere in the reader while the
+   * button beside it worked.
+   */
+  const showNoteDetailsOrb =
+    isPrototypeReadPath(pathname) ||
+    prototypeToolbarNoteDetailsAvailable({
+      isOnNotePage:
+        isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),
+      toolbarNoteId,
+      toolbarNoteLoading,
+      hasToolbarNote: !!toolbarNote,
+      isDraftNoteRoute,
+    });
 
   const createPrototypeNote = useCallback(() => {
     const targetSpaceId = resolveVisibleComposeTarget({

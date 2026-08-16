@@ -105,6 +105,8 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   'compete',
   'learn',
   'org',
+  // Bible reader — `/read/{book}/{chapter}`. Without this, `/read` is a note id.
+  'read',
 ]);
 
 export function isReservedPrototypeSegment(segment: string): boolean {
@@ -247,6 +249,17 @@ export function prototypeNoteRoutePaths(hostname?: string): {
 /** TanStack Router `to` for the canonical note route on the current host. */
 export function prototypeNoteRouteTo(hostname?: string): '/prototype/$noteId' {
   return (isDedicatedPrototypeHost(hostname) ? '/$noteId' : '/prototype/$noteId') as '/prototype/$noteId';
+}
+
+export function prototypeReadRouteTo(): '/prototype/read/$book/$chapter' {
+  return (isDedicatedPrototypeHost()
+    ? '/read/$book/$chapter'
+    : '/prototype/read/$book/$chapter') as '/prototype/read/$book/$chapter';
+}
+
+/** True for `/read/{book}/{chapter}` — the reader hosts in the shell like the note editor. */
+export function isPrototypeReadPath(pathname: string): boolean {
+  return /^\/read\/[^/]+\/[^/]+\/?$/.test(prototypeLogicalPath(pathname));
 }
 
 export function prototypeSettingsRouteTo(): '/prototype/settings' {

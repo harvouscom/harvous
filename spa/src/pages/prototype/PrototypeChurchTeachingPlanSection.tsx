@@ -285,15 +285,27 @@ export default function PrototypeChurchTeachingPlanSection({
             {`${data.services.length} planned${activeSpace ? ` · ${activeSpace.title}` : ''}`}
           </p>
           {canWrite ? (
-            <button
-              type="button"
-              className="proto-glass-surface proto-glass-surface--control proto-glass-action"
-              disabled={actions.isPending}
-              onClick={() => openEditor(null)}
-            >
-              <Icon name="plus" size={12} aria-hidden />
-              <span className="proto-glass-action__label">{vocab.addLabel}</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                disabled={actions.isPending}
+                onClick={() => (vocab.addOpens === 'series' ? setCreatingSeries(true) : openEditor(null))}
+              >
+                <Icon name="plus" size={12} aria-hidden />
+                <span className="proto-glass-action__label">{vocab.addLabel}</span>
+              </button>
+              {vocab.secondaryAddLabel ? (
+                <button
+                  type="button"
+                  className="proto-sheet-quiet-action"
+                  disabled={actions.isPending}
+                  onClick={() => openEditor(null)}
+                >
+                  {vocab.secondaryAddLabel}
+                </button>
+              ) : null}
+            </>
           ) : null}
         </div>
       ) : null}
@@ -323,7 +335,7 @@ export default function PrototypeChurchTeachingPlanSection({
                 type="button"
                 className="proto-glass-surface proto-glass-surface--control proto-glass-action"
                 disabled={actions.isPending}
-                onClick={() => openEditor(null)}
+                onClick={() => (vocab.addOpens === 'series' ? setCreatingSeries(true) : openEditor(null))}
               >
                 <Icon name="plus" size={12} aria-hidden />
                 <span className="proto-glass-action__label">{vocab.addLabel}</span>

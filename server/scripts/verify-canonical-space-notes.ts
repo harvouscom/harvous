@@ -86,13 +86,19 @@ async function durableAnchorCheck(batchSize: number): Promise<CheckResult> {
         : [];
     const versionById = new Map(versions.map((version) => [version.id, version]));
     for (const row of rows) {
+      // A highlight made while reading binds to no note version, so it is not a durable anchor
+      // and has nothing to verify. Without this it fails the binding check below and every
+      // reader highlight is reported as an issue — the check would grow noisier the more
+      // people read, which is the opposite of what a verification script is for.
+      const { parentNoteId } = row;
+      if (!parentNoteId) continue;
       const originalVersion = row.noteVersionId ? versionById.get(row.noteVersionId) : null;
       const resolvedVersionId = row.resolvedVersionId ?? row.noteVersionId;
       const resolvedVersion = resolvedVersionId ? versionById.get(resolvedVersionId) : null;
       const reason =
-        !originalVersion || originalVersion.noteId !== row.parentNoteId
+        !originalVersion || originalVersion.noteId !== parentNoteId
           ? 'invalid-original-version-binding'
-          : durableAnchorValidityReason(row, resolvedVersion ?? null);
+          : durableAnchorValidityReason({ ...row, parentNoteId }, resolvedVersion ?? null);
       if (reason) {
         issueCount++;
         if (samples.length < SAMPLE_LIMIT) samples.push({ entryId: row.id, reason });

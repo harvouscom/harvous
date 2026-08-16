@@ -4,43 +4,103 @@
     {
       "name": "spa",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:all"],
+      "runtimeArgs": [
+        "run",
+        "dev:all"
+      ],
       "port": 4322,
       "autoPort": false
     },
     {
       "name": "spa-built",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "preview:spa"],
+      "runtimeArgs": [
+        "run",
+        "preview:spa"
+      ],
       "port": 4324,
       "autoPort": false
     },
     {
       "name": "site",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "site", "--", "--port", "4356"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "site",
+        "--",
+        "--port",
+        "4356"
+      ],
       "port": 4356,
       "autoPort": false
     },
     {
       "name": "sermon-planning-spa",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:spa", "--", "--port", "4327"],
+      "runtimeArgs": [
+        "run",
+        "dev:spa",
+        "--",
+        "--port",
+        "4327"
+      ],
       "port": 4327,
       "autoPort": false
     },
     {
       "name": "shared-spaces-worktree",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:all", "--prefix", ".claude/worktrees/shared-spaces-foundation"],
+      "runtimeArgs": [
+        "run",
+        "dev:all",
+        "--prefix",
+        ".claude/worktrees/shared-spaces-foundation"
+      ],
       "port": 4322,
       "autoPort": false
     },
     {
       "name": "shared-spaces-worktree-spa-alt",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:spa", "--prefix", ".claude/worktrees/shared-spaces-foundation", "--", "--port", "4325"],
+      "runtimeArgs": [
+        "run",
+        "dev:spa",
+        "--prefix",
+        ".claude/worktrees/shared-spaces-foundation",
+        "--",
+        "--port",
+        "4325"
+      ],
       "port": 4325,
+      "autoPort": false
+    },
+    {
+      "name": "reader-design-spa",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:spa",
+        "--",
+        "--port",
+        "4326",
+        "--strictPort"
+      ],
+      "port": 4326,
+      "autoPort": false,
+      "env": {
+        "VITE_API_PROXY_TARGET": "http://localhost:3001"
+      }
+    },
+    {
+      "name": "spa-alt-ports",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "API_PORT=3002 VITE_API_PROXY_TARGET=http://localhost:3002 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4326 --strictPort'"
+      ],
+      "port": 4326,
       "autoPort": false
     }
   ]

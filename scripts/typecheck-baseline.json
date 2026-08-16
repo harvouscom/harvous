@@ -61,7 +61,6 @@
   "src/utils/__tests__/scripture-pill-line-breaks.integration.test.ts": 1,
   "src/utils/__tests__/scripture-pill-position.test.ts": 2,
   "src/utils/__tests__/season-helpers.test.ts": 1,
-  "src/utils/__tests__/study-dock-layout.test.ts": 15,
   "src/utils/__tests__/study-thread-display-title.test.ts": 1,
   "src/utils/__tests__/study-thread-highlight-rehydrate.test.ts": 3,
   "src/utils/__tests__/thread-suggestion-ranking.test.ts": 2,

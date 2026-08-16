@@ -41,7 +41,15 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   { name: 'Psalms', category: 'book', synonyms: ['psalm', 'ps'], confidence: 0.9 },
   { name: 'Proverbs', category: 'book', synonyms: ['prov', 'proverb'], confidence: 0.9 },
   { name: 'Ecclesiastes', category: 'book', synonyms: ['eccl', 'ecc'], confidence: 0.9 },
-  { name: 'Song of Songs', category: 'book', synonyms: ['song of solomon', 'sos'], confidence: 0.9 },
+  /*
+   * "Song of Songs" is the literal Hebrew title — a superlative, like "king of kings". This
+   * canon says "Song of Solomon" anyway, because that is the spelling the verse rows, the
+   * chapter data and every book list in the app already use, and a canon that disagrees with
+   * the text it indexes is not a canon. It disagreed for a while: three separate places grew
+   * hand-written aliases to paper over it, and the reader could not open the book at all.
+   * Both spellings still resolve on input.
+   */
+  { name: 'Song of Solomon', category: 'book', synonyms: ['song of songs', 'canticles', 'sos'], confidence: 0.9 },
   { name: 'Isaiah', category: 'book', synonyms: ['isa'], confidence: 0.9 },
   { name: 'Jeremiah', category: 'book', synonyms: ['jer'], confidence: 0.9 },
   { name: 'Lamentations', category: 'book', synonyms: ['lam'], confidence: 0.9 },

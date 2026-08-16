@@ -3269,7 +3269,11 @@ route.get('/api/notes/:noteId/activity', requireAuth, async (c) => {
       contextSpaceId,
       associations,
       spaces,
-      entries,
+      // The query above filters on `parentNoteId = noteId`, so every row here has one. The
+      // column is nullable because a highlight made while reading has no parent note, but
+      // such a row can never match that filter — restated here rather than cast, so the
+      // guarantee is the query's and not an assertion.
+      entries: entries.map((row) => ({ ...row, parentNoteId: noteId })),
       authors,
     });
     return c.json({ success: true, contextSpaceId, groups });

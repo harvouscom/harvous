@@ -2,7 +2,7 @@
  * Fixture previews for design-system foundation scenes.
  * Uses production tokens + primitives — edit linked files; HMR updates here.
  */
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
@@ -14,6 +14,8 @@ import {
   PrototypeSectionHeader,
 } from '../../prototype/design-system';
 import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
+import PrototypePaperStack from '../../prototype/PrototypePaperStack';
+import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
@@ -23,6 +25,14 @@ import {
   imagePresetUrl,
   presetDisplayLabel,
 } from '../../../lib/prototype-background';
+import PassageContextStrip, { primePassageContextCache } from '@/components/react/PassageContextStrip';
+import PrototypeReaderInspectorPane from '../../prototype/PrototypeReaderInspectorPane';
+import PrototypeNoteAudienceBar from '../../prototype/PrototypeNoteAudienceBar';
+import PrototypeDraftDestinationSheet from '../../prototype/PrototypeDraftDestinationSheet';
+import PrototypeTranslationRow, {
+  type TranslationRowState,
+} from '../../prototype/settings/PrototypeTranslationRow';
+import type { FontChoice } from '../../../lib/proto-font-prefs';
 import type { DesignSystemScene } from './sceneRegistry';
 
 function Swatch({ label, varName }: { label: string; varName: string }) {
@@ -590,6 +600,581 @@ function ThreadTrailScene() {
   );
 }
 
+/** John 1 fixture — verse-per-entry, because a verse is the reader's selection unit. */
+const READER_VERSES: { num: number; text: string; notes?: number; highlighted?: boolean }[] = [
+  {
+    num: 1,
+    text: 'In the beginning was the Word, and the Word was with God, and the Word was God.',
+    notes: 1,
+  },
+  { num: 2, text: 'He was with God in the beginning.' },
+  {
+    num: 3,
+    text: 'Through him all things were made; without him nothing was made that has been made.',
+    notes: 3,
+    highlighted: true,
+  },
+  { num: 4, text: 'In him was life, and that life was the light of all mankind.' },
+  { num: 5, text: 'The light shines in the darkness, and the darkness has not overcome it.' },
+];
+
+/**
+ * One margin bar. In production `top`/`height`/`lane` are measured from the verses a note
+ * covers; here they are given, so the specimen can show spans and lanes side by side.
+ */
+function ReaderBar({
+  top,
+  height,
+  lane = 0,
+  heat = 1,
+  label,
+}: {
+  top: number;
+  height: number;
+  lane?: number;
+  heat?: number;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      className="pds-reader__bar"
+      style={{ top, height, '--lane': lane } as CSSProperties}
+      data-heat={heat}
+      aria-label={label}
+      title={label}
+    >
+      <span className="pds-reader__bar-line" />
+    </button>
+  );
+}
+
+function ReaderScene() {
+  const [selected, setSelected] = useState<number | null>(4);
+  // Roving tabindex: the chapter is ONE tab stop and arrows move between verses.
+  // A focusable-per-verse model would put 31 tab stops in John 1 and 176 in
+  // Psalm 119, which is why the verse is an option in a listbox, not a button.
+  const [focusedVerse, setFocusedVerse] = useState(READER_VERSES[0].num);
+
+  const moveFocus = (from: number, delta: number) => {
+    const i = READER_VERSES.findIndex((v) => v.num === from);
+    const next = READER_VERSES[Math.min(READER_VERSES.length - 1, Math.max(0, i + delta))];
+    setFocusedVerse(next.num);
+    document.querySelector<HTMLElement>(`[data-verse="${next.num}"]`)?.focus();
+  };
+
+  /*
+   * The scene measures its bars the way the reader does, rather than hardcoding offsets.
+   * A fixture with baked-in pixel tops would drift the moment the type scale moved, and a
+   * gallery that quietly disagrees with production is worse than no gallery.
+   */
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  const [galleryBars, setGalleryBars] = useState<
+    { key: string; top: number; height: number; lane: number; heat: number; label: string }[]
+  >([]);
+
+  useLayoutEffect(() => {
+    const column = columnRef.current;
+    if (!column) return;
+    const measure = () => {
+      const base = column.getBoundingClientRect().top;
+      const spans = [
+        { key: 'a', from: 1, to: 1, lane: 0, heat: 1, label: 'One note — John 1:1' },
+        { key: 'b', from: 3, to: 5, lane: 0, heat: 1, label: 'One note — John 1:3-5' },
+        { key: 'c', from: 3, to: 4, lane: 1, heat: 3, label: '3 notes — John 1:3-4' },
+      ];
+      setGalleryBars(
+        spans.flatMap((s) => {
+          const a = column.querySelector(`[data-verse="${s.from}"]`);
+          const b = column.querySelector(`[data-verse="${s.to}"]`);
+          if (!(a instanceof HTMLElement) || !(b instanceof HTMLElement)) return [];
+          const first = a.getClientRects()[0];
+          const rects = b.getClientRects();
+          const last = rects[rects.length - 1];
+          if (!first || !last) return [];
+          return [{
+            key: s.key,
+            top: Math.round(first.top - base),
+            height: Math.max(4, Math.round(last.bottom - first.top)),
+            lane: s.lane,
+            heat: s.heat,
+            label: s.label,
+          }];
+        }),
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="pds-gallery-stack">
+      <PrototypeSectionHeader>Reading canvas</PrototypeSectionHeader>
+      <p className="pds-caption">
+        Text role <code>.pds-reader-text</code>; size/leading come from{' '}
+        <code>--pds-reader-font-size</code> so the inspector re-sets one variable. Geometry mirrors{' '}
+        <code>HarvousReaderLayout</code>. Selection snaps to whole verses — click one, or tab into
+        the chapter once and use ↑/↓ then Enter.
+      </p>
+
+      <div className="pds-reader pds-gallery-reader">
+        <div className="pds-reader__scroll">
+          <div className="pds-reader__column" ref={columnRef}>
+            <div className="pds-reader__margin" aria-hidden>
+              {galleryBars.map(({ key, ...bar }) => (
+                <ReaderBar key={key} {...bar} />
+              ))}
+            </div>
+            <div className="pds-reader__chapter-heading">
+              <h2 className="pds-reader-chapter-title">John 1</h2>
+              <p className="pds-reader__chapter-meta pds-caption">New International Version</p>
+            </div>
+
+            <div role="listbox" aria-label="John 1 verses">
+              {READER_VERSES.map((verse) => (
+                <div className="pds-reader__block" role="none" key={verse.num}>
+                  <p className="pds-reader-text" role="none">
+                    <span
+                      className="pds-reader__verse"
+                      role="option"
+                      data-verse={verse.num}
+                      aria-selected={selected === verse.num}
+                      tabIndex={focusedVerse === verse.num ? 0 : -1}
+                      data-selected={selected === verse.num ? 'true' : 'false'}
+                      data-highlighted={verse.highlighted ? 'true' : 'false'}
+                      onFocus={() => setFocusedVerse(verse.num)}
+                      onClick={() => setSelected((n) => (n === verse.num ? null : verse.num))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelected((n) => (n === verse.num ? null : verse.num));
+                        } else if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          moveFocus(verse.num, 1);
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          moveFocus(verse.num, -1);
+                        }
+                      }}
+                    >
+                      <sup className="pds-reader-verse-num">{verse.num}</sup>
+                      {verse.text}
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <PrototypeSectionHeader>Margin notifiers</PrototypeSectionHeader>
+      <p className="pds-caption">
+        One bar per note, its length the verses that note covers — a single verse is a tick, a
+        range is a rule. Overlapping notes take parallel lanes (three, then further notes merge
+        into the innermost bar and deepen it). Colour comes from{' '}
+        <code>--pds-reader-notifier-color</code>; intensity uses the same discrete steps as the
+        church scripture heatmap. The gutter is reserved even when empty, so text never reflows
+        when the first note lands.
+      </p>
+      <div className="pds-gallery-reader-markers">
+        <div className="pds-gallery-reader-marker-item">
+          <span className="pds-gallery-reader-bar-stage">
+            <ReaderBar top={8} height={18} label="One verse" />
+          </span>
+          <span className="pds-footnote">One verse</span>
+        </div>
+        <div className="pds-gallery-reader-marker-item">
+          <span className="pds-gallery-reader-bar-stage">
+            <ReaderBar top={8} height={64} label="A range" />
+          </span>
+          <span className="pds-footnote">A range</span>
+        </div>
+        <div className="pds-gallery-reader-marker-item">
+          <span className="pds-gallery-reader-bar-stage">
+            <ReaderBar top={8} height={48} lane={0} label="First note" />
+            <ReaderBar top={30} height={50} lane={1} label="Overlapping note" />
+          </span>
+          <span className="pds-footnote">Overlapping</span>
+        </div>
+        <div className="pds-gallery-reader-marker-item">
+          <span className="pds-gallery-reader-bar-stage">
+            <ReaderBar top={8} height={64} heat={4} label="Several notes merged" />
+          </span>
+          <span className="pds-footnote">Merged</span>
+        </div>
+      </div>
+
+      <PrototypeSectionHeader>Reading states</PrototypeSectionHeader>
+      <div className="pds-gallery-empty-grid">
+        <div className="pds-gallery-empty-panel pds-gallery-empty-panel--pane">
+          <PrototypePaneEmptyState
+            icon="scroll"
+            title="Pick up where you left off"
+            description="Open a book to start reading."
+          />
+        </div>
+        <div className="pds-gallery-empty-panel pds-gallery-empty-panel--pane">
+          <PrototypePaneEmptyState
+            icon="cloud"
+            title="Not downloaded yet"
+            description="This translation isn't available offline. Reconnect, or download it in Translations."
+          />
+        </div>
+      </div>
+      <p className="pds-caption">
+        Loading a chapter shows the real passage arriving, not a skeleton — see the design system on
+        placeholder loaders.
+      </p>
+    </div>
+  );
+}
+
+function PaperStackScene() {
+  const [open, setOpen] = useState(true);
+  const [originKind, setOriginKind] = useState<'homeCard' | 'noteDock'>('homeCard');
+
+  /**
+   * The real component over canned origins — no network, no reader query. A hand-copied
+   * fixture used to live here and had already drifted from production (it lost the resume
+   * pill), which is the argument for rendering the thing itself.
+   */
+  const origin: PaperStackOrigin =
+    originKind === 'homeCard'
+      ? {
+          kind: 'homeCard',
+          cardKind: 'revisitNote',
+          label: 'Worth another look',
+          icon: 'arrow-rotate-left',
+          returnTo: { to: '/' },
+          base: {
+            type: 'originCard',
+            eyebrow: 'Worth another look',
+            title: 'The vine and the branches',
+            meta: '5d ago · Life in the Spirit',
+            icon: 'arrow-rotate-left',
+          },
+        }
+      : {
+          kind: 'noteDock',
+          label: 'The vine and the branches',
+          icon: 'note-sticky',
+          returnTo: { to: '/' },
+          base: {
+            type: 'originCard',
+            title: 'The vine and the branches',
+            meta: 'John 15:5 · NLT',
+            icon: 'note-sticky',
+          },
+        };
+
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        A sheet stacked over the paper it came from. Two papers and nothing else: the
+        origin&apos;s top corners peek above the sheet and are the way back; flipped down, the
+        sheet&apos;s own top edge peeks from the bottom and is the way back up. Neither paper
+        unmounts, so position and draft both survive the move —{' '}
+        <code>PROTO_PAPER_STACK_MS</code> ↔ <code>--pds-duration-paper-stack</code> going in,{' '}
+        <code>PROTO_PAPER_STACK_EXIT_MS</code> ↔{' '}
+        <code>--pds-duration-paper-stack-exit</code> coming out. A{' '}
+        <code>noteDock</code> origin (the reader expanded out of a scripture dock) enters with the
+        expansion morph instead of the slide.
+      </p>
+
+      <div className="pds-gallery-btn-row">
+        <button
+          type="button"
+          className="proto-share-popover__copy"
+          onClick={() => setOpen((s) => !s)}
+          aria-pressed={open}
+        >
+          {open ? 'Flip the sheet down' : 'Bring the sheet back'}
+        </button>
+        <button
+          type="button"
+          className="proto-share-popover__copy"
+          onClick={() => setOriginKind((k) => (k === 'homeCard' ? 'noteDock' : 'homeCard'))}
+        >
+          Origin: {originKind === 'homeCard' ? 'Home card' : 'note dock'}
+        </button>
+      </div>
+
+      <div className="pds-gallery-reader-stack">
+        <PrototypePaperStack
+          key={originKind}
+          stack={{ origin, noteId: 'gallery', noteTitle: 'The vine and the branches', open }}
+          onFlipDown={() => setOpen(false)}
+          onFlipUp={() => setOpen(true)}
+          // The gallery keeps the paper: dismissing here would leave an empty frame with no
+          // way to get the scene back short of a reload.
+          onDismiss={() => setOpen(true)}
+        >
+          <div className="pds-gallery-reader-note">
+            <p className="pds-compose-title">
+              {originKind === 'homeCard' ? 'The vine and the branches' : 'John 15'}
+            </p>
+            <p className="pds-caption">
+              {originKind === 'homeCard' ? 'John 15:5 · NLT' : 'New Living Translation'}
+            </p>
+            <p className="pds-body">
+              {originKind === 'homeCard'
+                ? 'Apart from me you can do nothing — the whole chapter turns on that clause…'
+                : '“I am the true grapevine, and my Father is the gardener…”'}
+            </p>
+          </div>
+        </PrototypePaperStack>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The dock beside the reading surface, rendering the real `PassageContextStrip` over a
+ * primed cache — the gallery has no session, and restating the strip's markup here would
+ * drift from production the first time that component changed.
+ */
+const DOCK_REF = 'Romans 8:28';
+const DOCK_TRANSLATION = 'NET';
+primePassageContextCache(DOCK_REF, DOCK_TRANSLATION, {
+  themes: [
+    { topicId: 't1', slug: 'providence', label: 'Providence', relevance: 92 },
+    { topicId: 't2', slug: 'suffering', label: 'Suffering', relevance: 78 },
+  ],
+  crossReferences: [
+    { book: 'Ephesians', chapterStart: 1, chapterEnd: 1, verseStart: 11, verseEnd: 11, votes: 34 },
+    { book: 'Genesis', chapterStart: 50, chapterEnd: 50, verseStart: 20, verseEnd: 20, votes: 28 },
+  ],
+  people: [{ id: 'p1', slug: 'paul', name: 'Paul' }],
+  places: [{ id: 'pl1', slug: 'rome', name: 'Rome' }],
+  relatedNotes: [
+    { noteId: 'n1', title: 'Start of it', reason: 'Same passage' },
+    { noteId: 'n2', title: 'No Condemnation', reason: 'Cross-reference' },
+  ],
+});
+
+function ReaderDockScene() {
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        <code>PassageContextStrip</code> — one strip, shown wherever a passage is: inside a
+        note&rsquo;s scripture dock, and in the Bible reader. The reader has no dock of its own,
+        because a scripture dock <em>is</em> a snippet view of the reader.
+      </p>
+      <p className="pds-caption">
+        Cross-references and your own notes only. People, places and themes come back from
+        the same endpoint but surface as dotted underlines on the passage text, not as lists
+        here — a name is answered where you met it.
+      </p>
+
+      <div className="pds-gallery-reader-dock-stage">
+        <div className="pds-reader-with-dock">
+          <div className="pds-reader">
+            <div className="pds-reader__scroll">
+              <div className="pds-reader__column">
+                <div className="pds-reader__chapter-heading">
+                  <h2 className="pds-reader-chapter-title">Romans 8</h2>
+                </div>
+                <div className="pds-reader__block">
+                  <p className="pds-reader-text">
+                    <span className="pds-reader__verse" data-selected="true">
+                      <sup className="pds-reader-verse-num">28</sup>
+                      And we know that all things work together for good…
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <aside className="pds-gallery-context-strip">
+            <PassageContextStrip
+              reference={DOCK_REF}
+              translation={DOCK_TRANSLATION}
+              active
+              showCrossRefs
+              showRelatedNotes
+              onOpenScripturePassage={() => undefined}
+              onOpenEntity={() => undefined}
+              onNavigateNote={() => undefined}
+            />
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Reader details in the shared inspector chrome. Live controls: the text-size segments and
+ * the verse-number toggle write real reading preferences, which is the point — they set CSS
+ * vars the reading canvas above reads, so the effect is visible in the same view.
+ */
+function ReaderInspectorScene() {
+  const [translation, setTranslation] = useState('NET');
+  const [fontOverride, setFontOverride] = useState<FontChoice | null>(null);
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        Pane chrome, sections and rows are the note inspector's — only the controls are
+        reader-specific. Text size writes <code>--pds-reader-font-size</code>, so the sample
+        below reflows as you change it.
+      </p>
+
+      <div className="pds-gallery-reader-inspector-stage">
+        <div className="pds-reader">
+          <div className="pds-reader__scroll">
+            <div className="pds-reader__column">
+              <div className="pds-reader__block">
+                <p className="pds-reader-text">
+                  <span className="pds-reader__verse">
+                    <sup className="pds-reader-verse-num">1</sup>
+                    In the beginning was the Word, and the Word was with God.
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="proto-inspector-desktop pds-gallery-inspector-frame">
+          <PrototypeReaderInspectorPane
+            book="John"
+            chapter={1}
+            translation={translation}
+            verseCount={51}
+            onChangeTranslation={setTranslation}
+            fontOverride={fontOverride}
+            onChangeFontOverride={setFontOverride}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * Every offline state a translation row can be in, at once.
+ *
+ * Built from the real `PrototypeTranslationRow`, which is presentational precisely so this
+ * scene can exist: five states side by side, no profile, no network, no pack store. The
+ * states are the point — a row that is *saving* used to look like a different and broken
+ * kind of row, and that is only visible when you can see it next to the others.
+ */
+function TranslationRowScene() {
+  const [selected, setSelected] = useState('NLT');
+  const rows: Array<{ id: string; name: string; state: TranslationRowState }> = [
+    { id: 'ESV', name: 'English Standard Version', state: { kind: 'available' } },
+    { id: 'NLT', name: 'New Living Translation', state: { kind: 'saving', booksSaved: 49, booksTotal: 66 } },
+    { id: 'NET', name: 'New English Translation', state: { kind: 'offline' } },
+    { id: 'BSB', name: 'Berean Standard Bible', state: { kind: 'partial', booksSaved: 12, booksTotal: 66 } },
+    { id: 'KJV', name: 'King James Version', state: { kind: 'blocked' } },
+  ];
+
+  return (
+    <div className="proto-theme" style={{ width: 420, maxWidth: '100%', margin: '0 auto' }}>
+      <div
+        className="proto-settings-list"
+        style={{
+          background: 'var(--pds-bg-page)',
+          border: '0.5px solid var(--pds-border)',
+          borderRadius: 14,
+          overflow: 'hidden',
+        }}
+      >
+        {rows.map((row) => (
+          <PrototypeTranslationRow
+            key={row.id}
+            abbreviation={row.id}
+            name={row.name}
+            selected={row.id === selected}
+            state={row.state}
+            onChoose={() => setSelected(row.id)}
+            onSave={() => {}}
+            onStop={() => {}}
+            onRemove={() => {}}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * The note's audience bar, in the registers it actually has.
+ *
+ * Exists because the draft destination shipped as a *label* and nobody noticed for as long
+ * as it existed: there was no scene, so the only way to see it was to open a real compose
+ * session inside a real shared space. The control and its sheet are both presentational,
+ * so both can simply be looked at here.
+ */
+function NoteAudienceBarScene() {
+  const [open, setOpen] = useState(false);
+  const [destination, setDestination] = useState<string | null>('space_family');
+
+  const options = [
+    { spaceId: null, label: 'My Home', isHome: true },
+    { spaceId: 'space_family', label: 'Family', isHome: false },
+    { spaceId: 'space_romans', label: 'Romans Study Group', isHome: false },
+  ];
+  const label = options.find((o) => o.spaceId === destination)?.label ?? 'My Home';
+
+  return (
+    <div className="proto-theme" style={{ width: 460, maxWidth: '100%', margin: '0 auto' }}>
+      <div
+        className="proto-editor-paper"
+        style={{
+          background: 'var(--pds-paper)',
+          border: '0.5px solid var(--pds-border)',
+          borderRadius: 14,
+          padding: '14px 16px 28px',
+        }}
+      >
+        {/* The anchor box the note page wraps these two in. */}
+        <div className="proto-draft-destination-anchor">
+          <PrototypeNoteAudienceBar
+            mode="hidden"
+            draftDestinationLabel={`Saving to ${label}`}
+            draftDestinationIsHome={destination === null}
+            onOpenDestination={() => setOpen((v) => !v)}
+          />
+          <PrototypeDraftDestinationSheet
+            open={open}
+            options={options}
+            currentSpaceId={destination}
+            onChoose={(d) => setDestination(d.spaceId)}
+            onDismiss={() => setOpen(false)}
+          />
+        </div>
+        <p className="pds-list-title" style={{ marginTop: 18 }}>Title</p>
+      </div>
+
+      <p className="pds-caption" style={{ marginTop: 12, textAlign: 'center' }}>
+        Tap the destination to retarget the draft. Below: the same slot, saved-note register.
+      </p>
+
+      <div
+        className="proto-editor-paper"
+        style={{
+          marginTop: 10,
+          background: 'var(--pds-paper)',
+          border: '0.5px solid var(--pds-border)',
+          borderRadius: 14,
+          padding: '14px 16px',
+        }}
+      >
+        <PrototypeNoteAudienceBar
+          mode="quiet"
+          audienceLabel="Shared with Romans Study Group"
+          onOpenAudience={() => {}}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -618,6 +1203,18 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <ToastsScene />;
     case 'ds-13-thread-trail':
       return <ThreadTrailScene />;
+    case 'ds-14-reader':
+      return <ReaderScene />;
+    case 'ds-15-paper-stack':
+      return <PaperStackScene />;
+    case 'ds-16-reader-dock':
+      return <ReaderDockScene />;
+    case 'ds-17-reader-inspector':
+      return <ReaderInspectorScene />;
+    case 'ds-18-translation-row':
+      return <TranslationRowScene />;
+    case 'ds-19-note-audience-bar':
+      return <NoteAudienceBarScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

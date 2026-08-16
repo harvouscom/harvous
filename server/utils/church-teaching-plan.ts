@@ -16,6 +16,8 @@ import {
   first,
   ChurchServices,
   Notes,
+  Spaces,
+  SpaceMemberships,
   and,
   eq,
   gte,
@@ -29,6 +31,7 @@ import {
   type ChurchOrgAccessResult,
   type ChurchOrgAccessRule,
 } from './church-org-access';
+import { isChurchOrgSpaceRow } from './channel-publish-cadence';
 
 export type ChurchServiceRow = typeof ChurchServices.$inferSelect;
 
@@ -163,6 +166,88 @@ export async function listServicesForChurch(
     .limit(limit);
 }
 
+/**
+ * A ministry or group whose plan reaches this viewer's Home.
+ *
+ * "Belongs to" is one question for both kinds of room, because following a
+ * ministry channel *is* membership — `followMinistryChannel` writes a plain
+ * `role='member'` row. So a channel you follow and a small group you were
+ * invited into arrive through the same query, which is what §5 means by "any
+ * org space the viewer belongs to".
+ */
+export type ViewerPlanSource = { spaceId: string; title: string; color: string | null };
+
+/**
+ * The org spaces this viewer belongs to that could carry a plan.
+ *
+ * Live rooms only, this church's org only, and `isChurchOrgSpaceRow` as the
+ * single predicate for "org space" — the same one §4 uses, so this needs no
+ * rule of its own. A personal space can never appear: it has no `orgId`.
+ */
+export async function listViewerPlanSources(
+  userId: string,
+  orgId: string,
+): Promise<ViewerPlanSource[]> {
+  const rows = await db
+    .select({
+      spaceId: Spaces.id,
+      title: Spaces.title,
+      color: Spaces.color,
+      type: Spaces.type,
+      orgId: Spaces.orgId,
+      isActive: Spaces.isActive,
+    })
+    .from(SpaceMemberships)
+    .innerJoin(Spaces, eq(Spaces.id, SpaceMemberships.spaceId))
+    .where(
+      and(
+        eq(SpaceMemberships.userId, userId),
+        eq(Spaces.orgId, orgId),
+        isNull(Spaces.deletedAt),
+      ),
+    )
+    .orderBy(asc(Spaces.id));
+
+  return rows
+    .filter((row) => row.isActive && isChurchOrgSpaceRow({ type: row.type, orgId: row.orgId }))
+    .map((row) => ({ spaceId: row.spaceId, title: row.title, color: row.color }));
+}
+
+/**
+ * Each source's own next few services, keyed by space id.
+ *
+ * **The limit is per source, deliberately.** §5: "a busy Youth plan must never
+ * starve the church plan out of the payload." That is also why this is one
+ * bounded query *per* source rather than one query with a global limit — a
+ * single `ORDER BY serviceDate LIMIT n` across every room hands all n slots to
+ * whichever room happens to meet soonest and most often, which is exactly the
+ * starvation the rule forbids. The fan-out is bounded by the viewer's own
+ * memberships, which is a handful of rooms, and the queries run together.
+ */
+export async function listServicesForViewerSources(
+  churchId: string,
+  sources: readonly ViewerPlanSource[],
+  options: { from: string; limit: number },
+): Promise<Map<string, ChurchServiceRow[]>> {
+  const out = new Map<string, ChurchServiceRow[]>();
+  if (sources.length === 0) return out;
+
+  const results = await Promise.all(
+    sources.map((source) =>
+      listServicesForChurch(churchId, {
+        plan: { spaceId: source.spaceId },
+        from: options.from,
+        limit: options.limit,
+      }),
+    ),
+  );
+  sources.forEach((source, index) => {
+    const rows = results[index];
+    if (rows.length > 0) out.set(source.spaceId, rows);
+  });
+  return out;
+}
+
 /** A single service scoped to its church — so an id from another church 404s. */
 export async function getServiceForChurch(
   churchId: string,
@@ -284,6 +369,60 @@ export async function linkNoteToService(
     .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
     .returning({ id: Notes.id });
   return updated.length > 0;
+}
+
+/**
+ * The plan row this note is already written for, if the *viewer* wrote it.
+ *
+ * The mirror of `resolveViewerPlannedNotes`, which answers "does this week have my draft?"
+ * for a list of services. The note inspector needs the question the other way round — "is
+ * this note already on a plan?" — and could not ask it: `server/routes/notes.ts` is not
+ * allowed to read this column, so the note payload cannot carry it, and the inspector was
+ * passed a hardcoded `null` instead. Its "already planned" branch has never once rendered.
+ *
+ * Viewer-scoped like every other reader of this column, and for the same reason: a pastor
+ * may see that they started a draft for a week, never that a colleague did.
+ */
+export async function resolveViewerPlannedServiceForNote(
+  userId: string,
+  noteId: string,
+): Promise<string | null> {
+  const row = first(
+    await db
+      .select({ serviceId: Notes.plannedForServiceId })
+      .from(Notes)
+      .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
+      .limit(1),
+  );
+  return row?.serviceId ?? null;
+}
+
+/**
+ * Release every staff draft pointing at a service that is being deleted.
+ *
+ * `ChurchServices` ids are plain text columns with no foreign key, so nothing cascades — the
+ * same gap the slot-assignment cleanup in the delete routes exists to close. A sermon deleted
+ * from the plan left every linked note pointing at a row that was gone, and the note went on
+ * calling itself planned for a week that no longer existed.
+ *
+ * **Not viewer-scoped, and that is the difference from `linkNoteToService`.** Stamping a note
+ * must be scoped, because writing to somebody else's note is claiming it. Releasing one is
+ * the opposite: the service is gone for everybody, so leaving a colleague's note attached to
+ * it would be preserving a lie rather than protecting anything. This never reads a note back
+ * and never reports whose were cleared — it returns a count of rows, not an identity, so
+ * nothing here can tell a pastor who had written for that week.
+ *
+ * Deliberately does **not** touch `startedFromServiceId`. That is the congregant's own
+ * lineage, and it is meant to outlive the service: `startedFromServiceTitle` snapshots the
+ * name precisely so provenance survives deletion. Opposite columns, opposite rules.
+ */
+export async function releaseNotesPlannedForService(serviceId: string): Promise<number> {
+  const cleared = await db
+    .update(Notes)
+    .set({ plannedForServiceId: null })
+    .where(eq(Notes.plannedForServiceId, serviceId))
+    .returning({ id: Notes.id });
+  return cleared.length;
 }
 
 /*

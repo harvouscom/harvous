@@ -63,6 +63,10 @@ export function isRecallEventsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'RecallEvents');
 }
 
+export function isReadingEventsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'ReadingEvents');
+}
+
 export function isSupportTicketsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SupportTickets');
 }
@@ -118,6 +122,7 @@ export function isStudyThreadNamingColumnMissing(error: unknown): boolean {
     isPgUndefinedColumn(error, 'studyThreadTitle')
   );
 }
+
 
 export function isPrototypeFolderStatsColumnMissing(error: unknown): boolean {
   return (

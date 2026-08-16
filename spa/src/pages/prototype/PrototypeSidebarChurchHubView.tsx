@@ -36,7 +36,6 @@ import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSec
 import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
-import PrototypeChurchScriptureMapSection from './PrototypeChurchScriptureMapSection';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 import PrototypeChannelPairingSection from './PrototypeChannelPairingSection';
 
@@ -265,7 +264,6 @@ export default function PrototypeSidebarChurchHubView() {
     | 'starters'
     | 'settings'
     | 'engagement'
-    | 'scripture-map'
   >('catalog');
   const pendingFollowId = followChannel.isPending
     ? followChannel.variables?.spaceId ?? null
@@ -326,17 +324,6 @@ export default function PrototypeSidebarChurchHubView() {
         meta: 'What your church studies from',
         chevron: 'expand',
         onSelect: () => openExpandedSidebar('library'),
-      });
-    }
-    /* Same gate as the Planner: this IS the plan, folded by book. A teacher
-       who may read what the church teaches may see where it has been. */
-    if (canViewTeachingPlan) {
-      rows.push({
-        key: 'scripture-map',
-        icon: 'scroll',
-        title: 'Scripture map',
-        meta: 'Where you have been dwelling',
-        onSelect: () => setToolsView('scripture-map'),
       });
     }
     /* Admin-only. Sits above settings because it is something a pastor looks
@@ -434,9 +421,7 @@ export default function PrototypeSidebarChurchHubView() {
             ? 'Church settings'
             : toolsView === 'engagement'
               ? 'Engagement'
-              : toolsView === 'scripture-map'
-                ? 'Scripture map'
-                : churchName;
+              : churchName;
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
@@ -553,8 +538,6 @@ export default function PrototypeSidebarChurchHubView() {
               canManage={canManageChurchTemplates}
               canWrite={canManageChurchTemplates && !churchPlanLapsed}
             />
-          ) : toolsView === 'scripture-map' ? (
-            <PrototypeChurchScriptureMapSection orgId={orgId} canView={canViewTeachingPlan} />
           ) : toolsView === 'engagement' ? (
             <PrototypeChurchEngagementSection orgId={orgId} canView={canViewEngagement} />
           ) : toolsView === 'settings' ? (

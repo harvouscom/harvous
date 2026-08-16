@@ -36,8 +36,14 @@ describe('POST /api/threads/:threadId/sequence', () => {
     expect(block).not.toContain('isActualSpaceOwner');
   });
 
-  it('refuses ministry channels with a code that says why', () => {
-    expect(sequenceRoute()).toContain('CHANNELS_READ_ONLY_PILOT');
+  it('gives every space type the same refusal, since the reason is always the role', () => {
+    const block = sequenceRoute();
+    /* Channels may carry a study plan now, so a caller refused here is refused for their
+       role — the same reason a shared-space member is. The old split told a channel caller
+       the room was read-only in a pilot, which is no longer why they were turned away. */
+    expect(block).not.toContain('CHANNELS_READ_ONLY_PILOT');
+    expect(block).not.toContain('read-only during the pilot');
+    expect(block).toContain("code: 'FORBIDDEN'");
   });
 
   it('keeps a personal Thread to its owner — a private reading plan has no members', () => {

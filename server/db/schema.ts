@@ -188,6 +188,23 @@ export const Threads = pgTable(
      * move the group; "Step 3 of 8" is derived from this id's position.
      */
     sequenceCurrentNoteId: text('sequenceCurrentNoteId'),
+    /**
+     * When the room's leader closed this run — **the cohort's completion, not
+     * anyone's personal one.**
+     *
+     * "We're done with this study." It says nothing about whether any given
+     * member finished; that is `ThreadProgress.completedAt`, written only by
+     * the member themselves. The two are deliberately different columns on
+     * different tables precisely so neither can be mistaken for the other, and
+     * so closing a run can never mark a straggler complete.
+     *
+     * A closed run is **labelled, not hidden**. The plan stays readable — people
+     * finish late, and taking the material away at the moment the room moves on
+     * is the opposite of what a study plan is for.
+     */
+    closedAt: ts('closedAt'),
+    /** Who closed it. Staff-side provenance; never shown to members. */
+    closedByUserId: text('closedByUserId'),
   },
   (table) => [
     index('Threads_userIdIndex').on(table.userId),
@@ -229,6 +246,20 @@ export const ThreadProgress = pgTable(
     openedNoteIds: text('openedNoteIds'),
     startedAt: ts('startedAt').notNull(),
     updatedAt: ts('updatedAt'),
+    /**
+     * When this person said they finished — **their own claim, never derived.**
+     *
+     * `openedNoteIds` records that a step was *opened*, which is not the same as
+     * having read or worked it, and inferring completion from "all steps opened"
+     * would quietly undo that distinction. So this is only ever written by an
+     * explicit act of the member it belongs to.
+     *
+     * It is also **not** what a leader closing the run writes — that is
+     * `Threads.closedAt`, a different fact by a different person. Someone who
+     * fell behind did not finish because the room moved on, and recording that
+     * they did would tell them something untrue about their own study.
+     */
+    completedAt: ts('completedAt'),
   },
   (table) => [
     primaryKey({ columns: [table.threadId, table.userId] }),
@@ -439,7 +470,16 @@ export const StudyThreadEntries = pgTable(
   {
     id: text('id').primaryKey(),
     userId: text('userId').notNull(),
-    parentNoteId: text('parentNoteId').notNull(),
+    /**
+     * Where this entry was made — NOT who can see it. NULL means "made while reading", i.e. a
+     * highlight created in the Bible reader, which has no parent note.
+     *
+     * Scripture-anchored entries are scoped by `scriptureReference` + `userId` instead, so a
+     * highlight on a verse is one highlight wherever that verse is shown. Scoping them by
+     * parent note is what used to make the reader and a note's scripture dock two separate
+     * layers over the same passage. See server/db/manual/unify-scripture-highlights.sql.
+     */
+    parentNoteId: text('parentNoteId'),
     spaceId: text('spaceId'),
     entryKindRaw: text('entryKindRaw').notNull().default('miniNote'),
     highlightAccentRaw: text('highlightAccentRaw').notNull().default('warmAmber'),
@@ -1170,6 +1210,13 @@ export const UserMetadata = pgTable('UserMetadata', {
    */
   appearanceSettings: text('appearanceSettings'),
   /**
+   * Where the reader was last, for continue-reading. JSON string:
+   * `{ book, bookOrder, chapter, translation, verse?, readAt }`. See
+   * src/utils/last-read-position.ts for why this is stored rather than derived
+   * from ReadingEvents. `null` = has never read a chapter.
+   */
+  lastReadPosition: text('lastReadPosition'),
+  /**
    * Per-user My Home space-switcher order for personal Shared Spaces (hosted + joined).
    * JSON `string[]` of space ids. Not `Spaces.order` — preference only.
    */
@@ -1402,6 +1449,30 @@ export const RecallEvents = pgTable('RecallEvents', {
 }, (table) => [
   index('RecallEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('RecallEvents_kind_action_createdAtIndex').on(table.kind, table.action, table.createdAt),
+]);
+
+// ─── ReadingEvents (append-only log of chapters read) ──────────────────────────
+// Every other record of what someone reads is inferred from what they wrote about it, so a
+// chapter read and not noted leaves no trace. This is the direct record: one row per reading
+// session, written fire-and-forget so it can never slow the reading surface down. Feeds
+// `continueBook` recall opportunities, which until now could only see cited chapters.
+
+export const ReadingEvents = pgTable('ReadingEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** Canonical book name, e.g. "John". */
+  book: text('book').notNull(),
+  /** Canonical position (0-based, Genesis = 0) so ranking never re-resolves book names. */
+  bookOrder: integer('bookOrder').notNull(),
+  chapter: integer('chapter').notNull(),
+  /** Translation the chapter was read in, e.g. "NLT". */
+  translation: text('translation').notNull(),
+  /** glance | read | study — see src/utils/reading-event-kinds.ts. */
+  dwellBucket: text('dwellBucket').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('ReadingEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('ReadingEvents_userId_bookOrder_chapterIndex').on(table.userId, table.bookOrder, table.chapter),
 ]);
 
 // ─── SupportTickets (user feedback from settings support form) ─────────────────
@@ -1884,8 +1955,15 @@ export const LibraryItemSuggestions = pgTable(
  *
  * This is the inversion `docs/future/CHURCH_STUDY_MATERIAL_LINKING.md` decided
  * on and `ChurchServiceLibraryItems` explicitly deferred to: **material claims
- * the service; the service does not point at a room.** Written today by the
- * series → study-plan publish, one row per published step.
+ * the service; the service does not point at a room.**
+ *
+ * **Two writers, and they must stay off each other's rows.** The series →
+ * study-plan publish writes one row per published step, and
+ * `publishedWeekIdsInThread` reads exactly those to decide which weeks a
+ * republish skips. The attach control (`church-published-material.ts`) writes
+ * the same table for material staff attach by hand, and therefore refuses any
+ * note that is already a published step — a replace-set over one would delete a
+ * claim it does not own and let the next republish duplicate that step.
  *
  * It is NOT `Notes.startedFromServiceId`. That column is the *congregant's own*
  * note started from a service, and its read path is scoped to a single user by
@@ -1920,6 +1998,52 @@ export const ChurchServicePublishedNotes = pgTable(
     /* "Which week is this note the study for?" — the congregant-facing read the
        linking doc asks for, indexed now rather than after someone table-scans. */
     index('ChurchServicePublishedNotes_noteIdIndex').on(table.noteId),
+  ],
+);
+
+/**
+ * The same claim as `ChurchServicePublishedNotes`, one grain up: material that
+ * accompanies a whole **series** rather than a single week.
+ *
+ * `CHURCH_STUDY_MATERIAL_LINKING.md` asks for "grain: both" — this week's
+ * discussion guide attaches to the service, the eight-week study attaches to the
+ * run. The pastor planning eight weeks of Romans attaches once, which was the
+ * third of that doc's four complaints about the pointer it replaced.
+ *
+ * **Why a second table rather than a nullable `seriesId` on the first.** That
+ * table's uniqueness is `(serviceId, noteId)`, and in Postgres NULLs compare
+ * distinct — so making `serviceId` nullable would let the same note claim the
+ * same series without limit, silently, and the constraint that stops it today
+ * would go on reading as though it still held. Two tables keep both grains
+ * constrained. `ChurchServiceLibraryItems` sits beside its own sibling for the
+ * same reason.
+ *
+ * **Scope rides the series row, not this one.** `ChurchSeries` is already
+ * plan-scoped (`churchId` + nullable `spaceId`), so a church-plan series and a
+ * space-plan series are different rows and an attachment inherits whichever it
+ * points at. Copying a scope column down here would be a second source of truth
+ * for the same fact.
+ *
+ * Row ids: `serpub_${crypto.randomUUID()}`.
+ */
+export const ChurchSeriesPublishedNotes = pgTable(
+  'ChurchSeriesPublishedNotes',
+  {
+    id: text('id').primaryKey(),
+    seriesId: text('seriesId').notNull(),
+    noteId: text('noteId').notNull(),
+    publishedByUserId: text('publishedByUserId').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('ChurchSeriesPublishedNotes_series_note_unique').on(
+      table.seriesId,
+      table.noteId,
+    ),
+    index('ChurchSeriesPublishedNotes_seriesIdIndex').on(table.seriesId),
+    /* The reverse read — "what is this note attached to?" — which the attach
+       control needs to render its own current state. */
+    index('ChurchSeriesPublishedNotes_noteIdIndex').on(table.noteId),
   ],
 );
 

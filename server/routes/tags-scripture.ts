@@ -9,11 +9,15 @@
  *   POST   /api/scripture/check-existing
  *   POST   /api/scripture/detect
  *   POST   /api/scripture/fetch-verse
+ *   GET    /api/scripture/chapter
+ *   GET    /api/scripture/chapter-notes
  */
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, Threads, VerseTextCache, eq, and, count, isNotNull } from '../db';
+import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, SpaceNotes, NoteThreads, Threads, VerseTextCache, BibleVerses, eq, and, count, isNotNull, isNull } from '../db';
+import { bibleVersesBookName } from '@/utils/bible-verses-book-name';
+import { bookChapterCount } from '@/utils/bible-book-chapters';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-access';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
@@ -303,6 +307,155 @@ app.post('/api/scripture/fetch-verse', async (c) => {
     return c.json({ reference, book: parsed.book, chapter: parsed.chapter, verse: verseNumber, verseEnd, translation, text: verseText });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/fetch-verse', action: 'fetch_verse' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * GET /api/scripture/chapter — a whole chapter as structured verses, for the Bible reader.
+ *
+ * Deliberately not `fetch-verse`. That route returns one formatted HTML blob, which is right
+ * for a pill or a dock card but cannot carry the reader's per-verse affordances: selection
+ * snaps to a verse, margin notifiers anchor to a verse, and a highlight is stored against a
+ * verse range. Parsing verse numbers back out of rendered HTML to recover that structure
+ * would be inventing a boundary the database already has.
+ */
+/**
+ * A whole book in one translation — the unit an offline pack is downloaded in.
+ *
+ * Per book rather than per Bible or per chapter. A whole Bible is one 4MB response that
+ * cannot be resumed, shows no progress, and blocks on its slowest byte; per chapter is 1,189
+ * round trips. Sixty-six is the granularity the text already has, so a pack can report real
+ * progress, survive a dropped connection by re-requesting only what is missing, and let
+ * Genesis be readable while Revelation is still arriving.
+ *
+ * Carries a `version` so a stored pack can be invalidated when the underlying text changes.
+ * It is derived from the row count, which moves whenever a translation is reseeded and is
+ * free to compute — a content hash would mean reading every verse to answer "is this stale".
+ */
+app.get('/api/scripture/book', async (c) => {
+  try {
+    const bookParam = (c.req.query('book') ?? '').trim();
+    const translation = (c.req.query('translation') ?? 'NET').trim().toUpperCase();
+
+    if (!bookParam) return c.json({ error: 'book is required', code: 'BOOK_REQUIRED' }, 400);
+
+    const parsed = parseScriptureReference(`${bookParam} 1`);
+    if (!parsed) return c.json({ error: 'Unknown book', code: 'INVALID_BOOK' }, 400);
+
+    // One spelling from here down — the one the verse rows, the chapter counts and every
+    // book list in the UI already use. See `bibleVersesBookName`.
+    const book = bibleVersesBookName(parsed.book);
+
+    const rows = await db
+      .select({ chapter: BibleVerses.chapter, verse: BibleVerses.verse, text: BibleVerses.text })
+      .from(BibleVerses)
+      .where(and(
+        eq(BibleVerses.translationId, translation),
+        eq(BibleVerses.book, book),
+      ))
+      .orderBy(BibleVerses.chapter, BibleVerses.verse);
+
+    if (rows.length === 0) {
+      return c.json({ error: 'No verses found for this book', code: 'BOOK_NOT_FOUND' }, 404);
+    }
+
+    // Grouped rather than flat: this is stored as-is and read back a chapter at a time, so
+    // shipping a flat list would make every client regroup 1,500 rows on the way in.
+    const chapters: { chapter: number; verses: { number: number; text: string }[] }[] = [];
+    let current: { chapter: number; verses: { number: number; text: string }[] } | null = null;
+    for (const row of rows) {
+      if (!current || current.chapter !== row.chapter) {
+        current = { chapter: row.chapter, verses: [] };
+        chapters.push(current);
+      }
+      current.verses.push({ number: row.verse, text: row.text });
+    }
+
+    c.res.headers.set('Cache-Control', 'public, max-age=86400, immutable');
+
+    return c.json({
+      book,
+      translation,
+      version: `${translation}:${rows.length}`,
+      chapters,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/scripture/book', action: 'fetch_book' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+app.get('/api/scripture/chapter', async (c) => {
+  try {
+    const bookParam = (c.req.query('book') ?? '').trim();
+    const chapterParam = (c.req.query('chapter') ?? '').trim();
+    const translation = (c.req.query('translation') ?? 'NET').trim().toUpperCase();
+
+    if (!bookParam) return c.json({ error: 'book is required', code: 'BOOK_REQUIRED' }, 400);
+
+    const chapter = Number.parseInt(chapterParam, 10);
+    if (!Number.isInteger(chapter) || chapter < 1) {
+      return c.json({ error: 'chapter must be a positive integer', code: 'INVALID_CHAPTER' }, 400);
+    }
+
+    // Route through the same canonicaliser the pills use, so "1 jn" / "Song of Solomon"
+    // resolve to the spelling stored in BibleVerses instead of missing silently.
+    //
+    // Resolve the book against chapter 1 rather than the requested chapter: the parser
+    // rejects an out-of-range chapter by returning null for the whole reference, which
+    // would report a perfectly real book ("Jude 5") as an unknown one.
+    const parsed = parseScriptureReference(`${bookParam} 1`);
+    if (!parsed) return c.json({ error: 'Unknown book', code: 'INVALID_BOOK' }, 400);
+
+    // Same normalisation as the book endpoint — `bookChapterCount` is keyed by the storage
+    // spelling too, so skipping it reported a real book as having no chapters.
+    const book = bibleVersesBookName(parsed.book);
+
+    const knownChapters = bookChapterCount(book);
+    if (knownChapters != null && chapter > knownChapters) {
+      return c.json(
+        {
+          error: `${book} has ${knownChapters} chapter${knownChapters === 1 ? '' : 's'}`,
+          code: 'CHAPTER_OUT_OF_RANGE',
+        },
+        404,
+      );
+    }
+
+    const rows = await db
+      .select({ verse: BibleVerses.verse, text: BibleVerses.text })
+      .from(BibleVerses)
+      .where(and(
+        eq(BibleVerses.translationId, translation),
+        eq(BibleVerses.book, book),
+        eq(BibleVerses.chapter, chapter),
+      ))
+      .orderBy(BibleVerses.verse);
+
+    if (rows.length === 0) {
+      return c.json({ error: 'No verses found for this chapter', code: 'CHAPTER_NOT_FOUND' }, 404);
+    }
+
+    const chapterCount = bookChapterCount(book);
+
+    // Scripture text is immutable and identical for every reader, so it overrides the API's
+    // default `private, max-age=30`. Paging back a chapter should not re-hit the database.
+    c.res.headers.set('Cache-Control', 'public, max-age=86400, immutable');
+
+    return c.json({
+      book,
+      chapter,
+      translation,
+      // Lets the reader render prev/next affordances without a second round trip or
+      // shipping the whole chapter-count table to the client.
+      chapterCount,
+      hasPrevChapter: chapter > 1,
+      hasNextChapter: chapterCount != null ? chapter < chapterCount : false,
+      verses: rows.map((r) => ({ number: r.verse, text: r.text })),
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/scripture/chapter', action: 'fetch_chapter' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -611,6 +764,76 @@ app.get('/api/scripture/passage-context', requireAuth, async (c) => {
     return c.json({ success: true, ...context });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/passage-context', action: 'passage_context' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/scripture/chapter-notes?book=&chapter= ─────────────────────────
+/**
+ * Which of your notes are anchored to verses in this chapter — the index behind the reader's
+ * margin dots.
+ *
+ * `ScriptureMetadata` is already the passage→note index: one row per reference in a note,
+ * carrying book / chapter / verse / verseEnd. Nothing new has to be recorded for the margin
+ * to know what to mark; it only has to be asked by chapter instead of by note.
+ *
+ * Read-only by construction — it selects, so opening the reader can never bump a note's
+ * `updatedAt`. That matters here specifically: `updatedAt` doubles as sort key and sync
+ * watermark, and "merely looking re-sorted my notes" is a bug this codebase has had before.
+ */
+app.get('/api/scripture/chapter-notes', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const book = (c.req.query('book') ?? '').trim();
+    const chapter = Number.parseInt((c.req.query('chapter') ?? '').trim(), 10);
+    if (!book) return c.json({ error: 'book is required', code: 'BOOK_REQUIRED' }, 400);
+    if (!Number.isFinite(chapter)) {
+      return c.json({ error: 'chapter is required', code: 'CHAPTER_REQUIRED' }, 400);
+    }
+
+    /*
+     * Joined to Notes for ownership — ScriptureMetadata carries no userId of its own, so
+     * without this a chapter query would return every user's anchors for that chapter.
+     *
+     * LEFT-joined to SpaceNotes to skip removed ones. A note shared into a space is removed
+     * by stamping `SpaceNotes.removedAt`, not by dropping the Notes row, and its scripture
+     * anchors outlive that — so a removed note's bars must not mark verses that open nothing.
+     *
+     * Left, not inner: `SpaceNotes` is the SHARED-space membership table. A personal-space
+     * note has `Notes.spaceId` and no `SpaceNotes` row at all — on a real account that is
+     * most notes — and an inner join dropped every one of them, so the margin was empty for
+     * exactly the notes people write most. A note is kept when it has no SpaceNotes row
+     * (personal) or a live one (shared and not removed).
+     */
+    const rows = await db
+      .select({
+        noteId: ScriptureMetadata.noteId,
+        reference: ScriptureMetadata.reference,
+        verse: ScriptureMetadata.verse,
+        verseEnd: ScriptureMetadata.verseEnd,
+        chapterEnd: ScriptureMetadata.chapterEnd,
+        title: Notes.title,
+        updatedAt: Notes.updatedAt,
+      })
+      .from(ScriptureMetadata)
+      .innerJoin(Notes, eq(Notes.id, ScriptureMetadata.noteId))
+      .leftJoin(SpaceNotes, eq(SpaceNotes.noteId, ScriptureMetadata.noteId))
+      .where(
+        and(
+          eq(ScriptureMetadata.book, book),
+          eq(ScriptureMetadata.chapter, chapter),
+          eq(Notes.userId, auth.userId),
+          // No SpaceNotes row (personal) or a live one — either way `removedAt` is null.
+          isNull(SpaceNotes.removedAt),
+        ),
+      );
+
+    return c.json({ success: true, anchors: rows });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/scripture/chapter-notes',
+      action: 'chapter_notes',
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
