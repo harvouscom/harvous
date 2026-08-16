@@ -18318,12 +18318,25 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   transform: none;
 }
 
-/* Back to the note the dock belongs to. Top-right, in the shell's icon block, over the
-   chapter's own top margin where it lands clear of the first line at every width. */
+/* Back to the note the dock belongs to. The paper's top-right corner, not the pane's:
+   pinned to the pane it drifted out to the window edge, sitting level with the account
+   avatar and reading as shell chrome rather than as something belonging to this chapter.
+
+   The column is centred, so its right edge is half of whatever is left over — that is the
+   calc. `max()` keeps the button on the paper when the pane is narrower than the column
+   and there is no leftover to take a half of.
+
+   One inset for both edges. Using the paper's 32px side padding here read as a mistake
+   rather than as alignment: a control tucked into a corner is judged against the corner,
+   and 16px down with 32px in looks like it slipped, whatever it happens to line up with
+   further down the page. */
 .pds-paper-stack__collapse {
   position: absolute;
-  top: var(--pds-space-3);
-  right: var(--pds-space-4);
+  top: var(--pds-space-4);
+  right: max(
+    var(--pds-space-3),
+    calc(50% - min(var(--pds-paper-column), 100%) / 2 + var(--pds-space-4))
+  );
   z-index: calc(var(--pds-z-dropdown) + 1);
 }
 
