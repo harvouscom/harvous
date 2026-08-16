@@ -60,7 +60,14 @@ export default function PrototypeTranslationPage() {
           const canDownload = !pack?.complete && !isDownloading && (!atLimit || !!pack);
 
           return (
-            <div key={id} className="proto-translation-row">
+            <div
+              key={id}
+              className="proto-translation-row"
+              /* The whole row carries the selection, not just the button inside it: the
+                 offline line is part of this translation, and painting only the button left
+                 it stranded on the page below a grey band it clearly belonged to. */
+              data-active={isSelected ? 'true' : undefined}
+            >
               <button
                 type="button"
                 className="proto-note-row proto-translation-row__choose"
@@ -71,8 +78,29 @@ export default function PrototypeTranslationPage() {
                 }}
               >
                 <span className="proto-settings-list-row__main">
-                  <span className="pds-list-title" style={{ display: 'block' }}>
-                    {t?.abbreviation ?? id}
+                  {/*
+                    The abbreviation and, beside it, whether this one is on the device.
+                    
+                    On the title line because that is the line you scan. It used to be said
+                    only in a caption under the row — green text, easy to miss, and impossible
+                    to compare down a list of eleven translations. Which ones you can read on a
+                    plane is the question this page exists to answer, so it is answered where
+                    the eye already is.
+                  */}
+                  <span className="proto-translation-row__name">
+                    <span className="pds-list-title">{t?.abbreviation ?? id}</span>
+                    {pack?.complete ? (
+                      <span className="proto-offline-badge" data-state="ready">
+                        <Icon name="check" size={9} aria-hidden />
+                        Offline
+                      </span>
+                    ) : pack ? (
+                      // A part-saved pack is why some chapters open on a plane and others do
+                      // not, which is worth a word rather than looking the same as none.
+                      <span className="proto-offline-badge" data-state="partial">
+                        Part-saved
+                      </span>
+                    ) : null}
                   </span>
                   {t?.name ? (
                     <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
@@ -105,18 +133,17 @@ export default function PrototypeTranslationPage() {
                     </button>
                   </>
                 ) : pack?.complete ? (
-                  <>
-                    <span className="pds-caption proto-translation-row__status" data-state="ready">
-                      <Icon name="check" size={10} aria-hidden /> Available offline
-                    </span>
-                    <button
-                      type="button"
-                      className="proto-translation-row__action"
-                      onClick={() => void remove(id)}
-                    >
-                      Remove
-                    </button>
-                  </>
+                  /* The badge on the title line already says it is here; repeating
+                     "Available offline" underneath was the same fact twice, in two places,
+                     and the caption is the one you had to hunt for. What is left is the only
+                     thing this line can do. */
+                  <button
+                    type="button"
+                    className="proto-translation-row__action"
+                    onClick={() => void remove(id)}
+                  >
+                    Remove
+                  </button>
                 ) : pack ? (
                   <>
                     {/* A partial pack is worth naming rather than hiding: it is why some

@@ -20,6 +20,23 @@ html.harvous-prototype-route [class*='proto-'] button * {
   font-family: var(--pds-font-body) !important;
 }
 
+/*
+ * Offline badge — its colour is the information.
+ *
+ * "Offline" in green and "Part-saved" in grey is the whole point of the badge, and it sits
+ * inside the translation row's button, so the blanket rule above flattened both to primary
+ * and left two identically-coloured pills saying different things.
+ */
+html.harvous-prototype-route .proto-offline-badge[data-state='ready'],
+html.harvous-prototype-route .proto-offline-badge[data-state='ready'] * {
+  color: var(--pds-success) !important;
+}
+
+html.harvous-prototype-route .proto-offline-badge[data-state='partial'],
+html.harvous-prototype-route .proto-offline-badge[data-state='partial'] * {
+  color: var(--pds-text-secondary) !important;
+}
+
 /* Search clear (circle-xmark) — tertiary like select chevrons; beat blanket button * primary */
 html.harvous-prototype-route button.hmc-church-picker__clear,
 html.harvous-prototype-route button.hmc-church-picker__clear *,

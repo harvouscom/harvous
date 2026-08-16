@@ -18681,8 +18681,13 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 .pds-paper-stack[data-morph='true'][data-exiting='true'] .pds-paper-stack__sheet {
   /* `forwards`: the clip must stay closed on the last frame until the stack unmounts, or
-     the chapter flashes back to full for one frame on the way out. */
-  animation: pds-paper-stack-morph-out var(--pds-duration-paper-stack) var(--pds-ease-emphasized)
+     the chapter flashes back to full for one frame on the way out.
+
+     `--pds-ease-morph-exit` rather than the emphasized curve going in: this move has to hand
+     off to something mounting at the end of it, and an emphasized curve spends its last
+     100ms barely moving — which reads as the chapter hesitating just as the dock appears
+     under it. The symmetric curve arrives at the dock's rect still travelling. */
+  animation: pds-paper-stack-morph-out var(--pds-duration-paper-stack) var(--pds-ease-morph-exit)
     forwards;
   pointer-events: none;
 }
@@ -18695,6 +18700,18 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   animation: pds-paper-stack-expand var(--pds-duration-morph) var(--pds-ease-emphasized) backwards;
 }
 
+/*
+ * The fade is front-loaded, and that is what stops the clip from reading as a cut.
+ *
+ * A clip-path has no soft edge — it is a hard rectangle, and early in the reveal it is a
+ * card-sized window onto a full page of text, so its border slices words mid-line. Held at
+ * one opacity for the whole move, that hard border is the most legible thing on screen and
+ * the eye reads "a window sliding open", not "the card becoming the page".
+ *
+ * Faint while the window is small and the mismatch is worst, solid by the time it is large
+ * enough for the text inside it to be the text you asked for. The last 60% is then a pure
+ * geometric expansion with nothing to notice.
+ */
 @keyframes pds-paper-stack-morph-in {
   from {
     clip-path: inset(
@@ -18702,7 +18719,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
         var(--pds-morph-inset-bottom, 0) var(--pds-morph-inset-left, 0)
         round var(--pds-radius-menu)
     );
-    opacity: 0.55;
+    opacity: 0.35;
+  }
+  40% {
+    opacity: 1;
   }
   to {
     clip-path: inset(0 0 0 0 round 0);
@@ -18710,9 +18730,15 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 }
 
+/* And the reverse, mirrored: solid while the window is still big enough to be the page,
+   dissolving as it closes so the last frame hands over to the dock rather than snapping out
+   of existence at half opacity. */
 @keyframes pds-paper-stack-morph-out {
   from {
     clip-path: inset(0 0 0 0 round 0);
+    opacity: 1;
+  }
+  60% {
     opacity: 1;
   }
   to {
@@ -18721,7 +18747,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
         var(--pds-morph-inset-bottom, 0) var(--pds-morph-inset-left, 0)
         round var(--pds-radius-menu)
     );
-    opacity: 0.55;
+    opacity: 0.12;
   }
 }
 
@@ -18768,9 +18794,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 @media (prefers-reduced-motion: reduce) {
   .pds-paper-stack__sheet,
   .pds-paper-stack__base,
-  /* The band and its dismiss fade and tint on hover, and a Home origin fades the whole
-     band out when it retires itself. Small moves, but they are moves, and the rule here
-     is that this stack does not animate at all when motion is unwelcome. */
+  /* The band and its dismiss fade and tint on hover. Small moves, but they are moves, and
+     the rule here is that this stack does not animate at all when motion is unwelcome. */
   .pds-paper-stack__edge-row,
   .pds-paper-stack__edge,
   .pds-paper-stack__edge-dismiss,
@@ -19252,8 +19277,64 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   border-bottom: 0;
 }
 
+/* The row is one surface — title line and offline line together. The selection used to sit
+   on the button alone, which ended the grey band halfway down and left the offline line
+   below it looking like a stray caption between two rows. */
+.proto-translation-row[data-active='true'] {
+  background: var(--pds-bg-row-hover);
+}
+
 .proto-translation-row__choose {
   border-bottom: 0;
+}
+
+/* ...so the button stops painting its own, or the two stack into a darker band. */
+.proto-translation-row__choose[data-active='true'],
+.proto-translation-row__choose[data-active='true']:focus-visible {
+  background: transparent;
+}
+
+.proto-translation-row__name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+/*
+ * On the device, said once, where it can be scanned.
+ *
+ * A word rather than an icon: a check or a cloud beside a translation name could mean
+ * selected, downloaded, or verified, and this list already has a check orb meaning
+ * "reading this one". Spelling it out costs a few pixels and removes the guess.
+ */
+.proto-offline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  padding: 1.5px 6px;
+  border-radius: 999px;
+  border: 0.5px solid transparent;
+  font-family: var(--pds-font-body);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.proto-offline-badge[data-state='ready'] {
+  background: var(--pds-success-bg);
+  border-color: var(--pds-success-border);
+  color: var(--pds-success);
+}
+
+/* Part-saved is a real state, not a failed one — quiet, and clearly not the green. */
+.proto-offline-badge[data-state='partial'] {
+  background: var(--pds-bg-subtle);
+  border-color: var(--pds-border);
+  color: var(--pds-text-secondary);
 }
 
 .proto-translation-row__offline {
@@ -19265,15 +19346,17 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   margin-top: -4px;
 }
 
+/* Nothing on the left to sit beside — the badge above took the status — so the one action
+   holds the trailing edge rather than floating in the middle of the row. */
+.proto-translation-row__offline > .proto-translation-row__action:only-child {
+  margin-left: auto;
+}
+
 .proto-translation-row__status {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   color: var(--pds-text-secondary);
-}
-
-.proto-translation-row__status[data-state='ready'] {
-  color: var(--pds-success);
 }
 
 .proto-translation-row__action {

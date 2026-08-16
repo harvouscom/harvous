@@ -14,6 +14,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -580,12 +581,32 @@ export default function PrototypeBibleReaderPane({
     };
   }, [selectionEnd]);
 
-  // Land on the deep-linked verse once its element exists.
-  useEffect(() => {
+  /*
+   * Land on the deep-linked verse once its element exists — BEFORE the browser paints.
+   *
+   * This was a passive effect, which runs after paint, so the first frame showed the top of
+   * the chapter and the second showed the verse. On its own that is a blink. Arriving out of
+   * a scripture dock it is worse: the morph's clip opens onto that first frame, so the window
+   * growing out of the dock card was filled with the wrong part of the chapter and then
+   * snapped — the jarring cut in what is supposed to be one surface growing. A layout effect
+   * puts the right verse under the clip from the very first frame.
+   *
+   * `scrollTop`, not `scrollIntoView`: the latter walks up and scrolls every scrollable
+   * ancestor it finds, and inside the paper stack that includes layers that are mid-animation.
+   */
+  useLayoutEffect(() => {
     if (!focusVerse || verses.length === 0) return;
-    const el = document.querySelector<HTMLElement>(`[data-reader-verse="${focusVerse}"]`);
-    if (!el) return;
-    el.scrollIntoView({ block: 'center' });
+    const scroller = scrollRef.current;
+    const el = scroller?.querySelector<HTMLElement>(`[data-reader-verse="${focusVerse}"]`);
+    if (!scroller || !el) return;
+    // Measured as a delta between two rects in the same space, rather than from `offsetTop`:
+    // the verse's offset parent is the column, not the scroller, so an offset chain would
+    // have to be walked and would still break the first time something between them gained
+    // a `position`.
+    const elRect = el.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const centreOffset = (scroller.clientHeight - elRect.height) / 2;
+    scroller.scrollTop = Math.max(0, scroller.scrollTop + (elRect.top - scrollerRect.top) - centreOffset);
     setLanding([focusVerse, focusVerse]);
     setFocusedVerse(focusVerse);
   }, [focusVerse, verses.length]);
