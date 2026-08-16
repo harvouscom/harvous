@@ -4,6 +4,7 @@ import {
   continueReadingMeta,
   deriveContinueBook,
   deriveContinueReading,
+  deriveSmartJumpDestination,
 } from '../prototype-home-trends';
 
 const chapterCounts = new Map([
@@ -161,5 +162,48 @@ describe('deriveContinueBook with reading', () => {
     ];
 
     expect(deriveContinueBook(books, chapterCounts).map((s) => s.book)).toEqual(['John', 'Romans']);
+  });
+});
+
+describe('deriveSmartJumpDestination', () => {
+  const votd = { book: 'Proverbs', chapter: 29, verse: 25 };
+
+  it('prefers where reading stopped, carrying its translation', () => {
+    const out = deriveSmartJumpDestination(
+      { book: 'John', bookOrder: 42, chapter: 16, translation: 'NLT', reason: 'next' },
+      votd,
+    );
+
+    expect(out).toEqual({
+      book: 'John',
+      chapter: 16,
+      verse: null,
+      translation: 'NLT',
+      source: 'continue',
+    });
+  });
+
+  it("falls to today's passage when there is no reading position", () => {
+    const out = deriveSmartJumpDestination(null, votd);
+
+    expect(out).toEqual({
+      book: 'Proverbs',
+      chapter: 29,
+      verse: 25,
+      translation: null,
+      source: 'votd',
+    });
+  });
+
+  it('always answers, so a first run is never a dead click', () => {
+    const out = deriveSmartJumpDestination(null, null);
+
+    expect(out).toEqual({
+      book: 'Genesis',
+      chapter: 1,
+      verse: null,
+      translation: null,
+      source: 'fallback',
+    });
   });
 });

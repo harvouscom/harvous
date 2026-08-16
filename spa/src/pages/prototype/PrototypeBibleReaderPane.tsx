@@ -239,6 +239,13 @@ export interface PrototypeBibleReaderPaneProps {
    */
   onSaveReference?: (input: { word: string; reference: string; verse?: number }) => void;
   saveReferenceLabel?: string;
+  /**
+   * Open a looked-up word's card on arrival, for a saved reference tapped somewhere else.
+   *
+   * `requestKey` is what makes it repeatable: the dock is dismissible, so opening the same
+   * word twice has to be two requests rather than one piece of state that is already set.
+   */
+  referenceRequest?: { word: string; anchor: string; verse?: number; requestKey: string } | null;
 }
 
 export default function PrototypeBibleReaderPane({
@@ -256,6 +263,7 @@ export default function PrototypeBibleReaderPane({
   onOpenNoteAtReference,
   onSaveReference,
   saveReferenceLabel,
+  referenceRequest,
 }: PrototypeBibleReaderPaneProps) {
   const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
   const { verseLayout, showMarginNotes } = useSyncExternalStore(
@@ -367,6 +375,24 @@ export default function PrototypeBibleReaderPane({
 
   /** What the shell's study dock is showing on behalf of the reader; null when closed. */
   const [dock, setDock] = useState<ReaderDockState>(null);
+
+  /*
+   * Honour an arrival request to open a word's card. Keyed on the request's nonce rather than
+   * its contents, so tapping the same saved reference again reopens the card after it has
+   * been dismissed.
+   */
+  const lastReferenceRequestKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!referenceRequest?.word || !referenceRequest.requestKey) return;
+    if (lastReferenceRequestKey.current === referenceRequest.requestKey) return;
+    lastReferenceRequestKey.current = referenceRequest.requestKey;
+    setDock({
+      kind: 'reference',
+      query: referenceRequest.word,
+      anchor: referenceRequest.anchor,
+      verse: referenceRequest.verse,
+    });
+  }, [referenceRequest]);
   /** The menu is showing colours for the highlight just made, rather than the action list. */
   const [paletteOpen, setPaletteOpen] = useState(false);
 

@@ -750,9 +750,8 @@ export default function PrototypeSidebarHomeView({
    * Where a brand-new account is invited to start reading.
    *
    * Today's verse of the day when there is one — it is already the app's answer to "what
-   * should I read", and a first run is exactly when that question is loudest. John 1 is the
-   * fallback rather than Genesis 1: someone opening a Bible app for the first time is more
-   * likely to be looking for Jesus than for a genealogy.
+   * should I read", and a first run is exactly when that question is loudest. Genesis 1
+   * otherwise, matching the toolbar's own smart-jump fallback.
    */
   /*
    * Where reading actually stopped, which is a different question from which chapters the
@@ -764,7 +763,7 @@ export default function PrototypeSidebarHomeView({
   const firstRunPassage = useMemo(() => {
     const parsed = votd?.reference ? parseReaderQuery(votd.reference) : null;
     if (parsed) return parsed;
-    return { book: 'John', chapter: 1, verse: null, reference: 'John 1' };
+    return { book: 'Genesis', chapter: 1, verse: null, reference: 'Genesis 1' };
   }, [votd?.reference]);
 
   // When all pages are loaded, the flat list is authoritative; otherwise prefer server total.
@@ -1834,7 +1833,7 @@ export default function PrototypeSidebarHomeView({
         {looseCount >= LOOSE_MIN ? (
           <PrototypeHomeRow
             icon="folder"
-            title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
+            title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a folder`}
             onClick={() => {
               setSidebarListMode('folders');
               setSidebarFolderDrilldown(null);

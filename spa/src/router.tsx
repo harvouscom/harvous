@@ -361,13 +361,24 @@ function buildPrototypeRouteBranch() {
    * A real URL rather than shell state, because a chapter is the thing people link to:
    * a church study, a `harvo.us` short link, or a shared passage all want to open a
    * reader on a specific chapter. `?v=` focuses a verse, `?t=` picks a translation.
+   *
+   * `?ref=` asks the reader to open a looked-up word's card on arrival, so a saved reference
+   * in the list can land on the thing it names rather than just the chapter it came from.
+   * `?dockReq=` is a nonce: tapping the same reference twice has to reopen the card, and
+   * without something changing in the URL the second tap would be a no-op.
    */
   const prototypeReadRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'read/$book/$chapter',
-    validateSearch: (search: Record<string, unknown>) => ({
+    // Optional rather than `string | undefined`: every existing caller navigates here with
+    // just `{v, t}`, and a required-but-undefined key would make each of them a type error.
+    validateSearch: (
+      search: Record<string, unknown>,
+    ): { v?: string; t?: string; ref?: string; dockReq?: string } => ({
       v: typeof search.v === 'string' ? search.v : undefined,
       t: typeof search.t === 'string' ? search.t : undefined,
+      ref: typeof search.ref === 'string' ? search.ref : undefined,
+      dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
     }),
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadPage')),
   });

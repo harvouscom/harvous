@@ -158,6 +158,10 @@ describe('prototype shell shortcuts (Shift + key)', () => {
     expectEvent('prototypeShortcutFocusNoteList', () => press({ key: 'J', code: 'KeyJ', shift: true }));
   });
 
+  it('Shift+R → open the reader', () => {
+    expectEvent('prototypeShortcutOpenReader', () => press({ key: 'R', code: 'KeyR', shift: true }));
+  });
+
   it('Shift+ArrowLeft → cycle list mode backward', () => {
     const e = expectEvent('prototypeShortcutCycleListMode', () =>
       press({ key: 'ArrowLeft', code: 'ArrowLeft', shift: true }),

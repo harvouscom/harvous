@@ -39,7 +39,10 @@ import {
   isPrototypeReadPath,
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
+  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
+import { bookSlug } from '@/utils/bible-book-chapters';
+import { useSmartJumpDestination } from '../../hooks/useSmartJumpDestination';
 import { prototypeToolbarNoteDetailsAvailable } from './prototype-toolbar-note-details';
 import {
   canOrganizeSharedSpaceNote,
@@ -268,6 +271,26 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     navigate({ to: prototypeHomeRouteTo() });
   };
 
+  /*
+   * The reader had no permanent door. Every way in was conditional on state a new account does
+   * not have yet — a verse of the day that can be dismissed, a reading position that only
+   * exists once you have read, a scripture index built from notes you have not written — so
+   * someone with an empty account could not reach it at all except by typing the URL.
+   */
+  const smartJump = useSmartJumpDestination();
+
+  const onOpenReader = useCallback(() => {
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+    void navigate({
+      to: prototypeReadRouteTo(),
+      params: { book: bookSlug(smartJump.book), chapter: String(smartJump.chapter) },
+      search: {
+        v: smartJump.verse ? String(smartJump.verse) : undefined,
+        t: smartJump.translation || undefined,
+      },
+    });
+  }, [smartJump, isMobileSidebar, closeDrawer, navigate]);
+
   const onSidebarButton = () => {
     if (isMobileSidebar) toggleDrawer();
     else toggleDesktopSidebar();
@@ -386,6 +409,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
             onClick={onCompose}
           >
             <Icon name="pen-to-square" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
+          </button>
+        </PrototypeToolbarShortcutItem>
+        {/* Beside compose, because reading and writing are the two things you start here.
+            Unlike compose it needs no space permission — a chapter is not written to. */}
+        <PrototypeToolbarShortcutItem shortcut="R" showShortcut={showShiftHints}>
+          <button
+            type="button"
+            className="proto-toolbar-icon-btn"
+            title="Read the Bible"
+            aria-label="Read the Bible"
+            disabled={!homeSpaceId}
+            onClick={onOpenReader}
+          >
+            <Icon name="book-open" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
           </button>
         </PrototypeToolbarShortcutItem>
       </div>

@@ -6,6 +6,7 @@ import Icon from '@/components/react/Icon';
 import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
+import { useSmartJumpDestination } from '../../hooks/useSmartJumpDestination';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { useDeleteNotesBatch } from '../../hooks/mutations/useDeleteNotesBatch';
 import { useNavigation } from '../../hooks/queries/useNavigation';
@@ -1586,6 +1587,19 @@ export default function PrototypeSidebar({
     if (!canCreateSidebarCollections) return;
     setCreateFolderSheetOpen(true);
   }, [canCreateSidebarCollections]);
+
+  const smartJump = useSmartJumpDestination();
+  const openSmartJumpReader = useCallback(() => {
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+    void navigate({
+      to: prototypeReadRouteTo(),
+      params: { book: bookSlug(smartJump.book), chapter: String(smartJump.chapter) },
+      search: {
+        v: smartJump.verse ? String(smartJump.verse) : undefined,
+        t: smartJump.translation || undefined,
+      },
+    });
+  }, [smartJump, isMobileSidebar, closeDrawer, navigate]);
   const isHomeLayer = sidebarLayer === 'space';
   const tagFilterActive = Boolean(tagFilter);
   const searchActive = !isHomeLayer && q.trim().length > 0 && !tagFilterActive;
@@ -3120,8 +3134,35 @@ export default function PrototypeSidebar({
         return false;
       }
     }
-    // The highlight and reference docks both live inside a note, so without a source note
-    // there is nothing to open them on.
+    /*
+     * A reference saved while reading has no note behind it, so it opens where it was made:
+     * the chapter, with the word's card already up. Without this it fell through to the guard
+     * below and did nothing at all on tap — the row was in the list but led nowhere.
+     */
+    if (!r.parentNoteId && r.entryKind === 'reference') {
+      const word = (r.sourceSnippet ?? '').trim();
+      const parsed = r.scriptureReference ? parseScriptureReference(r.scriptureReference) : null;
+      if (word && parsed) {
+        dismissStandaloneScripturePassage();
+        if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+        void navigate({
+          to: prototypeReadRouteTo(),
+          params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
+          search: {
+            v: typeof parsed.verse === 'number' ? String(parsed.verse) : undefined,
+            t: r.scripturePassageTranslation || undefined,
+            ref: word,
+            // Same word tapped twice has to reopen the card, so the request needs to differ.
+            dockReq: String(Date.now()),
+          },
+        });
+        afterNav();
+      }
+      // Nothing was stacked over anything — the reader is the document here.
+      return false;
+    }
+    // The highlight dock lives inside a note, so without a source note there is nothing to
+    // open it on.
     if (!r.parentNoteId) return false;
     dismissStandaloneScripturePassage();
     const isReferenceRow = r.entryKind === 'reference';
@@ -4238,6 +4279,19 @@ export default function PrototypeSidebar({
                       iconName="book-open"
                       title="No Scripture References"
                       description="Add scripture references in your notes to build your index."
+                      /* This index is built from notes, so before there are notes it had nothing
+                         to say and no way out — the one screen in the app that names Scripture
+                         was also the one that could not open any. */
+                      action={
+                        <button
+                          type="button"
+                          className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+                          onClick={openSmartJumpReader}
+                        >
+                          <Icon name="book-open" size={12} aria-hidden />
+                          <span className="proto-glass-action__label">Read the Bible</span>
+                        </button>
+                      }
                     />
                   )
                 ) : (
