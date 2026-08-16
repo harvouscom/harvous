@@ -59,7 +59,9 @@ import {
   assertCanViewTeachingPlan,
   linkNoteToService,
   parseServiceDateInput,
+  releaseNotesPlannedForService,
   resolveViewerPlannedNotes,
+  resolveViewerPlannedServiceForNote,
   type ChurchServiceRow,
 } from '../utils/church-teaching-plan';
 import { buildChurchScriptureHeatmap } from '../utils/church-scripture-heatmap';
@@ -895,6 +897,11 @@ app.post('/api/church/services/delete', requireAuth, rateLimit('write'), async (
       await clearServiceTimeAssignments(tx, serviceId);
       await tx.delete(ChurchServices).where(eq(ChurchServices.id, serviceId));
     });
+
+    /* And the staff drafts written for it, for the same reason the slot claims go: no foreign
+       key cascades here, so a note kept calling itself planned for a week that is gone. */
+    await releaseNotesPlannedForService(serviceId);
+
     return c.json({ success: true });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -926,6 +933,33 @@ app.post('/api/church/services/delete', requireAuth, rateLimit('write'), async (
  * side. Staff may not stamp a colleague's note, and an author may not stamp a
  * plan they cannot manage.
  */
+/**
+ * GET /api/church/services/planned-for-note — is this note already on a plan?
+ *
+ * The note inspector's "already planned" state had no way to know. The note payload cannot
+ * carry the column (`server/routes/notes.ts` is not one of its permitted readers), so the
+ * inspector was handed a hardcoded `null` and its branch never rendered — which is also why
+ * nothing stopped the same note being added to a plan twice.
+ *
+ * No plan gate: this asks only about the caller's own note, and the helper is scoped to their
+ * `userId`. Someone who has left staff should still be told their note is spoken for.
+ */
+app.get('/api/church/services/planned-for-note', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const noteId = (c.req.query('noteId') ?? '').trim();
+    if (!noteId) return c.json({ error: 'noteId is required', code: 'BAD_REQUEST' }, 400);
+
+    return c.json({ serviceId: await resolveViewerPlannedServiceForNote(auth.userId, noteId) });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/services/planned-for-note',
+      action: 'planned_for_note',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 app.post('/api/church/services/link-note', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);

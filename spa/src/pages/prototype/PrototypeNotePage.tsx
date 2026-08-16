@@ -61,6 +61,7 @@ import { useNavigation } from '../../hooks/queries/useNavigation';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
 import { useChurchPlannerAccess } from '../../hooks/useChurchPlannerAccess';
+import { useNotePlannedService } from '../../hooks/queries/useNotePlannedService';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { useNoteEditLease } from '@/hooks/useNoteEditLease';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -1918,6 +1919,25 @@ export default function PrototypeNotePage() {
   const churchOrgId = profileForTemplates.data?.connectedOrgId ?? null;
   const { can: canChurchForTemplates } = useChurchStaffStatus(churchOrgId);
 
+  /*
+    Where this note could be planned, and whether it already is.
+
+    Up here with the other viewer-level hooks rather than beside the inspector prop they feed,
+    because two early returns sit between: the loading and not-found branches. A hook called
+    below them runs on some renders and not others, which React counts and refuses — "rendered
+    more hooks than during the previous render", visible only once a note actually had to load.
+  */
+  const canManageChurchPlan = canChurchForTemplates('manage_teaching_plan');
+  const plannerAccess = useChurchPlannerAccess(churchOrgId);
+  const hasSomewhereToPlan = canManageChurchPlan || plannerAccess.plannableSpaces.length > 0;
+  /* The note payload may not carry `plannedForServiceId` — the column has a short list of
+     permitted readers and the note route is not on it — so the "already planned" state is a
+     question of its own. */
+  const { data: plannedForServiceId } = useNotePlannedService(
+    noteId,
+    Boolean(hasSomewhereToPlan && churchOrgId && !isDraft),
+  );
+
   const noteLoadState = resolvePrototypeNoteLoadState({
     isDraft,
     isLoading,
@@ -2078,16 +2098,8 @@ export default function PrototypeNotePage() {
     shared space: a sermon draft is private, and "add this to the church's plan"
     is not an offer to make about somebody else's note in somebody else's room.
   */
-  const canManageChurchPlan = canChurchForTemplates('manage_teaching_plan');
-  /*
-    The rooms this viewer may plan in, alongside the church's own plan. Same
-    verdict the planner uses, so the two surfaces cannot disagree about where a
-    note is allowed to land — and it is what lets someone who runs a channel but
-    does not set Sunday still have somewhere to put a note.
-  */
-  const plannerAccess = useChurchPlannerAccess(churchOrgId);
   const inspectorTeachingPlan =
-    (canManageChurchPlan || plannerAccess.plannableSpaces.length > 0) &&
+    hasSomewhereToPlan &&
     churchOrgId &&
     !isDraft &&
     noteId &&
@@ -2106,7 +2118,7 @@ export default function PrototypeNotePage() {
           churchOrgId,
           canPlanChurchWide: canManageChurchPlan,
           plannableSpaces: plannerAccess.plannableSpaces,
-          plannedForServiceId: null,
+          plannedForServiceId: plannedForServiceId ?? null,
         }
       : null;
 

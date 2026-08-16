@@ -204,3 +204,43 @@ describe('privacy: the church never learns who took notes', () => {
     expect(code).not.toMatch(/\bgroupBy\b/);
   });
 });
+
+describe('releaseNotesPlannedForService', () => {
+  const util = source('server/utils/church-teaching-plan.ts');
+  const body = () => {
+    const start = util.indexOf('export async function releaseNotesPlannedForService');
+    expect(start, 'releaseNotesPlannedForService missing').toBeGreaterThan(-1);
+    return util.slice(start, util.indexOf('\n}', start));
+  };
+
+  it('clears the draft pointer rather than the note', () => {
+    /* Deleting a week must not delete anybody's writing — it releases the link and
+       leaves the note where its author put it. */
+    expect(body()).toContain('plannedForServiceId: null');
+    expect(body()).not.toMatch(/\.delete\(/);
+  });
+
+  it('releases every author, unlike the scoped stamp beside it', () => {
+    /* `linkNoteToService` is viewer-scoped because writing to someone else's note is
+       claiming it. Releasing is the opposite: the service is gone for everyone, so a
+       colleague's note left attached would be preserving a lie. */
+    expect(body()).not.toContain('Notes.userId');
+    const link = util.slice(util.indexOf('export async function linkNoteToService'));
+    expect(link).toContain('eq(Notes.userId, userId)');
+  });
+
+  it('leaves the congregant lineage alone', () => {
+    // `startedFromServiceTitle` snapshots the name precisely so provenance outlives
+    // the service. Opposite column, opposite rule.
+    expect(body()).not.toContain('startedFromServiceId');
+  });
+
+  it('is called by both delete routes, so neither lane leaves a ghost', () => {
+    for (const path of [
+      'server/routes/church-teaching-plan.ts',
+      'server/routes/church-space-plan.ts',
+    ]) {
+      expect(source(path), path).toContain('await releaseNotesPlannedForService(serviceId)');
+    }
+  });
+});

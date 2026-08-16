@@ -286,6 +286,60 @@ export async function linkNoteToService(
   return updated.length > 0;
 }
 
+/**
+ * The plan row this note is already written for, if the *viewer* wrote it.
+ *
+ * The mirror of `resolveViewerPlannedNotes`, which answers "does this week have my draft?"
+ * for a list of services. The note inspector needs the question the other way round — "is
+ * this note already on a plan?" — and could not ask it: `server/routes/notes.ts` is not
+ * allowed to read this column, so the note payload cannot carry it, and the inspector was
+ * passed a hardcoded `null` instead. Its "already planned" branch has never once rendered.
+ *
+ * Viewer-scoped like every other reader of this column, and for the same reason: a pastor
+ * may see that they started a draft for a week, never that a colleague did.
+ */
+export async function resolveViewerPlannedServiceForNote(
+  userId: string,
+  noteId: string,
+): Promise<string | null> {
+  const row = first(
+    await db
+      .select({ serviceId: Notes.plannedForServiceId })
+      .from(Notes)
+      .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
+      .limit(1),
+  );
+  return row?.serviceId ?? null;
+}
+
+/**
+ * Release every staff draft pointing at a service that is being deleted.
+ *
+ * `ChurchServices` ids are plain text columns with no foreign key, so nothing cascades — the
+ * same gap the slot-assignment cleanup in the delete routes exists to close. A sermon deleted
+ * from the plan left every linked note pointing at a row that was gone, and the note went on
+ * calling itself planned for a week that no longer existed.
+ *
+ * **Not viewer-scoped, and that is the difference from `linkNoteToService`.** Stamping a note
+ * must be scoped, because writing to somebody else's note is claiming it. Releasing one is
+ * the opposite: the service is gone for everybody, so leaving a colleague's note attached to
+ * it would be preserving a lie rather than protecting anything. This never reads a note back
+ * and never reports whose were cleared — it returns a count of rows, not an identity, so
+ * nothing here can tell a pastor who had written for that week.
+ *
+ * Deliberately does **not** touch `startedFromServiceId`. That is the congregant's own
+ * lineage, and it is meant to outlive the service: `startedFromServiceTitle` snapshots the
+ * name precisely so provenance survives deletion. Opposite columns, opposite rules.
+ */
+export async function releaseNotesPlannedForService(serviceId: string): Promise<number> {
+  const cleared = await db
+    .update(Notes)
+    .set({ plannedForServiceId: null })
+    .where(eq(Notes.plannedForServiceId, serviceId))
+    .returning({ id: Notes.id });
+  return cleared.length;
+}
+
 /*
  * `deriveSeriesTitles` lived here — distinct `seriesTitle` strings, most
  * recently dated first, to power the editor's picker. It is gone with the

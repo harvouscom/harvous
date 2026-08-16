@@ -62,6 +62,7 @@ import { isUniqueViolation } from '../utils/db-unique-violation';
 import { canonicalizeServiceReference } from '../utils/church-service-passage';
 import {
   linkNoteToService,
+  releaseNotesPlannedForService,
   resolveViewerPlannedNotes,
 } from '../utils/church-teaching-plan';
 import {
@@ -693,6 +694,11 @@ app.post('/api/church/spaces/:spaceId/services/delete', requireAuth, rateLimit('
     if (removed.length === 0) {
       return c.json({ error: notFoundError(planKindForSpace(gate.space)), code: 'SERVICE_NOT_FOUND' }, 404);
     }
+
+    /* The staff drafts written for it go with it. Nothing cascades — these ids are plain text
+       columns — so without this a note kept calling itself planned for a week that is gone. */
+    await releaseNotesPlannedForService(serviceId);
+
     return c.json({ success: true, serviceId });
   } catch (error) {
     const standardError = handleAPIError(error, {
