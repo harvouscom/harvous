@@ -222,6 +222,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-18-translation-row',
     // All five offline states at once — the real component, not a copy of its markup.
   },
+  {
+    id: 'ds-19-note-audience-bar',
+    title: 'Note audience bar',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeNoteAudienceBar.tsx',
+      'spa/src/pages/prototype/PrototypeDraftDestinationSheet.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-19-note-audience-bar',
+    // Interactive: the destination sheet retargets a fixture draft.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

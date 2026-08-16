@@ -13654,17 +13654,19 @@ html.harvous-prototype-route
   sheet lands correctly without a rect. Left-aligned to the bar's own text, since that is
   the control it answers for.
 */
+/* Bar and sheet in one box, so "below the bar" is a fact about the DOM. The sheet is the
+   bar's *sibling*, so positioning the bar itself achieved nothing — the sheet anchored to
+   whatever positioned ancestor it found next and opened somewhere else entirely. */
+.proto-draft-destination-anchor {
+  position: relative;
+}
+
 .proto-draft-destination {
   position: absolute;
   top: calc(100% + 2px);
   left: 0;
   z-index: 60;
   min-width: 208px;
-}
-
-/* The bar becomes the positioning context for the sheet. */
-.proto-editor-paper .proto-shared-readonly-banner {
-  position: relative;
 }
 
 /* The tick on the destination you are already saving to, held at the trailing edge so the

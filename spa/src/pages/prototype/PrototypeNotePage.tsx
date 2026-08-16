@@ -2488,6 +2488,13 @@ export default function PrototypeNotePage() {
                   setSharedOverlayContainerEl(el);
                 }}
               >
+              {/*
+                Bar and its destination sheet share one positioned box, so "just below the
+                bar" is a fact about the DOM rather than a guess. The sheet is a *sibling*
+                of the bar, not a child — putting `position: relative` on the bar itself
+                left the sheet anchoring to whatever positioned ancestor it found next.
+              */}
+              <div className="proto-draft-destination-anchor">
               {/* Quiet "Shared with …" in My Home; the full pen banner inside a
                   shared space or the moment someone else starts writing. */}
               <PrototypeNoteAudienceBar
@@ -2521,6 +2528,7 @@ export default function PrototypeNotePage() {
                   onDismiss={() => setDestinationOpen(false)}
                 />
               ) : null}
+              </div>
               {showSharedHighlightOverlay ? (
                 <SharedStudyHighlightOverlay
                   editor={sharedOverlayEditor}

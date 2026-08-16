@@ -162,8 +162,14 @@ export default function PrototypeNoteAudienceBar({
         >
           {icon}
           {draftDestinationLabel}
+          {/*
+            Points down, not right. The audience control below goes *somewhere* — it opens
+            the inspector — and a right caret says so. This opens a short menu directly
+            beneath itself, and a right caret on it was a small lie about where the tap
+            leads, which is the kind that makes a control look decorative and go untried.
+          */}
           <Icon
-            name="caret-right"
+            name="caret-down"
             size={9}
             className="proto-shared-readonly-banner__audience-chevron"
             aria-hidden

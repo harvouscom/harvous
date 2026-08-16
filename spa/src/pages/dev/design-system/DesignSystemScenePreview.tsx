@@ -27,6 +27,8 @@ import {
 } from '../../../lib/prototype-background';
 import PassageContextStrip, { primePassageContextCache } from '@/components/react/PassageContextStrip';
 import PrototypeReaderInspectorPane from '../../prototype/PrototypeReaderInspectorPane';
+import PrototypeNoteAudienceBar from '../../prototype/PrototypeNoteAudienceBar';
+import PrototypeDraftDestinationSheet from '../../prototype/PrototypeDraftDestinationSheet';
 import PrototypeTranslationRow, {
   type TranslationRowState,
 } from '../../prototype/settings/PrototypeTranslationRow';
@@ -1099,6 +1101,80 @@ function TranslationRowScene() {
   );
 }
 
+
+/**
+ * The note's audience bar, in the registers it actually has.
+ *
+ * Exists because the draft destination shipped as a *label* and nobody noticed for as long
+ * as it existed: there was no scene, so the only way to see it was to open a real compose
+ * session inside a real shared space. The control and its sheet are both presentational,
+ * so both can simply be looked at here.
+ */
+function NoteAudienceBarScene() {
+  const [open, setOpen] = useState(false);
+  const [destination, setDestination] = useState<string | null>('space_family');
+
+  const options = [
+    { spaceId: null, label: 'My Home', isHome: true },
+    { spaceId: 'space_family', label: 'Family', isHome: false },
+    { spaceId: 'space_romans', label: 'Romans Study Group', isHome: false },
+  ];
+  const label = options.find((o) => o.spaceId === destination)?.label ?? 'My Home';
+
+  return (
+    <div className="proto-theme" style={{ width: 460, maxWidth: '100%', margin: '0 auto' }}>
+      <div
+        className="proto-editor-paper"
+        style={{
+          background: 'var(--pds-paper)',
+          border: '0.5px solid var(--pds-border)',
+          borderRadius: 14,
+          padding: '14px 16px 28px',
+        }}
+      >
+        {/* The anchor box the note page wraps these two in. */}
+        <div className="proto-draft-destination-anchor">
+          <PrototypeNoteAudienceBar
+            mode="hidden"
+            draftDestinationLabel={`Saving to ${label}`}
+            draftDestinationIsHome={destination === null}
+            onOpenDestination={() => setOpen((v) => !v)}
+          />
+          <PrototypeDraftDestinationSheet
+            open={open}
+            options={options}
+            currentSpaceId={destination}
+            onChoose={(d) => setDestination(d.spaceId)}
+            onDismiss={() => setOpen(false)}
+          />
+        </div>
+        <p className="pds-list-title" style={{ marginTop: 18 }}>Title</p>
+      </div>
+
+      <p className="pds-caption" style={{ marginTop: 12, textAlign: 'center' }}>
+        Tap the destination to retarget the draft. Below: the same slot, saved-note register.
+      </p>
+
+      <div
+        className="proto-editor-paper"
+        style={{
+          marginTop: 10,
+          background: 'var(--pds-paper)',
+          border: '0.5px solid var(--pds-border)',
+          borderRadius: 14,
+          padding: '14px 16px',
+        }}
+      >
+        <PrototypeNoteAudienceBar
+          mode="quiet"
+          audienceLabel="Shared with Romans Study Group"
+          onOpenAudience={() => {}}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1137,6 +1213,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <ReaderInspectorScene />;
     case 'ds-18-translation-row':
       return <TranslationRowScene />;
+    case 'ds-19-note-audience-bar':
+      return <NoteAudienceBarScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }
