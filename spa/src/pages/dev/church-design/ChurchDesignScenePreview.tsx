@@ -26,6 +26,7 @@ import type {
 } from '../../prototype/planner/PrototypeExpandedPlanner';
 import type { TeachingPlanSermon } from '../../../hooks/queries/useChurchTeachingPlan';
 import { buildSeriesAccentLookup } from '../../../lib/church-services';
+import PrototypeHomeRow from '../../prototype/PrototypeHomeRow';
 import type { ChurchDesignScene } from './sceneRegistry';
 import '@/styles/admin-usage.css';
 import '@/styles/admin-publish.css';
@@ -541,58 +542,41 @@ function ThisSundayScene() {
       <PhoneChrome>
         <div style={{ padding: 16 }}>
           {/*
-            The card is a container whose first region is the tap target, not
-            one big <button> — that is what lets study material live inside it
-            rather than orphaned beside it. Mirrors PrototypeHomeThisSunday.
-          */}
-          <div className="proto-home-section">
-            <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--split proto-this-sunday">
-              <div className="proto-this-sunday__main proto-home-card--tappable">
-                <p className="proto-caption proto-home-card__eyebrow">Sunday&rsquo;s sermon</p>
-                <div className="proto-home-card__body">
-                  <div className="proto-home-card__title-row">
-                    <span className="proto-home-card__icon-orb" aria-hidden>
-                      <Icon name="church" size={13} />
-                    </span>
-                    <p className="pds-list-title proto-home-card__title">No Condemnation</p>
-                    <span className="proto-home-card__chevron" aria-hidden>
-                      <Icon name="caret-right" size={11} />
-                    </span>
-                  </div>
-                  <div className="proto-home-card__meta">
-                    <span className="proto-home-card__meta-item">Life in the Spirit</span>
-                  </div>
-                </div>
-              </div>
+            Built from the real `PrototypeHomeRow`, not a copy of its markup.
+            This scene drifted twice — once when Home moved from cards to rows,
+            and again when study material was added to the card that no longer
+            existed — because it was hand-rolled. Rendering the component is
+            what makes "matches what shipped" a property rather than a chore.
 
-              {/*
-                What the church's ministries published *for* this Sunday. A list,
-                never one button — several ministries can speak to the same week.
-                Zero attached renders none of this, which is the common case.
-                Never tinted by the channel's colour: that would imply the sermon
-                came from that room.
-              */}
-              <div className="proto-this-sunday__attached">
-                <p className="proto-caption proto-this-sunday__attached-label">Study material</p>
-                <ul className="proto-this-sunday__attached-list">
-                  <li>
-                    <div className="proto-this-sunday__attached-item">
-                      <span className="proto-this-sunday__attached-title">
-                        Romans 8 discussion guide
-                      </span>
-                      <span className="proto-caption proto-this-sunday__attached-from">Students</span>
-                    </div>
-                  </li>
-                  <li>
-                    <div className="proto-this-sunday__attached-item">
-                      <span className="proto-this-sunday__attached-title">
-                        Life in the Spirit — week 3
-                      </span>
-                      <span className="proto-caption proto-this-sunday__attached-from">Adult Ed</span>
-                    </div>
-                  </li>
-                </ul>
-              </div>
+            One panel, hairline rows: the service, then whatever ministries
+            published for it, then the ministry reporting its own gathering.
+            No coloured tiles — a colour would claim the sermon came from a room.
+          */}
+          <div className="proto-home-section proto-home-section--group">
+            <p className="proto-caption proto-home-section__eyebrow">Following</p>
+            <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-section__list">
+              <PrototypeHomeRow
+                icon="church"
+                title="No Condemnation"
+                meta={['Sunday\u2019s sermon', '10:30 AM', 'Life in the Spirit']}
+              />
+              <PrototypeHomeRow
+                icon="rss"
+                title="Romans 8 discussion guide"
+                meta={['Study material', 'Students']}
+              />
+              <PrototypeHomeRow
+                icon="rss"
+                title={'Life in the Spirit \u2014 week 3'}
+                meta={['Study material', 'Adult Ed']}
+              />
+              {/* A context reporting its own next gathering, named in the meta
+                  line where the eyebrow now lives. */}
+              <PrototypeHomeRow
+                icon="user-group"
+                title="Who You Are In Christ"
+                meta={['This Wednesday \u00b7 Youth', '6:30 PM']}
+              />
             </div>
           </div>
 
