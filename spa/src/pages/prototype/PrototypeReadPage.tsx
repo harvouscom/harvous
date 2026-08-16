@@ -63,7 +63,7 @@ export default function PrototypeReadPage() {
     v?: string;
     t?: string;
     ref?: string;
-    dockReq?: string;
+    req?: string;
   };
   const navigate = useNavigate();
   const { data: profile } = useProfile();
@@ -153,9 +153,9 @@ export default function PrototypeReadPage() {
         ? `${book} ${chapter}:${focusVerse}`
         : `${book} ${chapter}`,
       verse: Number.isFinite(focusVerse) ? focusVerse : undefined,
-      requestKey: search.dockReq || word,
+      requestKey: search.req || word,
     };
-  }, [search.ref, search.dockReq, book, chapter, focusVerse]);
+  }, [search.ref, search.req, book, chapter, focusVerse]);
 
   const applyHighlight = useCallback(
     ({ start, end }: { start: number; end: number }, accent: StudyHighlightAccentKey) => {
@@ -447,6 +447,7 @@ export default function PrototypeReadPage() {
           onSaveReference={handleSaveReference}
           saveReferenceLabel={saveReferenceLabel}
           referenceRequest={referenceRequest}
+          landRequestKey={search.req}
         />
       </div>
     </PrototypeMainPaneShell>

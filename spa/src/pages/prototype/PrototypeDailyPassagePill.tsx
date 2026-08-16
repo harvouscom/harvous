@@ -148,7 +148,13 @@ export default function PrototypeDailyPassagePill({
     navigate({
       to: prototypeReadRouteTo(),
       params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
-      search: { v: verse ? String(verse) : undefined, t: votd.translation || undefined },
+      search: {
+        v: verse ? String(verse) : undefined,
+        t: votd.translation || undefined,
+        // Asking for today's passage again should land on the verse again, even when the
+        // reader is already open on it and the verse was clicked away.
+        req: String(Date.now()),
+      },
     });
   }, [afterNav, navigate, votd.reference, votd.translation]);
 
