@@ -18687,3 +18687,30 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   background: var(--pds-bg-row-selected);
   font-weight: 600;
 }
+
+/* ── Inspector: which plan a note goes on ────────────────────────────────────── */
+
+/*
+ * `proto-glass-action` is `inline-flex` and `align-self: center` — a single pill, and it was
+ * only ever asked to be one. A church has a sermon plan plus a room per ministry, so these
+ * arrive as a list and wrapped two-up at whatever width each label happened to be. Stacked,
+ * full width, they read as the set of choices they are.
+ */
+.proto-inspector-plan__destinations {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.proto-inspector-plan__destination {
+  align-self: stretch;
+  justify-content: flex-start;
+  /* The label carries the room's name, which can be long; the glyph must not be squeezed. */
+  min-width: 0;
+}
+
+.proto-inspector-plan__destination .proto-glass-action__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

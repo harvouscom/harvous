@@ -60,6 +60,7 @@ import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { useNavigation } from '../../hooks/queries/useNavigation';
 import { useProfile } from '../../hooks/queries/useProfile';
 import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
+import { useChurchPlannerAccess } from '../../hooks/useChurchPlannerAccess';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { useNoteEditLease } from '@/hooks/useNoteEditLease';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
@@ -2078,8 +2079,19 @@ export default function PrototypeNotePage() {
     is not an offer to make about somebody else's note in somebody else's room.
   */
   const canManageChurchPlan = canChurchForTemplates('manage_teaching_plan');
+  /*
+    The rooms this viewer may plan in, alongside the church's own plan. Same
+    verdict the planner uses, so the two surfaces cannot disagree about where a
+    note is allowed to land — and it is what lets someone who runs a channel but
+    does not set Sunday still have somewhere to put a note.
+  */
+  const plannerAccess = useChurchPlannerAccess(churchOrgId);
   const inspectorTeachingPlan =
-    canManageChurchPlan && churchOrgId && !isDraft && noteId && !sharedActionSpaceId
+    (canManageChurchPlan || plannerAccess.plannableSpaces.length > 0) &&
+    churchOrgId &&
+    !isDraft &&
+    noteId &&
+    !sharedActionSpaceId
       ? {
           noteId,
           noteTitle: liveNoteSnapshot.title || prototypeDisplayTitle,
@@ -2092,6 +2104,8 @@ export default function PrototypeNotePage() {
               (liveNoteSnapshot.content || editorNote.content || '').replace(/<[^>]*>/g, ' '),
             )[0]?.reference ?? null,
           churchOrgId,
+          canPlanChurchWide: canManageChurchPlan,
+          plannableSpaces: plannerAccess.plannableSpaces,
           plannedForServiceId: null,
         }
       : null;
