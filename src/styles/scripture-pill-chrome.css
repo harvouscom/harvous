@@ -212,6 +212,24 @@ button .scripture-pill-chrome__trans-chip {
   flex-shrink: 0;
 }
 
+/*
+ * The passage tools, held at the row's trailing edge.
+ *
+ * Outside the scroller, so they stay put however wide the reference gets — the same reason
+ * the range toggle used to live here, except these actually are card-wide controls rather
+ * than one control belonging to the range beside it. The hairline separates "which passage"
+ * from "what to show about it", which is the whole point of moving them down from the header.
+ */
+.scripture-pill-chrome__reference-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 0.5px solid var(--pds-border-control-soft, rgba(0, 0, 0, 0.1));
+}
+
 .scripture-pill-chrome__range-toggle {
   display: inline-flex;
   align-items: center;

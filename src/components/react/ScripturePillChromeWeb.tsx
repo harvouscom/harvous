@@ -774,48 +774,28 @@ export default function ScripturePillChromeWeb({
       // The two passage toggles stay inline at every width — they are what you came to the card
       // for, and below 420px `headerActions` folds into a `…` menu. The accent swatch can live
       // there; a colour change is not a one-tap-per-visit action.
+      /*
+       * The header holds what acts on the CARD; the reference row below holds what acts on
+       * the PASSAGE. Six controls used to sit up here together — open in reader, cross-refs,
+       * related notes, accent, collapse, close — and nothing in the row said which of them
+       * would change the card and which would change what is inside it. Splitting them by
+       * what they act on is a rule you can read off the layout, rather than six icons in a
+       * line to be learnt one at a time.
+       *
+       * Which leaves exactly one thing here besides collapse and close: the one that takes
+       * you somewhere else.
+       */
       headerPrimaryActions={
-        <>
-          {onExpandToReader && !readOnly ? (
-            <button
-              type="button"
-              className="study-dock-card__header-btn"
-              onClick={() => onExpandToReader({ reference: displayRefString, translation: trans })}
-              title="Open in the Bible reader"
-              aria-label="Open in the Bible reader"
-            >
-              <Icon name="up-right-and-down-left-from-center" size={12} />
-            </button>
-          ) : null}
+        onExpandToReader && !readOnly ? (
           <button
             type="button"
-            className={`study-dock-card__header-btn${showCrossRefs ? ' study-dock-card__header-btn--active' : ''}`}
-            onClick={() => setShowCrossRefs((v) => !v)}
-            title={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
-            aria-pressed={showCrossRefs}
-            aria-label={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
+            className="study-dock-card__header-btn"
+            onClick={() => onExpandToReader({ reference: displayRefString, translation: trans })}
+            title="Open in the Bible reader"
+            aria-label="Open in the Bible reader"
           >
-            <Icon name="shuffle" size={12} />
+            <Icon name="up-right-and-down-left-from-center" size={12} />
           </button>
-          <button
-            type="button"
-            className={`study-dock-card__header-btn${showRelatedNotes ? ' study-dock-card__header-btn--active' : ''}`}
-            onClick={() => setShowRelatedNotes((v) => !v)}
-            title={showRelatedNotes ? 'Hide where this appears in your notes' : 'Show where this appears in your notes'}
-            aria-pressed={showRelatedNotes}
-            aria-label={
-              showRelatedNotes
-                ? 'Hide where this appears in your notes'
-                : 'Show where this appears in your notes'
-            }
-          >
-            <Icon name="note-sticky" size={12} />
-          </button>
-        </>
-      }
-      headerActions={
-        onPillAccentChange ? (
-          <DockAccentSwatchButton selection={selectedSwatchKey} onSelectionChange={onPillAccentChange} />
         ) : null
       }
     >
@@ -844,6 +824,44 @@ export default function ScripturePillChromeWeb({
           onToggleVerseRange={handleToggleVerseRange}
           translation={trans}
           onTranslationChange={setTrans}
+          tools={
+            <>
+              <button
+                type="button"
+                className={`study-dock-card__header-btn${showCrossRefs ? ' study-dock-card__header-btn--active' : ''}`}
+                onClick={() => setShowCrossRefs((v) => !v)}
+                title={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
+                aria-pressed={showCrossRefs}
+                aria-label={showCrossRefs ? 'Hide cross-references' : 'Show cross-references'}
+              >
+                <Icon name="shuffle" size={12} />
+              </button>
+              <button
+                type="button"
+                className={`study-dock-card__header-btn${showRelatedNotes ? ' study-dock-card__header-btn--active' : ''}`}
+                onClick={() => setShowRelatedNotes((v) => !v)}
+                title={
+                  showRelatedNotes
+                    ? 'Hide where this appears in your notes'
+                    : 'Show where this appears in your notes'
+                }
+                aria-pressed={showRelatedNotes}
+                aria-label={
+                  showRelatedNotes
+                    ? 'Hide where this appears in your notes'
+                    : 'Show where this appears in your notes'
+                }
+              >
+                <Icon name="note-sticky" size={12} />
+              </button>
+              {onPillAccentChange ? (
+                <DockAccentSwatchButton
+                  selection={selectedSwatchKey}
+                  onSelectionChange={onPillAccentChange}
+                />
+              ) : null}
+            </>
+          }
         />
       </div>
       <div

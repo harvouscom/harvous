@@ -17641,13 +17641,27 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   position: relative;
   background-color: var(--pds-paper-sheet);
   box-shadow: var(--pds-paper-shadow-subtle);
-  padding: var(--pds-editor-paper-padding-top) var(--pds-editor-paper-padding-x)
+  /*
+   * The side padding is a variable, not a value, because three other things are measured
+   * from it: the margin-bar layer, and both edges of the note card. They are absolutely
+   * positioned against this element, so they cannot inherit the padding — they have to
+   * restate it, and restating a value is how it goes wrong.
+   *
+   * Which is exactly what happened. The narrow override below moved the paper's padding from
+   * 32px to 12px, and the bar layer went on offsetting itself by 32 — so on any pane under
+   * 640px, and that includes the reader inside the paper stack, the bars sat 20px too far in
+   * and cut through the first words of every line they marked. One variable, redefined in one
+   * place, and the four cannot drift again.
+   */
+  --pds-reader-paper-padding-x: var(--pds-editor-paper-padding-x);
+  padding: var(--pds-editor-paper-padding-top) var(--pds-reader-paper-padding-x)
     var(--pds-editor-paper-padding-bottom);
 }
 
 @container (max-width: 640px) {
   .pds-reader__column {
-    padding: var(--pds-editor-paper-padding-top-narrow) var(--pds-editor-paper-padding-x-narrow)
+    --pds-reader-paper-padding-x: var(--pds-editor-paper-padding-x-narrow);
+    padding: var(--pds-editor-paper-padding-top-narrow) var(--pds-reader-paper-padding-x)
       var(--pds-editor-paper-padding-bottom);
   }
 }
@@ -17765,7 +17779,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 .pds-reader__chapter-meta {
-  margin: var(--pds-space-1) 0 0;
+  /* A little more air than a caption needed: the chip has its own box, so the gap is
+     measured from its edge rather than from a line of text's baseline. */
+  margin: var(--pds-space-2) 0 0;
+  display: flex;
 }
 
 /* One block per paragraph of Scripture, each its own gutter+text grid so a
@@ -17895,8 +17912,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   position: absolute;
   /* Overhangs the text by the grid's column gap at each end, so the card reads as backing
      the passage rather than boxing it. Both ends, now that the text is inset both ends. */
-  left: calc(var(--pds-editor-paper-padding-x) + var(--pds-reader-gutter));
-  right: calc(var(--pds-editor-paper-padding-x) + var(--pds-reader-gutter));
+  left: calc(var(--pds-reader-paper-padding-x) + var(--pds-reader-gutter));
+  right: calc(var(--pds-reader-paper-padding-x) + var(--pds-reader-gutter));
   /* `auto`, not `0` — the two paint the same but only one of them traps its children.
      A positioned element with z-index 0 opens a stacking context, which capped the chrome
      at the card's own level however high its z-index went: the pill rendered under the
@@ -18088,7 +18105,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      mark a line and a half below the verse it belongs to. */
   top: 0;
   bottom: 0;
-  left: var(--pds-editor-paper-padding-x);
+  left: var(--pds-reader-paper-padding-x);
   width: var(--pds-reader-gutter);
   pointer-events: none;
   /*

@@ -25,6 +25,9 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import Icon from '@/components/react/Icon';
+// For `.scripture-pill-chrome__trans-chip` — the reader states the translation in the
+// same chip the dock does, so it borrows the chip rather than growing a second one.
+import '@/styles/scripture-pill-chrome.css';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import {
   adjacentChapter,
@@ -945,7 +948,17 @@ export default function PrototypeBibleReaderPane({
                 `${data.book} ${data.chapter}`
               )}
             </h1>
-            <p className="pds-reader__chapter-meta pds-caption">{data.translation}</p>
+            {/* The same chip the scripture dock puts the translation in — one fact, one
+                shape, wherever it is stated. It was a bare caption here, which read as a
+                stray line of grey text under the title rather than as the label it is. */}
+            <p className="pds-reader__chapter-meta">
+              <span
+                className="scripture-pill-chrome__trans-chip"
+                aria-label={`Translation ${data.translation}`}
+              >
+                {data.translation}
+              </span>
+            </p>
           </div>
 
           {/*
