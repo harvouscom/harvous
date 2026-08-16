@@ -18075,6 +18075,14 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-paper-stack {
   position: relative;
   isolation: isolate;
+  /* A container so the papers can be matched against the PANE's width rather than the
+     window's. The two are far apart — a 760px window with the sidebar away and a 1090px
+     one with it showing give the same pane — and the note's paper already sizes itself
+     against its pane, so anything comparing the two has to ask the same question. Safe to
+     contain: this element is already `position: relative` and already the containing block
+     for both absolutely positioned papers. */
+  container-type: inline-size;
+  container-name: pds-paper-stack;
   display: flex;
   /* Both papers are absolutely positioned, so the stack has no intrinsic height and
      would collapse to 0 — visibly empty, with the whole stack still in the DOM. It has
@@ -18082,6 +18090,26 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+}
+
+/*
+ * Both papers, the same width.
+ *
+ * The note's paper keeps 12px clear of each column edge once its pane is narrow (see the
+ * container query in prototype-editor.css); the reader's column has no such rule and runs
+ * to its full 720. Apart, neither is wrong. Stacked, they are laid one over the other and
+ * the difference is read as the scale being broken: at a 744px pane the chapter's paper was
+ * 720 and the note's 696, so the 4% between them showed up as 2px a side instead of 14, and
+ * the paper behind looked the same size as the paper in front.
+ *
+ * Matched here rather than in the reader, because here is where they are compared — a
+ * chapter read on its own keeps its full measure.
+ */
+@container pds-paper-stack (max-width: 760px) {
+  .pds-paper-stack__base .pds-reader__column,
+  .pds-paper-stack__sheet .pds-reader__column {
+    max-width: calc(var(--pds-paper-column) - 24px);
+  }
 }
 
 /* The stack paints NOTHING. The note view — one sheet, `.proto-editor-paper`, with its own
