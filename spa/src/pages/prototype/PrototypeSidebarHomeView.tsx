@@ -135,6 +135,7 @@ import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import PrototypeHomeChurchFeed, { HOME_FEED_LIMIT } from './PrototypeHomeChurchFeed';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
+import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
 import { noteParamSlug } from './proto-route-slugs';
 import { bibleBookChapterCounts, bookSlug } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
@@ -1733,6 +1734,9 @@ export default function PrototypeSidebarHomeView({
       */}
       <HomeSection title="Following">
         <PrototypeHomeThisSunday homeSpaceId={homeSpaceId} />
+        {/* Below the church's appointments: a plan you set yourself is a habit,
+            and on a Saturday the appointment still wins. */}
+        <PrototypeHomeReadingPlan />
         <PrototypeHomeChurchFeed />
         <PrototypeFounderLetterPill />
       </HomeSection>

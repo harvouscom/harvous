@@ -35,6 +35,7 @@ export default function PrototypePlannerEditorPane({
   readOnlyReason,
   canManageChurchTemplates,
   planKind,
+  rhythm,
   onClose,
   onNavigateAway,
 }: {
@@ -51,6 +52,8 @@ export default function PrototypePlannerEditorPane({
   canManageChurchTemplates: boolean;
   /** 'content' hides the gathering-only fields — see PrototypeSermonEditorFields. */
   planKind?: 'gathering' | 'content';
+  /** The room's declared rhythm, offered as dates. Offers only — nothing recurs. */
+  rhythm?: { meetingDay: number | null; intervalDays: number | null };
   onClose: () => void;
   onNavigateAway: () => void;
 }) {
@@ -146,6 +149,7 @@ export default function PrototypePlannerEditorPane({
             createDefaultDate={isEditing ? undefined : (createDate ?? null)}
             allowNullDate
             planKind={planKind}
+            rhythm={rhythm}
             onDone={onClose}
             onNavigateAway={onNavigateAway}
             /*

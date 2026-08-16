@@ -60,7 +60,22 @@ This system allows users to set their church, churches to create Clerk Organizat
 
 ## Clerk Organization Limits (20 staff + 100 MRO)
 
-Clerk’s standard Organizations allowance: **20 members per org** and **~100 Monthly Retained Organizations (MRO) per app** (an MRO ≈ org with ≥2 members and ≥1 retained user). We stay within the **20** by **reserving the Clerk org for church staff/volunteers only** (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** When a user accepts a connection request, write a `ChurchMemberships` row, set home via `UserMetadata.connectedChurchId`/`connectedOrgId`/`connectedChurchAt` (temporary singular home until home pointer moves onto memberships), and optionally call `followMinistryChannel` for broadcast spaces (`SpaceMemberships` role=`member` — public spaces are exempt from the 30-person cap). Curriculum and "From your church" delivery read from those spaces, not Clerk org membership.
+Clerk’s standard Organizations allowance: **20 members per org** and **~100 Monthly Retained Organizations (MRO) per app** (an MRO ≈ org with ≥2 members and ≥1 retained user). We stay within the **20** by **reserving the Clerk org for church staff/volunteers only** (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** Connecting sets home via `UserMetadata.connectedChurchId`/`connectedOrgId`/`connectedChurchAt`. Curriculum and "From your church" delivery read from ministry channels the congregant follows (`SpaceMemberships` role=`member` — public spaces are exempt from the 30-person cap), not from Clerk org membership.
+
+> **Corrected Aug 2026.** This paragraph used to instruct writing a `ChurchMemberships` row on connect. **Nothing writes that table** — it is a stub for the multi-church decision, and the singular `connectedChurchId` pointer is what connect actually sets. It also said to "optionally call `followMinistryChannel`" on connect; see the decision below for why nothing does.
+
+**Decided (Derek, Aug 2026): connect uses opted tracks, not auto-follow-all.** A congregant chooses which ministries they are part of, so every channel they follow traces to a deliberate act. Recorded here from `CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md`, which settled it while working through Home context cards: had auto-follow-all won, every congregant would carry a card for every ministry with a plan.
+
+**The consequence.** `followMinistryChannel` is therefore *not* called from the connect path (`server/routes/user.ts`), which is correct — but nothing has replaced it either, so a congregant currently connects and follows **zero** channels, and "From your church" renders nothing until they find the hub and tap Follow by themselves.
+
+**Decided (Derek, Aug 2026): an optional, skippable ministry picker. Built Aug 2026** as `PrototypeMinistryPicker`, rendered in the slot the empty "From your church" feed would otherwise leave blank — which is where the consequence of following nothing is actually visible, so the prompt explains itself and costs nothing to ignore.
+
+- Shown right after a connection is accepted, listing the church's ministry channels.
+- **Nothing preselected**, and **skipping is a first-class outcome** — that is what keeps this "opted tracks" rather than auto-follow-all wearing a checkbox. A congregant who skips is in exactly the state they are in today, which is why this can ship without a migration or a backfill.
+- The My Church hub stays the way in, permanently. The picker is a prompt at the one moment the question is natural, not the only door.
+- Each selection calls the existing `followMinistryChannel` — no new write path, and the `role='member'` row it writes is the same one the hub's Follow button produces.
+
+Why optional rather than required: forcing a choice from someone who wanted to connect to their church trades a real friction for a cold start they can fix in two taps from the hub. The empty "From your church" state should also offer the channels, so the prompt exists where the consequence is visible.
 
 **Billing model:** paid **Church base** ($39/mo draft) creates the Clerk org; optional church add-ons (curriculum, church Shared Spaces, analytics, unlimited staff). There is **no public free Connect org** — congregant HMC “My church” does not create an org or burn an MRO. Staff seats above 20 require the **Unlimited staff** add-on and Clerk’s **Enhanced** B2B add-on (~$100/mo app-wide). Canonical prices: [MONETIZATION_AND_PRICING.md §7](./MONETIZATION_AND_PRICING.md). Sync-staff refuses Clerk rosters over 20 (`CLERK_ORG_MEMBER_LIMIT`) until unlimited staff ships.
 
@@ -186,7 +201,7 @@ The retired design pushed per-user `InboxItems`/`UserInboxItems` rows on every p
 - Church-initiated matching vs user-initiated search
 - Whether `auto_joined` survives or everything is accept/decline
 - Request expiry
-- Auto-follow **all** ministry channels vs opted ministry tracks
+- ~~Auto-follow **all** ministry channels vs opted ministry tracks~~ — **answered Aug 2026: opted tracks.** See the Clerk-limits section above for the decision and the one thing it leaves unbuilt.
 
 ## User Experience
 

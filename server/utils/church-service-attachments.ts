@@ -5,9 +5,11 @@
  * sees. `docs/future/CHURCH_STUDY_MATERIAL_LINKING.md` is the post-mortem of
  * the single pointer (`ChurchServices.channelSpaceId`) that was built and torn
  * out, and it names the fix as an inversion: published material claims the
- * service, rather than the service pointing at a room. That inversion is still
- * unbuilt, and this is not a cheaper version of it — it is the other direction
- * entirely, many-to-many, and never congregant-facing.
+ * service, rather than the service pointing at a room. That inversion is built
+ * — `church-published-material.ts` — and this is still not a version of it: it
+ * is the other direction entirely, many-to-many, and never congregant-facing.
+ * Resources here are a pastor's prep shelf; material there is addressed to the
+ * room. Do not merge them because both hang off a service.
  *
  * Shared by both plan routes so the church plan and a space plan cannot drift
  * on what an attachment means or who may make one.

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { parseLocalDateInput } from '../proto-date-picker';
 import {
+  RHYTHM_SUGGESTION_COUNT,
   SERVICE_GRACE_DAYS,
   buildStarterContent,
   currentSeriesTitle,
@@ -10,6 +12,8 @@ import {
   sermonEyebrow,
   planVocabulary,
   planSermonNoteLink,
+  rhythmDates,
+  selectHomeCards,
   seriesAccent,
   sermonTimeLabel,
   starterFolderForSermon,
@@ -341,11 +345,43 @@ describe('planVocabulary', () => {
     expect(v.itemNoun).toBe('gathering');
   });
 
-  it('calls a channel content — it publishes, it does not meet', () => {
+  it('makes the study a channel’s primary action — it publishes, it does not meet', () => {
     const v = planVocabulary({ onSpacePlan: true, planKind: 'content' });
-    expect(v.addLabel).toBe('Add content');
+    expect(v.addLabel).toBe('Add a study');
     expect(v.emptyWritable).not.toContain('gathering');
     expect(v.emptyWritable).not.toContain('sermon');
+  });
+
+  it('opens the series sheet for a study, so the label is not a lie', () => {
+    // "Add a study" opening the one-row editor would name something the click
+    // does not do. A study is a run of weeks, which is a series.
+    expect(planVocabulary({ onSpacePlan: true, planKind: 'content' }).addOpens).toBe('series');
+  });
+
+  it('keeps the one-off reachable on a channel, demoted rather than removed', () => {
+    const v = planVocabulary({ onSpacePlan: true, planKind: 'content' });
+    expect(v.secondaryAddLabel).toBe('Add a single entry');
+    expect(v.itemNoun).toBe('entry');
+  });
+
+  it('offers one way to add on every plan that is not a channel', () => {
+    for (const scope of [
+      { onSpacePlan: false },
+      { onSpacePlan: true, planKind: 'gathering' as const },
+      { onSpacePlan: true },
+    ]) {
+      const v = planVocabulary(scope);
+      expect(v.secondaryAddLabel).toBeNull();
+      expect(v.addOpens).toBe('entry');
+    }
+  });
+
+  it('lets a channel promise an output now that one exists', () => {
+    // Before material could claim a service these rows were read by nothing,
+    // and the empty state deliberately promised nothing.
+    expect(planVocabulary({ onSpacePlan: true, planKind: 'content' }).emptyWritable).toContain(
+      'congregation',
+    );
   });
 
   it('reads an absent kind as a gathering, for payloads cached before it shipped', () => {
@@ -376,6 +412,150 @@ describe('planVocabulary', () => {
     expect(
       planVocabulary({ onSpacePlan: true, planKind: 'gathering', hasChurch: true }).emptyWritable,
     ).toContain('ministry');
+  });
+});
+
+describe('selectHomeCards', () => {
+  const TODAY = '2026-08-16'; // a Sunday
+
+  const row = (
+    id: string,
+    serviceDate: string,
+    source?: ChurchSermon['source'],
+  ): ChurchSermon => ({
+    id,
+    serviceDate,
+    title: id,
+    seriesTitle: null,
+    reference: null,
+    viewerNoteId: null,
+    starter: null,
+    ...(source ? { source } : {}),
+  });
+
+  const youth = { kind: 'space' as const, spaceId: 'sp_youth', title: 'Youth', color: 'blue' };
+  const adult = { kind: 'space' as const, spaceId: 'sp_adult', title: 'Adult Ed', color: 'green' };
+
+  it('picks each context’s next service independently of the church’s', () => {
+    const { church, contexts } = selectHomeCards(
+      [
+        row('church-sun', '2026-08-16', { kind: 'church' }),
+        row('youth-wed', '2026-08-19', youth),
+        row('adult-thu', '2026-08-20', adult),
+      ],
+      TODAY,
+    );
+    expect(church?.id).toBe('church-sun');
+    expect(contexts.map((c) => c.service.id)).toEqual(['youth-wed', 'adult-thu']);
+  });
+
+  it('orders contexts by soonest, whatever order they arrived in', () => {
+    const { contexts } = selectHomeCards(
+      [row('adult-thu', '2026-08-20', adult), row('youth-wed', '2026-08-19', youth)],
+      TODAY,
+    );
+    expect(contexts.map((c) => c.service.id)).toEqual(['youth-wed', 'adult-thu']);
+  });
+
+  it('hides a context gathering 8 days out, keeps one 7 days out', () => {
+    expect(
+      selectHomeCards([row('far', '2026-08-24', youth)], TODAY).contexts,
+    ).toHaveLength(0);
+    expect(
+      selectHomeCards([row('edge', '2026-08-23', youth)], TODAY).contexts,
+    ).toHaveLength(1);
+  });
+
+  it('hides a context gathering 5 days past, keeps one 4 days past', () => {
+    // The past half is the same four-day write-up grace the church card gets.
+    expect(
+      selectHomeCards([row('stale', '2026-08-11', youth)], TODAY).contexts,
+    ).toHaveLength(0);
+    expect(
+      selectHomeCards([row('grace', '2026-08-12', youth)], TODAY).contexts,
+    ).toHaveLength(1);
+  });
+
+  it('never bounds the church card — it is the anchor', () => {
+    // A church service well past the context window still shows, because
+    // currentSermonFor's own grace rules are the only ones that apply to it.
+    const far = selectHomeCards([row('church-far', '2026-12-25', { kind: 'church' })], TODAY);
+    expect(far.church?.id).toBe('church-far');
+  });
+
+  it('reads a row with no source as the church’s own plan', () => {
+    // Payload tolerance: cached responses from before context cards shipped
+    // carry no `source` key at all.
+    const { church, contexts } = selectHomeCards([row('legacy', '2026-08-16')], TODAY);
+    expect(church?.id).toBe('legacy');
+    expect(contexts).toHaveLength(0);
+  });
+
+  /*
+    THE REGRESSION THAT MATTERS (§5): for a viewer with no space plans, output
+    must be byte-identical to what the single-card path produced. Asserted by
+    running both against the same rows rather than by eyeballing the shape.
+  */
+  it('is byte-identical to currentSermonFor for a viewer with no space plans', () => {
+    const churchOnly = [
+      row('a', '2026-08-12', { kind: 'church' }),
+      row('b', '2026-08-16', { kind: 'church' }),
+      row('c', '2026-08-23', { kind: 'church' }),
+    ];
+    for (const today of ['2026-08-11', '2026-08-16', '2026-08-17', '2026-08-24']) {
+      const viaCards = selectHomeCards(churchOnly, today);
+      expect(viaCards.church).toEqual(currentSermonFor(churchOnly, today));
+      expect(viaCards.contexts).toEqual([]);
+    }
+  });
+});
+
+describe('rhythmDates', () => {
+  // A Thursday, so "next Sunday" is a real step rather than today.
+  const thursday = new Date(2026, 7, 13);
+
+  it('anchors a room that meets on its next meeting day', () => {
+    const dates = rhythmDates({ meetingDay: 0, intervalDays: 7, count: 3 }, thursday);
+    expect(dates).toEqual(['2026-08-16', '2026-08-23', '2026-08-30']);
+  });
+
+  it('includes today when today is the meeting day', () => {
+    // Sunday the 16th, asked on the 16th: the appointment is today, not next week.
+    const dates = rhythmDates({ meetingDay: 0, intervalDays: 7, count: 2 }, new Date(2026, 7, 16));
+    expect(dates[0]).toBe('2026-08-16');
+  });
+
+  it('anchors a channel on today, because a cadence names no day', () => {
+    const dates = rhythmDates({ meetingDay: null, intervalDays: 14, count: 3 }, thursday);
+    expect(dates).toEqual(['2026-08-13', '2026-08-27', '2026-09-10']);
+  });
+
+  it('offers nothing for a room that has declared no rhythm', () => {
+    // An irregular channel yields a null interval. Offering nothing is correct:
+    // inventing a rhythm would put words in the room's mouth.
+    expect(rhythmDates({ meetingDay: null, intervalDays: null }, thursday)).toEqual([]);
+    expect(rhythmDates({ meetingDay: 0, intervalDays: 0 }, thursday)).toEqual([]);
+  });
+
+  it('steps across a DST boundary without slipping a day', () => {
+    /*
+      US DST ends Nov 1 2026. Local-date arithmetic lands on a 25-hour day here
+      and turns "every Sunday" into a Saturday — the exact bug `weeklyDatesAfter`
+      steps in UTC to avoid, and the reason this does too.
+    */
+    const lateOctober = new Date(2026, 9, 25);
+    const dates = rhythmDates({ meetingDay: 0, intervalDays: 7, count: 4 }, lateOctober);
+    expect(dates).toEqual(['2026-10-25', '2026-11-01', '2026-11-08', '2026-11-15']);
+    for (const iso of dates) {
+      expect(parseLocalDateInput(iso)?.getDay()).toBe(0);
+    }
+  });
+
+  it('defaults to a glance, not to bulk entry', () => {
+    // The quarter-at-once case belongs to "repeat weekly", which writes rows.
+    expect(rhythmDates({ meetingDay: 0, intervalDays: 7 }, thursday)).toHaveLength(
+      RHYTHM_SUGGESTION_COUNT,
+    );
   });
 });
 

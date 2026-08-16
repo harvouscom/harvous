@@ -17,7 +17,7 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Threads, ThreadProgress, Notes, NoteThreads, NoteScriptureReferences, Spaces, SpaceNotes, SpaceMemberships,
-  eq, and, or, inArray, isNull,
+  eq, and, or, inArray, isNull, desc,
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -31,7 +31,12 @@ import {
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { isUniqueViolationError } from '../utils/db-errors';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
-import { requireSpaceAccess, SpaceAccessError, isActualSpaceOwner } from '../utils/space-access';
+import {
+  requireSpaceAccess,
+  SpaceAccessError,
+  isActualSpaceOwner,
+  canAuthorInSpace,
+} from '../utils/space-access';
 import { isPublishedSeriesThread } from '../utils/church-series-publish';
 import {
   canManageSpaceThreadStructure,
@@ -879,7 +884,21 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
       above and as surveillance from below, so a member's payload never carries
       it at all rather than the client being trusted to hide it.
     */
-    let pulse: { memberCount: number; openedCountByNoteId: Record<string, number> } | null = null;
+    let pulse: {
+      memberCount: number;
+      openedCountByNoteId: Record<string, number>;
+      completedCount: number;
+    } | null = null;
+    /*
+      The viewer's own completion, and whether the room's run is closed.
+
+      Their own is theirs to see — "Review is never shared" is about not showing
+      a person's study to *other* people, and reading it back to the person it
+      belongs to was never the thing it guarded against. The room's closure is
+      the leader's public statement about the run, so everybody sees it.
+    */
+    let viewerCompletedAt: string | null = null;
+    let closedAt: string | null = null;
     if (isSequenceMode(sequenceThread.mode)) {
       // Resolved against every note in the Thread, not this page of them —
       // "Step 3 of 8" counts the whole plan.
@@ -892,6 +911,20 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
         currentIndex: state.currentIndex,
         total: state.total,
       };
+
+      closedAt = sequenceThread.closedAt ? sequenceThread.closedAt.toISOString() : null;
+
+      /* Scoped to the caller's own row, the same discipline
+         `resolveViewerServiceNotes` keeps. There is still no route that reads
+         one *other* person's progress. */
+      const own = first(
+        await db
+          .select({ completedAt: ThreadProgress.completedAt })
+          .from(ThreadProgress)
+          .where(and(eq(ThreadProgress.threadId, threadId), eq(ThreadProgress.userId, auth.userId)))
+          .limit(1),
+      );
+      viewerCompletedAt = own?.completedAt ? own.completedAt.toISOString() : null;
 
       if (sequenceThread.spaceId) {
         const access = await requireSpaceAccess(sequenceThread.spaceId, auth.userId);
@@ -909,9 +942,271 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
       mode: sequenceThread.mode ?? 'collection',
       sequence,
       pulse,
+      viewerCompletedAt,
+      closedAt,
     });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/notes', action: 'get_thread_notes', threadId: c.req.param('threadId') });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * How many reading plans Home will carry.
+ *
+ * Three, because Home is a place to continue *something*, not to choose from a
+ * shelf. Someone running more than three plans at once has a list to browse and
+ * knows where it is.
+ */
+const HOME_READING_PLAN_LIMIT = 3;
+
+// ─── GET /api/threads/reading-plans ─────────────────────────────────────────
+/**
+ * The viewer's own reading plans, and only where they are up to in each.
+ *
+ * A personal plan is a sequence Thread with **no space** — the server has always
+ * been able to build one, and until Aug 2026 nothing rendered it, because the
+ * only hook that could was gated on a `spaceId`.
+ *
+ * **Only the current step, deliberately.** Home shows where you are, not the
+ * whole plan; listing every step here would make Home a second reading list
+ * rather than the "continue this" it is. The full plan lives in the Threads
+ * list, which is where you go to see it.
+ *
+ * Finished plans drop out — a plan you have marked complete is not something to
+ * continue. Reopening it is a tap away in the list.
+ */
+route.get('/api/threads/reading-plans', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const rows = await db
+      .select({
+        id: Threads.id,
+        title: Threads.title,
+        color: Threads.color,
+        sequenceNoteIds: Threads.sequenceNoteIds,
+        sequenceCurrentNoteId: Threads.sequenceCurrentNoteId,
+        updatedAt: Threads.updatedAt,
+      })
+      .from(Threads)
+      .where(
+        and(
+          eq(Threads.userId, auth.userId),
+          // Personal only: a room's plan reaches Home through its own card.
+          isNull(Threads.spaceId),
+          eq(Threads.mode, 'sequence'),
+        ),
+      )
+      .orderBy(desc(Threads.updatedAt))
+      .limit(HOME_READING_PLAN_LIMIT);
+
+    if (rows.length === 0) return c.json({ plans: [] });
+
+    const completedRows = await db
+      .select({ threadId: ThreadProgress.threadId, completedAt: ThreadProgress.completedAt })
+      .from(ThreadProgress)
+      .where(
+        and(
+          eq(ThreadProgress.userId, auth.userId),
+          inArray(
+            ThreadProgress.threadId,
+            rows.map((row) => row.id),
+          ),
+        ),
+      );
+    const completedIds = new Set(
+      completedRows.filter((row) => row.completedAt).map((row) => row.threadId),
+    );
+
+    const plans = [];
+    for (const row of rows) {
+      if (completedIds.has(row.id)) continue;
+      const state = resolveSequenceState(row, await loadLiveThreadNoteIds(row.id, null));
+      if (state.total === 0) continue;
+
+      const currentTitle = state.currentNoteId
+        ? (
+            first(
+              await db
+                .select({ title: Notes.title })
+                .from(Notes)
+                .where(eq(Notes.id, state.currentNoteId))
+                .limit(1),
+            )?.title ?? null
+          )
+        : null;
+
+      plans.push({
+        threadId: row.id,
+        title: row.title,
+        color: row.color,
+        currentNoteId: state.currentNoteId,
+        currentNoteTitle: currentTitle,
+        currentIndex: state.currentIndex,
+        total: state.total,
+      });
+    }
+
+    return c.json({ plans });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/reading-plans',
+      action: 'list_reading_plans',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/threads/:threadId/complete ───────────────────────────────────
+/**
+ * The caller says they finished this plan — or takes it back.
+ *
+ * **Explicit, never derived.** `openedNoteIds` records that a step was opened,
+ * which is not the same as having read or worked it. Deriving "complete" from
+ * "opened them all" would quietly collapse that distinction, so completion is
+ * only ever this route, called by the person it is about.
+ *
+ * **Not the same as a leader closing the run** (`/close` below). A member
+ * finishing does not close the room's run, and a room's run closing does not
+ * finish anybody. Different columns, different tables, different people.
+ *
+ * Works for a personal plan too: a sequence Thread with no `spaceId` is one
+ * person's, and `requireThreadReadAccess` already resolves ownership for it —
+ * which is why the space check below is conditional rather than required.
+ */
+route.post('/api/threads/:threadId/complete', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    let threadId = requireParam(c, 'threadId');
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+
+    const readAccess = await readableThreadOrNull(threadId, auth.userId);
+    if (!readAccess) return c.json({ error: 'Thread not found' }, 404);
+    const thread = readAccess.thread;
+    // Only a sequence has a finish. A collection is not walked.
+    if (!isSequenceMode(thread.mode)) {
+      return c.json({ error: 'That plan has no steps', code: 'NOT_A_SEQUENCE' }, 400);
+    }
+    if (thread.spaceId) {
+      try {
+        await requireSpaceAccess(thread.spaceId, auth.userId);
+      } catch {
+        return c.json({ error: 'Thread not found' }, 404);
+      }
+    }
+
+    const body = await c.req.json().catch(() => null);
+    /* An explicit boolean both ways — "complete" and "actually, not yet" are
+       both things a person says, and an absent key is a bad request rather than
+       a silent toggle. */
+    if (typeof body?.completed !== 'boolean') {
+      return c.json({ error: 'completed is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const now = nowISO();
+    const completedAt = body.completed ? now : null;
+
+    const existing = first(
+      await db
+        .select({ userId: ThreadProgress.userId })
+        .from(ThreadProgress)
+        .where(and(eq(ThreadProgress.threadId, threadId), eq(ThreadProgress.userId, auth.userId)))
+        .limit(1),
+    );
+
+    if (existing) {
+      await db
+        .update(ThreadProgress)
+        .set({ completedAt, updatedAt: now })
+        .where(and(eq(ThreadProgress.threadId, threadId), eq(ThreadProgress.userId, auth.userId)));
+    } else {
+      /* Finishing without ever having ticked a step is legitimate — someone who
+         read the plan elsewhere and is recording that they did. */
+      await db
+        .insert(ThreadProgress)
+        .values({ threadId, userId: auth.userId, completedAt, startedAt: now, updatedAt: now })
+        .onConflictDoNothing();
+    }
+
+    return c.json({ success: true, completedAt });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/[threadId]/complete',
+      action: 'complete_thread_plan',
+      threadId: c.req.param('threadId'),
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/threads/:threadId/close ──────────────────────────────────────
+/**
+ * The room's leader closes this run — or reopens it.
+ *
+ * The cohort's completion: "we're done with this study." It writes nothing on
+ * anybody's `ThreadProgress`, deliberately. Someone who fell behind did not
+ * finish because the room moved on, and marking them complete would tell them
+ * something untrue about their own study.
+ *
+ * **Closed is a label, not a lock.** The plan stays readable and a member can
+ * still walk it and still mark themselves complete afterwards — people finish
+ * late, and taking the material away the moment the room moves on is the
+ * opposite of what a study plan is for.
+ *
+ * Leader-or-owner in the room, which for a `type='public'` channel is exactly
+ * who may author in it. A personal plan has no cohort, so it has no run to
+ * close — 400 rather than pretending.
+ */
+route.post('/api/threads/:threadId/close', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    let threadId = requireParam(c, 'threadId');
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+
+    const readAccess = await readableThreadOrNull(threadId, auth.userId);
+    if (!readAccess) return c.json({ error: 'Thread not found' }, 404);
+    const thread = readAccess.thread;
+    if (!isSequenceMode(thread.mode)) {
+      return c.json({ error: 'That plan has no steps', code: 'NOT_A_SEQUENCE' }, 400);
+    }
+    if (!thread.spaceId) {
+      return c.json({ error: 'A personal plan has no run to close', code: 'NO_COHORT' }, 400);
+    }
+
+    let access;
+    try {
+      access = await requireSpaceAccess(thread.spaceId, auth.userId);
+    } catch {
+      return c.json({ error: 'Thread not found' }, 404);
+    }
+    /* The same gate as authoring the plan's steps: whoever may write the run may
+       say it is over. A follower holds `member` and cannot. */
+    if (!canAuthorInSpace(access.space, access.role)) {
+      return c.json({ error: 'Only a leader can close this run', code: 'FORBIDDEN' }, 403);
+    }
+
+    const body = await c.req.json().catch(() => null);
+    if (typeof body?.closed !== 'boolean') {
+      return c.json({ error: 'closed is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const now = nowISO();
+    const closedAt = body.closed ? now : null;
+    await db
+      .update(Threads)
+      .set({ closedAt, closedByUserId: body.closed ? auth.userId : null, updatedAt: now })
+      .where(eq(Threads.id, threadId));
+
+    return c.json({ success: true, closedAt });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/threads/[threadId]/close',
+      action: 'close_thread_run',
+      threadId: c.req.param('threadId'),
+    });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

@@ -45,6 +45,9 @@ import PrototypeInspectorTemplatesSection from './PrototypeInspectorTemplatesSec
 import PrototypeInspectorTeachingPlanSection, {
   type PrototypeInspectorTeachingPlanSectionProps,
 } from './PrototypeInspectorTeachingPlanSection';
+import PrototypeInspectorPublishedForSection, {
+  type PrototypeInspectorPublishedForSectionProps,
+} from './PrototypeInspectorPublishedForSection';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { PrototypeSectionHeader } from './design-system';
 import { noteParamSlug } from './proto-route-slugs';
@@ -95,6 +98,13 @@ interface PrototypeInspectorPaneProps {
    * general note inspector.
    */
   teachingPlan?: PrototypeInspectorTeachingPlanSectionProps | null;
+  /**
+   * "Published for" — present only for a note that lives in a ministry channel
+   * this viewer may author in. Null everywhere else, for the same reason
+   * `teachingPlan` is: a congregant following the channel must not see the
+   * attach control, and the server would 404 it anyway.
+   */
+  publishedFor?: PrototypeInspectorPublishedForSectionProps | null;
 }
 
 export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION = SHARED_REMOVE_NOTE_FROM_SPACE_CONFIRMATION;
@@ -124,6 +134,7 @@ export default function PrototypeInspectorPane({
   isDraftCompose = false,
   templates = null,
   teachingPlan = null,
+  publishedFor = null,
 }: PrototypeInspectorPaneProps) {
   const { userId: authUserId } = useAuth();
   const queryClient = useQueryClient();
@@ -329,6 +340,10 @@ export default function PrototypeInspectorPane({
       {/* Staff only, and only ever present when the *server* said so — see the
           section's own docblock. Absent for every general user. */}
       {teachingPlan ? <PrototypeInspectorTeachingPlanSection {...teachingPlan} /> : null}
+
+      {/* The other direction: not "when is this taught" but "what is this for".
+          Only ever present on a note published in a ministry channel. */}
+      {publishedFor ? <PrototypeInspectorPublishedForSection {...publishedFor} /> : null}
 
       {showActivityPanel && !isDraftCompose ? (
         <SharedNoteActivityPanel

@@ -189,10 +189,17 @@ export async function loadLiveThreadNoteIds(
 export async function readTogetherPulse(
   threadId: string,
   spaceId: string,
-): Promise<{ memberCount: number; openedCountByNoteId: Record<string, number> }> {
+): Promise<{
+  memberCount: number;
+  openedCountByNoteId: Record<string, number>;
+  completedCount: number;
+}> {
   const [progressRows, memberRows] = await Promise.all([
     db
-      .select({ openedNoteIds: ThreadProgress.openedNoteIds })
+      .select({
+        openedNoteIds: ThreadProgress.openedNoteIds,
+        completedAt: ThreadProgress.completedAt,
+      })
       .from(ThreadProgress)
       .where(eq(ThreadProgress.threadId, threadId)),
     db
@@ -212,6 +219,10 @@ export async function readTogetherPulse(
   return {
     memberCount: new Set(memberRows.map((row) => row.userId)).size,
     openedCountByNoteId,
+    /* How many finished — a count, exactly like the per-step counts above, and
+       under the same rule: how many, never who. A leader learns the room is
+       through; they never learn that a particular person is not. */
+    completedCount: progressRows.filter((row) => row.completedAt).length,
   };
 }
 

@@ -102,3 +102,36 @@ describe('the share toggle', () => {
     expect(withoutComments(shareRoute())).toContain("action !== 'disable'");
   });
 });
+
+/*
+  This endpoint shipped fully implemented and contract-tested with **zero
+  clients** — `/shared/thread/:token` rendered a page that 404s for any
+  non-personal space, so every published-plan link was dead while
+  `release-notes/2026-08-08.md` claimed the feature worked. Tests that only
+  looked server-side could not see it. These look at the caller.
+*/
+describe('the preview has a client', () => {
+  const page = () => source('spa/src/pages/public/PublicSharedThreadPage.tsx');
+
+  it('falls back to the plan endpoint when the ordinary one refuses', () => {
+    const text = page();
+    expect(text).toContain('/api/shared/thread/${shareToken}');
+    expect(text).toContain('/api/shared/thread-plan/${shareToken}');
+  });
+
+  it('asks for the plan before calling the link dead', () => {
+    const text = withoutComments(page());
+    const planCall = text.indexOf('thread-plan/${shareToken}');
+    const givesUp = text.indexOf("setError('not_found')");
+    expect(planCall).toBeGreaterThan(-1);
+    expect(givesUp).toBeGreaterThan(-1);
+    expect(planCall).toBeLessThan(givesUp);
+  });
+
+  it('never mints an invite from the preview — it only follows one', () => {
+    // Who may join is the room's decision, not a consequence of a page load.
+    const text = withoutComments(page());
+    expect(text).toContain('plan.joinToken ?');
+    expect(text).not.toMatch(/api\.post\([^)]*invite/i);
+  });
+});

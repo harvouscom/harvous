@@ -22,6 +22,7 @@ import {
   type TeachingPlanSeries,
   type TeachingPlanSermon,
 } from '../../../hooks/queries/useChurchTeachingPlan';
+import { cadenceIntervalDays, parsePublishCadence } from '@/utils/channel-publish-cadence';
 import {
   useChurchSpacePlan,
   useChurchSpaceSermonActions,
@@ -236,6 +237,31 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
     ? (spacePlan.data?.space.meetingDay ?? null)
     : (churchPlan.data?.serviceTimes?.[0]?.dayOfWeek ?? null);
 
+  /*
+    The room's rhythm, as dates the editor can offer.
+
+    Two vocabularies meet here, which is why this is resolved once rather than
+    inside the form: a room that *gathers* has a meeting day and repeats weekly,
+    while a channel that *publishes* has no day at all and repeats on its
+    cadence. An irregular channel yields a null interval, and the editor then
+    offers nothing — which is correct, because an irregular room has not
+    declared a rhythm to offer.
+
+    Offers only. Nothing here schedules, reminds, or recurs.
+  */
+  const rhythm = useMemo(
+    () =>
+      planKind === 'content'
+        ? {
+            meetingDay: null,
+            intervalDays: cadenceIntervalDays(
+              parsePublishCadence(spacePlan.data?.space.publishCadence),
+            ),
+          }
+        : { meetingDay: defaultDay, intervalDays: 7 },
+    [planKind, defaultDay, spacePlan.data?.space.publishCadence],
+  );
+
   const schedule = usePlannerSchedule({
     planSpaceId: scopeSpaceId,
     orgId,
@@ -356,14 +382,38 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
       toolbar={effectiveCanView ? viewSwitcher : undefined}
       actions={
         effectiveCanWrite ? (
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--control proto-glass-action"
-            onClick={() => setSelection({ mode: 'create', date: null })}
-          >
-            <Icon name="plus" size={12} aria-hidden />
-            <span className="proto-glass-action__label">{vocab.addLabel}</span>
-          </button>
+          /*
+            The primary opens what its label names — a run of weeks on a
+            channel, one row everywhere else — and the one-off follows it as a
+            quiet action rather than disappearing. Two buttons only where there
+            are genuinely two things to add.
+          */
+          <>
+            <button
+              type="button"
+              className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+              onClick={() => {
+                if (vocab.addOpens === 'series') {
+                  setSeriesError(null);
+                  setCreatingSeries(true);
+                  return;
+                }
+                setSelection({ mode: 'create', date: null });
+              }}
+            >
+              <Icon name="plus" size={12} aria-hidden />
+              <span className="proto-glass-action__label">{vocab.addLabel}</span>
+            </button>
+            {vocab.secondaryAddLabel ? (
+              <button
+                type="button"
+                className="proto-sheet-quiet-action"
+                onClick={() => setSelection({ mode: 'create', date: null })}
+              >
+                {vocab.secondaryAddLabel}
+              </button>
+            ) : null}
+          </>
         ) : undefined
       }
       exiting={exiting}
@@ -583,6 +633,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
               readOnlyReason={readOnlyReason}
               canManageChurchTemplates={canManageChurchTemplates}
               planKind={planKind}
+              rhythm={rhythm}
               onClose={() => setSelection(null)}
               onNavigateAway={leaveForNote}
             />

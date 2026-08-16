@@ -16,6 +16,8 @@ import {
   first,
   ChurchServices,
   Notes,
+  Spaces,
+  SpaceMemberships,
   and,
   eq,
   gte,
@@ -29,6 +31,7 @@ import {
   type ChurchOrgAccessResult,
   type ChurchOrgAccessRule,
 } from './church-org-access';
+import { isChurchOrgSpaceRow } from './channel-publish-cadence';
 
 export type ChurchServiceRow = typeof ChurchServices.$inferSelect;
 
@@ -161,6 +164,88 @@ export async function listServicesForChurch(
     .where(where)
     .orderBy(asc(ChurchServices.serviceDate))
     .limit(limit);
+}
+
+/**
+ * A ministry or group whose plan reaches this viewer's Home.
+ *
+ * "Belongs to" is one question for both kinds of room, because following a
+ * ministry channel *is* membership — `followMinistryChannel` writes a plain
+ * `role='member'` row. So a channel you follow and a small group you were
+ * invited into arrive through the same query, which is what §5 means by "any
+ * org space the viewer belongs to".
+ */
+export type ViewerPlanSource = { spaceId: string; title: string; color: string | null };
+
+/**
+ * The org spaces this viewer belongs to that could carry a plan.
+ *
+ * Live rooms only, this church's org only, and `isChurchOrgSpaceRow` as the
+ * single predicate for "org space" — the same one §4 uses, so this needs no
+ * rule of its own. A personal space can never appear: it has no `orgId`.
+ */
+export async function listViewerPlanSources(
+  userId: string,
+  orgId: string,
+): Promise<ViewerPlanSource[]> {
+  const rows = await db
+    .select({
+      spaceId: Spaces.id,
+      title: Spaces.title,
+      color: Spaces.color,
+      type: Spaces.type,
+      orgId: Spaces.orgId,
+      isActive: Spaces.isActive,
+    })
+    .from(SpaceMemberships)
+    .innerJoin(Spaces, eq(Spaces.id, SpaceMemberships.spaceId))
+    .where(
+      and(
+        eq(SpaceMemberships.userId, userId),
+        eq(Spaces.orgId, orgId),
+        isNull(Spaces.deletedAt),
+      ),
+    )
+    .orderBy(asc(Spaces.id));
+
+  return rows
+    .filter((row) => row.isActive && isChurchOrgSpaceRow({ type: row.type, orgId: row.orgId }))
+    .map((row) => ({ spaceId: row.spaceId, title: row.title, color: row.color }));
+}
+
+/**
+ * Each source's own next few services, keyed by space id.
+ *
+ * **The limit is per source, deliberately.** §5: "a busy Youth plan must never
+ * starve the church plan out of the payload." That is also why this is one
+ * bounded query *per* source rather than one query with a global limit — a
+ * single `ORDER BY serviceDate LIMIT n` across every room hands all n slots to
+ * whichever room happens to meet soonest and most often, which is exactly the
+ * starvation the rule forbids. The fan-out is bounded by the viewer's own
+ * memberships, which is a handful of rooms, and the queries run together.
+ */
+export async function listServicesForViewerSources(
+  churchId: string,
+  sources: readonly ViewerPlanSource[],
+  options: { from: string; limit: number },
+): Promise<Map<string, ChurchServiceRow[]>> {
+  const out = new Map<string, ChurchServiceRow[]>();
+  if (sources.length === 0) return out;
+
+  const results = await Promise.all(
+    sources.map((source) =>
+      listServicesForChurch(churchId, {
+        plan: { spaceId: source.spaceId },
+        from: options.from,
+        limit: options.limit,
+      }),
+    ),
+  );
+  sources.forEach((source, index) => {
+    const rows = results[index];
+    if (rows.length > 0) out.set(source.spaceId, rows);
+  });
+  return out;
 }
 
 /** A single service scoped to its church — so an id from another church 404s. */

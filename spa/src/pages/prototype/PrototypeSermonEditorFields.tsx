@@ -34,7 +34,12 @@ import {
   type TeachingPlanSeries,
   type TeachingPlanSermon,
 } from '../../hooks/queries/useChurchTeachingPlan';
-import { formatServiceTime, nextOccurrenceOfDay, planVocabulary } from '../../lib/church-services';
+import {
+  formatServiceTime,
+  nextOccurrenceOfDay,
+  planVocabulary,
+  rhythmDates,
+} from '../../lib/church-services';
 import { formatLocalDateInput, parseLocalDateInput } from '../../lib/proto-date-picker';
 import { useNotesByReference } from '../../hooks/queries/useNotesByReference';
 import { checkScriptureReferenceValidity, normalizeScriptureReference } from '@/utils/scripture-detector';
@@ -88,6 +93,17 @@ export interface PrototypeSermonEditorFieldsProps {
    * would let staff set something that is silently discarded.
    */
   planKind?: 'gathering' | 'content';
+  /**
+   * The rhythm this room already declares, offered as dates instead of an empty
+   * field. `meetingDay` anchors a room that meets; `intervalDays` is 7 for
+   * weekly or the cadence interval for a channel that publishes.
+   *
+   * **Offers only.** A room's rhythm is a fact about the room, not a schedule —
+   * nothing here recurs, reminds, or fires on a clock, and a pastor still enters
+   * every entry deliberately. Absent, or with a null interval, the field behaves
+   * exactly as it did before: one seeded default and a picker.
+   */
+  rhythm?: { meetingDay: number | null; intervalDays: number | null };
   /**
    * Extra fields rendered at the end of the scrolling region, above the footer.
    * The compact sheet puts the resources picker here; the docked pane scrolls
@@ -145,6 +161,7 @@ export default function PrototypeSermonEditorFields({
   onNavigateAway,
   canWrite = true,
   onLayoutChange,
+  rhythm,
 }: PrototypeSermonEditorFieldsProps) {
   const navigate = useNavigate();
   /* The word for what is being planned. "Sermon title" was hardcoded here, so
@@ -156,6 +173,15 @@ export default function PrototypeSermonEditorFields({
     the plan in hand is used. Choosing here rather than at the call site means
     a caller cannot accidentally hand the church's mutation to a space plan.
   */
+  /* Recomputed only when the rhythm itself changes — not per render, and not
+     per keystroke in the form above it. */
+  const rhythmSuggestions = useMemo(
+    () =>
+      rhythm
+        ? rhythmDates({ meetingDay: rhythm.meetingDay, intervalDays: rhythm.intervalDays })
+        : [],
+    [rhythm?.meetingDay, rhythm?.intervalDays],
+  );
   const churchActions = useChurchSermonActions(orgId);
   const spaceActions = useChurchSpaceSermonActions(planSpaceId);
   const actions = planSpaceId ? spaceActions : churchActions;
@@ -526,6 +552,36 @@ export default function PrototypeSermonEditorFields({
             </button>
           ) : null}
         </div>
+        {/*
+          The room's own rhythm, offered as dates.
+
+          `schema.ts` says of `meetingDay`/`publishCadence`: "Nothing here
+          schedules, reminds, or recurs; whoever runs the room still enters every
+          gathering by hand." That stays true — this only stops them retyping a
+          date the room already declares. Nothing recurs and nothing fires.
+
+          Only while creating: an existing entry has a date, and offering to move
+          it onto the rhythm is a different question nobody asked.
+        */}
+        {!service && rhythmSuggestions.length > 0 ? (
+          <div className="proto-rhythm-dates">
+            {rhythmSuggestions.map((iso) => (
+              <button
+                key={iso}
+                type="button"
+                className={`proto-chip${iso === serviceDate ? ' proto-chip--selected' : ''}`}
+                aria-pressed={iso === serviceDate}
+                onClick={() => {
+                  setServiceDate(iso);
+                  setDatePickerOpen(false);
+                }}
+              >
+                {formatServiceDate(iso)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         {datePickerOpen ? (
           <div ref={datePickerRef}>
             <ProtoDatePicker

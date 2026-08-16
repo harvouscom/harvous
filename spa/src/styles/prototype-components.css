@@ -7011,6 +7011,111 @@ button.proto-home-card--tappable:focus-visible {
   user-select: none;
 }
 
+/*
+  A home card whose tap target is one region rather than the whole surface.
+
+  `.proto-home-card` pads itself, which is right while the card *is* the button.
+  Once a second region has to live inside it the padding moves down to the
+  regions, so the tap target's hover fills its own half instead of floating
+  inset within a border. `overflow: hidden` lets the inner regions stay square
+  and take their corners from the card, which is what keeps the top region
+  looking right whether or not a second region is below it.
+*/
+.proto-home-card--split {
+  padding: 0;
+  overflow: hidden;
+}
+
+/*
+  A context card — a room you're in reporting its next gathering.
+
+  Subordinate to the church card by weight, not by colour: it is informational
+  rather than a second appointment competing for the same status. Never tinted
+  by the space's own colour, which would claim the gathering came *from* a room
+  in the sense the church card's does.
+*/
+.proto-this-sunday--context {
+  border-color: color-mix(in srgb, var(--pds-border-control) 60%, transparent);
+}
+
+.proto-this-sunday--context .proto-home-card__title {
+  font-weight: 500;
+}
+
+.proto-this-sunday__main {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 9px 10px 10px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  font-family: var(--pds-font-body);
+  color: var(--pds-text-primary);
+}
+
+/*
+  Study material published *for* this service. Separated by a rule rather than a
+  gap: it belongs to the card, and a gap would read as the orphaned sibling line
+  that CHURCH_STUDY_MATERIAL_LINKING.md removed.
+*/
+.proto-this-sunday__attached {
+  padding: 7px 10px 8px;
+  border-top: 0.5px solid var(--pds-border-control);
+}
+
+.proto-this-sunday__attached-label {
+  margin: 0 0 4px;
+}
+
+.proto-this-sunday__attached-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proto-this-sunday__attached-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 5px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--pds-font-body);
+  color: var(--pds-text-primary);
+  transition: background 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.proto-this-sunday__attached-item:hover {
+  background: var(--pds-bg-control-strong);
+}
+
+/*
+  Wraps rather than truncates. At 375px "Romans 8 discussion guide" ellipsed to
+  "Romans 8 discussi…", which loses the half that says what it is — and unlike a
+  feed this list is short (one or two rows in practice), so a second line costs
+  almost nothing. The room's name is the part that may not shrink: it is already
+  brief, and it is what distinguishes two ministries speaking to the same week.
+*/
+.proto-this-sunday__attached-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+/* The room it came from, named in words. Never its colour — see the component. */
+.proto-this-sunday__attached-from {
+  flex: 0 0 auto;
+}
+
 /* Mobile home — Add to Home Screen card (main pane empty state). */
 .proto-install-web-app-card {
   position: relative;
@@ -13433,6 +13538,93 @@ html.harvous-prototype-route
 
 /* Which of the church's services a sermon fills. A column of checkboxes rather
    than a select, because one sermon commonly covers two morning services. */
+/*
+  "Published for" — the attach picker in the note inspector.
+
+  Borrows the sermon editor's slot construction (`__slot-input` + `__slot-orb`)
+  rather than restating it, so the selection affordance stays one thing across
+  both. Only the row layout differs: this one carries a trailing hint — a date,
+  or how many weeks a run covers — where a slot carries only its time.
+*/
+/*
+  "Which of these are you part of?" — the ministry picker on a fresh connect.
+
+  Sits in the slot the empty "From your church" feed would otherwise leave
+  blank, so it reads as an answer to the emptiness rather than as a new demand.
+  Deliberately quiet: no glass panel, no accent — a prompt you can ignore should
+  not carry more visual weight than the cards it sits beside.
+*/
+.proto-ministry-picker {
+  padding: 2px 2px 6px;
+}
+
+.proto-ministry-picker__title {
+  margin: 0 0 2px;
+}
+
+.proto-ministry-picker__subtitle {
+  margin: 0 0 8px;
+}
+
+.proto-ministry-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 8px;
+}
+
+/*
+  The dates a room's rhythm falls on, offered above the picker.
+
+  Wraps rather than scrolls: six dates is a glance, and a horizontal scroller
+  would hide half of them behind a gesture. `.proto-chip` defaults to
+  `flex: 1 0 auto` so it can fill a segmented bar — these are a set of choices,
+  not a bar, so they take their own width instead of stretching to the row.
+*/
+.proto-rhythm-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.proto-rhythm-dates .proto-chip {
+  flex: 0 0 auto;
+}
+
+.proto-published-for__group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 8px;
+}
+
+.proto-published-for__group-label {
+  margin: 0 0 2px;
+}
+
+.proto-published-for__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 2px;
+  font-size: 13px;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+.proto-published-for__option-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-published-for__option-hint {
+  flex: 0 0 auto;
+}
+
 .proto-service-editor__slots {
   display: flex;
   flex-direction: column;

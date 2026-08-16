@@ -3,6 +3,7 @@ import {
   Spaces,
   Notes,
   Threads,
+  ThreadProgress,
   NoteThreads,
   NoteConnections,
   SpaceNotes,
@@ -670,6 +671,12 @@ export async function deleteThreadInTransaction(
   const affectedNoteIds: string[] = [...new Set(affected.map((row) => row.noteId))];
   await tx.delete(NoteThreads).where(eq(NoteThreads.threadId, thread.id));
 
+  /* Progress is about this Thread and nothing else, so it goes with it. These
+     are per-user rows — a member's step history — and the only reader is the
+     Thread they belong to, so surviving it would be a private row nobody can
+     reach and nobody deletes. */
+  await tx.delete(ThreadProgress).where(eq(ThreadProgress.threadId, thread.id));
+
   if (!shared && affectedNoteIds.length > 0) {
     const remaining = (await tx
       .select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
@@ -707,6 +714,9 @@ export async function deleteThreadInTransaction(
 
 export const EXPIRED_SPACE_PURGE_TABLES = [
   'NoteThreads',
+  /* Per-user step history for the room's Threads. Listed — and deleted — because
+     it is the one row here that is a person's, not the space's. */
+  'ThreadProgress',
   'StudyThreadEntries',
   'NoteConnections',
   'SpaceNotes',
@@ -778,9 +788,12 @@ export async function purgeExpiredDeletedSpaces(
         .from(Threads)
         .where(eq(Threads.spaceId, spaceId));
       if (threadRows.length > 0) {
-        await tx
-          .delete(NoteThreads)
-          .where(inArray(NoteThreads.threadId, threadRows.map((row: { id: string }) => row.id)));
+        const threadIds = threadRows.map((row: { id: string }) => row.id);
+        await tx.delete(NoteThreads).where(inArray(NoteThreads.threadId, threadIds));
+        /* Who walked how far through each study. Per-user rows, so leaving them
+           behind outlives the room they were about — the one table here that is
+           a privacy question rather than only an orphan question. */
+        await tx.delete(ThreadProgress).where(inArray(ThreadProgress.threadId, threadIds));
       }
       await tx.delete(StudyThreadEntries).where(eq(StudyThreadEntries.spaceId, spaceId));
       await tx.delete(NoteConnections).where(eq(NoteConnections.spaceId, spaceId));

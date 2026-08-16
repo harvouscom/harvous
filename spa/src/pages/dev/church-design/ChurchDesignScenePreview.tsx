@@ -540,22 +540,58 @@ function ThisSundayScene() {
     <div>
       <PhoneChrome>
         <div style={{ padding: 16 }}>
+          {/*
+            The card is a container whose first region is the tap target, not
+            one big <button> — that is what lets study material live inside it
+            rather than orphaned beside it. Mirrors PrototypeHomeThisSunday.
+          */}
           <div className="proto-home-section">
-            <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable proto-this-sunday">
-              <p className="proto-caption proto-home-card__eyebrow">Sunday&rsquo;s sermon</p>
-              <div className="proto-home-card__body">
-                <div className="proto-home-card__title-row">
-                  <span className="proto-home-card__icon-orb" aria-hidden>
-                    <Icon name="church" size={13} />
-                  </span>
-                  <p className="pds-list-title proto-home-card__title">No Condemnation</p>
-                  <span className="proto-home-card__chevron" aria-hidden>
-                    <Icon name="caret-right" size={11} />
-                  </span>
+            <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--split proto-this-sunday">
+              <div className="proto-this-sunday__main proto-home-card--tappable">
+                <p className="proto-caption proto-home-card__eyebrow">Sunday&rsquo;s sermon</p>
+                <div className="proto-home-card__body">
+                  <div className="proto-home-card__title-row">
+                    <span className="proto-home-card__icon-orb" aria-hidden>
+                      <Icon name="church" size={13} />
+                    </span>
+                    <p className="pds-list-title proto-home-card__title">No Condemnation</p>
+                    <span className="proto-home-card__chevron" aria-hidden>
+                      <Icon name="caret-right" size={11} />
+                    </span>
+                  </div>
+                  <div className="proto-home-card__meta">
+                    <span className="proto-home-card__meta-item">Life in the Spirit</span>
+                  </div>
                 </div>
-                <div className="proto-home-card__meta">
-                  <span className="proto-home-card__meta-item">Life in the Spirit</span>
-                </div>
+              </div>
+
+              {/*
+                What the church's ministries published *for* this Sunday. A list,
+                never one button — several ministries can speak to the same week.
+                Zero attached renders none of this, which is the common case.
+                Never tinted by the channel's colour: that would imply the sermon
+                came from that room.
+              */}
+              <div className="proto-this-sunday__attached">
+                <p className="proto-caption proto-this-sunday__attached-label">Study material</p>
+                <ul className="proto-this-sunday__attached-list">
+                  <li>
+                    <div className="proto-this-sunday__attached-item">
+                      <span className="proto-this-sunday__attached-title">
+                        Romans 8 discussion guide
+                      </span>
+                      <span className="proto-caption proto-this-sunday__attached-from">Students</span>
+                    </div>
+                  </li>
+                  <li>
+                    <div className="proto-this-sunday__attached-item">
+                      <span className="proto-this-sunday__attached-title">
+                        Life in the Spirit — week 3
+                      </span>
+                      <span className="proto-caption proto-this-sunday__attached-from">Adult Ed</span>
+                    </div>
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
@@ -963,7 +999,10 @@ function HubCongregantScene() {
           <HubHeader />
           <div className="proto-home-view" style={{ padding: '4px 14px 18px' }}>
             <div className="proto-home-section">
-                <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable proto-this-sunday">
+                {/* Nothing attached — the common case, and it renders exactly
+                    the card that existed before study material had a home. */}
+                <div className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--split proto-this-sunday">
+                <div className="proto-this-sunday__main proto-home-card--tappable">
                 <p className="proto-caption proto-home-card__eyebrow">Sunday&rsquo;s sermon</p>
                 <div className="proto-home-card__body">
                   <div className="proto-home-card__title-row">
@@ -978,6 +1017,7 @@ function HubCongregantScene() {
                   <div className="proto-home-card__meta">
                     <span className="proto-home-card__meta-item">Life in the Spirit</span>
                   </div>
+                </div>
                 </div>
               </div>
             </div>

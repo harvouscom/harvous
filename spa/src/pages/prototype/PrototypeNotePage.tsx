@@ -2122,6 +2122,26 @@ export default function PrototypeNotePage() {
         }
       : null;
 
+  /*
+    "Published for" — the other direction from the plan door above.
+
+    Offered only inside a ministry channel (`type='public'`), and only to
+    someone who may author there — owner or leader, which is exactly what
+    `canAuthorInSpace` allows in a broadcast room and exactly what the server
+    re-checks. A congregant who follows the channel holds `member`, so this is
+    absent for them rather than present and refused.
+
+    Draft notes are excluded for the same reason the plan door excludes them:
+    a claim has to point at a note that exists.
+  */
+  const inspectorPublishedFor =
+    !isDraft &&
+    noteId &&
+    templateSpaceAccess.access?.space.type === 'public' &&
+    canAttachSpaceTemplate
+      ? { noteId, enabled: true }
+      : null;
+
   const inspectorTemplates = showTemplatesInInspector
     ? {
         spaceId: templateSpaceId,
@@ -2249,6 +2269,7 @@ export default function PrototypeNotePage() {
               isDraftCompose={isDraft}
               templates={inspectorTemplates}
               teachingPlan={inspectorTeachingPlan}
+              publishedFor={inspectorPublishedFor}
             />
           </div>
           </>,
@@ -2283,6 +2304,7 @@ export default function PrototypeNotePage() {
                 isDraftCompose={isDraft}
                 templates={inspectorTemplates}
                 teachingPlan={inspectorTeachingPlan}
+                publishedFor={inspectorPublishedFor}
               />
             </div>
           </>,

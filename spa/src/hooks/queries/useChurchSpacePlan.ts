@@ -40,6 +40,12 @@ export type ChurchSpacePlanResponse = {
     /** 0 = Sunday. Null until staff set the ministry's rhythm. */
     meetingDay: number | null;
     meetingTime: string | null;
+    /**
+     * A channel's rhythm, where `meetingDay` is a gathering room's. Null on a
+     * room that meets, and optional so a payload cached before this shipped
+     * still parses — absent simply offers no dates.
+     */
+    publishCadence?: string | null;
   };
   services: TeachingPlanSermon[];
   /**

@@ -35,7 +35,12 @@ export type SharedThreadNote = {
   authorColor: string;
   isOwnNote: boolean;
   context: {
-    spaceId: string;
+    /**
+     * Null for a **personal** plan — a sequence Thread with no space behind it.
+     * The server derives the space itself; this only exists so a rendered note
+     * knows which room it is being read inside, and a personal plan has none.
+     */
+    spaceId: string | null;
     threadId: string;
   };
 };
@@ -55,6 +60,12 @@ export type ThreadSequenceInfo = {
 export type ThreadPulse = {
   memberCount: number;
   openedCountByNoteId: Record<string, number>;
+  /**
+   * How many people said they finished. A count, under the same rule as the
+   * per-step counts: how many, never who. Optional so a payload cached before
+   * completion shipped still parses.
+   */
+  completedCount?: number;
 };
 
 export type ThreadNotesPage = {
@@ -68,6 +79,18 @@ export type ThreadNotesPage = {
   sequence: ThreadSequenceInfo | null;
   /** Null unless this Thread is a sequence AND the viewer may manage it. */
   pulse: ThreadPulse | null;
+  /**
+   * When the viewer said *they* finished. Their own row, read back to them —
+   * "Review is never shared" guards a person's study from other people, not
+   * from themselves.
+   */
+  viewerCompletedAt: string | null;
+  /**
+   * When the room's leader closed the run. Everyone sees it: it is the leader's
+   * public statement about the study, not a fact about any member. A closed run
+   * is still readable and can still be completed late.
+   */
+  closedAt: string | null;
 };
 
 /** "12 of 18 opened" — the shepherd's line, never shown to the room. */
@@ -117,7 +140,7 @@ function stringOrNull(value: unknown): string | null {
 /** Keep the drilldown contract intentionally smaller than the canonical note record. */
 export function adaptSharedThreadNote(
   row: ThreadNoteApiRow,
-  context: { spaceId: string; threadId: string },
+  context: { spaceId: string | null; threadId: string },
 ): SharedThreadNote | null {
   const id = stringOrNull(row.id);
   if (!id || row.contentEncrypted === true) return null;
@@ -148,7 +171,16 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
   const normalizedSpaceId = normalizePrototypeApiSpaceId(spaceId);
   return useInfiniteQuery({
     queryKey: threadNotesQueryKey(threadId, normalizedSpaceId),
-    enabled: authReady && Boolean(threadId && normalizedSpaceId),
+    /*
+      Gated on the Thread alone, not on a space.
+
+      This used to require a `spaceId`, which is why personal reading plans were
+      server-built and UI-dead: `threads.ts` has always handled the no-space
+      case, but the only hook that could render the steps refused to fire
+      without a room. The endpoint never took a space — it resolves that
+      server-side from the Thread — so the gate was guarding nothing.
+    */
+    enabled: authReady && Boolean(threadId),
     queryFn: async ({ pageParam = 0 }): Promise<ThreadNotesPage> => {
       const response = await api.get<{
         notes?: ThreadNoteApiRow[];
@@ -158,12 +190,15 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
         mode?: unknown;
         sequence?: ThreadSequenceInfo | null;
         pulse?: ThreadPulse | null;
+        /** The viewer's own finish, and the leader's close of the run. */
+        viewerCompletedAt?: string | null;
+        closedAt?: string | null;
       }>(`/api/threads/${encodeURIComponent(threadId!)}/notes`, { offset: pageParam, limit });
       return {
         notes: (response.notes ?? [])
           .map((row) =>
             adaptSharedThreadNote(row, {
-              spaceId: normalizedSpaceId!,
+              spaceId: normalizedSpaceId ?? null,
               threadId: threadId!,
             }),
           )
@@ -174,6 +209,8 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
         mode: typeof response.mode === 'string' ? response.mode : 'collection',
         sequence: response.sequence ?? null,
         pulse: response.pulse ?? null,
+        viewerCompletedAt: response.viewerCompletedAt ?? null,
+        closedAt: response.closedAt ?? null,
       };
     },
     getNextPageParam: nextThreadNotesOffset,

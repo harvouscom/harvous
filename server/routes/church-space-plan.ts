@@ -267,6 +267,13 @@ app.get('/api/church/spaces/:spaceId/plan', requireAuth, async (c) => {
         */
         meetingDay: gate.space.meetingDay,
         meetingTime: gate.space.meetingTime,
+        /*
+          The other "when" vocabulary. A channel has no meeting day — it
+          publishes on a cadence — so the planner reads this instead when it
+          offers dates. Sent for every space and simply null on a room that
+          gathers, which keeps the payload one shape.
+        */
+        publishCadence: gate.space.publishCadence,
       },
       services: services.map((row) => ({
         ...serializeSpaceSermon(row, seriesTitles),

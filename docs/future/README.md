@@ -85,6 +85,12 @@ These were designed here and are now live. The stub files in this folder point t
 
 ### Church Features
 
+- **`STUDY_PLANS.md`** — ✅ built. What a study plan is and how one reaches a congregation
+  - A `Threads` row with `mode='sequence'`; a series publishes into one
+  - Ministry channels can carry one (`CHANNELS_READ_ONLY_PILOT` lifted Aug 2026)
+  - Attached material, progress, the public preview, and the gaps that remain
+  - Start here before `CHURCH_STUDY_MATERIAL_LINKING.md` — that doc is the attach layer only
+
 - **`CHURCH_CONNECTION_SYSTEM.md`** - Church connection implementation
   - User sets church → Church creates org → Auto-connection
   - Matching algorithm (name + city + state)

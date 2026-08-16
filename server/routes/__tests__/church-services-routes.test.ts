@@ -40,6 +40,52 @@ describe('congregant read (/api/church/services)', () => {
     expect(surface).not.toMatch(/body\.orgId/);
   });
 
+  it('never takes a spaceId from the request either', () => {
+    /*
+      Context cards (§5) widened this payload from one plan to several, and the
+      obvious next step someone will reach for is "?spaceId=" to ask for one.
+      That would be the same cross-room lever `orgId` would be: which rooms a
+      viewer sees is decided by their own memberships, resolved server-side by
+      `listViewerPlanSources`, and never by a parameter.
+    */
+    /*
+      Scoped to this handler, not the whole congregant slice: follow/unfollow
+      are `/channels/:spaceId/...` and read that param legitimately. The rule is
+      about which *plans* the payload returns, not about naming a room you are
+      acting on.
+    */
+    const text = churchRoutes();
+    const block = text.slice(
+      text.indexOf("app.get('/api/church/services'"),
+      text.indexOf('// ─── GET /api/church/billing'),
+    );
+    expect(block.length).toBeGreaterThan(0);
+    expect(block).not.toMatch(/c\.req\.(query|param)\(\s*'spaceId'\s*\)/);
+    expect(block).not.toMatch(/body\.spaceId/);
+  });
+
+  it('scopes the viewer’s rooms to their own memberships and this church’s org', () => {
+    const sources = source('server/utils/church-teaching-plan.ts');
+    const block = sources.slice(
+      sources.indexOf('export async function listViewerPlanSources'),
+      sources.indexOf('export async function listServicesForViewerSources'),
+    );
+    expect(block).toContain('eq(SpaceMemberships.userId, userId)');
+    expect(block).toContain('eq(Spaces.orgId, orgId)');
+    expect(block).toContain('isNull(Spaces.deletedAt)');
+    // The single predicate for "org space" — never a rule of its own.
+    expect(block).toContain('isChurchOrgSpaceRow');
+  });
+
+  it('keeps the row limit per source, so a busy plan cannot starve the church', () => {
+    const sources = source('server/utils/church-teaching-plan.ts');
+    const block = sources.slice(sources.indexOf('export async function listServicesForViewerSources'));
+    // One bounded query per source. A single global ORDER BY … LIMIT would hand
+    // every slot to whichever room meets soonest and most often.
+    expect(block).toContain('sources.map((source) =>');
+    expect(block).toContain('limit: options.limit');
+  });
+
   it('is never sponsorship-gated — a lapsed church keeps its Sunday', () => {
     const text = churchRoutes();
     const block = text.slice(

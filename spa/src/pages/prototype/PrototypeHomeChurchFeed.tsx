@@ -18,6 +18,7 @@ import { useChurchFeed, type ChurchFeedItem } from '../../hooks/queries/useChurc
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { noteParamSlug } from './proto-route-slugs';
+import PrototypeMinistryPicker from './PrototypeMinistryPicker';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 
 /** Rows shown on Home; the channel itself holds the full history. */
@@ -80,7 +81,18 @@ export default function PrototypeHomeChurchFeed() {
   const { data } = useChurchFeed({ limit: HOME_FEED_LIMIT });
 
   const items = data?.items ?? [];
-  if (!data?.connected || items.length === 0) return null;
+  if (!data?.connected) return null;
+
+  /*
+    Connected, but nothing here — which for a fresh congregant means they follow
+    no channels yet, because connect deliberately does not auto-follow.
+
+    Offering the ministries *here* is the point: this is where the consequence
+    of following nothing is visible, so the prompt costs nothing to ignore and
+    explains itself. The picker renders nothing when there is nothing to offer,
+    so a church with no channels still collapses to the old empty behaviour.
+  */
+  if (items.length === 0) return <PrototypeMinistryPicker />;
 
   const openItem = (item: ChurchFeedItem) => {
     ensureSidebarExpanded();
