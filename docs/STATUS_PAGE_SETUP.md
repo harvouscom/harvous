@@ -28,6 +28,16 @@ BETTERSTACK_STATUS_JSON_URL=https://harvous.betteruptime.com/index.json
 
 ## Better Stack dashboard
 
+> **Nothing in this repo configures monitors.** Monitors live only in the Better Stack
+> dashboard — there is no Terraform, no API call, no config file. The repo's only Better Stack
+> integration is read-only: `BETTERSTACK_STATUS_JSON_URL` → `/index.json`, which `/status`
+> renders. **Editing this document changes nothing in production.** Every monitor change below
+> has to be made by hand in the dashboard, and a commit describing one is a record of intent,
+> not a deployment.
+>
+> To confirm a monitor is really pointing where this doc says, open it in Better Stack and read
+> the URL and method off the monitor itself — not off this file.
+
 1. **Link monitors** to the status page (Status pages → Resources). Without linked monitors, the UI shows aggregate state only.
 2. Suggested monitors:
    - **Web app** — `https://app.harvous.com/`
