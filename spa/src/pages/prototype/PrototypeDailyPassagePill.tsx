@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
@@ -17,7 +17,6 @@ import {
 } from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
-import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import { findScripturePassageWithNotes } from '@/utils/scripture-passage-drill';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { bookSlug } from '@/utils/bible-book-chapters';
@@ -52,10 +51,6 @@ export default function PrototypeDailyPassagePill({
   // compose opens the editor synchronously, so the affordance no longer flickers between
   // "add" and "view notes" while a round trip lands.
   const dailyPassageNoteExists = hasDailyPassageNote(notes, scriptureBooks, votd.reference);
-
-  useEffect(() => {
-    void fetchVerseHtml(votd.reference, votd.translation);
-  }, [votd.reference, votd.translation]);
 
   const afterNav = useCallback(() => {
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });

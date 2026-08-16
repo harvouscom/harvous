@@ -7624,8 +7624,7 @@ button.proto-home-greeting__chip--passage {
 
 .proto-votd-sheet__header,
 .proto-votd-sheet__divider,
-.proto-votd-sheet__body,
-.proto-votd-sheet__footer {
+.proto-votd-sheet__body {
   position: relative;
   z-index: 1;
 }
@@ -7697,57 +7696,6 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
 .proto-votd-sheet__html strong,
 .proto-votd-sheet__html b {
   font-weight: inherit;
-}
-
-/* Sheet footer: credit and action share a row, in normal flow.
-   Replaces an absolutely-positioned FAB that floated over the credit text. */
-.proto-votd-sheet__footer {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 10px 16px 12px;
-  border-top: 0.5px solid var(--pds-border-control);
-  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 3%, transparent);
-}
-
-/* The credit yields; the action never shrinks. `* { flex-shrink: 0 }` in the
-   app reset means both halves need saying explicitly.
-   Wraps to at most two lines rather than truncating mid-word — a copyright
-   notice that reads "New Living Translatio…" isn't a notice. */
-.proto-votd-sheet__credit {
-  flex: 1;
-  min-width: 0;
-  flex-shrink: 1;
-  margin: 0;
-  font-family: var(--pds-font-body);
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 1.45;
-  color: var(--pds-text-tertiary);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.proto-votd-sheet__credit-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-weight: 600;
-  color: inherit;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.proto-votd-sheet__credit-link:hover {
-  color: var(--pds-text-secondary);
-}
-
-.proto-votd-sheet__add {
-  flex: 0 0 auto;
 }
 
 /* Classic → 2.0 migration detail sheet */
