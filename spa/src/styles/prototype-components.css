@@ -806,6 +806,29 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   .proto-toolbar-right {
     gap: 8px;
   }
+
+  /*
+   * The chip takes its turn in the row instead of lying across it.
+   *
+   * Centring it absolutely keeps it optically centred on the window, which is right when
+   * there is room — but it is centred on the *window*, not on the space actually left over,
+   * so it cannot know how wide the button groups beside it have grown. Each orb added to the
+   * left pushes that group further under a chip that has not moved, and the two overlap
+   * rather than the chip giving way. Measured at 375px: a 36px overlap, the chip sitting on
+   * top of the last orb.
+   *
+   * As a flex item it is bounded by its neighbours, so it truncates instead — which is what
+   * it was always built to do (`flex-shrink: 1`, `overflow: hidden`) and never got the chance
+   * to. Only here: above this width the absolute centring has room and looks better.
+   */
+  .proto-toolbar-center {
+    position: static;
+    transform: none;
+    flex: 1 1 auto;
+    max-width: none;
+    /* The row's own gap now does this work; without it the chip sits tight against the orbs. */
+    margin: 0 4px;
+  }
 }
 
 /* Icon button — circular macOS toolbar "orb" */

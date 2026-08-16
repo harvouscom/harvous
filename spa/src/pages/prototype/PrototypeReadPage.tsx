@@ -11,9 +11,10 @@ import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useProfile } from '../../hooks/queries/useProfile';
-import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
-import { useCreateSimpleNote } from '../../hooks/mutations/useCreateSimpleNote';
-import { saveReferenceStudyThread } from '@/utils/save-reference-study-thread';
+import {
+  saveReaderReferenceStudyThread,
+  saveReferenceStudyThread,
+} from '@/utils/save-reference-study-thread';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useProtoShell, type PaperStackOrigin } from '../../layouts/proto-shell-context';
@@ -58,7 +59,12 @@ function versesInReference(reference: string | null): number[] {
 
 export default function PrototypeReadPage() {
   const params = useParams({ strict: false }) as { book?: string; chapter?: string };
-  const search = useSearch({ strict: false }) as { v?: string; t?: string };
+  const search = useSearch({ strict: false }) as {
+    v?: string;
+    t?: string;
+    ref?: string;
+    dockReq?: string;
+  };
   const navigate = useNavigate();
   const { data: profile } = useProfile();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
@@ -72,7 +78,6 @@ export default function PrototypeReadPage() {
     isMobileSidebar,
   } = useProtoShell();
   const paneIsWide = useShellPaneIsWide();
-  const createNoteMutation = useCreateSimpleNote();
   /**
    * Try-a-face for this reading session. Deliberately component state, not a preference:
    * it lasts as long as you are here and never overwrites the default in Appearance.
@@ -133,6 +138,24 @@ export default function PrototypeReadPage() {
       replace: true,
     });
   }, [book, rawBook, chapter, navigate, search.v, search.t]);
+
+  /*
+   * A saved reference tapped in the list asks the reader to open that word's card on arrival.
+   * The anchor is rebuilt from where we actually landed rather than carried in the URL — the
+   * chapter is already in the path, so the word is the only thing the link has to say.
+   */
+  const referenceRequest = useMemo(() => {
+    const word = search.ref?.trim();
+    if (!word) return null;
+    return {
+      word,
+      anchor: Number.isFinite(focusVerse)
+        ? `${book} ${chapter}:${focusVerse}`
+        : `${book} ${chapter}`,
+      verse: Number.isFinite(focusVerse) ? focusVerse : undefined,
+      requestKey: search.dockReq || word,
+    };
+  }, [search.ref, search.dockReq, book, chapter, focusVerse]);
 
   const applyHighlight = useCallback(
     ({ start, end }: { start: number; end: number }, accent: StudyHighlightAccentKey) => {
@@ -200,18 +223,17 @@ export default function PrototypeReadPage() {
   /**
    * Keep a word you looked up while reading.
    *
-   * A saved reference is an entry on a note's study thread — there is nowhere else to put
-   * one — and the reader has no note. So there are two honest versions of this action and
-   * the label says which you are getting:
+   * Two versions of the same action, differing only in what the reference ends up anchored
+   * to — and the label says which you are getting:
    *
    * - A note is already in play (you came here from one, or opened one over the chapter):
    *   the reference joins that note, exactly as saving from its own scripture dock would.
-   * - Nothing is in play: a note is made to hold it, seeded with this passage the same way
-   *   "start a note" from a verse selection seeds one, and stacked over the chapter so the
-   *   reading you were doing is still underneath.
+   * - Nothing is in play: it is saved against the passage instead, and shows up in the
+   *   references list like any other.
    *
-   * The second creates a note on a tap, which is why it is never called "save" — a button
-   * that quietly makes a document should say that it is going to.
+   * This used to make a whole note to hold the second case, because a reference was assumed
+   * to need a parent. It does not: the row's parent note is nullable and reading highlights
+   * have always been written without one. Saving a word is not a reason to create a document.
    */
   /*
    * The note in play, from either side of the stack. `noteId` is the note when it is the
@@ -227,9 +249,9 @@ export default function PrototypeReadPage() {
     const slug = paperStack.origin.returnTo.params?.noteId;
     return slug ? normalizeNoteIdFromParam(slug) || null : null;
   }, [paperStack]);
-  const saveReferenceLabel = stackedNoteId ? 'Save to your note' : 'Start a note with this';
+  const saveReferenceLabel = stackedNoteId ? 'Save to your note' : 'Save this reference';
   const handleSaveReference = useCallback(
-    ({ word, reference, verse }: { word: string; reference: string; verse?: number }) => {
+    ({ word, reference }: { word: string; reference: string; verse?: number }) => {
       void (async () => {
         if (stackedNoteId) {
           await saveReferenceStudyThread({
@@ -243,41 +265,19 @@ export default function PrototypeReadPage() {
           return;
         }
 
-        const res = await createNoteMutation.mutateAsync({
-          spaceId: homeSpaceId ?? '',
-          content: buildVotdScripturePillHtml(reference, translation),
+        if (!homeSpaceId) return;
+        await saveReaderReferenceStudyThread({
+          word,
+          reference,
+          translation,
+          spaceId: homeSpaceId,
         });
-        const createdId = getNoteIdFromCreateResponse(res);
-        // Offline creates resolve to a queued id later; without one there is no thread to
-        // hang the reference on, so the note is still made and the word is not lost — it is
-        // in the passage the note opens on.
-        if (createdId) {
-          await saveReferenceStudyThread({
-            noteId: createdId,
-            word,
-            reference,
-            translation,
-            spaceId: homeSpaceId,
-          });
-          notifyStudyThreadListChanged(homeSpaceId, createdId);
-          void navigate({
-            to: prototypeNoteRouteTo(),
-            params: { noteId: noteParamSlug(createdId) },
-            search: {},
-          });
-          stackNote(readerOrigin(verse), createdId);
-        }
+        // No note id to pass — the list invalidation is what matters, and it only no-ops when
+        // both ids are missing.
+        notifyStudyThreadListChanged(homeSpaceId, null);
       })();
     },
-    [
-      stackedNoteId,
-      translation,
-      homeSpaceId,
-      createNoteMutation,
-      navigate,
-      stackNote,
-      readerOrigin,
-    ],
+    [stackedNoteId, translation, homeSpaceId],
   );
 
   /**
@@ -446,6 +446,7 @@ export default function PrototypeReadPage() {
           onOpenNoteAtReference={handleOpenNoteAtReference}
           onSaveReference={handleSaveReference}
           saveReferenceLabel={saveReferenceLabel}
+          referenceRequest={referenceRequest}
         />
       </div>
     </PrototypeMainPaneShell>

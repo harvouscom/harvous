@@ -370,6 +370,12 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       window.dispatchEvent(new CustomEvent('prototypeShortcutFocusNoteList'));
       return true;
     }
+    if (key === 'r') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent('prototypeShortcutOpenReader'));
+      return true;
+    }
     if (isPrototypeNoteRoute(path)) {
       const noteId = extractPrototypeNoteId(path);
       if (key === 'f' && noteId) {
@@ -760,6 +766,7 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       heading: 'General',
       items: [
         { action: 'New note', keyParts: [shift, 'N'] },
+        { action: 'Read the Bible', keyParts: [shift, 'R'] },
         { action: 'Search', keyParts: [shift, 'K'] },
         { action: 'Settings', keyParts: [shift, ','] },
         { action: 'Toggle sidebar', keyParts: [shift, 'S'] },
