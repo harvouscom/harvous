@@ -18458,16 +18458,46 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * short shadow upward onto the band, which is the one cue that says "there is something
  * under this" without either paper changing colour.
  *
- * On the front paper rather than the back one on purpose: a shadow belongs to the thing
- * that casts it, so this stays correct when the two swap on a flip — whichever is in front
- * casts it, and the band always reads.
+ * Keyed to whichever layer is in FRONT, not to a particular one: a shadow belongs to the
+ * thing that casts it, so this stays correct when the two swap on a flip.
+ *
+ * Cast from the layer, though, not from the paper inside it. It used to be a `box-shadow`
+ * on the paper element itself, which is the tall thing inside
+ * the scroller — so it scrolled with the chapter. Scroll down a screen and the shadow went
+ * up out of the scroller's clip with the rest of the column: the band stopped reading as
+ * paper the moment you started reading, and the edge of the shadow sweeping past the clip
+ * was the smear that showed up under the band. It also *replaced* the paper's own ambient
+ * shadow, so the front sheet lost its lift while stacked.
+ *
+ * This strip sits on the layer, which never scrolls. It is a zero-height line across the
+ * top of the layer, exactly where the front paper's top edge is (both papers start flush
+ * with their layer's top — the peek is the layer's offset, not the paper's), matched to the
+ * paper's width so the shadow ends where the paper ends. The papers keep their own shadows.
  */
-.pds-paper-stack__sheet[data-stacked='true'] .proto-editor-paper,
-.pds-paper-stack__sheet[data-stacked='true'] .pds-reader__column,
+.pds-paper-stack:not([data-origin-kind='noteDock'])
+  .pds-paper-stack__sheet[data-stacked='true']::before,
 .pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false'])
-  .pds-paper-stack__base
-  .pds-reader__column {
+  .pds-paper-stack__base::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  width: min(var(--pds-paper-column), 100% - 24px);
+  height: 0;
   box-shadow: 0 -4px 14px -3px rgb(0 0 0 / 0.22);
+  pointer-events: none;
+}
+
+/* Same 24px the papers give up at a narrow pane (see the width match above), so the strip
+   keeps ending where the paper ends. */
+@container pds-paper-stack (max-width: 760px) {
+  .pds-paper-stack:not([data-origin-kind='noteDock'])
+    .pds-paper-stack__sheet[data-stacked='true']::before,
+  .pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false'])
+    .pds-paper-stack__base::before {
+    width: min(calc(var(--pds-paper-column) - 24px), 100% - 24px);
+  }
 }
 
 /*
@@ -18587,22 +18617,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  */
 .pds-paper-stack__sheet .proto-editor-content-wrap {
   padding-top: 0;
-}
-
-/* ─── A Home origin putting itself away ───────────────────────────────────────
- * The sheet settles the last of its peek away, landing exactly where an unstacked page
- * sits, and the base and its edge fade behind it. When the stack clears a beat later the
- * sheet is already at rest, so nothing jumps — the note simply stops having a paper
- * behind it. Same duration as the flip, because it is the same sheet moving. */
-.pds-paper-stack[data-retiring='true'] .pds-paper-stack__sheet[data-stacked='true'] {
-  transform: translateY(0);
-}
-
-.pds-paper-stack[data-retiring='true'] .pds-paper-stack__base,
-.pds-paper-stack[data-retiring='true'] .pds-paper-stack__edge-row {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
 }
 
 /* The reveal. The chapter is already laid out at full size behind a clip the shape of the

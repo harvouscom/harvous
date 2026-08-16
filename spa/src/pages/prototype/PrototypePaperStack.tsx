@@ -21,11 +21,11 @@ import Icon, { type IconName } from '@/components/react/Icon';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import type { PaperStackState } from '../../layouts/proto-shell-context';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
+import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 
 export default function PrototypePaperStack({
   stack,
   exiting = false,
-  retiring = false,
   onFlipDown,
   onFlipUp,
   onDismiss,
@@ -35,11 +35,6 @@ export default function PrototypePaperStack({
   stack: PaperStackState;
   /** The sheet is on its way out — plays the reverse morph before the stack clears. */
   exiting?: boolean;
-  /**
-   * The origin is retiring itself — the sheet settles to where an unstacked page sits and
-   * the edge fades, then the stack clears. Only Home does this; see the layout for why.
-   */
-  retiring?: boolean;
   onFlipDown: () => void;
   onFlipUp: () => void;
   /** Put the origin down: the stack clears and the sheet becomes an ordinary page. */
@@ -93,7 +88,6 @@ export default function PrototypePaperStack({
       className="pds-paper-stack"
       data-origin-kind={origin.kind}
       data-exiting={exiting ? 'true' : undefined}
-      data-retiring={retiring ? 'true' : undefined}
       data-morph={morph ? 'true' : undefined}
       ref={rootRef}
     >
@@ -113,12 +107,20 @@ export default function PrototypePaperStack({
         ) : origin.base.type === 'reader' ? (
           // A background layer, seen for its top edge and during a flip-down pause — the
           // plain chapter is enough. Highlights and margin markers belong to the live reader.
-          <PrototypeBibleReaderPane
-            book={origin.base.book}
-            chapter={origin.base.chapter}
-            translation={origin.base.translation}
-            focusVerse={origin.base.fromVerse}
-          />
+          //
+          // Wrapped in the same pane shell the route would give it, and that `baseSlot`
+          // above already carries. Bare, this layer laid its column out against different
+          // rules than the sheet's — so the stand-in chapter sat at a slightly different
+          // width and height than the real one, and the swap on flip-down was visible as a
+          // jump. Same wrapper, same measure, nothing moves.
+          <PrototypeMainPaneShell>
+            <PrototypeBibleReaderPane
+              book={origin.base.book}
+              chapter={origin.base.chapter}
+              translation={origin.base.translation}
+              focusVerse={origin.base.fromVerse}
+            />
+          </PrototypeMainPaneShell>
         ) : collapses ? (
           // Nothing. A dock expansion is a morph, not a stack: the chapter grows out of the
           // card that asked for it and fills the pane, so there is no paper behind it and no
