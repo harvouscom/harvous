@@ -18714,27 +18714,3 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* ── Church Pulse: two readings of the same question, stacked ─────────────────── */
-
-/*
- * Both halves were built for a 304px rail. Stacking them here would move them into a wider
- * room and leave them standing in the corner of it — the width is the whole reason this is an
- * expanded pane rather than a drilldown, and a heat map of sixty-six books is what wants it.
- *
- * So they sit side by side once there is room for two readable columns, and stack below that.
- * `auto-fit` rather than a media query because the pane's width is set by the shell, not the
- * viewport: a phone and a half-collapsed desktop rail should get the same answer, and only the
- * element can say which it is.
- */
-.proto-church-pulse {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px 28px;
-  align-items: start;
-  /* The panel body is a flex container, so without this the grid sized to its contents and
-     sat in 459px of a 1040px pane — auto-fit had nothing to fit into and never found its
-     second column. */
-  width: 100%;
-}
-

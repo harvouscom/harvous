@@ -33,6 +33,7 @@ import PrototypeChurchPlanRow from './PrototypeChurchPlanRow';
 import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import PrototypeChurchStaffSection from './PrototypeChurchStaffSection';
 import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSection';
+import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
@@ -262,6 +263,7 @@ export default function PrototypeSidebarChurchHubView() {
     | 'team'
     | 'starters'
     | 'settings'
+    | 'engagement'
   >('catalog');
   const pendingFollowId = followChannel.isPending
     ? followChannel.variables?.spaceId ?? null
@@ -324,26 +326,18 @@ export default function PrototypeSidebarChurchHubView() {
         onSelect: () => openExpandedSidebar('library'),
       });
     }
-    /*
-       Where the church has been teaching, and how many are with it — one row,
-       because they are one question asked two ways and neither is something a
-       pastor configures. Expanded rather than a drilldown: a heat map of the
-       canon never fitted a 304px rail.
-
-       Either verdict opens it and each half keeps its own inside: a teacher may
-       see the plan folded by book, since it is the plan they teach from; only an
-       admin sees counts. The meta still says the limit before anyone opens it —
-       "how many" is the whole offer, and nobody should have to click to find out
-       it is not "who".
-    */
-    if (canViewTeachingPlan || canViewEngagement) {
+    /* Admin-only. Sits above settings because it is something a pastor looks
+       at, not something they configure — and below the tools they act with,
+       because it changes nothing. The meta says the limit before anyone opens
+       it: "how many" is the whole offer, and a pastor should not have to click
+       to find out it is not "who". */
+    if (canViewEngagement) {
       rows.push({
-        key: 'pulse',
+        key: 'engagement',
         icon: 'chart-simple',
-        title: 'Pulse',
-        meta: canViewEngagement ? 'Where you teach, how many, never who' : 'Where you have been dwelling',
-        chevron: 'expand',
-        onSelect: () => openExpandedSidebar('pulse'),
+        title: 'Engagement',
+        meta: 'How many, never who',
+        onSelect: () => setToolsView('engagement'),
       });
     }
     /* Admin-only, and last: setting the church's clock is the rarest of these
@@ -425,7 +419,9 @@ export default function PrototypeSidebarChurchHubView() {
           ? 'Note templates'
           : toolsView === 'settings'
             ? 'Church settings'
-            : churchName;
+            : toolsView === 'engagement'
+              ? 'Engagement'
+              : churchName;
 
   const openSpace = (spaceId: string) => {
     ensureSidebarExpanded();
@@ -542,6 +538,8 @@ export default function PrototypeSidebarChurchHubView() {
               canManage={canManageChurchTemplates}
               canWrite={canManageChurchTemplates && !churchPlanLapsed}
             />
+          ) : toolsView === 'engagement' ? (
+            <PrototypeChurchEngagementSection orgId={orgId} canView={canViewEngagement} />
           ) : toolsView === 'settings' ? (
             <PrototypeChurchSettingsSection
               orgId={orgId}
