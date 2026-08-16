@@ -125,6 +125,8 @@ import {
 } from './proto-recall-cooldown';
 import { useRecallEventHistory } from '../../hooks/queries/useRecallEventHistory';
 import PrototypeHomeRow from './PrototypeHomeRow';
+/* Shared with the shared-space view — see its docblock for why it moved out of here. */
+import HomeSection from './PrototypeHomeSection';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
@@ -548,19 +550,6 @@ function HomeGreeting({
  * church feed) decide for themselves whether they have anything to show, and a parent cannot
  * know that without rendering them first. `:has()` asks the question after the fact.
  */
-function HomeSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="proto-home-section proto-home-section--group">
-      <p className="proto-caption proto-home-section__eyebrow">{title}</p>
-      {/* One panel, hairline rows — the church hub's Tools shape. The list class stays for
-          the empty-group rule, which asks whether anything rendered inside. */}
-      <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-section__list">
-        {children}
-      </div>
-    </section>
-  );
-}
-
 /**
  * A note as a Home row (continue / revisit).
  *
