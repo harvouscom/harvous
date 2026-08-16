@@ -20,6 +20,23 @@ html.harvous-prototype-route [class*='proto-'] button * {
   font-family: var(--pds-font-body) !important;
 }
 
+/*
+ * Offline badge — its colour is the information.
+ *
+ * "Offline" in green and "Part-saved" in grey is the whole point of the badge, and it sits
+ * inside the translation row's button, so the blanket rule above flattened both to primary
+ * and left two identically-coloured pills saying different things.
+ */
+html.harvous-prototype-route .proto-offline-badge[data-state='ready'],
+html.harvous-prototype-route .proto-offline-badge[data-state='ready'] * {
+  color: var(--pds-success) !important;
+}
+
+html.harvous-prototype-route .proto-offline-badge[data-state='partial'],
+html.harvous-prototype-route .proto-offline-badge[data-state='partial'] * {
+  color: var(--pds-text-secondary) !important;
+}
+
 /* Search clear (circle-xmark) — tertiary like select chevrons; beat blanket button * primary */
 html.harvous-prototype-route button.hmc-church-picker__clear,
 html.harvous-prototype-route button.hmc-church-picker__clear *,
@@ -166,6 +183,50 @@ html.harvous-prototype-route [class*='proto-'] button .pds-caption,
 html.harvous-prototype-route [class*='proto-'] button .proto-caption,
 html.harvous-prototype-route [class*='proto-'] button .proto-footnote {
   color: var(--pds-text-secondary) !important;
+}
+
+/* Paper-stack edge — icon and label are one muted breadcrumb.
+   The blanket rule at the top of this file paints every proto button descendant
+   primary, and the `.pds-caption` carve-out above rescues only the label — which
+   left the icon reading black beside gray text. `.pds-paper-stack` in the prefix
+   buys the specificity to take both, order-independently. */
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge .pds-caption,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge span,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge svg,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge path,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge *,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss span,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss svg,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss path,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss * {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge:hover,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge:hover .pds-caption,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge:hover span,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge:hover svg,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge:hover path,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge:hover *,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss:hover,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss:hover span,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss:hover svg,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss:hover path,
+html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss:hover * {
+  color: var(--pds-text-primary) !important;
+}
+
+/* A row's trailing controls read as punctuation, like the chevron they stand in for — the
+   blanket rule above paints every proto button's glyph at full strength, which made each
+   dismissable row look like it was asking to be dismissed. The weight comes from opacity in
+   prototype-components.css; this only stops the colour being forced. */
+html.harvous-prototype-route .proto-list-panel__row-trailing > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button path,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button * {
+  color: var(--pds-text-primary) !important;
 }
 
 /* Translation chip inside passage-context rows — beat blanket `button *` primary above */

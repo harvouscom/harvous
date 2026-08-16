@@ -11,11 +11,16 @@ import { noteFolderMembershipLabels, noteBelongsToFolderBucket, normalizeFolderK
 import { sortFolderBucketsAlphabetically } from '@/utils/sorting';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
-import { parseReaderQuery } from '@/utils/parse-reader-query';
 import {
   prototypeHighlightListTitle,
   prototypeHighlightSubtitlePreview,
 } from './proto-highlight-subtitle';
+import {
+  getChapterVerseRange,
+  isResolvableScriptureReference,
+  normalizeScriptureReference,
+  parseScriptureReference,
+} from '@/utils/scripture-detector';
 import { fuzzyFilter, fuzzyMatches } from './fuzzy-search';
 import type {
   HighlightKindFilter,
@@ -287,27 +292,6 @@ function scripturePassageToResult(bookOrder: number, passage: ScriptureIndexPass
   };
 }
 
-/**
- * The chapter a typed reference points at, whether or not anything has been written on it.
- *
- * Every other result here is something the reader already owns — a note, a folder, a passage
- * they annotated. This one is the text itself, and it is the only result that can exist for a
- * book nobody has touched yet. Without it, searching "Nahum 2" in an app that contains the
- * whole Bible answered "no matches".
- */
-function readerChapterToResult(match: ReturnType<typeof parseReaderQuery>): SidebarSearchResult | null {
-  if (!match) return null;
-  return {
-    id: sidebarSearchResultStableId('readerChapter', `${match.book}:${match.chapter}:${match.verse ?? ''}`),
-    kind: 'readerChapter',
-    title: match.reference,
-    // Says which of the two things it is: the chapter you named, or the one we picked for you.
-    subtitle: match.chapterAssumed ? 'Open the book at chapter 1' : 'Read this chapter',
-    readerBook: match.book,
-    readerChapter: match.chapter,
-    readerVerse: match.verse,
-  };
-}
 
 function ftsNoteToResult(result: SearchResult): SidebarSearchResult {
   const title = noteSearchTitle(result);
@@ -319,6 +303,47 @@ function ftsNoteToResult(result: SearchResult): SidebarSearchResult {
     subtitle: result.threadTitle ?? undefined,
     noteId: result.id,
     ftsExcerpt: excerpt ?? undefined,
+  };
+}
+
+/**
+ * The passage the query itself names — "John 15", "psalm 23", "1 cor 13", "Jn 3:16".
+ *
+ * Every other scripture result in this file describes passages someone has already
+ * written about, because they are read out of the note index. So searching for a
+ * chapter nobody has touched yet returned nothing, which is the wrong answer for a
+ * Bible app: the passage exists whether or not a note cites it.
+ *
+ * Deliberately strict about what counts. `isResolvableScriptureReference` accepts
+ * "psalm 23" and "1 cor 13" while rejecting the half-typed ("Joh"), the ordinary
+ * word ("faith"), and the out-of-range ("John 99", "John 15:99") — so this row
+ * appears while someone is looking for a passage and stays away otherwise.
+ */
+export function buildScriptureReferenceResult(q: string): SidebarSearchResult | null {
+  const query = q.trim();
+  if (!query || !isResolvableScriptureReference(query)) return null;
+
+  const canonical = normalizeScriptureReference(query) ?? query;
+  const parsed = parseScriptureReference(canonical);
+  if (!parsed) return null;
+
+  // A chapter query normalizes to its full verse span ("John 15" → John 15:1-27).
+  // Show it back as the chapter, which is what was asked for and what will open.
+  const range = getChapterVerseRange(parsed.book, parsed.chapter);
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : verseStart;
+  const isWholeChapter =
+    !parsed.endChapter && !!range && verseStart <= range.start && verseEnd >= range.end;
+  const title = isWholeChapter ? `${parsed.book} ${parsed.chapter}` : canonical;
+
+  return {
+    id: sidebarSearchResultStableId('scriptureReference', canonical),
+    kind: 'scriptureReference',
+    title,
+    subtitle: 'Read passage',
+    scriptureReference: canonical,
+    // Only when the query named a verse. `isWholeChapter` is the same fact the title uses.
+    scriptureFocusVerse: isWholeChapter ? undefined : verseStart,
   };
 }
 
@@ -443,14 +468,6 @@ function collectAllElsewhereCandidates(
 
   const results: SidebarSearchResult[] = [];
   const locallyMatchedNoteIds = new Set<string>();
-
-  /*
-   * First, so that when ranking ties — "John 3" is an exact title prefix, and so is a note
-   * called "John 3 notes" — the passage itself wins. Someone who types a reference is asking
-   * to go there; their notes on it are one row below, which is where they should be.
-   */
-  const readerResult = readerChapterToResult(parseReaderQuery(query));
-  if (readerResult) results.push(readerResult);
 
   for (const note of filterNotesByQuery(data.notes, query)) {
     locallyMatchedNoteIds.add(note.id);

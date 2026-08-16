@@ -86,6 +86,94 @@ export function recordRecallSnoozed(
   recordRecallOpened(spaceId, id, todayDayIndex, windowDays);
 }
 
+/**
+ * Put a suggestion back on the shelf — "nevermind, I didn't mean to take that one".
+ *
+ * Undoing a rest is not the same shape as recording one. The local map can simply drop the
+ * id, but the server has already written an `open` row and
+ * {@link mergeServerRecallHistoryIntoCooldowns} unions those back in, so a delete alone
+ * would last until the next render. So a restore also leaves a mark of its own: the moment
+ * it happened. Any server row *older* than that mark is the thing being undone and stops
+ * counting; a later open or snooze is a new decision and still does.
+ *
+ * Per-device, like the local store it corrects. Restoring on a laptop does not restore on a
+ * phone that never saw the tap — the same limit the local cooldowns have always had.
+ */
+export function restoreRecallOpportunity(
+  spaceId: string | undefined | null,
+  id: string,
+  nowMs: number = Date.now(),
+): void {
+  if (!spaceId || !id) return;
+  const map = safeRead(spaceId);
+  if (id in map) {
+    delete map[id];
+    safeWrite(spaceId, map);
+  }
+  const restored = safeReadRestored(spaceId);
+  restored[id] = nowMs;
+  const cutoff = nowMs - RECALL_COOLDOWN_DAYS * DAY_MS;
+  for (const [existingId, at] of Object.entries(restored)) {
+    if (at < cutoff) delete restored[existingId];
+  }
+  safeWriteRestored(spaceId, restored);
+  notifyRecallCooldownChanged();
+}
+
+/** When each id was last put back, in epoch ms. */
+export function recallRestoredAt(spaceId: string | undefined | null): Record<string, number> {
+  if (!spaceId) return {};
+  return safeReadRestored(spaceId);
+}
+
+const RESTORED_PREFIX = 'harvous.prototype.recallRestored.';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function safeReadRestored(spaceId: string): Record<string, number> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(`${RESTORED_PREFIX}${spaceId}`);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, number> = {};
+    for (const [id, at] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof at === 'number' && Number.isFinite(at)) out[id] = at;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function safeWriteRestored(spaceId: string, map: Record<string, number>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(`${RESTORED_PREFIX}${spaceId}`, JSON.stringify(map));
+  } catch {
+    // quota / storage disabled — ignore
+  }
+}
+
+/**
+ * The store is written from two places now — the shelf's own ✕, and the breadcrumb edge over
+ * whatever a suggestion opened, which lives in the shell and not in Home's tree at all. The
+ * shelf re-reads on this event rather than on a tick it owns, because it cannot see the
+ * other caller.
+ */
+const COOLDOWN_CHANGED_EVENT = 'harvous:recall-cooldown-changed';
+
+export function notifyRecallCooldownChanged(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(COOLDOWN_CHANGED_EVENT));
+}
+
+export function subscribeRecallCooldownChanged(onChange: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(COOLDOWN_CHANGED_EVENT, onChange);
+  return () => window.removeEventListener(COOLDOWN_CHANGED_EVENT, onChange);
+}
+
 const SECTION_HISTORY_PREFIX = 'harvous.prototype.recallSections.';
 const RECALL_SECTION_HISTORY_MAX = 8;
 
@@ -164,6 +252,8 @@ export function mergeServerRecallHistoryIntoCooldowns(
     open: RECALL_OPENED_COOLDOWN_DAYS,
     snooze: RECALL_COOLDOWN_DAYS,
   },
+  /** See {@link restoreRecallOpportunity} — ids put back, and when. */
+  restoredAt: Record<string, number> = {},
 ): Set<string> {
   const merged = new Set(localIds);
   const nowMs = now.getTime();
@@ -171,6 +261,10 @@ export function mergeServerRecallHistoryIntoCooldowns(
     if (!event?.opportunityId) continue;
     const at = Date.parse(event.createdAt);
     if (!Number.isFinite(at)) continue;
+    // Undone. The row this event recorded was put back by hand afterwards, so it no longer
+    // says anything about whether the suggestion should show.
+    const restored = restoredAt[event.opportunityId];
+    if (restored != null && at <= restored) continue;
     const windowDays = event.action === 'open' ? windows.open : windows.snooze;
     const ageDays = (nowMs - at) / (24 * 60 * 60 * 1000);
     if (ageDays >= 0 && ageDays < windowDays) merged.add(event.opportunityId);

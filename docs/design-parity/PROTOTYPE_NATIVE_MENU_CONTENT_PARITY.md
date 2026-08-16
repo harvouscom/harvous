@@ -84,7 +84,7 @@ Matches native `NoteListColumn` (macOS sidebar variant).
 | Row selection highlight (glass) | `proto-note-row[data-active]` background | ✅ implemented |
 | Load more (pagination) | Auto load on scroll (intersection observer + loading dots) | ✅ implemented |
 | Back to spaces button | `proto-sidebar-back-btn` with chevron | ✅ implemented |
-| Daily passage pill (pinned below list) | `PrototypeDailyPassagePill` + `PrototypeVotdPassageSheet`; `GET /api/votd/today` | ✅ implemented |
+| Daily passage pill (pinned below list) | `PrototypeDailyPassagePill` → Bible reader at the verse; `GET /api/votd/today` | ✅ implemented |
 | Delete swipe (mobile) | ⏳ Not implemented in prototype | ⏳ deferred |
 
 ---

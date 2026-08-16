@@ -7,7 +7,8 @@ export type SidebarSearchResultKind =
   | 'highlight'
   | 'scriptureBook'
   | 'scripturePassage'
-  | 'readerChapter';
+  /** A passage the query itself names, whether or not any note cites it. */
+  | 'scriptureReference';
 
 export type SidebarElsewhereTypeFilter =
   | 'all'
@@ -46,9 +47,14 @@ export type SidebarSearchResult = {
   highlightId?: string;
   scriptureBookOrder?: number;
   scripturePassageKey?: string;
-  readerBook?: string;
-  readerChapter?: number;
-  readerVerse?: number | null;
+  /** Canonical reference to open, e.g. "John 15:1-27". Set on `scriptureReference` results. */
+  scriptureReference?: string;
+  /**
+   * Verse to open at, only when the query actually named one. Absent for a chapter query,
+   * which must open at the top of the chapter rather than scrolled to verse 1 — the canonical
+   * reference cannot answer this, since "John 15" normalizes to "John 15:1-27".
+   */
+  scriptureFocusVerse?: number;
   ftsExcerpt?: string;
 };
 
@@ -73,7 +79,7 @@ export function sidebarSearchResultIcon(
       return 'arrow-right-arrow-left';
     case 'scriptureBook':
     case 'scripturePassage':
-    case 'readerChapter':
+    case 'scriptureReference':
       return 'book-open';
     default:
       return 'note-sticky';
@@ -95,8 +101,8 @@ export function sidebarSearchResultAriaLabel(
       return 'Scripture book';
     case 'scripturePassage':
       return 'Scripture passage';
-    case 'readerChapter':
-      return 'Read in the Bible';
+    case 'scriptureReference':
+      return 'Read passage';
     case 'highlight':
       switch (highlightEntryKind) {
         case 'linkedNote':
@@ -128,7 +134,9 @@ export function elsewhereTypeFilterMatches(
     case 'highlights':
       return kind === 'highlight';
     case 'scripture':
-      return kind === 'scriptureBook' || kind === 'scripturePassage' || kind === 'readerChapter';
+      return (
+        kind === 'scriptureBook' || kind === 'scripturePassage' || kind === 'scriptureReference'
+      );
     default:
       return true;
   }

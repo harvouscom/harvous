@@ -67,6 +67,8 @@ import {
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { parseScriptureReference } from '@/utils/scripture-detector';
 import { bookSlug } from '@/utils/bible-book-chapters';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
@@ -3057,8 +3059,15 @@ export default function PrototypeSidebar({
     }
   };
 
-  const onHighlightRow = (r: PrototypeHighlightStudyThreadRow) => {
-    if (!homeSpaceId) return;
+  /**
+   * @returns whether this landed on a note in the main pane. The recall shelf stacks a
+   * breadcrumb edge over whatever a suggestion opened, and it can only do that once it
+   * knows something opened — a highlight with no source note, or one that falls back to the
+   * standalone passage pane, leaves you where you were, and an edge there would name a way
+   * back to the page you are still on.
+   */
+  const onHighlightRow = (r: PrototypeHighlightStudyThreadRow): boolean => {
+    if (!homeSpaceId) return false;
     // Deliberately no `if (!r.parentNoteId) return;` here. That guard used to sit at the top and
     // made a highlight with no source note do nothing at all on tap — no navigation, no
     // fallback, no message — while also rendering the standalone-passage fallback further down
@@ -3094,7 +3103,7 @@ export default function PrototypeSidebar({
             },
           });
           afterNav();
-          return;
+          return true;
         }
         // No source note to anchor the dock to — fall back to the standalone passage view.
         if (isPrototypeNotePath(pathname)) {
@@ -3105,13 +3114,15 @@ export default function PrototypeSidebar({
           translationCode: trans,
           focusedHighlightThreadId: r.id,
         });
+        // The standalone passage pane is not a document in the main pane, so nothing was
+        // stacked over anything.
         afterNav();
-        return;
+        return false;
       }
     }
     // The highlight and reference docks both live inside a note, so without a source note
     // there is nothing to open them on.
-    if (!r.parentNoteId) return;
+    if (!r.parentNoteId) return false;
     dismissStandaloneScripturePassage();
     const isReferenceRow = r.entryKind === 'reference';
     navigate({
@@ -3124,6 +3135,7 @@ export default function PrototypeSidebar({
         : { ...navSearch, highlight: r.id, dockReq: String(Date.now()) },
     });
     afterNav();
+    return true;
   };
 
   /**
@@ -3224,14 +3236,26 @@ export default function PrototypeSidebar({
             passageKey: result.scripturePassageKey,
           });
           return;
-        case 'readerChapter': {
-          // The one result that leaves the sidebar's own lists behind — it is a place in the
-          // Bible, and the reader is where that place lives.
-          if (!result.readerBook || !result.readerChapter) return;
+        case 'scriptureReference': {
+          // A row that names a passage has to show the passage. Drilling the sidebar to
+          // its note list instead is the same mismatch the Home passage card used to
+          // have — a scroll icon promising Scripture, delivering a list of notes.
+          //
+          // Opens the reader now that there is one. This row shipped against the standalone
+          // passage pane because the reader did not exist yet; searching a chapter and landing
+          // on the chapter is what it was always reaching for.
+          if (!result.scriptureReference) return;
+          const parsed = parseScriptureReference(result.scriptureReference);
+          if (!parsed) return;
           void navigate({
             to: prototypeReadRouteTo(),
-            params: { book: bookSlug(result.readerBook), chapter: String(result.readerChapter) },
-            search: { v: result.readerVerse ? String(result.readerVerse) : undefined, t: undefined },
+            params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
+            // `scriptureFocusVerse` is set only when the query named a verse, so "John 15"
+            // opens at the top of the chapter instead of scrolled to verse 1.
+            search: {
+              v: result.scriptureFocusVerse ? String(result.scriptureFocusVerse) : undefined,
+              t: undefined,
+            },
           });
           return;
         }
@@ -3246,7 +3270,9 @@ export default function PrototypeSidebar({
       setSidebarListMode,
       setActiveFolderKey,
       setSidebarThreadDrilldownId,
+      pathname,
       navigate,
+      openStandaloneScripturePassage,
     ],
   );
 

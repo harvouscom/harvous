@@ -1,48 +1,129 @@
-import { describe, it, expect } from 'vitest';
-import { validateReadingEventInput } from '../record-reading-event';
+import { describe, expect, it } from 'vitest';
+import { collapseReadingHistory, validateReadingEventInput } from '../record-reading-event';
 
 describe('validateReadingEventInput', () => {
-  it('accepts a real chapter', () => {
-    expect(validateReadingEventInput({ book: 'John', chapter: 3, translation: 'NLT' })).toEqual({
+  it('accepts a canonical chapter and derives its book order', () => {
+    const input = validateReadingEventInput({
       book: 'John',
-      chapter: 3,
-      verse: null,
+      chapter: 15,
+      translation: 'nlt',
+      dwellBucket: 'read',
+    });
+
+    expect(input).toEqual({
+      book: 'John',
+      bookOrder: 42,
+      chapter: 15,
       translation: 'NLT',
+      dwellBucket: 'read',
     });
   });
 
-  it('keeps a verse when one is given', () => {
-    expect(validateReadingEventInput({ book: 'John', chapter: 3, verse: 16 })?.verse).toBe(16);
-  });
-
-  it('rejects chapters the canon does not have', () => {
-    // The log is meant to be aggregated over later; one that accepts "Hezekiah 4" is one that
-    // has to be cleaned before it can be counted.
-    expect(validateReadingEventInput({ book: 'John', chapter: 99 })).toBeNull();
-    expect(validateReadingEventInput({ book: 'Hezekiah', chapter: 4 })).toBeNull();
-    expect(validateReadingEventInput({ book: 'John', chapter: 0 })).toBeNull();
-    expect(validateReadingEventInput({ book: 'John', chapter: 1.5 })).toBeNull();
-  });
-
-  it('rejects payloads that are not events', () => {
-    expect(validateReadingEventInput(null)).toBeNull();
-    expect(validateReadingEventInput('John 3')).toBeNull();
-    expect(validateReadingEventInput({ book: '   ', chapter: 1 })).toBeNull();
-    expect(validateReadingEventInput({ book: 'John' })).toBeNull();
-  });
-
-  it('discards junk in the optional fields rather than the whole event', () => {
-    expect(
-      validateReadingEventInput({ book: 'John', chapter: 3, verse: 'sixteen', translation: 42 }),
-    ).toEqual({ book: 'John', chapter: 3, verse: null, translation: null });
-  });
-
-  it('caps translation length so a long string cannot ride in on the column', () => {
-    const result = validateReadingEventInput({
+  it('ignores a book order the sender supplies, so a stale one cannot split a book', () => {
+    const input = validateReadingEventInput({
       book: 'John',
-      chapter: 3,
-      translation: 'X'.repeat(200),
+      bookOrder: 999,
+      chapter: 1,
+      translation: 'ESV',
+      dwellBucket: 'glance',
     });
-    expect(result?.translation).toHaveLength(16);
+
+    expect(input?.bookOrder).toBe(42);
+  });
+
+  it('rejects a chapter past the end of the book', () => {
+    expect(
+      validateReadingEventInput({
+        book: 'Jude',
+        chapter: 2,
+        translation: 'ESV',
+        dwellBucket: 'read',
+      }),
+    ).toBeNull();
+  });
+
+  it('rejects a book that is not canonical', () => {
+    expect(
+      validateReadingEventInput({
+        book: 'Hezekiah',
+        chapter: 1,
+        translation: 'ESV',
+        dwellBucket: 'read',
+      }),
+    ).toBeNull();
+  });
+
+  it('rejects an unknown dwell bucket', () => {
+    expect(
+      validateReadingEventInput({
+        book: 'John',
+        chapter: 15,
+        translation: 'ESV',
+        dwellBucket: 'skimmed',
+      }),
+    ).toBeNull();
+  });
+
+  it('rejects a non-integer chapter and an empty translation', () => {
+    const base = { book: 'John', translation: 'ESV', dwellBucket: 'read' };
+    expect(validateReadingEventInput({ ...base, chapter: 1.5 })).toBeNull();
+    expect(validateReadingEventInput({ ...base, chapter: 0 })).toBeNull();
+    expect(validateReadingEventInput({ ...base, chapter: 1, translation: '   ' })).toBeNull();
+  });
+});
+
+describe('collapseReadingHistory', () => {
+  it('keeps one entry per chapter, timestamped by the most recent read', () => {
+    const entries = collapseReadingHistory([
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'read', createdAt: '2026-08-14T10:00:00.000Z' },
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'read', createdAt: '2026-08-01T10:00:00.000Z' },
+      { book: 'John', bookOrder: 42, chapter: 16, dwellBucket: 'glance', createdAt: '2026-08-13T10:00:00.000Z' },
+    ]);
+
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ chapter: 15, createdAt: '2026-08-14T10:00:00.000Z' });
+    expect(entries[1]).toMatchObject({ chapter: 16, dwellBucket: 'glance' });
+  });
+
+  it('keeps the strongest bucket, so a later glance does not make a chapter unread', () => {
+    const entries = collapseReadingHistory([
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'glance', createdAt: '2026-08-14T10:00:00.000Z' },
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'study', createdAt: '2026-08-07T10:00:00.000Z' },
+    ]);
+
+    expect(entries).toEqual([
+      {
+        book: 'John',
+        bookOrder: 42,
+        chapter: 15,
+        dwellBucket: 'study',
+        createdAt: '2026-08-14T10:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('drops rows it cannot read rather than emitting a broken entry', () => {
+    const entries = collapseReadingHistory([
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'nonsense', createdAt: '2026-08-14T10:00:00.000Z' },
+      { book: '', bookOrder: 42, chapter: 16, dwellBucket: 'read', createdAt: '2026-08-14T10:00:00.000Z' },
+      { book: 'John', bookOrder: 42, chapter: 0, dwellBucket: 'read', createdAt: '2026-08-14T10:00:00.000Z' },
+      { book: 'John', bookOrder: 42, chapter: 17, dwellBucket: 'read', createdAt: null },
+    ]);
+
+    expect(entries).toEqual([]);
+  });
+
+  it('accepts Date timestamps from the driver', () => {
+    const entries = collapseReadingHistory([
+      {
+        book: 'Romans',
+        bookOrder: 44,
+        chapter: 8,
+        dwellBucket: 'study',
+        createdAt: new Date('2026-08-14T10:00:00.000Z'),
+      },
+    ]);
+
+    expect(entries[0].createdAt).toBe('2026-08-14T10:00:00.000Z');
   });
 });

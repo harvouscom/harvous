@@ -442,8 +442,36 @@
   --pds-duration-morph: 190ms;
   /* Note sheet stacking over the reader paper. Slower than a panel because it is a
      spatial move the eye follows to a resting place, not a reveal. Paired with
-     PROTO_PAPER_STACK_MS. */
-  --pds-duration-paper-stack: 320ms;
+     PROTO_PAPER_STACK_MS.
+
+     Was 320ms — the top of the Standard band, and it read as slow rather than as weighty.
+     The move is legible at 260 and the sheet still arrives somewhere rather than appearing;
+     the guidelines put menus and modals at 0.25–0.35s and this is the same order of event. */
+  --pds-duration-paper-stack: 260ms;
+  /* ...and going the other way, shorter.
+     
+     An exit is not the same event as an entrance: on the way in you are being shown where
+     something came from, and on the way out you already know — waiting through the full move
+     is waiting for an answer you have. Roughly three quarters, which keeps it a move rather
+     than a cut, and it is a collapse of a full pane so it does not go under ~200ms. Paired
+     with PROTO_PAPER_STACK_EXIT_MS. */
+  --pds-duration-paper-stack-exit: 200ms;
+  /* How much of the base paper stays visible above a stacked sheet — the edge you
+     tap to go back. Enough for a line of caption with breathing room; tightened on
+     phones where the toolbar already owns the top of the pane. */
+  --pds-paper-stack-peek: 48px;
+  /* The paper behind is the smaller one. Scale rather than a width, so the change is one
+     GPU-composited transform that animates with the flip instead of a layout step — and so
+     the two papers stay the same object at two depths, which is what a stack is. */
+  --pds-paper-stack-back-scale: 0.96;
+  /* How far the sheet gives way when the pointer is on the band. A quarter of the peek —
+     enough that the paper behind visibly widens, which is the thing being offered, and not
+     so far that a pointer passing through looks like it opened something. */
+  --pds-paper-stack-hover-nudge: 12px;
+  /* The paper column — the note editor's paper and the reader's text column are both
+     this wide, centred. The stack paints its two sheets at exactly this width, so what
+     stacks is the papers themselves and nothing shows outside them. */
+  --pds-paper-column: 720px;
   --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
   --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
   /*
@@ -481,6 +509,9 @@
     0 2px 8px oklch(var(--pds-lch-shadow-card-a)),
     0 1px 2px oklch(var(--pds-lch-shadow-card-b));
   --pds-shadow-card-elevated: 0 4px 16px oklch(var(--pds-lch-shadow-card-elevated));
+  /* The base paper of a stack: one step lighter than the sheet's --pds-shadow-card,
+     so the sheet reads as the nearer of the two papers. */
+  --pds-shadow-paper-stack-base: 0 1px 2px oklch(var(--pds-lch-shadow-card-b));
   --pds-shadow-shell:
     0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),
     0 1px 3px oklch(var(--pds-lch-shadow-shell-b));

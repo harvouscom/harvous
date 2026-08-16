@@ -1,37 +1,43 @@
 /**
- * POST /api/reading/event    — record that a chapter was read, and move the bookmark.
- * GET  /api/reading/position — where reading left off, for Home's "continue" card.
+ * POST /api/reading/event   — record one chapter reading session.
+ * GET  /api/reading/recent  — read back which chapters have been read, for continue-reading.
  */
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
-import { recordReadingEvent, validateReadingEventInput } from '../utils/record-reading-event';
-import { db, UserMetadata, eq, first } from '../db';
-import { parseReadingPosition } from '@/utils/reading-position';
-import { isLastReadPositionColumnMissing } from '../utils/pg-undefined-relation';
+import {
+  collapseReadingHistory,
+  recordReadingEvent,
+  validateReadingEventInput,
+} from '../utils/record-reading-event';
+import { db, ReadingEvents, UserMetadata, and, eq, gte, desc } from '../db';
+import { isReadingEventsTableMissing } from '../utils/pg-undefined-relation';
+import { parseLastReadPosition } from '@/utils/last-read-position';
+import { first } from '../db/helpers';
 
 const route = new Hono();
 
 /**
- * Answers `{ success: true }` whether or not anything was written.
- *
- * The reader fires this and forgets it; there is nothing it could usefully do with a failure,
- * and a 500 here would surface as a console error on a page whose whole job is to be quiet.
- * Genuine failures are logged server-side, where someone can act on them.
+ * Longer than the recall history window, which only has to outlive a snooze. Continue-reading
+ * is asking where someone is in a book, and working through a book takes months — a 21-day
+ * window would keep proposing chapter 1 of something they are halfway through.
  */
+const READING_HISTORY_WINDOW_DAYS = 180;
+const READING_HISTORY_MAX_ROWS = 1000;
+
 route.post('/api/reading/event', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const input = validateReadingEventInput(body);
     if (!input) {
-      return c.json({ error: 'Invalid reading event payload' }, 400);
+      return c.json({ error: 'Invalid reading event payload', code: 'READING_EVENT_INVALID' }, 400);
     }
 
-    const recorded = await recordReadingEvent(auth.userId, input);
-    return c.json({ success: true, recorded });
+    await recordReadingEvent(auth.userId, input);
+    return c.json({ success: true });
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/reading/event',
@@ -42,29 +48,55 @@ route.post('/api/reading/event', requireAuth, rateLimit('write'), async (c) => {
 });
 
 /**
- * The bookmark. `{ position: null }` for someone who has not read in-app yet — which is a real
- * answer, not an error, and is what Home shows its first-run card for.
+ * Which chapters have been read, collapsed to one entry each, plus where the reader is.
+ *
+ * Read separately from the note index on purpose: every other signal Home has about
+ * Scripture comes from what was written about it, so a chapter someone read and never
+ * noted is invisible. This is the half that sees it.
+ *
+ * Position rides along rather than being fetched from the profile, even though it lives on
+ * UserMetadata and get-profile returns it too. Continue-reading needs the two together —
+ * where you were, and whether you finished it — and answering from one request keeps them
+ * from being read a few minutes apart and disagreeing.
  */
-route.get('/api/reading/position', requireAuth, rateLimit('read'), async (c) => {
+route.get('/api/reading/recent', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const row = first(
+    // ReadingEvents.createdAt is a timestamp column, so compare against a Date.
+    const since = new Date(Date.now() - READING_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const meta = first(
       await db
         .select({ lastReadPosition: UserMetadata.lastReadPosition })
         .from(UserMetadata)
         .where(eq(UserMetadata.userId, auth.userId))
         .limit(1),
     );
+    const lastRead = parseLastReadPosition(meta?.lastReadPosition);
 
-    return c.json({ position: parseReadingPosition(row?.lastReadPosition ?? null) });
+    const rows = await db
+      .select({
+        book: ReadingEvents.book,
+        bookOrder: ReadingEvents.bookOrder,
+        chapter: ReadingEvents.chapter,
+        dwellBucket: ReadingEvents.dwellBucket,
+        createdAt: ReadingEvents.createdAt,
+      })
+      .from(ReadingEvents)
+      .where(and(eq(ReadingEvents.userId, auth.userId), gte(ReadingEvents.createdAt, since)))
+      .orderBy(desc(ReadingEvents.createdAt))
+      .limit(READING_HISTORY_MAX_ROWS);
+
+    return c.json({ success: true, lastRead, chapters: collapseReadingHistory(rows) });
   } catch (error) {
-    // Before the migration lands, "no bookmark" is the truth rather than a failure.
-    if (isLastReadPositionColumnMissing(error)) {
-      return c.json({ position: null });
+    // Pre-migration databases have no ReadingEvents table. Continue-reading is an
+    // enhancement, so degrade to "nothing read yet" rather than failing Home's data load.
+    if (isReadingEventsTableMissing(error)) {
+      return c.json({ success: true, lastRead: null, chapters: [] });
     }
     const standardError = handleAPIError(error, {
-      endpoint: '/api/reading/position',
-      action: 'reading_position',
+      endpoint: '/api/reading/recent',
+      action: 'reading_recent',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

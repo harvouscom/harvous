@@ -46,9 +46,24 @@ function readElementTranslateX(el: HTMLElement): number {
   return match ? parseFloat(match[1]) : 0;
 }
 
-function resolveStudyDockCenterTarget(): HTMLElement | null {
+/**
+ * The paper the dock should sit centred under.
+ *
+ * Exported because the carousel has to agree with this: it used to look for
+ * `.proto-editor-paper` itself and give up when there was none, which is every chapter in
+ * the Bible reader — so a dock opened while reading never centred on the column it belongs
+ * to, and the ladder below quietly fell through to the whole main cell instead.
+ *
+ * The reading column ranks with the note's paper because it is the same thing in the other
+ * surface: the 720px sheet the words are on. Everything after is a fallback for surfaces
+ * that have neither.
+ */
+export function resolveStudyDockCenterTarget(): HTMLElement | null {
   const paper = document.querySelector('.proto-editor-paper');
   if (paper instanceof HTMLElement) return paper;
+
+  const readerColumn = document.querySelector('.pds-reader__column');
+  if (readerColumn instanceof HTMLElement) return readerColumn;
 
   const wrap = document.querySelector('.proto-editor-content-wrap');
   if (wrap instanceof HTMLElement) return wrap;
@@ -63,11 +78,9 @@ function resolveStudyDockCenterTarget(): HTMLElement | null {
 }
 
 function syncMeasuredPaperWidth(shell: HTMLElement): void {
-  const paper = document.querySelector('.proto-editor-paper');
-  const measureEl =
-    paper instanceof HTMLElement
-      ? paper
-      : document.querySelector('.proto-editor-content-wrap');
+  // Same ladder as the centre target, so the width the dock sizes itself against and the
+  // thing it centres on are never two different papers.
+  const measureEl = resolveStudyDockCenterTarget();
   if (!(measureEl instanceof HTMLElement)) return;
   const width = measureEl.getBoundingClientRect().width;
   if (width > 0) {

@@ -21,7 +21,7 @@ export type ScriptureIndexBookLike = {
   passages: ScriptureIndexPassageLike[];
 };
 
-function canonicalBookOrderMap(): Map<string, number> {
+export function canonicalBookOrderMap(): Map<string, number> {
   const data = bibleChaptersData as BibleChapterRow[];
   const m = new Map<string, number>();
   let i = 0;

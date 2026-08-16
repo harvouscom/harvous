@@ -11,16 +11,23 @@
  */
 import {
   Fragment,
+  memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ComponentProps,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
 import Icon from '@/components/react/Icon';
+// For `.scripture-pill-chrome__trans-chip` — the reader states the translation in the
+// same chip the dock does, so it borrows the chip rather than growing a second one.
+import '@/styles/scripture-pill-chrome.css';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import {
   adjacentChapter,
@@ -34,7 +41,6 @@ import {
   usePrefetchAdjacentChapters,
   usePrototypeBibleChapter,
 } from '../../hooks/queries/usePrototypeBibleChapter';
-import { useRecordReadingEvent } from '../../hooks/useRecordReadingEvent';
 import {
   getReadingPrefsServerSnapshot,
   getReadingPrefsSnapshot,
@@ -54,6 +60,7 @@ import {
   type ReferenceProvider,
 } from '@/components/react/TiptapReferenceSuggestion';
 import { useEastonsSlugIndex } from '../../hooks/useEastonsSlugIndex';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import {
   assignAnchorLanes,
   usePrototypeChapterNotes,
@@ -72,7 +79,11 @@ import HighlightDockWeb from '@/components/react/HighlightDockWeb';
  * the other.
  */
 type ReaderDockState =
-  | { kind: 'reference'; query: string }
+  /** `anchor` is where the word was read, and it is what a saved reference points back at:
+      the single verse when the word was tapped in the chapter, the whole passage when it was
+      tapped inside a passage card. `verse` is set only in the first case — it is the verse a
+      newly started note returns the reader to, and a passage has no single one. */
+  | { kind: 'reference'; query: string; anchor: string; verse?: number }
   | { kind: 'passage'; reference: string }
   | { kind: 'highlight'; reference: string; excerpt: string; accent: StudyHighlightAccentKey }
   | null;
@@ -88,6 +99,70 @@ const CARD_BLEED = 6;
  * milliseconds, and a loading line shown for 40ms is not information, it is a flash. Past
  * this threshold there genuinely is a wait, and saying so is better than a frozen page.
  */
+/** Stable stand-in for a verse whose html has not been built — a fresh `{}` here would
+    defeat the memo below on every render, which is the whole point of hoisting it. */
+const EMPTY_VERSE_HTML = { __html: '' };
+
+/**
+ * One verse, identical in both layouts.
+ *
+ * At module scope, and memoised, because it must not be re-created per render. It used to
+ * be declared inside the pane so it could close over selection and focus without threading
+ * props — which gave it a new function identity every render, so React treated it as a
+ * different component type and unmounted the entire verse subtree on ANY state change.
+ *
+ * That is what made a dotted word need two taps: the first mousedown focused the verse,
+ * `setFocusedVerse` re-rendered, every verse node was replaced, and mouseup landed on a
+ * node that had never seen the mousedown — so no click was ever dispatched. The second tap
+ * worked only because the focus state was already correct and React bailed out of the
+ * render. It also threw away any drag text-selection across verses, and defeated the
+ * memoised `verseHtml` that exists precisely to keep this DOM stable.
+ *
+ * Everything it needs now arrives as props, and every handler takes the verse number so the
+ * parent can hold one stable callback for all of them.
+ */
+const VerseSpan = memo(function VerseSpan({
+  verse,
+  selected,
+  accent,
+  inFocus,
+  roving,
+  html,
+  onFocusVerse,
+  onActivate,
+  onKeys,
+}: {
+  verse: { number: number; text: string };
+  selected: boolean;
+  accent?: string;
+  inFocus: boolean;
+  roving: boolean;
+  html: { __html: string };
+  onFocusVerse: (n: number) => void;
+  onActivate: (n: number, e: ReactMouseEvent<HTMLSpanElement>) => void;
+  onKeys: (n: number, e: ReactKeyboardEvent<HTMLSpanElement>) => void;
+}) {
+  return (
+    <span
+      className="pds-reader__verse"
+      role="option"
+      data-reader-verse={verse.number}
+      aria-selected={selected}
+      tabIndex={roving ? 0 : -1}
+      data-selected={selected ? 'true' : 'false'}
+      data-highlighted={accent ? 'true' : undefined}
+      data-highlight-color={accent}
+      data-in-focus={inFocus ? 'true' : undefined}
+      onFocus={() => onFocusVerse(verse.number)}
+      onClick={(e) => onActivate(verse.number, e)}
+      onKeyDown={(e) => onKeys(verse.number, e)}
+    >
+      <sup className="pds-reader-verse-num">{verse.number}</sup>
+      <span dangerouslySetInnerHTML={html} />
+    </span>
+  );
+});
+
 const LOADING_GRACE_MS = 250;
 
 /** True only once `active` has stayed true for `delay` — so brief waits never show. */
@@ -153,6 +228,17 @@ export interface PrototypeBibleReaderPaneProps {
   onAnnotate?: (range: { start: number; end: number }, accent: StudyHighlightAccentKey) => void;
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
+  /**
+   * Keep a looked-up word as a reference, and what to call doing so.
+   *
+   * The reader can show you what a word means but has no note of its own to keep it in — a
+   * saved reference is an entry on a note's study thread. So the page above decides where
+   * it lands and names the action accordingly, and the pane only reports the word and where
+   * it was read. Omitted while a chapter is the base of a paper stack: the note on top owns
+   * the saving there, and two Save buttons for one word is a question nobody asked.
+   */
+  onSaveReference?: (input: { word: string; reference: string; verse?: number }) => void;
+  saveReferenceLabel?: string;
 }
 
 export default function PrototypeBibleReaderPane({
@@ -168,6 +254,8 @@ export default function PrototypeBibleReaderPane({
   onHighlight,
   onAnnotate,
   onOpenNoteAtReference,
+  onSaveReference,
+  saveReferenceLabel,
 }: PrototypeBibleReaderPaneProps) {
   const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
   const { verseLayout, showMarginNotes } = useSyncExternalStore(
@@ -200,7 +288,6 @@ export default function PrototypeBibleReaderPane({
    * still waiting for would record intent rather than reading, and a chapter this translation
    * does not carry would record a page that showed nothing.
    */
-  useRecordReadingEvent(book, chapter, translation, { enabled: Boolean(data) });
 
   const verses = useMemo(() => data?.verses ?? [], [data]);
 
@@ -270,7 +357,9 @@ export default function PrototypeBibleReaderPane({
    * the sync watermark here, so a write on read would silently re-sort the sidebar — a bug
    * this codebase has had more than once.
    */
-  const { data: chapterAnchors } = usePrototypeChapterNotes(book, chapter);
+  // The space id only feeds the offline fallback — the mirrored scripture index is per space.
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const { data: chapterAnchors } = usePrototypeChapterNotes(book, chapter, homeSpaceId);
   const anchorLanes = useMemo(
     () => (showMarginNotes ? assignAnchorLanes(chapterAnchors, verses.length) : []),
     [chapterAnchors, verses.length, showMarginNotes],
@@ -285,10 +374,21 @@ export default function PrototypeBibleReaderPane({
   const [selection, setSelection] = useState<[number, number] | null>(null);
   const [focusedVerse, setFocusedVerse] = useState<number | null>(null);
 
+  /**
+   * Where a deep link put you — dimmed-in like a selection, but not one.
+   *
+   * Landing used to seed `selection`, which gives the right fade but also opens the verse
+   * action menu: arriving from a note's scripture dock popped a highlight/note toolbar over
+   * a verse nobody had chosen, and it stayed there with nothing to dismiss it. Arriving
+   * somewhere is a place, not a gesture — only a gesture should offer actions.
+   */
+  const [landing, setLanding] = useState<[number, number] | null>(null);
+
   // A new chapter is a new document: keep no selection or roving focus from the
   // last one, or verse 12 of John 3 stays lit while reading John 4.
   useEffect(() => {
     setSelection(null);
+    setLanding(null);
     setFocusedVerse(null);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [book, chapter, translation]);
@@ -401,7 +501,7 @@ export default function PrototypeBibleReaderPane({
    * used.
    */
   useEffect(() => {
-    if (!pinnedKey && !selection) return;
+    if (!pinnedKey && !selection && !landing) return;
     const INSIDE = [
       '.pds-reader__verse',
       '.pds-reader-menu',
@@ -421,12 +521,14 @@ export default function PrototypeBibleReaderPane({
       setPinnedKey(null);
       setActiveKey(null);
       setSelection(null);
+      setLanding(null);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setPinnedKey(null);
       setActiveKey(null);
       setSelection(null);
+      setLanding(null);
     };
 
     document.addEventListener('pointerdown', onPointerDown);
@@ -435,7 +537,7 @@ export default function PrototypeBibleReaderPane({
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [pinnedKey, selection]);
+  }, [pinnedKey, selection, landing]);
 
   /*
    * Derived from the live bars, never stored.
@@ -482,13 +584,33 @@ export default function PrototypeBibleReaderPane({
     };
   }, [selectionEnd]);
 
-  // Land on the deep-linked verse once its element exists.
-  useEffect(() => {
+  /*
+   * Land on the deep-linked verse once its element exists — BEFORE the browser paints.
+   *
+   * This was a passive effect, which runs after paint, so the first frame showed the top of
+   * the chapter and the second showed the verse. On its own that is a blink. Arriving out of
+   * a scripture dock it is worse: the morph's clip opens onto that first frame, so the window
+   * growing out of the dock card was filled with the wrong part of the chapter and then
+   * snapped — the jarring cut in what is supposed to be one surface growing. A layout effect
+   * puts the right verse under the clip from the very first frame.
+   *
+   * `scrollTop`, not `scrollIntoView`: the latter walks up and scrolls every scrollable
+   * ancestor it finds, and inside the paper stack that includes layers that are mid-animation.
+   */
+  useLayoutEffect(() => {
     if (!focusVerse || verses.length === 0) return;
-    const el = document.querySelector<HTMLElement>(`[data-reader-verse="${focusVerse}"]`);
-    if (!el) return;
-    el.scrollIntoView({ block: 'center' });
-    setSelection([focusVerse, focusVerse]);
+    const scroller = scrollRef.current;
+    const el = scroller?.querySelector<HTMLElement>(`[data-reader-verse="${focusVerse}"]`);
+    if (!scroller || !el) return;
+    // Measured as a delta between two rects in the same space, rather than from `offsetTop`:
+    // the verse's offset parent is the column, not the scroller, so an offset chain would
+    // have to be walked and would still break the first time something between them gained
+    // a `position`.
+    const elRect = el.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const centreOffset = (scroller.clientHeight - elRect.height) / 2;
+    scroller.scrollTop = Math.max(0, scroller.scrollTop + (elRect.top - scrollerRect.top) - centreOffset);
+    setLanding([focusVerse, focusVerse]);
     setFocusedVerse(focusVerse);
   }, [focusVerse, verses.length]);
 
@@ -515,6 +637,58 @@ export default function PrototypeBibleReaderPane({
   );
 
   const rovingVerse = focusedVerse ?? verses[0]?.number ?? null;
+
+  /*
+   * Verse handlers, above the loading and error returns below.
+   *
+   * They belong to `VerseSpan`, which is rendered far further down — but a hook after an
+   * early return is a hook that does not run on the render that took it, and React counts.
+   * Each takes the verse number so one stable callback serves every verse, which is what
+   * lets the memo on `VerseSpan` actually hold.
+   */
+  const handleVerseFocus = useCallback((n: number) => setFocusedVerse(n), []);
+
+  const handleVerseActivate = useCallback(
+    (n: number, e: ReactMouseEvent<HTMLSpanElement>) => {
+      // A dotted word is its own target: tapping it asks "who/what is this?", which is a
+      // different question from "I want to act on this verse". Selecting the verse as well
+      // would answer both at once and open the format bar over the dock.
+      const suggestion = (e.target as HTMLElement | null)?.closest?.('.reference-suggestion');
+      if (suggestion instanceof HTMLElement) {
+        e.preventDefault();
+        e.stopPropagation();
+        const query = suggestion.dataset.referenceWord || suggestion.textContent?.trim() || '';
+        if (query) {
+          setDock({
+            kind: 'reference',
+            query,
+            anchor: `${book} ${chapter}:${n}`,
+            verse: n,
+          });
+        }
+        return;
+      }
+      selectVerse(n, e.shiftKey);
+    },
+    [book, chapter, selectVerse],
+  );
+
+  const handleVerseKeys = useCallback(
+    (n: number, e: ReactKeyboardEvent<HTMLSpanElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectVerse(n, e.shiftKey);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveFocus(n, 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveFocus(n, -1);
+      }
+    },
+    [selectVerse, moveFocus],
+  );
+
 
   if (isLoading) {
     // Below the grace threshold the reader shows nothing rather than a line that would be
@@ -560,66 +734,6 @@ export default function PrototypeBibleReaderPane({
     );
   }
 
-  /**
-   * One verse, identical in both layouts.
-   *
-   * Defined here rather than at module scope so it closes over selection and focus without
-   * threading six props through; both call sites render the same element either way.
-   */
-  const VerseSpan = ({ verse }: { verse: { number: number; text: string } }) => {
-    const selected =
-      selection != null && verse.number >= selection[0] && verse.number <= selection[1];
-    const highlight = highlights?.get(verse.number);
-    return (
-      <span
-        className="pds-reader__verse"
-        role="option"
-        data-reader-verse={verse.number}
-        aria-selected={selected}
-        tabIndex={rovingVerse === verse.number ? 0 : -1}
-        data-selected={selected ? 'true' : 'false'}
-        data-highlighted={highlight ? 'true' : undefined}
-        data-highlight-color={highlight?.accent}
-        data-in-focus={
-          focusRange && verse.number >= focusRange[0] && verse.number <= focusRange[1]
-            ? 'true'
-            : undefined
-        }
-        onFocus={() => setFocusedVerse(verse.number)}
-        onClick={(e) => {
-          // A dotted word is its own target: tapping it asks "who/what is this?", which is a
-          // different question from "I want to act on this verse". Selecting the verse as well
-          // would answer both at once and open the format bar over the dock.
-          const suggestion = (e.target as HTMLElement | null)?.closest?.('.reference-suggestion');
-          if (suggestion instanceof HTMLElement) {
-            e.preventDefault();
-            e.stopPropagation();
-            const query =
-              suggestion.dataset.referenceWord || suggestion.textContent?.trim() || '';
-            if (query) setDock({ kind: 'reference', query });
-            return;
-          }
-          selectVerse(verse.number, e.shiftKey);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            selectVerse(verse.number, e.shiftKey);
-          } else if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            moveFocus(verse.number, 1);
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            moveFocus(verse.number, -1);
-          }
-        }}
-      >
-        <sup className="pds-reader-verse-num">{verse.number}</sup>
-        <span dangerouslySetInnerHTML={verseHtml.get(verse.number) ?? { __html: '' }} />
-      </span>
-    );
-  };
-
   const selectionLabel =
     selection == null
       ? null
@@ -637,7 +751,7 @@ export default function PrototypeBibleReaderPane({
    */
   const focusRange: [number, number] | null = activeBar
     ? [activeBar.startVerse, activeBar.endVerse]
-    : selection;
+    : (selection ?? landing);
 
   /** Text of the selected verses — what a highlight is *of*, for the dock's excerpt. */
   const selectedText =
@@ -834,7 +948,17 @@ export default function PrototypeBibleReaderPane({
                 `${data.book} ${data.chapter}`
               )}
             </h1>
-            <p className="pds-reader__chapter-meta pds-caption">{data.translation}</p>
+            {/* The same chip the scripture dock puts the translation in — one fact, one
+                shape, wherever it is stated. It was a bare caption here, which read as a
+                stray line of grey text under the title rather than as the label it is. */}
+            <p className="pds-reader__chapter-meta">
+              <span
+                className="scripture-pill-chrome__trans-chip"
+                aria-label={`Translation ${data.translation}`}
+              >
+                {data.translation}
+              </span>
+            </p>
           </div>
 
           {/*
@@ -952,7 +1076,25 @@ export default function PrototypeBibleReaderPane({
                           prose does and collapses at a line break, where a CSS margin
                           would survive and indent the line. */}
                       {i > 0 ? ' ' : null}
-                      <VerseSpan verse={verse} />
+                      <VerseSpan
+                        verse={verse}
+                        selected={
+                          selection != null &&
+                          verse.number >= selection[0] &&
+                          verse.number <= selection[1]
+                        }
+                        accent={highlights?.get(verse.number)?.accent}
+                        inFocus={
+                          focusRange != null &&
+                          verse.number >= focusRange[0] &&
+                          verse.number <= focusRange[1]
+                        }
+                        roving={rovingVerse === verse.number}
+                        html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
+                        onFocusVerse={handleVerseFocus}
+                        onActivate={handleVerseActivate}
+                        onKeys={handleVerseKeys}
+                      />
                     </Fragment>
                   ))}
                 </p>
@@ -961,7 +1103,25 @@ export default function PrototypeBibleReaderPane({
               verses.map((verse) => (
                 <div className="pds-reader__block" role="none" key={verse.number}>
                   <p className="pds-reader-text" role="none">
-                    <VerseSpan verse={verse} />
+                    <VerseSpan
+                      verse={verse}
+                      selected={
+                        selection != null &&
+                        verse.number >= selection[0] &&
+                        verse.number <= selection[1]
+                      }
+                      accent={highlights?.get(verse.number)?.accent}
+                      inFocus={
+                        focusRange != null &&
+                        verse.number >= focusRange[0] &&
+                        verse.number <= focusRange[1]
+                      }
+                      roving={rovingVerse === verse.number}
+                      html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
+                      onFocusVerse={handleVerseFocus}
+                      onActivate={handleVerseActivate}
+                      onKeys={handleVerseKeys}
+                    />
                   </p>
                 </div>
               ))
@@ -1011,7 +1171,28 @@ export default function PrototypeBibleReaderPane({
       {dock && studyDockCarouselHostEl
         ? createPortal(
             dock.kind === 'reference' ? (
-              <ReferenceDockWeb initialQuery={dock.query} onDone={() => setDock(null)} />
+              <ReferenceDockWeb
+                initialQuery={dock.query}
+                onDone={() => setDock(null)}
+                // Always "pending" here: the reader has no note, so a word looked up from a
+                // chapter is never already kept. Whether it CAN be kept is the page's call,
+                // and without a handler the dock shows no save at all — same as before.
+                pendingSuggestion={!!onSaveReference}
+                saveReferenceLabel={saveReferenceLabel}
+                onSaveReference={
+                  onSaveReference
+                    ? () => {
+                        onSaveReference({
+                          word: dock.query,
+                          reference: dock.anchor,
+                          verse: dock.verse,
+                        });
+                        setDock(null);
+                      }
+                    : undefined
+                }
+                onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
+              />
             ) : dock.kind === 'passage' ? (
               <ScripturePillChromeWeb
                 reference={dock.reference}
@@ -1022,7 +1203,9 @@ export default function PrototypeBibleReaderPane({
                 editorChromeMode="prototypeNative"
                 onDone={() => setDock(null)}
                 onApply={() => undefined}
-                onOpenPassageReference={(word) => setDock({ kind: 'reference', query: word })}
+                onOpenPassageReference={(word) =>
+                  setDock({ kind: 'reference', query: word, anchor: dock.reference })
+                }
                 onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
               />
             ) : (

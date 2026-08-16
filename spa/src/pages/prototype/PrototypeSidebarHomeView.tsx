@@ -18,10 +18,11 @@ import {
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
-import { parseReaderQuery } from '@/utils/parse-reader-query';
-import { readingPositionReference } from '@/utils/reading-position';
-import { useReadingPosition } from '../../hooks/queries/useReadingPosition';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
+import { parseReaderQuery } from '@/utils/parse-reader-query';
+import { buildRevisitCardStackOrigin } from './paper-stack-origins';
+import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
@@ -71,6 +72,9 @@ import {
   pickRecallTrend,
   recallTrendGreetingParts,
   deriveContinueBook,
+  deriveContinueReading,
+  continueReadingEyebrow,
+  continueReadingMeta,
   deriveRecurringPerson,
   pickBareHighlight,
   isHighlightUnannotated,
@@ -112,12 +116,15 @@ import { stabilityById, mergeStabilityMaps } from './proto-recall-stability';
 import {
   activeCooldownIds,
   mergeServerRecallHistoryIntoCooldowns,
+  recallRestoredAt,
   recordRecallOpened,
   recordRecallSnoozed,
+  subscribeRecallCooldownChanged,
   recentRecallSectionCounts,
   RECALL_OPENED_COOLDOWN_DAYS,
 } from './proto-recall-cooldown';
 import { useRecallEventHistory } from '../../hooks/queries/useRecallEventHistory';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
@@ -162,7 +169,7 @@ const PASSAGE_CONNECTION_MIN = 2;
 function pushAnnotateHighlightRecallCard(
   out: RecallOpportunity[],
   highlight: PrototypeHighlightStudyThreadRow,
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void,
+  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void,
   usedHighlightIds: Set<string>,
 ) {
   if (usedHighlightIds.has(highlight.id)) return;
@@ -183,7 +190,7 @@ function pushAnnotateHighlightRecallCard(
 function pushRevisitHighlightRecallCard(
   out: RecallOpportunity[],
   highlight: PrototypeHighlightStudyThreadRow,
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void,
+  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void,
   usedHighlightIds: Set<string>,
   meta: string,
 ) {
@@ -216,7 +223,7 @@ type Props = {
   prefetchNote: (row: SpaceNoteRow) => void;
   onOpenScriptureBook: (bookOrder: number) => void;
   onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
+  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void;
   onOpenCreateThreadPrefill: (prefill: { noteIds: [string, string]; threadName: string }) => void;
 };
 
@@ -241,7 +248,7 @@ type HomeGreetingTrendKind = 'arc' | 'subject' | 'passage' | 'crossref' | 'refer
 type HomeGreetingTrend = {
   kind: HomeGreetingTrendKind;
   parts: RecallTrendGreetingParts;
-  onOpen: () => void;
+  onOpen: () => boolean | void;
 };
 
 function HomeGreeting({
@@ -545,12 +552,23 @@ function HomeSection({ title, children }: { title: string; children: React.React
   return (
     <section className="proto-home-section proto-home-section--group">
       <p className="proto-caption proto-home-section__eyebrow">{title}</p>
-      <div className="proto-home-section__list">{children}</div>
+      {/* One panel, hairline rows — the church hub's Tools shape. The list class stays for
+          the empty-group rule, which asks whether anything rendered inside. */}
+      <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-section__list">
+        {children}
+      </div>
     </section>
   );
 }
 
-/** Compact note card (continue / revisit) — shared markup. */
+/**
+ * A note as a Home row (continue / revisit).
+ *
+ * The row is one title line and one meta line, so the preview that the old card carried
+ * on its own line moves into the meta and takes its chances with the ellipsis. Time and
+ * folder come after it: what the note says is worth more of the line than when it was
+ * touched.
+ */
 function HomeNoteCard({
   eyebrow,
   iconName,
@@ -558,7 +576,8 @@ function HomeNoteCard({
   onOpenNote,
   prefetchNote,
 }: {
-  /** Omitted inside a `HomeSection`, whose heading already says which shelf this is on. */
+  /** Folded into the meta line — a row has no eyebrow. Usually omitted inside a
+      `HomeSection`, whose heading already says which shelf this is on. */
   eyebrow?: string;
   iconName: IconName;
   note: SpaceNoteRow;
@@ -569,39 +588,23 @@ function HomeNoteCard({
   const preview = note.content ? stripHtmlForListPreview(note.content, 90) : '';
   const rel = protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null);
   return (
-    <button
-      type="button"
-      className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+    <PrototypeHomeRow
+      icon={iconName}
+      title={title}
+      meta={[
+        eyebrow,
+        preview,
+        rel,
+        note.primaryCollection ? (
+          <>
+            <Icon name="folder" size={10} aria-hidden /> {note.primaryCollection}
+          </>
+        ) : null,
+      ]}
       onClick={() => onOpenNote(note)}
       onMouseEnter={() => prefetchNote(note)}
       onFocus={() => prefetchNote(note)}
-    >
-      {eyebrow ? <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p> : null}
-      <div className="proto-home-card__body">
-        <div className="proto-home-card__title-row">
-          <span className="proto-home-card__icon-orb" aria-hidden>
-            <Icon name={iconName} size={13} />
-          </span>
-          <p className="pds-list-title proto-home-card__title">{title}</p>
-          <span className="proto-home-card__chevron" aria-hidden>
-            <Icon name="caret-right" size={11} />
-          </span>
-        </div>
-        {preview ? (
-          <p className="pds-list-preview proto-home-card__preview">{preview}</p>
-        ) : null}
-        <div className="proto-home-card__meta">
-          {rel ? <span className="proto-home-card__meta-item">{rel}</span> : null}
-          {rel && note.primaryCollection ? <span className="proto-home-card__meta-sep">in</span> : null}
-          {note.primaryCollection ? (
-            <span className="proto-home-card__meta-item">
-              <Icon name="folder" size={10} aria-hidden />
-              {note.primaryCollection}
-            </span>
-          ) : null}
-        </div>
-      </div>
-    </button>
+    />
   );
 }
 
@@ -627,12 +630,12 @@ export default function PrototypeSidebarHomeView({
   const crossRefConnectionsQuery = usePrototypeSpaceScriptureConnections(homeSpaceId);
   const referenceWordConnectionsQuery = usePrototypeSpaceReferenceWordConnections(homeSpaceId);
   const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
-  const readingPositionQuery = useReadingPosition({ enabled: Boolean(homeSpaceId) });
   // Only the greeting's first name needs Clerk, but presenting before it loads means the
   // greeting line rewrites itself a beat later — one more thing moving after first paint.
   const { isLoaded: clerkLoaded } = useUser();
   const fingerprintsQuery = useNoteFingerprints();
   const recallHistoryQuery = useRecallEventHistory();
+  const readingHistoryQuery = useReadingHistory();
   // Declared up here, above the presentation gate, because the gate reads their settled state.
   // They used to sit further down beside the recall memo that consumes them, which put them
   // out of the gate's reach — so each one landed after Home had already painted and inserted a
@@ -663,6 +666,7 @@ export default function PrototypeSidebarHomeView({
     isMobileSidebar,
     closeDrawer,
     openStandaloneScripturePassage,
+    stackNote,
   } = useProtoShell();
 
   const tagsSettled = isQuerySettled(tagsQuery.isPending, tagsQuery.data != null);
@@ -707,7 +711,7 @@ export default function PrototypeSidebarHomeView({
    * `null`, so waiting for data would hold Home forever for anyone who has not read yet.
    */
   const readingPositionSettled =
-    !readingPositionQuery.isPending || readingPositionQuery.isFetched || Boolean(readingPositionQuery.isError);
+    !readingHistoryQuery.isPending || readingHistoryQuery.isFetched || Boolean(readingHistoryQuery.isError);
 
   // Home used to paint the moment notes resolved, then insert or remove a whole section
   // each time one of ~9 independent queries landed — the visible jumping. Wait for them
@@ -767,7 +771,6 @@ export default function PrototypeSidebarHomeView({
    * precisely the one they have not written about — so inferring "keep going" from citations
    * always pointed at where they had already been.
    */
-  const readingPosition = readingPositionQuery.data ?? null;
 
   const firstRunPassage = useMemo(() => {
     const parsed = votd?.reference ? parseReaderQuery(votd.reference) : null;
@@ -828,10 +831,19 @@ export default function PrototypeSidebarHomeView({
         activeCooldownIds(homeSpaceId, recallDayIndex),
         recallHistoryQuery.data?.events,
         new Date(),
+        undefined,
+        recallRestoredAt(homeSpaceId),
       ),
     // recallTick forces a re-read of the snooze store after the user snoozes an item.
     [homeSpaceId, recallDayIndex, recallTick, recallHistoryQuery.data],
   );
+
+  /*
+   * The other writer is the breadcrumb edge over whatever a suggestion opened — "nevermind"
+   * puts the row back, "ignore" rests it for good — and that edge lives in the shell, not in
+   * this tree, so nothing here would otherwise know the store had changed.
+   */
+  useEffect(() => subscribeRecallCooldownChanged(() => setRecallTick((t) => t + 1)), []);
   const revisitExcludeIds = useMemo(
     () =>
       [
@@ -905,12 +917,33 @@ export default function PrototypeSidebarHomeView({
   ]);
   const revisitOnHome = continueIsActive ? revisitNote : undefined;
 
-  // Opening the resurfaced note re-engages it: lengthen its forgetting interval before routing.
+  /**
+   * The resurfaced note opens as a sheet over the card that surfaced it, so the edge above the
+   * note says why it is open — "Worth another look" — and flipping it down shows the card
+   * again rather than a blank pane. Stacked before routing; the navigation itself is unchanged.
+   */
+  /**
+   * @param stack whether to raise the edge here. Home's standalone "Worth another look"
+   *   card is its own origin and says so. The Suggested shelf's revisitNote row runs through
+   *   the same handler but is a *suggestion*, and the carousel stacks that one itself — with
+   *   the row id attached, so its edge can put the suggestion back. Both stacking meant two
+   *   `stackNote` calls per tap, the second overwriting the first, and the one that survived
+   *   was the one without the suggestion.
+   */
   const handleOpenRevisitNote = useCallback(
-    (row: SpaceNoteRow) => {
+    (row: SpaceNoteRow, { stack = true }: { stack?: boolean } = {}) => {
+      if (stack) {
+        stackNote(
+          buildRevisitCardStackOrigin({
+            title: row.title,
+            meta: protoRelativeCaptionAbbrev(row.updatedAt ?? row.createdAt ?? null),
+          }),
+          row.id,
+        );
+      }
       onOpenNote(row);
     },
-    [onOpenNote],
+    [onOpenNote, stackNote],
   );
   const handleRecallSynced = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] });
@@ -1124,21 +1157,24 @@ export default function PrototypeSidebarHomeView({
    * the create was in flight and a second tap made a second note. The compose session is
    * synchronous and single — both problems go away with the await.
    */
+  /** @returns whether a draft actually opened — see `RecallOpportunity.onOpen`. */
   const startDraftNote = useCallback(
-    (opts: { title?: string; contentHtml?: string }) => {
-      if (!homeSpaceId) return;
+    (opts: { title?: string; contentHtml?: string }): boolean => {
+      if (!homeSpaceId) return false;
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       beginPrototypeComposeSession({
         targetSpaceId: homeSpaceId,
         seed: { title: opts.title, contentHtml: opts.contentHtml },
       });
       navigate({ to: prototypeHomeRouteTo() });
+      return true;
     },
     [homeSpaceId, isMobileSidebar, closeDrawer, beginPrototypeComposeSession, navigate],
   );
 
+  /** @returns whether it landed on a note — see `RecallOpportunity.onOpen`. */
   const openCrossRefGap = useCallback(
-    (gap: CrossRefGap) => {
+    (gap: CrossRefGap): boolean => {
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       const candidates = [
         gap.fromNoteId?.trim(),
@@ -1150,11 +1186,10 @@ export default function PrototypeSidebarHomeView({
           return !row || row.noteType !== 'scripture';
         }) ?? null;
       if (!noteId) {
-        void startDraftNote({
+        return startDraftNote({
           title: gap.to.displayRef,
           contentHtml: buildVotdScripturePillHtml(gap.to.displayRef, gap.fromTranslation || 'NET'),
         });
-        return;
       }
       navigate({
         to: prototypeNoteRouteTo(),
@@ -1171,19 +1206,79 @@ export default function PrototypeSidebarHomeView({
           dockReq: String(Date.now()),
         },
       });
+      return true;
     },
     [isMobileSidebar, closeDrawer, scriptureBooks, notes, startDraftNote, navigate],
   );
 
+  /**
+   * Chapters read, whether or not anything was ever written about them. Everything else on
+   * Home is derived from notes, so without this a chapter someone read twice still looks
+   * untouched.
+   */
+  const readChapters = useMemo(
+    () =>
+      (readingHistoryQuery.data?.chapters ?? []).map((c) => ({
+        book: c.book,
+        chapter: c.chapter,
+        countsAsRead: readingDwellCountsAsRead(c.dwellBucket),
+      })),
+    [readingHistoryQuery.data],
+  );
+
   const continueBookSuggestion = useMemo(() => {
     if (hasMoreNotes) return undefined;
+    const readByBook = new Map<string, number[]>();
+    for (const c of readChapters) {
+      if (!c.countsAsRead) continue;
+      const list = readByBook.get(c.book);
+      if (list) list.push(c.chapter);
+      else readByBook.set(c.book, [c.chapter]);
+    }
     const input = scriptureBooks.map((b) => ({
       book: b.title,
       bookOrder: b.bookOrder,
       citedChapters: b.passages.map((p) => p.chapter),
+      readChapters: readByBook.get(b.title) ?? [],
     }));
     return deriveContinueBook(input, bibleBookChapterCounts(), { limit: 1 })[0];
-  }, [scriptureBooks, hasMoreNotes]);
+  }, [scriptureBooks, hasMoreNotes, readChapters]);
+
+  /**
+   * Where to pick reading back up. Kept separate from `continueBookSuggestion`, which answers a
+   * different question — that one names the next chapter of a book you have been *studying*,
+   * this one the next chapter of what you were actually *reading*, and someone can be doing
+   * both in different books at once.
+   */
+  const continueReadingSuggestion = useMemo(
+    () =>
+      deriveContinueReading(
+        { lastRead: readingHistoryQuery.data?.lastRead ?? null, readChapters },
+        bibleBookChapterCounts(),
+      ),
+    [readingHistoryQuery.data?.lastRead, readChapters],
+  );
+
+  /**
+   * Open the chapter in the reader. A card offering to continue reading has to land on the
+   * text — and now that the reader exists, on the surface built for reading it rather than the
+   * standalone passage pane this originally used.
+   *
+   * Carries the translation the chapter was last read in rather than the account default, so
+   * continuing does not silently switch translations partway through a book.
+   */
+  const openContinueReading = useCallback(() => {
+    if (!continueReadingSuggestion) return;
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+    void navigate({
+      to: prototypeReadRouteTo(),
+      params: {
+        book: bookSlug(continueReadingSuggestion.book),
+        chapter: String(continueReadingSuggestion.chapter),
+      },
+      search: { v: undefined, t: continueReadingSuggestion.translation || undefined },
+    });
+  }, [continueReadingSuggestion, isMobileSidebar, closeDrawer, navigate]);
 
   const recurringPerson = useMemo(() => {
     if (hasMoreNotes) return undefined;
@@ -1255,7 +1350,7 @@ export default function PrototypeSidebarHomeView({
         title: stripServerAutoUntitledNoteTitleForDisplay(note.title?.trim() ?? '') || 'New Note',
         meta,
         iconName: 'arrow-rotate-left',
-        onOpen: () => handleOpenRevisitNote(note),
+        onOpen: () => handleOpenRevisitNote(note, { stack: false }),
       });
     };
 
@@ -1360,38 +1455,7 @@ export default function PrototypeSidebarHomeView({
     }
 
     // ── Generative opportunities ("go make something new") ──
-    /*
-     * A real bookmark outranks the inference. When we know where reading stopped, "keep
-     * going" means go back to that chapter and read on — so this card opens the reader
-     * rather than a blank note, and the citation-derived guess below is left for accounts
-     * that have not read anything in-app yet.
-     */
-    if (readingPosition) {
-      const ref = readingPositionReference(readingPosition);
-      out.push({
-        id: `reading:${readingPosition.book}:${readingPosition.chapter}`,
-        kind: 'continueBook',
-        isGenerative: true,
-        score: 0.9,
-        eyebrow: 'Pick up where you left off',
-        title: ref,
-        meta: `Back to ${readingPosition.book} ${readingPosition.chapter}`,
-        iconName: 'book-open',
-        onOpen: () => {
-          void navigate({
-            to: prototypeReadRouteTo(),
-            params: {
-              book: readingPosition.book,
-              chapter: String(readingPosition.chapter),
-            },
-            search: {
-              v: readingPosition.verse ? String(readingPosition.verse) : undefined,
-              t: undefined,
-            },
-          });
-        },
-      });
-    } else if (continueBookSuggestion) {
+    if (continueBookSuggestion) {
       const ref = `${continueBookSuggestion.book} ${continueBookSuggestion.nextChapter}`;
       const chapterHighlight = findUnannotatedHighlightForChapter(
         highlightsWithRecency,
@@ -1544,7 +1608,6 @@ export default function PrototypeSidebarHomeView({
     openCrossRefConnection,
     openPassageConnection,
     continueBookSuggestion,
-    readingPosition,
     navigate,
     recurringPerson,
     bareHighlight,
@@ -1558,7 +1621,7 @@ export default function PrototypeSidebarHomeView({
     openCrossRefGap,
   ]);
 
-  const recallOpportunities = useMemo(
+  const selectedRecallOpportunities = useMemo(
     () =>
       selectRecallOpportunities(recallCandidates, {
         snoozedIds: recallSnoozedIds,
@@ -1567,6 +1630,37 @@ export default function PrototypeSidebarHomeView({
       }),
     [recallCandidates, recallSnoozedIds, recallDayIndex],
   );
+
+  /*
+   * Once the shelf has been shown, it does not grow.
+   *
+   * The presentation gate waits on fifteen queries and presents Home once — but it has a
+   * 2.5s deadline behind it, because a disabled query stays pending forever and a blank
+   * Home is worse than a little jitter. On a cold load that deadline fires first, and
+   * whatever lands afterwards used to join the deck.
+   *
+   * That was tolerable while this was a card stack: one card showed and a late arrival
+   * changed something behind it. Flat, every arrival is a row appearing under the pointer
+   * in a list someone is already reading. So the first set to be presented is the set for
+   * this visit — newcomers wait for the next mount, which is the right cadence for a shelf
+   * that is a daily selection rather than a feed.
+   *
+   * Removals still apply: snoozing is how the deck gets trained, and a row that has been
+   * put away has to leave. Only joining is frozen, and only after something has shown.
+   */
+  const [shownRecallIds, setShownRecallIds] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!contentReady || shownRecallIds !== null || selectedRecallOpportunities.length === 0) return;
+    setShownRecallIds(selectedRecallOpportunities.map((op) => op.id));
+  }, [contentReady, shownRecallIds, selectedRecallOpportunities]);
+
+  const recallOpportunities = useMemo(() => {
+    if (shownRecallIds === null) return selectedRecallOpportunities;
+    const byId = new Map(selectedRecallOpportunities.map((op) => [op.id, op]));
+    return shownRecallIds
+      .map((id) => byId.get(id))
+      .filter((op): op is RecallOpportunity => Boolean(op));
+  }, [shownRecallIds, selectedRecallOpportunities]);
 
   const topCanonSection = useMemo(
     () => deriveTopCanonSections([...fingerprintsById.values()], 1)[0],
@@ -1701,29 +1795,25 @@ export default function PrototypeSidebarHomeView({
           />
         ) : null}
 
+        {continueReadingSuggestion ? (
+          <PrototypeHomeRow
+            icon="book-open"
+            title={`${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`}
+            meta={[
+              continueReadingEyebrow(continueReadingSuggestion),
+              continueReadingMeta(continueReadingSuggestion),
+            ]}
+            onClick={openContinueReading}
+          />
+        ) : null}
+
         {spotlightThread ? (
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+          <PrototypeHomeRow
+            icon="arrow-right-arrow-left"
+            title={spotlightThread.title}
+            meta={[`${spotlightThread.noteCount} ${spotlightThread.noteCount === 1 ? 'note' : 'notes'}`]}
             onClick={() => openThread(spotlightThread.id)}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="arrow-right-arrow-left" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">{spotlightThread.title}</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">
-                  {spotlightThread.noteCount} {spotlightThread.noteCount === 1 ? 'note' : 'notes'}
-                </span>
-              </div>
-            </div>
-          </button>
+          />
         ) : null}
       </HomeSection>
 
@@ -1753,29 +1843,15 @@ export default function PrototypeSidebarHomeView({
         ) : null}
 
         {looseCount >= LOOSE_MIN ? (
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+          <PrototypeHomeRow
+            icon="folder"
+            title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
             onClick={() => {
               setSidebarListMode('folders');
               setSidebarFolderDrilldown(null);
               ensureSidebarExpanded();
             }}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="folder" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">
-                  {`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
-                </p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-            </div>
-          </button>
+          />
         ) : null}
 
         {recallOpportunities.length > 0 ? (
@@ -1799,56 +1875,32 @@ export default function PrototypeSidebarHomeView({
       */}
       {notesListPhase === 'empty' ? (
         <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={() => {
-              void navigate({
-                to: prototypeReadRouteTo(),
-                params: {
-                  book: bookSlug(firstRunPassage.book),
-                  chapter: String(firstRunPassage.chapter),
-                },
-                search: {
-                  v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
-                  t: undefined,
-                },
-              });
-            }}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="book-open" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">Start reading</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <p className="pds-list-preview proto-home-card__preview">
-                {firstRunPassage.reference} — highlight a verse to begin a note from it.
-              </p>
-            </div>
-          </button>
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={onCreateFirstNote}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="note-sticky" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">Write a note</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <p className="pds-list-preview proto-home-card__preview">Start from a blank page instead.</p>
-            </div>
-          </button>
+          <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
+            <PrototypeHomeRow
+              icon="book-open"
+              title="Start reading"
+              meta={[`${firstRunPassage.reference} — highlight a verse to begin a note from it.`]}
+              onClick={() => {
+                void navigate({
+                  to: prototypeReadRouteTo(),
+                  params: {
+                    book: bookSlug(firstRunPassage.book),
+                    chapter: String(firstRunPassage.chapter),
+                  },
+                  search: {
+                    v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
+                    t: undefined,
+                  },
+                });
+              }}
+            />
+            <PrototypeHomeRow
+              icon="note-sticky"
+              title="Write a note"
+              meta={['Start from a blank page instead.']}
+              onClick={onCreateFirstNote}
+            />
+          </div>
         </div>
       ) : null}
 

@@ -11,16 +11,22 @@ import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useProfile } from '../../hooks/queries/useProfile';
+import { getNoteIdFromCreateResponse } from '../../hooks/queries/useNote';
+import { useCreateSimpleNote } from '../../hooks/mutations/useCreateSimpleNote';
+import { saveReferenceStudyThread } from '@/utils/save-reference-study-thread';
+import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useProtoShell, type PaperStackOrigin } from '../../layouts/proto-shell-context';
 import { parseScriptureReference } from '@/utils/scripture-detector';
-import { noteParamSlug } from './proto-route-slugs';
+import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { createPortal } from 'react-dom';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
+import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeReaderInspectorPane from './PrototypeReaderInspectorPane';
 import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
+import { useReadingSession } from '../../hooks/useReadingSession';
 import type { FontChoice } from '../../lib/proto-font-prefs';
 import type { ReaderVerseHighlight } from './PrototypeBibleReaderPane';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
@@ -58,12 +64,15 @@ export default function PrototypeReadPage() {
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const {
     beginPrototypeComposeSession,
-    stackNoteOverReader,
+    stackNote,
+    paperStack,
     inspectorOpen,
     inspectorExiting,
     closeInspector,
     isMobileSidebar,
   } = useProtoShell();
+  const paneIsWide = useShellPaneIsWide();
+  const createNoteMutation = useCreateSimpleNote();
   /**
    * Try-a-face for this reading session. Deliberately component state, not a preference:
    * it lasts as long as you are here and never overwrites the default in Appearance.
@@ -147,6 +156,27 @@ export default function PrototypeReadPage() {
   );
 
   /**
+   * This chapter as the paper a note stacks over. `returnTo` is where flipping the note down
+   * lands — this chapter, at the verse the note was started from, in this translation — and
+   * it is captured now so it still points here after the note's own URL has changed.
+   */
+  const readerOrigin = useCallback(
+    (fromVerse: number | undefined): PaperStackOrigin => ({
+      kind: 'reader',
+      label: `${book} ${chapter}`,
+      icon: 'scroll',
+      returnTo: {
+        to: prototypeReadRouteTo(),
+        // Slugged at capture — the route reads a slug, and this is a route, not a display.
+        params: { book: bookSlug(book), chapter: String(chapter) },
+        search: { v: fromVerse ? String(fromVerse) : undefined, t: translation },
+      },
+      base: { type: 'reader', book, chapter, translation, fromVerse },
+    }),
+    [book, chapter, translation],
+  );
+
+  /**
    * The signature move: chosen verses become a note that slides over the chapter.
    *
    * No navigation — the compose session opens on this same `/read/...` address and the
@@ -162,9 +192,92 @@ export default function PrototypeReadPage() {
         targetSpaceId: homeSpaceId ?? undefined,
         seed: { contentHtml: buildVotdScripturePillHtml(reference, translation) },
       });
-      stackNoteOverReader({ book, chapter, translation, fromVerse: start });
+      stackNote(readerOrigin(start));
     },
-    [book, chapter, translation, homeSpaceId, beginPrototypeComposeSession, stackNoteOverReader],
+    [homeSpaceId, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
+  );
+
+  /**
+   * Keep a word you looked up while reading.
+   *
+   * A saved reference is an entry on a note's study thread — there is nowhere else to put
+   * one — and the reader has no note. So there are two honest versions of this action and
+   * the label says which you are getting:
+   *
+   * - A note is already in play (you came here from one, or opened one over the chapter):
+   *   the reference joins that note, exactly as saving from its own scripture dock would.
+   * - Nothing is in play: a note is made to hold it, seeded with this passage the same way
+   *   "start a note" from a verse selection seeds one, and stacked over the chapter so the
+   *   reading you were doing is still underneath.
+   *
+   * The second creates a note on a tap, which is why it is never called "save" — a button
+   * that quietly makes a document should say that it is going to.
+   */
+  /*
+   * The note in play, from either side of the stack. `noteId` is the note when it is the
+   * sheet — parked below a chapter you flipped up to. A dock expansion is the other
+   * direction: the chapter is the sheet and the note is the origin, so the stack carries no
+   * note id and the note is the one its `returnTo` points at. Both are "a note is already
+   * open here", and missing the second would offer to start a second note while the first
+   * is sitting right underneath.
+   */
+  const stackedNoteId = useMemo(() => {
+    if (paperStack?.noteId) return paperStack.noteId;
+    if (paperStack?.origin.kind !== 'noteDock') return null;
+    const slug = paperStack.origin.returnTo.params?.noteId;
+    return slug ? normalizeNoteIdFromParam(slug) || null : null;
+  }, [paperStack]);
+  const saveReferenceLabel = stackedNoteId ? 'Save to your note' : 'Start a note with this';
+  const handleSaveReference = useCallback(
+    ({ word, reference, verse }: { word: string; reference: string; verse?: number }) => {
+      void (async () => {
+        if (stackedNoteId) {
+          await saveReferenceStudyThread({
+            noteId: stackedNoteId,
+            word,
+            reference,
+            translation,
+            spaceId: homeSpaceId,
+          });
+          notifyStudyThreadListChanged(homeSpaceId, stackedNoteId);
+          return;
+        }
+
+        const res = await createNoteMutation.mutateAsync({
+          spaceId: homeSpaceId ?? '',
+          content: buildVotdScripturePillHtml(reference, translation),
+        });
+        const createdId = getNoteIdFromCreateResponse(res);
+        // Offline creates resolve to a queued id later; without one there is no thread to
+        // hang the reference on, so the note is still made and the word is not lost — it is
+        // in the passage the note opens on.
+        if (createdId) {
+          await saveReferenceStudyThread({
+            noteId: createdId,
+            word,
+            reference,
+            translation,
+            spaceId: homeSpaceId,
+          });
+          notifyStudyThreadListChanged(homeSpaceId, createdId);
+          void navigate({
+            to: prototypeNoteRouteTo(),
+            params: { noteId: noteParamSlug(createdId) },
+            search: {},
+          });
+          stackNote(readerOrigin(verse), createdId);
+        }
+      })();
+    },
+    [
+      stackedNoteId,
+      translation,
+      homeSpaceId,
+      createNoteMutation,
+      navigate,
+      stackNote,
+      readerOrigin,
+    ],
   );
 
   /**
@@ -190,14 +303,14 @@ export default function PrototypeReadPage() {
     (noteId: string) => {
       // Stack it over the chapter rather than replacing it — the passage is the context
       // the note was written about, and the reader should still be there behind it.
-      stackNoteOverReader({ book, chapter, translation, fromVerse: focusVerse });
+      stackNote(readerOrigin(focusVerse), noteId);
       void navigate({
         to: prototypeNoteRouteTo(),
         params: { noteId: noteParamSlug(noteId) },
         search: {},
       });
     },
-    [book, chapter, translation, focusVerse, stackNoteOverReader, navigate],
+    [focusVerse, stackNote, readerOrigin, navigate],
   );
 
   /**
@@ -209,18 +322,32 @@ export default function PrototypeReadPage() {
    */
   const handleOpenNoteAtReference = useCallback(
     (noteId: string, reference: string) => {
-      stackNoteOverReader({ book, chapter, translation, fromVerse: focusVerse });
+      stackNote(readerOrigin(focusVerse), noteId);
       void navigate({
         to: prototypeNoteRouteTo(),
         params: { noteId: noteParamSlug(noteId) },
         search: { scriptureRef: reference, scriptureTranslation: translation },
       });
     },
-    [book, chapter, translation, focusVerse, stackNoteOverReader, navigate],
+    [focusVerse, stackNote, readerOrigin, translation, navigate],
   );
 
   // Reuses the reader's own cached chapter query, so opening the inspector costs nothing.
   const { data: chapterData } = usePrototypeBibleChapter(book, chapter, translation);
+
+  /**
+   * Record the read. Marks the position as soon as the chapter is on screen and logs how long
+   * it was held open when you leave, which is what lets Home offer to pick this back up — and
+   * what tells "read it" apart from "opened it and moved on".
+   *
+   * Gated on the verses actually being here: a chapter that failed to load was not read.
+   * `chapterData.book` rather than the URL slug, so the log stores canonical book names.
+   */
+  useReadingSession({
+    canonicalReference: chapterData ? `${chapterData.book} ${chapter}` : undefined,
+    translationCode: translation,
+    enabled: Boolean(chapterData?.verses.length),
+  });
 
   const handleChangeTranslation = useCallback(
     (next: string) => {
@@ -253,6 +380,15 @@ export default function PrototypeReadPage() {
       ? document.querySelector('.proto-shell__right-panel-host') ?? document.body
       : null;
   const inspectorVisible = inspectorOpen || inspectorExiting;
+  /*
+   * Dock the panel beside the chapter when there is room, exactly as a note does.
+   *
+   * The reader used to let it float over the text unconditionally, on the theory that a
+   * centred column sits in whitespace anyway. It does not: the column is 720px wide and the
+   * panel took the last ~100px of it, so adjusting the type size covered the verses you
+   * were adjusting it for.
+   */
+  const inspectorDocked = inspectorOpen && !inspectorExiting && !isMobileSidebar && paneIsWide;
   const inspectorLayer =
     inspectorVisible && rightPanelHost
       ? createPortal(
@@ -286,7 +422,9 @@ export default function PrototypeReadPage() {
       : null;
 
   return (
-    <PrototypeMainPaneShell>
+    <PrototypeMainPaneShell
+      className={inspectorDocked ? 'proto-main-pane--inspector-docked' : undefined}
+    >
       {inspectorLayer}
       <div className="pds-reader-with-dock">
         <PrototypeBibleReaderPane
@@ -306,6 +444,8 @@ export default function PrototypeReadPage() {
           // dock lifecycle stays with the surface that owns the selection.
           onAnnotate={applyHighlight}
           onOpenNoteAtReference={handleOpenNoteAtReference}
+          onSaveReference={handleSaveReference}
+          saveReferenceLabel={saveReferenceLabel}
         />
       </div>
     </PrototypeMainPaneShell>

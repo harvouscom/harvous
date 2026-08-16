@@ -10,7 +10,7 @@
  * Design reference: church gallery scene `07-from-your-church`.
  */
 import { useNavigate } from '@tanstack/react-router';
-import Icon from '@/components/react/Icon';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { toPrototypeSpaceSearchParam } from '../../utils/prototype-space-api-id';
@@ -40,38 +40,24 @@ function ChurchFeedCard({
     stripServerAutoUntitledNoteTitleForDisplay(item.title?.trim() ?? '') || 'Untitled';
   const rel = protoRelativeCaptionAbbrev(item.publishedAt ?? item.updatedAt ?? null);
 
+  // The channel's own tile stands in for the neutral block: this note came from a room
+  // with a colour, and the row should say which. The excerpt joins the meta line rather
+  // than taking a line of its own — a row is a row.
   return (
-    <button
-      type="button"
-      className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+    <PrototypeHomeRow
+      icon="rss"
+      iconNode={
+        <ProtoSpaceMenuIcon
+          color={item.channel.color || 'paper'}
+          size={26}
+          radius={8}
+          iconName="rss"
+        />
+      }
+      title={title}
+      meta={['From your church', item.channel.title, rel, item.excerpt]}
       onClick={() => onOpen(item)}
-    >
-      <div className="proto-home-card__body">
-        <div className="proto-home-card__title-row">
-          <span className="proto-home-card__icon-orb" aria-hidden>
-            <ProtoSpaceMenuIcon
-              color={item.channel.color || 'paper'}
-              size={28}
-              radius={8}
-              iconName="rss"
-            />
-          </span>
-          <div className="proto-church-hub__row-text">
-            <p className="pds-list-title proto-home-card__title">{title}</p>
-            <p className="proto-caption proto-church-hub__row-meta">
-              {item.channel.title}
-              {rel ? ` · ${rel}` : ''}
-            </p>
-          </div>
-          <span className="proto-home-card__chevron" aria-hidden>
-            <Icon name="caret-right" size={11} />
-          </span>
-        </div>
-        {item.excerpt ? (
-          <p className="pds-list-preview proto-home-card__preview">{item.excerpt}</p>
-        ) : null}
-      </div>
-    </button>
+    />
   );
 }
 
@@ -105,16 +91,14 @@ export default function PrototypeHomeChurchFeed() {
     });
   };
 
+  // Rows of the Following group, not a group of their own: the heading this used to carry
+  // ("From your church") is the first meta item on each row now, so the panel above stays
+  // one panel and nothing inside it grows a second heading.
   return (
-    <div className="proto-home-section">
-      <p className="proto-caption proto-home-section__eyebrow">From your church</p>
-      <ul className="proto-church-hub__list">
-        {items.map((item) => (
-          <li key={`${item.channel.id}:${item.noteId}`}>
-            <ChurchFeedCard item={item} onOpen={openItem} />
-          </li>
-        ))}
-      </ul>
-    </div>
+    <>
+      {items.map((item) => (
+        <ChurchFeedCard key={`${item.channel.id}:${item.noteId}`} item={item} onOpen={openItem} />
+      ))}
+    </>
   );
 }

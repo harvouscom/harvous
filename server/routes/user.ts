@@ -90,6 +90,10 @@ import {
 import { queueAudiencefulProductFlagsForUser } from '../utils/audienceful-product-flags';
 import type { AudiencefulProductFlags } from '@/utils/audienceful';
 import { validateName, validateColor } from '@/utils/validation';
+import {
+  serializeLastReadPosition,
+  validateLastReadPositionInput,
+} from '@/utils/last-read-position';
 import { hashPinNew, validatePinFormat, verifyPin } from '@/utils/lock-pin-server';
 import { generateUserExport, generateUserBackupZip, type ExportFormat } from '../utils/export-user-data';
 import {
@@ -968,6 +972,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     };
     let defaultTranslation = 'NET';
     let appearanceSettings: string | null = null;
+    let lastReadPosition: string | null = null;
     let sharedSpaceSwitcherOrder: string[] | null = null;
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
@@ -984,6 +989,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
         };
         defaultTranslation = um.defaultTranslation ?? 'NET';
         appearanceSettings = um.appearanceSettings ?? null;
+        lastReadPosition = um.lastReadPosition ?? null;
         sharedSpaceSwitcherOrder = parseSharedSpaceSwitcherOrder(um.sharedSpaceSwitcherOrder);
 
         // Reconcile: user picked HMC before the church was registered on Harvous.
@@ -1048,6 +1054,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       isHomeChurchStaff,
       defaultTranslation,
       appearanceSettings,
+      lastReadPosition,
       sharedSpaceSwitcherOrder,
       hasLockPinSet
     });
@@ -1256,6 +1263,50 @@ app.post('/api/user/update-appearance', requireAuth, rateLimit('write'), async (
     return c.json({ success: true, appearanceSettings });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-appearance', action: 'update_appearance' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * Record where the reader is, so Home can offer to continue from it.
+ *
+ * Written when a chapter opens rather than when reading ends, which is what makes it
+ * useful: the reader who closes a laptop mid-chapter is precisely the one who wants to
+ * continue, and no reading event exists for them yet.
+ */
+app.post('/api/user/update-last-read', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+
+    const input = validateLastReadPositionInput(body);
+    if (!input) {
+      return c.json({ error: 'Invalid reading position', code: 'LAST_READ_INVALID' }, 400);
+    }
+
+    // `readAt` lives inside the JSON, so it is an ISO string — `nowISO` is a Date shim.
+    const lastReadPosition = serializeLastReadPosition(input, new Date().toISOString());
+
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      await db.update(UserMetadata)
+        .set({ lastReadPosition, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        lastReadPosition,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      });
+    }
+
+    broadcastInvalidation(auth.userId, { type: 'userMetadata:updated' });
+
+    return c.json({ success: true, lastReadPosition });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/update-last-read', action: 'update_last_read' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

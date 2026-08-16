@@ -105,6 +105,8 @@ export interface OfflineUserMetadata extends BaseOfflineEntity {
   churchAddedAt: Date | null;
   /** Account-synced appearance preferences (JSON string) or null if never set. */
   appearanceSettings: string | null;
+  /** Account-synced last reading position (JSON string) or null if nothing read yet. */
+  lastReadPosition: string | null;
 }
 
 // Sync operation for mutation queue
@@ -147,6 +149,23 @@ export interface SyncState {
 }
 
 // Thread cache entry for caching thread content
+/**
+ * The passage→note index for one space, mirrored so the reader's margin markers survive
+ * offline. Stored as the server's own payload rather than a re-derived shape: the dots mean
+ * exactly what Scripture list mode means, and two derivations of "which notes cite this
+ * passage" would eventually disagree about which one a dot represents.
+ *
+ * Refreshed when notes sync, not when a chapter is opened — reading is the hot path and the
+ * index only changes when a note does.
+ */
+export interface ScriptureIndexCacheEntry {
+  spaceId: string;
+  userId: string;
+  /** The `books` payload from `/api/spaces/:id/scripture-index`, stored verbatim. */
+  books: unknown[];
+  updatedAt: number;
+}
+
 export interface ThreadCacheEntry {
   threadId: string;
   userId: string;
@@ -197,6 +216,7 @@ class OfflineDatabase extends Dexie {
   syncQueue!: Table<SyncOperation>;
   syncState!: Table<SyncState>;
   threadCache!: Table<ThreadCacheEntry>;
+  scriptureIndexCache!: Table<ScriptureIndexCacheEntry>;
   biblePacks!: Table<OfflineBiblePack>;
 
   constructor() {
@@ -265,8 +285,13 @@ class OfflineDatabase extends Dexie {
       threadCache: '[threadId+userId], threadId, userId, timestamp, expiresAt'
     });
 
-    // Version 5: Offline Bible packs — a translation's text, book by book.
+    // Version 5: scripture index mirror, so the reader's margin markers render offline.
     this.version(5).stores({
+      scriptureIndexCache: '[spaceId+userId], spaceId, userId, updatedAt'
+    });
+
+    // Version 6: Offline Bible packs — a translation's text, book by book.
+    this.version(6).stores({
       spaces: 'id, userId, syncStatus, lastModified, [userId+syncStatus], [userId+id]',
       threads: 'id, userId, spaceId, syncStatus, lastModified, [userId+spaceId], [userId+syncStatus], [userId+id]',
       notes: 'id, userId, threadId, spaceId, syncStatus, lastModified, simpleNoteId, [userId+threadId], [userId+spaceId], [userId+syncStatus], [userId+simpleNoteId], [userId+id]',
@@ -279,6 +304,7 @@ class OfflineDatabase extends Dexie {
       syncQueue: '++id, userId, operation, entityType, entityId, timestamp, [userId+operation], [userId+entityType], [userId+id]',
       syncState: 'userId',
       threadCache: '[threadId+userId], threadId, userId, timestamp, expiresAt',
+      scriptureIndexCache: '[spaceId+userId], spaceId, userId, updatedAt',
       biblePacks: '[translationId+book], translationId, book, savedAt'
     });
   }

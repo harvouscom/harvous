@@ -189,6 +189,12 @@ export interface UserProfile {
   defaultTranslation?: string;
   /** Per-user My Home switcher order for personal Shared Spaces (hosted + joined). */
   sharedSpaceSwitcherOrder?: string[] | null;
+  /**
+   * Where the reader was last, as the raw JSON string from the account. Parse with
+   * `parseLastReadPosition` — it is stored as text so an older or newer client's value
+   * degrades to "no saved position" rather than breaking the profile load.
+   */
+  lastReadPosition?: string | null;
 }
 
 export interface XPData {
@@ -231,6 +237,7 @@ export function useProfile() {
             hasLockPinSet?: boolean;
             defaultTranslation?: string;
             sharedSpaceSwitcherOrder?: string[] | null;
+            lastReadPosition?: string | null;
           }
         >('/api/user/get-profile')
         .then((data) => {

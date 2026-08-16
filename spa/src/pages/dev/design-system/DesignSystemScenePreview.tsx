@@ -14,6 +14,8 @@ import {
   PrototypeSectionHeader,
 } from '../../prototype/design-system';
 import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
+import PrototypePaperStack from '../../prototype/PrototypePaperStack';
+import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
@@ -826,62 +828,99 @@ function ReaderScene() {
 }
 
 function PaperStackScene() {
-  const [stacked, setStacked] = useState(true);
+  const [open, setOpen] = useState(true);
+  const [originKind, setOriginKind] = useState<'homeCard' | 'noteDock'>('homeCard');
+
+  /**
+   * The real component over canned origins — no network, no reader query. A hand-copied
+   * fixture used to live here and had already drifted from production (it lost the resume
+   * pill), which is the argument for rendering the thing itself.
+   */
+  const origin: PaperStackOrigin =
+    originKind === 'homeCard'
+      ? {
+          kind: 'homeCard',
+          cardKind: 'revisitNote',
+          label: 'Worth another look',
+          icon: 'arrow-rotate-left',
+          returnTo: { to: '/' },
+          base: {
+            type: 'originCard',
+            eyebrow: 'Worth another look',
+            title: 'The vine and the branches',
+            meta: '5d ago · Life in the Spirit',
+            icon: 'arrow-rotate-left',
+          },
+        }
+      : {
+          kind: 'noteDock',
+          label: 'The vine and the branches',
+          icon: 'note-sticky',
+          returnTo: { to: '/' },
+          base: {
+            type: 'originCard',
+            title: 'The vine and the branches',
+            meta: 'John 15:5 · NLT',
+            icon: 'note-sticky',
+          },
+        };
 
   return (
     <div className="pds-gallery-stack">
       <p className="pds-caption">
-        The reader is the base paper; a note stacks over it, leaving the reader&apos;s top edge
-        visible as the way back. Neither sheet unmounts, so reading position and note draft both
-        survive the move — <code>PROTO_PAPER_STACK_MS</code> ↔{' '}
-        <code>--pds-duration-paper-stack</code>.
+        A sheet stacked over the paper it came from. Two papers and nothing else: the
+        origin&apos;s top corners peek above the sheet and are the way back; flipped down, the
+        sheet&apos;s own top edge peeks from the bottom and is the way back up. Neither paper
+        unmounts, so position and draft both survive the move —{' '}
+        <code>PROTO_PAPER_STACK_MS</code> ↔ <code>--pds-duration-paper-stack</code> going in,{' '}
+        <code>PROTO_PAPER_STACK_EXIT_MS</code> ↔{' '}
+        <code>--pds-duration-paper-stack-exit</code> coming out. A{' '}
+        <code>noteDock</code> origin (the reader expanded out of a scripture dock) enters with the
+        expansion morph instead of the slide.
       </p>
 
       <div className="pds-gallery-btn-row">
         <button
           type="button"
           className="proto-share-popover__copy"
-          onClick={() => setStacked((s) => !s)}
-          aria-pressed={stacked}
+          onClick={() => setOpen((s) => !s)}
+          aria-pressed={open}
         >
-          {stacked ? 'Close note' : 'Start a note from John 1:3'}
+          {open ? 'Flip the sheet down' : 'Bring the sheet back'}
+        </button>
+        <button
+          type="button"
+          className="proto-share-popover__copy"
+          onClick={() => setOriginKind((k) => (k === 'homeCard' ? 'noteDock' : 'homeCard'))}
+        >
+          Origin: {originKind === 'homeCard' ? 'Home card' : 'note dock'}
         </button>
       </div>
 
-      <div className="pds-reader-stack pds-gallery-reader-stack">
-        <div className="pds-reader-stack__base pds-reader">
-          <div className="pds-reader__scroll">
-            <div className="pds-reader__column">
-              <div className="pds-reader__chapter-heading">
-                <h2 className="pds-reader-chapter-title">John 1</h2>
-              </div>
-              <div className="pds-reader__block">
-                <p className="pds-reader-text">
-                  <span className="pds-reader__verse">
-                    <sup className="pds-reader-verse-num">3</sup>
-                    Through him all things were made; without him nothing was made that has been
-                    made.
-                  </span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {stacked ? (
-          <button type="button" className="pds-reader-stack__peek" onClick={() => setStacked(false)}>
-            <Icon name="chevron-down" size={12} aria-hidden />
-            <span className="pds-caption">John 1</span>
-          </button>
-        ) : null}
-
-        <div className="pds-reader-stack__sheet" data-stacked={stacked ? 'true' : 'false'}>
+      <div className="pds-gallery-reader-stack">
+        <PrototypePaperStack
+          key={originKind}
+          stack={{ origin, noteId: 'gallery', noteTitle: 'The vine and the branches', open }}
+          onFlipDown={() => setOpen(false)}
+          onFlipUp={() => setOpen(true)}
+          // The gallery keeps the paper: dismissing here would leave an empty frame with no
+          // way to get the scene back short of a reload.
+          onDismiss={() => setOpen(true)}
+        >
           <div className="pds-gallery-reader-note">
-            <p className="pds-compose-title">Untitled note</p>
-            <p className="pds-caption">John 1:3 · NIV</p>
-            <p className="pds-body">Everything that exists traces back through him…</p>
+            <p className="pds-compose-title">
+              {originKind === 'homeCard' ? 'The vine and the branches' : 'John 15'}
+            </p>
+            <p className="pds-caption">
+              {originKind === 'homeCard' ? 'John 15:5 · NLT' : 'New Living Translation'}
+            </p>
+            <p className="pds-body">
+              {originKind === 'homeCard'
+                ? 'Apart from me you can do nothing — the whole chapter turns on that clause…'
+                : '“I am the true grapevine, and my Father is the gardener…”'}
+            </p>
           </div>
-        </div>
+        </PrototypePaperStack>
       </div>
     </div>
   );

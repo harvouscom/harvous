@@ -401,6 +401,9 @@ async function backfillLegacyAnchors(options: Options): Promise<Record<'resolved
         if (!locked) throw new Error(`Legacy anchor disappeared while locking ${row.id}`);
         if (!legacyAnchorMigrationStateMatches(expectedState, locked)) return 'skipped' as const;
         if (locked.noteVersionId && locked.anchorStatus !== 'unresolved') return 'skipped' as const;
+        // A highlight made while reading anchors into no note content — there is no baseline
+        // version to resolve it against, so legacy anchor migration has nothing to do for it.
+        if (!locked.parentNoteId) return 'skipped' as const;
 
         const baseline = (
           await tx

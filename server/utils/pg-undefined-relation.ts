@@ -123,10 +123,6 @@ export function isStudyThreadNamingColumnMissing(error: unknown): boolean {
   );
 }
 
-/** The reading bookmark's column, before `create-reading-events.sql` has been applied. */
-export function isLastReadPositionColumnMissing(error: unknown): boolean {
-  return isPgUndefinedColumn(error, 'lastReadPosition');
-}
 
 export function isPrototypeFolderStatsColumnMissing(error: unknown): boolean {
   return (

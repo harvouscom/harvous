@@ -10,13 +10,12 @@
  * list, and the Threads list is already that. Same division "This Sunday"
  * draws: the appointment, not the schedule.
  *
- * Renders nothing when there are no plans, like every other church-shaped
- * section on Home.
+ * Renders nothing when there are no plans, like every other row group on Home.
  */
 import { useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
-import Icon from '@/components/react/Icon';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import { useReadingPlans } from '../../hooks/queries/useReadingPlans';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteParamSlug } from './proto-route-slugs';
@@ -43,39 +42,17 @@ export default function PrototypeHomeReadingPlan() {
   return (
     <>
       {plans.map((plan) => (
-        <div className="proto-home-section" key={plan.threadId}>
-          {/*
-            Same anatomy as the This Sunday card — eyebrow inside, no coloured
-            tile. The plan's own colour is deliberately not used as a tint here
-            either: it would say the *step* belongs to a room, and a personal
-            plan has none.
-          */}
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            aria-label={`Continue ${plan.title}`}
-            onClick={() => plan.currentNoteId && openStep(plan.currentNoteId)}
-          >
-            {/* The plan names itself; the step count says where you are in it. */}
-            <p className="proto-caption proto-home-card__eyebrow">
-              {plan.title}
-              {plan.total > 0 ? ` · ${plan.currentIndex} of ${plan.total}` : ''}
-            </p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="layer-group" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">
-                  {plan.currentNoteTitle || 'Next step'}
-                </p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-            </div>
-          </button>
-        </div>
+        <PrototypeHomeRow
+          key={plan.threadId}
+          icon="layer-group"
+          /* The step is the specific thing this row is about; the plan's name
+             and your place in it lead the meta line, where the eyebrow lives
+             now. No coloured tile: a personal plan belongs to no room. */
+          title={plan.currentNoteTitle || 'Next step'}
+          meta={[plan.title, plan.total > 0 ? `${plan.currentIndex} of ${plan.total}` : null]}
+          aria-label={`Continue ${plan.title}`}
+          onClick={() => plan.currentNoteId && openStep(plan.currentNoteId)}
+        />
       ))}
     </>
   );

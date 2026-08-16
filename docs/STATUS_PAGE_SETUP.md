@@ -28,12 +28,64 @@ BETTERSTACK_STATUS_JSON_URL=https://harvous.betteruptime.com/index.json
 
 ## Better Stack dashboard
 
+> **Nothing in this repo configures monitors.** Monitors live only in the Better Stack
+> dashboard — there is no Terraform, no API call, no config file. The repo's only Better Stack
+> integration is read-only: `BETTERSTACK_STATUS_JSON_URL` → `/index.json`, which `/status`
+> renders. **Editing this document changes nothing in production.** Every monitor change below
+> has to be made by hand in the dashboard, and a commit describing one is a record of intent,
+> not a deployment.
+>
+> To confirm a monitor is really pointing where this doc says, open it in Better Stack and read
+> the URL and method off the monitor itself — not off this file.
+
 1. **Link monitors** to the status page (Status pages → Resources). Without linked monitors, the UI shows aggregate state only.
 2. Suggested monitors:
    - **Web app** — `https://app.harvous.com/`
    - **API** — `https://app.harvous.com/api/health?warm=db`
-   - **Authentication (Clerk)** — Clerk status or sign-in probe
+   - **Sign in & auth (Clerk)** — `https://clerk.harvous.com/.well-known/jwks.json`, monitor type
+     **"URL doesn't contain a keyword"**, keyword `"keys"` (with quotes), **HTTP method GET**
 3. Note the **native Better Stack status URL** (not the custom domain) for `BETTERSTACK_STATUS_JSON_URL`.
+
+### Do not monitor Clerk's `/v1/client`
+
+`clerk.harvous.com` sits behind Clerk's Cloudflare, and `/v1/client` is the endpoint its bot
+rules guard hardest — it's what credential-stuffing and signup-abuse traffic hits. An
+unauthenticated, cookie-less, no-JS GET on a fixed interval from datacenter IPs looks exactly
+like that traffic, so Cloudflare periodically challenges it and the monitor reports `403` from
+every region at once, then recovers on its own a few minutes later once the IP score decays.
+That's the signature of an IP-reputation flip, not a Clerk outage. It is also **not fixable from
+our side** — that's Clerk's Cloudflare account, not ours.
+
+`/v1/client` is stateful on top of that: an unauthenticated GET mints a new client record, so
+every probe from every region writes junk into the instance.
+
+Endpoint behaviour, verified Aug 2026:
+
+| Endpoint | GET | HEAD | Notes |
+|---|---|---|---|
+| `/v1/health` | `200` | `200` | `{"status":"healthy"}`; Clerk edge only, not instance-specific |
+| `/.well-known/jwks.json` | `200` | `405` | Instance-specific (`ins_…` key); `cf-cache-status: DYNAMIC`, so it's a real check |
+| `/v1/client` | `200` | — | Bot-challenged; **mints a client record per call** |
+| `/v1/environment` | `200` | — | 7.9 KB; same bot-rule exposure as `/v1/client` |
+
+### Why jwks alone, and not a second `/v1/health` monitor
+
+A valid jwks response proves `/v1/health` would pass — you cannot get `200` with the instance's
+signing keys in the body if Clerk's edge is down, DNS is broken, or the cert expired. A health
+monitor is a strict subset, so running both would double the paging surface for one signal.
+
+jwks also catches what `/v1/health` can't: instance suspended for a billing lapse, instance
+misconfigured or deleted, keys not serving. Those are the ones that matter most here, because
+Clerk-wide outages already show on Clerk's own status page — the unique value of our monitor is
+catching what's wrong with *our* instance.
+
+The keyword check (rather than a plain status-code monitor) is what makes it assert the body
+actually contains the keys; a status-only check would go green on any `200`, including a
+Cloudflare error page. Keep it on **GET** — HEAD returns `405` and would pin the monitor red.
+
+Accepted tradeoff: the alert alone won't distinguish "Clerk is down" from "our instance is
+broken." That distinction earns its keep when alerts route to different teams; it doesn't for a
+solo operator who opens the dashboard anyway.
 4. **Subscribe / RSS** links on the custom page point at the Better Stack hosted URL (`/rss` for feed).
 
 ## DNS cutover (Netlify)
