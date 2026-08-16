@@ -452,6 +452,10 @@
      GPU-composited transform that animates with the flip instead of a layout step — and so
      the two papers stay the same object at two depths, which is what a stack is. */
   --pds-paper-stack-back-scale: 0.96;
+  /* How far the sheet gives way when the pointer is on the band. A quarter of the peek —
+     enough that the paper behind visibly widens, which is the thing being offered, and not
+     so far that a pointer passing through looks like it opened something. */
+  --pds-paper-stack-hover-nudge: 12px;
   /* The paper column — the note editor's paper and the reader's text column are both
      this wide, centred. The stack paints its two sheets at exactly this width, so what
      stacks is the papers themselves and nothing shows outside them. */

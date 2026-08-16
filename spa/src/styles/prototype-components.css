@@ -18281,7 +18281,22 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   min-height: 0;
   transform-origin: top center;
   transform: translateY(var(--pds-paper-stack-peek));
-  transition: transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized);
+  /*
+   * Two moves on one element, on two properties, at two speeds.
+   *
+   * `transform` is the flip: a whole sheet travelling the height of the pane, which wants
+   * the long duration and the front-loaded curve. `translate` is the hover nudge, and it is
+   * a different kind of event — an answer to the pointer, which has to feel immediate or it
+   * reads as lag rather than as response. Sharing one declaration meant the nudge inherited
+   * 320ms of emphasized easing: 12px of travel finished in the first 100ms and then sat
+   * still for 220 more, which is the snap-then-dead-air the ease token warns about.
+   *
+   * `translate` is its own property, so it composes with the transform above without
+   * either having to restate the other, and carries its own timing.
+   */
+  transition:
+    transform var(--pds-duration-paper-stack) var(--pds-ease-emphasized),
+    translate var(--pds-duration-press) var(--pds-ease-standard);
 }
 
 /* Entrance: the sheet slides up over the base. Runs once on mount, and only while
@@ -18302,10 +18317,15 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 /* Hover on the edge nudges the sheet down a touch — "show me a little more of the
    paper" — so the tap it invites is already half-happening. Keyed off the band rather
-   than the button, so crossing onto the dismiss does not drop the nudge mid-hover. */
+   than the button, so crossing onto the dismiss does not drop the nudge mid-hover.
+
+   `translate`, not `transform`: it composes with the sheet's resting position instead of
+   restating it, which is what lets the nudge keep its own short timing while the flip keeps
+   the long one. 4px was too polite to register as an answer — at this size the movement was
+   easy to miss and the band read as inert. */
 .pds-paper-stack:has(.pds-paper-stack__edge-row:hover)
   .pds-paper-stack__sheet[data-stacked='true'] {
-  transform: translateY(calc(var(--pds-paper-stack-peek) + 4px));
+  translate: 0 var(--pds-paper-stack-hover-nudge);
 }
 
 /* Parked: the note slides down until only a band of its paper shows above the pane's
