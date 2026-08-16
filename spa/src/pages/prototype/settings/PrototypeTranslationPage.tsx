@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
-import Icon from '@/components/react/Icon';
 import { TRANSLATION_ORDER, getTranslation } from '@/data/translations';
 import { useProfile } from '../../../hooks/queries/useProfile';
 import { useUpdateTranslation } from '../../../hooks/mutations/useUpdateTranslation';
 import { useBiblePacks } from '../../../hooks/useBiblePacks';
 import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
+import PrototypeTranslationRow from './PrototypeTranslationRow';
 
 /**
  * Translations — which one you read in, and which ones you keep.
@@ -59,128 +59,57 @@ export default function PrototypeTranslationPage() {
           const isDownloading = downloading?.translationId === id;
           const canDownload = !pack?.complete && !isDownloading && (!atLimit || !!pack);
 
-          return (
-            <div
-              key={id}
-              className="proto-translation-row"
-              /* The whole row carries the selection, not just the button inside it: the
-                 offline line is part of this translation, and painting only the button left
-                 it stranded on the page below a grey band it clearly belonged to. */
-              data-active={isSelected ? 'true' : undefined}
-            >
-              <button
-                type="button"
-                className="proto-note-row proto-translation-row__choose"
-                data-active={isSelected ? 'true' : undefined}
-                onClick={() => {
-                  if (updateTranslation.isPending || isSelected) return;
-                  updateTranslation.mutate(id);
-                }}
-              >
-                <span className="proto-settings-list-row__main">
-                  {/*
-                    The abbreviation and, beside it, whether this one is on the device.
-                    
-                    On the title line because that is the line you scan. It used to be said
-                    only in a caption under the row — green text, easy to miss, and impossible
-                    to compare down a list of eleven translations. Which ones you can read on a
-                    plane is the question this page exists to answer, so it is answered where
-                    the eye already is.
-                  */}
-                  <span className="proto-translation-row__name">
-                    <span className="pds-list-title">{t?.abbreviation ?? id}</span>
-                    {pack?.complete ? (
-                      <span className="proto-offline-badge" data-state="ready">
-                        <Icon name="check" size={9} aria-hidden />
-                        Offline
-                      </span>
-                    ) : pack ? (
-                      // A part-saved pack is why some chapters open on a plane and others do
-                      // not, which is worth a word rather than looking the same as none.
-                      <span className="proto-offline-badge" data-state="partial">
-                        Part-saved
-                      </span>
-                    ) : null}
-                  </span>
-                  {t?.name ? (
-                    <span className="pds-list-preview" style={{ display: 'block', marginTop: 2 }}>
-                      {t.name}
-                    </span>
-                  ) : null}
-                </span>
-                <span
-                  className="proto-settings-list-row__trailing proto-settings-list-row__trailing--orb"
-                  aria-hidden
-                >
-                  {isSelected ? (
-                    <span className="proto-accent-check-orb proto-accent-check-orb--selected">
-                      <Icon name="check" size={11} />
-                    </span>
-                  ) : null}
-                </span>
-              </button>
+          /*
+            How far the copy has got, in words, for the meta line.
 
-              <div className="proto-translation-row__offline">
-                {isDownloading ? (
-                  <>
-                    {/* Books, not bytes: a count that moves 66 times says more about how far
-                        along this is than a percentage that creeps. */}
-                    <span className="pds-caption proto-translation-row__status">
-                      Saving {downloading.booksSaved} of {downloading.booksTotal} books
-                    </span>
-                    <button type="button" className="proto-translation-row__action" onClick={cancel}>
-                      Stop
-                    </button>
-                  </>
-                ) : pack?.complete ? (
-                  /* The badge on the title line already says it is here; repeating
-                     "Available offline" underneath was the same fact twice, in two places,
-                     and the caption is the one you had to hunt for. What is left is the only
-                     thing this line can do. */
-                  <button
-                    type="button"
-                    className="proto-translation-row__action"
-                    onClick={() => void remove(id)}
-                  >
-                    Remove
-                  </button>
-                ) : pack ? (
-                  <>
-                    {/* A partial pack is worth naming rather than hiding: it is why some
-                        chapters open on a plane and others do not. */}
-                    <span className="pds-caption proto-translation-row__status">
-                      {pack.booksSaved} of {pack.booksTotal} books saved
-                    </span>
-                    <button
-                      type="button"
-                      className="proto-translation-row__action"
-                      onClick={() => void download(id)}
-                    >
-                      Finish
-                    </button>
-                    <button
-                      type="button"
-                      className="proto-translation-row__action"
-                      onClick={() => void remove(id)}
-                    >
-                      Remove
-                    </button>
-                  </>
-                ) : canDownload ? (
-                  <button
-                    type="button"
-                    className="proto-translation-row__action"
-                    onClick={() => void download(id)}
-                  >
-                    Save offline
-                  </button>
-                ) : (
-                  <span className="pds-caption proto-translation-row__status">
-                    Remove one to save another
-                  </span>
-                )}
-              </div>
-            </div>
+            Books, not bytes: a count that moves 66 times says more about how far along
+            this is than a percentage that creeps. Complete says nothing here — the badge
+            on the title line already did, and saying it twice was the old design's habit.
+          */
+          const offlineStatus = isDownloading
+            ? `Saving ${downloading.booksSaved} of ${downloading.booksTotal}`
+            : pack && !pack.complete
+              ? `${pack.booksSaved} of ${pack.booksTotal} saved`
+              : null;
+
+          /* A fraction only while there is something in flight or half-done. A full bar
+             under a finished pack would be a widget reporting a fact the badge already
+             states. */
+          const offlineFraction = isDownloading
+            ? downloading.booksTotal > 0
+              ? downloading.booksSaved / downloading.booksTotal
+              : 0
+            : pack && !pack.complete && pack.booksTotal > 0
+              ? pack.booksSaved / pack.booksTotal
+              : null;
+
+          /* One shape for the five states, resolved here so the row stays presentational
+             and the gallery can render every one of them without a pack store. */
+          const state = isDownloading
+            ? ({ kind: 'saving', booksSaved: downloading.booksSaved, booksTotal: downloading.booksTotal } as const)
+            : pack?.complete
+              ? ({ kind: 'offline' } as const)
+              : pack
+                ? ({ kind: 'partial', booksSaved: pack.booksSaved, booksTotal: pack.booksTotal } as const)
+                : canDownload
+                  ? ({ kind: 'available' } as const)
+                  : ({ kind: 'blocked' } as const);
+
+          return (
+            <PrototypeTranslationRow
+              key={id}
+              abbreviation={t?.abbreviation ?? id}
+              name={t?.name ?? null}
+              selected={isSelected}
+              state={state}
+              onChoose={() => {
+                if (updateTranslation.isPending || isSelected) return;
+                updateTranslation.mutate(id);
+              }}
+              onSave={() => void download(id)}
+              onStop={cancel}
+              onRemove={() => void remove(id)}
+            />
           );
         })}
       </SettingsGroup>

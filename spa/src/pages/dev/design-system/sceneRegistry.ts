@@ -211,6 +211,17 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-17-reader-inspector',
     // Interactive (text-size + verse-number controls write real prefs).
   },
+  {
+    id: 'ds-18-translation-row',
+    title: 'Translation row',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/settings/PrototypeTranslationRow.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-18-translation-row',
+    // All five offline states at once — the real component, not a copy of its markup.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

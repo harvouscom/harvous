@@ -27,6 +27,9 @@ import {
 } from '../../../lib/prototype-background';
 import PassageContextStrip, { primePassageContextCache } from '@/components/react/PassageContextStrip';
 import PrototypeReaderInspectorPane from '../../prototype/PrototypeReaderInspectorPane';
+import PrototypeTranslationRow, {
+  type TranslationRowState,
+} from '../../prototype/settings/PrototypeTranslationRow';
 import type { FontChoice } from '../../../lib/proto-font-prefs';
 import type { DesignSystemScene } from './sceneRegistry';
 
@@ -1048,6 +1051,54 @@ function ReaderInspectorScene() {
   );
 }
 
+
+/**
+ * Every offline state a translation row can be in, at once.
+ *
+ * Built from the real `PrototypeTranslationRow`, which is presentational precisely so this
+ * scene can exist: five states side by side, no profile, no network, no pack store. The
+ * states are the point — a row that is *saving* used to look like a different and broken
+ * kind of row, and that is only visible when you can see it next to the others.
+ */
+function TranslationRowScene() {
+  const [selected, setSelected] = useState('NLT');
+  const rows: Array<{ id: string; name: string; state: TranslationRowState }> = [
+    { id: 'ESV', name: 'English Standard Version', state: { kind: 'available' } },
+    { id: 'NLT', name: 'New Living Translation', state: { kind: 'saving', booksSaved: 49, booksTotal: 66 } },
+    { id: 'NET', name: 'New English Translation', state: { kind: 'offline' } },
+    { id: 'BSB', name: 'Berean Standard Bible', state: { kind: 'partial', booksSaved: 12, booksTotal: 66 } },
+    { id: 'KJV', name: 'King James Version', state: { kind: 'blocked' } },
+  ];
+
+  return (
+    <div className="proto-theme" style={{ width: 420, maxWidth: '100%', margin: '0 auto' }}>
+      <div
+        className="proto-settings-list"
+        style={{
+          background: 'var(--pds-bg-page)',
+          border: '0.5px solid var(--pds-border)',
+          borderRadius: 14,
+          overflow: 'hidden',
+        }}
+      >
+        {rows.map((row) => (
+          <PrototypeTranslationRow
+            key={row.id}
+            abbreviation={row.id}
+            name={row.name}
+            selected={row.id === selected}
+            state={row.state}
+            onChoose={() => setSelected(row.id)}
+            onSave={() => {}}
+            onStop={() => {}}
+            onRemove={() => {}}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1084,6 +1135,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <ReaderDockScene />;
     case 'ds-17-reader-inspector':
       return <ReaderInspectorScene />;
+    case 'ds-18-translation-row':
+      return <TranslationRowScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }
