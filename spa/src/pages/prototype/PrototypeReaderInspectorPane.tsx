@@ -196,35 +196,42 @@ export default function PrototypeReaderInspectorPane({
             size. A single highlighted chip in a track reads as a segmented control missing
             its other option — you cannot tell whether it is a state or the only choice.
             Spelling out both ends removes the guess. */}
-        {/* Said the way a reader would say it, not the way a typesetter would. "Prose" and
-            "Lines" name the typography; "Paragraphs" and "One per line" name what you will
-            actually see on the page, which is the only thing being chosen between. */}
+        {/*
+          Named for what it does to the page, and shaped like its neighbours.
+
+          Two goes at this missed. "Prose / Lines" named the typography; "Paragraphs / One
+          per line" said the right thing but would not fit; "Paragraphs / Lines" fit but
+          read backwards — "lines" suggests the text is broken into MORE paragraphs, which
+          is the opposite of what it does. And "Verses" was never the setting: the verses
+          are there either way, what changes is whether each one starts a new line.
+
+          So it is a break, and breaks are on or off — which also makes this the first of
+          three matching toggles instead of one segmented pair beside two switches.
+        */}
         <div className="proto-reader-inspector__setting">
-          <span className="proto-reader-inspector__setting-label">Verses</span>
+          <span className="proto-reader-inspector__setting-label">Verse breaks</span>
           <div
             className="proto-appearance-segmented proto-reader-inspector__switch"
             role="group"
-            aria-label="How verses are arranged"
+            aria-label="Start each verse on a new line"
           >
-            <button
-              type="button"
-              className="proto-appearance-segmented__btn"
-              data-active={prefs.verseLayout === 'prose' ? 'true' : 'false'}
-              aria-pressed={prefs.verseLayout === 'prose'}
-              aria-label="Verses run together in paragraphs"
-              onClick={() => writeReadingPrefs({ ...prefs, verseLayout: 'prose' })}
-            >
-              Paragraphs
-            </button>
             <button
               type="button"
               className="proto-appearance-segmented__btn"
               data-active={prefs.verseLayout === 'lines' ? 'true' : 'false'}
               aria-pressed={prefs.verseLayout === 'lines'}
-              aria-label="One verse per line"
               onClick={() => writeReadingPrefs({ ...prefs, verseLayout: 'lines' })}
             >
-              Lines
+              On
+            </button>
+            <button
+              type="button"
+              className="proto-appearance-segmented__btn"
+              data-active={prefs.verseLayout === 'prose' ? 'true' : 'false'}
+              aria-pressed={prefs.verseLayout === 'prose'}
+              onClick={() => writeReadingPrefs({ ...prefs, verseLayout: 'prose' })}
+            >
+              Off
             </button>
           </div>
         </div>

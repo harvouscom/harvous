@@ -1596,7 +1596,7 @@ export default function PrototypeSidebarHomeView({
     openCrossRefGap,
   ]);
 
-  const recallOpportunities = useMemo(
+  const selectedRecallOpportunities = useMemo(
     () =>
       selectRecallOpportunities(recallCandidates, {
         snoozedIds: recallSnoozedIds,
@@ -1605,6 +1605,37 @@ export default function PrototypeSidebarHomeView({
       }),
     [recallCandidates, recallSnoozedIds, recallDayIndex],
   );
+
+  /*
+   * Once the shelf has been shown, it does not grow.
+   *
+   * The presentation gate waits on fifteen queries and presents Home once — but it has a
+   * 2.5s deadline behind it, because a disabled query stays pending forever and a blank
+   * Home is worse than a little jitter. On a cold load that deadline fires first, and
+   * whatever lands afterwards used to join the deck.
+   *
+   * That was tolerable while this was a card stack: one card showed and a late arrival
+   * changed something behind it. Flat, every arrival is a row appearing under the pointer
+   * in a list someone is already reading. So the first set to be presented is the set for
+   * this visit — newcomers wait for the next mount, which is the right cadence for a shelf
+   * that is a daily selection rather than a feed.
+   *
+   * Removals still apply: snoozing is how the deck gets trained, and a row that has been
+   * put away has to leave. Only joining is frozen, and only after something has shown.
+   */
+  const [shownRecallIds, setShownRecallIds] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!contentReady || shownRecallIds !== null || selectedRecallOpportunities.length === 0) return;
+    setShownRecallIds(selectedRecallOpportunities.map((op) => op.id));
+  }, [contentReady, shownRecallIds, selectedRecallOpportunities]);
+
+  const recallOpportunities = useMemo(() => {
+    if (shownRecallIds === null) return selectedRecallOpportunities;
+    const byId = new Map(selectedRecallOpportunities.map((op) => [op.id, op]));
+    return shownRecallIds
+      .map((id) => byId.get(id))
+      .filter((op): op is RecallOpportunity => Boolean(op));
+  }, [shownRecallIds, selectedRecallOpportunities]);
 
   const topCanonSection = useMemo(
     () => deriveTopCanonSections([...fingerprintsById.values()], 1)[0],

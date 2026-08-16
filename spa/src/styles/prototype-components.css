@@ -2968,7 +2968,9 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
 }
 
 .proto-inspector-section {
-  padding: 14px;
+  /* Named so a full-bleed child can cancel exactly this much and no guess is involved. */
+  --proto-inspector-section-pad: 14px;
+  padding: var(--proto-inspector-section-pad);
   /* Lighter than --pds-bg-section so grouped blocks feel airy over the sidebar */
   background: var(--pds-bg-ghost);
   /* Opaque fill for timeline dots (ghost is translucent; line must not show through). */
@@ -19128,10 +19130,28 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 
 /* Face tiles inside the reader inspector — the settings carousel at panel scale. It already
    scrolls horizontally, so five tiles in a 300px panel need no wrapping or shrinking. */
+/*
+ * The face carousel runs to the card's edges, not to its padding.
+ *
+ * The section's 14px keeps its headings and rows off the sides, which is right for
+ * everything that ends — but a scroller that ends 14px early looks like it has stopped
+ * rather than like there is more, and the tile scrolling out disappears at a line short of
+ * the edge. Pulled back over the padding with negative margins and given the same amount
+ * back as its own inline padding, so the first and last tiles rest where the rows above
+ * them start while the track itself spans the card.
+ */
 .proto-reader-inspector__faces {
-  padding: 0 0 var(--pds-space-2);
+  /* `auto`, not the carousel's own `width: 100%`. A fixed 100% is exactly the parent's
+     content box, so negative margins only slid the track sideways — flush on the left and
+     28px short on the right, which is the clipped last tile. Auto lets the margins widen
+     it, which is the whole point of pulling them back. */
+  width: auto;
+  margin-inline: calc(-1 * var(--proto-inspector-section-pad, 14px));
+  padding: 0 var(--proto-inspector-section-pad, 14px) var(--pds-space-2);
   gap: var(--pds-space-2);
-  scroll-padding-inline: 0;
+  /* Snap targets line up with that padding, so a scrolled tile lands where a resting one
+     sits rather than jammed against the card edge. */
+  scroll-padding-inline: var(--proto-inspector-section-pad, 14px);
 }
 
 .proto-reader-inspector__faces .proto-appearance-preview {
