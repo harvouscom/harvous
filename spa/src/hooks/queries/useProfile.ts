@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { useAuthReady } from '../useAuthReady';
 import { api } from '../../lib/api';
 import { updateCachedProfileData } from '@/utils/profile-cache';
@@ -63,7 +64,27 @@ function setCachedUserNames(firstName: string | null, lastName: string | null) {
   }
 }
 
-function getCachedProfile(): UserProfile | undefined {
+/**
+ * What the sessionStorage profile snapshot actually guarantees — which is much less than
+ * a `UserProfile`.
+ *
+ * Three writers fill this key and they disagree about how much they carry: the queryFn
+ * stores the whole get-profile payload, `seedProfileNamesAfterSignUp` stores only the
+ * identity fields it can know before the first fetch ever runs, and a snapshot left by an
+ * older build carries whatever `UserProfile` happened to hold on the day it was written.
+ * So the only fields that are always present are the core below; everything else is
+ * `Partial`.
+ *
+ * Typing this as a full `UserProfile` is what let a half-filled snapshot pass for a
+ * complete profile — see the `placeholderData` note in `useProfile`.
+ */
+export type CachedSessionProfile = Pick<
+  UserProfile,
+  'id' | 'firstName' | 'lastName' | 'email' | 'profileImageUrl' | 'displayName' | 'userColor' | 'church'
+> &
+  Partial<UserProfile>;
+
+function getCachedProfile(): CachedSessionProfile | undefined {
   try {
     const raw = sessionStorage.getItem(HARVOUS_PROFILE_CACHE_KEY);
     return raw ? JSON.parse(raw) : undefined;
@@ -99,20 +120,26 @@ export function readClerkUserIdForProfileCache(): string | undefined {
   return undefined;
 }
 
-/** Synchronous cached profile for the active session user (sessionStorage), for instant nav before RQ fetch. */
-export function getCachedProfileForSessionUser(clerkUserId?: string | null): UserProfile | undefined {
+/**
+ * Synchronous cached profile for the active session user (sessionStorage), for instant nav
+ * before the RQ fetch lands. Returns a `CachedSessionProfile`, not a `UserProfile`: treat
+ * every field outside the core as "not known yet", never as "has no value".
+ */
+export function getCachedProfileForSessionUser(
+  clerkUserId?: string | null,
+): CachedSessionProfile | undefined {
   if (!clerkUserId || typeof window === 'undefined') return undefined;
   try {
     const raw = sessionStorage.getItem(HARVOUS_PROFILE_CACHE_KEY);
     if (!raw) return undefined;
-    const p = JSON.parse(raw) as UserProfile;
+    const p = JSON.parse(raw) as CachedSessionProfile;
     return p.id === clerkUserId ? p : undefined;
   } catch {
     return undefined;
   }
 }
 
-function setCachedProfile(profile: UserProfile) {
+function setCachedProfile(profile: CachedSessionProfile) {
   try {
     sessionStorage.setItem(HARVOUS_PROFILE_CACHE_KEY, JSON.stringify(profile));
   } catch {
@@ -126,7 +153,14 @@ export function updateCachedProfile(updates: Partial<UserProfile>) {
   if (updates.userColor) setCachedUserColor(updates.userColor);
 }
 
-/** Optimistic profile names after sign-up — before get-profile backfills UserMetadata. */
+/**
+ * Optimistic profile names after sign-up — before get-profile backfills UserMetadata.
+ *
+ * Writes a deliberately partial snapshot: none of the church, lock-PIN, or switcher-order
+ * fields are knowable yet. It is the main reason the snapshot is only a
+ * `CachedSessionProfile`, and the reason `useProfile` seeds it as a placeholder that a
+ * fetch replaces rather than as `initialData` that suppresses one.
+ */
 export function seedProfileNamesAfterSignUp(
   userId: string,
   names: { firstName: string; lastName: string; email?: string },
@@ -207,14 +241,35 @@ export interface XPData {
   backfilled?: boolean;
 }
 
+/**
+ * Widen the snapshot for React Query's placeholder slot.
+ *
+ * Sound only because it is a *placeholder*: React Query keeps it out of the query cache and
+ * still fetches on mount, so whatever the snapshot is missing arrives with the response
+ * instead of reading `undefined` for the length of `staleTime`. Consumers that care about a
+ * field the snapshot may not carry should check `isPlaceholderData` before concluding it
+ * has no value. Do not reuse this to pass a snapshot off as a profile anywhere else.
+ */
+function asPlaceholderProfile(snapshot: CachedSessionProfile | undefined): UserProfile | undefined {
+  return snapshot as UserProfile | undefined;
+}
+
 export function useProfile() {
   const { userId } = useAuth();
   const authReady = useAuthReady();
   const sessionHint = hasClerkSessionCookieHint();
   const effectiveUserId =
     userId ?? (sessionHint ? readClerkUserIdForProfileCache() : undefined);
-  const cachedForSessionUser =
-    effectiveUserId && sessionHint ? getCachedProfileForSessionUser(effectiveUserId) : undefined;
+  // Memoized for reference stability, which the placeholder slot needs:
+  // getCachedProfileForSessionUser re-parses the snapshot on every call, and React Query
+  // only reuses a placeholder it can compare by reference. A fresh object each render
+  // would hand every consumer a new `profile` on every render until the fetch lands,
+  // re-firing their effects and blowing their memos.
+  const cachedForSessionUser = useMemo(
+    () =>
+      effectiveUserId && sessionHint ? getCachedProfileForSessionUser(effectiveUserId) : undefined,
+    [effectiveUserId, sessionHint],
+  );
 
   return useQuery({
     queryKey: ['profile', userId ?? effectiveUserId ?? 'none'],
@@ -276,9 +331,21 @@ export function useProfile() {
           return profile;
         }),
     staleTime: 5 * 60_000,
-    placeholderData: cachedForSessionUser,
-    initialData: cachedForSessionUser,
-    initialDataUpdatedAt: cachedForSessionUser ? Date.now() - 30_000 : undefined,
+    // Placeholder, deliberately — not `initialData`.
+    //
+    // The snapshot can be missing anything (see CachedSessionProfile). As `initialData` it
+    // was parked in the query cache as a complete and — with `initialDataUpdatedAt` set 30s
+    // in the past — *fresh* profile, so React Query skipped the fetch for the rest of the
+    // 5-minute staleTime. Any field the snapshot didn't carry then read `undefined` for up
+    // to ~4.5 minutes after a load, with no error and no loading state: `hasLockPinSet`
+    // showing neither Set nor Not set, `sharedSpaceSwitcherOrder` losing the user's order,
+    // `connectedOrgId` making a connected church look disconnected. It reads exactly like
+    // the feature being broken.
+    //
+    // A placeholder paints just as fast — synchronously on first render, so no avatar/name
+    // flash — but stays out of the cache and lets the mount fetch run, so the response
+    // fills in the rest. `isPlaceholderData` marks the window where a field may be missing.
+    placeholderData: asPlaceholderProfile(cachedForSessionUser),
   });
 }
 

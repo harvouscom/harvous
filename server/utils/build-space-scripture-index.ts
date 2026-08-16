@@ -9,6 +9,8 @@ import {
   normalizeScriptureReference,
   parseScriptureReference,
 } from '@/utils/scripture-detector';
+// Single source of truth for the 0-based canonical order; the client keys drill targets by the same map.
+import { canonicalBookOrderMap } from '@/utils/scripture-passage-drill';
 
 type BibleChapterRow = { book: string };
 
@@ -65,29 +67,6 @@ function extractDataScriptureReferences(html: string): string[] {
     if (v) out.push(v);
   }
   return out;
-}
-
-/** Canonical book order: first-seen index in bible-chapters.json (matches native ordering intent). */
-export function canonicalBookOrderMap(): Map<string, number> {
-  const data = bibleChaptersData as BibleChapterRow[];
-  const m = new Map<string, number>();
-  let i = 0;
-  for (const row of data) {
-    if (!m.has(row.book)) {
-      m.set(row.book, i++);
-    }
-  }
-  /*
-   * Legacy tolerance, no longer a workaround. Both canons now say "Song of Solomon", but an
-   * older native build's tag suggester said "Song of Songs", so a thread or tag name written
-   * on that build can still arrive carrying it. Without the alias such a reference sorts to
-   * the end of the canon instead of between Ecclesiastes and Isaiah.
-   */
-  const song = m.get('Song of Solomon');
-  if (song !== undefined && !m.has('Song of Songs')) {
-    m.set('Song of Songs', song);
-  }
-  return m;
 }
 
 /** First canonical book label per book order (walks bible-chapters in canonical sequence). */
