@@ -500,6 +500,11 @@ type ProtoShellContextValue = {
   adoptStackNoteId: (noteId: string) => void;
   /** Keep the parked edge's label in step with the title the note currently has. */
   setStackNoteTitle: (noteTitle: string) => void;
+  /** While parked, move a reader origin to the chapter actually being read. */
+  retargetStackOrigin: (
+    base: { book: string; chapter: number; translation: string },
+    returnTo: PaperStackReturnTo,
+  ) => void;
   clearPaperStack: () => void;
   /** Note editor bottom chrome (shell grid row — spans sidebar + main). */
   editorChromeMode: PrototypeEditorChromeMode;
@@ -1279,6 +1284,39 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const adoptStackNoteId = useCallback((noteId: string) => {
     setPaperStack((current) => (current && !current.noteId ? { ...current, noteId } : current));
   }, []);
+  /**
+   * Point a parked stack's origin at the chapter now being read.
+   *
+   * The origin is captured when the note is stacked, and while the note is UP that capture is
+   * the whole anchor rule — read on, flip back, and you return to where you started. Parked is
+   * the opposite situation: the reader in front IS what you are doing, so an origin still
+   * naming the chapter you left three chapters ago is a breadcrumb to nowhere, and flipping the
+   * note back up would throw away the browsing it was parked for.
+   */
+  const retargetStackOrigin = useCallback(
+    (base: { book: string; chapter: number; translation: string }, returnTo: PaperStackReturnTo) => {
+      setPaperStack((current) => {
+        if (!current || current.origin.kind !== 'reader' || current.origin.base.type !== 'reader') {
+          return current;
+        }
+        const at = current.origin.base;
+        if (at.book === base.book && at.chapter === base.chapter && at.translation === base.translation) {
+          return current;
+        }
+        return {
+          ...current,
+          origin: {
+            ...current.origin,
+            label: `${base.book} ${base.chapter}`,
+            base: { ...at, ...base, fromVerse: undefined },
+            returnTo,
+          },
+        };
+      });
+    },
+    [],
+  );
+
   const setStackNoteTitle = useCallback((noteTitle: string) => {
     setPaperStack((current) =>
       current && current.noteTitle !== noteTitle ? { ...current, noteTitle } : current,
@@ -1370,6 +1408,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setStackSheetOpen,
       adoptStackNoteId,
       setStackNoteTitle,
+      retargetStackOrigin,
       clearPaperStack,
       editorChromeMode,
       setEditorChromeMode,
@@ -1458,6 +1497,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setStackSheetOpen,
       adoptStackNoteId,
       setStackNoteTitle,
+      retargetStackOrigin,
       clearPaperStack,
       editorChromeMode,
       formatToolbarHostEl,

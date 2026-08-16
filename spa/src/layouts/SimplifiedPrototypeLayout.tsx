@@ -90,11 +90,13 @@ import {
   isPrototypeSettingsPath,
   isPrototypeShellPath,
   matchPrototypeNoteId,
+  prototypeLogicalPath,
   prototypeHomePath,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
-import { bookSlug } from '@/utils/bible-book-chapters';
+import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
 import {
   clearMainFreezeLayer,
   freezeMainInnerIntoLayer,
@@ -272,6 +274,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     paperStack,
     setStackSheetOpen,
     adoptStackNoteId,
+    retargetStackOrigin,
     clearPaperStack,
     openDrawer,
     clearComposeDraftActive,
@@ -348,10 +351,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
      * to Settings, to Home, to everywhere, with the chapter still mounted behind them. That is
      * the phantom reader this effect exists to prevent, in a narrower disguise.
      *
-     * The exemption was unnecessary as well as wrong. The resolver already keeps a reader
-     * origin on any read path, and already ADOPTS a note path when the stack has no id — the
-     * save navigation — so both halves of the compose story are handled there, where they can
-     * be tested. Anything else really is somewhere the stack no longer describes.
+     * The exemption was unnecessary as well as wrong. The resolver handles both halves of the
+     * compose story itself, where they can be tested: it keeps a draft that is still on the
+     * chapter it was started from, and ADOPTS a note path when the stack has no id — the save
+     * navigation. Anything else really is somewhere the stack no longer describes.
      */
     const verdict = resolvePaperStackAfterNavigation(paperStack, pathname, {
       isNotePath: isPrototypeNotePath,
@@ -361,11 +364,54 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         return normalizeNoteIdFromParam(slug);
       },
       isReadPath: isPrototypeReadPath,
+      // Which chapter, not just "a chapter": the resolver needs to tell the origin's own
+      // page (where a compose draft sits, having never navigated) from anywhere else.
+      readTargetAt: (p) => {
+        const m = /^\/read\/([^/]+)\/([^/]+)\/?$/.exec(prototypeLogicalPath(p));
+        if (!m) return null;
+        const chapter = Number.parseInt(m[2], 10);
+        if (!Number.isFinite(chapter)) return null;
+        return { book: bookFromSlug(decodeURIComponent(m[1])) ?? decodeURIComponent(m[1]), chapter };
+      },
       isHomePath: isPrototypeHomePath,
     });
     if (verdict === 'clear') clearPaperStack();
     else if (verdict !== 'keep') adoptStackNoteId(verdict.adoptNoteId);
   }, [paperStack, pathname, clearPaperStack, adoptStackNoteId]);
+
+  /*
+   * A parked stack follows the reading.
+   *
+   * Flip a note down, read on to the next chapter, and the edge above you should say where
+   * you now are — and flipping the note back up should leave you here rather than snapping
+   * back three chapters. The capture-at-stack-time rule still holds while the note is UP,
+   * which is what makes "read on and come back" work; parked is the other situation, where
+   * the reader in front is the thing being done.
+   */
+  useEffect(() => {
+    if (!paperStack || paperStack.open) return;
+    if (paperStack.origin.kind !== 'reader') return;
+    if (!isPrototypeReadPath(pathname)) return;
+    const m = /^\/read\/([^/]+)\/([^/]+)\/?$/.exec(prototypeLogicalPath(pathname));
+    if (!m) return;
+    const slug = decodeURIComponent(m[1]);
+    const book = bookFromSlug(slug) ?? slug;
+    const chapter = Number.parseInt(m[2], 10);
+    if (!Number.isFinite(chapter)) return;
+    // The translation the reader is actually showing, from the address; falling back to the
+    // one the origin was captured with, which is what a bare /read/... path inherits anyway.
+    const t = new URLSearchParams(window.location.search).get('t');
+    const translation =
+      t || (paperStack.origin.base.type === 'reader' ? paperStack.origin.base.translation : '');
+    retargetStackOrigin(
+      { book, chapter, translation },
+      {
+        to: prototypeReadRouteTo(),
+        params: { book: bookSlug(book), chapter: String(chapter) },
+        search: { v: undefined, t: translation || undefined },
+      },
+    );
+  }, [paperStack, pathname, retargetStackOrigin]);
 
   // Switching spaces can keep the same pathname; the origin belonged to the space you left.
   const prevStackSpaceRef = useRef(resolvedActiveSpaceId);

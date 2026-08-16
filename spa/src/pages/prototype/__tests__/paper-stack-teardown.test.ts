@@ -15,6 +15,10 @@ const helpers: PaperStackPathHelpers = {
   isNotePath: (p) => /^\/note-/.test(p),
   noteIdAt: (p) => (p.startsWith('/note-') ? p.slice('/note-'.length) : null),
   isReadPath: (p) => p.startsWith('/read/'),
+  readTargetAt: (p) => {
+    const m = /^\/read\/([^/]+)\/([^/]+)$/.exec(p);
+    return m ? { book: m[1], chapter: Number(m[2]) } : null;
+  },
   isHomePath: (p) => p === '/',
 };
 
@@ -49,6 +53,13 @@ const stacked = (origin: PaperStackOrigin, noteId?: string): PaperStackState => 
   open: true,
 });
 
+/** The same stack with the sheet flipped down — the reader is the paper in front. */
+const parked = (origin: PaperStackOrigin, noteId: string): PaperStackState => ({
+  origin,
+  noteId,
+  open: false,
+});
+
 describe('resolvePaperStackAfterNavigation', () => {
   it('has nothing to say when nothing is stacked', () => {
     expect(resolvePaperStackAfterNavigation(null, '/settings', helpers)).toBe('keep');
@@ -70,8 +81,21 @@ describe('resolvePaperStackAfterNavigation', () => {
     });
 
     it('keeps the stack across chapters while flipped down', () => {
-      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/read/John/15', helpers)).toBe('keep');
-      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/read/John/17', helpers)).toBe('keep');
+      expect(resolvePaperStackAfterNavigation(parked(readerOrigin, 'n1'), '/read/John/15', helpers)).toBe('keep');
+      expect(resolvePaperStackAfterNavigation(parked(readerOrigin, 'n1'), '/read/John/17', helpers)).toBe('keep');
+    });
+
+    /**
+     * The one that costs something to get wrong.
+     *
+     * The sheet renders whatever the route is, so keeping the stack here swapped the note for
+     * a second reader — two chapters stacked on each other, and the draft the stack existed to
+     * hold unmounted with the note. A chapter opened while the note is UP is leaving the note.
+     */
+    it('clears when a chapter opens while the note is still up', () => {
+      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/read/John/15', helpers)).toBe(
+        'clear',
+      );
     });
 
     it('clears on Home and on anything unrelated', () => {
@@ -97,6 +121,13 @@ describe('resolvePaperStackAfterNavigation', () => {
 
     it('keeps an unsaved compose draft while it is still on the chapter it started from', () => {
       expect(resolvePaperStackAfterNavigation(stacked(readerOrigin), '/read/John/15', helpers)).toBe('keep');
+    });
+
+    /** ...but a draft carried off to another chapter has left too. */
+    it('clears an unsaved compose draft once another chapter opens', () => {
+      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin), '/read/John/17', helpers)).toBe(
+        'clear',
+      );
     });
   });
 
