@@ -90,7 +90,7 @@
       "port": 4326,
       "autoPort": false,
       "env": {
-        "VITE_API_PROXY_TARGET": "http://localhost:3011"
+        "VITE_API_PROXY_TARGET": "http://localhost:3001"
       }
     }
   ]
