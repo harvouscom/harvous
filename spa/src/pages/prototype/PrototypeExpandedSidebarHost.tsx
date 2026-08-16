@@ -8,6 +8,7 @@
  */
 import PrototypeExpandedPlanner from './planner/PrototypeExpandedPlanner';
 import PrototypeExpandedLibraryManager from './library/PrototypeExpandedLibraryManager';
+import PrototypeExpandedChurchPulse from './PrototypeExpandedChurchPulse';
 
 export type ExpandedSidebarToolProps = {
   exiting: boolean;
@@ -28,6 +29,8 @@ export default function PrototypeExpandedSidebarHost({
       return <PrototypeExpandedPlanner exiting={exiting} onClose={onClose} />;
     case 'library':
       return <PrototypeExpandedLibraryManager exiting={exiting} onClose={onClose} />;
+    case 'pulse':
+      return <PrototypeExpandedChurchPulse exiting={exiting} onClose={onClose} />;
     default:
       return null;
   }
