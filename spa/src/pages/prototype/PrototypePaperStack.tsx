@@ -29,6 +29,7 @@ export default function PrototypePaperStack({
   onFlipDown,
   onFlipUp,
   onDismiss,
+  baseSlot,
   children,
 }: {
   stack: PaperStackState;
@@ -43,6 +44,14 @@ export default function PrototypePaperStack({
   onFlipUp: () => void;
   /** Put the origin down: the stack clears and the sheet becomes an ordinary page. */
   onDismiss: () => void;
+  /**
+   * What to render as the paper behind, in place of the descriptor's own stand-in.
+   *
+   * Used when the sheet is parked and the paper behind has become the thing you are
+   * actually using: the layout hands over the live route, so the chapter down there is the
+   * real reader with all of its handlers rather than a chrome-less copy of one.
+   */
+  baseSlot?: ReactNode;
   children: ReactNode;
 }) {
   const { origin } = stack;
@@ -89,7 +98,19 @@ export default function PrototypePaperStack({
       ref={rootRef}
     >
       <div className="pds-paper-stack__base">
-        {origin.base.type === 'reader' ? (
+        {baseSlot ? (
+          /*
+           * The live route, because this layer is no longer just a backdrop.
+           *
+           * While the sheet is up, the paper behind is scenery — a plain chapter is enough,
+           * and that is what the descriptor renders. Flip the sheet down and that same layer
+           * becomes the page you are reading, at which point a chrome-less copy is a trap:
+           * selecting a verse offered one action out of four, because the pane had been
+           * handed no handlers to offer the rest. The layout passes the real reader in for
+           * exactly that state.
+           */
+          baseSlot
+        ) : origin.base.type === 'reader' ? (
           // A background layer, seen for its top edge and during a flip-down pause — the
           // plain chapter is enough. Highlights and margin markers belong to the live reader.
           <PrototypeBibleReaderPane

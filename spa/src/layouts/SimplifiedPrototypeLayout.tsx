@@ -953,6 +953,13 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
                 onFlipDown={handleFlipSheetDown}
                 onFlipUp={handleFlipSheetUp}
                 onDismiss={clearPaperStack}
+                /* Parked: the URL is the origin's own address, so the Outlet IS the reader
+                   route — hand it down as the paper behind, which is the surface being used
+                   now. Any other time the descriptor's stand-in is right, and the Outlet is
+                   whatever the sheet is showing. */
+                baseSlot={
+                  paperStack && !paperStack.open && paperStack.noteId ? <Outlet /> : undefined
+                }
               >
                 {hostNoteInLayout ? <PrototypeNotePage /> : <Outlet />}
               </PrototypePaperStack>

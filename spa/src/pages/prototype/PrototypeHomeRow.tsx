@@ -75,10 +75,17 @@ export default function PrototypeHomeRow({
           <Icon name={icon} size={13} />
         </span>
       )}
+      {/* Both lines opt into the hover marquee, the same way the church rows do: the title
+          wraps its text in a span (`proto-marquee`), and the meta — a composed expression
+          whose parts come from the caller — moves itself (`proto-marquee-self`) inside
+          `__row-text`, which is already the clipping box. A row is 260px wide on Home and
+          most titles fit; the ones that do not are exactly the ones worth reading. */}
       <span className="proto-list-panel__row-text">
-        <span className="pds-list-title proto-list-panel__row-title">{title}</span>
+        <span className="pds-list-title proto-list-panel__row-title proto-marquee">
+          <span>{title}</span>
+        </span>
         {metaItems.length > 0 ? (
-          <span className="proto-caption proto-list-panel__row-meta">
+          <span className="proto-caption proto-list-panel__row-meta proto-marquee-self">
             {metaItems.map((item, i) => (
               <span key={i} className="proto-home-row__meta-item">
                 {i > 0 ? <span className="proto-home-row__meta-sep" aria-hidden>·</span> : null}

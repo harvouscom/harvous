@@ -200,6 +200,10 @@
      respond, so a static "Delete" row is unaffected. */
   .proto-church-tools__row:hover .proto-marquee > span,
   .proto-church-tools__row:focus-visible .proto-marquee > span,
+  /* Keyed off the row, not the tappable body inside it: a row is one hover surface, so
+     pointing anywhere on it — including at its trailing controls — reveals its labels. */
+  .proto-list-panel__row:hover .proto-marquee > span,
+  .proto-list-panel__row:focus-within .proto-marquee > span,
   .proto-menu-item:hover .proto-marquee > span,
   .proto-menu-item:focus-visible .proto-marquee > span,
   .proto-planner-card:hover .proto-marquee > span,
@@ -237,6 +241,8 @@
 @media (prefers-reduced-motion: no-preference) {
   .proto-marquee-hover-root:hover .proto-marquee-self,
   .proto-church-tools__row:hover .proto-marquee-self,
+  .proto-list-panel__row:hover .proto-marquee-self,
+  .proto-list-panel__row:focus-within .proto-marquee-self,
   .proto-menu-item:hover .proto-marquee-self,
   .proto-planner-card:hover .proto-marquee-self {
     width: max-content;
@@ -9797,11 +9803,28 @@ button.proto-appearance-hero__card {
   }
 }
 
+/* Inset evenly now that this is the 28px icon block rather than a 44px toolbar button —
+   flush to the corner, a block that size reads as having slipped out of the sheet. */
 .proto-founder-letter-sheet__close {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: var(--pds-space-3);
+  right: var(--pds-space-3);
   z-index: 3;
+}
+
+/*
+ * A close on a sheet carries its own block at rest.
+ *
+ * `.proto-side-panel__action-btn` is transparent until hovered, which works inside a row —
+ * the row is the surface, and the glyph sits on it. These two float over a letter and over
+ * a passage, where a bare glyph has nothing under it and reads as a mark on the paper
+ * rather than a control. Same tint and corner as the row icon block, so it is recognisably
+ * the same object standing on its own.
+ */
+.proto-founder-letter-sheet__close,
+.proto-votd-sheet__close {
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
+  border-radius: 8px;
 }
 
 .proto-founder-letter-sheet__body {
@@ -11763,6 +11786,23 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* At the chevron's weight, because they occupy the chevron's place. A row's trailing mark
+   is punctuation until you reach for it: full-strength glyphs there made every dismissable
+   row look like it was asking to be dismissed. Rises to full on the pointer. */
+.proto-list-panel__row-trailing > button {
+  opacity: 0.4;
+  transition: opacity var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > button {
+  opacity: 0.62;
+}
+
+.proto-list-panel__row-trailing > button:hover,
+.proto-list-panel__row-trailing > button:focus-visible {
+  opacity: 1;
 }
 
 /* Status is a row, not a banner. A pilot counting down is information; only a
@@ -18249,10 +18289,15 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    front shows the one behind it: the chapter read through the note's title, and the note's
    paper read through the chapter. Inside the stack only, the same translucent fill is laid
    over the opaque canvas colour — the look is unchanged, it just stops being see-through.
-   Listed for both because either can be the sheet: a note over a chapter, a chapter over
-   the note whose dock expanded. Nothing else is touched — same width, shadow, everything. */
+   Every paper in the stack, on both layers. Scoping this to the sheet was right only while
+   the sheet was always the one in front; a flip swaps that, and the moment it did the note's
+   title and its "Saving to My Home" chip came up through the chapter. Neither layer is ever
+   meant to be see-through here, so neither is. Nothing else is touched — same width, shadow,
+   everything. */
 .pds-paper-stack__sheet .proto-editor-paper,
-.pds-paper-stack__sheet .pds-reader__column {
+.pds-paper-stack__sheet .pds-reader__column,
+.pds-paper-stack__base .proto-editor-paper,
+.pds-paper-stack__base .pds-reader__column {
   background-color: var(--pds-canvas-default);
   background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
 }
@@ -18438,24 +18483,79 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   translate: 0 var(--pds-paper-stack-hover-nudge);
 }
 
-/* Parked: the note slides down until only a band of its paper shows above the pane's
-   bottom — the mirror of the reader's band showing above it when it is up. It stays in
-   front, because it is the sheet that slid down, not one that went behind; what swaps is
-   which paper is the smaller one. Kept mounted, so the draft survives, and only the
-   peeking band is interactive. */
+/*
+ * The band has to be seen to be tapped.
+ *
+ * Both papers are the same fill by design — they are the same paper at two depths — which
+ * left the band reading as a faint seam rather than as a sheet behind a sheet: on a light
+ * canvas, white on white separated only by 14px of width. So the paper in FRONT casts a
+ * short shadow upward onto the band, which is the one cue that says "there is something
+ * under this" without either paper changing colour.
+ *
+ * On the front paper rather than the back one on purpose: a shadow belongs to the thing
+ * that casts it, so this stays correct when the two swap on a flip — whichever is in front
+ * casts it, and the band always reads.
+ */
+.pds-paper-stack__sheet[data-stacked='true'] .proto-editor-paper,
+.pds-paper-stack__sheet[data-stacked='true'] .pds-reader__column,
+.pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false'])
+  .pds-paper-stack__base
+  .pds-reader__column {
+  box-shadow: 0 -4px 14px -3px rgb(0 0 0 / 0.22);
+}
+
+/*
+ * ...and the paper BEHIND is the lighter of the two.
+ *
+ * The shadow alone was not enough: two sheets of identical warm off-white, 14px apart in
+ * width, still read as one surface with a crease in it. A sheet further from the reader is
+ * a fresh sheet, so it takes the plain white rather than the canvas's warm tint — a small
+ * step, but the band stops being a seam and starts being paper.
+ *
+ * Keyed off which layer is behind rather than which element it is, so the flip carries it:
+ * the base is behind while the note is up, the sheet is behind once it parks.
+ */
+.pds-paper-stack:not(:has(.pds-paper-stack__sheet[data-stacked='false']))
+  .pds-paper-stack__base
+  .pds-reader__column,
+.pds-paper-stack:not(:has(.pds-paper-stack__sheet[data-stacked='false']))
+  .pds-paper-stack__base
+  .proto-editor-paper,
+.pds-paper-stack__sheet[data-stacked='false'] .proto-editor-paper,
+.pds-paper-stack__sheet[data-stacked='false'] .pds-reader__column {
+  background-color: #fff;
+  background-image: none;
+}
+
+/*
+ * Parked: the two papers trade places.
+ *
+ * The note goes behind and takes exactly the position the reader had — same band at the
+ * top, same smaller scale — while the reader comes forward to full size and covers from
+ * the band down. Nothing moves to the bottom of the pane.
+ *
+ * That is the whole rule this stack runs on: the band at the top is always the paper you
+ * are NOT reading, and the edge sitting on it always names that paper. It used to send the
+ * parked note to the bottom instead, on the reasoning that a sheet which slid down should
+ * be found where it went — which made the way back live in two different places depending
+ * on which paper was in front, and that is a rule nobody can learn.
+ *
+ * The lip: a paper starts that far into its own layer, so the layer is pulled up by it or
+ * the band would be part canvas and only part paper.
+ */
 .pds-paper-stack__sheet[data-stacked='false'] {
-  /* The extra lip: the note's paper starts that far into its layer, so without it the
-     band at the bottom would be part canvas and only part paper. */
   transform:
-    translateY(calc(100% - var(--pds-paper-stack-peek) - var(--pds-editor-paper-inset-top)))
+    translateY(calc(-1 * var(--pds-editor-paper-inset-top)))
     scale(var(--pds-paper-stack-back-scale));
+  z-index: var(--pds-z-base);
   pointer-events: none;
 }
 
-/* ...and the reader, now the paper you are looking at, comes back to full size. Both
-   halves of the swap are a transform, so the flip is one composited move each way. */
+/* ...and the reader, now the paper you are looking at, comes forward and to full size.
+   Both halves of the swap are a transform, so the flip is one composited move each way. */
 .pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false']) .pds-paper-stack__base {
-  transform: scale(1);
+  transform: translateY(var(--pds-paper-stack-peek));
+  z-index: var(--pds-z-dropdown);
 }
 
 /* ─── Dock expansion: a morph, not a stack ────────────────────────────────────
@@ -18786,18 +18886,12 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   z-index: var(--pds-z-popover, 100);
 }
 
-/* Way back up to a note flipped below the fold. Sits where the sheet went down, so the
-   note reads as parked rather than discarded. */
-/* The parked sheet's peeking edge: a transparent hit target laid over the strip of
-   sheet still showing at the bottom. Same shape as the base's edge at the top, so
-   the two directions of the flip read as one gesture at two ends of the pane.
+/* Way back up to a parked note. It sits on the band at the top like every other edge —
+   the band there is the parked note's own paper now — so there is nothing to reposition;
+   the modifier stays so the component can keep saying which state it is in.
    No dismiss on this one — see the component: putting down a breadcrumb and throwing
    away a mounted draft are different acts and do not share a control. */
 .pds-paper-stack__edge-row--parked {
-  top: auto;
-  bottom: 0;
-  /* The parked note stays in front — it is the sheet that slid down, not one that went
-     behind — so its edge sits just above it. */
   z-index: calc(var(--pds-z-dropdown) + 1);
 }
 

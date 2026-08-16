@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
@@ -19,7 +19,8 @@ import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import { findScripturePassageWithNotes } from '@/utils/scripture-passage-drill';
-import PrototypeVotdPassageSheet from './PrototypeVotdPassageSheet';
+import { parseScriptureReference } from '@/utils/scripture-detector';
+import { bookSlug } from '@/utils/bible-book-chapters';
 import { noteParamSlug } from './proto-route-slugs';
 
 type Props = {
@@ -41,7 +42,6 @@ export default function PrototypeDailyPassagePill({
   const queryClient = useQueryClient();
   const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
   const [dismissedToday, setDismissedToday] = useState(isVotdPassageCardDismissedToday);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   const matchingNote = useMemo(
     () => findPersistedDailyPassageNote(notes, votd.reference),
@@ -128,10 +128,38 @@ export default function PrototypeDailyPassagePill({
     ],
   );
 
+  /**
+   * Today's passage opens in the reader, at the verse, in its own translation.
+   *
+   * It used to open a sheet holding the verse text — which was the right answer when a
+   * passage had nowhere else to go. There is a whole reader now: the chapter around the
+   * verse, the margin bars showing where this passage already appears in your notes, the
+   * dock, highlighting. A sheet that shows two verses and nothing else is a smaller room
+   * than the one next door.
+   *
+   * The verse arrives as `?v=`, which is the reader's existing deep-link — the same one a
+   * scripture pill uses — so it lands focused on the verse rather than at the top of the
+   * chapter. An unparseable reference does nothing rather than navigating somewhere wrong.
+   *
+   * Nothing is recorded here. `recordVotdEngagement` only knows dismiss and add-note, and
+   * opening the reader is already a read: the reading session on that route logs it, with
+   * the chapter and the time spent, which is more than a "viewed" ping would have said.
+   */
+  const openInReader = useCallback(() => {
+    const parsed = parseScriptureReference(votd.reference);
+    if (!parsed) return;
+    const verse = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+    afterNav();
+    navigate({
+      to: prototypeReadRouteTo(),
+      params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
+      search: { v: verse ? String(verse) : undefined, t: votd.translation || undefined },
+    });
+  }, [afterNav, navigate, votd.reference, votd.translation]);
+
   const handleDismiss = useCallback(() => {
     setVotdDismissedToday();
     setDismissedToday(true);
-    setSheetOpen(false);
     recordVotdEngagement('dismiss');
   }, []);
 
@@ -148,8 +176,8 @@ export default function PrototypeDailyPassagePill({
         icon="scroll"
         title={votd.reference}
         meta={["Today\u2019s passage"]}
-        aria-label="View today's passage"
-        onClick={() => setSheetOpen(true)}
+        aria-label="Read today's passage"
+        onClick={openInReader}
         trailing={
           <>
             {dailyPassageNoteExists ? (
@@ -183,16 +211,6 @@ export default function PrototypeDailyPassagePill({
         }
       />
 
-      <PrototypeVotdPassageSheet
-        votd={votd}
-        open={sheetOpen}
-        showsAddFAB={!dailyPassageNoteExists}
-        onClose={() => setSheetOpen(false)}
-        onAdd={() => {
-          setSheetOpen(false);
-          studyNow(votd);
-        }}
-      />
     </>
   );
 }

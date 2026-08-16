@@ -201,6 +201,17 @@ html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismi
   color: var(--pds-text-primary) !important;
 }
 
+/* A row's trailing controls read as punctuation, like the chevron they stand in for — the
+   blanket rule above paints every proto button's glyph at full strength, which made each
+   dismissable row look like it was asking to be dismissed. The weight comes from opacity in
+   prototype-components.css; this only stops the colour being forced. */
+html.harvous-prototype-route .proto-list-panel__row-trailing > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button path,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button * {
+  color: var(--pds-text-primary) !important;
+}
+
 /* Translation chip inside passage-context rows — beat blanket `button *` primary above */
 html.harvous-prototype-route [class*='proto-'] button .scripture-pill-chrome__trans-chip,
 html.harvous-prototype-route .passage-context-strip__row .scripture-pill-chrome__trans-chip {
