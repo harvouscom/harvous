@@ -7,6 +7,7 @@
  * not what you want to know about a note (where it lives).
  */
 import { useSyncExternalStore } from 'react';
+import Icon from '@/components/react/Icon';
 import { PrototypeSectionHeader } from './design-system';
 import ProtoSelectMenu from './ProtoSelectMenu';
 import {
@@ -106,6 +107,35 @@ export default function PrototypeReaderInspectorPane({
         <p className="proto-reader-inspector__translation-name pds-footnote proto-marquee">
           <span>{TRANSLATIONS[translation]?.name ?? ''}</span>
         </p>
+        {/*
+          The publisher's notice, for whichever translation is being read.
+          
+          These are licence terms, not decoration: every translation but the KJV carries one,
+          and the reader is where the text is actually being read. It used to appear only in
+          the daily-passage sheet, which meant a chapter read straight through showed the
+          notice nowhere at all. Wraps rather than truncating — a notice ending in
+          "New Living Translatio…" is not a notice — and links out where the publisher
+          provides a page.
+        */}
+        {TRANSLATIONS[translation]?.copyright ? (
+          <p className="proto-reader-inspector__translation-credit pds-footnote">
+            {TRANSLATIONS[translation].copyright}
+            {TRANSLATIONS[translation]?.website ? (
+              <>
+                {' '}
+                <a
+                  className="proto-reader-inspector__translation-credit-link"
+                  href={TRANSLATIONS[translation].website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {TRANSLATIONS[translation]?.abbreviation ?? translation}
+                  <Icon name="arrow-up-right-from-square" size={7} aria-hidden />
+                </a>
+              </>
+            ) : null}
+          </p>
+        ) : null}
       </section>
 
       <section className="proto-inspector-section">
@@ -181,6 +211,7 @@ export default function PrototypeReaderInspectorPane({
               className="proto-appearance-segmented__btn"
               data-active={prefs.verseLayout === 'prose' ? 'true' : 'false'}
               aria-pressed={prefs.verseLayout === 'prose'}
+              aria-label="Verses run together in paragraphs"
               onClick={() => writeReadingPrefs({ ...prefs, verseLayout: 'prose' })}
             >
               Paragraphs
@@ -190,9 +221,10 @@ export default function PrototypeReaderInspectorPane({
               className="proto-appearance-segmented__btn"
               data-active={prefs.verseLayout === 'lines' ? 'true' : 'false'}
               aria-pressed={prefs.verseLayout === 'lines'}
+              aria-label="One verse per line"
               onClick={() => writeReadingPrefs({ ...prefs, verseLayout: 'lines' })}
             >
-              One per line
+              Lines
             </button>
           </div>
         </div>
