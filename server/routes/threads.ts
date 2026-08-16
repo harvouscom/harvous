@@ -1032,13 +1032,17 @@ route.post('/api/threads/:threadId/sequence', requireAuth, rateLimit('write'), a
       } catch {
         return c.json({ error: 'Thread not found' }, 404);
       }
+      /*
+       * One refusal for every space type now that channels may carry a study plan. This used
+       * to split, telling a channel caller the room was read-only in the pilot — which is no
+       * longer why they were refused. A channel's leaders can change its plan; a follower
+       * cannot, for exactly the reason a shared-space member cannot, so they get the same
+       * answer rather than one that blames a pilot they are not in.
+       */
       if (!canManageSpaceThreadStructure(access.space, access.role, auth.userId)) {
         return c.json({
-          error:
-            access.space.type === 'public'
-              ? 'Ministry channels are read-only during the pilot'
-              : 'Only the space owner or a leader can change a study plan',
-          code: access.space.type === 'public' ? 'CHANNELS_READ_ONLY_PILOT' : 'FORBIDDEN',
+          error: 'Only the space owner or a leader can change a study plan',
+          code: 'FORBIDDEN',
         }, 403);
       }
     } else if (thread.userId !== auth.userId) {

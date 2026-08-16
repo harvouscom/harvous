@@ -38,14 +38,24 @@ export function canModerateMinistryChannel(options: {
   return options.isOwner || options.membershipRole === 'leader';
 }
 
-/** Study thread creation in a shared/public space — owner or leader only. */
+/**
+ * Study thread creation in a shared/public space — owner or leader only.
+ *
+ * Ministry channels are included rather than excluded, mirroring the server's
+ * `canManageSpaceThreadStructure`. A channel is the room a published study is *for*: staff
+ * author the steps and the congregation walks them, so a follower being unable to compose is
+ * the point rather than a reason to withhold the plan. Followers hold `member` and fail the
+ * same role check a shared-space member fails.
+ *
+ * Note this is not `canComposeInSpace`, which stays false for a channel — writing a loose note
+ * into a broadcast room is still not a thing a follower does.
+ */
 export function canManageStudyThreadsInSharedSpace(options: {
   isOwner: boolean;
   membershipRole?: SharedSpaceMembershipRole | null;
   type?: 'personal' | 'shared' | 'public' | string | null;
   orgId?: string | null;
 }): boolean {
-  if (isMinistryBroadcastSpace(options)) return false;
   return options.isOwner || options.membershipRole === 'leader';
 }
 

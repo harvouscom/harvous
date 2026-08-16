@@ -233,8 +233,18 @@ export function withOpenedStep(existing: string | null | undefined, noteId: stri
  * membership role — which admin sync-staff maintains — with the canonical
  * owner as the other way in.
  *
- * Ministry channels stay closed while they are read-only in the pilot: there
- * is no congregant-facing sequence to run in a room nobody can compose in.
+ * Ministry channels were closed here while they were read-only in the pilot,
+ * on the reasoning that there is no sequence to run in a room nobody can
+ * compose in. That reasoning conflated two different things. Composing is
+ * indeed staff-only in a channel — `canAuthorInSpace` restricts `public` to
+ * leader+ — but *walking* a sequence asks nothing of the walker: the steps are
+ * authored by staff and the congregation reads them in order and takes their
+ * own notes elsewhere. A published study is precisely the artifact a room
+ * nobody can compose in exists to carry.
+ *
+ * So `public` falls through to the same leader+ rule as `shared`, which lines
+ * this up exactly with `canAuthorInSpace`: whoever may write the steps may
+ * order them, and a follower holding `member` fails both.
  */
 export function canManageSpaceThreadStructure(
   space: Pick<SpaceRow, 'type' | 'userId' | 'orgId'> | null | undefined,
@@ -243,6 +253,5 @@ export function canManageSpaceThreadStructure(
 ): boolean {
   if (!space) return false;
   if (space.type === 'personal') return isActualSpaceOwner(space, actorId);
-  if (space.type === 'public') return false;
   return isActualSpaceOwner(space, actorId) || role === 'leader' || role === 'owner';
 }

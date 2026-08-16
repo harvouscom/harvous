@@ -82,7 +82,7 @@ describe('canManageStudyThreadsInSharedSpace', () => {
     expect(canManageStudyThreadsInSharedSpace({ isOwner: false, membershipRole: 'member' })).toBe(false);
   });
 
-  it('denies ministry channel owners during the read-only pilot', () => {
+  it('allows a ministry channel leader — a channel is what a published study is for', () => {
     expect(
       canManageStudyThreadsInSharedSpace({
         isOwner: true,
@@ -90,7 +90,24 @@ describe('canManageStudyThreadsInSharedSpace', () => {
         type: 'public',
         orgId: 'org_1',
       }),
+    ).toBe(true);
+  });
+
+  it('still denies a channel follower, who holds member', () => {
+    expect(
+      canManageStudyThreadsInSharedSpace({
+        isOwner: false,
+        membershipRole: 'member',
+        type: 'public',
+        orgId: 'org_1',
+      }),
     ).toBe(false);
+  });
+
+  it('does not widen composing — a follower still cannot write into a channel', () => {
+    // The two capabilities part company here on purpose: walking a staff-authored plan is
+    // not the same permission as posting a loose note into a broadcast room.
+    expect(canComposeInSpace({ type: 'public', orgId: 'org_1' })).toBe(false);
   });
 });
 

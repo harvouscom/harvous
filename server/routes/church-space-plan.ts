@@ -1097,14 +1097,14 @@ app.post(
       const gate = await assertCanManageSpaceTeachingPlan(auth.userId, spaceId);
       if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
 
-      /* Channels are read-only in the pilot: there is no plan for a room the
-         congregation cannot write in. Refused before any row is touched. */
-      if (isMinistryBroadcastSpaceRow(gate.space)) {
-        return c.json({
-          error: 'Ministry channels are read-only during the pilot',
-          code: 'CHANNELS_READ_ONLY_PILOT',
-        }, 409);
-      }
+      /*
+       * Channels used to be refused here, as read-only during the pilot — "there is no plan
+       * for a room the congregation cannot write in". A channel is exactly the room this
+       * should work in: a study plan is staff-authored and congregation-walked, so the fact
+       * that followers cannot compose is the reason it fits rather than a reason to refuse.
+       * Publishing stays staff-only through `assertCanManageSpaceTeachingPlan` above, and
+       * `canAuthorInSpace` keeps `member` read-only inside the space itself.
+       */
 
       let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
       try {

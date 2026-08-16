@@ -101,12 +101,13 @@ describe('publish route', () => {
     expect(block).toContain('canManageSpaceThreadStructure');
   });
 
-  it('refuses ministry channels before touching a row', () => {
+  it('publishes into a ministry channel rather than refusing it', () => {
     const block = routeBlock();
-    const channelCheck = block.indexOf('CHANNELS_READ_ONLY_PILOT');
-    const publishCall = block.indexOf('publishSeriesAsStudyPlan');
-    expect(channelCheck).toBeGreaterThan(-1);
-    expect(channelCheck).toBeLessThan(publishCall);
+    /* A channel is the room this exists for: a study plan is staff-authored and
+       congregation-walked, so followers being unable to compose is why it fits rather than
+       a reason to refuse. Staff-only publishing is still proven by the two gates above. */
+    expect(block).not.toContain('CHANNELS_READ_ONLY_PILOT');
+    expect(block).not.toContain('isMinistryBroadcastSpaceRow(gate.space)');
   });
 
   it('refuses a church-wide series rather than guessing a room for it', () => {

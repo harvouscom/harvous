@@ -109,9 +109,13 @@ describe('canManageSpaceThreadStructure', () => {
     expect(canManageSpaceThreadStructure(space(), 'member', 'someone-else')).toBe(false);
   });
 
-  it('refuses ministry channels while they are read-only in the pilot', () => {
-    expect(canManageSpaceThreadStructure(space({ type: 'public' }), 'leader', 'owner-1')).toBe(false);
-    expect(canManageSpaceThreadStructure(space({ type: 'public' }), 'owner', 'owner-1')).toBe(false);
+  it('lets a ministry channel be managed by its leaders, and only by them', () => {
+    /* A channel is the room a published study is for: staff author the steps, the
+       congregation walks them. Followers hold `member` and are refused for their role —
+       the same rule `canAuthorInSpace` applies to writing the steps in the first place. */
+    expect(canManageSpaceThreadStructure(space({ type: 'public' }), 'leader', 'someone-else')).toBe(true);
+    expect(canManageSpaceThreadStructure(space({ type: 'public' }), 'owner', 'someone-else')).toBe(true);
+    expect(canManageSpaceThreadStructure(space({ type: 'public' }), 'member', 'someone-else')).toBe(false);
   });
 
   it('keeps a personal space to its owner — a private reading plan has no leaders', () => {
