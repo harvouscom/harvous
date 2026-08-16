@@ -89,7 +89,7 @@ export default function PrototypeTranslationRow({
       <div className="proto-translation-row__main">
         <button
           type="button"
-          className="proto-note-row proto-translation-row__choose"
+          className="proto-translation-row__choose"
           data-active={selected ? 'true' : undefined}
           onClick={onChoose}
         >

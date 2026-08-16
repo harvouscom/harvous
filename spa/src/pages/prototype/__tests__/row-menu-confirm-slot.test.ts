@@ -82,3 +82,50 @@ describe('the delete confirm takes over the row menu slot', () => {
     expect(confirm.top + CARD_HEIGHT).toBeLessThanOrEqual(VIEWPORT_HEIGHT);
   });
 });
+
+/*
+ * A menu can also hang off a bare ⋯ button, where the row rule breaks down.
+ *
+ * The thread drilldown has no row to anchor to — its header is a tall block holding a back
+ * tile, a title, a meta line and Compose — so anchoring to it dropped the menu under the
+ * whole block, left of where it was opened and over the Compose button. Anchoring to the
+ * trigger fixes the position and breaks the width, since `maxWidth` follows the anchor.
+ */
+describe('anchoring to a trigger rather than a row', () => {
+  /** A 28px icon button, the size the drilldown's ⋯ actually is. */
+  function triggerRect({ top = 120, size = 28, right = 302 } = {}): DOMRect {
+    const left = right - size;
+    return {
+      top,
+      bottom: top + size,
+      left,
+      right,
+      width: size,
+      height: size,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    } as DOMRect;
+  }
+
+  it('drops the menu directly under the trigger, not under a taller ancestor', () => {
+    const trigger = triggerRect();
+    const menu = measureMenuPositionFromRect(trigger, VIEWPORT_WIDTH);
+    expect(menu.top).toBe(trigger.bottom + MENU_GAP);
+    // Right-aligned to the button, so it opens under the thing that was clicked.
+    expect(menu.right).toBe(VIEWPORT_WIDTH - trigger.right);
+  });
+
+  it('does not let a 28px trigger squeeze the menu to 28px', () => {
+    const menu = measureMenuPositionFromRect(triggerRect(), VIEWPORT_WIDTH, { minWidth: 210 });
+    expect(menu.maxWidth).toBe(210);
+  });
+
+  it('leaves a row anchor alone — the row is always wider than the floor', () => {
+    const row = rowRect();
+    const withFloor = measureMenuPositionFromRect(row, VIEWPORT_WIDTH, { minWidth: 210 });
+    expect(withFloor.maxWidth).toBe(row.width);
+    // …and byte-identical to not passing the option at all.
+    expect(withFloor).toEqual(measureMenuPositionFromRect(row, VIEWPORT_WIDTH));
+  });
+});

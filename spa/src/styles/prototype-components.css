@@ -19449,21 +19449,22 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * the first is a button — nesting would make "Remove" a way to change your default by
  * accident, and a button cannot hold a button.
  *
- * They now sit *beside* each other rather than stacked. The offline control used to be a
- * full-width strip underneath, which gave a secondary action the footprint of a row, ended
- * the selection band halfway down the thing being selected, and made a translation that was
- * merely saving look like a different and broken kind of row. Same two controls, same
- * separation, one row.
+ * **Built on the list-panel chrome**, the same one the Home groups and the thread trail use:
+ * full-bleed rows, hairline separators, no inset. It used to build on `.proto-note-row`,
+ * which is an *inset pill* — `margin: 0 8px` and a radius — sitting inside a full-bleed
+ * panel. That is why a selected row read as two mismatched greys: the row's own selection
+ * band painted edge to edge while the pill painted its own rounded shape on top, and the
+ * trailing control sat in the gap between them. One shape, one band.
  */
 .proto-translation-row {
   position: relative;
   display: flex;
   flex-direction: column;
-  border-bottom: 0.5px solid var(--pds-border);
+  border-top: 0.5px solid var(--pds-border-control);
 }
 
-.proto-translation-row:last-child {
-  border-bottom: 0;
+.proto-translation-row:first-child {
+  border-top: none;
 }
 
 /* The whole row carries the selection — title line, meta and trailing control together. */
@@ -19478,31 +19479,44 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   min-width: 0;
 }
 
-/* Explicitly a flex row. `.proto-note-row` is `display: block`, which put the check orb on
-   its own line under the meta the moment the meta grew long enough to fill the row — the
-   orb only *looked* placed before because nothing had pushed it. Stating the layout here
-   rather than inheriting it is what makes that not a matter of how long a name is. */
+/*
+ * The tappable body. Padding and metrics match `.proto-list-panel__row` rather than
+ * inheriting them, because this is one row split into two controls and only the left part
+ * is the button — it cannot simply *be* a list-panel row.
+ */
 .proto-translation-row__choose {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--pds-font-body) !important;
+  color: var(--pds-text-primary) !important;
+  text-align: left;
   display: flex;
   align-items: center;
   gap: 8px;
   flex: 1 1 auto;
   min-width: 0;
-  border-bottom: 0;
+  padding: 11px 13px;
 }
 
-/* ...so the button stops painting its own, or the two stack into a darker band. */
-.proto-translation-row__choose[data-active='true'],
-.proto-translation-row__choose[data-active='true']:focus-visible {
-  background: transparent;
+/* Hover belongs to the whole row, not to half of it: hovering the name and hovering the
+   space beside it are the same gesture as far as "this row is live" goes. The selected row
+   is already filled, so it stays put rather than shifting under the cursor. */
+.proto-translation-row:not([data-active='true']):hover {
+  background: var(--pds-bg-row-hover);
 }
 
-/* The name, and the offline count when there is one — one line, dot-separated, the same
-   shape meta takes everywhere else. */
+.proto-translation-row__choose:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: -2px;
+}
+
 /* The body's own column. `.proto-settings-list-row__main` is a `<span>` and computes to
    `display: inline`, so it constrains nothing — its children overflowed and were clipped
-   mid-word by an ancestor rather than ellipsized. Scoped here rather than changed at
-   source, so every other settings list keeps the box it was drawn for. */
+   mid-word rather than ellipsized. Scoped here rather than changed at source, so every
+   other settings list keeps the box it was drawn for. */
 .proto-translation-row__choose > .proto-settings-list-row__main {
   display: flex;
   flex-direction: column;
@@ -19530,8 +19544,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   white-space: nowrap;
 }
 
-/* Its own margins now the line is a block — the flex `gap` that used to space this went
-   with the flex. */
+/* Its own margins, since the line is a block and there is no flex `gap` to space it. */
 .proto-translation-row__meta-sep {
   margin: 0 5px;
   color: var(--pds-text-tertiary);
