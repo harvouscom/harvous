@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
@@ -140,52 +141,47 @@ export default function PrototypeDailyPassagePill({
 
   return (
     <>
-      <div className="proto-daily-passage-pill proto-daily-passage-pill--home">
-        <button
-          type="button"
-          className="proto-daily-passage-pill__dismiss"
-          aria-label="Dismiss today's passage"
-          onClick={handleDismiss}
-        >
-          <Icon name="xmark" size={10} aria-hidden />
-          <span>Dismiss</span>
-        </button>
-
-        <div className="proto-daily-passage-pill__content">
-          <p className="proto-caption proto-daily-passage-pill__eyebrow">Today&apos;s Passage</p>
-          <p className="pds-list-title proto-daily-passage-pill__reference">{votd.reference}</p>
-        </div>
-
-        <div className="proto-daily-passage-pill__orbs">
-          <button
-            type="button"
-            className="proto-daily-passage-pill__orb"
-            aria-label="View today's passage"
-            onClick={() => setSheetOpen(true)}
-          >
-            <Icon name="scroll" size={12} />
-          </button>
-          {dailyPassageNoteExists ? (
+      {/* A row of the Suggested group. Tapping the row opens the passage; the trailing
+          controls are the one action worth a button — add it to notes, or open the notes
+          it already has — and the dismiss. Same shape as every other row on Home. */}
+      <PrototypeHomeRow
+        icon="scroll"
+        title={votd.reference}
+        meta={["Today\u2019s passage"]}
+        aria-label="View today's passage"
+        onClick={() => setSheetOpen(true)}
+        trailing={
+          <>
+            {dailyPassageNoteExists ? (
+              <button
+                type="button"
+                className="proto-side-panel__action-btn"
+                aria-label="View notes on this passage"
+                onClick={openScripturePassageNotes}
+              >
+                <Icon name="list" size={12} aria-hidden />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="proto-side-panel__action-btn"
+                aria-label="Add passage to notes"
+                onClick={() => studyNow(votd)}
+              >
+                <Icon name="plus" size={12} aria-hidden />
+              </button>
+            )}
             <button
               type="button"
-              className="proto-daily-passage-pill__orb"
-              aria-label="View notes on this passage"
-              onClick={openScripturePassageNotes}
+              className="proto-side-panel__action-btn"
+              aria-label="Dismiss today's passage"
+              onClick={handleDismiss}
             >
-              <Icon name="list" size={12} />
+              <Icon name="xmark" size={12} aria-hidden />
             </button>
-          ) : (
-            <button
-              type="button"
-              className="proto-daily-passage-pill__orb"
-              aria-label="Add passage to notes"
-              onClick={() => studyNow(votd)}
-            >
-              <Icon name="plus" size={12} />
-            </button>
-          )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <PrototypeVotdPassageSheet
         votd={votd}

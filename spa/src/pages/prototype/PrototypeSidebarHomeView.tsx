@@ -122,6 +122,7 @@ import {
   RECALL_OPENED_COOLDOWN_DAYS,
 } from './proto-recall-cooldown';
 import { useRecallEventHistory } from '../../hooks/queries/useRecallEventHistory';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeRecallCarousel, { type RecallOpportunity } from './PrototypeRecallCarousel';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
@@ -548,12 +549,23 @@ function HomeSection({ title, children }: { title: string; children: React.React
   return (
     <section className="proto-home-section proto-home-section--group">
       <p className="proto-caption proto-home-section__eyebrow">{title}</p>
-      <div className="proto-home-section__list">{children}</div>
+      {/* One panel, hairline rows — the church hub's Tools shape. The list class stays for
+          the empty-group rule, which asks whether anything rendered inside. */}
+      <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-section__list">
+        {children}
+      </div>
     </section>
   );
 }
 
-/** Compact note card (continue / revisit) — shared markup. */
+/**
+ * A note as a Home row (continue / revisit).
+ *
+ * The row is one title line and one meta line, so the preview that the old card carried
+ * on its own line moves into the meta and takes its chances with the ellipsis. Time and
+ * folder come after it: what the note says is worth more of the line than when it was
+ * touched.
+ */
 function HomeNoteCard({
   eyebrow,
   iconName,
@@ -561,7 +573,8 @@ function HomeNoteCard({
   onOpenNote,
   prefetchNote,
 }: {
-  /** Omitted inside a `HomeSection`, whose heading already says which shelf this is on. */
+  /** Folded into the meta line — a row has no eyebrow. Usually omitted inside a
+      `HomeSection`, whose heading already says which shelf this is on. */
   eyebrow?: string;
   iconName: IconName;
   note: SpaceNoteRow;
@@ -572,39 +585,23 @@ function HomeNoteCard({
   const preview = note.content ? stripHtmlForListPreview(note.content, 90) : '';
   const rel = protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null);
   return (
-    <button
-      type="button"
-      className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+    <PrototypeHomeRow
+      icon={iconName}
+      title={title}
+      meta={[
+        eyebrow,
+        preview,
+        rel,
+        note.primaryCollection ? (
+          <>
+            <Icon name="folder" size={10} aria-hidden /> {note.primaryCollection}
+          </>
+        ) : null,
+      ]}
       onClick={() => onOpenNote(note)}
       onMouseEnter={() => prefetchNote(note)}
       onFocus={() => prefetchNote(note)}
-    >
-      {eyebrow ? <p className="proto-caption proto-home-card__eyebrow">{eyebrow}</p> : null}
-      <div className="proto-home-card__body">
-        <div className="proto-home-card__title-row">
-          <span className="proto-home-card__icon-orb" aria-hidden>
-            <Icon name={iconName} size={13} />
-          </span>
-          <p className="pds-list-title proto-home-card__title">{title}</p>
-          <span className="proto-home-card__chevron" aria-hidden>
-            <Icon name="caret-right" size={11} />
-          </span>
-        </div>
-        {preview ? (
-          <p className="pds-list-preview proto-home-card__preview">{preview}</p>
-        ) : null}
-        <div className="proto-home-card__meta">
-          {rel ? <span className="proto-home-card__meta-item">{rel}</span> : null}
-          {rel && note.primaryCollection ? <span className="proto-home-card__meta-sep">in</span> : null}
-          {note.primaryCollection ? (
-            <span className="proto-home-card__meta-item">
-              <Icon name="folder" size={10} aria-hidden />
-              {note.primaryCollection}
-            </span>
-          ) : null}
-        </div>
-      </div>
-    </button>
+    />
   );
 }
 
@@ -1743,58 +1740,24 @@ export default function PrototypeSidebarHomeView({
         ) : null}
 
         {continueReadingSuggestion ? (
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+          <PrototypeHomeRow
+            icon="book-open"
+            title={`${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`}
+            meta={[
+              continueReadingEyebrow(continueReadingSuggestion),
+              continueReadingMeta(continueReadingSuggestion),
+            ]}
             onClick={openContinueReading}
-          >
-            <p className="proto-caption proto-home-card__eyebrow">
-              {continueReadingEyebrow(continueReadingSuggestion)}
-            </p>
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="book-open" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">
-                  {continueReadingSuggestion.book} {continueReadingSuggestion.chapter}
-                </p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">
-                  {continueReadingMeta(continueReadingSuggestion)}
-                </span>
-              </div>
-            </div>
-          </button>
+          />
         ) : null}
 
         {spotlightThread ? (
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+          <PrototypeHomeRow
+            icon="arrow-right-arrow-left"
+            title={spotlightThread.title}
+            meta={[`${spotlightThread.noteCount} ${spotlightThread.noteCount === 1 ? 'note' : 'notes'}`]}
             onClick={() => openThread(spotlightThread.id)}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="arrow-right-arrow-left" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">{spotlightThread.title}</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <div className="proto-home-card__meta">
-                <span className="proto-home-card__meta-item">
-                  {spotlightThread.noteCount} {spotlightThread.noteCount === 1 ? 'note' : 'notes'}
-                </span>
-              </div>
-            </div>
-          </button>
+          />
         ) : null}
       </HomeSection>
 
@@ -1821,29 +1784,15 @@ export default function PrototypeSidebarHomeView({
         ) : null}
 
         {looseCount >= LOOSE_MIN ? (
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
+          <PrototypeHomeRow
+            icon="folder"
+            title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
             onClick={() => {
               setSidebarListMode('folders');
               setSidebarFolderDrilldown(null);
               ensureSidebarExpanded();
             }}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="folder" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">
-                  {`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a home`}
-                </p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-            </div>
-          </button>
+          />
         ) : null}
 
         {recallOpportunities.length > 0 ? (
@@ -1867,56 +1816,32 @@ export default function PrototypeSidebarHomeView({
       */}
       {notesListPhase === 'empty' ? (
         <div className="proto-home-section">
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={() => {
-              void navigate({
-                to: prototypeReadRouteTo(),
-                params: {
-                  book: bookSlug(firstRunPassage.book),
-                  chapter: String(firstRunPassage.chapter),
-                },
-                search: {
-                  v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
-                  t: undefined,
-                },
-              });
-            }}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="book-open" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">Start reading</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <p className="pds-list-preview proto-home-card__preview">
-                {firstRunPassage.reference} — highlight a verse to begin a note from it.
-              </p>
-            </div>
-          </button>
-          <button
-            type="button"
-            className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
-            onClick={onCreateFirstNote}
-          >
-            <div className="proto-home-card__body">
-              <div className="proto-home-card__title-row">
-                <span className="proto-home-card__icon-orb" aria-hidden>
-                  <Icon name="note-sticky" size={13} />
-                </span>
-                <p className="pds-list-title proto-home-card__title">Write a note</p>
-                <span className="proto-home-card__chevron" aria-hidden>
-                  <Icon name="caret-right" size={11} />
-                </span>
-              </div>
-              <p className="pds-list-preview proto-home-card__preview">Start from a blank page instead.</p>
-            </div>
-          </button>
+          <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
+            <PrototypeHomeRow
+              icon="book-open"
+              title="Start reading"
+              meta={[`${firstRunPassage.reference} — highlight a verse to begin a note from it.`]}
+              onClick={() => {
+                void navigate({
+                  to: prototypeReadRouteTo(),
+                  params: {
+                    book: bookSlug(firstRunPassage.book),
+                    chapter: String(firstRunPassage.chapter),
+                  },
+                  search: {
+                    v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
+                    t: undefined,
+                  },
+                });
+              }}
+            />
+            <PrototypeHomeRow
+              icon="note-sticky"
+              title="Write a note"
+              meta={['Start from a blank page instead.']}
+              onClick={onCreateFirstNote}
+            />
+          </div>
         </div>
       ) : null}
 

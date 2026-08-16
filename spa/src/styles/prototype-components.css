@@ -6824,12 +6824,24 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding: 0 2px;
 }
 
-/* Cards under one heading — the same lane rhythm as `.proto-church-hub__list`, so a group on
-   Home and a group in the church hub stack identically. */
+/* A group on Home is one panel of hairline rows — the church hub's Tools shape — so the
+   list is the panel and its children are rows with no gap between them. The class stays
+   because the empty-group rule below keys off it. */
 .proto-home-section__list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
+}
+
+/* Meta items on a home row read as one line: "Keep reading · Next in Exodus". The
+   separator carries the spacing so an item never has to. */
+.proto-home-row__meta-item {
+  display: inline;
+}
+
+.proto-home-row__meta-sep {
+  margin: 0 5px;
+  opacity: 0.7;
 }
 
 /*
@@ -11427,12 +11439,30 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    status, visually separated from the congregation-facing catalog above.
    Previously these were bare text links interleaved with the catalog. */
 
-.proto-church-tools {
+/*
+ * `.proto-list-panel*` — the same panel-of-hairline-rows, named for what it is.
+ *
+ * This lane grew up as the church staff's Tools card and kept that name, but the shape is
+ * general: one glass panel, rows split by a hairline, a small tinted icon block, a title
+ * over a quieter meta line, a chevron or one trailing control. Home adopts it for every
+ * group, and calling that `church-tools` on Home would be a lie about where it came
+ * from. Both names share one rule set through the selector lists below, so the two
+ * surfaces cannot drift apart; the church names stay because a rename across those
+ * files is churn with no gain.
+ *
+ * `__row-main` is for a row that carries a trailing control which is itself a button —
+ * a dismiss, an action. A button cannot nest in a button, so the row becomes a plain
+ * flex container and the tappable part is `__row-main`, which takes the hover and focus
+ * treatment the row would otherwise have.
+ */
+.proto-church-tools,
+.proto-list-panel {
   border-radius: 14px;
   overflow: hidden;
 }
 
-.proto-church-tools__row {
+.proto-church-tools__row,
+.proto-list-panel__row {
   appearance: none;
   border: 0;
   background: transparent;
@@ -11448,7 +11478,8 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   border-top: 0.5px solid var(--pds-border-control);
 }
 
-.proto-church-tools__row:first-child {
+.proto-church-tools__row:first-child,
+.proto-list-panel__row:first-child {
   border-top: none;
 }
 
@@ -11462,11 +11493,14 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
  * `--status` rows are labels rather than destinations, so they are excluded
  * along with the disabled ones.
  */
-.proto-church-tools__row:not(:disabled):not(.proto-church-tools__row--status):hover {
+.proto-church-tools__row:not(:disabled):not(.proto-church-tools__row--status):hover,
+.proto-list-panel__row:not(:disabled):not(.proto-list-panel__row--status):hover {
   background: var(--pds-bg-row-hover);
 }
 
-.proto-church-tools__row:focus-visible {
+.proto-church-tools__row:focus-visible,
+.proto-list-panel__row:focus-visible,
+.proto-list-panel__row-main:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: -2px;
 }
@@ -11629,7 +11663,8 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   opacity: 0.62;
 }
 
-.proto-church-tools__row-icon {
+.proto-church-tools__row-icon,
+.proto-list-panel__row-icon {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -11641,7 +11676,14 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
 }
 
-.proto-church-tools__row-text {
+/* An icon slot holding a space tile: the tile is the block, so the slot paints nothing. */
+.proto-list-panel__row-icon--tile {
+  background: none;
+  opacity: 1;
+}
+
+.proto-church-tools__row-text,
+.proto-list-panel__row-text {
   flex: 1;
   min-width: 0;
   flex-shrink: 1;
@@ -11658,7 +11700,9 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 /* One line each, always — a row is a row, not a paragraph. Copy that would
    wrap gets shortened or truncated, never taller. */
 .proto-church-tools__row-title,
-.proto-church-tools__row-meta {
+.proto-church-tools__row-meta,
+.proto-list-panel__row-title,
+.proto-list-panel__row-meta {
   margin: 0;
   min-width: 0;
   flex-shrink: 1;
@@ -11667,7 +11711,8 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   text-overflow: ellipsis;
 }
 
-.proto-church-tools__row-meta {
+.proto-church-tools__row-meta,
+.proto-list-panel__row-meta {
   opacity: 0.68;
   /* Roomy enough for an inline pill without the line clipping its rounded
      ends — the meta is a single nowrap line, so this costs no height when
@@ -11675,19 +11720,61 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   line-height: 1.5;
 }
 
-.proto-church-tools__row-chevron {
+.proto-church-tools__row-chevron,
+.proto-list-panel__row-chevron {
   flex: 0 0 auto;
   opacity: 0.4;
 }
 
+/* The tappable body of a row that also holds a trailing control. Same padding and gap as a
+   full row, pulled back over the row's own padding with negative margins so the icon and
+   text land exactly where they would in a plain row.
+
+   The hover fill belongs to the ROW, not to this — a row is one surface however many
+   controls sit on it, so the whole width lights up wherever the pointer is, and the
+   trailing buttons keep their own hit boxes and their own hover on top of that. Painting
+   the fill on this button instead stopped short of the controls and read as a row that
+   had been cut in two. */
+.proto-list-panel__row-main {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  margin: -11px 0 -11px -13px;
+  border-radius: 0;
+}
+
+.proto-list-panel__row:has(> .proto-list-panel__row-main) {
+  cursor: default;
+}
+
+/* Trailing controls sit inside the row's own padding; nothing extra on the right. */
+.proto-list-panel__row-trailing {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Status is a row, not a banner. A pilot counting down is information; only a
    lapse is an interruption, and that earns colour rather than size. */
-.proto-church-tools__row--status {
+.proto-church-tools__row--status,
+.proto-list-panel__row--status {
   cursor: default;
 }
 
 /* Create action sits under its lane, aligned left with the list. */
-.proto-church-tools__add {
+.proto-church-tools__add,
+.proto-list-panel__after {
   margin-top: 8px;
 }
 

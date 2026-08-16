@@ -18,7 +18,7 @@
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
-import Icon from '@/components/react/Icon';
+import PrototypeHomeRow from './PrototypeHomeRow';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { useChurchSermons } from '../../hooks/queries/useChurchSermons';
 import {
@@ -120,53 +120,22 @@ export default function PrototypeHomeThisSunday({ homeSpaceId }: Props) {
   const hasNote = Boolean(service.viewerNoteId);
 
   return (
-    <div className="proto-home-section">
-      {/*
-        Same anatomy as the continue/revisit cards: the eyebrow lives *inside*
-        the card, so this reads as one contained object rather than a floating
-        label above a row.
+    /*
+      One row of whichever Home group holds it — no wrapper of its own, so it sits between
+      the other rows in the panel with a hairline, not as a card in a list of cards. What
+      used to be the eyebrow leads the meta line: the day is the framing, the time and the
+      series are the rest of "when".
 
-        Deliberately no coloured space tile: a plain glyph says "church"
-        without claiming the sermon came from any particular room.
-      */}
-      <button
-        type="button"
-        className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable proto-this-sunday"
-        aria-label={hasNote ? 'Open my note on this service' : 'New note on this service'}
-        disabled={!homeSpaceId && !hasNote}
-        onClick={() => takeNotes(service)}
-      >
-        <p className="proto-caption proto-home-card__eyebrow">{eyebrow}&rsquo;s sermon</p>
-        <div className="proto-home-card__body">
-          <div className="proto-home-card__title-row">
-            <span className="proto-home-card__icon-orb" aria-hidden>
-              <Icon name="church" size={13} />
-            </span>
-            <p className="pds-list-title proto-home-card__title">{service.title}</p>
-            <span className="proto-home-card__chevron" aria-hidden>
-              <Icon name="caret-right" size={11} />
-            </span>
-          </div>
-          {/*
-            Time first, series second: the eyebrow already carries the day, so
-            the missing half of "when" is the clock. Rendered as the church's own
-            wall time, resolved server-side and never converted to the viewer's
-            zone. A church that has set no time renders exactly as before.
-          */}
-          {timeLabel || service.seriesTitle ? (
-            <div className="proto-home-card__meta">
-              {timeLabel ? <span className="proto-home-card__meta-item">{timeLabel}</span> : null}
-              {timeLabel && service.seriesTitle ? (
-                <span className="proto-home-card__meta-sep">·</span>
-              ) : null}
-              {service.seriesTitle ? (
-                <span className="proto-home-card__meta-item">{service.seriesTitle}</span>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </button>
-
-    </div>
+      Deliberately no coloured space tile: a plain glyph says "church" without claiming
+      the sermon came from any particular room.
+    */
+    <PrototypeHomeRow
+      icon="church"
+      title={service.title}
+      meta={[`${eyebrow}\u2019s sermon`, timeLabel, service.seriesTitle]}
+      aria-label={hasNote ? 'Open my note on this service' : 'New note on this service'}
+      disabled={!homeSpaceId && !hasNote}
+      onClick={() => takeNotes(service)}
+    />
   );
 }
