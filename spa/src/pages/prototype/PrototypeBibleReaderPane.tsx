@@ -11,6 +11,7 @@
  */
 import {
   Fragment,
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -19,6 +20,8 @@ import {
   useSyncExternalStore,
   type ComponentProps,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
 import Icon from '@/components/react/Icon';
 import ProtoSelectMenu from './ProtoSelectMenu';
@@ -92,6 +95,70 @@ const CARD_BLEED = 6;
  * milliseconds, and a loading line shown for 40ms is not information, it is a flash. Past
  * this threshold there genuinely is a wait, and saying so is better than a frozen page.
  */
+/** Stable stand-in for a verse whose html has not been built — a fresh `{}` here would
+    defeat the memo below on every render, which is the whole point of hoisting it. */
+const EMPTY_VERSE_HTML = { __html: '' };
+
+/**
+ * One verse, identical in both layouts.
+ *
+ * At module scope, and memoised, because it must not be re-created per render. It used to
+ * be declared inside the pane so it could close over selection and focus without threading
+ * props — which gave it a new function identity every render, so React treated it as a
+ * different component type and unmounted the entire verse subtree on ANY state change.
+ *
+ * That is what made a dotted word need two taps: the first mousedown focused the verse,
+ * `setFocusedVerse` re-rendered, every verse node was replaced, and mouseup landed on a
+ * node that had never seen the mousedown — so no click was ever dispatched. The second tap
+ * worked only because the focus state was already correct and React bailed out of the
+ * render. It also threw away any drag text-selection across verses, and defeated the
+ * memoised `verseHtml` that exists precisely to keep this DOM stable.
+ *
+ * Everything it needs now arrives as props, and every handler takes the verse number so the
+ * parent can hold one stable callback for all of them.
+ */
+const VerseSpan = memo(function VerseSpan({
+  verse,
+  selected,
+  accent,
+  inFocus,
+  roving,
+  html,
+  onFocusVerse,
+  onActivate,
+  onKeys,
+}: {
+  verse: { number: number; text: string };
+  selected: boolean;
+  accent?: string;
+  inFocus: boolean;
+  roving: boolean;
+  html: { __html: string };
+  onFocusVerse: (n: number) => void;
+  onActivate: (n: number, e: ReactMouseEvent<HTMLSpanElement>) => void;
+  onKeys: (n: number, e: ReactKeyboardEvent<HTMLSpanElement>) => void;
+}) {
+  return (
+    <span
+      className="pds-reader__verse"
+      role="option"
+      data-reader-verse={verse.number}
+      aria-selected={selected}
+      tabIndex={roving ? 0 : -1}
+      data-selected={selected ? 'true' : 'false'}
+      data-highlighted={accent ? 'true' : undefined}
+      data-highlight-color={accent}
+      data-in-focus={inFocus ? 'true' : undefined}
+      onFocus={() => onFocusVerse(verse.number)}
+      onClick={(e) => onActivate(verse.number, e)}
+      onKeyDown={(e) => onKeys(verse.number, e)}
+    >
+      <sup className="pds-reader-verse-num">{verse.number}</sup>
+      <span dangerouslySetInnerHTML={html} />
+    </span>
+  );
+});
+
 const LOADING_GRACE_MS = 250;
 
 /** True only once `active` has stayed true for `delay` — so brief waits never show. */
@@ -547,6 +614,58 @@ export default function PrototypeBibleReaderPane({
 
   const rovingVerse = focusedVerse ?? verses[0]?.number ?? null;
 
+  /*
+   * Verse handlers, above the loading and error returns below.
+   *
+   * They belong to `VerseSpan`, which is rendered far further down — but a hook after an
+   * early return is a hook that does not run on the render that took it, and React counts.
+   * Each takes the verse number so one stable callback serves every verse, which is what
+   * lets the memo on `VerseSpan` actually hold.
+   */
+  const handleVerseFocus = useCallback((n: number) => setFocusedVerse(n), []);
+
+  const handleVerseActivate = useCallback(
+    (n: number, e: ReactMouseEvent<HTMLSpanElement>) => {
+      // A dotted word is its own target: tapping it asks "who/what is this?", which is a
+      // different question from "I want to act on this verse". Selecting the verse as well
+      // would answer both at once and open the format bar over the dock.
+      const suggestion = (e.target as HTMLElement | null)?.closest?.('.reference-suggestion');
+      if (suggestion instanceof HTMLElement) {
+        e.preventDefault();
+        e.stopPropagation();
+        const query = suggestion.dataset.referenceWord || suggestion.textContent?.trim() || '';
+        if (query) {
+          setDock({
+            kind: 'reference',
+            query,
+            anchor: `${book} ${chapter}:${n}`,
+            verse: n,
+          });
+        }
+        return;
+      }
+      selectVerse(n, e.shiftKey);
+    },
+    [book, chapter, selectVerse],
+  );
+
+  const handleVerseKeys = useCallback(
+    (n: number, e: ReactKeyboardEvent<HTMLSpanElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectVerse(n, e.shiftKey);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        moveFocus(n, 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        moveFocus(n, -1);
+      }
+    },
+    [selectVerse, moveFocus],
+  );
+
+
   if (isLoading) {
     // Below the grace threshold the reader shows nothing rather than a line that would be
     // gone before it could be read — a 40ms "Loading…" is a flicker, not information.
@@ -590,72 +709,6 @@ export default function PrototypeBibleReaderPane({
       </div>
     );
   }
-
-  /**
-   * One verse, identical in both layouts.
-   *
-   * Defined here rather than at module scope so it closes over selection and focus without
-   * threading six props through; both call sites render the same element either way.
-   */
-  const VerseSpan = ({ verse }: { verse: { number: number; text: string } }) => {
-    const selected =
-      selection != null && verse.number >= selection[0] && verse.number <= selection[1];
-    const highlight = highlights?.get(verse.number);
-    return (
-      <span
-        className="pds-reader__verse"
-        role="option"
-        data-reader-verse={verse.number}
-        aria-selected={selected}
-        tabIndex={rovingVerse === verse.number ? 0 : -1}
-        data-selected={selected ? 'true' : 'false'}
-        data-highlighted={highlight ? 'true' : undefined}
-        data-highlight-color={highlight?.accent}
-        data-in-focus={
-          focusRange && verse.number >= focusRange[0] && verse.number <= focusRange[1]
-            ? 'true'
-            : undefined
-        }
-        onFocus={() => setFocusedVerse(verse.number)}
-        onClick={(e) => {
-          // A dotted word is its own target: tapping it asks "who/what is this?", which is a
-          // different question from "I want to act on this verse". Selecting the verse as well
-          // would answer both at once and open the format bar over the dock.
-          const suggestion = (e.target as HTMLElement | null)?.closest?.('.reference-suggestion');
-          if (suggestion instanceof HTMLElement) {
-            e.preventDefault();
-            e.stopPropagation();
-            const query =
-              suggestion.dataset.referenceWord || suggestion.textContent?.trim() || '';
-            if (query)
-              setDock({
-                kind: 'reference',
-                query,
-                anchor: `${book} ${chapter}:${verse.number}`,
-                verse: verse.number,
-              });
-            return;
-          }
-          selectVerse(verse.number, e.shiftKey);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            selectVerse(verse.number, e.shiftKey);
-          } else if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            moveFocus(verse.number, 1);
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            moveFocus(verse.number, -1);
-          }
-        }}
-      >
-        <sup className="pds-reader-verse-num">{verse.number}</sup>
-        <span dangerouslySetInnerHTML={verseHtml.get(verse.number) ?? { __html: '' }} />
-      </span>
-    );
-  };
 
   const selectionLabel =
     selection == null
@@ -989,7 +1042,25 @@ export default function PrototypeBibleReaderPane({
                           prose does and collapses at a line break, where a CSS margin
                           would survive and indent the line. */}
                       {i > 0 ? ' ' : null}
-                      <VerseSpan verse={verse} />
+                      <VerseSpan
+                        verse={verse}
+                        selected={
+                          selection != null &&
+                          verse.number >= selection[0] &&
+                          verse.number <= selection[1]
+                        }
+                        accent={highlights?.get(verse.number)?.accent}
+                        inFocus={
+                          focusRange != null &&
+                          verse.number >= focusRange[0] &&
+                          verse.number <= focusRange[1]
+                        }
+                        roving={rovingVerse === verse.number}
+                        html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
+                        onFocusVerse={handleVerseFocus}
+                        onActivate={handleVerseActivate}
+                        onKeys={handleVerseKeys}
+                      />
                     </Fragment>
                   ))}
                 </p>
@@ -998,7 +1069,25 @@ export default function PrototypeBibleReaderPane({
               verses.map((verse) => (
                 <div className="pds-reader__block" role="none" key={verse.number}>
                   <p className="pds-reader-text" role="none">
-                    <VerseSpan verse={verse} />
+                    <VerseSpan
+                      verse={verse}
+                      selected={
+                        selection != null &&
+                        verse.number >= selection[0] &&
+                        verse.number <= selection[1]
+                      }
+                      accent={highlights?.get(verse.number)?.accent}
+                      inFocus={
+                        focusRange != null &&
+                        verse.number >= focusRange[0] &&
+                        verse.number <= focusRange[1]
+                      }
+                      roving={rovingVerse === verse.number}
+                      html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
+                      onFocusVerse={handleVerseFocus}
+                      onActivate={handleVerseActivate}
+                      onKeys={handleVerseKeys}
+                    />
                   </p>
                 </div>
               ))
