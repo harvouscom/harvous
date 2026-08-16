@@ -6926,13 +6926,16 @@ button.proto-home-card--tappable:focus-visible {
   margin: 0 0 7px;
 }
 
-/* Title + optional chevron on one line; preview/meta indent only when a title icon is shown. */
+/* Title + optional chevron on one line; preview/meta indent only when a title icon is shown.
+   The size and the gap are both variables because the indent below is derived from them —
+   one place to change how big the block is, and the text under it cannot fall out of step. */
 .proto-home-card__title-row {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--proto-home-card-icon-gap, 12px);
   min-width: 0;
-  --proto-home-card-icon-size: 13px;
+  --proto-home-card-icon-size: 28px;
+  --proto-home-card-icon-gap: 12px;
 }
 
 .proto-home-card__title-row .proto-home-card__title {
@@ -6940,14 +6943,36 @@ button.proto-home-card--tappable:focus-visible {
   min-width: 0;
 }
 
+/*
+ * The icon block — the church hub's row anatomy, now what every home card gets.
+ *
+ * It used to be a bare 13px glyph at 0.92 opacity, which read as a bullet rather than as
+ * the row's subject, and left the church hub carrying a local override to make its own rows
+ * look like rows. Same 28px box and 8px corner as `.space-icon-tile`, so a card standing for
+ * a space and a card standing for a chapter are the same shape.
+ *
+ * The fill is the neutral one on purpose. A space tile is coloured because a space HAS a
+ * colour; a chapter, a thread and a highlight do not, and inventing accents for them would
+ * make the sidebar look like it was sorting things it is not.
+ */
 .proto-home-card__icon-orb {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: var(--proto-home-card-icon-size, 13px);
+  width: var(--proto-home-card-icon-size, 28px);
+  height: var(--proto-home-card-icon-size, 28px);
+  border-radius: 8px;
+  background: var(--pds-bg-faint);
   color: var(--pds-text-secondary);
-  opacity: 0.92;
+  opacity: 1;
+}
+
+/* An orb already holding a space tile brings its own block, in that space's accent. A
+   neutral one behind it would show as a ring around the colour. */
+.proto-home-card__icon-orb:has(.space-icon-tile) {
+  background: none;
+  border-radius: 0;
 }
 
 .proto-home-card__body {
@@ -6955,10 +6980,15 @@ button.proto-home-card--tappable:focus-visible {
   min-width: 0;
 }
 
+/* Text under the title lines up with the title, not with the block's left edge — the same
+   column the church rows stack their cadence line in, reached by an indent instead of a
+   second wrapper so no card's markup has to change. */
 .proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__preview,
 .proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__excerpt,
 .proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__meta {
-  padding-left: calc(var(--proto-home-card-icon-size, 13px) + 5px);
+  padding-left: calc(
+    var(--proto-home-card-icon-size, 28px) + var(--proto-home-card-icon-gap, 12px)
+  );
 }
 
 .proto-home-card__chevron {
@@ -11145,17 +11175,10 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   gap: 8px;
 }
 
-/* Color tile + title/cadence — larger icon and more air than compact home cards. */
-.proto-church-hub__list .proto-home-card__title-row {
-  gap: 12px;
-  --proto-home-card-icon-size: 28px;
-}
-
+/* The size and air this lane used to set for itself are the home card's defaults now, so
+   only the switcher dot's anchor is still local to it. */
 .proto-church-hub__list .proto-home-card__icon-orb {
   position: relative;
-  width: 28px;
-  height: 28px;
-  opacity: 1;
 }
 
 .proto-church-hub__empty-lane {
