@@ -106,6 +106,7 @@ import replySvg from '@fortawesome/fontawesome-free/svgs/solid/reply.svg?raw';
 import userSvg from '@fortawesome/fontawesome-free/svgs/solid/user.svg?raw';
 import userGroupSvg from '@fortawesome/fontawesome-free/svgs/solid/user-group.svg?raw';
 import eyeSvg from '@fortawesome/fontawesome-free/svgs/solid/eye.svg?raw';
+import eyeSlashSvg from '@fortawesome/fontawesome-free/svgs/solid/eye-slash.svg?raw';
 import pasteSvg from '@fortawesome/fontawesome-free/svgs/solid/paste.svg?raw';
 import fileImageSvg from '@fortawesome/fontawesome-free/svgs/solid/file-image.svg?raw';
 import upRightAndDownLeftFromCenterSvg from '@fortawesome/fontawesome-free/svgs/solid/up-right-and-down-left-from-center.svg?raw';
@@ -176,6 +177,8 @@ const icons = {
   
   // Selection/action icons (Font Awesome)
   'eye': svgRootCurrentColor(eyeSvg),
+  /** "Do not show me this again" — the recall edge's ignore. */
+  'eye-slash': svgRootCurrentColor(eyeSlashSvg),
   check: withCurrentColor(checkSvg),
   xmark: withCurrentColor(xmarkSvg),
   'trash-can': withCurrentColor(trashCanSvg),

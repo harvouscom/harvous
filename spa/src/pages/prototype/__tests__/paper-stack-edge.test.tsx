@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import PrototypePaperStack from '../PrototypePaperStack';
 import { buildRevisitCardStackOrigin } from '../paper-stack-origins';
 import type { PaperStackState } from '../../../layouts/proto-shell-context';
@@ -14,13 +14,23 @@ import type { PaperStackState } from '../../../layouts/proto-shell-context';
 // edge, and a Home origin's base is a plain card, so nothing else needs standing up.
 const origin = buildRevisitCardStackOrigin({ title: 'The first book', meta: 'Genesis' });
 
-function renderStack(stack: PaperStackState, onDismiss = vi.fn()) {
+function renderStack(
+  stack: PaperStackState,
+  handlers: {
+    onDismiss?: () => void;
+    onSuggestionNevermind?: () => void;
+    onSuggestionIgnore?: () => void;
+  } = {},
+) {
+  const onDismiss = handlers.onDismiss ?? vi.fn();
   render(
     <PrototypePaperStack
       stack={stack}
       onFlipDown={vi.fn()}
       onFlipUp={vi.fn()}
       onDismiss={onDismiss}
+      onSuggestionNevermind={handlers.onSuggestionNevermind}
+      onSuggestionIgnore={handlers.onSuggestionIgnore}
     >
       <p>sheet</p>
     </PrototypePaperStack>,
@@ -57,5 +67,42 @@ describe('paper stack edge', () => {
   it('falls back to the app-wide name for a note with no title yet', () => {
     renderStack({ origin, noteId: 'note_1', open: false });
     expect(screen.getByLabelText('Bring New Note back up')).toBeTruthy();
+  });
+});
+
+/**
+ * A suggestion's edge is the one that can be answered. Everything else stacked — a chapter,
+ * a note's dock, Home's own revisit card — is a place, and offering to "stop suggesting" a
+ * place would be nonsense, so the extra actions must appear only with a suggestion attached.
+ */
+describe('suggestion edge', () => {
+  const suggested = {
+    ...origin,
+    suggestion: { id: 'hl:7', kind: 'highlight' },
+  };
+
+  it('offers nevermind, ignore and dismiss', () => {
+    const nevermind = vi.fn();
+    const ignore = vi.fn();
+    renderStack(
+      { origin: suggested, noteId: 'note_1', open: true },
+      { onSuggestionNevermind: nevermind, onSuggestionIgnore: ignore },
+    );
+
+    fireEvent.click(
+      screen.getByLabelText('Nevermind — back to Worth another look and keep suggesting it'),
+    );
+    fireEvent.click(screen.getByLabelText('Stop suggesting Worth another look'));
+
+    expect(nevermind).toHaveBeenCalledTimes(1);
+    expect(ignore).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Stop showing Worth another look behind this')).toBeTruthy();
+  });
+
+  it('leaves an ordinary origin with only its way back and its dismiss', () => {
+    renderStack({ origin, noteId: 'note_1', open: true });
+
+    expect(screen.queryByLabelText('Stop suggesting Worth another look')).toBeNull();
+    expect(screen.getByLabelText('Show Worth another look')).toBeTruthy();
   });
 });

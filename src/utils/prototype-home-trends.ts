@@ -638,9 +638,10 @@ export function selectHomeLeadTheme(input: HomeLeadThemeInput): HomeLeadTheme {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Local-midnight epoch day index — activity counts use calendar days, not 24h windows. */
-export function localDayIndex(date: Date): number {
-  return Math.floor(new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() / DAY_MS);
-}
+/* Re-exported so Home's many callers keep one import, while the shell can reach the one
+   line without pulling this module onto the initial chunk. */
+import { localDayIndex } from './local-day-index';
+export { localDayIndex };
 
 function collectActiveDayIndices(notes: HomeContinueNoteInput[]): Set<number> {
   const activeDays = new Set<number>();

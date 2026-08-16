@@ -6,6 +6,8 @@ import {
   recordRecallSnoozed,
   recordRecallSectionEngaged,
   recentRecallSectionCounts,
+  recallRestoredAt,
+  restoreRecallOpportunity,
   RECALL_COOLDOWN_DAYS,
 } from '../proto-recall-cooldown';
 
@@ -147,5 +149,57 @@ describe('mergeServerRecallHistoryIntoCooldowns', () => {
       NOW,
     );
     expect(merged.size).toBe(0);
+  });
+});
+
+/**
+ * "Nevermind" — the undo for having taken a suggestion you did not mean to.
+ *
+ * The local delete is the easy half. The half worth a test is that the server's own record
+ * of the open, which the merge unions back in, stops counting — otherwise the row returns to
+ * the shelf and vanishes again on the next render, which is worse than not offering the
+ * action at all.
+ */
+describe('restoreRecallOpportunity', () => {
+  const SPACE_R = 'space_restore';
+  const NOW = new Date('2026-08-03T12:00:00.000Z');
+  const daysAgo = (n: number) =>
+    new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('drops the local rest and records when it was put back', () => {
+    recordRecallOpened(SPACE_R, 'hl:7', 100);
+    expect(activeCooldownIds(SPACE_R, 100).has('hl:7')).toBe(true);
+
+    restoreRecallOpportunity(SPACE_R, 'hl:7', NOW.getTime());
+
+    expect(activeCooldownIds(SPACE_R, 100).has('hl:7')).toBe(false);
+    expect(recallRestoredAt(SPACE_R)['hl:7']).toBe(NOW.getTime());
+  });
+
+  it('stops an already-written server open from bringing it back', () => {
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'hl:7', action: 'open', createdAt: daysAgo(1) }],
+      NOW,
+      undefined,
+      { 'hl:7': NOW.getTime() },
+    );
+    expect(merged.has('hl:7')).toBe(false);
+  });
+
+  it('still rests it if you act on it again afterwards', () => {
+    const restoredAt = NOW.getTime() - 3 * 24 * 60 * 60 * 1000;
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'hl:7', action: 'snooze', createdAt: daysAgo(1) }],
+      NOW,
+      undefined,
+      { 'hl:7': restoredAt },
+    );
+    expect(merged.has('hl:7')).toBe(true);
   });
 });

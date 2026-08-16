@@ -284,6 +284,15 @@ export type PaperStackOrigin = {
   morphFrom?: PaperStackMorphFrom;
   /** Sub-kind for `homeCard` (a RecallOpportunityKind or 'revisit'). Telemetry only. */
   cardKind?: string;
+  /**
+   * The suggestion that sent you here, when one did.
+   *
+   * Present only for a recall row off Home's Suggested shelf, and it is what turns the edge
+   * from a label into something you can answer: the id is the row to put back or to rest,
+   * and the kind is what to record it as. A `revisit` card or a chapter has no suggestion —
+   * nothing proposed them — so their edge stays a plain way back.
+   */
+  suggestion?: { id: string; kind: string };
   label: string;
   icon: string;
   returnTo: PaperStackReturnTo;

@@ -4,16 +4,17 @@
  */
 
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
-import { recallKindCreatesNote, recallKindDisplayLabel } from '@/utils/recall-opportunity-kinds';
+import { recallKindDisplayLabel } from '@/utils/recall-opportunity-kinds';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import type { PaperStackMorphFrom, PaperStackOrigin } from '../../layouts/proto-shell-context';
 import { noteParamSlug } from './proto-route-slugs';
 
 /**
- * Recall kinds whose tap resolves in the sidebar layer or a passage pane rather than in a
- * note — a study arc drills the sidebar to a proposal, a passage opens the standalone pane.
- * Nothing stacks over Home for those, because no sheet is put over anything.
+ * Recall kinds whose tap resolves in the sidebar layer or a passage pane rather than in the
+ * main pane — a study arc drills the sidebar to a proposal, a passage opens the standalone
+ * pane, connect-notes opens a thread prefill. Nothing stacks for those, because nothing is
+ * put over anything: you are still on Home when they finish.
  */
 const SIDEBAR_LAYER_RECALL_KINDS: ReadonlySet<string> = new Set([
   'arc',
@@ -24,6 +25,8 @@ const SIDEBAR_LAYER_RECALL_KINDS: ReadonlySet<string> = new Set([
 ]);
 
 export type RecallCardLike = {
+  /** The row's own id on the shelf, so the edge can put it back or rest it. */
+  id?: string;
   kind: string;
   eyebrow?: string | null;
   title?: string | null;
@@ -32,15 +35,20 @@ export type RecallCardLike = {
 };
 
 /**
- * The origin for a Home recall card, or null when tapping it does not open a note.
+ * The origin for a Home recall card, or null when tapping it leaves you on Home.
  *
- * Generative kinds create a draft rather than open something, and sidebar-layer kinds never
- * put a sheet over anything, so neither gets an edge. What remains — revisit a note, open a
- * highlight, annotate one, look a word up — is a note opened *because a card sent you*, and
- * that is what the edge exists to say.
+ * Every kind that takes you off the shelf gets an edge — including the ones that open a
+ * blank draft. That was not true at first: generative kinds were excluded on the reasoning
+ * that a draft is not "opened because a card sent you", which had it backwards. A note that
+ * already exists carries its own context; a blank page carries none, so the card that asked
+ * for it is the *only* thing on screen that says why you are looking at it. `crossrefGap`
+ * was the clearest case — it is classed generative but usually navigates to a note you
+ * already have, and it arrived with nothing at the top at all.
+ *
+ * What is still excluded is what never leaves: the sidebar-layer kinds resolve in the panel
+ * beside you, and an edge there would promise a way back to the page you are already on.
  */
 export function buildRecallCardStackOrigin(op: RecallCardLike): PaperStackOrigin | null {
-  if (recallKindCreatesNote(op.kind as never)) return null;
   if (SIDEBAR_LAYER_RECALL_KINDS.has(op.kind)) return null;
 
   const eyebrow = op.eyebrow?.trim() || recallKindDisplayLabel(op.kind);
@@ -48,6 +56,7 @@ export function buildRecallCardStackOrigin(op: RecallCardLike): PaperStackOrigin
   return {
     kind: 'homeCard',
     cardKind: op.kind,
+    suggestion: op.id ? { id: op.id, kind: op.kind } : undefined,
     label: eyebrow,
     icon: op.iconName,
     returnTo: { to: prototypeHomeRouteTo() },

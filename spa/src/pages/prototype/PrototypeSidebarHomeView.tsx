@@ -116,8 +116,10 @@ import { stabilityById, mergeStabilityMaps } from './proto-recall-stability';
 import {
   activeCooldownIds,
   mergeServerRecallHistoryIntoCooldowns,
+  recallRestoredAt,
   recordRecallOpened,
   recordRecallSnoozed,
+  subscribeRecallCooldownChanged,
   recentRecallSectionCounts,
   RECALL_OPENED_COOLDOWN_DAYS,
 } from './proto-recall-cooldown';
@@ -166,7 +168,7 @@ const PASSAGE_CONNECTION_MIN = 2;
 function pushAnnotateHighlightRecallCard(
   out: RecallOpportunity[],
   highlight: PrototypeHighlightStudyThreadRow,
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void,
+  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void,
   usedHighlightIds: Set<string>,
 ) {
   if (usedHighlightIds.has(highlight.id)) return;
@@ -187,7 +189,7 @@ function pushAnnotateHighlightRecallCard(
 function pushRevisitHighlightRecallCard(
   out: RecallOpportunity[],
   highlight: PrototypeHighlightStudyThreadRow,
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void,
+  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void,
   usedHighlightIds: Set<string>,
   meta: string,
 ) {
@@ -220,7 +222,7 @@ type Props = {
   prefetchNote: (row: SpaceNoteRow) => void;
   onOpenScriptureBook: (bookOrder: number) => void;
   onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
+  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void;
   onOpenCreateThreadPrefill: (prefill: { noteIds: [string, string]; threadName: string }) => void;
 };
 
@@ -245,7 +247,7 @@ type HomeGreetingTrendKind = 'arc' | 'subject' | 'passage' | 'crossref' | 'refer
 type HomeGreetingTrend = {
   kind: HomeGreetingTrendKind;
   parts: RecallTrendGreetingParts;
-  onOpen: () => void;
+  onOpen: () => boolean | void;
 };
 
 function HomeGreeting({
@@ -828,10 +830,19 @@ export default function PrototypeSidebarHomeView({
         activeCooldownIds(homeSpaceId, recallDayIndex),
         recallHistoryQuery.data?.events,
         new Date(),
+        undefined,
+        recallRestoredAt(homeSpaceId),
       ),
     // recallTick forces a re-read of the snooze store after the user snoozes an item.
     [homeSpaceId, recallDayIndex, recallTick, recallHistoryQuery.data],
   );
+
+  /*
+   * The other writer is the breadcrumb edge over whatever a suggestion opened — "nevermind"
+   * puts the row back, "ignore" rests it for good — and that edge lives in the shell, not in
+   * this tree, so nothing here would otherwise know the store had changed.
+   */
+  useEffect(() => subscribeRecallCooldownChanged(() => setRecallTick((t) => t + 1)), []);
   const revisitExcludeIds = useMemo(
     () =>
       [
@@ -910,15 +921,25 @@ export default function PrototypeSidebarHomeView({
    * note says why it is open — "Worth another look" — and flipping it down shows the card
    * again rather than a blank pane. Stacked before routing; the navigation itself is unchanged.
    */
+  /**
+   * @param stack whether to raise the edge here. Home's standalone "Worth another look"
+   *   card is its own origin and says so. The Suggested shelf's revisitNote row runs through
+   *   the same handler but is a *suggestion*, and the carousel stacks that one itself — with
+   *   the row id attached, so its edge can put the suggestion back. Both stacking meant two
+   *   `stackNote` calls per tap, the second overwriting the first, and the one that survived
+   *   was the one without the suggestion.
+   */
   const handleOpenRevisitNote = useCallback(
-    (row: SpaceNoteRow) => {
-      stackNote(
-        buildRevisitCardStackOrigin({
-          title: row.title,
-          meta: protoRelativeCaptionAbbrev(row.updatedAt ?? row.createdAt ?? null),
-        }),
-        row.id,
-      );
+    (row: SpaceNoteRow, { stack = true }: { stack?: boolean } = {}) => {
+      if (stack) {
+        stackNote(
+          buildRevisitCardStackOrigin({
+            title: row.title,
+            meta: protoRelativeCaptionAbbrev(row.updatedAt ?? row.createdAt ?? null),
+          }),
+          row.id,
+        );
+      }
       onOpenNote(row);
     },
     [onOpenNote, stackNote],
@@ -1135,21 +1156,24 @@ export default function PrototypeSidebarHomeView({
    * the create was in flight and a second tap made a second note. The compose session is
    * synchronous and single — both problems go away with the await.
    */
+  /** @returns whether a draft actually opened — see `RecallOpportunity.onOpen`. */
   const startDraftNote = useCallback(
-    (opts: { title?: string; contentHtml?: string }) => {
-      if (!homeSpaceId) return;
+    (opts: { title?: string; contentHtml?: string }): boolean => {
+      if (!homeSpaceId) return false;
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       beginPrototypeComposeSession({
         targetSpaceId: homeSpaceId,
         seed: { title: opts.title, contentHtml: opts.contentHtml },
       });
       navigate({ to: prototypeHomeRouteTo() });
+      return true;
     },
     [homeSpaceId, isMobileSidebar, closeDrawer, beginPrototypeComposeSession, navigate],
   );
 
+  /** @returns whether it landed on a note — see `RecallOpportunity.onOpen`. */
   const openCrossRefGap = useCallback(
-    (gap: CrossRefGap) => {
+    (gap: CrossRefGap): boolean => {
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       const candidates = [
         gap.fromNoteId?.trim(),
@@ -1161,11 +1185,10 @@ export default function PrototypeSidebarHomeView({
           return !row || row.noteType !== 'scripture';
         }) ?? null;
       if (!noteId) {
-        void startDraftNote({
+        return startDraftNote({
           title: gap.to.displayRef,
           contentHtml: buildVotdScripturePillHtml(gap.to.displayRef, gap.fromTranslation || 'NET'),
         });
-        return;
       }
       navigate({
         to: prototypeNoteRouteTo(),
@@ -1182,6 +1205,7 @@ export default function PrototypeSidebarHomeView({
           dockReq: String(Date.now()),
         },
       });
+      return true;
     },
     [isMobileSidebar, closeDrawer, scriptureBooks, notes, startDraftNote, navigate],
   );
@@ -1325,7 +1349,7 @@ export default function PrototypeSidebarHomeView({
         title: stripServerAutoUntitledNoteTitleForDisplay(note.title?.trim() ?? '') || 'New Note',
         meta,
         iconName: 'arrow-rotate-left',
-        onOpen: () => handleOpenRevisitNote(note),
+        onOpen: () => handleOpenRevisitNote(note, { stack: false }),
       });
     };
 

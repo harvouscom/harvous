@@ -39,6 +39,13 @@ import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
 import { noteDockReturnSearch } from '../pages/prototype/paper-stack-origins';
+import {
+  notifyRecallCooldownChanged,
+  recordRecallSnoozed,
+  restoreRecallOpportunity,
+} from '../pages/prototype/proto-recall-cooldown';
+import { recordRecallOpportunityEvent } from '../pages/prototype/proto-recall-events';
+import { localDayIndex } from '@/utils/local-day-index';
 import { PROTO_PAPER_STACK_MS, PROTO_RESOURCE_MORPH_MS } from './proto-motion';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
@@ -482,6 +489,44 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     pathname,
     chromeRouter,
   ]);
+
+  /**
+   * The two answers a suggestion's edge offers, beyond the plain × every edge has.
+   *
+   * Both end the stack, because both are decisions about the suggestion rather than about
+   * the breadcrumb. They differ in where they leave you and in what they say about the row:
+   * nevermind goes back to the shelf and puts it back on it, undoing the seven-day rest that
+   * taking it wrote; ignore stays put and rests it for the full three weeks.
+   *
+   * Neither is on a timer. The whole reason these exist is that no rule can tell from
+   * outside whether a suggestion landed.
+   */
+  const handleSuggestionNevermind = useCallback(() => {
+    const stack = paperStack;
+    const suggestion = stack?.origin.suggestion;
+    if (!stack || !suggestion) return;
+    restoreRecallOpportunity(homeSpaceId, suggestion.id);
+    clearPaperStack();
+    if (isMobileSidebar) openDrawer();
+    void chromeRouter.navigate({
+      to: stack.origin.returnTo.to,
+      params: stack.origin.returnTo.params ?? {},
+      search: stack.origin.returnTo.search ?? {},
+    });
+  }, [paperStack, homeSpaceId, clearPaperStack, isMobileSidebar, openDrawer, chromeRouter]);
+
+  const handleSuggestionIgnore = useCallback(() => {
+    const suggestion = paperStack?.origin.suggestion;
+    if (!suggestion) return;
+    recordRecallOpportunityEvent({
+      opportunityId: suggestion.id,
+      kind: suggestion.kind as never,
+      action: 'snooze',
+    });
+    recordRecallSnoozed(homeSpaceId, suggestion.id, localDayIndex(new Date()));
+    notifyRecallCooldownChanged();
+    clearPaperStack();
+  }, [paperStack, homeSpaceId, clearPaperStack]);
 
   const handleFlipSheetUp = useCallback(() => {
     setStackSheetOpen(true);
@@ -954,6 +999,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
                 onFlipDown={handleFlipSheetDown}
                 onFlipUp={handleFlipSheetUp}
                 onDismiss={clearPaperStack}
+                onSuggestionNevermind={handleSuggestionNevermind}
+                onSuggestionIgnore={handleSuggestionIgnore}
                 /* Parked: the URL is the origin's own address, so the Outlet IS the reader
                    route — hand it down as the paper behind, which is the surface being used
                    now. Any other time the descriptor's stand-in is right, and the Outlet is

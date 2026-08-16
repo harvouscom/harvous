@@ -17,8 +17,21 @@ describe('buildRecallCardStackOrigin', () => {
     ...extra,
   });
 
-  it('stacks the kinds that open an existing note', () => {
-    for (const kind of ['revisitNote', 'highlight', 'annotateHighlight', 'referenceWord']) {
+  it('stacks every kind that takes you off the shelf', () => {
+    const leaves = [
+      'revisitNote',
+      'highlight',
+      'annotateHighlight',
+      'referenceWord',
+      // Generative too: a blank draft has no context of its own, so the card that asked
+      // for it is the only thing that says why the page is open.
+      'continueBook',
+      'studyPerson',
+      'reflection',
+      // The reported dead end — classed generative, but it usually opens a note you have.
+      'crossrefGap',
+    ];
+    for (const kind of leaves) {
       const origin = buildRecallCardStackOrigin(card(kind));
       expect(origin, kind).not.toBeNull();
       expect(origin?.kind).toBe('homeCard');
@@ -26,10 +39,12 @@ describe('buildRecallCardStackOrigin', () => {
     }
   });
 
-  it('does not stack generative kinds — they create a draft rather than open something', () => {
-    for (const kind of ['continueBook', 'studyPerson', 'reflection', 'crossrefGap']) {
-      expect(buildRecallCardStackOrigin(card(kind)), kind).toBeNull();
-    }
+  it('carries the suggestion so the edge can answer it, and omits it when there is no row', () => {
+    expect(buildRecallCardStackOrigin(card('highlight', { id: 'hl:7' }))?.suggestion).toEqual({
+      id: 'hl:7',
+      kind: 'highlight',
+    });
+    expect(buildRecallCardStackOrigin(card('highlight'))?.suggestion).toBeUndefined();
   });
 
   it('does not stack sidebar-layer kinds — nothing is put over anything', () => {

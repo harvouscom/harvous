@@ -35,8 +35,14 @@ export interface RecallOpportunity extends RecallCandidate {
   noteId?: string;
   /** Dominant canon section for revisit diversity tracking. */
   canonSection?: string;
-  /** Open the underlying note / highlight / passage / thread. */
-  onOpen: () => void;
+  /**
+   * Open the underlying note / highlight / passage / thread.
+   *
+   * Returns `false` when it could not — a highlight with no source note, a draft with no
+   * space to save into. Anything else counts as having gone somewhere. The shelf needs to
+   * know, because the breadcrumb edge is only honest over a page you actually landed on.
+   */
+  onOpen: () => boolean | void;
 }
 
 
@@ -86,18 +92,22 @@ export default function PrototypeRecallCarousel({
     }
     onOpened?.(op.id);
     /**
-     * When the card opens a note, that note stacks over the card: the edge above it says why
-     * it is open, and flipping it down brings the card back. Only for kinds that open an
-     * existing note — generative kinds create a draft, and sidebar-layer kinds put nothing over
-     * anything — see `buildRecallCardStackOrigin`.
+     * Whatever the row opened, it stacks over the row: the edge above it says why the page is
+     * open, flipping it down brings you back to the shelf, and its actions answer the
+     * suggestion. Sidebar-layer kinds get no origin — see `buildRecallCardStackOrigin`.
      *
-     * The stack is set here, at the one place every card passes through, rather than in each
-     * of the dozen `onOpen` closures. `op.noteId` is not passed along: for highlight kinds it is
-     * the highlight row id, and the layout adopts the note id from wherever the open lands.
+     * Set here, at the one place every row passes through, rather than in each of the dozen
+     * `onOpen` closures. `op.noteId` is not passed along: for highlight kinds it is the
+     * highlight row id, and the layout adopts the note id from wherever the open lands.
+     *
+     * After `onOpen`, and only if it went somewhere. Stacking first left an edge standing
+     * over Home whenever a handler bailed — a highlight whose source note is gone opens
+     * nothing, and the breadcrumb pointed back at the page you never left.
      */
+    const opened = op.onOpen();
+    if (opened === false) return;
     const origin = buildRecallCardStackOrigin(op);
     if (origin) stackNote(origin);
-    op.onOpen();
   };
 
   const snoozeOpportunity = (op: RecallOpportunity) => {

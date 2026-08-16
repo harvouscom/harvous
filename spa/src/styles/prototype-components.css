@@ -18382,6 +18382,27 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   outline-offset: 1px;
 }
 
+/*
+ * The suggestion band carries two answers, not one.
+ *
+ * `ignore` sits inboard of the dismiss, one action-button's width plus the usual gap, so the
+ * pair reads right-to-left in order of finality: put the way back down, or stop being asked.
+ * Both take the same chrome as every other dismiss in the app; only their order is this
+ * component's business.
+ */
+.pds-paper-stack__edge-ignore {
+  right: calc(var(--pds-space-5) + 22px + var(--pds-space-2));
+}
+
+/*
+ * And its label does not read as a way back, because it is not one — it undoes taking the
+ * suggestion. Same muted weight as the other edges, with the accent held for hover, so a
+ * shelf row that opened a page does not shout at you from the top of it.
+ */
+.pds-paper-stack__edge-row--suggestion .pds-paper-stack__edge:hover {
+  color: var(--pds-accent);
+}
+
 .pds-paper-stack__sheet {
   position: absolute;
   inset: 0;
@@ -18433,16 +18454,21 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    restating it, which is what lets the nudge keep its own short timing while the flip keeps
    the long one. 4px was too polite to register as an answer — at this size the movement was
    easy to miss and the band read as inert. */
-.pds-paper-stack:has(.pds-paper-stack__edge-row:hover)
+.pds-paper-stack:not([data-origin-kind='homeCard']):has(.pds-paper-stack__edge-row:hover)
   .pds-paper-stack__sheet[data-stacked='true'] {
   translate: 0 var(--pds-paper-stack-hover-nudge);
 }
+
+/* Not over a Home card. The nudge is a promise that there is more paper down there worth
+   uncovering, and behind a Home origin there is no document — only a restatement of the card
+   that sent you. Moving the page you are reading to reveal a card you have already read is
+   motion that answers nothing. */
 
 /* Parked, the paper in front is the base — so that is the one that gives way, and the band
    it uncovers is the parked note's. The nudge follows whichever paper is on top, not
    whichever element it happens to be, which is why it had no effect at all once the two
    swapped: the rule above still pointed at a sheet that was now behind. */
-.pds-paper-stack:has(.pds-paper-stack__edge-row:hover):has(
+.pds-paper-stack:not([data-origin-kind='homeCard']):has(.pds-paper-stack__edge-row:hover):has(
     .pds-paper-stack__sheet[data-stacked='false']
   )
   .pds-paper-stack__base {

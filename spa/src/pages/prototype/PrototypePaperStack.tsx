@@ -29,6 +29,8 @@ export default function PrototypePaperStack({
   onFlipDown,
   onFlipUp,
   onDismiss,
+  onSuggestionNevermind,
+  onSuggestionIgnore,
   baseSlot,
   children,
 }: {
@@ -39,6 +41,17 @@ export default function PrototypePaperStack({
   onFlipUp: () => void;
   /** Put the origin down: the stack clears and the sheet becomes an ordinary page. */
   onDismiss: () => void;
+  /**
+   * Answers to a suggestion, offered only when the origin carries one.
+   *
+   * `nevermind` goes back to the shelf and puts the row back on it — the undo for having
+   * taken a suggestion you did not mean to. `ignore` is the opposite: rest it for good and
+   * stay where you are. The plain × in between them keeps its usual meaning, which here is
+   * "I am staying, and I do not need the way back" — it answers the breadcrumb, not the
+   * suggestion.
+   */
+  onSuggestionNevermind?: () => void;
+  onSuggestionIgnore?: () => void;
   /**
    * What to render as the paper behind, in place of the descriptor's own stand-in.
    *
@@ -51,6 +64,8 @@ export default function PrototypePaperStack({
 }) {
   const { origin } = stack;
   const collapses = origin.kind === 'noteDock';
+  /** A row off Home's Suggested shelf — its edge answers the suggestion, not just the way back. */
+  const suggestion = origin.suggestion;
   /** `New Note` is what every other surface calls a note with no title yet — rows, search,
       the mention picker. The edge is one more of those, so it uses the same word. */
   const parkedLabel = stripServerAutoUntitledNoteTitleForDisplay(stack.noteTitle ?? '') || 'New Note';
@@ -164,6 +179,49 @@ export default function PrototypePaperStack({
         >
           <Icon name="down-left-and-up-right-to-center" size={13} aria-hidden />
         </button>
+      ) : stack.open && suggestion ? (
+        /*
+         * A suggestion's edge asks something the others do not.
+         *
+         * The reader and the note-dock edges are places: they hold state you will want back,
+         * and the only question is whether you are going. A row off the Suggested shelf is a
+         * proposal, and arriving somewhere because of one leaves you with three honest
+         * answers — this was not what I meant, this was fine but I am done with the way back,
+         * or do not offer me this again. None of them is a timer's to guess, which is why
+         * nothing here expires: the edge waits.
+         */
+        <div className="pds-paper-stack__edge-row pds-paper-stack__edge-row--suggestion">
+          <button
+            type="button"
+            className="pds-paper-stack__edge"
+            onClick={onSuggestionNevermind ?? onFlipDown}
+            aria-label={`Nevermind — back to ${origin.label} and keep suggesting it`}
+            title="Nevermind"
+          >
+            <Icon name={origin.icon as IconName} size={12} aria-hidden />
+            <span className="pds-caption">{origin.label}</span>
+          </button>
+          {onSuggestionIgnore ? (
+            <button
+              type="button"
+              className="proto-side-panel__action-btn pds-paper-stack__edge-dismiss pds-paper-stack__edge-ignore"
+              onClick={onSuggestionIgnore}
+              aria-label={`Stop suggesting ${origin.label}`}
+              title="Don't suggest this again"
+            >
+              <Icon name="eye-slash" size={12} aria-hidden />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="proto-side-panel__action-btn pds-paper-stack__edge-dismiss"
+            onClick={onDismiss}
+            aria-label={`Stop showing ${origin.label} behind this`}
+            title="Put the way back down"
+          >
+            <Icon name="xmark" size={12} aria-hidden />
+          </button>
+        </div>
       ) : stack.open ? (
         <div className="pds-paper-stack__edge-row">
           <button
