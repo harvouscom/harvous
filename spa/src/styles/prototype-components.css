@@ -18687,8 +18687,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      off to something mounting at the end of it, and an emphasized curve spends its last
      100ms barely moving — which reads as the chapter hesitating just as the dock appears
      under it. The symmetric curve arrives at the dock's rect still travelling. */
-  animation: pds-paper-stack-morph-out var(--pds-duration-paper-stack) var(--pds-ease-morph-exit)
-    forwards;
+  animation: pds-paper-stack-morph-out var(--pds-duration-paper-stack-exit)
+    var(--pds-ease-morph-exit) forwards;
   pointer-events: none;
 }
 

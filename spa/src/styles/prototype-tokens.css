@@ -442,8 +442,20 @@
   --pds-duration-morph: 190ms;
   /* Note sheet stacking over the reader paper. Slower than a panel because it is a
      spatial move the eye follows to a resting place, not a reveal. Paired with
-     PROTO_PAPER_STACK_MS. */
-  --pds-duration-paper-stack: 320ms;
+     PROTO_PAPER_STACK_MS.
+
+     Was 320ms — the top of the Standard band, and it read as slow rather than as weighty.
+     The move is legible at 260 and the sheet still arrives somewhere rather than appearing;
+     the guidelines put menus and modals at 0.25–0.35s and this is the same order of event. */
+  --pds-duration-paper-stack: 260ms;
+  /* ...and going the other way, shorter.
+     
+     An exit is not the same event as an entrance: on the way in you are being shown where
+     something came from, and on the way out you already know — waiting through the full move
+     is waiting for an answer you have. Roughly three quarters, which keeps it a move rather
+     than a cut, and it is a collapse of a full pane so it does not go under ~200ms. Paired
+     with PROTO_PAPER_STACK_EXIT_MS. */
+  --pds-duration-paper-stack-exit: 200ms;
   /* How much of the base paper stays visible above a stacked sheet — the edge you
      tap to go back. Enough for a line of caption with breathing room; tightened on
      phones where the toolbar already owns the top of the pane. */

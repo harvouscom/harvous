@@ -18,7 +18,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
-import { buildNoteDockOrigin, readPaperStackLayoutSignature } from './paper-stack-origins';
+import { buildNoteDockOrigin, readPaperStackDockPlacement } from './paper-stack-origins';
 import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
 import { bookSlug } from '@/utils/bible-book-chapters';
 import {
@@ -811,7 +811,7 @@ export default function PrototypeNotePage() {
                   left: Math.round(rect.left),
                   width: Math.round(rect.width),
                   height: Math.round(rect.height),
-                  layout: readPaperStackLayoutSignature() ?? '',
+                  dockPlacement: readPaperStackDockPlacement() ?? '',
                 }
               : undefined,
         }),

@@ -155,49 +155,55 @@ export function noteDockReturnSearch(
 }
 
 /**
- * A short description of the shell arrangement the dock is laid out by.
+ * Where the dock band is, and whether a panel is taking part of it.
  *
- * Not a measurement — there is nothing left to measure. When the dock is unmounted its slot
- * collapses to a zero-sized box, so at collapse time the screen cannot say where the card
- * will reappear. What it can say is whether the shell is arranged the way it was: the sidebar
- * showing or collapsed, an inspector docked or not, the window the size it was. Those are the
- * three things that move the dock, and each of them is legible from the shell's own classes
- * and the window. Same signature, same place.
+ * Not the dock card — that is unmounted at collapse time and its slot collapses to a
+ * zero-sized box, which is why this exists at all. The band it lives in is mounted either
+ * way, and its left edge, width and bottom are exactly what the sidebar's width and the
+ * window's size move. The one thing the band does *not* show is the docked inspector's
+ * reserve, which is padding on the slot and so only appears while the slot has a card in it
+ * — hence the flag beside it.
+ *
+ * The first version of this read the shell's whole class list instead, which quietly broke
+ * the thing it was guarding: the note route carries `--note-chrome` and the reader does not,
+ * so expanding from a note and collapsing back could never match, and the morph was
+ * suppressed every single time. Route chrome is not layout. Only measure what moves the dock.
  */
-export function readPaperStackLayoutSignature(): string | null {
-  if (typeof document === 'undefined' || typeof window === 'undefined') return null;
-  const shell = document.querySelector('.proto-shell');
-  if (!shell) return null;
-  const docked = document.querySelector(
+export function readPaperStackDockPlacement(): string | null {
+  if (typeof document === 'undefined') return null;
+  const band = document.querySelector('.proto-shell__study-dock-layer');
+  if (!band) return null;
+  const rect = band.getBoundingClientRect();
+  const inspectorDocked = document.querySelector(
     '.proto-main-pane--inspector-docked, .proto-note-pane-row--inspector-open',
   );
   return [
-    shell.className,
-    docked ? 'inspector' : '',
-    window.innerWidth,
-    window.innerHeight,
+    Math.round(rect.left),
+    Math.round(rect.width),
+    Math.round(rect.bottom),
+    inspectorDocked ? 'inspector' : '',
   ].join('|');
 }
 
 /**
- * The morph rect, if the shell is still arranged the way it was when the rect was taken.
+ * The morph rect, if the dock band is still where it was when the rect was taken.
  *
  * A collapse plays the expand in reverse: the clip closes onto the rect captured while the
  * dock was still on screen, minutes and several chapters ago. Between the two the sidebar can
- * collapse, an inspector can dock, the window can be dragged — each of which puts the dock
- * card somewhere else, and none of which can be discovered by measuring, because the thing to
- * measure is not mounted. So the arrangement stands in for the rectangle. When it has
- * changed, the honest answer is no morph: the sheet leaves the way any other sheet does,
- * which is right rather than a flourish aimed at the wrong part of the screen.
+ * collapse or be dragged, an inspector can dock, the window can be resized — each of which
+ * puts the dock card somewhere else, and none of which can be found by measuring the card,
+ * because the card is not mounted. So the band stands in for it. When the band has moved, the
+ * honest answer is no morph: the sheet leaves the way any other sheet does, which is right
+ * rather than a flourish aimed at the wrong part of the screen.
  *
- * Pure, and given the signature rather than reading it, so the rule is testable without a
+ * Pure, and given the placement rather than reading it, so the rule is testable without a
  * DOM. `null` means there was nothing to read — mid-teardown, or a test — and a rect that
  * cannot be checked is not one to animate onto.
  */
 export function morphFromIfStillPlaced(
   morphFrom: PaperStackMorphFrom | undefined,
-  layout: string | null,
+  placement: string | null,
 ): PaperStackMorphFrom | undefined {
-  if (!morphFrom || !layout) return undefined;
-  return morphFrom.layout === layout ? morphFrom : undefined;
+  if (!morphFrom || !placement) return undefined;
+  return morphFrom.dockPlacement === placement ? morphFrom : undefined;
 }

@@ -41,7 +41,7 @@ import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack
 import {
   morphFromIfStillPlaced,
   noteDockReturnSearch,
-  readPaperStackLayoutSignature,
+  readPaperStackDockPlacement,
 } from '../pages/prototype/paper-stack-origins';
 import {
   notifyRecallCooldownChanged,
@@ -50,7 +50,10 @@ import {
 } from '../pages/prototype/proto-recall-cooldown';
 import { recordRecallOpportunityEvent } from '../pages/prototype/proto-recall-events';
 import { localDayIndex } from '@/utils/local-day-index';
-import { PROTO_PAPER_STACK_MS, PROTO_RESOURCE_MORPH_MS } from './proto-motion';
+import {
+  PROTO_PAPER_STACK_EXIT_MS,
+  PROTO_RESOURCE_MORPH_MS,
+} from './proto-motion';
 import '../styles/prototype-tokens.css';
 import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
@@ -468,8 +471,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         // chapter off mid-close; clearing late leaves a dead page on screen.
         // Same test the stack itself makes, so the hold matches the animation that is
         // actually playing rather than the one that was captured.
-      }, morphFromIfStillPlaced(origin.morphFrom, readPaperStackLayoutSignature())
-        ? PROTO_PAPER_STACK_MS
+      }, morphFromIfStillPlaced(origin.morphFrom, readPaperStackDockPlacement())
+        ? PROTO_PAPER_STACK_EXIT_MS
         : PROTO_RESOURCE_MORPH_MS);
       return;
     }

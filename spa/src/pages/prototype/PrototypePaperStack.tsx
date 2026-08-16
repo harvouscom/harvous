@@ -13,7 +13,9 @@
  * and keeping a second copy below the note would be the same paper in two places.
  *
  * Design + motion: `/__dev/design-system` → ds-15-paper-stack.
- * Timing is `PROTO_PAPER_STACK_MS` ↔ `--pds-duration-paper-stack`; the noteDock morph is
+ * Timing is `PROTO_PAPER_STACK_MS` ↔ `--pds-duration-paper-stack` in, and
+ * `PROTO_PAPER_STACK_EXIT_MS` ↔ `--pds-duration-paper-stack-exit` out — an exit is shorter
+ * than the arrival it undoes. The noteDock morph's no-rect fallback is
  * `PROTO_RESOURCE_MORPH_MS` ↔ `--pds-duration-morph`.
  */
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
@@ -22,7 +24,7 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 import type { PaperStackState } from '../../layouts/proto-shell-context';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
-import { morphFromIfStillPlaced, readPaperStackLayoutSignature } from './paper-stack-origins';
+import { morphFromIfStillPlaced, readPaperStackDockPlacement } from './paper-stack-origins';
 
 export default function PrototypePaperStack({
   stack,
@@ -91,7 +93,7 @@ export default function PrototypePaperStack({
    * click, so the hold and the animation never disagree.
    */
   const morph = collapses
-    ? morphFromIfStillPlaced(origin.morphFrom, readPaperStackLayoutSignature())
+    ? morphFromIfStillPlaced(origin.morphFrom, readPaperStackDockPlacement())
     : undefined;
   const rootRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {

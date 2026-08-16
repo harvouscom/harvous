@@ -872,7 +872,9 @@ function PaperStackScene() {
         origin&apos;s top corners peek above the sheet and are the way back; flipped down, the
         sheet&apos;s own top edge peeks from the bottom and is the way back up. Neither paper
         unmounts, so position and draft both survive the move —{' '}
-        <code>PROTO_PAPER_STACK_MS</code> ↔ <code>--pds-duration-paper-stack</code>. A{' '}
+        <code>PROTO_PAPER_STACK_MS</code> ↔ <code>--pds-duration-paper-stack</code> going in,{' '}
+        <code>PROTO_PAPER_STACK_EXIT_MS</code> ↔{' '}
+        <code>--pds-duration-paper-stack-exit</code> coming out. A{' '}
         <code>noteDock</code> origin (the reader expanded out of a scripture dock) enters with the
         expansion morph instead of the slide.
       </p>

@@ -160,22 +160,31 @@ describe('noteDockReturnSearch', () => {
 });
 
 describe('morphFromIfStillPlaced', () => {
-  const layout = 'proto-shell proto-theme|inspector|1400|900';
-  const rect = { top: 400, left: 300, width: 720, height: 240, layout };
+  const placement = '14|972|780|';
+  const rect = { top: 400, left: 300, width: 720, height: 240, dockPlacement: placement };
 
-  it('keeps the rect while the shell is arranged the way it was', () => {
-    expect(morphFromIfStillPlaced(rect, layout)).toBe(rect);
+  it('keeps the rect while the dock band is where it was', () => {
+    expect(morphFromIfStillPlaced(rect, placement)).toBe(rect);
   });
 
-  /* Each of these moves the dock card: the inspector docking, the sidebar collapsing, the
-     window being dragged. None of them can be caught by measuring, because at collapse time
-     the dock is not mounted to measure. */
-  it('drops it once the shell has been rearranged', () => {
-    expect(morphFromIfStillPlaced(rect, 'proto-shell proto-theme||1400|900')).toBeUndefined();
-    expect(
-      morphFromIfStillPlaced(rect, 'proto-shell proto-theme proto-shell--sidebar-collapsed|inspector|1400|900'),
-    ).toBeUndefined();
-    expect(morphFromIfStillPlaced(rect, 'proto-shell proto-theme|inspector|1100|900')).toBeUndefined();
+  /* Each of these moves the dock card: the sidebar collapsing or being dragged (left/width),
+     the window resizing (width/bottom), the inspector docking (the flag — its reserve is
+     padding on the slot, so it does not show in the band's own rect). */
+  it('drops it once the band has moved', () => {
+    expect(morphFromIfStillPlaced(rect, '92|894|780|')).toBeUndefined();
+    expect(morphFromIfStillPlaced(rect, '14|972|640|')).toBeUndefined();
+    expect(morphFromIfStillPlaced(rect, '14|972|780|inspector')).toBeUndefined();
+  });
+
+  /*
+   * The regression this rule had at first: it compared the shell's whole class list, and the
+   * note route carries `--note-chrome` while the reader does not. Expanding from a note and
+   * collapsing back could therefore never match, so the morph was suppressed on every single
+   * collapse — the guard silently disabled the thing it was guarding. Route chrome is not
+   * layout; only what moves the dock belongs in here.
+   */
+  it('does not care which route is on screen', () => {
+    expect(morphFromIfStillPlaced(rect, placement)).toBe(rect);
   });
 
   it('declines to animate onto a rect it cannot check', () => {
@@ -183,6 +192,6 @@ describe('morphFromIfStillPlaced', () => {
   });
 
   it('passes through the no-morph case', () => {
-    expect(morphFromIfStillPlaced(undefined, layout)).toBeUndefined();
+    expect(morphFromIfStillPlaced(undefined, placement)).toBeUndefined();
   });
 });
