@@ -791,6 +791,29 @@ export default function PrototypeNotePage() {
   );
 
 
+  /**
+   * Tell the shell what to call this note on the parked edge.
+   *
+   * Live rather than captured when the stack is made: a compose draft started from the
+   * reader has no title yet, and the one you type a moment later is exactly the title the
+   * edge should carry. Skipped for a `noteDock` stack, where the note is the origin and
+   * already labelled, and skipped when the stack holds a different note than this page.
+   *
+   * Up here with the other hooks, ABOVE the loading and not-found returns further down.
+   * This sat below them and crashed the page: a loading render stopped before it, the
+   * loaded render ran it, and React counted more hooks the second time. The title it reads
+   * is the same pair the dock expansion uses — the live snapshot, then the fetched note —
+   * because the editor's own display title is not built until after those returns, and
+   * reaching for it is what put this in the wrong place to begin with. Stripping the
+   * server's auto-untitled name happens where the label is drawn, not here.
+   */
+  const stackedNoteTitle = liveNoteSnapshot.title || note?.title || '';
+  useEffect(() => {
+    if (!paperStack || paperStack.origin.kind === 'noteDock') return;
+    if (paperStack.noteId && paperStack.noteId !== noteId) return;
+    setStackNoteTitle(stackedNoteTitle);
+  }, [paperStack, noteId, stackedNoteTitle, setStackNoteTitle]);
+
   const onReferenceDeepLinkHandoff = useCallback(() => {
     if (!initialReferenceWord) return;
     navigate({
@@ -2121,21 +2144,6 @@ export default function PrototypeNotePage() {
     liveNoteSnapshot.title || prototypeDisplayTitle,
     liveNoteSnapshot.content || editorNote.content,
   );
-
-  /**
-   * Tell the shell what to call this note on the parked edge.
-   *
-   * Live rather than captured when the stack is made: a compose draft started from the
-   * reader has no title yet, and the one you type a moment later is exactly the title the
-   * edge should carry. Skipped for a `noteDock` stack, where the note is the origin and
-   * already labelled, and skipped when the stack holds a different note than this page.
-   */
-  const stackedNoteTitle = liveNoteSnapshot.title || prototypeDisplayTitle || '';
-  useEffect(() => {
-    if (!paperStack || paperStack.origin.kind === 'noteDock') return;
-    if (paperStack.noteId && paperStack.noteId !== noteId) return;
-    setStackNoteTitle(stackedNoteTitle);
-  }, [paperStack, noteId, stackedNoteTitle, setStackNoteTitle]);
   const showTemplatesInInspector = !isForeignSharedNote && !readOnlyInSharedSpace && isEditable;
   const canAttachSpaceTemplate =
     !!templateSpaceAccess.access &&
