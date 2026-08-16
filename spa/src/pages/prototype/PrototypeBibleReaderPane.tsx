@@ -246,6 +246,14 @@ export interface PrototypeBibleReaderPaneProps {
    * word twice has to be two requests rather than one piece of state that is already set.
    */
   referenceRequest?: { word: string; anchor: string; verse?: number; requestKey: string } | null;
+  /**
+   * Changes when the same verse is asked for again, so arriving twice lands twice.
+   *
+   * Landing keys off `focusVerse`, which does not change when you re-open the passage you are
+   * already on — and by then you may have cleared the landing with a stray tap, so the second
+   * ask did nothing at all.
+   */
+  landRequestKey?: string;
 }
 
 export default function PrototypeBibleReaderPane({
@@ -264,6 +272,7 @@ export default function PrototypeBibleReaderPane({
   onSaveReference,
   saveReferenceLabel,
   referenceRequest,
+  landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
   const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
   const { verseLayout, showMarginNotes } = useSyncExternalStore(
@@ -638,7 +647,9 @@ export default function PrototypeBibleReaderPane({
     scroller.scrollTop = Math.max(0, scroller.scrollTop + (elRect.top - scrollerRect.top) - centreOffset);
     setLanding([focusVerse, focusVerse]);
     setFocusedVerse(focusVerse);
-  }, [focusVerse, verses.length]);
+    // `landRequestKey` so asking for the verse you are already on lands on it again: the
+    // verse number has not changed, but the request is new.
+  }, [focusVerse, verses.length, landRequestKey]);
 
   const selectVerse = useCallback((num: number, extend: boolean) => {
     setSelection((current) => {

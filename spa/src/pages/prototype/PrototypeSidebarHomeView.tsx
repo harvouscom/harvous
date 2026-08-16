@@ -1620,21 +1620,22 @@ export default function PrototypeSidebarHomeView({
   );
 
   /*
-   * Once the shelf has been shown, it does not grow.
+   * Once a row has been shown, it keeps its place.
    *
    * The presentation gate waits on fifteen queries and presents Home once — but it has a
    * 2.5s deadline behind it, because a disabled query stays pending forever and a blank
    * Home is worse than a little jitter. On a cold load that deadline fires first, and
-   * whatever lands afterwards used to join the deck.
+   * whatever lands afterwards used to reorder the deck.
    *
    * That was tolerable while this was a card stack: one card showed and a late arrival
-   * changed something behind it. Flat, every arrival is a row appearing under the pointer
-   * in a list someone is already reading. So the first set to be presented is the set for
-   * this visit — newcomers wait for the next mount, which is the right cadence for a shelf
-   * that is a daily selection rather than a feed.
+   * changed something behind it. Flat, every arrival moves rows under the pointer in a list
+   * someone is already reading. So position is what is frozen: a row that has been shown
+   * stays where it is for the visit.
    *
-   * Removals still apply: snoozing is how the deck gets trained, and a row that has been
-   * put away has to leave. Only joining is frozen, and only after something has shown.
+   * What is *not* frozen is the count. Freezing the id list alone meant the shelf could only
+   * ever shrink — see the resolution below — so a slow load left it short and late data
+   * quietly took rows away. Removals still apply: snoozing is how the deck gets trained, and
+   * a row that has been put away has to leave.
    */
   const [shownRecallIds, setShownRecallIds] = useState<string[] | null>(null);
   useEffect(() => {
@@ -1644,11 +1645,49 @@ export default function PrototypeSidebarHomeView({
 
   const recallOpportunities = useMemo(() => {
     if (shownRecallIds === null) return selectedRecallOpportunities;
-    const byId = new Map(selectedRecallOpportunities.map((op) => [op.id, op]));
-    return shownRecallIds
-      .map((id) => byId.get(id))
+
+    /*
+     * Resolve against every live candidate, not the selected six.
+     *
+     * `selectRecallOpportunities` rotates by a modulus of the candidate count and *then*
+     * slices — so when a late page changes membership, everything in the tail moves and a row
+     * that is still perfectly valid can fall outside the top six. Looking it up in the sliced
+     * list found nothing and the row disappeared mid-read, which is the one thing freezing the
+     * shelf was supposed to prevent. Snoozed rows are still excluded, because putting one away
+     * has to remove it.
+     */
+    const snoozed = new Set(recallSnoozedIds);
+    const live = new Map(
+      recallCandidates.filter((op) => !snoozed.has(op.id)).map((op) => [op.id, op]),
+    );
+
+    const pinned = shownRecallIds
+      .map((id) => live.get(id))
       .filter((op): op is RecallOpportunity => Boolean(op));
-  }, [shownRecallIds, selectedRecallOpportunities]);
+
+    /*
+     * Then top back up to the limit. The presentation gate has a 2.5s deadline behind it, so a
+     * cold load can snapshot a half-assembled shelf and — with joining frozen — leave it short
+     * for the whole visit. Backfilling only ever appends, and only into space something else
+     * vacated or never filled, so the rows already being read stay put.
+     */
+    const shown = new Set(pinned.map((op) => op.id));
+    const backfill = selectedRecallOpportunities.filter((op) => !shown.has(op.id));
+    return [...pinned, ...backfill].slice(0, 6);
+  }, [shownRecallIds, selectedRecallOpportunities, recallCandidates, recallSnoozedIds]);
+
+  /*
+   * Anything that made it onto the shelf joins the frozen set, backfilled rows included.
+   * Without this they would be the only unpinned rows on screen and would keep the exact
+   * instability this is here to stop — just one row further down.
+   */
+  useEffect(() => {
+    if (shownRecallIds === null) return;
+    const known = new Set(shownRecallIds);
+    const added = recallOpportunities.map((op) => op.id).filter((id) => !known.has(id));
+    if (added.length === 0) return;
+    setShownRecallIds([...shownRecallIds, ...added]);
+  }, [recallOpportunities, shownRecallIds]);
 
   const topCanonSection = useMemo(
     () => deriveTopCanonSections([...fingerprintsById.values()], 1)[0],
@@ -1878,6 +1917,7 @@ export default function PrototypeSidebarHomeView({
                   search: {
                     v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
                     t: undefined,
+                    req: String(Date.now()),
                   },
                 });
               }}

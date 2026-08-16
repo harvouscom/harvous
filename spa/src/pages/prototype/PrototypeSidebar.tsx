@@ -1597,6 +1597,7 @@ export default function PrototypeSidebar({
       search: {
         v: smartJump.verse ? String(smartJump.verse) : undefined,
         t: smartJump.translation || undefined,
+        req: String(Date.now()),
       },
     });
   }, [smartJump, isMobileSidebar, closeDrawer, navigate]);
@@ -3152,8 +3153,9 @@ export default function PrototypeSidebar({
             v: typeof parsed.verse === 'number' ? String(parsed.verse) : undefined,
             t: r.scripturePassageTranslation || undefined,
             ref: word,
-            // Same word tapped twice has to reopen the card, so the request needs to differ.
-            dockReq: String(Date.now()),
+            // Same row tapped twice has to land and reopen the card again, so the request
+            // needs to differ — the router treats an identical URL as no navigation at all.
+            req: String(Date.now()),
           },
         });
         afterNav();
@@ -3296,6 +3298,7 @@ export default function PrototypeSidebar({
             search: {
               v: result.scriptureFocusVerse ? String(result.scriptureFocusVerse) : undefined,
               t: undefined,
+              req: String(Date.now()),
             },
           });
           return;
@@ -4375,7 +4378,7 @@ export default function PrototypeSidebar({
                             void navigate({
                               to: prototypeReadRouteTo(),
                               params: { book: bookSlug(bookTitle), chapter: String(p.chapter) },
-                              search: { v: String(p.verseStart), t: undefined },
+                              search: { v: String(p.verseStart), t: undefined, req: String(Date.now()) },
                             });
                           }}
                         >

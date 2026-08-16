@@ -364,8 +364,12 @@ function buildPrototypeRouteBranch() {
    *
    * `?ref=` asks the reader to open a looked-up word's card on arrival, so a saved reference
    * in the list can land on the thing it names rather than just the chapter it came from.
-   * `?dockReq=` is a nonce: tapping the same reference twice has to reopen the card, and
-   * without something changing in the URL the second tap would be a no-op.
+   *
+   * `?req=` is a nonce meaning "this is a fresh request, apply the arrival behaviour again".
+   * The router dedupes a navigation to a URL you are already on — same history entry, same
+   * location key, no state change anywhere — so tapping Today's passage a second time after
+   * clicking the verse away is invisible to the reader without it. One nonce rather than one
+   * per behaviour: landing on the verse and opening the word's card are the same event.
    */
   const prototypeReadRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
@@ -374,11 +378,11 @@ function buildPrototypeRouteBranch() {
     // just `{v, t}`, and a required-but-undefined key would make each of them a type error.
     validateSearch: (
       search: Record<string, unknown>,
-    ): { v?: string; t?: string; ref?: string; dockReq?: string } => ({
+    ): { v?: string; t?: string; ref?: string; req?: string } => ({
       v: typeof search.v === 'string' ? search.v : undefined,
       t: typeof search.t === 'string' ? search.t : undefined,
       ref: typeof search.ref === 'string' ? search.ref : undefined,
-      dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
+      req: typeof search.req === 'string' ? search.req : undefined,
     }),
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadPage')),
   });
