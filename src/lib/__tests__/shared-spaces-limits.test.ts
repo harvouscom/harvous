@@ -51,7 +51,7 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     const bullets = getSharedSpacesAddonFeatureBullets({ hasAddOn: false });
     expect(bullets[0]).toBe('Everything in free');
     expect(bullets[1]).toBe('Unlimited shared spaces');
-    expect(bullets).toHaveLength(4);
+    expect(bullets).toHaveLength(5);
   });
 
   it('keeps Everything in free and swaps the owned-spaces bullet when active', () => {

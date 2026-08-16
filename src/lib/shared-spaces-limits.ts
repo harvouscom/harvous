@@ -18,6 +18,7 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
   'Unlimited shared spaces',
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
+  'Turn a thread into a study plan your group reads together',
   'Joining is always free',
 ] as const;
 
