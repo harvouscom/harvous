@@ -38,7 +38,11 @@ import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBa
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
-import { noteDockReturnSearch } from '../pages/prototype/paper-stack-origins';
+import {
+  morphFromIfStillPlaced,
+  noteDockReturnSearch,
+  readPaperStackLayoutSignature,
+} from '../pages/prototype/paper-stack-origins';
 import {
   notifyRecallCooldownChanged,
   recordRecallSnoozed,
@@ -462,7 +466,11 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
         // same length: closing a clip back onto the dock's rect is the paper-stack move,
         // while the no-rect fallback is the shorter resource morph. Clearing early cuts the
         // chapter off mid-close; clearing late leaves a dead page on screen.
-      }, origin.morphFrom ? PROTO_PAPER_STACK_MS : PROTO_RESOURCE_MORPH_MS);
+        // Same test the stack itself makes, so the hold matches the animation that is
+        // actually playing rather than the one that was captured.
+      }, morphFromIfStillPlaced(origin.morphFrom, readPaperStackLayoutSignature())
+        ? PROTO_PAPER_STACK_MS
+        : PROTO_RESOURCE_MORPH_MS);
       return;
     }
 

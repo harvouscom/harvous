@@ -13839,7 +13839,16 @@ html.harvous-prototype-route
   -webkit-user-select: none;
   flex: 0 0 22px;
   width: 22px;
-  margin: 0;
+  /*
+   * In from the row's trailing edge, so the grip lines up with the active-space check.
+   *
+   * The check is INSIDE the row button and stops at its padding; the handle is a sibling
+   * OUTSIDE it and ran to the row's own edge, which left the two glyphs in different columns
+   * — 8px apart, close enough to read as a mistake rather than as two different things.
+   * Measured against the checked row, not derived: the rows are indented differently
+   * depending on nesting, so only the active row's check is the column to match.
+   */
+  margin: 0 var(--pds-space-2) 0 0;
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -18570,6 +18579,22 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
     translateY(calc(-1 * var(--pds-editor-paper-inset-top)))
     scale(var(--pds-paper-stack-back-scale));
   z-index: var(--pds-z-base);
+  pointer-events: none;
+}
+
+/*
+ * The paper behind is scenery, and scenery does not take clicks.
+ *
+ * It is drawn at 96% — a transform, so everything it reports about itself is in scaled
+ * space. Anything positioned from a `getBoundingClientRect()` taken there lands in the wrong
+ * place, which is the trap the reader's verse menu would fall into if a verse down there
+ * could be tapped. Nothing is meant to be reachable on it anyway: the sheet covers all of it
+ * but the band, and the band belongs to the edge.
+ *
+ * Keyed off which layer is behind, like the fill and the shadow, so the parked flip carries
+ * it — once the note parks, the base is the paper you are reading and takes clicks again.
+ */
+.pds-paper-stack:not(:has(.pds-paper-stack__sheet[data-stacked='false'])) .pds-paper-stack__base {
   pointer-events: none;
 }
 

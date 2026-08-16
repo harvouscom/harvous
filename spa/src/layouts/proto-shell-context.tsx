@@ -276,6 +276,14 @@ export type PaperStackMorphFrom = {
   left: number;
   width: number;
   height: number;
+  /**
+   * The shell arrangement this rect was measured in — see `readPaperStackLayoutSignature`.
+   *
+   * The rect is captured when the dock expands and reused when it collapses, and nothing can
+   * re-measure in between: the dock is unmounted, and its empty slot has no geometry. This is
+   * how the collapse knows the rect is still true.
+   */
+  layout: string;
 };
 
 export type PaperStackOrigin = {

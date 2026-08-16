@@ -2,7 +2,7 @@ import { stashComposeRestore } from '../../lib/compose-session-restore';
 import { consumePendingNoteFocus } from '../../lib/pending-note-focus';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import {
   matchPrototypeNoteId,
@@ -18,7 +18,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
-import { buildNoteDockOrigin } from './paper-stack-origins';
+import { buildNoteDockOrigin, readPaperStackLayoutSignature } from './paper-stack-origins';
+import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
 import { bookSlug } from '@/utils/bible-book-chapters';
 import {
   getNoteIdFromCreateResponse,
@@ -453,6 +454,7 @@ export default function PrototypeNotePage() {
   }, [isDraft, note?.secondaryCollections]);
 
   const queryClient = useQueryClient();
+  const router = useRouter();
   const updateNoteMutation = useUpdateNote();
   const createNoteMutation = useCreateSimpleNote();
   const patchSpaceNoteOrganizationMutation = usePatchSpaceNoteOrganization();
@@ -735,6 +737,39 @@ export default function PrototypeNotePage() {
   }, [navigate, noteSlugParam, initialScriptureRef, contextSpaceId]);
 
   /**
+   * Warm the reader while the dock is still open, not when the tap comes.
+   *
+   * Expanding a dock is a morph: the chapter is revealed out of the dock's own rectangle, at
+   * full size, with nothing scaled. That only reads as one surface growing if the chapter is
+   * *there* when the clip starts opening — and until now none of it existed yet. The route is
+   * code-split, so the tap paid for a chunk import, and the chapter query started from cold,
+   * so the pane's own 250ms empty state opened inside the clip. Two loads inside the one
+   * animation that is supposed to hide that there was any.
+   *
+   * Both are idempotent and both are already-shared definitions — `bibleChapterQueryOptions`
+   * is the same options object the reader's own hook uses, so this warms the entry it will
+   * read rather than a second one beside it.
+   */
+  const warmReaderForPassage = useCallback(
+    ({ reference, translation }: { reference: string; translation: string }) => {
+      const parsed = parseScriptureReference(reference);
+      if (!parsed?.book || !parsed.chapter) return;
+      void router
+        .preloadRoute({
+          to: prototypeReadRouteTo(),
+          params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
+          // The route validates its search, so a preload without one is not the same route.
+          search: { v: undefined, t: translation },
+        })
+        .catch(() => {});
+      void queryClient
+        .prefetchQuery(bibleChapterQueryOptions(parsed.book, parsed.chapter, translation))
+        .catch(() => {});
+    },
+    [router, queryClient],
+  );
+
+  /**
    * A scripture dock expanding one step further, into the Bible reader.
    *
    * The reader stacks over this note as a sheet, the inverse of a note over the reader; the
@@ -776,6 +811,7 @@ export default function PrototypeNotePage() {
                   left: Math.round(rect.left),
                   width: Math.round(rect.width),
                   height: Math.round(rect.height),
+                  layout: readPaperStackLayoutSignature() ?? '',
                 }
               : undefined,
         }),
@@ -2467,6 +2503,7 @@ export default function PrototypeNotePage() {
                 initialResourceDock={initialResourceDock}
                 onOpenResourceFile={(libraryItemId) => void openLibraryFileItem(libraryItemId)}
                 onExpandScriptureToReader={handleExpandScriptureToReader}
+                onScripturePassageShown={warmReaderForPassage}
                 initialScriptureDock={initialScriptureDock}
                 initialCrossRefTarget={initialCrossRefTarget}
                 initialHighlightDock={initialHighlightDock}

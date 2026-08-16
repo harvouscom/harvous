@@ -120,6 +120,16 @@ export interface ScripturePillChromeWebProps {
    * to the dock. Offered only when the caller can take you back — omitted for read-only cards.
    */
   onExpandToReader?: (payload: { reference: string; translation: string }) => void;
+  /**
+   * This dock is now showing a passage — the caller's cue to warm whatever expanding into it
+   * would need.
+   *
+   * Fired on mount and whenever the passage changes, not on the expand tap: by then the work
+   * it pays for is already on the critical path, and the whole point of the morph is that the
+   * chapter is there when the clip opens. The dock is the earliest honest signal that someone
+   * is looking at a passage, which is the moment expanding it becomes plausible.
+   */
+  onPassageShown?: (payload: { reference: string; translation: string }) => void;
   /** Cross-reference tapped in the context strip — caller opens it as a read-only passage card. */
   onOpenScripturePassage?: (reference: string, translation: string) => void;
   /** Read-only passage card (e.g. a cross-reference) — no pill write-back or highlight chrome. */
@@ -147,6 +157,7 @@ export default function ScripturePillChromeWeb({
   onOpenPassageReference,
   onNavigateNote,
   onExpandToReader,
+  onPassageShown,
   onOpenScripturePassage,
   readOnly = false,
 }: ScripturePillChromeWebProps) {
@@ -237,6 +248,12 @@ export default function ScripturePillChromeWeb({
     () => buildReferenceString(selectedBook, chapter, verseStart, endChapter, verseEnd, useVerseRange),
     [selectedBook, chapter, verseStart, endChapter, verseEnd, useVerseRange],
   );
+
+  /* See `onPassageShown` — the caller warms the reader from here, one dock ahead of the tap. */
+  useEffect(() => {
+    if (!onPassageShown || !displayRefString) return;
+    onPassageShown({ reference: displayRefString, translation: trans });
+  }, [onPassageShown, displayRefString, trans]);
 
   // All saved passage study rows (scriptureLink highlights + reference marks) paint INLINE in
   // the passage text — native parity (`ScripturePassageView` underline painting). No list UI.

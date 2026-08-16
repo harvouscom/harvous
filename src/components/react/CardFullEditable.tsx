@@ -278,6 +278,8 @@ interface CardFullEditableProps {
   onOpenResourceFile?: (libraryItemId: string) => void;
   /** Prototype-only: scripture dock → Bible reader (see TiptapEditor). */
   onExpandScriptureToReader?: (payload: { reference: string; translation: string }) => void;
+  /** A scripture dock is showing this passage — see `ScripturePillChromeWeb.onPassageShown`. */
+  onScripturePassageShown?: (payload: { reference: string; translation: string }) => void;
   /**
    * Prototype-only: when set, auto-opens the scripture dock for this reference/translation once
    * the editor has rendered the matching pill (e.g. navigated from the sidebar Highlights list).
@@ -422,6 +424,7 @@ export default function CardFullEditable({
   initialResourceDock = null,
   onOpenResourceFile,
   onExpandScriptureToReader,
+  onScripturePassageShown,
   initialScriptureDock = null,
   initialCrossRefTarget = null,
   initialHighlightDock = null,
@@ -3593,6 +3596,7 @@ export default function CardFullEditable({
                       }
                       onOpenResourceFile={onOpenResourceFile}
                     onExpandScriptureToReader={onExpandScriptureToReader}
+                    onScripturePassageShown={onScripturePassageShown}
                       onReferenceDeepLinkHandoff={
                         editorChromeMode === 'prototypeNative' ? onReferenceDeepLinkHandoff : undefined
                       }
@@ -4014,6 +4018,7 @@ export default function CardFullEditable({
                     }
                     onOpenResourceFile={onOpenResourceFile}
                     onExpandScriptureToReader={onExpandScriptureToReader}
+                    onScripturePassageShown={onScripturePassageShown}
                     onReferenceDeepLinkHandoff={
                       editorChromeMode === 'prototypeNative' ? onReferenceDeepLinkHandoff : undefined
                     }

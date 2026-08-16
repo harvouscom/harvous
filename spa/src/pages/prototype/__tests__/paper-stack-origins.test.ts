@@ -4,6 +4,7 @@ import {
   buildNoteDockOrigin,
   buildRecallCardStackOrigin,
   buildRevisitCardStackOrigin,
+  morphFromIfStillPlaced,
   noteDockReturnSearch,
 } from '../paper-stack-origins';
 
@@ -155,5 +156,33 @@ describe('noteDockReturnSearch', () => {
     expect(first.scriptureRef).toBe('John 15:5');
     // The origin itself is untouched — the anchor rule depends on it staying frozen.
     expect(origin.returnTo.search?.dockReq).toBeUndefined();
+  });
+});
+
+describe('morphFromIfStillPlaced', () => {
+  const layout = 'proto-shell proto-theme|inspector|1400|900';
+  const rect = { top: 400, left: 300, width: 720, height: 240, layout };
+
+  it('keeps the rect while the shell is arranged the way it was', () => {
+    expect(morphFromIfStillPlaced(rect, layout)).toBe(rect);
+  });
+
+  /* Each of these moves the dock card: the inspector docking, the sidebar collapsing, the
+     window being dragged. None of them can be caught by measuring, because at collapse time
+     the dock is not mounted to measure. */
+  it('drops it once the shell has been rearranged', () => {
+    expect(morphFromIfStillPlaced(rect, 'proto-shell proto-theme||1400|900')).toBeUndefined();
+    expect(
+      morphFromIfStillPlaced(rect, 'proto-shell proto-theme proto-shell--sidebar-collapsed|inspector|1400|900'),
+    ).toBeUndefined();
+    expect(morphFromIfStillPlaced(rect, 'proto-shell proto-theme|inspector|1100|900')).toBeUndefined();
+  });
+
+  it('declines to animate onto a rect it cannot check', () => {
+    expect(morphFromIfStillPlaced(rect, null)).toBeUndefined();
+  });
+
+  it('passes through the no-morph case', () => {
+    expect(morphFromIfStillPlaced(undefined, layout)).toBeUndefined();
   });
 });

@@ -22,6 +22,7 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 import type { PaperStackState } from '../../layouts/proto-shell-context';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
+import { morphFromIfStillPlaced, readPaperStackLayoutSignature } from './paper-stack-origins';
 
 export default function PrototypePaperStack({
   stack,
@@ -83,7 +84,15 @@ export default function PrototypePaperStack({
    * layout effect rather than at render: the stack's position is not knowable until it is in
    * the document, and this runs before paint, so the first animated frame already has them.
    */
-  const morph = collapses ? origin.morphFrom : undefined;
+  /*
+   * Recomputed on every render rather than captured, which is what makes the check land at
+   * the right moment: the only render that matters here is the one that sets `data-exiting`,
+   * and by then the pane is whatever it is now. The layout runs the same test in the same
+   * click, so the hold and the animation never disagree.
+   */
+  const morph = collapses
+    ? morphFromIfStillPlaced(origin.morphFrom, readPaperStackLayoutSignature())
+    : undefined;
   const rootRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = rootRef.current;
