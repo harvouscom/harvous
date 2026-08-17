@@ -9690,7 +9690,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 const cardExpanded = isActive && entry.expanded;
                 if (entry.kind === 'scripture' && entry.session.readOnly) {
                   // Read-only passage card (opened from a cross-reference): no pill write-back,
-                  // no accent/highlight chrome. Cross-refs inside it can chain to more cards.
+                  // no accent swatch, no quote-to-note (nothing to attribute it back to). It IS
+                  // real Scripture though, so selecting text can still highlight it — that only
+                  // needs the passage's own reference, not a pill. Cross-refs inside it can
+                  // chain to more cards.
                   return (
                     <ScripturePillChromeWeb
                       key={entry.id}
@@ -9711,6 +9714,25 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       }}
                       onApply={() => {
                         /* read-only — no pill to write */
+                      }}
+                      onPassageHighlightCreated={(excerpt, threadId, accent) => {
+                        syncStudyThreadList(sourceNoteId);
+                        setStudyDockStack((s) =>
+                          openOrFocusHighlight(
+                            s,
+                            {
+                              studyThreadEntryId: threadId,
+                              accent: accent ?? 'warmAmber',
+                              excerpt,
+                              range: null,
+                              focusTitle: excerpt.slice(0, 80),
+                              entryKind: 'scriptureLink',
+                              scriptureReference: entry.session.reference,
+                              scripturePassageTranslation: entry.session.translation || 'NET',
+                            },
+                            { openedFromDockId: entry.id },
+                          ),
+                        );
                       }}
                       editorChromeMode={editorChromeMode}
                       onOpenScripturePassage={(ref, translation) =>
