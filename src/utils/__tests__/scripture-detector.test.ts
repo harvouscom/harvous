@@ -320,6 +320,21 @@ describe('detectScriptureReferences', () => {
       const refs = detectScriptureReferences('John 3:16 - 17');
       expect(refs).toHaveLength(1);
     });
+
+    it('a backwards single-chapter range stays unresolvable, not a truncated single verse', () => {
+      // Regression: "Acts 2:42-25" used to collapse to a valid "Acts 2:42" single-verse
+      // reference, so the highlighter pill-wrapped only "Acts 2:42" and left "-25" dangling
+      // as plain text right after the pill on the shared note page.
+      const refs = detectScriptureReferences('Acts 2:42-25');
+      expect(refs).toHaveLength(1);
+      expect(refs[0].verse).toEqual([42, 25]);
+      expect(refs[0].reference).toBe('Acts 2:42-25');
+      expect(isResolvableScriptureReference(refs[0].reference)).toBe(false);
+      expect(checkScriptureReferenceValidity(refs[0].reference)).toEqual({
+        ok: false,
+        reason: 'That range runs backwards.',
+      });
+    });
   });
 
   describe('false positive rejection', () => {

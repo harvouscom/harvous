@@ -659,12 +659,15 @@ const parseReference = (match: string): ScriptureReference | null => {
               reference: `${canonicalBook} ${chapter}:${verseStart}-${verseEnd}`
             });
           } else if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart > verseEnd) {
-            // Invalid range (start > end) - treat as single verse
+            // Backwards range (e.g. "42-25"). Keep it as a range (not a truncated single verse)
+            // so checkScriptureReferenceValidity's array-based backward-range check rejects it
+            // outright, rather than silently dropping the "-25" tail and pilling just "42" — see
+            // scripture.context.md gotcha on the shared-page rendering bug this used to cause.
             return validateAndWarn({
               book: canonicalBook,
               chapter,
-              verse: verseStart,
-              reference: `${canonicalBook} ${chapter}:${verseStart}`
+              verse: [verseStart, verseEnd] as [number, number],
+              reference: `${canonicalBook} ${chapter}:${verseStart}-${verseEnd}`
             });
           }
           // If parsing fails, fall through to single verse
@@ -681,12 +684,15 @@ const parseReference = (match: string): ScriptureReference | null => {
               reference: `${canonicalBook} ${chapter}:${start}-${end}`
             });
           } else if (!isNaN(start) && !isNaN(end) && start > end) {
-            // Invalid range (start > end) - treat as single verse
+            // Backwards range (e.g. "42-25"). Keep it as a range (not a truncated single verse)
+            // so checkScriptureReferenceValidity's array-based backward-range check rejects it
+            // outright, rather than silently dropping the "-25" tail and pilling just "42" — see
+            // scripture.context.md gotcha on the shared-page rendering bug this used to cause.
             return validateAndWarn({
               book: canonicalBook,
               chapter,
-              verse: start,
-              reference: `${canonicalBook} ${chapter}:${start}`
+              verse: [start, end] as [number, number],
+              reference: `${canonicalBook} ${chapter}:${start}-${end}`
             });
           }
           // Fall through to single verse if parsing fails
