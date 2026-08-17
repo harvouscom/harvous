@@ -18606,6 +18606,18 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   height: var(--pds-paper-stack-peek);
 }
 
+/* Same 24px the papers give up at a narrow pane (see "Both papers, the same width" above,
+   and the matching shadow-strip override below). This edge IS one of those two papers,
+   peeking — at 687px measured on a real note-over-reader stack the row still ran the full
+   687px while the note's own `.proto-editor-paper` had already narrowed to 663px, so the
+   peek read as wider than the paper it belonged to instead of the same sheet continuing
+   underneath it. */
+@container pds-paper-stack (max-width: 760px) {
+  .pds-paper-stack__edge-row {
+    width: min(calc(var(--pds-paper-column) - 24px), 100% - 24px);
+  }
+}
+
 .pds-paper-stack__edge {
   position: absolute;
   /* Fills the band: the whole strip of paper is the way back, and the dismiss sits over
