@@ -625,7 +625,12 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
           contextSpaceId,
           lock: true,
         });
-        if (locked.spaceId !== context.spaceId) {
+        // Same gap as the DELETE handler below: `resolveStudyEntryParentContext` always
+        // answers `spaceId: null` for a parentless row (made while reading, no note to derive
+        // a space from), so comparing straight against `context.spaceId` 404s every edit to a
+        // reading-made highlight or reference — the row's own `spaceId` is authoritative there.
+        const effectiveSpaceId = locked.parentNoteId ? context.spaceId : locked.spaceId;
+        if (locked.spaceId !== effectiveSpaceId) {
           throw new SharedStudyThreadAccessError(404, 'Response not found');
         }
         if (context.isShared) {
@@ -707,8 +712,8 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
                 locked.parentNoteId
                   ? eq(StudyThreadEntries.parentNoteId, locked.parentNoteId)
                   : isNull(StudyThreadEntries.parentNoteId),
-                context.spaceId
-                  ? eq(StudyThreadEntries.spaceId, context.spaceId)
+                effectiveSpaceId
+                  ? eq(StudyThreadEntries.spaceId, effectiveSpaceId)
                   : isNull(StudyThreadEntries.spaceId),
                 eq(StudyThreadEntries.userId, auth.userId),
               ),

@@ -86,7 +86,14 @@ type ReaderDockState =
       newly started note returns the reader to, and a passage has no single one. */
   | { kind: 'reference'; query: string; anchor: string; verse?: number }
   | { kind: 'passage'; reference: string }
-  | { kind: 'highlight'; reference: string; excerpt: string; accent: StudyHighlightAccentKey }
+  | {
+      kind: 'highlight';
+      reference: string;
+      excerpt: string;
+      accent: StudyHighlightAccentKey;
+      /** Null until `onAnnotate`'s create request resolves — see the click handler below. */
+      studyThreadEntryId: string | null;
+    }
   | null;
 
 /** Breathing room above and below the passage a note card holds up. */
@@ -230,12 +237,18 @@ export interface PrototypeBibleReaderPaneProps {
     accent: StudyHighlightAccentKey,
     excerpt: string,
   ) => void;
-  /** Highlight, then open the study dock on it so a thought can be written straight away. */
+  /**
+   * Highlight, then open the study dock on it so a thought can be written straight away.
+   *
+   * Returns the created row's id (or `null` on failure) — the dock opens before this settles,
+   * so the reader threads the id back in once it resolves, letting the dock's own pending-edit
+   * flush pick up whatever was typed in the meantime.
+   */
   onAnnotate?: (
     range: { start: number; end: number },
     accent: StudyHighlightAccentKey,
     excerpt: string,
-  ) => void;
+  ) => Promise<string | null> | void;
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
   /**
@@ -918,12 +931,25 @@ export default function PrototypeBibleReaderPane({
                   icon="pen"
                   label="Annotate"
                   onClick={() => {
-                    onAnnotate({ start: selection[0], end: selection[1] }, accent, selectedText);
+                    // Open on the id-less state right away — the id arrives after the network
+                    // round trip, and HighlightDockWeb already knows how to hold onto whatever
+                    // gets typed before then and flush it once `studyThreadEntryId` shows up.
                     setDock({
                       kind: 'highlight',
                       reference: selectionLabel,
                       excerpt: selectedText,
                       accent,
+                      studyThreadEntryId: null,
+                    });
+                    void Promise.resolve(
+                      onAnnotate({ start: selection[0], end: selection[1] }, accent, selectedText),
+                    ).then((id) => {
+                      if (!id) return;
+                      setDock((prev) =>
+                        prev && prev.kind === 'highlight' && prev.reference === selectionLabel
+                          ? { ...prev, studyThreadEntryId: id }
+                          : prev,
+                      );
                     });
                   }}
                 />
@@ -1288,6 +1314,8 @@ export default function PrototypeBibleReaderPane({
                 excerpt={dock.excerpt}
                 focusTitle={dock.reference}
                 entryKind="scriptureLink"
+                studyThreadEntryId={dock.studyThreadEntryId}
+                contextSpaceId={homeSpaceId}
                 onAccentChange={(next) => {
                   setAccent(next);
                   if (selection) onHighlight?.({ start: selection[0], end: selection[1] }, next, selectedText);
