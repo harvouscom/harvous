@@ -18347,6 +18347,20 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   background: color-mix(in srgb, var(--pds-text-tertiary) 12%, transparent);
 }
 
+/* Already kept — solid instead of dotted, in the accent every saved reference defaults to
+   server-side. Set imperatively (see PrototypeBibleReaderPane's save-tracking effect), not
+   from `verseHtml`'s own markup, which stays save-state-agnostic so it can keep its identity
+   across renders. */
+.pds-reader-text .reference-suggestion[data-reference-saved='true'] {
+  text-decoration-style: solid;
+  text-decoration-thickness: 2px;
+  text-decoration-color: var(--pds-highlight-warm-amber);
+}
+
+.pds-reader-text .reference-suggestion[data-reference-saved='true']:hover {
+  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 14%, transparent);
+}
+
 /* Highlight colours, aliased to the same tokens the note marks use. */
 .pds-reader__verse[data-highlight-color='neutral'] { --mark-accent: var(--pds-highlight-neutral); }
 .pds-reader__verse[data-highlight-color='warmAmber'] { --mark-accent: var(--pds-highlight-warm-amber); }

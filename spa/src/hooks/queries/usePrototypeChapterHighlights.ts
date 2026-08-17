@@ -24,6 +24,18 @@ export function chapterHighlightsKey(book: string, chapter: number, translation:
   return ['prototype', 'scripture-highlights', book, chapter, translation] as const;
 }
 
+const OPTIMISTIC_ID_PREFIX = 'optimistic_';
+
+/**
+ * A row `useCreateChapterHighlight` painted into the cache ahead of the network — real for
+ * colouring the verse, but not a row the server knows about yet. Callers that need to act on
+ * the id itself (PATCH a note onto it, treat it as "already annotated") must wait for the
+ * real one instead.
+ */
+export function isOptimisticChapterHighlightId(id: string | null | undefined): boolean {
+  return !!id && id.startsWith(OPTIMISTIC_ID_PREFIX);
+}
+
 export function usePrototypeChapterHighlights(
   book: string,
   chapter: number,
@@ -92,6 +104,7 @@ export function useCreateChapterHighlight(
   spaceId: string | null | undefined,
 ) {
   const queryClient = useQueryClient();
+  const key = chapterHighlightsKey(book, chapter, translation);
   return useMutation({
     mutationFn: async (input: {
       reference: string;
@@ -108,11 +121,100 @@ export function useCreateChapterHighlight(
       if (!res.ok) throw new Error('Failed to save highlight');
       return res.json();
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: chapterHighlightsKey(book, chapter, translation),
+    /**
+     * Paint the verse the moment the tap happens. Without this, a colour only ever showed up
+     * after the POST resolved AND the refetch it kicked off finished — two round trips before
+     * anything moved, which reads as "the colour doesn't update right away" (worse from the
+     * Annotate dock's swatch, sitting behind the newly-opened card with nothing else to look
+     * at while it waits).
+     */
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<ChapterHighlight[]>(key);
+      queryClient.setQueryData<ChapterHighlight[]>(key, (rows = []) => {
+        const idx = rows.findIndex((r) => r.scriptureReference === input.reference);
+        if (idx === -1) {
+          return [
+            ...rows,
+            {
+              id: `${OPTIMISTIC_ID_PREFIX}${Date.now()}`,
+              scriptureReference: input.reference,
+              highlightAccent: input.accent,
+              miniNoteBody: '',
+              madeWhileReading: true,
+            },
+          ];
+        }
+        const next = rows.slice();
+        next[idx] = { ...next[idx], highlightAccent: input.accent };
+        return next;
       });
+      return { previous };
+    },
+    onError: (_err, _input, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    },
+    onSuccess: () => {
       notifyStudyThreadListChanged(spaceId, null);
+    },
+    // Reconciles the optimistic row with the real one (id, any server-side normalisation)
+    // whether the mutation succeeded or the rollback above needs a fresh copy of truth.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+export interface ChapterReference {
+  id: string;
+  scriptureReference: string | null;
+  /** The looked-up word this reference is for — `sourceSnippet` on the row. */
+  word: string;
+}
+
+export function chapterReferencesKey(book: string, chapter: number, translation: string) {
+  return ['prototype', 'scripture-references', book, chapter, translation] as const;
+}
+
+/**
+ * Same (word, reference) pair on both ends of a save — the reader builds this once to look a
+ * word up before opening its dock, and again to index what `usePrototypeChapterReferences`
+ * returns, so the two only ever miss each other if the reference string itself differs.
+ */
+export function chapterReferenceLookupKey(reference: string, word: string): string {
+  return `${reference}::${word.trim().toLowerCase()}`;
+}
+
+/**
+ * Saved word look-ups on this chapter — same rows `usePrototypeChapterHighlights` reads, the
+ * opposite half of its filter. A highlight/annotation paints a verse; a reference does not, so
+ * the reader needs to know about these separately to tell a word it's already kept from one it
+ * isn't — otherwise every tap opens "Save" again, whether or not that tap already did.
+ */
+export function usePrototypeChapterReferences(
+  book: string,
+  chapter: number,
+  translation: string,
+) {
+  const authReady = useAuthReady();
+  return useQuery({
+    queryKey: chapterReferencesKey(book, chapter, translation),
+    enabled: authReady && !!book && Number.isFinite(chapter),
+    queryFn: async (): Promise<ChapterReference[]> => {
+      const params = new URLSearchParams({ book, chapter: String(chapter), translation });
+      const res = await fetch(`/api/scripture/highlights?${params}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to load references');
+      const data = await res.json();
+      return ((data.highlights ?? []) as Array<Record<string, unknown>>)
+        .filter((row) => row.entryKind === 'reference' || row.entryKindRaw === 'reference')
+        .map((row) => ({
+          id: String(row.id),
+          scriptureReference: (row.scriptureReference as string | null) ?? null,
+          word: ((row.sourceSnippet as string | undefined) || (row.focusTitle as string | undefined) || '').trim(),
+        }))
+        .filter((row) => row.word);
     },
   });
 }

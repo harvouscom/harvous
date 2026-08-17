@@ -5757,6 +5757,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (from === to) return null;
       const snippet = editor.state.doc.textBetween(from, to) || word;
       const defaultAccent: StudyHighlightAccentKey = 'warmAmber';
+
+      /*
+       * Mark the text and flip the dock to its saved chrome right away — both used to wait on
+       * the POST below, so tapping Save did nothing visible until the round trip finished. On
+       * anything but a fast connection that reads as "the save didn't work," because the only
+       * feedback (the highlight appearing, the checkmark becoming the accent swatch) was tied
+       * to the network rather than the tap. `studyThreadEntryId` starts undefined and gets
+       * patched in once the id is known, the same tolerance `HighlightDockWeb` already has for
+       * the reader's own Annotate flow.
+       */
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from, to })
+        .setHighlight({ color: defaultAccent, reference: snippet })
+        .run();
+      onContentChange?.(editor.getHTML());
+      if (opts?.openDock !== false) {
+        openReferenceDock({
+          query: snippet,
+          noteHighlightRange: { from, to },
+          noteHighlightAccent: defaultAccent,
+          studyThreadEntryId: null,
+        });
+      }
+
       let studyId: string | null = null;
       if (editorChromeMode === 'prototypeNative' && sourceNoteId) {
         try {
@@ -5788,16 +5814,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           /* fall through to local-only mark */
         }
       }
+      if (!studyId) return null;
       if (!editor || !isEditorValid(editor)) return studyId;
+      // Backfill the real id onto the mark already showing, so a later tap can resolve it
+      // (open its dock, delete it, etc.) rather than finding an anonymous highlight.
       editor
         .chain()
-        .focus()
         .setTextSelection({ from, to })
-        .setHighlight({
-          color: defaultAccent,
-          reference: snippet,
-          studyThreadEntryId: studyId || undefined,
-        })
+        .setHighlight({ color: defaultAccent, reference: snippet, studyThreadEntryId: studyId })
         .run();
       onContentChange?.(editor.getHTML());
       if (opts?.openDock !== false) {

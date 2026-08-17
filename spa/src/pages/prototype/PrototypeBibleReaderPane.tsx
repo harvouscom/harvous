@@ -65,6 +65,10 @@ import {
   assignAnchorLanes,
   usePrototypeChapterNotes,
 } from '../../hooks/queries/usePrototypeChapterNotes';
+import {
+  isOptimisticChapterHighlightId,
+  chapterReferenceLookupKey,
+} from '../../hooks/queries/usePrototypeChapterHighlights';
 import ReferenceDockWeb from '@/components/react/ReferenceDockWeb';
 import ScripturePillChromeWeb from '@/components/react/ScripturePillChromeWeb';
 import HighlightDockWeb from '@/components/react/HighlightDockWeb';
@@ -84,7 +88,15 @@ type ReaderDockState =
       the single verse when the word was tapped in the chapter, the whole passage when it was
       tapped inside a passage card. `verse` is set only in the first case — it is the verse a
       newly started note returns the reader to, and a passage has no single one. */
-  | { kind: 'reference'; query: string; anchor: string; verse?: number }
+  | {
+      kind: 'reference';
+      query: string;
+      anchor: string;
+      verse?: number;
+      /** Set when this exact (anchor, word) already has a saved reference — the dock opens
+          straight into "saved" chrome instead of showing Save again over one that already is. */
+      savedReferenceId?: string | null;
+    }
   | { kind: 'passage'; reference: string }
   | {
       kind: 'highlight';
@@ -272,8 +284,22 @@ export interface PrototypeBibleReaderPaneProps {
    * it was read. Omitted while a chapter is the base of a paper stack: the note on top owns
    * the saving there, and two Save buttons for one word is a question nobody asked.
    */
-  onSaveReference?: (input: { word: string; reference: string; verse?: number }) => void;
+  /**
+   * Resolves false when the save did not take (offline, not-yet-ready space, server error) —
+   * the dock stays open on false instead of dismissing over a save that silently did nothing.
+   */
+  onSaveReference?: (input: {
+    word: string;
+    reference: string;
+    verse?: number;
+  }) => Promise<boolean> | boolean | void;
   saveReferenceLabel?: string;
+  /**
+   * Every saved word look-up on this chapter, keyed by `chapterReferenceLookupKey(reference,
+   * word)`. Looked up when a word's card opens so a previously-saved one shows "saved" chrome
+   * immediately rather than the pending Save button it would show if this were absent.
+   */
+  savedReferences?: ReadonlyMap<string, string>;
   /**
    * Open a looked-up word's card on arrival, for a saved reference tapped somewhere else.
    *
@@ -308,6 +334,7 @@ export default function PrototypeBibleReaderPane({
   onPrefetchNote,
   onSaveReference,
   saveReferenceLabel,
+  savedReferences,
   referenceRequest,
   landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
@@ -405,6 +432,29 @@ export default function PrototypeBibleReaderPane({
   }, [verses, eastonsIndex, referenceProviders]);
 
   /**
+   * Mark already-saved words in the passage text with a solid underline instead of the dotted
+   * "not yet kept" one. The `.reference-suggestion` spans live inside `verseHtml`'s static
+   * markup (memoised above precisely so a fresh object per render doesn't tear out a live text
+   * selection), so this reaches into the rendered DOM directly rather than regenerating that
+   * HTML every time a save changes what's already saved.
+   */
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const spans = container.querySelectorAll<HTMLElement>('.reference-suggestion');
+    spans.forEach((span) => {
+      const verseNumber = span.closest<HTMLElement>('[data-reader-verse]')?.dataset.readerVerse;
+      const word = span.dataset.referenceWord || span.textContent?.trim();
+      const saved =
+        !!verseNumber &&
+        !!word &&
+        !!savedReferences?.has(chapterReferenceLookupKey(`${book} ${chapter}:${verseNumber}`, word));
+      if (saved) span.setAttribute('data-reference-saved', 'true');
+      else span.removeAttribute('data-reference-saved');
+    });
+  }, [book, chapter, savedReferences, verseHtml]);
+
+  /**
    * Notes anchored to verses in this chapter, laid out as bars in lanes.
    *
    * Read-only: opening a chapter must never touch a note. `updatedAt` is both the sort key and
@@ -422,6 +472,13 @@ export default function PrototypeBibleReaderPane({
   /** What the shell's study dock is showing on behalf of the reader; null when closed. */
   const [dock, setDock] = useState<ReaderDockState>(null);
 
+  /** The saved row for this exact (anchor, word), if a Save already went through for it. */
+  const lookupSavedReferenceId = useCallback(
+    (anchor: string, word: string): string | null =>
+      savedReferences?.get(chapterReferenceLookupKey(anchor, word)) ?? null,
+    [savedReferences],
+  );
+
   /*
    * Honour an arrival request to open a word's card. Keyed on the request's nonce rather than
    * its contents, so tapping the same saved reference again reopens the card after it has
@@ -437,8 +494,9 @@ export default function PrototypeBibleReaderPane({
       query: referenceRequest.word,
       anchor: referenceRequest.anchor,
       verse: referenceRequest.verse,
+      savedReferenceId: lookupSavedReferenceId(referenceRequest.anchor, referenceRequest.word),
     });
-  }, [referenceRequest]);
+  }, [referenceRequest, lookupSavedReferenceId]);
   /** The menu is showing colours for the highlight just made, rather than the action list. */
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -734,18 +792,20 @@ export default function PrototypeBibleReaderPane({
         e.stopPropagation();
         const query = suggestion.dataset.referenceWord || suggestion.textContent?.trim() || '';
         if (query) {
+          const anchor = `${book} ${chapter}:${n}`;
           setDock({
             kind: 'reference',
             query,
-            anchor: `${book} ${chapter}:${n}`,
+            anchor,
             verse: n,
+            savedReferenceId: lookupSavedReferenceId(anchor, query),
           });
         }
         return;
       }
       selectVerse(n, e.shiftKey);
     },
-    [book, chapter, selectVerse],
+    [book, chapter, selectVerse, lookupSavedReferenceId],
   );
 
   const handleVerseKeys = useCallback(
@@ -844,6 +904,17 @@ export default function PrototypeBibleReaderPane({
    * annotation are the same underlying row, so one lookup covers both buttons.
    */
   const existingHighlight = selection ? highlights?.get(selection[0]) : undefined;
+  /**
+   * The id above, but only once it is real. Right after a fresh Highlight tap the cache holds
+   * an optimistic row (see `useCreateChapterHighlight`) so the verse paints immediately — its
+   * id isn't one the server knows yet, so Annotate can't PATCH a note onto it or skip its own
+   * create call for it the way it does for a genuinely existing row.
+   */
+  const existingAnnotationId =
+    existingHighlight?.studyThreadEntryId &&
+    !isOptimisticChapterHighlightId(existingHighlight.studyThreadEntryId)
+      ? existingHighlight.studyThreadEntryId
+      : null;
 
   /** One action in the floating menu. */
   const MenuAction = ({
@@ -958,18 +1029,18 @@ export default function PrototypeBibleReaderPane({
                 <MenuAction
                   icon="pen"
                   label="Annotate"
-                  dot={!!existingHighlight?.studyThreadEntryId}
+                  dot={!!existingAnnotationId}
                   onClick={() => {
-                    if (existingHighlight?.studyThreadEntryId) {
+                    if (existingAnnotationId) {
                       // Already annotated — go straight to the existing row instead of
                       // starting another network round trip for one that's already there.
                       setDock({
                         kind: 'highlight',
                         reference: selectionLabel,
                         excerpt: selectedText,
-                        accent: existingHighlight.accent,
-                        studyThreadEntryId: existingHighlight.studyThreadEntryId,
-                        miniNoteBody: existingHighlight.miniNoteBody ?? '',
+                        accent: existingHighlight!.accent,
+                        studyThreadEntryId: existingAnnotationId,
+                        miniNoteBody: existingHighlight!.miniNoteBody ?? '',
                       });
                       setLanding(selection);
                       setSelection(null);
@@ -1329,20 +1400,32 @@ export default function PrototypeBibleReaderPane({
               <ReferenceDockWeb
                 initialQuery={dock.query}
                 onDone={() => setDock(null)}
-                // Always "pending" here: the reader has no note, so a word looked up from a
-                // chapter is never already kept. Whether it CAN be kept is the page's call,
-                // and without a handler the dock shows no save at all — same as before.
-                pendingSuggestion={!!onSaveReference}
+                // Pending only when this exact word hasn't already been saved against this
+                // exact passage — `savedReferenceId` is looked up before the dock even opens
+                // (see `lookupSavedReferenceId`), so a word saved on an earlier visit shows
+                // its saved chrome immediately instead of the Save button all over again.
+                pendingSuggestion={!dock.savedReferenceId && !!onSaveReference}
+                // Drives the header's accent colour: without this a saved word's dock looked
+                // exactly as neutral as one that was never saved at all, the same "nothing
+                // visibly changed" gap the save button itself had.
+                passageReferenceSaved={!!dock.savedReferenceId}
                 saveReferenceLabel={saveReferenceLabel}
                 onSaveReference={
                   onSaveReference
                     ? () => {
-                        onSaveReference({
-                          word: dock.query,
-                          reference: dock.anchor,
-                          verse: dock.verse,
+                        // Wait for the result: closing unconditionally made a save that
+                        // silently failed (offline, space not ready yet) look identical to
+                        // one that worked — the dock vanished either way. `false` keeps it
+                        // open so there's something to retry against.
+                        void Promise.resolve(
+                          onSaveReference({
+                            word: dock.query,
+                            reference: dock.anchor,
+                            verse: dock.verse,
+                          }),
+                        ).then((ok) => {
+                          if (ok !== false) setDock(null);
                         });
-                        setDock(null);
                       }
                     : undefined
                 }
@@ -1363,7 +1446,12 @@ export default function PrototypeBibleReaderPane({
                 onDone={() => setDock(null)}
                 onApply={() => undefined}
                 onOpenPassageReference={(word) =>
-                  setDock({ kind: 'reference', query: word, anchor: dock.reference })
+                  setDock({
+                    kind: 'reference',
+                    query: word,
+                    anchor: dock.reference,
+                    savedReferenceId: lookupSavedReferenceId(dock.reference, word),
+                  })
                 }
                 onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
               />

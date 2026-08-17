@@ -49,8 +49,11 @@ export interface ReferenceDockWebProps {
   passageReference?: boolean;
   /** When true the passage reference was saved — show accent/remove chrome (no note mark). */
   passageReferenceSaved?: boolean;
-  /** Persist the pending suggestion as a real reference. */
-  onSaveReference?: () => void;
+  /**
+   * Persist the pending suggestion as a real reference. May return a promise — awaited only to
+   * know when to drop the button's own pending state, not to change what the caller does.
+   */
+  onSaveReference?: () => void | Promise<unknown>;
   /**
    * What the save action is called here. A reference has to belong to a note, so the Bible
    * reader offers this with no note in hand and the honest verb changes: saving into the
@@ -147,9 +150,18 @@ export default function ReferenceDockWeb({
   const [showScriptureRefs, setShowScriptureRefs] = useState(false);
   const scriptureRefsRef = useRef<HTMLDivElement>(null);
   const prevShowScriptureRefs = useRef(false);
+  /**
+   * Whether the just-tapped save is still in flight — purely local UI state, not a proxy for
+   * whether it worked. Some callers (the note editor) mark the text and flip this dock's own
+   * chrome to "saved" before the network settles, so this fires and clears in the same tick
+   * there; others (the reader, which has no mark to show progress on) genuinely wait on the
+   * round trip, and without this the tap looked like it did nothing until it resolved.
+   */
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setQuery(initialQuery);
+    setSaving(false);
   }, [initialQuery]);
 
   useEffect(() => {
@@ -189,20 +201,33 @@ export default function ReferenceDockWeb({
       </button>
     ) : null;
 
+  const triggerSaveReference = () => {
+    if (saving || !onSaveReference) return;
+    setSaving(true);
+    void Promise.resolve(onSaveReference()).finally(() => setSaving(false));
+  };
+
   const saveOrb =
     showPendingSave ? (
       <button
         type="button"
         className="study-dock-card__header-btn reference-dock-web__save-orb"
-        onMouseDown={(e) => runPointerAction(e, () => onSaveReference?.())}
+        disabled={saving}
+        onMouseDown={(e) => runPointerAction(e, triggerSaveReference)}
         onClick={(e) => {
           e.stopPropagation();
-          if (e.detail === 0) onSaveReference?.();
+          if (e.detail === 0) triggerSaveReference();
         }}
         aria-label={saveReferenceLabel}
         title={saveReferenceLabel}
       >
-        <Icon name="check" size={14} />
+        {saving ? (
+          <span style={{ animation: 'spin 1s linear infinite', display: 'inline-flex' }}>
+            <Icon name="spinner" size={14} />
+          </span>
+        ) : (
+          <Icon name="check" size={14} />
+        )}
       </button>
     ) : null;
 

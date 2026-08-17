@@ -18,6 +18,7 @@ import {
   saveReferenceStudyThread,
 } from '@/utils/save-reference-study-thread';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
+import { toast } from '@/utils/toast';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useProtoShell, type PaperStackOrigin } from '../../layouts/proto-shell-context';
 import { parseScriptureReference } from '@/utils/scripture-detector';
@@ -37,6 +38,9 @@ import {
   usePrototypeChapterHighlights,
   useCreateChapterHighlight,
   useDeleteChapterHighlight,
+  usePrototypeChapterReferences,
+  chapterReferencesKey,
+  chapterReferenceLookupKey,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
 
 /**
@@ -123,6 +127,21 @@ export default function PrototypeReadPage() {
     }
     return map;
   }, [chapterHighlights]);
+
+  /**
+   * Saved word look-ups on this chapter, keyed by (reference, word) — what tells the reader a
+   * dotted word already has a reference kept against it, instead of opening "Save" again on
+   * every tap regardless of whether an earlier one already went through.
+   */
+  const { data: chapterReferences } = usePrototypeChapterReferences(book, chapter, translation);
+  const savedReferences = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of chapterReferences ?? []) {
+      if (!r.scriptureReference) continue;
+      map.set(chapterReferenceLookupKey(r.scriptureReference, r.word), r.id);
+    }
+    return map;
+  }, [chapterReferences]);
 
   /*
    * Tidy an old-style address into the slug, in place.
@@ -278,33 +297,51 @@ export default function PrototypeReadPage() {
   }, [paperStack]);
   const saveReferenceLabel = stackedNoteId ? 'Save to your note' : 'Save this reference';
   const handleSaveReference = useCallback(
-    ({ word, reference }: { word: string; reference: string; verse?: number }) => {
-      void (async () => {
-        if (stackedNoteId) {
-          await saveReferenceStudyThread({
-            noteId: stackedNoteId,
-            word,
-            reference,
-            translation,
-            spaceId: homeSpaceId,
-          });
-          notifyStudyThreadListChanged(homeSpaceId, stackedNoteId);
-          return;
-        }
-
-        if (!homeSpaceId) return;
-        await saveReaderReferenceStudyThread({
+    async ({ word, reference }: { word: string; reference: string; verse?: number }): Promise<boolean> => {
+      if (stackedNoteId) {
+        const id = await saveReferenceStudyThread({
+          noteId: stackedNoteId,
           word,
           reference,
           translation,
           spaceId: homeSpaceId,
         });
-        // No note id to pass — the list invalidation is what matters, and it only no-ops when
-        // both ids are missing.
-        notifyStudyThreadListChanged(homeSpaceId, null);
-      })();
+        if (!id) {
+          toast.error("Couldn't save that reference — try again");
+          return false;
+        }
+        notifyStudyThreadListChanged(homeSpaceId, stackedNoteId);
+        // The note's own dock now knows this word is saved; the plain chapter view (what you
+        // land back on flipping this note down) needs telling separately — it reads the same
+        // rows through its own query, not the note's.
+        void queryClient.invalidateQueries({ queryKey: chapterReferencesKey(book, chapter, translation) });
+        return true;
+      }
+
+      // `homeSpaceId` can still be resolving right after a cold load of a reader URL — silently
+      // dropping the save here (as this used to) looked identical to a save that worked, since
+      // the dock closed either way. Surfacing it is what makes "doesn't work" reports findable.
+      if (!homeSpaceId) {
+        toast.error("Still getting your space ready — try again in a moment");
+        return false;
+      }
+      const id = await saveReaderReferenceStudyThread({
+        word,
+        reference,
+        translation,
+        spaceId: homeSpaceId,
+      });
+      if (!id) {
+        toast.error("Couldn't save that reference — try again");
+        return false;
+      }
+      // No note id to pass — the list invalidation is what matters, and it only no-ops when
+      // both ids are missing.
+      notifyStudyThreadListChanged(homeSpaceId, null);
+      void queryClient.invalidateQueries({ queryKey: chapterReferencesKey(book, chapter, translation) });
+      return true;
     },
-    [stackedNoteId, translation, homeSpaceId],
+    [stackedNoteId, translation, homeSpaceId, queryClient, book, chapter],
   );
 
   /**
@@ -491,6 +528,7 @@ export default function PrototypeReadPage() {
           onPrefetchNote={handlePrefetchNote}
           onSaveReference={handleSaveReference}
           saveReferenceLabel={saveReferenceLabel}
+          savedReferences={savedReferences}
           referenceRequest={referenceRequest}
           landRequestKey={search.req}
         />
