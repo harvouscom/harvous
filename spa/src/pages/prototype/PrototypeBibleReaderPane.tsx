@@ -951,6 +951,10 @@ export default function PrototypeBibleReaderPane({
                           : prev,
                       );
                     });
+                    // Same as Passages: the dock now owns this passage, so keep it in focus
+                    // without the toolbar left floating over the note field underneath it.
+                    setLanding(selection);
+                    setSelection(null);
                   }}
                 />
                 <Divider />
@@ -958,9 +962,15 @@ export default function PrototypeBibleReaderPane({
             ) : null}
 
             <MenuAction
-              icon="arrows-turn-to-dots"
+              icon="shuffle"
               label="Passages"
-              onClick={() => setDock({ kind: 'passage', reference: selectionLabel })}
+              onClick={() => {
+                setDock({ kind: 'passage', reference: selectionLabel });
+                // The dock now shows what the selection was for — keep the passage in focus
+                // (the fade on the rest of the chapter) without the toolbar sitting over it.
+                setLanding(selection);
+                setSelection(null);
+              }}
             />
 
             {onStartNote ? (
@@ -1300,6 +1310,10 @@ export default function PrototypeBibleReaderPane({
                 // No pill to write back to: the passage is already the document behind this
                 // dock, so editing the reference here would mean editing what you are reading.
                 readOnly
+                // "Passages" is the shuffle icon precisely because this dock is for cross-
+                // references — opening on the plain verse text would make the button's own
+                // promise a second tap away.
+                initialShowCrossRefs
                 editorChromeMode="prototypeNative"
                 onDone={() => setDock(null)}
                 onApply={() => undefined}

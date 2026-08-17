@@ -134,6 +134,13 @@ export interface ScripturePillChromeWebProps {
   onOpenScripturePassage?: (reference: string, translation: string) => void;
   /** Read-only passage card (e.g. a cross-reference) — no pill write-back or highlight chrome. */
   readOnly?: boolean;
+  /**
+   * Open with cross-references already showing. For a card opened specifically to browse
+   * related passages (the reader's own "Passages" action), starting on the plain verse text
+   * meant a second tap to see the thing the button promised — the toggle is still there for
+   * closing it, just not the first thing you have to do.
+   */
+  initialShowCrossRefs?: boolean;
 }
 
 /**
@@ -160,6 +167,7 @@ export default function ScripturePillChromeWeb({
   onPassageShown,
   onOpenScripturePassage,
   readOnly = false,
+  initialShowCrossRefs = false,
 }: ScripturePillChromeWebProps) {
   const books = useMemo(() => orderedCanonBooks(), []);
   const { data: eastonsIndex } = useEastonsSlugIndex();
@@ -194,7 +202,7 @@ export default function ScripturePillChromeWeb({
   // render and never re-evaluated, so the footer-vs-floating-capsule choice could not respond to
   // a resize or to an iPad picking up a trackpad.
   const isCoarsePointer = useCoarsePointer();
-  const [showCrossRefs, setShowCrossRefs] = useState(false);
+  const [showCrossRefs, setShowCrossRefs] = useState(initialShowCrossRefs);
   // Parity with cross-references: "Your notes" used to be unconditional, so there was a switch for
   // other people's passages but none for your own. Per-dock, like showCrossRefs — resets on remount.
   const [showRelatedNotes, setShowRelatedNotes] = useState(false);
