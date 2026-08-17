@@ -249866,6 +249866,10 @@ route10.post("/api/scripture/highlights", requireAuth, rateLimit("write"), async
         and(
           eq(StudyThreadEntries.userId, auth.userId),
           isNull(StudyThreadEntries.parentNoteId),
+          // Kind matters here, not just the passage: a reference saved while reading is also a
+          // parentless row on this same verse, and without this it would be found by the lookup
+          // above and silently recoloured instead of the highlight being created.
+          eq(StudyThreadEntries.entryKindRaw, "scriptureLink"),
           eq(StudyThreadEntries.scriptureReference, norm),
           eq(StudyThreadEntries.scripturePassageTranslation, translation)
         )
@@ -249901,6 +249905,68 @@ route10.post("/api/scripture/highlights", requireAuth, rateLimit("write"), async
     const e = handleAPIError(error, {
       endpoint: "/api/scripture/highlights",
       action: "create_scripture_highlight"
+    });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+route10.post("/api/scripture/references", requireAuth, rateLimit("write"), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => ({}));
+    const word = typeof body.word === "string" ? body.word.trim() : "";
+    if (!word) return c.json({ error: "word is required" }, 400);
+    const refRaw = typeof body.reference === "string" ? body.reference.trim() : "";
+    const norm = normalizeScriptureReference(refRaw) ?? refRaw;
+    if (!norm) return c.json({ error: "reference is required" }, 400);
+    const translation = typeof body.translation === "string" && body.translation.trim() ? body.translation.trim() : "NET";
+    const accent = typeof body.accent === "string" && isStudyHighlightAccentKey(body.accent) ? body.accent : "warmAmber";
+    const spaceId = normalizeContextSpaceId(body.spaceId);
+    if (!spaceId) return c.json({ error: "spaceId is required" }, 400);
+    try {
+      await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+    const now2 = nowISO();
+    const existing = first(
+      await db.select().from(StudyThreadEntries).where(
+        and(
+          eq(StudyThreadEntries.userId, auth.userId),
+          isNull(StudyThreadEntries.parentNoteId),
+          eq(StudyThreadEntries.entryKindRaw, "reference"),
+          eq(StudyThreadEntries.scriptureReference, norm),
+          eq(StudyThreadEntries.scripturePassageTranslation, translation),
+          eq(StudyThreadEntries.sourceSnippet, word)
+        )
+      ).limit(1)
+    );
+    if (existing) {
+      return c.json({ success: true, reference: mapStudyRow(existing) });
+    }
+    const row = first(
+      await db.insert(StudyThreadEntries).values({
+        id: generateStudyThreadEntryId(),
+        userId: auth.userId,
+        // Null on purpose: saved while reading, so there is no note it came from.
+        parentNoteId: null,
+        spaceId,
+        entryKindRaw: "reference",
+        highlightAccentRaw: accent,
+        scriptureReference: norm,
+        scripturePassageTranslation: translation,
+        scripturePassageExcerpt: word,
+        sourceSnippet: word,
+        focusTitle: word,
+        createdAt: now2,
+        updatedAt: now2
+      }).returning()
+    );
+    return c.json({ success: true, reference: row ? mapStudyRow(row) : null });
+  } catch (error) {
+    const e = handleAPIError(error, {
+      endpoint: "/api/scripture/references",
+      action: "create_scripture_reference"
     });
     return c.json({ error: e.message, code: e.code }, 500);
   }
@@ -297418,17 +297484,29 @@ route12.get("/api/spaces/:spaceId/study-thread-highlights", requireAuth, async (
       rows = await db.select({
         ...getTableColumns(StudyThreadEntries),
         parentNoteTitle: Notes.title
-      }).from(StudyThreadEntries).innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id)).where(
+      }).from(StudyThreadEntries).leftJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id)).where(
         and(
           eq(StudyThreadEntries.isArchived, false),
           ne(StudyThreadEntries.entryKindRaw, "workspace"),
           highlightCandidates,
-          ...isPersonalSpace ? [eq(Notes.spaceId, spaceIdNorm)] : [
+          ...isPersonalSpace ? [
+            eq(StudyThreadEntries.userId, auth.userId),
+            or(
+              and(
+                eq(Notes.spaceId, spaceIdNorm),
+                eq(Notes.userId, auth.userId),
+                eq(Notes.contentEncrypted, false)
+              ),
+              and(
+                isNull(StudyThreadEntries.parentNoteId),
+                eq(StudyThreadEntries.spaceId, spaceIdNorm)
+              )
+            )
+          ] : [
             activeSpaceNotePredicate(spaceIdNorm),
-            eq(StudyThreadEntries.spaceId, spaceIdNorm)
-          ],
-          eq(Notes.contentEncrypted, false),
-          ...isPersonalSpace ? [eq(StudyThreadEntries.userId, auth.userId), eq(Notes.userId, auth.userId)] : []
+            eq(StudyThreadEntries.spaceId, spaceIdNorm),
+            eq(Notes.contentEncrypted, false)
+          ]
         )
       ).orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt)).limit(SHARED_HIGHLIGHT_LIST_MAX_ROWS);
     } catch (e) {

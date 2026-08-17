@@ -1592,22 +1592,40 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
           parentNoteTitle: Notes.title,
         })
         .from(StudyThreadEntries)
-        .innerJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id))
+        /*
+         * Left, not inner: a reference saved while reading has no parent note, and an inner
+         * join drops every one of those rows — the list would look empty for something the
+         * user just saved. Note-backed and parentless rows are two alternatives below, so
+         * every predicate that reads a `Notes` column has to sit inside the note-backed
+         * branch: on a parentless row those columns are NULL, and a NULL conjunct at the top
+         * level is not true, which would filter the row right back out.
+         */
+        .leftJoin(Notes, eq(StudyThreadEntries.parentNoteId, Notes.id))
         .where(
           and(
             eq(StudyThreadEntries.isArchived, false),
             ne(StudyThreadEntries.entryKindRaw, 'workspace'),
             highlightCandidates,
             ...(isPersonalSpace
-              ? [eq(Notes.spaceId, spaceIdNorm)]
+              ? [
+                  eq(StudyThreadEntries.userId, auth.userId),
+                  or(
+                    and(
+                      eq(Notes.spaceId, spaceIdNorm),
+                      eq(Notes.userId, auth.userId),
+                      eq(Notes.contentEncrypted, false),
+                    ),
+                    and(
+                      isNull(StudyThreadEntries.parentNoteId),
+                      eq(StudyThreadEntries.spaceId, spaceIdNorm),
+                    ),
+                  ),
+                ]
               : [
                   activeSpaceNotePredicate(spaceIdNorm),
                   eq(StudyThreadEntries.spaceId, spaceIdNorm),
+                  eq(Notes.contentEncrypted, false),
                 ]),
-            eq(Notes.contentEncrypted, false),
-            ...(isPersonalSpace
-              ? [eq(StudyThreadEntries.userId, auth.userId), eq(Notes.userId, auth.userId)]
-              : []),
           ),
         )
         .orderBy(desc(StudyThreadEntries.highlightListEditedAt), desc(StudyThreadEntries.createdAt))

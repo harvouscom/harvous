@@ -62,6 +62,7 @@ import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useWarmDefaultTranslationPack } from '../hooks/useWarmDefaultTranslationPack';
+import { useSmartJumpDestination } from '../hooks/useSmartJumpDestination';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
 import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
@@ -1106,6 +1107,8 @@ function PrototypeShortcutBridge() {
     sidebarListSpaceScope,
   } = useProtoShell();
 
+  const smartJump = useSmartJumpDestination();
+
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const isDraftNoteRoute =
     composeDraftActive ||
@@ -1213,6 +1216,20 @@ function PrototypeShortcutBridge() {
     ensureSidebarExpanded();
   }, [ensureSidebarExpanded, setSidebarLayer]);
 
+  /** Same destination the toolbar's reader control resolves — one priority, two ways to reach it. */
+  const openReader = useCallback(() => {
+    if (!homeSpaceId) return;
+    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+    navigate.navigate({
+      to: prototypeReadRouteTo(),
+      params: { book: bookSlug(smartJump.book), chapter: String(smartJump.chapter) },
+      search: {
+        v: smartJump.verse ? String(smartJump.verse) : undefined,
+        t: smartJump.translation || undefined,
+      },
+    });
+  }, [homeSpaceId, isMobileSidebar, closeDrawer, navigate, smartJump]);
+
   useEffect(() => {
     const onNewNote = () => createPrototypeNote();
     const onToggleSidebar = () => togglePrototypeSidebar();
@@ -1229,7 +1246,9 @@ function PrototypeShortcutBridge() {
     };
     const onShowHome = () => showHomeLayer();
     const onShowList = () => showListLayer();
+    const onOpenReader = () => openReader();
 
+    window.addEventListener('prototypeShortcutOpenReader', onOpenReader);
     window.addEventListener('prototypeShortcutNewNote', onNewNote);
     window.addEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
     window.addEventListener('prototypeShortcutToggleInspector', onToggleInspector);
@@ -1240,6 +1259,7 @@ function PrototypeShortcutBridge() {
     window.addEventListener('prototypeShortcutShowList', onShowList);
 
     return () => {
+      window.removeEventListener('prototypeShortcutOpenReader', onOpenReader);
       window.removeEventListener('prototypeShortcutNewNote', onNewNote);
       window.removeEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
       window.removeEventListener('prototypeShortcutToggleInspector', onToggleInspector);
@@ -1254,6 +1274,7 @@ function PrototypeShortcutBridge() {
     cycleListMode,
     focusPrototypeNoteList,
     focusPrototypeSidebarSearch,
+    openReader,
     pathname,
     showNoteDetailsOrb,
     showHomeLayer,

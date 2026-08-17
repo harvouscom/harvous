@@ -53,15 +53,23 @@ export function usePrototypeChapterHighlights(
        * default, so every highlight rendered amber no matter what colour was saved. Falling
        * back explicitly keeps that failure visible in one place.
        */
-      return ((data.highlights ?? []) as Array<Record<string, unknown>>).map((row) => ({
-        id: String(row.id),
-        scriptureReference: (row.scriptureReference as string | null) ?? null,
-        highlightAccent: (row.highlightAccentRaw ??
-          row.highlightAccent ??
-          'warmAmber') as StudyHighlightAccentKey,
-        miniNoteBody: row.miniNoteBody as string | undefined,
-        madeWhileReading: Boolean(row.madeWhileReading),
-      }));
+      /*
+       * References are anchored to a verse but they are not highlights of it. Saving the
+       * dictionary entry for a word should not repaint the whole verse — the endpoint
+       * deliberately returns every kind of row, so the narrowing belongs here, at the one
+       * caller that paints.
+       */
+      return ((data.highlights ?? []) as Array<Record<string, unknown>>)
+        .filter((row) => row.entryKind !== 'reference' && row.entryKindRaw !== 'reference')
+        .map((row) => ({
+          id: String(row.id),
+          scriptureReference: (row.scriptureReference as string | null) ?? null,
+          highlightAccent: (row.highlightAccentRaw ??
+            row.highlightAccent ??
+            'warmAmber') as StudyHighlightAccentKey,
+          miniNoteBody: row.miniNoteBody as string | undefined,
+          madeWhileReading: Boolean(row.madeWhileReading),
+        }));
     },
   });
 }

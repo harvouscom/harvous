@@ -6,7 +6,13 @@
 
 ## What Harvous Is
 
-Harvous is not a Bible reader. It never will be.
+Harvous is not a Bible reading app. It never will be.
+
+It does render Scripture, though. A passage view exists so you can see everything you have
+already saved laid out in the order the text runs — a different angle on your own highlights and
+notes, not a reading experience competing for your daily-reading habit. The notes layer stays
+primary: the passage view surfaces study you already have, and a highlight made there becomes a
+note like any other rather than a loose annotation living off to the side.
 
 Harvous is **the hub for Bible study** — the place where everything you learn, save, reflect on, and remember lives. No matter what app you study in (YouVersion, Logos, Olive Tree, your church's app, a podcast, a sermon), Harvous is where it goes so it doesn't disappear.
 
@@ -109,7 +115,7 @@ The apps are **feeders**. The people are **Harvesters**.
 
 ## What Harvous Deliberately Does Not Do
 
-- **No Bible reader** — YouVersion, Logos, and Olive Tree do this well. Partner with them, don't compete.
+- **No Bible reading app** — YouVersion, Logos, and Olive Tree own the daily-reading habit. Partner with them, don't compete. The passage view is the one carve-out, and a narrow one: it exists to show you your own highlights and notes against the text. No reading plans, no streaks, no devotional content. If it ever starts competing for the reading habit itself, it has drifted.
 - **No sermon streaming** — Same. Plenty of apps for that.
 - **No devotional content** — Harvous surfaces *your* content, not generic content.
 - **No social feed of Bible verses** — Not a content platform. A personal study hub with a social *layer* on top of your own work.

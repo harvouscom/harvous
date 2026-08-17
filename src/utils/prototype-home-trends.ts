@@ -1873,6 +1873,56 @@ export function continueReadingEyebrow(suggestion: ContinueReadingSuggestion): s
   return suggestion.reason === 'resume' ? 'Where you left off reading' : 'Keep reading';
 }
 
+// 1c. Smart jump ─────────────────────────────────────────────────────────────────
+
+export interface SmartJumpDestination {
+  book: string;
+  chapter: number;
+  /** The verse to focus on arrival, when the source named one. */
+  verse: number | null;
+  /** Carried only from a reading position, so continuing never switches translation. */
+  translation: string | null;
+  /** Which of the three sources answered. */
+  source: 'continue' | 'votd' | 'fallback';
+}
+
+/**
+ * Where a bare "open the reader" lands. Pure, and always answers.
+ *
+ * The Home cards each gate themselves independently — continue-reading needs a reading
+ * position, the passage card needs a verse of the day — which is right for a card that can
+ * simply not render. A permanent control cannot do that: it is on screen for a brand new
+ * account with no history and no verse of the day, so the last step has to be unconditional.
+ *
+ * Genesis 1, matching the first-run passage the empty Home already offers.
+ */
+export function deriveSmartJumpDestination(
+  continueReading: ContinueReadingSuggestion | null,
+  votdDestination: { book: string; chapter: number; verse: number | null } | null,
+): SmartJumpDestination {
+  if (continueReading) {
+    return {
+      book: continueReading.book,
+      chapter: continueReading.chapter,
+      verse: null,
+      translation: continueReading.translation || null,
+      source: 'continue',
+    };
+  }
+
+  if (votdDestination) {
+    return {
+      book: votdDestination.book,
+      chapter: votdDestination.chapter,
+      verse: votdDestination.verse,
+      translation: null,
+      source: 'votd',
+    };
+  }
+
+  return { book: 'Genesis', chapter: 1, verse: null, translation: null, source: 'fallback' };
+}
+
 // 2. Study a recurring person ─────────────────────────────────────────────────────
 
 export interface RecurringPersonInput {

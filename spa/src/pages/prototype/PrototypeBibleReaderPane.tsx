@@ -240,6 +240,21 @@ export interface PrototypeBibleReaderPaneProps {
    */
   onSaveReference?: (input: { word: string; reference: string; verse?: number }) => void;
   saveReferenceLabel?: string;
+  /**
+   * Open a looked-up word's card on arrival, for a saved reference tapped somewhere else.
+   *
+   * `requestKey` is what makes it repeatable: the dock is dismissible, so opening the same
+   * word twice has to be two requests rather than one piece of state that is already set.
+   */
+  referenceRequest?: { word: string; anchor: string; verse?: number; requestKey: string } | null;
+  /**
+   * Changes when the same verse is asked for again, so arriving twice lands twice.
+   *
+   * Landing keys off `focusVerse`, which does not change when you re-open the passage you are
+   * already on — and by then you may have cleared the landing with a stray tap, so the second
+   * ask did nothing at all.
+   */
+  landRequestKey?: string;
 }
 
 export default function PrototypeBibleReaderPane({
@@ -258,6 +273,8 @@ export default function PrototypeBibleReaderPane({
   onPrefetchNote,
   onSaveReference,
   saveReferenceLabel,
+  referenceRequest,
+  landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
   const { data, isLoading, isError, error } = usePrototypeBibleChapter(book, chapter, translation);
   const { verseLayout, showMarginNotes } = useSyncExternalStore(
@@ -369,6 +386,24 @@ export default function PrototypeBibleReaderPane({
 
   /** What the shell's study dock is showing on behalf of the reader; null when closed. */
   const [dock, setDock] = useState<ReaderDockState>(null);
+
+  /*
+   * Honour an arrival request to open a word's card. Keyed on the request's nonce rather than
+   * its contents, so tapping the same saved reference again reopens the card after it has
+   * been dismissed.
+   */
+  const lastReferenceRequestKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!referenceRequest?.word || !referenceRequest.requestKey) return;
+    if (lastReferenceRequestKey.current === referenceRequest.requestKey) return;
+    lastReferenceRequestKey.current = referenceRequest.requestKey;
+    setDock({
+      kind: 'reference',
+      query: referenceRequest.word,
+      anchor: referenceRequest.anchor,
+      verse: referenceRequest.verse,
+    });
+  }, [referenceRequest]);
   /** The menu is showing colours for the highlight just made, rather than the action list. */
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -615,7 +650,9 @@ export default function PrototypeBibleReaderPane({
     scroller.scrollTop = Math.max(0, scroller.scrollTop + (elRect.top - scrollerRect.top) - centreOffset);
     setLanding([focusVerse, focusVerse]);
     setFocusedVerse(focusVerse);
-  }, [focusVerse, verses.length]);
+    // `landRequestKey` so asking for the verse you are already on lands on it again: the
+    // verse number has not changed, but the request is new.
+  }, [focusVerse, verses.length, landRequestKey]);
 
   const selectVerse = useCallback((num: number, extend: boolean) => {
     setSelection((current) => {

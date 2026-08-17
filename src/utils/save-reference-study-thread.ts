@@ -1,15 +1,13 @@
 /**
  * Persisting a looked-up word as a reference, in one place.
  *
- * A saved reference is a study-thread entry hanging off a note — there is no standalone
- * store for them — so every surface that offers "save this" has to POST the same shape to
- * the same endpoint. It used to exist only inside the editor, which is why the Bible reader
- * could show you a word's entry but not keep it: the reader has no editor to borrow the
- * call from. Extracted here so the reader and the editor save identically, and so a change
- * to what a saved reference *is* happens once.
+ * A saved reference is a study-thread entry, and it comes in two shapes because it can be
+ * made from two places. Written from a note, it hangs off that note. Written from the Bible
+ * reader, there is no note to hang it off — so it is saved parentless, against the passage
+ * it was read in. Both are the same kind of row in the same table; only the anchor differs.
  *
- * `noteId` is the only hard requirement, and it is the whole design constraint: a caller
- * without a note has nothing to save into and must get the user a note first.
+ * The two live together here so that a change to what a saved reference *is* happens once,
+ * and so the editor and the reader cannot drift into saving different things.
  */
 
 import { normalizeScriptureReference } from './scripture-detector';
@@ -69,6 +67,56 @@ export async function saveReferenceStudyThread(
   } catch {
     // Offline or the endpoint is down. The caller keeps its pending state, so the save can
     // be tried again — losing the word silently would be worse than an unchanged button.
+    return null;
+  }
+}
+
+export type SaveReaderReferenceInput = {
+  /** The looked-up word — both the snippet and the entry's title. */
+  word: string;
+  /** The passage it was read in; this is what the saved reference is anchored to. */
+  reference: string;
+  translation: string;
+  /** Which space the reference belongs to — the reader is always read from one. */
+  spaceId: string;
+  accent?: string;
+};
+
+/**
+ * The reader's version: keep the word without making a note to hold it.
+ *
+ * Separate endpoint rather than a `noteId`-less call to the one above, because the server
+ * addresses these by passage instead of by note. Same row, different door.
+ */
+export async function saveReaderReferenceStudyThread(
+  input: SaveReaderReferenceInput,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string | null> {
+  const word = input.word.trim();
+  const spaceId = input.spaceId.trim();
+  if (!word || !spaceId) return null;
+
+  const raw = input.reference.trim();
+  const reference = normalizeScriptureReference(raw) ?? raw;
+  if (!reference) return null;
+
+  try {
+    const res = await fetchImpl('/api/scripture/references', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        word,
+        reference,
+        translation: input.translation,
+        spaceId,
+        accent: input.accent ?? 'warmAmber',
+      }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { reference?: { id?: string } };
+    return data.reference?.id ?? null;
+  } catch {
     return null;
   }
 }

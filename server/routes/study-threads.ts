@@ -8,6 +8,7 @@
  * DELETE /api/study-threads/:id
  * GET    /api/scripture/highlights        — a chapter's highlights, however they were made
  * POST   /api/scripture/highlights        — highlight made while reading (no parent note)
+ * POST   /api/scripture/references        — reference saved while reading (no parent note)
  */
 
 import { Hono } from 'hono';
@@ -41,7 +42,7 @@ import {
   canModerateStudyThreadEntry,
   SharedStudyThreadAccessError,
 } from '../utils/shared-study-thread-access';
-import { SpaceAccessError } from '../utils/space-access';
+import { SpaceAccessError, requireSpaceAccess } from '../utils/space-access';
 import {
   createDurableNoteAnchorFromHtml,
   createDurableNoteAnchorFromText,
@@ -932,6 +933,10 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
           and(
             eq(StudyThreadEntries.userId, auth.userId),
             isNull(StudyThreadEntries.parentNoteId),
+            // Kind matters here, not just the passage: a reference saved while reading is also a
+            // parentless row on this same verse, and without this it would be found by the lookup
+            // above and silently recoloured instead of the highlight being created.
+            eq(StudyThreadEntries.entryKindRaw, 'scriptureLink'),
             eq(StudyThreadEntries.scriptureReference, norm),
             eq(StudyThreadEntries.scripturePassageTranslation, translation),
           ),
@@ -978,6 +983,107 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
     const e = handleAPIError(error, {
       endpoint: '/api/scripture/highlights',
       action: 'create_scripture_highlight',
+    });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/scripture/references ──────────────────────────────────────────
+/**
+ * Keep a looked-up word while reading, without making a note to hold it.
+ *
+ * Deliberately not folded into `POST /api/scripture/highlights`, even though both write a
+ * parentless row: that route upserts because a highlight is a property of a passage, so
+ * highlighting twice means "make it this colour". Two different words looked up in one verse
+ * are two references, not one recoloured — same table, opposite write semantics.
+ *
+ * `spaceId` is recorded rather than left null (a reading highlight leaves it null). The list
+ * that surfaces these is asked for one space at a time, and a null would put a single saved
+ * reference in every personal space the account has.
+ */
+route.post('/api/scripture/references', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+
+    const word = typeof body.word === 'string' ? body.word.trim() : '';
+    if (!word) return c.json({ error: 'word is required' }, 400);
+
+    const refRaw = typeof body.reference === 'string' ? body.reference.trim() : '';
+    // The raw text is the fallback rather than a hard failure — an unparseable reference is
+    // still worth keeping next to the word it came from.
+    const norm = normalizeScriptureReference(refRaw) ?? refRaw;
+    if (!norm) return c.json({ error: 'reference is required' }, 400);
+
+    const translation =
+      typeof body.translation === 'string' && body.translation.trim()
+        ? body.translation.trim()
+        : 'NET';
+    const accent =
+      typeof body.accent === 'string' && isStudyHighlightAccentKey(body.accent)
+        ? body.accent
+        : 'warmAmber';
+
+    const spaceId = normalizeContextSpaceId(body.spaceId);
+    if (!spaceId) return c.json({ error: 'spaceId is required' }, 400);
+    try {
+      await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    const now = nowISO();
+
+    // Saving the same word on the same verse again is the same reference, not a second one.
+    const existing = first(
+      await db
+        .select()
+        .from(StudyThreadEntries)
+        .where(
+          and(
+            eq(StudyThreadEntries.userId, auth.userId),
+            isNull(StudyThreadEntries.parentNoteId),
+            eq(StudyThreadEntries.entryKindRaw, 'reference'),
+            eq(StudyThreadEntries.scriptureReference, norm),
+            eq(StudyThreadEntries.scripturePassageTranslation, translation),
+            eq(StudyThreadEntries.sourceSnippet, word),
+          ),
+        )
+        .limit(1),
+    ) as typeof StudyThreadEntries.$inferSelect | undefined;
+
+    if (existing) {
+      return c.json({ success: true, reference: mapStudyRow(existing) });
+    }
+
+    const row = first(
+      await db
+        .insert(StudyThreadEntries)
+        .values({
+          id: generateStudyThreadEntryId(),
+          userId: auth.userId,
+          // Null on purpose: saved while reading, so there is no note it came from.
+          parentNoteId: null,
+          spaceId,
+          entryKindRaw: 'reference',
+          highlightAccentRaw: accent,
+          scriptureReference: norm,
+          scripturePassageTranslation: translation,
+          scripturePassageExcerpt: word,
+          sourceSnippet: word,
+          focusTitle: word,
+          createdAt: now,
+          updatedAt: now,
+        } as any)
+        .returning(),
+    );
+
+    return c.json({ success: true, reference: row ? mapStudyRow(row) : null });
+  } catch (error: any) {
+    const e = handleAPIError(error, {
+      endpoint: '/api/scripture/references',
+      action: 'create_scripture_reference',
     });
     return c.json({ error: e.message, code: e.code }, 500);
   }
