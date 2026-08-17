@@ -13,7 +13,7 @@ import {
 import { TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeRenderHtml } from '@/utils/content-renderer';
-import { fetchVerseHtmlResult } from '@/utils/fetch-verse-html';
+import { fetchVerseHtmlResult, getCachedVerseHtml } from '@/utils/fetch-verse-html';
 import {
   passageErrorMessage,
   passageHtmlOf,
@@ -398,7 +398,16 @@ export default function ScripturePillChromeWeb({
     // Set synchronously, NOT inside the async IIFE below. Doing it inside meant the first frame
     // rendered with "not loading, no html", which the pane treated as failure — the spurious
     // "Could not load this passage." flash on passages that then loaded fine.
-    setPassageState({ kind: 'loading' });
+    //
+    // A cache hit skips the loading frame entirely: `fetchVerseHtmlResult` below already
+    // short-circuits on this same in-memory cache, so without checking it here too, the
+    // "Loading passage…" caption would still flash for one render on a passage fetched
+    // moments ago — reopening a pill, or tabbing back to a scripture dock already visited
+    // this session.
+    const cachedHtml = getCachedVerseHtml(displayRefString, trans);
+    setPassageState(
+      cachedHtml != null ? passageStateFromResult({ ok: true, html: cachedHtml }) : { kind: 'loading' },
+    );
     void (async () => {
       const result = await fetchVerseHtmlResult(displayRefString, trans);
       if (cancelled) return;

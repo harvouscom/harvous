@@ -8,7 +8,7 @@
  */
 import { useUser } from '@clerk/clerk-react';
 import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
-import { useNavigate, useRouterState } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import Icon, { type IconName } from '@/components/react/Icon';
@@ -104,6 +104,7 @@ import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
+import { readerRouteForReference } from '../../utils/reader-nav';
 import { protoRelativeCaption, protoRelativeCaptionAbbrev } from './proto-time';
 import {
   highlightEntryKindIconName,
@@ -642,7 +643,6 @@ export default function PrototypeSidebarHomeView({
   } = fingerprintsQuery;
 
   const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const queryClient = useQueryClient();
   const {
     setSidebarListMode,
@@ -654,7 +654,6 @@ export default function PrototypeSidebarHomeView({
     beginPrototypeComposeSession,
     isMobileSidebar,
     closeDrawer,
-    openStandaloneScripturePassage,
     stackNote,
   } = useProtoShell();
 
@@ -1031,27 +1030,21 @@ export default function PrototypeSidebarHomeView({
    *
    * It used to call `onOpenScripturePassage`, which only drills the *sidebar* to that passage's
    * note list: the list mode changed and no dock opened, so the card with a scroll icon
-   * promising a passage showed you a list of notes instead. The standalone passage pane is the
-   * same surface a scripture highlight falls back to when it has no source note to anchor a
-   * dock in, which is exactly this card's situation — it points at a passage, not at a note.
+   * promising a passage showed you a list of notes instead. It then opened a standalone
+   * passage pane on Home — a second document type with no editing, tappable rows, or path
+   * of its own — until the reader existed to be a real destination for "just a passage,
+   * no note". Now it opens that.
    */
   const openPassageConnection = useCallback(() => {
     if (!passageConnection) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    if (isPrototypeNotePath(pathname)) navigate({ to: prototypeHomeRouteTo() });
-    openStandaloneScripturePassage({
-      canonicalReference: passageConnection.displayRef,
-      translationCode: getEffectiveDefaultTranslation(),
-      focusedHighlightThreadId: '',
-    });
-  }, [
-    passageConnection,
-    isMobileSidebar,
-    closeDrawer,
-    pathname,
-    navigate,
-    openStandaloneScripturePassage,
-  ]);
+    const readerRoute = readerRouteForReference(
+      passageConnection.displayRef,
+      getEffectiveDefaultTranslation(),
+    );
+    if (!readerRoute) return;
+    navigate(readerRoute);
+  }, [passageConnection, isMobileSidebar, closeDrawer, navigate]);
 
   // Memory layer Workstream C: a study arc — a theme that keeps returning across your notes over
   // weeks or months ("living commentary on your life"). Joins each note's fingerprint themes/tone

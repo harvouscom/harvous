@@ -233,13 +233,6 @@ export type PrototypeComposeSeed = {
   collectionUserOverride?: boolean;
 };
 
-/** Scripture-passage highlight opened from Highlights list — main pane shows standalone passage (native dock parity). */
-export type StandaloneScripturePassageState = {
-  canonicalReference: string;
-  translationCode: string;
-  focusedHighlightThreadId: string;
-};
-
 /**
  * Where a stacked sheet should go back to — captured the moment the stack is made, so a
  * flip-down or collapse lands where you actually came from even after the sheet's own URL
@@ -501,9 +494,6 @@ type ProtoShellContextValue = {
    * from a previous session reads as null here rather than leaking into this note.
    */
   composeSeed: PrototypeComposeSeed | null;
-  standaloneScripturePassage: StandaloneScripturePassageState | null;
-  openStandaloneScripturePassage: (value: StandaloneScripturePassageState) => void;
-  dismissStandaloneScripturePassage: () => void;
   /** Non-null while a sheet is stacked over an origin paper (reader, Home card, note). */
   paperStack: PaperStackState | null;
   /** Stack a sheet over an origin. Replaces any existing stack — there is exactly one edge. */
@@ -634,9 +624,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    * double-invokes updaters in StrictMode, which would advance it twice per compose.
    */
   const composeSessionEpochRef = useRef(0);
-  const [standaloneScripturePassage, setStandaloneScripturePassage] = useState<StandaloneScripturePassageState | null>(
-    null,
-  );
   const [paperStack, setPaperStack] = useState<PaperStackState | null>(null);
   const [editorChromeMode, setEditorChromeMode] = useState<PrototypeEditorChromeMode>('hidden');
   const [formatToolbarHostEl, setFormatToolbarHostEl] = useState<HTMLDivElement | null>(null);
@@ -1285,13 +1272,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    */
   const composeSeed = resolveComposeSeed(composeSeedState, composeSessionEpoch);
 
-  const openStandaloneScripturePassage = useCallback((value: StandaloneScripturePassageState) => {
-    setStandaloneScripturePassage(value);
-  }, []);
-  const dismissStandaloneScripturePassage = useCallback(() => {
-    setStandaloneScripturePassage(null);
-  }, []);
-
   const stackNote = useCallback((origin: PaperStackOrigin, noteId?: string) => {
     setPaperStack({ origin, noteId, open: true });
   }, []);
@@ -1417,9 +1397,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,
       beginPrototypeComposeSession,
-      standaloneScripturePassage,
-      openStandaloneScripturePassage,
-      dismissStandaloneScripturePassage,
       paperStack,
       stackNote,
       setStackSheetOpen,
@@ -1506,9 +1483,6 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,
       beginPrototypeComposeSession,
-      standaloneScripturePassage,
-      openStandaloneScripturePassage,
-      dismissStandaloneScripturePassage,
       paperStack,
       stackNote,
       setStackSheetOpen,

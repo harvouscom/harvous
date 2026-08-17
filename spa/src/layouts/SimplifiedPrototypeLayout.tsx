@@ -61,6 +61,7 @@ import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
+import { useWarmDefaultTranslationPack } from '../hooks/useWarmDefaultTranslationPack';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
 import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
@@ -236,6 +237,11 @@ export default function SimplifiedPrototypeLayout() {
     if (!isLoaded || !isSignedIn || !user?.id) return;
     void syncPassageKnowledge(user.id);
   }, [isLoaded, isSignedIn, user?.id]);
+
+  // Same idea as the cache above, for the Bible itself: complete the default translation's
+  // offline pack in the background so it's there before a reader ever needs it, rather than
+  // only once they happen to visit Settings > Translation.
+  useWarmDefaultTranslationPack();
 
   // Optimistic shell only while Clerk is still loading (cookie hint avoids boot-canvas flash).
   // After isLoaded, require a real signed-in session — ignore stale cookie hints.

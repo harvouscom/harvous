@@ -17822,6 +17822,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      lip only added a band of dead space above the chapter — most visible stacked, where it
      opened a gap between the peeking edge and the paper right under it. */
   padding: 0 var(--pds-editor-paper-inset-x) 0;
+  /* Named query container for the narrow overrides below. Safe: this element's width comes
+     from its flex parent, never from its own contents, so containment changes no layout. */
+  container-type: inline-size;
+  container-name: pds-reader-scroll;
 }
 
 /* The sheet — same 720px centred paper as `.proto-editor-paper`, same fill, same shadow, same
@@ -17855,9 +17859,25 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
     var(--pds-editor-paper-padding-bottom);
 }
 
-@container (max-width: 640px) {
+/*
+ * This was `@container (max-width: 640px)` — unnamed, so it resolved against the nearest
+ * query container in the ancestor chain. On the standalone `/read` route nothing above this
+ * element declared `container-type`, so the query never matched and a phone-width reader
+ * kept full desktop padding. Naming it against `.pds-reader__scroll` above is the fix; it
+ * also now tightens the gutter and lane pitch, which the padding-only version left at 28px
+ * even once the paper padding was narrow — with the paper at 12px and the gutter still 28px,
+ * a 390px phone had 68px of dead space on each side and only ~254px left for text.
+ */
+@container pds-reader-scroll (max-width: 640px) {
   .pds-reader__column {
     --pds-reader-paper-padding-x: var(--pds-editor-paper-padding-x-narrow);
+    /* 3 lanes still fit a 20px gutter; each stays wide enough to aim at. */
+    --pds-reader-gutter: 20px;
+    --pds-reader-lane-step: 7px;
+    /* Recomputed here, not inherited: this is the same expression `.pds-reader` uses for
+       `--pds-reader-text-inset`, restated so it reads the narrow gutter above rather than
+       the 28px default it would otherwise keep. */
+    --pds-reader-text-inset: calc(var(--pds-reader-gutter) + var(--pds-space-1));
     padding: var(--pds-editor-paper-padding-top-narrow) var(--pds-reader-paper-padding-x)
       var(--pds-editor-paper-padding-bottom);
   }
@@ -18165,8 +18185,17 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   display: flex;
   align-items: center;
   gap: var(--pds-space-2);
-  flex-wrap: wrap;
+  /* `nowrap`, not `wrap`. A wrapped row under a 999px radius reads as a two-line lozenge
+     rather than a pill — on a narrow card (a phone, or several notes on one bar) the row
+     itself now shrinks instead: the label stays one line and each note item ellipsizes its
+     title (`.pds-reader__note-card-item`, `-title` below) rather than the whole chrome
+     growing tall. */
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  /* Bounded by the card underneath, never wider than it. Paired with `min-width: 0` so a
+     flex/absolute item is actually allowed to shrink below its content size. */
+  max-width: 100%;
+  min-width: 0;
   pointer-events: auto;
   padding: 4px 6px;
   /* Concentric with the pill it wraps. The note button inside is fully round, so a 12px
@@ -18178,10 +18207,23 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   box-shadow: var(--pds-shadow-popover);
 }
 
+/*
+ * Flipped below the card instead of above, when there is not enough clearance above the
+ * card for the chrome to sit clear of the words — a bar on verse 1 has no chapter-heading
+ * gap to float into, so the default `bottom: calc(100% + 6px)` placement lands the pill on
+ * top of the title (see `data-chrome-placement` set from `PrototypeBibleReaderPane.tsx`).
+ */
+.pds-reader__note-card[data-chrome-placement='below'] .pds-reader__note-card-chrome {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+
 .pds-reader__note-card-ref {
   padding-inline: var(--pds-space-2);
   color: var(--pds-text-tertiary);
   white-space: nowrap;
+  /* The label never yields its own line — shrinking is the title's job (below). */
+  flex-shrink: 0;
 }
 
 /* One row per note on this passage. Several notes can cite exactly these verses, and choosing
@@ -18190,7 +18232,14 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  max-width: 24ch;
+  /* Caps at 24ch on a wide card; `min-width: 0` + `flex-shrink: 1` let the flex item shrink
+     past its content size so the title's ellipsis (below) can actually take effect on a
+     narrow one instead of the whole row overflowing or wrapping the chrome onto a second
+     line. Both are needed to override the app-wide `* { flex-shrink: 0 }` reset
+     (src/styles/global.css). */
+  max-width: min(24ch, 100%);
+  min-width: 0;
+  flex-shrink: 1;
   margin: 0;
   padding: 3px 8px;
   border: none;
@@ -18208,6 +18257,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Same override as the item above: without it the icon, title and caret all refuse to
+     shrink and the row just overflows instead of ellipsizing. */
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .pds-reader__note-card-item:hover {
@@ -19597,33 +19650,29 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * selected, downloaded, or verified, and this list already has a check orb meaning
  * "reading this one". Spelling it out costs a few pixels and removes the guess.
  */
+/*
+ * One neutral chip for both states — "ready" and "partial" tell themselves apart by icon and
+ * label (a checkmark + "Offline" vs. plain "Part-saved" text), not by color. Was green for
+ * "ready": that read as a success/completion toast rather than a fact about a download, and
+ * sat apart from every other small pill in the app (`.proto-chip-scripture`,
+ * `.proto-menu-item__badge`), which all reach for these same neutral chip tokens.
+ */
 .proto-offline-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   flex: 0 0 auto;
   padding: 1.5px 6px;
-  border-radius: 999px;
-  border: 0.5px solid transparent;
+  border-radius: var(--pds-radius-pill);
+  border: 0.5px solid var(--pds-border-control-soft);
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-secondary);
   font-family: var(--pds-font-body);
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.4;
   white-space: nowrap;
-}
-
-.proto-offline-badge[data-state='ready'] {
-  background: var(--pds-success-bg);
-  border-color: var(--pds-success-border);
-  color: var(--pds-success);
-}
-
-/* Part-saved is a real state, not a failed one — quiet, and clearly not the green. */
-.proto-offline-badge[data-state='partial'] {
-  background: var(--pds-bg-subtle);
-  border-color: var(--pds-border);
-  color: var(--pds-text-secondary);
 }
 
 /* The trailing control(s). Sits on the row's edge beside the check orb, so the column of
@@ -19645,27 +19694,35 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   white-space: nowrap;
 }
 
+/* A small button, not a text link — bordered and filled like every other row-scoped control
+   in the app, rather than the bare underline-on-hover treatment this used to have. */
 .proto-translation-row__action {
   appearance: none;
-  border: 0;
-  background: none;
-  padding: 2px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--pds-border-control-soft);
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-bg-control);
+  padding: 4px 10px;
   font-family: var(--pds-font-body) !important;
   font-size: 12px;
   font-weight: 600;
-  color: var(--pds-text-link);
+  color: var(--pds-text-primary);
   cursor: pointer;
   white-space: nowrap;
+  transition: background-color 0.1s;
 }
 
 .proto-translation-row__action:hover {
-  text-decoration-line: underline;
+  background: var(--pds-bg-control-strong);
 }
 
 /* The neighbour, not the equal: Remove beside Finish is the thing you did not come here to
-   do, so it recedes to body colour and only speaks up on approach. Not destructive-red at
-   rest — the convention is that a red control arrives on hover, and spending a warning on
-   everyone who was passing by is what that rule exists to prevent. */
+   do, so it recedes in text colour only — same button shape as Finish, just quieter — and
+   only speaks up on approach. Not destructive-red at rest — the convention is that a red
+   control arrives on hover, and spending a warning on everyone who was passing by is what
+   that rule exists to prevent. */
 .proto-translation-row__action--quiet {
   font-weight: 500;
   color: var(--pds-text-tertiary);

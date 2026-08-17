@@ -43,6 +43,27 @@ describe('assignAnchorLanes', () => {
     expect(bars[0].notes.map((n) => n.title)).toEqual(['First', 'Second', 'Third']);
   });
 
+  it('keeps each note\'s own reference even when they share a bar', () => {
+    // Regression: the bar used to expose one `reference` (the first anchor's) for every
+    // note on it, so opening the *second* note navigated with the *first* note's reference
+    // — a pill that does not exist in that document, which sent the reader to the
+    // standalone-passage fallback instead of that note's own scripture dock. Each note must
+    // carry its own reference even when its span collapsed into a shared bar, because
+    // different underlying citations (a single verse vs. the range that contains it) can
+    // still collapse to the same clamped verse span.
+    const bars = assignAnchorLanes(
+      [
+        anchor(1, 3, { noteId: 'a', title: 'First', reference: 'Exodus 17:1-3' }),
+        anchor(1, 3, { noteId: 'b', title: 'Second', reference: 'Exodus 17:1' }),
+      ],
+      20,
+    );
+    expect(bars).toHaveLength(1);
+    const byId = Object.fromEntries(bars[0].notes.map((n) => [n.noteId, n.reference]));
+    expect(byId.a).toBe('Exodus 17:1-3');
+    expect(byId.b).toBe('Exodus 17:1');
+  });
+
   it('still lanes notes whose spans differ, even by one verse', () => {
     const bars = assignAnchorLanes(
       [anchor(1, 3, { noteId: 'a' }), anchor(1, 4, { noteId: 'b' })],

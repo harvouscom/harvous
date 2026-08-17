@@ -17,7 +17,7 @@ import PrototypeTranslationRow from './PrototypeTranslationRow';
 export default function PrototypeTranslationPage() {
   const { data: profile } = useProfile();
   const updateTranslation = useUpdateTranslation();
-  const { packs, downloading, download, cancel, remove, atLimit, maxPacks } = useBiblePacks();
+  const { packs, loading, downloading, download, cancel, remove, atLimit, maxPacks } = useBiblePacks();
 
   // Optimistic selection: pending value if mutating, else server value, else NET.
   const selected =
@@ -32,17 +32,25 @@ export default function PrototypeTranslationPage() {
    *
    * Fires once per default, not once per render, and never while another download is running —
    * a background pack must not interrupt one the reader started themselves.
+   *
+   * Gated on `loading`: `packs` starts as `[]` and only becomes real once `useBiblePacks`'s own
+   * `listPacks()` read resolves. Checking against it before then made every guard below pass
+   * vacuously — `packs.some(...)` is always false and `!packs.length` is always true on an
+   * empty array — so this fired `download()` on every single mount of this page, even for a
+   * translation already fully saved, replaying the whole "Saving X of 66" progress UI for
+   * nothing. Worse, `autoStartedRef` was set from that first, wrong pass, so the effect's
+   * later re-run against the real `packs` never got a chance to correct it.
    */
   const autoStartedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!selected || downloading) return;
+    if (loading || !selected || downloading) return;
     if (autoStartedRef.current === selected) return;
     if (packs.some((p) => p.translationId === selected)) return;
     if (!packs.length || !atLimit) {
       autoStartedRef.current = selected;
       void download(selected);
     }
-  }, [selected, packs, downloading, atLimit, download]);
+  }, [loading, selected, packs, downloading, atLimit, download]);
 
   return (
     <SettingsShell>
