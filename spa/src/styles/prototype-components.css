@@ -18503,10 +18503,24 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  *
  * Matched here rather than in the reader, because here is where they are compared — a
  * chapter read on its own keeps its full measure.
+ *
+ * `width`, not just `max-width`. The note's paper loses its 24px through padding on the
+ * wrap around it (`--pds-editor-paper-inset-x` in prototype-editor.css), which comes off
+ * at every pane width, not only while the wrap is still hitting its 720px ceiling. A
+ * `max-width` alone only pulls the column in while it would otherwise be wider than 696 —
+ * on a pane already narrower than that (a phone), it does nothing and the column reverts
+ * to full bleed, 24px wider than the note sharing its stack. The scale below then reads as
+ * the *whole* difference between the two papers at 744px, where both start from 720 and
+ * only the scale separates them, but as barely any difference at all on a phone, where the
+ * column had already given up its 24px for free. `min(cap, 100% - 24px)` — the same shape
+ * already used for the edge-row and the shadow-strip below — keeps the reduction constant
+ * down to the smallest panes instead of losing it once the ceiling stops being the binding
+ * constraint.
  */
 @container pds-paper-stack (max-width: 760px) {
   .pds-paper-stack__base .pds-reader__column,
   .pds-paper-stack__sheet .pds-reader__column {
+    width: calc(100% - 24px);
     max-width: calc(var(--pds-paper-column) - 24px);
   }
 }
