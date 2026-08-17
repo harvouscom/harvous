@@ -7,10 +7,12 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useProfile } from '../../hooks/queries/useProfile';
+import { getNoteQueryOptions } from '../../hooks/queries/useNote';
 import {
   saveReaderReferenceStudyThread,
   saveReferenceStudyThread,
@@ -66,6 +68,7 @@ export default function PrototypeReadPage() {
     req?: string;
   };
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: profile } = useProfile();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const {
@@ -332,6 +335,22 @@ export default function PrototypeReadPage() {
     [focusVerse, stackNote, readerOrigin, translation, navigate],
   );
 
+  /**
+   * Warm the note query cache while a margin-note row is hovered/focused/pinned, before the
+   * tap that navigates to it. The sidebar already does this for its own rows
+   * (`PrototypeSidebar.tsx`'s `prefetchNote`); the reader had nothing, so every margin-bar
+   * tap opened a note cold and paid for the full round trip behind the grace-gated dots.
+   *
+   * No `contextSpaceId` here, matching `handleOpenNoteAtReference`'s navigation above (no
+   * `space=` in its search) — both resolve to the same unscoped `['note', noteId]` cache key.
+   */
+  const handlePrefetchNote = useCallback(
+    (noteId: string) => {
+      void queryClient.prefetchQuery(getNoteQueryOptions(noteId)).catch(() => {});
+    },
+    [queryClient],
+  );
+
   // Reuses the reader's own cached chapter query, so opening the inspector costs nothing.
   const { data: chapterData } = usePrototypeBibleChapter(book, chapter, translation);
 
@@ -444,6 +463,7 @@ export default function PrototypeReadPage() {
           // dock lifecycle stays with the surface that owns the selection.
           onAnnotate={applyHighlight}
           onOpenNoteAtReference={handleOpenNoteAtReference}
+          onPrefetchNote={handlePrefetchNote}
           onSaveReference={handleSaveReference}
           saveReferenceLabel={saveReferenceLabel}
           referenceRequest={referenceRequest}

@@ -141,7 +141,9 @@ app.get('/api/tags/list', requireAuth, async (c) => {
       noteCount: countMap.get(tag.id) ?? 0,
     }));
 
-    return c.json({ success: true, tags: tagsWithCounts });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // creating, renaming, or deleting a tag and expecting the picker/list to reflect it.
+    return c.json({ success: true, tags: tagsWithCounts }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/tags/list', action: 'list_tags' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -718,7 +720,9 @@ app.get('/api/note-tags/list', requireAuth, async (c) => {
       .map((d) => rowByTagId.get(d.id))
       .filter((row): row is (typeof noteTags)[number] => !!row);
 
-    return c.json({ success: true, tags });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // adding/removing a tag on this note and reopening it hits this same URL.
+    return c.json({ success: true, tags }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error) {
     console.error('Error fetching note tags:', error);
     return c.json({ error: 'Internal server error' }, 500);
@@ -828,7 +832,12 @@ app.get('/api/scripture/chapter-notes', requireAuth, async (c) => {
         ),
       );
 
-    return c.json({ success: true, anchors: rows });
+    // Overrides app.ts's blanket `private, max-age=30, stale-while-revalidate=60` default —
+    // same class of bug as GET /api/user/get-profile (see that route's comment). Adding a
+    // scripture reference to a note and then opening that chapter in the reader hits this
+    // same URL (fixed per book+chapter, no cache-busting param), so a stale response here
+    // silently hides the margin bar the reader is supposed to show for what was just written.
+    return c.json({ success: true, anchors: rows }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/scripture/chapter-notes',

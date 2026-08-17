@@ -18,6 +18,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
+import { readerRouteForReference } from '../../utils/reader-nav';
+import { useSettledFlag } from '../../hooks/useSettledFlag';
 import { buildNoteDockOrigin, readPaperStackDockPlacement } from './paper-stack-origins';
 import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
 import { bookSlug } from '@/utils/bible-book-chapters';
@@ -304,8 +306,6 @@ export default function PrototypeNotePage() {
     composeTargetSpaceIdOverride,
     clearComposeTargetSpaceIdOverride,
     setComposeTargetSpaceId,
-    dismissStandaloneScripturePassage,
-    openStandaloneScripturePassage,
     formatToolbarHostEl,
     studyDockCarouselHostEl,
     setEditorChromeMode,
@@ -891,23 +891,17 @@ export default function PrototypeNotePage() {
     });
   }, [navigate, noteSlugParam, initialReferenceWord, contextSpaceId]);
 
-  // Scripture highlight whose parent note has no matching pill: fall back to the standalone passage
-  // pane (focused on the thread) so the tap never silently lands on "just the note".
+  // Scripture highlight whose parent note has no matching pill: the tap must not silently
+  // land on "just the note", so fall back to the reader at that reference instead.
   const onScriptureDockUnresolved = useCallback(() => {
     if (!initialScriptureRef) return;
-    navigate({ to: prototypeHomeRouteTo() });
-    openStandaloneScripturePassage({
-      canonicalReference: initialScriptureRef,
-      translationCode: initialScriptureTranslation ?? '',
-      focusedHighlightThreadId: initialStudyThread ?? '',
-    });
-  }, [
-    navigate,
-    openStandaloneScripturePassage,
-    initialScriptureRef,
-    initialScriptureTranslation,
-    initialStudyThread,
-  ]);
+    const readerRoute = readerRouteForReference(
+      initialScriptureRef,
+      initialScriptureTranslation ?? '',
+    );
+    if (!readerRoute) return;
+    navigate(readerRoute);
+  }, [navigate, initialScriptureRef, initialScriptureTranslation]);
 
   // Dock the inspector side-by-side only when the pane is wide enough to seat the
   // editor (max 720px content) beside it (~268px reserve); otherwise let it float over
@@ -920,10 +914,6 @@ export default function PrototypeNotePage() {
   const notePaneRowRef = useCallback((node: HTMLDivElement | null) => {
     notePaneRowElRef.current = node;
   }, []);
-
-  useEffect(() => {
-    dismissStandaloneScripturePassage();
-  }, [dismissStandaloneScripturePassage]);
 
   useEffect(() => {
     const onDeleted = (e: Event) => {
@@ -2082,7 +2072,32 @@ export default function PrototypeNotePage() {
     error: noteQueryError,
     keepEditor: keepEditorDuringPersistedDraftLoad,
   });
+  /*
+   * A hook, so it has to be called on every render — including the ones that return early
+   * below — same reason `profileForTemplates` etc. sit up here (see the comment above them).
+   *
+   * Without it, `ProtoSpaceLoading`'s three dots rendered on the very first frame
+   * `noteLoadState` was `'loading'`, even for a note that resolves in a handful of
+   * milliseconds — a same-session note skips this path entirely via `useNote`'s
+   * sessionStorage snapshot, but a note opened for the first time (e.g. tapped from a Bible
+   * reader margin bar) has none, and paid for a flash of dots on top of the fetch itself.
+   * The reader's own loading line has carried this same 250ms grace since it shipped
+   * (`LOADING_GRACE_MS` in `PrototypeBibleReaderPane.tsx`); this brings the note page's
+   * loading state to parity with it.
+   */
+  const showNoteLoading = useSettledFlag(noteLoadState === 'loading', 250);
   if (noteLoadState === 'loading') {
+    if (!showNoteLoading) {
+      // The pane frame, no dots — holds the background/layout steady through the grace
+      // window instead of a blank flash, the same pattern the reader's own pre-grace
+      // return uses (`PrototypeBibleReaderPane.tsx`'s `showLoading` branch).
+      return (
+        <>
+          {studyThreadPopoverLayer}
+          <PrototypeMainPaneShell>{null}</PrototypeMainPaneShell>
+        </>
+      );
+    }
     return (
       <>
         {studyThreadPopoverLayer}

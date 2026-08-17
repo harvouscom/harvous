@@ -56,6 +56,7 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
+import { readerRouteForReference } from '../../utils/reader-nav';
 import { useProtoShell, type SidebarTagSearchIntent, type ThreadProposal } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { usePrototypeStudyThreadListSyncListener } from '../../hooks/usePrototypeStudyThreadListSyncListener';
@@ -1427,9 +1428,6 @@ export default function PrototypeSidebar({
     setSidebarThreadProposal,
     setSidebarLayer,
     setSidebarListMode,
-    standaloneScripturePassage,
-    openStandaloneScripturePassage,
-    dismissStandaloneScripturePassage,
     sidebarTagSearchIntent,
     clearSidebarTagSearchIntent,
     ensureSidebarExpanded,
@@ -2753,7 +2751,6 @@ export default function PrototypeSidebar({
   const onNoteRow = (row: SpaceNoteRow) => {
     if (!homeSpaceId) return;
     prefetchNote(row);
-    dismissStandaloneScripturePassage();
     navigate({
       to: prototypeNoteRouteTo(),
       params: { noteId: noteParamSlug(row.id) },
@@ -3075,17 +3072,16 @@ export default function PrototypeSidebar({
   };
 
   /**
-   * @returns whether this landed on a note in the main pane. The recall shelf stacks a
-   * breadcrumb edge over whatever a suggestion opened, and it can only do that once it
-   * knows something opened — a highlight with no source note, or one that falls back to the
-   * standalone passage pane, leaves you where you were, and an edge there would name a way
-   * back to the page you are still on.
+   * @returns whether this landed on a document in the main pane. The recall shelf stacks a
+   * breadcrumb edge over whatever a suggestion opened, and it can only do that once it knows
+   * something opened — a highlight with no source note and no space leaves you where you
+   * were, and an edge there would name a way back to the page you are still on.
    */
   const onHighlightRow = (r: PrototypeHighlightStudyThreadRow): boolean => {
     if (!homeSpaceId) return false;
     // Deliberately no `if (!r.parentNoteId) return;` here. That guard used to sit at the top and
     // made a highlight with no source note do nothing at all on tap — no navigation, no
-    // fallback, no message — while also rendering the standalone-passage fallback further down
+    // fallback, no message — while also rendering the no-source-note fallback further down
     // unreachable. The parent note is only required by the branches that actually anchor to
     // one; each checks for itself.
     //
@@ -3103,9 +3099,8 @@ export default function PrototypeSidebar({
       const trans = (r.scripturePassageTranslation ?? '').trim();
       if (canon && trans) {
         // Open the scripture dock from the source note instance (parity with tapping the
-        // note's own reference pill) rather than the standalone full-screen passage pane.
+        // note's own reference pill).
         if (r.parentNoteId) {
-          dismissStandaloneScripturePassage();
           navigate({
             to: prototypeNoteRouteTo(),
             params: { noteId: noteParamSlug(r.parentNoteId) },
@@ -3120,17 +3115,14 @@ export default function PrototypeSidebar({
           afterNav();
           return true;
         }
-        // No source note to anchor the dock to — fall back to the standalone passage view.
-        if (isPrototypeNotePath(pathname)) {
-          navigate({ to: prototypeHomeRouteTo() });
+        // No source note to anchor a dock to — open the passage in the reader itself, the
+        // same surface a bare scripture reference always reads on.
+        const readerRoute = readerRouteForReference(canon, trans);
+        if (readerRoute) {
+          navigate(readerRoute);
+          afterNav();
+          return true;
         }
-        openStandaloneScripturePassage({
-          canonicalReference: canon,
-          translationCode: trans,
-          focusedHighlightThreadId: r.id,
-        });
-        // The standalone passage pane is not a document in the main pane, so nothing was
-        // stacked over anything.
         afterNav();
         return false;
       }
@@ -3144,7 +3136,6 @@ export default function PrototypeSidebar({
       const word = (r.sourceSnippet ?? '').trim();
       const parsed = r.scriptureReference ? parseScriptureReference(r.scriptureReference) : null;
       if (word && parsed) {
-        dismissStandaloneScripturePassage();
         if (isMobileSidebar) closeDrawer({ preserveHistory: true });
         void navigate({
           to: prototypeReadRouteTo(),
@@ -3166,7 +3157,6 @@ export default function PrototypeSidebar({
     // The highlight dock lives inside a note, so without a source note there is nothing to
     // open it on.
     if (!r.parentNoteId) return false;
-    dismissStandaloneScripturePassage();
     const isReferenceRow = r.entryKind === 'reference';
     navigate({
       to: prototypeNoteRouteTo(),
@@ -3316,7 +3306,6 @@ export default function PrototypeSidebar({
       setSidebarThreadDrilldownId,
       pathname,
       navigate,
-      openStandaloneScripturePassage,
     ],
   );
 

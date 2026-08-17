@@ -215,7 +215,14 @@ app.get('/api/inbox/preview', requireAuth, async (c) => {
 
     const userStatus = userInboxItem?.status || null;
 
-    return c.json({ success: true, item: { ...inboxItem, userStatus } });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // `userStatus` changes on dismiss/archive/add-to-Harvous, and this preview is what a
+    // reopened inbox item reads back.
+    return c.json(
+      { success: true, item: { ...inboxItem, userStatus } },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: any) {
     console.error('Error fetching inbox item preview:', error);
     return c.json({ error: 'Failed to fetch inbox item preview', details: error.message }, 500);

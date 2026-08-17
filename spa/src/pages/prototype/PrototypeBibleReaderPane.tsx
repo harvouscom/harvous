@@ -68,6 +68,7 @@ import {
 import ReferenceDockWeb from '@/components/react/ReferenceDockWeb';
 import ScripturePillChromeWeb from '@/components/react/ScripturePillChromeWeb';
 import HighlightDockWeb from '@/components/react/HighlightDockWeb';
+import { useSettledFlag } from '../../hooks/useSettledFlag';
 
 /**
  * What the reader currently has open in the shell's study dock.
@@ -90,6 +91,14 @@ type ReaderDockState =
 
 /** Breathing room above and below the passage a note card holds up. */
 const CARD_BLEED = 6;
+
+/**
+ * How much clear space the "In your note" chrome needs above the card before it fits without
+ * covering anything — its own ~27px row plus the 6px gap `bottom: calc(100% + 6px)` opens
+ * above the card. A bar on verse 1 has nothing but the chapter heading above it, so below
+ * that clearance the chrome flips underneath the card instead (`data-chrome-placement`).
+ */
+const CHROME_CLEARANCE = 36;
 
 /**
  * How long a chapter may take to arrive before the reader admits it is waiting.
@@ -165,20 +174,6 @@ const VerseSpan = memo(function VerseSpan({
 
 const LOADING_GRACE_MS = 250;
 
-/** True only once `active` has stayed true for `delay` — so brief waits never show. */
-function useSettledFlag(active: boolean, delay: number): boolean {
-  const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    if (!active) {
-      setSettled(false);
-      return;
-    }
-    const id = window.setTimeout(() => setSettled(true), delay);
-    return () => window.clearTimeout(id);
-  }, [active, delay]);
-  return settled;
-}
-
 /** Text → HTML, so a verse can carry suggestion spans without carrying anything else. */
 function escapeHtml(text: string): string {
   return text
@@ -229,6 +224,12 @@ export interface PrototypeBibleReaderPaneProps {
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
   /**
+   * Warm the note query cache before the tap that opens it — fired as soon as a margin bar
+   * becomes active (hover or pin) and again on pointer-down/focus of one of its note rows, so
+   * the fetch is already in flight by the time `onOpenNoteAtReference` navigates there.
+   */
+  onPrefetchNote?: (noteId: string) => void;
+  /**
    * Keep a looked-up word as a reference, and what to call doing so.
    *
    * The reader can show you what a word means but has no note of its own to keep it in — a
@@ -269,6 +270,7 @@ export default function PrototypeBibleReaderPane({
   onHighlight,
   onAnnotate,
   onOpenNoteAtReference,
+  onPrefetchNote,
   onSaveReference,
   saveReferenceLabel,
   referenceRequest,
@@ -452,7 +454,7 @@ export default function PrototypeBibleReaderPane({
     startVerse: number;
     endVerse: number;
     reference: string;
-    notes: { noteId: string; title: string }[];
+    notes: { noteId: string; title: string; reference: string }[];
     label: string;
     heat: number;
   };
@@ -479,6 +481,7 @@ export default function PrototypeBibleReaderPane({
         const notes = a.notes.map((n) => ({
           noteId: n.noteId,
           title: n.title?.trim() || 'Untitled note',
+          reference: n.reference,
         }));
         next.push({
           key: `${a.startVerse}-${a.endVerse}:${a.lane}`,
@@ -1018,6 +1021,11 @@ export default function PrototypeBibleReaderPane({
               /* CARD_BLEED above and below, so the card holds the passage rather than
                  clipping its first and last lines. */
               style={{ top: activeBar.top - CARD_BLEED, height: activeBar.height + CARD_BLEED * 2 }}
+              // Not enough room above the card for the chrome to float clear of the words —
+              // flip it below instead of letting it cover the chapter heading or a verse.
+              data-chrome-placement={
+                activeBar.top - CARD_BLEED < CHROME_CLEARANCE ? 'below' : undefined
+              }
               onMouseEnter={() => setActiveKey(activeBar.key)}
               onMouseLeave={() => {
                 if (!pinnedKey) setActiveKey(null);
@@ -1041,8 +1049,17 @@ export default function PrototypeBibleReaderPane({
                     type="button"
                     className="pds-reader__note-card-item"
                     title={`Open ${note.title}`}
-                    aria-label={`Open your note ${note.title}, which cites ${activeBar.reference}`}
-                    onClick={() => onOpenNoteAtReference?.(note.noteId, activeBar.reference)}
+                    aria-label={`Open your note ${note.title}, which cites ${note.reference}`}
+                    // The note's own reference, not the bar's: several notes can share a bar
+                    // by having spans that collapse to the same verse range while citing that
+                    // range differently, and only this note's own reference matches a pill in
+                    // its document — see AnchorNote.reference in usePrototypeChapterNotes.ts.
+                    onClick={() => onOpenNoteAtReference?.(note.noteId, note.reference)}
+                    // Belt-and-suspenders on top of the bar-level prefetch below: keyboard
+                    // focus reaches a row without ever hovering the bar, and pointer-down
+                    // fires a beat before click, so the fetch has a head start either way.
+                    onPointerDown={() => onPrefetchNote?.(note.noteId)}
+                    onFocus={() => onPrefetchNote?.(note.noteId)}
                   >
                     {/* The note glyph carries the meaning when the title cannot — the same
                         icon the sidebar and Home cards use for a note. */}
@@ -1077,6 +1094,10 @@ export default function PrototypeBibleReaderPane({
                 title={bar.label}
                 onMouseEnter={() => {
                   if (!pinnedKey) setActiveKey(bar.key);
+                  // Warm every note this bar can open before the card even finishes
+                  // fading in — cheap (react-query dedupes) and the card offers no
+                  // narrower signal yet of which one will be tapped.
+                  bar.notes.forEach((n) => onPrefetchNote?.(n.noteId));
                 }}
                 onMouseLeave={() => {
                   if (!pinnedKey) setActiveKey(null);
@@ -1086,6 +1107,7 @@ export default function PrototypeBibleReaderPane({
                   const next = pinnedKey === bar.key ? null : bar.key;
                   setPinnedKey(next);
                   setActiveKey(next);
+                  if (next) bar.notes.forEach((n) => onPrefetchNote?.(n.noteId));
                 }}
               >
                 <span className="pds-reader__bar-line" />

@@ -308,7 +308,10 @@ route.get('/api/threads/list', requireAuth, async (c) => {
       }
     }
 
-    return c.json(threadOptions);
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // creating, renaming, or deleting a thread and expecting the sidebar's thread list to
+    // reflect it right after.
+    return c.json(threadOptions, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/list', action: 'list_threads' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -798,7 +801,9 @@ route.get('/api/threads/:threadId/note-type-counts', requireAuth, async (c) => {
         return c.json({ error: 'Thread not found' }, 404);
       }
     }
-    return c.json({ noteTypeCounts });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // adding a note to this thread changes these counts.
+    return c.json({ noteTypeCounts }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error: any) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/threads/[threadId]/note-type-counts',
@@ -934,17 +939,24 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
       }
     }
 
-    return c.json({
-      notes: responseNotes,
-      hasMore: result.hasMore,
-      offset,
-      limit,
-      mode: sequenceThread.mode ?? 'collection',
-      sequence,
-      pulse,
-      viewerCompletedAt,
-      closedAt,
-    });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // `sequence`/`viewerCompletedAt` are study-plan progress: completing a step and
+    // reopening the thread must not show the pre-completion state.
+    return c.json(
+      {
+        notes: responseNotes,
+        hasMore: result.hasMore,
+        offset,
+        limit,
+        mode: sequenceThread.mode ?? 'collection',
+        sequence,
+        pulse,
+        viewerCompletedAt,
+        closedAt,
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/notes', action: 'get_thread_notes', threadId: c.req.param('threadId') });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -1048,7 +1060,10 @@ route.get('/api/threads/reading-plans', requireAuth, rateLimit('read'), async (c
       });
     }
 
-    return c.json({ plans });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // Home's "continue this plan" card; advancing or completing a step must show right away,
+    // not the pre-step state for up to 90s.
+    return c.json({ plans }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error: any) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/threads/reading-plans',
@@ -1482,12 +1497,18 @@ route.get('/api/threads/:threadId/share', requireAuth, async (c) => {
     }
 
     const origin = new URL(c.req.url).origin;
-    return c.json({
-      isPublic: thread.isPublic,
-      shareToken: thread.shareToken,
-      shareUrl: thread.shareToken ? `${origin}/shared/thread/${thread.shareToken}` : null,
-      shareTokenCreatedAt: thread.shareTokenCreatedAt,
-    });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // same reason as GET /api/notes/:noteId/share (a publish toggle's own status read).
+    return c.json(
+      {
+        isPublic: thread.isPublic,
+        shareToken: thread.shareToken,
+        shareUrl: thread.shareToken ? `${origin}/shared/thread/${thread.shareToken}` : null,
+        shareTokenCreatedAt: thread.shareTokenCreatedAt,
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/share', action: 'get_share_status', threadId: c.req.param('threadId') });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

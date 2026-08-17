@@ -86,6 +86,14 @@ export function usePrototypeChapterNotes(book: string, chapter: number, spaceId?
 export interface AnchorNote {
   noteId: string;
   title: string | null;
+  /**
+   * This note's own scripture reference — not necessarily the bar's `reference`. Two notes
+   * can share a bar because their spans collapsed to the same verse range (see the grouping
+   * below) while citing that range in different words (a range vs. a single verse inside
+   * it, or a differently-cased canonical form); each note's dock still needs to resolve
+   * against its own pill, so navigation must carry this instead of the bar's.
+   */
+  reference: string;
 }
 
 /** One bar in the margin: a span, the notes on it, and which lane it was given. */
@@ -154,7 +162,7 @@ export function assignAnchorLanes(
   for (const s of raw) {
     const key = `${s.startVerse}-${s.endVerse}`;
     const entry = grouped.get(key);
-    const note = { noteId: s.anchor.noteId, title: s.anchor.title };
+    const note = { noteId: s.anchor.noteId, title: s.anchor.title, reference: s.anchor.reference };
     if (entry) entry.notes.push(note);
     else
       grouped.set(key, {

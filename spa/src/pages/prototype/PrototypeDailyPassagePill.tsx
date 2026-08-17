@@ -19,6 +19,7 @@ import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { findScripturePassageWithNotes } from '@/utils/scripture-passage-drill';
 import { parseScriptureReference } from '@/utils/scripture-detector';
+import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { bookSlug } from '@/utils/bible-book-chapters';
 import { noteParamSlug } from './proto-route-slugs';
 
@@ -107,7 +108,11 @@ export default function PrototypeDailyPassagePill({
       invalidateScriptureIndex();
       beginPrototypeComposeSession({
         targetSpaceId: homeSpaceId,
-        seed: { contentHtml: buildVotdScripturePillHtml(v.reference, v.translation) },
+        // The account's default, not `v.translation` — that field is whatever the VOTD API
+        // happened to attach (an admin-authored fallback for automatically-picked days is
+        // 'NET' regardless of who's reading), not necessarily the translation this reader
+        // actually reads in.
+        seed: { contentHtml: buildVotdScripturePillHtml(v.reference, getEffectiveDefaultTranslation()) },
       });
       afterNav();
       navigate({ to: prototypeHomeRouteTo() });
@@ -124,7 +129,7 @@ export default function PrototypeDailyPassagePill({
   );
 
   /**
-   * Today's passage opens in the reader, at the verse, in its own translation.
+   * Today's passage opens in the reader, at the verse, in the account's default translation.
    *
    * It used to open a sheet holding the verse text — which was the right answer when a
    * passage had nowhere else to go. There is a whole reader now: the chapter around the
@@ -135,6 +140,13 @@ export default function PrototypeDailyPassagePill({
    * The verse arrives as `?v=`, which is the reader's existing deep-link — the same one a
    * scripture pill uses — so it lands focused on the verse rather than at the top of the
    * chapter. An unparseable reference does nothing rather than navigating somewhere wrong.
+   *
+   * `getEffectiveDefaultTranslation()`, not `votd.translation` — the reader treats the URL's
+   * `t=` as authoritative (so a shared link keeps the translation it was shared in), and
+   * `votd.translation` is whatever the VOTD API attached, which for an automatically-picked
+   * day is a fixed admin fallback ('NET') unrelated to the reader's own account setting. This
+   * is the same call every other "open a passage" path in the app makes — see
+   * `openPassageConnection` in `PrototypeSidebarHomeView.tsx`.
    *
    * Nothing is recorded here. `recordVotdEngagement` only knows dismiss and add-note, and
    * opening the reader is already a read: the reading session on that route logs it, with
@@ -150,13 +162,13 @@ export default function PrototypeDailyPassagePill({
       params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
       search: {
         v: verse ? String(verse) : undefined,
-        t: votd.translation || undefined,
+        t: getEffectiveDefaultTranslation(),
         // Asking for today's passage again should land on the verse again, even when the
         // reader is already open on it and the verse was clicked away.
         req: String(Date.now()),
       },
     });
-  }, [afterNav, navigate, votd.reference, votd.translation]);
+  }, [afterNav, navigate, votd.reference]);
 
   const handleDismiss = useCallback(() => {
     setVotdDismissedToday();

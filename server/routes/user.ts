@@ -1057,7 +1057,19 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       lastReadPosition,
       sharedSpaceSwitcherOrder,
       hasLockPinSet
-    });
+    // Overrides app.ts's blanket `private, max-age=30, stale-while-revalidate=60` default.
+    // That default assumes "user-specific data unlikely to change within seconds" — this
+    // endpoint doesn't fit it: several POST handlers (update-translation, edit-name-color,
+    // connect-church, ...) mutate the exact fields returned here, in the same session, and
+    // the client's own invalidateQueries()-triggered refetch has no power to see past this
+    // header — the browser's HTTP cache serves the pre-mutation response straight from disk
+    // without ever reaching the server, so React Query "successfully" refetches stale data.
+    // Confirmed live: a translation change committed server-side while this response stayed
+    // cached, silently reverting the account's default translation in the UI for up to 90s
+    // (max-age + stale-while-revalidate) after every edit. Same `no-store` override already
+    // used by sibling per-user endpoints in this file (`/api/user/limits`, `/api/profile/my-
+    // sharing`, `/api/profile/my-shared-spaces`) for the same reason.
+    }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/get-profile', action: 'get_user_profile' });
     return c.json({ error: e.message, code: e.code }, 500);
@@ -1367,7 +1379,10 @@ app.get('/api/user/locked-notes', requireAuth, async (c) => {
       ? lockedOnly.map((n: any) => ({ id: n.id, content: n.content }))
       : lockedOnly.map(n => ({ id: n.id }));
 
-    return c.json({ notes: result });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // locking/unlocking a note changes exactly this list, and this is security-adjacent
+    // state where a stale answer is worse than an ordinary staleness bug.
+    return c.json({ notes: result }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/locked-notes', action: 'get_locked_notes' });
     return c.json({ error: e.message, code: e.code }, 500);
@@ -2139,11 +2154,19 @@ app.get('/api/user/import/session/:id', requireAuth, rateLimit('read'), async (c
     const session = await getImportSession(c.req.param('id') ?? '', auth.userId);
     if (!session) return c.json({ error: 'Import session not found' }, 404);
     const items = await getImportSessionItems(session.id);
-    return c.json({
-      summary: buildImportSessionSummary(session),
-      expiresAt: session.expiresAt,
-      items: items.map(buildImportItemSummary),
-    });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // this is a progress-polling endpoint. A client polling this same URL every few seconds
+    // during an active import would otherwise see the same cached snapshot for up to 30s at
+    // a stretch, and the progress bar would look frozen mid-import.
+    return c.json(
+      {
+        summary: buildImportSessionSummary(session),
+        expiresAt: session.expiresAt,
+        items: items.map(buildImportItemSummary),
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: unknown) {
     const e = handleAPIError(error, { endpoint: '/api/user/import/session/:id', action: 'import_session_get' });
     return c.json({ error: e.message }, 500);
