@@ -6021,7 +6021,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
   const handlePassageQuoteToNote = useCallback(
     (payload: { excerpt: string; reference: string; translation: string }, session: ScripturePillDockSession) => {
-      if (!editor || !isEditorValid(editor) || !sourceNoteId || session.readOnly) return;
+      if (!editor || !isEditorValid(editor) || !sourceNoteId) return;
+      // `session.readOnly` (a cross-reference card) used to block this outright — but
+      // `insertScriptureQuoteAt` doesn't need an existing pill to attribute to: with no
+      // `boundaries`, `findScripturePillBoundariesInDoc` below simply won't find one (there
+      // isn't one, this passage was never embedded), `shouldOmitScriptureQuoteAttribution`
+      // has nothing adjacent to dedupe against, and the quote gets its own fresh scripture
+      // pill for `session.reference` instead of pointing at a pill that doesn't exist.
 
       let boundaries = session.boundaries;
       if (boundaries) {
@@ -9734,6 +9740,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           ),
                         );
                       }}
+                      onPassageQuoteToNote={(payload) => handlePassageQuoteToNote(payload, entry.session)}
                       editorChromeMode={editorChromeMode}
                       onOpenScripturePassage={(ref, translation) =>
                         openScripturePassage(ref, translation, entry.id)
@@ -9972,11 +9979,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           ),
                         );
                       }}
-                      onPassageQuoteToNote={
-                        entry.session.readOnly
-                          ? undefined
-                          : (payload) => handlePassageQuoteToNote(payload, entry.session)
-                      }
+                      onPassageQuoteToNote={(payload) => handlePassageQuoteToNote(payload, entry.session)}
                       editorChromeMode={editorChromeMode}
                       onOpenPassageReference={(word, opts) => {
                         if (!sourceNoteId) return;
