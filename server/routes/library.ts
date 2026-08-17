@@ -181,10 +181,16 @@ app.get('/api/library', requireAuth, async (c) => {
       .where(and(eq(LibraryItems.libraryId, library.id), isNull(LibraryItems.archivedAt)))
       .orderBy(desc(LibraryItems.updatedAt), desc(LibraryItems.createdAt));
 
-    return c.json({
-      library: { id: library.id, ownerKind: library.ownerKind, title: library.title },
-      items: items.map(serializeItem),
-    });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // adding or archiving a library item and expecting this list to reflect it.
+    return c.json(
+      {
+        library: { id: library.id, ownerKind: library.ownerKind, title: library.title },
+        items: items.map(serializeItem),
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/library',

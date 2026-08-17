@@ -1060,7 +1060,18 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
           };
         })
       : result.notes;
-    return c.json({ notes, hasMore: result.hasMore, total: result.total, offset, limit });
+    // Overrides app.ts's blanket `private, max-age=30, stale-while-revalidate=60` default —
+    // same class of bug as GET /api/user/get-profile (see that route's comment). The most
+    // common request shape (page 1, default sort) is requested identically every time this
+    // space's note list is reopened, which is exactly what the browser's HTTP cache matches
+    // on — so creating, deleting, or moving a note and then revisiting the list could show
+    // the pre-edit page for up to 90 seconds even though every client-side cache correctly
+    // invalidated.
+    return c.json(
+      { notes, hasMore: result.hasMore, total: result.total, offset, limit },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/notes', action: 'get_space_notes' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -1215,7 +1226,10 @@ route.get('/api/spaces/:spaceId/folder-registry', requireAuth, async (c) => {
     }
 
     const labels = parsePrototypeEmptyFolderLabels(access.space.prototypeEmptyFolderLabels);
-    return c.json({ labels });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // creating an empty folder and expecting it in the sidebar right after is exactly the
+    // shape of request this endpoint exists for.
+    return c.json({ labels }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error: any) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/spaces/[spaceId]/folder-registry',
@@ -1885,16 +1899,23 @@ route.get('/api/spaces/:spaceId/study-threads/by-scripture', requireAuth, async 
       throw e;
     }
 
-    return c.json({
-      success: true,
-      studyThreads: rows.map((row) => {
-        const { parentNoteTitle, ...entry } = row;
-        return {
-          ...mapStudyRow(entry),
-          parentNoteTitle: parentNoteTitle ?? '',
-        };
-      }),
-    });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // highlighting a passage and expecting it to appear here (the reader's scripture dock
+    // reads this to list "notes on this passage") is a same-session, same-URL round trip.
+    return c.json(
+      {
+        success: true,
+        studyThreads: rows.map((row) => {
+          const { parentNoteTitle, ...entry } = row;
+          return {
+            ...mapStudyRow(entry),
+            parentNoteTitle: parentNoteTitle ?? '',
+          };
+        }),
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: any) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/spaces/[spaceId]/study-threads/by-scripture',
@@ -2066,7 +2087,10 @@ route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
 
     const threads = sortStudyThreadClustersByTitle([...connectedThreads, ...singletonThreads]);
 
-    return c.json({ threads });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // connecting two notes (NoteConnections) or renaming a thread both change this
+    // computed graph, and the sidebar re-fetches the same URL on remount.
+    return c.json({ threads }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error: any) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/spaces/[spaceId]/study-threads',
@@ -2254,24 +2278,35 @@ route.get('/api/spaces/:spaceId/items', requireAuth, async (c) => {
       throw err;
     }
 
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // creating/moving/deleting a note or thread and expecting the space's own item list
+    // to reflect it right after.
     if (accessInfo.space.type === 'personal') {
       const [notesResult, threads] = await Promise.all([
         getNotesForSpace(spaceId, auth.userId),
         getThreadsForSpace(spaceId, auth.userId),
       ]);
-      return c.json({ notes: notesResult.notes, threads });
+      return c.json(
+        { notes: notesResult.notes, threads },
+        200,
+        { 'Cache-Control': 'private, max-age=0, no-store' },
+      );
     } else {
       const [notesResult, threads] = await Promise.all([
         getNotesForSharedSpace(spaceId, auth.userId, 100),
         getThreadsForSpaceBySpaceId(spaceId),
       ]);
-      return c.json({
-        notes: notesResult.notes,
-        threads: visibleSharedThreadsForViewer(
-          threads,
-          accessInfo.space.userId === auth.userId,
-        ),
-      });
+      return c.json(
+        {
+          notes: notesResult.notes,
+          threads: visibleSharedThreadsForViewer(
+            threads,
+            accessInfo.space.userId === auth.userId,
+          ),
+        },
+        200,
+        { 'Cache-Control': 'private, max-age=0, no-store' },
+      );
     }
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/items', action: 'get_space_items' });
@@ -3190,7 +3225,9 @@ route.get('/api/spaces/:spaceId/invites', requireAuth, async (c) => {
         createdAt: inv.createdAt,
       }));
 
-    return c.json({ invites });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // creating or revoking an invite link and expecting this list to reflect it right away.
+    return c.json({ invites }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/invites', action: 'list_invites' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -3540,15 +3577,22 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
 
     const ownerHasAddOn = isOwner ? await hasSharedSpacesAddOn(auth) : false;
 
-    return c.json({
-      members: memberList.map((member) => serializeSpaceMemberForViewer(member, isOwner)),
-      memberCount: memberList.length,
-      isOwner,
-      limits: isOwner ? {
-        membersPerSpace: MEMBERS_PER_SPACE_CAP,
-        ownedSharedSpaces: ownerHasAddOn ? OWNED_SHARED_SPACES_ADDON_LIMIT : FREE_OWNED_SHARED_SPACES_LIMIT,
-      } : undefined,
-    });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // someone redeeming an invite (or being removed) and this list not reflecting it for
+    // up to 90s is exactly the kind of "did that actually work?" moment this fix exists for.
+    return c.json(
+      {
+        members: memberList.map((member) => serializeSpaceMemberForViewer(member, isOwner)),
+        memberCount: memberList.length,
+        isOwner,
+        limits: isOwner ? {
+          membersPerSpace: MEMBERS_PER_SPACE_CAP,
+          ownedSharedSpaces: ownerHasAddOn ? OWNED_SHARED_SPACES_ADDON_LIMIT : FREE_OWNED_SHARED_SPACES_LIMIT,
+        } : undefined,
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/members', action: 'list_members' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

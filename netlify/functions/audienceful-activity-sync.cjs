@@ -16774,10 +16774,13 @@ __export(schema_exports, {
   BibleVerses: () => BibleVerses,
   ChurchMemberships: () => ChurchMemberships,
   ChurchSeries: () => ChurchSeries,
+  ChurchSeriesPublishedNotes: () => ChurchSeriesPublishedNotes,
   ChurchServiceLibraryItems: () => ChurchServiceLibraryItems,
+  ChurchServicePublishedNotes: () => ChurchServicePublishedNotes,
   ChurchServiceTimeAssignments: () => ChurchServiceTimeAssignments,
   ChurchServiceTimes: () => ChurchServiceTimes,
   ChurchServices: () => ChurchServices,
+  ChurchSpaceChannelLinks: () => ChurchSpaceChannelLinks,
   Churches: () => Churches,
   ClerkUserMapping: () => ClerkUserMapping,
   Comments: () => Comments,
@@ -16785,6 +16788,8 @@ __export(schema_exports, {
   DiagnosticIssueTriage: () => DiagnosticIssueTriage,
   Entitlements: () => Entitlements,
   FeaturedItems: () => FeaturedItems,
+  ImportSessionItems: () => ImportSessionItems,
+  ImportSessions: () => ImportSessions,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
   LibraryItemScopes: () => LibraryItemScopes,
@@ -16801,6 +16806,7 @@ __export(schema_exports, {
   NoteThreads: () => NoteThreads,
   NoteVersions: () => NoteVersions,
   Notes: () => Notes,
+  ReadingEvents: () => ReadingEvents,
   RecallEvents: () => RecallEvents,
   ResourceLibraries: () => ResourceLibraries,
   ResourceMetadata: () => ResourceMetadata,
@@ -16820,6 +16826,7 @@ __export(schema_exports, {
   SupportTickets: () => SupportTickets,
   SyncDeletedEntities: () => SyncDeletedEntities,
   Tags: () => Tags,
+  ThreadProgress: () => ThreadProgress,
   Threads: () => Threads,
   TopicRelations: () => TopicRelations,
   UserFeaturedItems: () => UserFeaturedItems,
@@ -16846,22 +16853,69 @@ var Spaces = pgTable(
      */
     publishCadence: text("publishCadence"),
     /**
-     * When this org space gathers — "Youth meets Wednesdays at 6:30".
+     * When this space gathers — "Youth meets Wednesdays at 6:30".
      *
-     * Org spaces only (ministry channel or church Shared Space). The church's
-     * own times live in `ChurchServiceTimes`, which is a *list* because a church
-     * holds several services on one morning; a space gathers once, so a single
-     * day/time is the honest shape rather than a second slot table.
+     * **Any room that gathers, not org spaces only.** Written when a Shared
+     * Space is created and editable in its settings; a churchless book club
+     * that meets on Tuesdays keeps its rhythm here exactly as a church Shared
+     * Space does. Refused only for ministry channels, which publish on a
+     * `publishCadence` rather than meeting — the same line `ChurchServices.kind`
+     * draws for the plan's rows.
+     *
+     * (These columns were org-only in intent for their first month, and had no
+     * writer at all in that time: every reference was a read, so the Planner's
+     * week anchor and the Coming-up card's day/time label were null for every
+     * space in existence.)
+     *
+     * The church's own times live in `ChurchServiceTimes`, which is a *list*
+     * because a church holds several services on one morning; a space gathers
+     * once, so a single day/time is the honest shape rather than a second slot
+     * table.
      *
      * Display and defaults only — this seeds the space plan's date picker and
-     * labels its card. Nothing here schedules, reminds, or recurs; staff still
-     * enter every gathering by hand. See
+     * labels its card. Nothing here schedules, reminds, or recurs; whoever runs
+     * the room still enters every gathering by hand. See
      * docs/future/CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md §1.
      */
     /** 0–6, 0 = Sunday — Date.getDay() and the WEEKDAYS array in church-services.ts. */
     meetingDay: integer("meetingDay"),
-    /** 'HH:MM' 24h on the church's wall clock; the zone is Churches.timezone. */
+    /**
+     * 'HH:MM' 24h wall clock. The zone is `Churches.timezone` when a church is
+     * behind the room, and nothing at all when there is not — a churchless
+     * Shared Space has no zone to name, so its time is shown bare. Inventing
+     * one would be a promise the app cannot keep, and this is a label rather
+     * than an appointment.
+     */
     meetingTime: text("meetingTime"),
+    /**
+     * Whether the room meets in a place, on a call, or both.
+     *
+     * `'in_person' | 'online' | 'hybrid'`, NULL = has not said — which is every
+     * space that existed before this column, and stays a legal answer. Refused
+     * on ministry channels for the same reason `meetingDay` is: a channel
+     * publishes rather than meets.
+     *
+     * Its real job is `meetingUrl` below. It also decides whether a timezone
+     * will ever be needed: people join an online meeting from other zones,
+     * which is the one case a bare wall clock cannot serve — see
+     * docs/future/SPACE_MEETING_RHYTHM_AND_CALENDAR.md Phase 3.
+     */
+    meetingKind: text("meetingKind"),
+    /**
+     * The room's standing video link — Meet, Zoom, Teams.
+     *
+     * **Not an invite, and it must never travel like one.** A join link is
+     * handed to people who are not members yet; this is the key to the room
+     * itself. It is returned only to members, and deliberately absent from
+     * `/api/spaces/invite-preview/:token` (unauthenticated) and from
+     * `PublicJoinSpaceLetter`. Nothing auto-opens or embeds it.
+     *
+     * https only, and only meaningful when `meetingKind` is 'online' or
+     * 'hybrid' — a link on a room that meets in a building is a contradiction,
+     * so the write routes refuse it there rather than storing something no
+     * surface would show.
+     */
+    meetingUrl: text("meetingUrl"),
     color: text("color"),
     backgroundGradient: text("backgroundGradient"),
     /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
@@ -16932,13 +16986,85 @@ var Threads = pgTable(
     color: text("color"),
     order: integer("order").notNull().default(0),
     shareToken: text("shareToken"),
-    shareTokenCreatedAt: ts("shareTokenCreatedAt")
+    shareTokenCreatedAt: ts("shareTokenCreatedAt"),
+    /**
+     * 'collection' | 'sequence'. A collection is the Thread as it has always
+     * been — a bag of notes sorted by recency. A sequence is an authored
+     * study plan: an order someone chose, and a step the group is on.
+     */
+    mode: text("mode").notNull().default("collection"),
+    /**
+     * JSON `string[]` — the authored order, when mode='sequence'.
+     *
+     * Deliberately a column here rather than a `position` on NoteThreads.
+     * `StudyThreadMemberOrders.orderedNoteIds` already established stored
+     * ordering in this shape; one writer (owner/leader) makes whole-list
+     * writes atomic instead of resequencing N junction rows in a
+     * transaction; and a position column would oblige every existing
+     * junction write path to maintain an order that collection Threads do
+     * not have. Ids can go stale (a note leaves the space) — readers filter
+     * against live membership and writers rewrite the list, so drift is
+     * self-healing rather than something to migrate.
+     */
+    sequenceNoteIds: text("sequenceNoteIds"),
+    /**
+     * The step the cohort is on — a note id, NOT an index. A leader who
+     * inserts or reorders steps ahead of the current one must not silently
+     * move the group; "Step 3 of 8" is derived from this id's position.
+     */
+    sequenceCurrentNoteId: text("sequenceCurrentNoteId"),
+    /**
+     * When the room's leader closed this run — **the cohort's completion, not
+     * anyone's personal one.**
+     *
+     * "We're done with this study." It says nothing about whether any given
+     * member finished; that is `ThreadProgress.completedAt`, written only by
+     * the member themselves. The two are deliberately different columns on
+     * different tables precisely so neither can be mistaken for the other, and
+     * so closing a run can never mark a straggler complete.
+     *
+     * A closed run is **labelled, not hidden**. The plan stays readable — people
+     * finish late, and taking the material away at the moment the room moves on
+     * is the opposite of what a study plan is for.
+     */
+    closedAt: ts("closedAt"),
+    /** Who closed it. Staff-side provenance; never shown to members. */
+    closedByUserId: text("closedByUserId")
   },
   (table) => [
     index("Threads_userIdIndex").on(table.userId),
     index("Threads_userId_updatedAtIndex").on(table.userId, table.updatedAt),
     index("Threads_spaceIdIndex").on(table.spaceId),
     uniqueIndex("Threads_onePinnedPerSpace").on(table.spaceId).where(sql`${table.spaceId} IS NOT NULL AND ${table.isPinned} = true`)
+  ]
+);
+var ThreadProgress = pgTable(
+  "ThreadProgress",
+  {
+    threadId: text("threadId").notNull(),
+    userId: text("userId").notNull(),
+    /** JSON `string[]` of step note ids this person has opened. */
+    openedNoteIds: text("openedNoteIds"),
+    startedAt: ts("startedAt").notNull(),
+    updatedAt: ts("updatedAt"),
+    /**
+     * When this person said they finished — **their own claim, never derived.**
+     *
+     * `openedNoteIds` records that a step was *opened*, which is not the same as
+     * having read or worked it, and inferring completion from "all steps opened"
+     * would quietly undo that distinction. So this is only ever written by an
+     * explicit act of the member it belongs to.
+     *
+     * It is also **not** what a leader closing the run writes — that is
+     * `Threads.closedAt`, a different fact by a different person. Someone who
+     * fell behind did not finish because the room moved on, and recording that
+     * they did would tell them something untrue about their own study.
+     */
+    completedAt: ts("completedAt")
+  },
+  (table) => [
+    primaryKey({ columns: [table.threadId, table.userId] }),
+    index("ThreadProgress_threadIdIndex").on(table.threadId)
   ]
 );
 var Notes = pgTable(
@@ -17011,13 +17137,47 @@ var Notes = pgTable(
      */
     startedFromServiceId: text("startedFromServiceId"),
     /** Title snapshot so provenance survives the church editing or deleting the entry. */
-    startedFromServiceTitle: text("startedFromServiceTitle")
+    startedFromServiceTitle: text("startedFromServiceTitle"),
+    /**
+     * Teaching-plan service (`ChurchServices.id`) this note is being written
+     * **for** — the staff side of the sermon, where `startedFromServiceId` is
+     * the congregant side.
+     *
+     * **Why a second column and not that one.** They point at the same table and
+     * mean opposite directions: `startedFromServiceId` is *I took notes on this
+     * sermon* (receiving), this is *I am writing this sermon* (authoring). One
+     * column would force the planner to read rows congregants wrote, which is
+     * exactly the read "Review is never shared" forbids — and the contract test
+     * that enforces it would have had to be weakened to let the planner in.
+     *
+     * Privacy is the same rule, not a lesser one: **only ever read scoped to the
+     * viewer's own `userId`.** A pastor sees that *they* started a draft for a
+     * week; no route may tell one staff member that another has. The grep
+     * contract test in church-services-routes.test.ts holds both columns to it.
+     *
+     * Per-author by construction — a teaching team may have two people drafting
+     * the same Sunday, which is why this lives on the note rather than as a
+     * pointer on ChurchServices. A pointer there would be a second
+     * `channelSpaceId`; see docs/future/CHURCH_STUDY_MATERIAL_LINKING.md.
+     *
+     * No title snapshot twin. `startedFromServiceTitle` exists because a
+     * congregant's provenance must survive the church deleting the entry; here
+     * the note *is* the pastor's own work and a dangling id simply stops
+     * offering to open a plan row that no longer exists.
+     */
+    plannedForServiceId: text("plannedForServiceId")
   },
   (table) => [
     index("Notes_userIdIndex").on(table.userId),
     index("Notes_linkedFromNoteIdIndex").on(table.linkedFromNoteId),
     index("Notes_copiedFromNoteIdIndex").on(table.copiedFromNoteId),
     index("Notes_startedFromServiceIdIndex").on(table.startedFromServiceId),
+    /**
+     * Always queried with the viewer's own userId (see the column docblock), so
+     * the index leads with it — a lone `plannedForServiceId` lookup is a query
+     * this schema does not want to make cheap.
+     */
+    index("Notes_userId_plannedForServiceIdIndex").on(table.userId, table.plannedForServiceId),
     index("Notes_userId_updatedAtIndex").on(table.userId, table.updatedAt),
     index("Notes_spaceIdIndex").on(table.spaceId),
     index("Notes_threadIdIndex").on(table.threadId)
@@ -17096,7 +17256,16 @@ var StudyThreadEntries = pgTable(
   {
     id: text("id").primaryKey(),
     userId: text("userId").notNull(),
-    parentNoteId: text("parentNoteId").notNull(),
+    /**
+     * Where this entry was made — NOT who can see it. NULL means "made while reading", i.e. a
+     * highlight created in the Bible reader, which has no parent note.
+     *
+     * Scripture-anchored entries are scoped by `scriptureReference` + `userId` instead, so a
+     * highlight on a verse is one highlight wherever that verse is shown. Scoping them by
+     * parent note is what used to make the reader and a note's scripture dock two separate
+     * layers over the same passage. See server/db/manual/unify-scripture-highlights.sql.
+     */
+    parentNoteId: text("parentNoteId"),
     spaceId: text("spaceId"),
     entryKindRaw: text("entryKindRaw").notNull().default("miniNote"),
     highlightAccentRaw: text("highlightAccentRaw").notNull().default("warmAmber"),
@@ -17385,34 +17554,100 @@ var ChurchServiceTimeAssignments = pgTable("ChurchServiceTimeAssignments", {
 ]);
 var ChurchSeries = pgTable("ChurchSeries", {
   id: text("id").primaryKey(),
-  churchId: text("churchId").notNull(),
+  /** NULL = a churchless Shared Space's own plan. Same rule as `ChurchServices.churchId`. */
+  churchId: text("churchId"),
   /** NULL = the church plan; set = that space's plan. Immutable after create. */
   spaceId: text("spaceId"),
   title: text("title").notNull(),
+  /**
+   * A THREAD_COLORS token (`blue` | `purple` | `orange` | `green` | `pink`) — the
+   * same palette threads, spaces, and avatars already draw from, stored as a
+   * token rather than a hex so `getThreadColorCSS` resolves it to a CSS variable
+   * and light/dark comes for free. A stored hex would be a second palette that
+   * drifts from the first the next time the theme moves.
+   *
+   * **Nullable, and null is the common case.** `seriesAccent` derives a stable
+   * colour from the row id when this is unset, so every series that existed
+   * before this column is coloured the moment it ships and no backfill is owed.
+   * A pastor only ever *overrides* — which is why there is no default here.
+   */
+  color: text("color"),
+  /** One line on what this run is about. Staff-facing; never rendered to a congregant. */
+  description: text("description"),
+  /**
+   * Which *run* of a recurring series this is — "2027", "Fall", or NULL.
+   *
+   * Churches run seasonal series under the same name every year: Advent, Lent,
+   * Easter. The uniqueness below was built to stop a typo forking "Life In the
+   * Spirit" from "Life in the Spirit", and it is right about that — but it
+   * cannot tell a typo apart from a season coming round again, so "Advent"
+   * could exist once per plan, ever.
+   *
+   * **NULL is the common case and behaves exactly as before.** Uniqueness folds
+   * this in through `coalesce(lower(runLabel), '')`, so a plan with one
+   * unlabelled "Advent" is constrained precisely as it was, and
+   * `findOrCreateSeries` resolves the free-text combobox against
+   * `runLabel IS NULL` — which is what keeps the typo guard intact and keeps
+   * this invisible to a church that never re-runs anything.
+   *
+   * Shown only when it disambiguates: one "Advent" reads "Advent"; two read
+   * "Advent · 2026" and "Advent · 2027". Re-running labels *both* runs, because
+   * the moment a second run exists is the moment the ambiguity does.
+   */
+  runLabel: text("runLabel"),
+  /**
+   * The sequence Thread this series was published into, if it has been.
+   *
+   * A series is still not a Thread — this is the *artifact* of publishing one,
+   * which is why the pointer sits here instead of the series becoming the
+   * Thread. Republishing updates this Thread and appends only the weeks that
+   * are new; it never mints a second, so the congregation's study plan keeps
+   * its identity when a pastor adds week nine.
+   *
+   * Nulled when the Thread is deleted — see the thread delete/erase routes.
+   */
+  publishedThreadId: text("publishedThreadId"),
   createdBy: text("createdBy").notNull(),
   createdAt: ts("createdAt").notNull(),
   updatedAt: ts("updatedAt")
 }, (table) => [
   /**
-   * One series per name per plan, case-insensitively — the whole point is that
-   * "Life In the Spirit" cannot become a second series beside "Life in the
-   * Spirit". Two partial indexes because `spaceId IS NULL` is a distinct scope
-   * and Postgres treats NULLs as distinct in a plain unique index, so the
+   * One series per name **per run** per plan, case-insensitively — so
+   * "Life In the Spirit" still cannot become a second series beside "Life in
+   * the Spirit", while Advent 2026 and Advent 2027 can both exist.
+   *
+   * Two partial indexes because `spaceId IS NULL` is a distinct scope and
+   * Postgres treats NULLs as distinct in a plain unique index, so the
    * church-plan half would not be constrained at all. Same shape and same
    * reason as `ChurchServices_space_date_unique`.
+   *
+   * `coalesce` rather than a plain column for the same reason: a NULL
+   * `runLabel` must collide with another NULL `runLabel`, which a raw column in
+   * a unique index would not. Both `coalesce` and `lower` are IMMUTABLE, so the
+   * expression index is legal.
    */
-  uniqueIndex("ChurchSeries_church_title_unique").on(table.churchId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NULL`),
-  uniqueIndex("ChurchSeries_space_title_unique").on(table.spaceId, sql`lower(${table.title})`).where(sql`${table.spaceId} IS NOT NULL`),
+  uniqueIndex("ChurchSeries_church_title_run_unique").on(table.churchId, sql`lower(${table.title})`, sql`coalesce(lower(${table.runLabel}), '')`).where(sql`${table.spaceId} IS NULL`),
+  uniqueIndex("ChurchSeries_space_title_run_unique").on(table.spaceId, sql`lower(${table.title})`, sql`coalesce(lower(${table.runLabel}), '')`).where(sql`${table.spaceId} IS NOT NULL`),
   index("ChurchSeries_churchIdIndex").on(table.churchId)
 ]);
 var ChurchServices = pgTable("ChurchServices", {
   id: text("id").primaryKey(),
-  churchId: text("churchId").notNull(),
+  /**
+   * NULL = a churchless Shared Space's own plan.
+   *
+   * A group that meets without a church still meets on a rhythm, so a plan no
+   * longer requires one. The invariant `churchId IS NULL ⇒ spaceId IS NOT NULL`
+   * holds — a plan belongs to *some* room — and lives in the write routes
+   * rather than an index, because no partial unique expresses "exactly one of
+   * these is set" without also constraining which pairs are legal.
+   */
+  churchId: text("churchId"),
   /**
    * Which plan this sermon belongs to. NULL = the church's own plan; set = a
-   * ministry channel or church Shared Space that carries its own (Youth meets
-   * Wednesdays). See the docblock above for the same-church invariant and why
-   * this column is allowed where a denormalized `orgId` is not.
+   * ministry channel, a church Shared Space, or a churchless Shared Space that
+   * carries its own (Youth meets Wednesdays). See the docblock above for the
+   * same-church invariant and why this column is allowed where a denormalized
+   * `orgId` is not.
    */
   spaceId: text("spaceId"),
   /**
@@ -17583,6 +17818,13 @@ var UserMetadata = pgTable("UserMetadata", {
    * Account is source of truth; localStorage is the per-device first-paint cache.
    */
   appearanceSettings: text("appearanceSettings"),
+  /**
+   * Where the reader was last, for continue-reading. JSON string:
+   * `{ book, bookOrder, chapter, translation, verse?, readAt }`. See
+   * src/utils/last-read-position.ts for why this is stored rather than derived
+   * from ReadingEvents. `null` = has never read a chapter.
+   */
+  lastReadPosition: text("lastReadPosition"),
   /**
    * Per-user My Home space-switcher order for personal Shared Spaces (hosted + joined).
    * JSON `string[]` of space ids. Not `Spaces.order` — preference only.
@@ -17773,6 +18015,23 @@ var RecallEvents = pgTable("RecallEvents", {
 }, (table) => [
   index("RecallEvents_userId_createdAtIndex").on(table.userId, table.createdAt),
   index("RecallEvents_kind_action_createdAtIndex").on(table.kind, table.action, table.createdAt)
+]);
+var ReadingEvents = pgTable("ReadingEvents", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  /** Canonical book name, e.g. "John". */
+  book: text("book").notNull(),
+  /** Canonical position (0-based, Genesis = 0) so ranking never re-resolves book names. */
+  bookOrder: integer("bookOrder").notNull(),
+  chapter: integer("chapter").notNull(),
+  /** Translation the chapter was read in, e.g. "NLT". */
+  translation: text("translation").notNull(),
+  /** glance | read | study — see src/utils/reading-event-kinds.ts. */
+  dwellBucket: text("dwellBucket").notNull(),
+  createdAt: ts("createdAt").notNull()
+}, (table) => [
+  index("ReadingEvents_userId_createdAtIndex").on(table.userId, table.createdAt),
+  index("ReadingEvents_userId_bookOrder_chapterIndex").on(table.userId, table.bookOrder, table.chapter)
 ]);
 var SupportTickets = pgTable("SupportTickets", {
   id: text("id").primaryKey(),
@@ -17978,9 +18237,19 @@ var ResourceLibraries = pgTable(
   "ResourceLibraries",
   {
     id: text("id").primaryKey(),
-    /** 'user' | 'church' — 'school' later. */
+    /**
+     * 'user' | 'church' | 'space' — 'school' later.
+     *
+     * 'space' is a room that owns its shelf outright, which is every Shared
+     * Space with no church behind it. A church room deliberately does not get
+     * one: its shelf is the church's items scoped to it, so "where does this
+     * item live" keeps exactly one answer per room.
+     */
     ownerKind: text("ownerKind").notNull(),
-    /** Clerk userId when ownerKind='user'; Churches.id when 'church'. */
+    /**
+     * Clerk userId when ownerKind='user'; Churches.id when 'church';
+     * Spaces.id when 'space'.
+     */
     ownerId: text("ownerId").notNull(),
     title: text("title").notNull(),
     createdAt: ts("createdAt").notNull(),
@@ -18104,6 +18373,46 @@ var LibraryItemSuggestions = pgTable(
     )
   ]
 );
+var ChurchServicePublishedNotes = pgTable(
+  "ChurchServicePublishedNotes",
+  {
+    id: text("id").primaryKey(),
+    serviceId: text("serviceId").notNull(),
+    noteId: text("noteId").notNull(),
+    publishedByUserId: text("publishedByUserId").notNull(),
+    createdAt: ts("createdAt").notNull()
+  },
+  (table) => [
+    uniqueIndex("ChurchServicePublishedNotes_service_note_unique").on(
+      table.serviceId,
+      table.noteId
+    ),
+    index("ChurchServicePublishedNotes_serviceIdIndex").on(table.serviceId),
+    /* "Which week is this note the study for?" — the congregant-facing read the
+       linking doc asks for, indexed now rather than after someone table-scans. */
+    index("ChurchServicePublishedNotes_noteIdIndex").on(table.noteId)
+  ]
+);
+var ChurchSeriesPublishedNotes = pgTable(
+  "ChurchSeriesPublishedNotes",
+  {
+    id: text("id").primaryKey(),
+    seriesId: text("seriesId").notNull(),
+    noteId: text("noteId").notNull(),
+    publishedByUserId: text("publishedByUserId").notNull(),
+    createdAt: ts("createdAt").notNull()
+  },
+  (table) => [
+    uniqueIndex("ChurchSeriesPublishedNotes_series_note_unique").on(
+      table.seriesId,
+      table.noteId
+    ),
+    index("ChurchSeriesPublishedNotes_seriesIdIndex").on(table.seriesId),
+    /* The reverse read — "what is this note attached to?" — which the attach
+       control needs to render its own current state. */
+    index("ChurchSeriesPublishedNotes_noteIdIndex").on(table.noteId)
+  ]
+);
 var ChurchServiceLibraryItems = pgTable(
   "ChurchServiceLibraryItems",
   {
@@ -18123,6 +18432,24 @@ var ChurchServiceLibraryItems = pgTable(
     /* The reverse question — "which weeks used this?" — indexed now rather
        than after someone writes it as a table scan. */
     index("ChurchServiceLibraryItems_libraryItemIdIndex").on(table.libraryItemId)
+  ]
+);
+var ChurchSpaceChannelLinks = pgTable(
+  "ChurchSpaceChannelLinks",
+  {
+    id: text("id").primaryKey(),
+    orgId: text("orgId").notNull(),
+    /** The Shared Space (`Spaces.type='shared'`) that meets. */
+    spaceId: text("spaceId").notNull(),
+    /** The ministry channel (`Spaces.type='public'`) it broadcasts through. */
+    channelSpaceId: text("channelSpaceId").notNull(),
+    createdByUserId: text("createdByUserId").notNull(),
+    createdAt: ts("createdAt").notNull()
+  },
+  (table) => [
+    uniqueIndex("ChurchSpaceChannelLinks_space_unique").on(table.spaceId),
+    index("ChurchSpaceChannelLinks_channelSpaceIdIndex").on(table.channelSpaceId),
+    index("ChurchSpaceChannelLinks_orgIdIndex").on(table.orgId)
   ]
 );
 var InboxItems = pgTable("InboxItems", {
@@ -18265,6 +18592,73 @@ var AdminMonthlyReports = pgTable(
     payload: text("payload").notNull()
   },
   (table) => [uniqueIndex("AdminMonthlyReports_month_unique").on(table.month)]
+);
+var ImportSessions = pgTable(
+  "ImportSessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId").notNull(),
+    /** 'open' | 'done' | 'abandoned'. */
+    status: text("status").notNull().default("open"),
+    /**
+     * Backup-zip `manifest.json` connection pairs, by *portable* note id, as JSON
+     * `[{fromNoteId,toNoteId}]`. Remapped to real note ids at finalize. Capped so a
+     * hostile manifest can't balloon the row.
+     */
+    manifestConnections: text("manifestConnections"),
+    notesImported: integer("notesImported").notNull().default(0),
+    threadsCreated: integer("threadsCreated").notNull().default(0),
+    tagsCreated: integer("tagsCreated").notNull().default(0),
+    duplicatesSkipped: integer("duplicatesSkipped").notNull().default(0),
+    highlightsImported: integer("highlightsImported").notNull().default(0),
+    connectionsImported: integer("connectionsImported").notNull().default(0),
+    scriptureProcessed: integer("scriptureProcessed").notNull().default(0),
+    autoTagsApplied: integer("autoTagsApplied").notNull().default(0),
+    createdAt: ts("createdAt").notNull(),
+    updatedAt: ts("updatedAt"),
+    expiresAt: ts("expiresAt").notNull()
+  },
+  (table) => [
+    index("ImportSessions_userIdIndex").on(table.userId),
+    index("ImportSessions_expiresAtIndex").on(table.expiresAt)
+  ]
+);
+var ImportSessionItems = pgTable(
+  "ImportSessionItems",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("sessionId").notNull(),
+    userId: text("userId").notNull(),
+    /** Client row id, so per-file progress can be attributed back without extra bookkeeping. */
+    clientFileId: text("clientFileId"),
+    fileName: text("fileName").notNull(),
+    folderPath: text("folderPath"),
+    sourceType: text("sourceType").notNull(),
+    fileSize: integer("fileSize").notNull().default(0),
+    ord: integer("ord").notNull().default(0),
+    title: text("title").notNull(),
+    highlightCount: integer("highlightCount").notNull().default(0),
+    tagCount: integer("tagCount").notNull().default(0),
+    primaryCollection: text("primaryCollection"),
+    /** JSON `ParsedImportRow` minus the fields promoted to columns above. */
+    payload: text("payload").notNull(),
+    /** Portable `meta.id` from a Harvous backup, when present. */
+    sourceId: text("sourceId"),
+    /** 'parsed' | 'excluded' | 'committed' | 'duplicate' | 'failed'. */
+    status: text("status").notNull().default("parsed"),
+    /** Advisory at parse time ('id' | 'content' | null); re-checked authoritatively at commit. */
+    duplicateHint: text("duplicateHint"),
+    resultNoteId: text("resultNoteId"),
+    enrichedAt: ts("enrichedAt"),
+    error: text("error"),
+    createdAt: ts("createdAt").notNull(),
+    updatedAt: ts("updatedAt")
+  },
+  (table) => [
+    index("ImportSessionItems_sessionIdIndex").on(table.sessionId),
+    index("ImportSessionItems_userIdIndex").on(table.userId),
+    index("ImportSessionItems_sessionId_statusIndex").on(table.sessionId, table.status)
+  ]
 );
 var AppSyncCursors = pgTable("AppSyncCursors", {
   key: text("key").primaryKey(),
