@@ -9,6 +9,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthReady } from '../useAuthReady';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
+import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 
 export interface ChapterHighlight {
   id: string;
@@ -74,7 +75,22 @@ export function usePrototypeChapterHighlights(
   });
 }
 
-export function useCreateChapterHighlight(book: string, chapter: number, translation: string) {
+/**
+ * @param spaceId The reader's home space — required by the server (see `POST
+ *   /api/scripture/highlights`) so the row can be found again. A highlight is a
+ *   `StudyThreadEntries` row exactly like one made from a note's scripture dock, and the
+ *   sidebar's Highlights list (`usePrototypeSpaceStudyThreadHighlights`) reads the same table
+ *   scoped to one space — a row with no space matched none of them, so a highlight made here
+ *   was invisible everywhere but the chapter that made it. Also used to invalidate that list
+ *   below: without it, the query's global 60s `staleTime` (see `App.tsx`) meant a revisit
+ *   inside that window still served the stale list even once the row itself was fixed.
+ */
+export function useCreateChapterHighlight(
+  book: string,
+  chapter: number,
+  translation: string,
+  spaceId: string | null | undefined,
+) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
@@ -82,11 +98,12 @@ export function useCreateChapterHighlight(book: string, chapter: number, transla
       accent: StudyHighlightAccentKey;
       excerpt?: string;
     }) => {
+      if (!spaceId) throw new Error('No space to save this highlight to yet');
       const res = await fetch('/api/scripture/highlights', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...input, translation }),
+        body: JSON.stringify({ ...input, translation, spaceId }),
       });
       if (!res.ok) throw new Error('Failed to save highlight');
       return res.json();
@@ -95,6 +112,7 @@ export function useCreateChapterHighlight(book: string, chapter: number, transla
       void queryClient.invalidateQueries({
         queryKey: chapterHighlightsKey(book, chapter, translation),
       });
+      notifyStudyThreadListChanged(spaceId, null);
     },
   });
 }

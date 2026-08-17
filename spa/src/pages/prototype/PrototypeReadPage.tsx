@@ -106,7 +106,7 @@ export default function PrototypeReadPage() {
    * reading, or made in any note's scripture dock. The reader paints; it does not own.
    */
   const { data: chapterHighlights } = usePrototypeChapterHighlights(book, chapter, translation);
-  const createHighlight = useCreateChapterHighlight(book, chapter, translation);
+  const createHighlight = useCreateChapterHighlight(book, chapter, translation, homeSpaceId);
 
   /**
    * Fan the stored rows out to the verses they cover. A row is anchored to a reference, which
@@ -161,10 +161,14 @@ export default function PrototypeReadPage() {
   }, [search.ref, search.req, book, chapter, focusVerse]);
 
   const applyHighlight = useCallback(
-    ({ start, end }: { start: number; end: number }, accent: StudyHighlightAccentKey) => {
+    (
+      { start, end }: { start: number; end: number },
+      accent: StudyHighlightAccentKey,
+      excerpt: string,
+    ) => {
       const reference =
         start === end ? `${book} ${chapter}:${start}` : `${book} ${chapter}:${start}-${end}`;
-      createHighlight.mutate({ reference, accent });
+      createHighlight.mutate({ reference, accent, excerpt });
     },
     [book, chapter, createHighlight],
   );

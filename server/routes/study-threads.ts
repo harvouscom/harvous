@@ -762,7 +762,18 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
           contextSpaceId,
           lock: true,
         });
-        if (locked.spaceId !== context.spaceId) {
+        /*
+         * `resolveStudyEntryParentContext` always answers `spaceId: null` for a parentless
+         * row (see its early return above) — it has no note to look a space up from, and
+         * never did. That was harmless while every parentless row's own `spaceId` was also
+         * null (made-while-reading highlights, before `POST /api/scripture/highlights`
+         * started stamping the real one), because null matched null. A saved reference
+         * (`POST /api/scripture/references`) has always stamped a real one, so this exact
+         * mismatch already made references undeletable — the row's own `spaceId` is what's
+         * authoritative for a parentless row, not what this note-shaped resolver can derive.
+         */
+        const effectiveSpaceId = locked.parentNoteId ? context.spaceId : locked.spaceId;
+        if (locked.spaceId !== effectiveSpaceId) {
           throw new SharedStudyThreadAccessError(404, 'Response not found');
         }
         const membershipRole = context.isShared
@@ -811,8 +822,8 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
               locked.parentNoteId
                 ? eq(StudyThreadEntries.parentNoteId, locked.parentNoteId)
                 : isNull(StudyThreadEntries.parentNoteId),
-              context.spaceId
-                ? eq(StudyThreadEntries.spaceId, context.spaceId)
+              effectiveSpaceId
+                ? eq(StudyThreadEntries.spaceId, effectiveSpaceId)
                 : isNull(StudyThreadEntries.spaceId),
             ),
           );
@@ -881,13 +892,20 @@ route.get('/api/scripture/highlights', requireAuth, async (c) => {
       )
       .orderBy(desc(StudyThreadEntries.createdAt));
 
-    return c.json({
-      success: true,
-      highlights: rows.map((row) => ({
-        ...mapStudyRow(row),
-        madeWhileReading: row.parentNoteId === null,
-      })),
-    });
+    // Overrides app.ts's blanket `private, max-age=30, stale-while-revalidate=60` default —
+    // same class of bug as GET /api/user/get-profile (see that route's comment). Highlighting
+    // a verse and leaving and returning to this same chapter hits this same URL.
+    return c.json(
+      {
+        success: true,
+        highlights: rows.map((row) => ({
+          ...mapStudyRow(row),
+          madeWhileReading: row.parentNoteId === null,
+        })),
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: any) {
     const e = handleAPIError(error, {
       endpoint: '/api/scripture/highlights',
@@ -914,6 +932,26 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
       typeof body.translation === 'string' && body.translation.trim()
         ? body.translation.trim()
         : 'NET';
+
+    /*
+     * Required, like the sibling `/api/scripture/references` below — a highlight made while
+     * reading used to leave this null on the theory that a nullable space would surface it in
+     * every personal space the account has. `/api/spaces/:spaceId/study-thread-highlights`
+     * (the sidebar's own Highlights list) never implemented that half: for a parentless row
+     * it requires an exact `spaceId` match, so a null one matched no space at all and the
+     * highlight was invisible everywhere except the reader that made it. Stamping the real
+     * space — the same fix `references` already had — is what makes it show up, and is also
+     * the correct behaviour once a highlight can be made inside a Shared Space: "every
+     * personal space" was never going to include someone else's room anyway.
+     */
+    const spaceId = normalizeContextSpaceId(body.spaceId);
+    if (!spaceId) return c.json({ error: 'spaceId is required' }, 400);
+    try {
+      await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
 
     const now = nowISO();
 
@@ -948,7 +986,10 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
       const updated = first(
         await db
           .update(StudyThreadEntries)
-          .set({ highlightAccentRaw: accent, updatedAt: now } as any)
+          // `spaceId` too, not just the colour — heals a row created before this endpoint
+          // stamped one, so re-touching an old orphaned highlight is what recovers it rather
+          // than requiring every existing highlight to be deleted and remade.
+          .set({ highlightAccentRaw: accent, spaceId, updatedAt: now } as any)
           .where(eq(StudyThreadEntries.id, existing.id))
           .returning(),
       );
@@ -964,7 +1005,7 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
           // Null on purpose: made while reading, so there is no note it came from. It is still
           // the same kind of row a scripture dock writes, and every surface reads it the same.
           parentNoteId: null,
-          spaceId: null,
+          spaceId,
           entryKindRaw: 'scriptureLink',
           highlightAccentRaw: accent,
           scriptureReference: norm,

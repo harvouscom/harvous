@@ -217,10 +217,25 @@ export interface PrototypeBibleReaderPaneProps {
    * what it is given, which is what keeps the two surfaces one layer instead of two.
    */
   highlights?: ReadonlyMap<number, ReaderVerseHighlight>;
-  /** Paint the selected verses in this accent. */
-  onHighlight?: (range: { start: number; end: number }, accent: StudyHighlightAccentKey) => void;
+  /**
+   * Paint the selected verses in this accent.
+   *
+   * `excerpt` is the selected verses' own text — required server-side for a `scriptureLink`
+   * row to be eligible for the sidebar's Highlights list at all (see
+   * `studyThreadEligibleForHighlightList`), not just decoration. Built here rather than
+   * passed down, because this component already holds the verse text the selection covers.
+   */
+  onHighlight?: (
+    range: { start: number; end: number },
+    accent: StudyHighlightAccentKey,
+    excerpt: string,
+  ) => void;
   /** Highlight, then open the study dock on it so a thought can be written straight away. */
-  onAnnotate?: (range: { start: number; end: number }, accent: StudyHighlightAccentKey) => void;
+  onAnnotate?: (
+    range: { start: number; end: number },
+    accent: StudyHighlightAccentKey,
+    excerpt: string,
+  ) => void;
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
   /**
@@ -865,7 +880,7 @@ export default function PrototypeBibleReaderPane({
                       // Re-colours the existing row rather than adding one — the write is
                       // keyed on the passage, so trying colours leaves a single highlight.
                       setAccent(token);
-                      onHighlight({ start: selection[0], end: selection[1] }, token);
+                      onHighlight({ start: selection[0], end: selection[1] }, token, selectedText);
                     }}
                   >
                     <span className="dock-accent-swatch__choice-ring" aria-hidden />
@@ -889,7 +904,7 @@ export default function PrototypeBibleReaderPane({
                     // you guessed what it did. Committing on the first tap means the palette
                     // only ever appears attached to a highlight that already exists, so each
                     // colour is a change you can see rather than a choice you must predict.
-                    onHighlight({ start: selection[0], end: selection[1] }, accent);
+                    onHighlight({ start: selection[0], end: selection[1] }, accent, selectedText);
                     setPaletteOpen(true);
                   }}
                 />
@@ -903,7 +918,7 @@ export default function PrototypeBibleReaderPane({
                   icon="pen"
                   label="Annotate"
                   onClick={() => {
-                    onAnnotate({ start: selection[0], end: selection[1] }, accent);
+                    onAnnotate({ start: selection[0], end: selection[1] }, accent, selectedText);
                     setDock({
                       kind: 'highlight',
                       reference: selectionLabel,
@@ -1275,7 +1290,7 @@ export default function PrototypeBibleReaderPane({
                 entryKind="scriptureLink"
                 onAccentChange={(next) => {
                   setAccent(next);
-                  if (selection) onHighlight?.({ start: selection[0], end: selection[1] }, next);
+                  if (selection) onHighlight?.({ start: selection[0], end: selection[1] }, next, selectedText);
                   setDock({ ...dock, accent: next });
                 }}
                 onRemove={() => setDock(null)}
