@@ -1649,24 +1649,32 @@ route.get('/api/spaces/:spaceId/study-thread-highlights', requireAuth, async (c)
       ? {}
       : await batchAuthorAttribution(eligibleRows.map((row) => row.userId));
 
-    return c.json({
-      success: true,
-      studyThreads: eligibleRows.map((row) => {
-        const { parentNoteTitle, ...entry } = row;
-        const author = authorMap[row.userId];
-        return {
-          ...mapStudyRow(entry),
-          parentNoteTitle: parentNoteTitle ?? '',
-          ...(isPersonalSpace
-            ? {}
-            : {
-                authorDisplayName: author?.displayName ?? 'A Harvous User',
-                authorColor: author?.userColor ?? 'blue',
-                isOwnHighlight: row.userId === auth.userId,
-              }),
-        };
-      }),
-    });
+    // Overrides app.ts's blanket cache default (see GET /api/user/get-profile's comment) —
+    // this is the sidebar's "Highlights" list. Highlighting a verse in the reader or a note's
+    // scripture dock and expecting it to show up here is exactly the same-session mutation
+    // this override exists for.
+    return c.json(
+      {
+        success: true,
+        studyThreads: eligibleRows.map((row) => {
+          const { parentNoteTitle, ...entry } = row;
+          const author = authorMap[row.userId];
+          return {
+            ...mapStudyRow(entry),
+            parentNoteTitle: parentNoteTitle ?? '',
+            ...(isPersonalSpace
+              ? {}
+              : {
+                  authorDisplayName: author?.displayName ?? 'A Harvous User',
+                  authorColor: author?.userColor ?? 'blue',
+                  isOwnHighlight: row.userId === auth.userId,
+                }),
+          };
+        }),
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error: any) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/spaces/[spaceId]/study-thread-highlights',

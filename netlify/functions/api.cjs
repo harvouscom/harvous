@@ -249763,7 +249763,8 @@ route10.delete("/api/study-threads/:id", requireAuth, rateLimit("write"), async 
           contextSpaceId,
           lock: true
         });
-        if (locked.spaceId !== context2.spaceId) {
+        const effectiveSpaceId = locked.parentNoteId ? context2.spaceId : locked.spaceId;
+        if (locked.spaceId !== effectiveSpaceId) {
           throw new SharedStudyThreadAccessError(404, "Response not found");
         }
         const membershipRole = context2.isShared ? first(
@@ -249792,7 +249793,7 @@ route10.delete("/api/study-threads/:id", requireAuth, rateLimit("write"), async 
           and(
             eq(StudyThreadEntries.id, id),
             locked.parentNoteId ? eq(StudyThreadEntries.parentNoteId, locked.parentNoteId) : isNull(StudyThreadEntries.parentNoteId),
-            context2.spaceId ? eq(StudyThreadEntries.spaceId, context2.spaceId) : isNull(StudyThreadEntries.spaceId)
+            effectiveSpaceId ? eq(StudyThreadEntries.spaceId, effectiveSpaceId) : isNull(StudyThreadEntries.spaceId)
           )
         );
         if (locked.entryKindRaw === "linkedNote" && locked.linkedNoteId && locked.parentNoteId) {
@@ -249836,13 +249837,17 @@ route10.get("/api/scripture/highlights", requireAuth, async (c) => {
         like(StudyThreadEntries.scriptureReference, `${book} ${chapter}:%`)
       )
     ).orderBy(desc(StudyThreadEntries.createdAt));
-    return c.json({
-      success: true,
-      highlights: rows.map((row) => ({
-        ...mapStudyRow(row),
-        madeWhileReading: row.parentNoteId === null
-      }))
-    });
+    return c.json(
+      {
+        success: true,
+        highlights: rows.map((row) => ({
+          ...mapStudyRow(row),
+          madeWhileReading: row.parentNoteId === null
+        }))
+      },
+      200,
+      { "Cache-Control": "private, max-age=0, no-store" }
+    );
   } catch (error) {
     const e = handleAPIError(error, {
       endpoint: "/api/scripture/highlights",
@@ -249860,6 +249865,14 @@ route10.post("/api/scripture/highlights", requireAuth, rateLimit("write"), async
     if (!norm) return c.json({ error: "reference is required" }, 400);
     const accent = typeof body.accent === "string" && isStudyHighlightAccentKey(body.accent) ? body.accent : "warmAmber";
     const translation = typeof body.translation === "string" && body.translation.trim() ? body.translation.trim() : "NET";
+    const spaceId = normalizeContextSpaceId(body.spaceId);
+    if (!spaceId) return c.json({ error: "spaceId is required" }, 400);
+    try {
+      await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
     const now2 = nowISO();
     const existing = first(
       await db.select().from(StudyThreadEntries).where(
@@ -249877,7 +249890,7 @@ route10.post("/api/scripture/highlights", requireAuth, rateLimit("write"), async
     );
     if (existing) {
       const updated = first(
-        await db.update(StudyThreadEntries).set({ highlightAccentRaw: accent, updatedAt: now2 }).where(eq(StudyThreadEntries.id, existing.id)).returning()
+        await db.update(StudyThreadEntries).set({ highlightAccentRaw: accent, spaceId, updatedAt: now2 }).where(eq(StudyThreadEntries.id, existing.id)).returning()
       );
       return c.json({ success: true, highlight: updated ? mapStudyRow(updated) : null });
     }
@@ -249888,7 +249901,7 @@ route10.post("/api/scripture/highlights", requireAuth, rateLimit("write"), async
         // Null on purpose: made while reading, so there is no note it came from. It is still
         // the same kind of row a scripture dock writes, and every surface reads it the same.
         parentNoteId: null,
-        spaceId: null,
+        spaceId,
         entryKindRaw: "scriptureLink",
         highlightAccentRaw: accent,
         scriptureReference: norm,
@@ -297520,22 +297533,26 @@ route12.get("/api/spaces/:spaceId/study-thread-highlights", requireAuth, async (
     }
     const eligibleRows = rows.filter((row) => studyThreadEligibleForHighlightList(row));
     const authorMap = isPersonalSpace ? {} : await batchAuthorAttribution(eligibleRows.map((row) => row.userId));
-    return c.json({
-      success: true,
-      studyThreads: eligibleRows.map((row) => {
-        const { parentNoteTitle, ...entry } = row;
-        const author = authorMap[row.userId];
-        return {
-          ...mapStudyRow(entry),
-          parentNoteTitle: parentNoteTitle ?? "",
-          ...isPersonalSpace ? {} : {
-            authorDisplayName: author?.displayName ?? "A Harvous User",
-            authorColor: author?.userColor ?? "blue",
-            isOwnHighlight: row.userId === auth.userId
-          }
-        };
-      })
-    });
+    return c.json(
+      {
+        success: true,
+        studyThreads: eligibleRows.map((row) => {
+          const { parentNoteTitle, ...entry } = row;
+          const author = authorMap[row.userId];
+          return {
+            ...mapStudyRow(entry),
+            parentNoteTitle: parentNoteTitle ?? "",
+            ...isPersonalSpace ? {} : {
+              authorDisplayName: author?.displayName ?? "A Harvous User",
+              authorColor: author?.userColor ?? "blue",
+              isOwnHighlight: row.userId === auth.userId
+            }
+          };
+        })
+      },
+      200,
+      { "Cache-Control": "private, max-age=0, no-store" }
+    );
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: "/api/spaces/[spaceId]/study-thread-highlights",
