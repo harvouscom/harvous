@@ -56,11 +56,12 @@ import {
   deriveTopFolders,
   deriveTopTags,
   deriveTopThread,
-  formatHomeActivityLeadWithSection,
-  deriveTopCanonSections,
+  formatHomeActivityLeadSuffix,
   formatHomeNoteCount,
   greetingForHour,
   homeLeadCopyLayout,
+  homeLeadDisplayName,
+  excludeRecallCandidatesMatchingName,
   localDayIndex,
   pickContinueNote,
   pickRevisitNote,
@@ -94,7 +95,6 @@ import {
   studyArcSinceLabel,
   studyArcToneLabel,
   type HomeLeadTheme,
-  type HomeTopCanonSection,
   type HomeSubjectPassageInput,
   type HomePassageConnectionInput,
   type StudyArcNoteInput,
@@ -260,7 +260,6 @@ function HomeGreeting({
   hasMoreForLogic,
   lead,
   trend,
-  topCanonSection,
   onOpenScriptureBook,
 }: {
   notes: SpaceNoteRow[];
@@ -268,7 +267,6 @@ function HomeGreeting({
   hasMoreForLogic: boolean;
   lead: HomeLeadTheme;
   trend?: HomeGreetingTrend;
-  topCanonSection?: HomeTopCanonSection;
   onOpenScriptureBook: (bookOrder: number) => void;
 }) {
   const { user } = useUser();
@@ -294,18 +292,14 @@ function HomeGreeting({
   const hello = `${greetingForHour(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`;
   const activityTail = useMemo(
     () =>
-      formatHomeActivityLeadWithSection(
-        {
-          rhythm,
-          weeklyDays,
-          lastActivityMs,
-          now: new Date(),
-          totalNoteCount: countForLogic,
-        },
-        lead,
-        topCanonSection,
-      ),
-    [rhythm, weeklyDays, lastActivityMs, countForLogic, lead, topCanonSection],
+      formatHomeActivityLeadSuffix({
+        rhythm,
+        weeklyDays,
+        lastActivityMs,
+        now: new Date(),
+        totalNoteCount: countForLogic,
+      }),
+    [rhythm, weeklyDays, lastActivityMs, countForLogic],
   );
   const activityClause = activityTail ? <>, {activityTail}</> : null;
 
@@ -1682,13 +1676,12 @@ export default function PrototypeSidebarHomeView({
     setShownRecallIds([...shownRecallIds, ...added]);
   }, [recallOpportunities, shownRecallIds]);
 
-  const topCanonSection = useMemo(
-    () => deriveTopCanonSections([...fingerprintsById.values()], 1)[0],
-    [fingerprintsById],
-  );
+  const leadName = useMemo(() => homeLeadDisplayName(lead), [lead]);
 
   const recallTrendGreeting = useMemo((): HomeGreetingTrend | undefined => {
-    const trend = pickRecallTrend(recallCandidates);
+    // Skip a trend that would just repeat the lead chip's name — e.g. lead "Romans" and a
+    // "lately returning to Romans" arc clause read as the same fact said twice.
+    const trend = pickRecallTrend(excludeRecallCandidatesMatchingName(recallCandidates, leadName));
     if (!trend) return undefined;
 
     if (trend.kind === 'arc' && activeArc) {
@@ -1727,6 +1720,7 @@ export default function PrototypeSidebarHomeView({
     return undefined;
   }, [
     recallCandidates,
+    leadName,
     activeArc,
     studyArc,
     sectionArc,
@@ -1788,7 +1782,6 @@ export default function PrototypeSidebarHomeView({
           hasMoreForLogic={hasMoreForLogic}
           lead={lead}
           trend={recallTrendGreeting}
-          topCanonSection={topCanonSection}
           onOpenScriptureBook={onOpenScriptureBook}
         />
       </div>

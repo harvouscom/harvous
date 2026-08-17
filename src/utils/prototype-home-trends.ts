@@ -2,7 +2,6 @@ import { normalizeDate } from './sorting';
 import { noteFolderMembershipLabels, type NoteFolderLabelSource } from './note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from './server-auto-untitled-note-display';
 import { normalizeScriptureReference, parseScriptureReference } from './scripture-detector';
-import { CANON_BOOK_GROUPS, canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
 import { UNIVERSAL_BIBLE_ENTITIES } from '@/utils/universal-bible-entities';
 
 /**
@@ -635,6 +634,38 @@ export function selectHomeLeadTheme(input: HomeLeadThemeInput): HomeLeadTheme {
   return candidates[0]?.theme ?? { kind: 'none' };
 }
 
+/** The name already on screen as the lead chip (book/thread/folder/tag) — for deduping the trailing trend clause. */
+export function homeLeadDisplayName(lead: HomeLeadTheme): string | null {
+  switch (lead.kind) {
+    case 'book':
+      return lead.book.title;
+    case 'thread':
+      return lead.thread.title;
+    case 'folder':
+      return lead.folder.name;
+    case 'tag':
+      return lead.tag.name;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Drops trend candidates that would repeat the lead's name (e.g. lead chip "Romans" and a
+ * "lately returning to Romans" trend clause). Crossref titles join two refs with " and ", so
+ * each side is checked individually rather than the whole string.
+ */
+export function excludeRecallCandidatesMatchingName<T extends RecallCandidate & { title: string }>(
+  candidates: T[],
+  name: string | null,
+): T[] {
+  const normalized = name?.trim().toLowerCase();
+  if (!normalized) return candidates;
+  return candidates.filter(
+    (c) => !c.title.split(/\s+and\s+/i).some((part) => part.trim().toLowerCase() === normalized),
+  );
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Local-midnight epoch day index — activity counts use calendar days, not 24h windows. */
@@ -820,79 +851,6 @@ export function deriveTopBooks(books: HomeBookTrendInput[], limit: number): Home
       referenceCount,
       noteCount,
     }));
-}
-
-export interface HomeTopCanonSection {
-  sectionId: string;
-  label: string;
-  testament: 'ot' | 'nt';
-  noteCount: number;
-}
-
-export interface CanonSectionFingerprintInput {
-  canonSection: string | null;
-  canonSectionLabel?: string | null;
-  testament?: 'ot' | 'nt' | null;
-}
-
-/** Top canon sections by note count (from fingerprints). */
-export function deriveTopCanonSections(
-  fingerprints: CanonSectionFingerprintInput[],
-  limit = 1,
-): HomeTopCanonSection[] {
-  const counts = new Map<string, { label: string; testament: 'ot' | 'nt'; noteCount: number }>();
-  for (const fp of fingerprints) {
-    const id = fp.canonSection?.trim();
-    if (!id) continue;
-    const group = CANON_BOOK_GROUPS.find((g) => g.id === id);
-    const existing = counts.get(id);
-    if (existing) {
-      existing.noteCount += 1;
-    } else {
-      counts.set(id, {
-        label: fp.canonSectionLabel?.trim() || group?.label || id,
-        testament: fp.testament ?? group?.testament ?? 'ot',
-        noteCount: 1,
-      });
-    }
-  }
-  return [...counts.entries()]
-    .map(([sectionId, row]) => ({ sectionId, ...row }))
-    .sort(
-      (a, b) =>
-        b.noteCount - a.noteCount ||
-        CANON_BOOK_GROUPS.findIndex((g) => g.id === a.sectionId) -
-          CANON_BOOK_GROUPS.findIndex((g) => g.id === b.sectionId),
-    )
-    .slice(0, Math.max(0, limit));
-}
-
-/**
- * Optional Home lead clause when the user's study skews toward a canon section that isn't already
- * implied by the lead chip (e.g. skip when the lead is already a book in that section).
- */
-export function formatHomeCanonSectionSuffix(
-  lead: HomeLeadTheme,
-  topSection: HomeTopCanonSection | undefined,
-): string | null {
-  if (!topSection || topSection.noteCount < 2) return null;
-  if (lead.kind === 'book') {
-    const bookGroup = canonGroupForBook(lead.book.title);
-    if (bookGroup?.id === topSection.sectionId) return null;
-  }
-  return `mostly in ${topSection.label}`;
-}
-
-/** Combine rhythm/weekly/visit suffix with optional canon-section clause. */
-export function formatHomeActivityLeadWithSection(
-  input: HomeActivityLeadInput,
-  lead: HomeLeadTheme,
-  topSection: HomeTopCanonSection | undefined,
-): string | null {
-  const base = formatHomeActivityLeadSuffix(input);
-  const section = formatHomeCanonSectionSuffix(lead, topSection);
-  if (base && section) return `${base}, ${section}`;
-  return base ?? section;
 }
 
 /**

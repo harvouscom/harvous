@@ -7,13 +7,12 @@ import {
   deriveCrossRefConnections,
   derivePassageConnections,
   deriveTopBooks,
-  deriveTopCanonSections,
-  formatHomeCanonSectionSuffix,
-  formatHomeActivityLeadWithSection,
   deriveTopPassages,
   deriveTopFolders,
   deriveTopTags,
   deriveTopThread,
+  homeLeadDisplayName,
+  excludeRecallCandidatesMatchingName,
   countLooseNotes,
   formatHomeActivityLeadSuffix,
   formatHomeActivityRhythmSuffix,
@@ -144,56 +143,6 @@ describe('pickContinueNote', () => {
     const previous = { id: 'previous', updatedAt: '2026-06-10T10:00:00Z' };
     expect(pickContinueNote([active, previous], { excludeIds: ['active'] })).toBe(previous);
     expect(pickContinueNote([active, previous], { excludeIds: ['active'] }).id).not.toBe('active');
-  });
-});
-
-describe('deriveTopCanonSections', () => {
-  it('ranks sections by fingerprint note count', () => {
-    const rows = deriveTopCanonSections(
-      [
-        { canonSection: 'paul', canonSectionLabel: "Paul's letters", testament: 'nt' },
-        { canonSection: 'gospels', canonSectionLabel: 'Gospels', testament: 'nt' },
-        { canonSection: 'gospels', canonSectionLabel: 'Gospels', testament: 'nt' },
-      ],
-      2,
-    );
-    expect(rows[0]?.sectionId).toBe('gospels');
-    expect(rows[0]?.noteCount).toBe(2);
-    expect(rows[1]?.sectionId).toBe('paul');
-  });
-});
-
-describe('formatHomeCanonSectionSuffix', () => {
-  it('skips when the lead book already implies the section', () => {
-    const lead = {
-      kind: 'book' as const,
-      book: { bookOrder: 45, title: 'Romans', referenceCount: 3, noteCount: 2 },
-      tone: 'returning' as const,
-    };
-    expect(
-      formatHomeCanonSectionSuffix(lead, {
-        sectionId: 'paul',
-        label: "Paul's letters",
-        testament: 'nt',
-        noteCount: 5,
-      }),
-    ).toBeNull();
-  });
-
-  it('appends for non-book leads', () => {
-    const lead = {
-      kind: 'thread' as const,
-      thread: { id: 'note_1', title: 'Hope', noteCount: 4 },
-      tone: 'returning' as const,
-    };
-    expect(
-      formatHomeCanonSectionSuffix(lead, {
-        sectionId: 'gospels',
-        label: 'Gospels',
-        testament: 'nt',
-        noteCount: 4,
-      }),
-    ).toBe('mostly in Gospels');
   });
 });
 
@@ -602,6 +551,57 @@ describe('selectHomeLeadTheme', () => {
       book: onceBook,
     });
     expect(result).toEqual({ kind: 'book', book: onceBook, tone: 'single-note' });
+  });
+});
+
+describe('homeLeadDisplayName', () => {
+  const book: HomeTopBook = { bookOrder: 45, title: 'Romans', referenceCount: 5, noteCount: 4 };
+  const thread: HomeTopThread = { id: 't1', title: 'Romans & Grace', noteCount: 4 };
+  const folder: HomeTopFolder = { name: 'Sermons', noteCount: 6 };
+  const tag: HomeTopTag = { id: 'g1', name: 'Grace', noteCount: 4 };
+
+  it('reads the display name for each lead kind', () => {
+    expect(homeLeadDisplayName({ kind: 'book', book, tone: 'returning' })).toBe('Romans');
+    expect(homeLeadDisplayName({ kind: 'thread', thread, tone: 'returning' })).toBe('Romans & Grace');
+    expect(homeLeadDisplayName({ kind: 'folder', folder, tone: 'returning' })).toBe('Sermons');
+    expect(homeLeadDisplayName({ kind: 'tag', tag, tone: 'returning' })).toBe('Grace');
+    expect(homeLeadDisplayName({ kind: 'none' })).toBeNull();
+  });
+});
+
+describe('excludeRecallCandidatesMatchingName', () => {
+  const arcCandidate = { id: 'arc:romans', kind: 'arc' as const, score: 0.5, title: 'Romans' };
+  const crossrefCandidate = {
+    id: 'crossref:romans|john',
+    kind: 'crossref' as const,
+    score: 0.4,
+    title: 'Romans 8 and John 3',
+  };
+  const subjectCandidate = { id: 'subject:grace', kind: 'subject' as const, score: 0.3, title: 'Grace' };
+
+  it('drops a candidate whose title exactly matches the lead name', () => {
+    const result = excludeRecallCandidatesMatchingName([arcCandidate, subjectCandidate], 'Romans');
+    expect(result).toEqual([subjectCandidate]);
+  });
+
+  it('is case-insensitive and trims whitespace', () => {
+    const result = excludeRecallCandidatesMatchingName([arcCandidate], '  romans  ');
+    expect(result).toEqual([]);
+  });
+
+  it('checks each side of a crossref pair independently', () => {
+    const result = excludeRecallCandidatesMatchingName([crossrefCandidate], 'Romans 8');
+    expect(result).toEqual([]);
+  });
+
+  it('keeps everything when there is no lead name', () => {
+    const result = excludeRecallCandidatesMatchingName([arcCandidate, subjectCandidate], null);
+    expect(result).toEqual([arcCandidate, subjectCandidate]);
+  });
+
+  it('keeps candidates that do not match', () => {
+    const result = excludeRecallCandidatesMatchingName([subjectCandidate], 'Romans');
+    expect(result).toEqual([subjectCandidate]);
   });
 });
 
