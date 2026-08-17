@@ -160,15 +160,26 @@ export default function PrototypeReadPage() {
     };
   }, [search.ref, search.req, book, chapter, focusVerse]);
 
+  /**
+   * `onAnnotate` needs the created row's id back — it opens the highlight dock straight away,
+   * and the mini-note textarea there has nothing to PATCH against until one arrives (see
+   * `HighlightDockWeb`'s `studyThreadEntryId` handling). `onHighlight` doesn't care and just
+   * lets the promise run; `mutateAsync` over `mutate` is what makes the id available to await.
+   */
   const applyHighlight = useCallback(
-    (
+    async (
       { start, end }: { start: number; end: number },
       accent: StudyHighlightAccentKey,
       excerpt: string,
-    ) => {
+    ): Promise<string | null> => {
       const reference =
         start === end ? `${book} ${chapter}:${start}` : `${book} ${chapter}:${start}-${end}`;
-      createHighlight.mutate({ reference, accent, excerpt });
+      try {
+        const result = await createHighlight.mutateAsync({ reference, accent, excerpt });
+        return result?.highlight?.id ?? null;
+      } catch {
+        return null;
+      }
     },
     [book, chapter, createHighlight],
   );

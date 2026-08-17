@@ -249655,7 +249655,8 @@ route10.patch("/api/study-threads/:id", requireAuth, rateLimit("write"), async (
           contextSpaceId,
           lock: true
         });
-        if (locked.spaceId !== context2.spaceId) {
+        const effectiveSpaceId = locked.parentNoteId ? context2.spaceId : locked.spaceId;
+        if (locked.spaceId !== effectiveSpaceId) {
           throw new SharedStudyThreadAccessError(404, "Response not found");
         }
         if (context2.isShared) {
@@ -249721,7 +249722,7 @@ route10.patch("/api/study-threads/:id", requireAuth, rateLimit("write"), async (
             and(
               eq(StudyThreadEntries.id, id),
               locked.parentNoteId ? eq(StudyThreadEntries.parentNoteId, locked.parentNoteId) : isNull(StudyThreadEntries.parentNoteId),
-              context2.spaceId ? eq(StudyThreadEntries.spaceId, context2.spaceId) : isNull(StudyThreadEntries.spaceId),
+              effectiveSpaceId ? eq(StudyThreadEntries.spaceId, effectiveSpaceId) : isNull(StudyThreadEntries.spaceId),
               eq(StudyThreadEntries.userId, auth.userId)
             )
           ).returning()
