@@ -747,12 +747,20 @@ export default function ScripturePillChromeWeb({
     return { top, centerX };
   }, [passageSelection, onPassageQuoteToNote]);
 
+  /*
+   * `readOnly` means "no pill to write back to" — it says nothing about the passage itself,
+   * which is real Scripture either way. Highlighting selected text posts to
+   * `/api/notes/{sourceNoteId}/study-threads` keyed on the passage's own reference and
+   * translation, so a cross-reference card can do it exactly like a pill-backed one. Quote
+   * to note is the one action that genuinely needs a source pill to attribute back to — it
+   * stays gated by whether the caller passed `onPassageQuoteToNote` at all, which the
+   * cross-reference branch in TiptapEditor never does.
+   */
   const showMobilePassageActions =
     isCoarsePointer &&
     !!passageSelection &&
     !!sourceNoteId &&
     !!passageHtml &&
-    !readOnly &&
     isExpanded &&
     interactionActive;
 
@@ -982,7 +990,9 @@ export default function ScripturePillChromeWeb({
         </div>
       ) : null}
     </StudyDockCardShell>
-    {passageSelection && passageActionBarPos && sourceNoteId && passageHtml && !readOnly && !isCoarsePointer && typeof document !== 'undefined'
+    {/* Same readOnly carve-out as showMobilePassageActions above — Highlight works without a
+        source pill, Quote to note hides itself via the onPassageQuoteToNote check below. */}
+    {passageSelection && passageActionBarPos && sourceNoteId && passageHtml && !isCoarsePointer && typeof document !== 'undefined'
       ? createPortal(
           <div
             data-harvous-bottom-sheet-floating=""
