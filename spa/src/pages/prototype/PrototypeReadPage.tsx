@@ -36,6 +36,7 @@ import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import {
   usePrototypeChapterHighlights,
   useCreateChapterHighlight,
+  useDeleteChapterHighlight,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
 
 /**
@@ -107,6 +108,7 @@ export default function PrototypeReadPage() {
    */
   const { data: chapterHighlights } = usePrototypeChapterHighlights(book, chapter, translation);
   const createHighlight = useCreateChapterHighlight(book, chapter, translation, homeSpaceId);
+  const deleteHighlight = useDeleteChapterHighlight(book, chapter, translation, homeSpaceId);
 
   /**
    * Fan the stored rows out to the verses they cover. A row is anchored to a reference, which
@@ -116,7 +118,7 @@ export default function PrototypeReadPage() {
     const map = new Map<number, ReaderVerseHighlight>();
     for (const h of chapterHighlights ?? []) {
       for (const v of versesInReference(h.scriptureReference)) {
-        map.set(v, { accent: h.highlightAccent, studyThreadEntryId: h.id });
+        map.set(v, { accent: h.highlightAccent, studyThreadEntryId: h.id, miniNoteBody: h.miniNoteBody });
       }
     }
     return map;
@@ -182,6 +184,13 @@ export default function PrototypeReadPage() {
       }
     },
     [book, chapter, createHighlight],
+  );
+
+  const handleRemoveHighlight = useCallback(
+    (studyThreadEntryId: string) => {
+      deleteHighlight.mutate(studyThreadEntryId);
+    },
+    [deleteHighlight],
   );
 
   const handleNavigateTo = useCallback(
@@ -477,6 +486,7 @@ export default function PrototypeReadPage() {
           // Annotate records the highlight; the pane opens the highlight dock over it, so the
           // dock lifecycle stays with the surface that owns the selection.
           onAnnotate={applyHighlight}
+          onRemoveHighlight={handleRemoveHighlight}
           onOpenNoteAtReference={handleOpenNoteAtReference}
           onPrefetchNote={handlePrefetchNote}
           onSaveReference={handleSaveReference}

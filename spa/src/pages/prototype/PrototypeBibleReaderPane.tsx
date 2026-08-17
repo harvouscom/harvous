@@ -93,6 +93,8 @@ type ReaderDockState =
       accent: StudyHighlightAccentKey;
       /** Null until `onAnnotate`'s create request resolves — see the click handler below. */
       studyThreadEntryId: string | null;
+      /** Seeded from the existing row when reopening one, so the note box isn't blank over it. */
+      miniNoteBody: string;
     }
   | null;
 
@@ -193,8 +195,10 @@ function escapeHtml(text: string): string {
 /** A highlight resting on the chapter, keyed by the verse it covers. */
 export type ReaderVerseHighlight = {
   accent: StudyHighlightAccentKey;
-  /** Present when the highlight carries an annotation — the dock has something to open. */
+  /** The row's id — every highlight is one, so the toolbar can reopen rather than recreate. */
   studyThreadEntryId?: string | null;
+  /** Whatever note was typed into it already, so reopening doesn't show a blank box over it. */
+  miniNoteBody?: string;
 };
 
 export interface PrototypeBibleReaderPaneProps {
@@ -249,6 +253,8 @@ export interface PrototypeBibleReaderPaneProps {
     accent: StudyHighlightAccentKey,
     excerpt: string,
   ) => Promise<string | null> | void;
+  /** Delete the row behind an open highlight dock — the "Remove highlight" trash icon. */
+  onRemoveHighlight?: (studyThreadEntryId: string) => void;
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
   /**
@@ -297,6 +303,7 @@ export default function PrototypeBibleReaderPane({
   highlights,
   onHighlight,
   onAnnotate,
+  onRemoveHighlight,
   onOpenNoteAtReference,
   onPrefetchNote,
   onSaveReference,
@@ -830,24 +837,36 @@ export default function PrototypeBibleReaderPane({
           .map((v) => v.text)
           .join(' ');
 
+  /**
+   * Whatever is already on the selection, keyed off its first verse — the same approximation
+   * `highlights` painting already makes per verse. Its presence is what turns Highlight and
+   * Annotate from "make a new one" into "go back to the one that's here": a highlight and its
+   * annotation are the same underlying row, so one lookup covers both buttons.
+   */
+  const existingHighlight = selection ? highlights?.get(selection[0]) : undefined;
+
   /** One action in the floating menu. */
   const MenuAction = ({
     icon,
     label,
+    dot,
     onClick,
   }: {
     icon: ComponentProps<typeof Icon>['name'];
     label: string;
+    /** Native parity with the share-link dot: this action already has something to go back to. */
+    dot?: boolean;
     onClick: () => void;
   }) => (
     <button
       type="button"
       className="pds-native-selection-bar__btn"
-      title={`${label} ${selectionLabel ?? ''}`.trim()}
-      aria-label={`${label} ${selectionLabel ?? ''}`.trim()}
+      title={`${dot ? `${label} (already done) — ` : ''}${label} ${selectionLabel ?? ''}`.trim()}
+      aria-label={`${dot ? `${label}, already done. ` : ''}${label} ${selectionLabel ?? ''}`.trim()}
       onClick={onClick}
     >
       <Icon name={icon} size={16} aria-hidden />
+      {dot ? <span className="pds-native-selection-bar__btn-dot" aria-hidden /> : null}
     </button>
   );
 
@@ -912,6 +931,15 @@ export default function PrototypeBibleReaderPane({
                   icon="highlighter"
                   label="Highlight"
                   onClick={() => {
+                    if (existingHighlight) {
+                      // Already highlighted — open on its own colour rather than firing the
+                      // bar's last-picked one at it, which would silently recolour a highlight
+                      // nobody asked to change. The swatches below already show the true colour
+                      // selected; committing only happens if one of them is actually tapped.
+                      setAccent(existingHighlight.accent);
+                      setPaletteOpen(true);
+                      return;
+                    }
                     // Highlight first, ask about colour second. A bare swatch sitting in the
                     // menu was a colour with no stated purpose — it read as decoration until
                     // you guessed what it did. Committing on the first tap means the palette
@@ -930,7 +958,23 @@ export default function PrototypeBibleReaderPane({
                 <MenuAction
                   icon="pen"
                   label="Annotate"
+                  dot={!!existingHighlight?.studyThreadEntryId}
                   onClick={() => {
+                    if (existingHighlight?.studyThreadEntryId) {
+                      // Already annotated — go straight to the existing row instead of
+                      // starting another network round trip for one that's already there.
+                      setDock({
+                        kind: 'highlight',
+                        reference: selectionLabel,
+                        excerpt: selectedText,
+                        accent: existingHighlight.accent,
+                        studyThreadEntryId: existingHighlight.studyThreadEntryId,
+                        miniNoteBody: existingHighlight.miniNoteBody ?? '',
+                      });
+                      setLanding(selection);
+                      setSelection(null);
+                      return;
+                    }
                     // Open on the id-less state right away — the id arrives after the network
                     // round trip, and HighlightDockWeb already knows how to hold onto whatever
                     // gets typed before then and flush it once `studyThreadEntryId` shows up.
@@ -940,6 +984,7 @@ export default function PrototypeBibleReaderPane({
                       excerpt: selectedText,
                       accent,
                       studyThreadEntryId: null,
+                      miniNoteBody: '',
                     });
                     void Promise.resolve(
                       onAnnotate({ start: selection[0], end: selection[1] }, accent, selectedText),
@@ -1327,15 +1372,24 @@ export default function PrototypeBibleReaderPane({
                 accent={dock.accent}
                 excerpt={dock.excerpt}
                 focusTitle={dock.reference}
+                miniNoteBody={dock.miniNoteBody}
                 entryKind="scriptureLink"
                 studyThreadEntryId={dock.studyThreadEntryId}
                 contextSpaceId={homeSpaceId}
                 onAccentChange={(next) => {
                   setAccent(next);
-                  if (selection) onHighlight?.({ start: selection[0], end: selection[1] }, next, selectedText);
+                  // `selection` is already cleared by the time this dock is open (see the
+                  // Annotate handlers above) — `focusRange` is what still names the verses it
+                  // covers, whether they got here via a fresh selection or a reopened one.
+                  if (focusRange) {
+                    onHighlight?.({ start: focusRange[0], end: focusRange[1] }, next, dock.excerpt);
+                  }
                   setDock({ ...dock, accent: next });
                 }}
-                onRemove={() => setDock(null)}
+                onRemove={() => {
+                  if (dock.studyThreadEntryId) onRemoveHighlight?.(dock.studyThreadEntryId);
+                  setDock(null);
+                }}
                 onDone={() => setDock(null)}
               />
             ),

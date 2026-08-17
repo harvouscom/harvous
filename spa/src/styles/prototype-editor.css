@@ -1380,6 +1380,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 }
 
 .pds-native-selection-bar__btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1392,6 +1393,20 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   color: inherit;
   cursor: pointer;
   opacity: 1;
+}
+
+/* Native parity with .proto-toolbar-icon-btn__share-dot — this action already has something
+   to go back to (a highlight, an annotation), so it reopens rather than starting another. */
+.pds-native-selection-bar__btn-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pds-accent-indicator);
+  box-shadow: 0 0 0 1.5px var(--pds-bg-toolbar);
+  pointer-events: none;
 }
 
 .pds-native-selection-bar__btn:hover {

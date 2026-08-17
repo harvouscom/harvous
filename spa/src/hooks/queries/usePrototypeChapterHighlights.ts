@@ -116,3 +116,34 @@ export function useCreateChapterHighlight(
     },
   });
 }
+
+/**
+ * Removes a highlight (or its annotation — same row) from the reader's own dock.
+ *
+ * Mirrors `useCreateChapterHighlight`'s invalidation: the row may have come from reading or
+ * from a note's scripture dock, but either way this chapter's view and the sidebar's
+ * Highlights list both need to drop it.
+ */
+export function useDeleteChapterHighlight(
+  book: string,
+  chapter: number,
+  translation: string,
+  spaceId: string | null | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (studyThreadEntryId: string) => {
+      const res = await fetch(`/api/study-threads/${studyThreadEntryId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to remove highlight');
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: chapterHighlightsKey(book, chapter, translation),
+      });
+      notifyStudyThreadListChanged(spaceId, null);
+    },
+  });
+}
