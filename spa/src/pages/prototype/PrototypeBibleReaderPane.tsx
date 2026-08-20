@@ -25,6 +25,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import Icon from '@/components/react/Icon';
+import { nextVerseSelection } from './reader-verse-selection';
 // For `.scripture-pill-chrome__trans-chip` — the reader states the translation in the
 // same chip the dock does, so it borrows the chip rather than growing a second one.
 import '@/styles/scripture-pill-chrome.css';
@@ -219,6 +220,8 @@ export interface PrototypeBibleReaderPaneProps {
   translation: string;
   /** Verse to land on, e.g. from a deep link or a margin dot. */
   focusVerse?: number;
+  /** End of a ranged arrival; the focus covers `focusVerse`..`focusVerseEnd` inclusive. */
+  focusVerseEnd?: number;
   /**
    * Go to a chapter, in any book. Book-aware rather than chapter-only: reading runs past a
    * book's end, and prev/next that could not name a book dead-ended at every one of them.
@@ -322,6 +325,7 @@ export default function PrototypeBibleReaderPane({
   chapter,
   translation,
   focusVerse,
+  focusVerseEnd,
   onNavigateTo,
   onStartNote,
   onOpenDock,
@@ -741,21 +745,29 @@ export default function PrototypeBibleReaderPane({
     const scrollerRect = scroller.getBoundingClientRect();
     const centreOffset = (scroller.clientHeight - elRect.height) / 2;
     scroller.scrollTop = Math.max(0, scroller.scrollTop + (elRect.top - scrollerRect.top) - centreOffset);
-    setLanding([focusVerse, focusVerse]);
+    /*
+     * The whole passage, not just its first verse. Scrolling still targets `focusVerse` —
+     * a range starts where it starts — but the focus that dims the rest of the chapter runs
+     * to `focusVerseEnd`, so opening "John 3:16-18" leaves all three lit rather than lighting
+     * 16 and dimming the two verses that were the reason for the link.
+     *
+     * Focus only: no `setSelection` here. Landing says "here is the passage", and arming the
+     * action toolbar over verses nobody has touched yet would answer a question that has not
+     * been asked.
+     */
+    const end = focusVerseEnd && focusVerseEnd > focusVerse ? focusVerseEnd : focusVerse;
+    setLanding([focusVerse, end]);
     setFocusedVerse(focusVerse);
     // `landRequestKey` so asking for the verse you are already on lands on it again: the
     // verse number has not changed, but the request is new.
-  }, [focusVerse, verses.length, landRequestKey]);
+  }, [focusVerse, focusVerseEnd, verses.length, landRequestKey]);
 
+  /*
+   * Tapping a second verse extends the passage rather than replacing it — see
+   * `nextVerseSelection` for the rule and why shift-only was not enough.
+   */
   const selectVerse = useCallback((num: number, extend: boolean) => {
-    setSelection((current) => {
-      if (extend && current) {
-        // Shift-click extends from the anchor rather than starting over.
-        return [Math.min(current[0], num), Math.max(current[1], num)];
-      }
-      if (current && current[0] === num && current[1] === num) return null;
-      return [num, num];
-    });
+    setSelection((current) => nextVerseSelection(current, num, extend));
   }, []);
 
   const moveFocus = useCallback(
@@ -898,12 +910,25 @@ export default function PrototypeBibleReaderPane({
           .join(' ');
 
   /**
-   * Whatever is already on the selection, keyed off its first verse — the same approximation
-   * `highlights` painting already makes per verse. Its presence is what turns Highlight and
-   * Annotate from "make a new one" into "go back to the one that's here": a highlight and its
+   * Whatever is already on the selection. Its presence is what turns Highlight and Annotate
+   * from "make a new one" into "go back to the one that's here": a highlight and its
    * annotation are the same underlying row, so one lookup covers both buttons.
+   *
+   * Every verse in the range has to be the same row, not just the first. Keying off
+   * `selection[0]` was a fair approximation while ranges took a shift-click and were rare;
+   * now that two taps make one, selecting 16-20 across a highlight that only covers 20 would
+   * silently reopen verse 20's annotation instead of offering a new highlight over all five.
    */
-  const existingHighlight = selection ? highlights?.get(selection[0]) : undefined;
+  const existingHighlight = (() => {
+    if (!selection || !highlights) return undefined;
+    const first = highlights.get(selection[0]);
+    if (!first) return undefined;
+    for (let v = selection[0] + 1; v <= selection[1]; v += 1) {
+      // The map holds a fresh object per verse, so compare the row id rather than identity.
+      if (highlights.get(v)?.studyThreadEntryId !== first.studyThreadEntryId) return undefined;
+    }
+    return first;
+  })();
   /**
    * The id above, but only once it is real. Right after a fresh Highlight tap the cache holds
    * an optimistic row (see `useCreateChapterHighlight`) so the verse paints immediately — its

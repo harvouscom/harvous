@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { prototypeHomeRouteTo, prototypeNoteRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
+import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
@@ -18,9 +18,8 @@ import {
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { findScripturePassageWithNotes } from '@/utils/scripture-passage-drill';
-import { parseScriptureReference } from '@/utils/scripture-detector';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
-import { bookSlug } from '@/utils/bible-book-chapters';
+import { readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug } from './proto-route-slugs';
 
 type Props = {
@@ -153,16 +152,15 @@ export default function PrototypeDailyPassagePill({
    * the chapter and the time spent, which is more than a "viewed" ping would have said.
    */
   const openInReader = useCallback(() => {
-    const parsed = parseScriptureReference(votd.reference);
-    if (!parsed) return;
-    const verse = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+    // `readerRouteForReference` rather than a hand-rolled route: it is the one place that
+    // knows a passage can be a range, so today's passage lands on all of it.
+    const route = readerRouteForReference(votd.reference, getEffectiveDefaultTranslation());
+    if (!route) return;
     afterNav();
     navigate({
-      to: prototypeReadRouteTo(),
-      params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
+      ...route,
       search: {
-        v: verse ? String(verse) : undefined,
-        t: getEffectiveDefaultTranslation(),
+        ...route.search,
         // Asking for today's passage again should land on the verse again, even when the
         // reader is already open on it and the verse was clicked away.
         req: String(Date.now()),

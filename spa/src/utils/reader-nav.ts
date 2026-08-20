@@ -21,14 +21,35 @@ export function readerRouteForReference(
 ): {
   to: ReturnType<typeof prototypeReadRouteTo>;
   params: { book: string; chapter: string };
-  search: { v: string | undefined; t: string };
+  search: { v: string | undefined; vEnd: string | undefined; t: string };
 } | null {
   const parsed = parseScriptureReference(reference);
   if (!parsed?.book || !parsed.chapter) return null;
+  /*
+   * Both ends, not just the first verse. `parseScriptureReference` has always returned a
+   * tuple for a range, and every caller here used to drop `[1]` on the floor — so opening
+   * "John 3:16-18" landed on 16 and left 17-18 dimmed with the rest of the chapter, which
+   * is precisely the context the reference was naming.
+   */
   const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : parsed.verse;
+  /*
+   * A chapter-only reference singles out nothing, so it should focus nothing.
+   *
+   * `parseScriptureReference` expands "John 3" to verses 1-36 for lookup, and putting that
+   * back on the URL would both scroll the reader to verse 1 for no reason and bake this
+   * chapter's verse count into a link that outlives it. A colon is the only verse separator
+   * the parser accepts, so its absence is exactly "no verse was named".
+   */
+  const namesAVerse = reference.includes(':');
   return {
     to: prototypeReadRouteTo(),
     params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
-    search: { v: verseStart ? String(verseStart) : undefined, t: translation },
+    search: {
+      v: namesAVerse && verseStart ? String(verseStart) : undefined,
+      // Omitted when it would only repeat `v` — a single verse should not carry a range.
+      vEnd: namesAVerse && verseEnd && verseEnd !== verseStart ? String(verseEnd) : undefined,
+      t: translation,
+    },
   };
 }

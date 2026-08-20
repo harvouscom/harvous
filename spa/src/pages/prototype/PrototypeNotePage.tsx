@@ -798,36 +798,79 @@ export default function PrototypeNotePage() {
   );
 
   /**
+   * Forward handle on `persistDraftNote`, which is declared several hundred lines below with
+   * the rest of the save machinery. Expanding to the reader has to be able to save a draft
+   * first (see below), and a `const` cannot be read before it is initialised.
+   */
+  const persistDraftNoteRef = useRef<
+    | ((
+        title: string,
+        content: string,
+        collectionExtras?: NoteCollectionExtras,
+        originHint?: string,
+      ) => Promise<string | null>)
+    | null
+  >(null);
+
+  /**
    * A scripture dock expanding one step further, into the Bible reader.
    *
    * The reader stacks over this note as a sheet, the inverse of a note over the reader; the
    * edge above the chapter says this note's title, and tapping it collapses back to the note
    * with its dock reopened. `returnTo` is captured here, at expand time, and that is the
    * anchor rule: read three chapters on and collapse, and the dock comes back on the pill's
-   * reference, because the reader never touches what was captured. A draft has no address to
-   * return to, so it does not offer this.
+   * reference, because the reader never touches what was captured.
+   *
+   * A draft saves on the way rather than refusing. It used to `return` on `isDraft`, which
+   * made the control dead on exactly the notes that most want it: every "suggested note"
+   * entry point — today's passage, a sermon starter, a featured card, "start a note" from the
+   * reader — opens a compose draft, so the expand button rendered, looked live, and did
+   * nothing. Saving first is also nearly free: `scheduleComposeUrlIdleReplace` was going to
+   * persist this draft two seconds later anyway. It keeps the `noteDock` invariant that a
+   * stack origin is an existing note with a real address to return to.
    *
    * Declared up here with the other hooks, above the loading/not-found early returns — a hook
    * below them is skipped on the loading render and appears on the next, which React reports
    * as "rendered more hooks than during the previous render".
    */
   const handleExpandScriptureToReader = useCallback(
-    ({ reference, translation }: { reference: string; translation: string }) => {
-      if (isDraft || !noteId) return;
-      const parsed = parseScriptureReference(reference);
-      if (!parsed) return;
-      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+    async ({ reference, translation }: { reference: string; translation: string }) => {
+      // The shared helper, so a pill naming a range opens the reader on all of it.
+      const route = readerRouteForReference(reference, translation);
+      if (!route) return;
       /*
        * Measure the card before anything moves, so the chapter can grow out of exactly where
        * the dock was rather than from a guess. Read now, in the click, because the dock is
-       * unmounted by the navigation on the next line — a frame later there is nothing left
-       * to measure. Absent (a keyboard path, a card mid-animation) simply means no morph.
+       * unmounted by the navigation below — a frame later there is nothing left to measure,
+       * and a draft's save puts a whole round-trip in between. Absent (a keyboard path, a
+       * card mid-animation) simply means no morph.
        */
       const dockCard = document.querySelector('.study-dock-card');
       const rect = dockCard instanceof HTMLElement ? dockCard.getBoundingClientRect() : null;
+
+      /*
+       * Seed fallback for the same reason `persistDraftNote` keeps one: a draft opened from a
+       * suggestion may not have had a content change reported yet, and creating it from an
+       * empty snapshot would throw away the pill that put the expand button on screen.
+       */
+      const seed = composeSeedRef.current;
+      const draftTitle = hasLiveNoteSnapshot ? liveNoteSnapshot.title : (seed?.title ?? '');
+      const draftContent = hasLiveNoteSnapshot
+        ? liveNoteSnapshot.content
+        : (seed?.contentHtml ?? '');
+      const targetNoteId = isDraft
+        ? await persistDraftNoteRef.current?.(
+            draftTitle,
+            draftContent,
+            undefined,
+            'expand-scripture-to-reader',
+          )
+        : noteId;
+      if (!targetNoteId) return;
+
       stackNote(
         buildNoteDockOrigin({
-          noteId,
+          noteId: targetNoteId,
           noteTitle: liveNoteSnapshot.title || note?.title,
           reference,
           translation,
@@ -843,15 +886,21 @@ export default function PrototypeNotePage() {
                 }
               : undefined,
         }),
-        noteId,
+        targetNoteId,
       );
-      void navigate({
-        to: prototypeReadRouteTo(),
-        params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
-        search: { v: verseStart ? String(verseStart) : undefined, t: translation },
-      });
+      void navigate(route);
     },
-    [isDraft, noteId, liveNoteSnapshot.title, note?.title, contextSpaceId, stackNote, navigate],
+    [
+      isDraft,
+      noteId,
+      hasLiveNoteSnapshot,
+      liveNoteSnapshot.title,
+      liveNoteSnapshot.content,
+      note?.title,
+      contextSpaceId,
+      stackNote,
+      navigate,
+    ],
   );
 
 
@@ -1908,6 +1957,12 @@ export default function PrototypeNotePage() {
       setPrototypeFolderChip,
     ],
   );
+
+  // Hand the save back to the expand-to-reader handler declared above it. An effect rather
+  // than an assignment during render: the only reader is a click, which is always later.
+  useEffect(() => {
+    persistDraftNoteRef.current = persistDraftNote;
+  }, [persistDraftNote]);
 
   const handleNoteSave = useCallback(
     async (

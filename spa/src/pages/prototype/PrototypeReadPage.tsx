@@ -21,9 +21,10 @@ import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-lis
 import { toast } from '@/utils/toast';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useProtoShell, type PaperStackOrigin } from '../../layouts/proto-shell-context';
-import { parseScriptureReference } from '@/utils/scripture-detector';
+import { readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+import { noteDockReturnSearch } from './paper-stack-origins';
 import { createPortal } from 'react-dom';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
@@ -68,6 +69,7 @@ export default function PrototypeReadPage() {
   const params = useParams({ strict: false }) as { book?: string; chapter?: string };
   const search = useSearch({ strict: false }) as {
     v?: string;
+    vEnd?: string;
     t?: string;
     ref?: string;
     req?: string;
@@ -80,6 +82,7 @@ export default function PrototypeReadPage() {
     beginPrototypeComposeSession,
     stackNote,
     paperStack,
+    clearPaperStack,
     inspectorOpen,
     inspectorExiting,
     closeInspector,
@@ -101,6 +104,12 @@ export default function PrototypeReadPage() {
   const book = bookFromSlug(rawBook) ?? rawBook;
   const chapter = Number.parseInt(params.chapter ?? '', 10);
   const focusVerse = search.v ? Number.parseInt(search.v, 10) : undefined;
+  /*
+   * The other end of a ranged arrival. A passage is usually several verses — "John 3:16-18"
+   * is one thought, not one verse with two spare — so the focus that dims the rest of the
+   * chapter has to cover all of them. Absent for a single-verse link, where it is `focusVerse`.
+   */
+  const focusVerseEnd = search.vEnd ? Number.parseInt(search.vEnd, 10) : undefined;
 
   // URL wins so a shared link reads in the translation it was shared in; otherwise
   // the reader follows the account's default rather than a hardcoded one.
@@ -351,20 +360,47 @@ export default function PrototypeReadPage() {
    */
   const handleOpenReference = useCallback(
     (ref: string) => {
-      const parsed = parseScriptureReference(ref);
-      if (!parsed) return;
-      const verse = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-      void navigate({
-        to: prototypeReadRouteTo(),
-        params: { book: bookSlug(parsed.book), chapter: String(parsed.chapter) },
-        search: { v: verse ? String(verse) : undefined, t: search.t },
-      });
+      // Shared helper so a cross-reference that names a range lands on the whole range,
+      // the same way today's passage and a note's dock now do.
+      const route = readerRouteForReference(ref, translation);
+      if (!route) return;
+      void navigate(route);
     },
-    [navigate, search.t],
+    [navigate, translation],
+  );
+
+  /**
+   * Going back to the note this reader was expanded from, when its own margin bar is what
+   * was tapped.
+   *
+   * Without this, tapping your own note's bar took the `stackNote` path below — and because a
+   * new stack replaces the old one, that turned "note A with its chapter above it" into "the
+   * chapter with note A above it": the same two papers, upside down, and the dock that was
+   * waiting to reopen underneath gone. Collapsing is what the edge button does, so the bar
+   * does it too. The reverse morph is the edge's alone: it closes onto the dock card's rect,
+   * and a tap out in the margin has no rect to close onto.
+   *
+   * Returns true when it handled the tap.
+   */
+  const collapseToDockOriginNote = useCallback(
+    (noteId: string): boolean => {
+      const origin = paperStack?.origin;
+      if (!origin || origin.kind !== 'noteDock' || paperStack?.noteId !== noteId) return false;
+      clearPaperStack();
+      void navigate({
+        to: origin.returnTo.to,
+        params: origin.returnTo.params ?? {},
+        // Fresh nonce so the note reopens its dock, exactly as the edge collapse does.
+        search: noteDockReturnSearch(origin),
+      });
+      return true;
+    },
+    [paperStack, clearPaperStack, navigate],
   );
 
   const handleOpenNote = useCallback(
     (noteId: string) => {
+      if (collapseToDockOriginNote(noteId)) return;
       // Stack it over the chapter rather than replacing it — the passage is the context
       // the note was written about, and the reader should still be there behind it.
       stackNote(readerOrigin(focusVerse), noteId);
@@ -374,7 +410,7 @@ export default function PrototypeReadPage() {
         search: {},
       });
     },
-    [focusVerse, stackNote, readerOrigin, navigate],
+    [focusVerse, stackNote, readerOrigin, navigate, collapseToDockOriginNote],
   );
 
   /**
@@ -386,6 +422,7 @@ export default function PrototypeReadPage() {
    */
   const handleOpenNoteAtReference = useCallback(
     (noteId: string, reference: string) => {
+      if (collapseToDockOriginNote(noteId)) return;
       stackNote(readerOrigin(focusVerse), noteId);
       void navigate({
         to: prototypeNoteRouteTo(),
@@ -393,7 +430,7 @@ export default function PrototypeReadPage() {
         search: { scriptureRef: reference, scriptureTranslation: translation },
       });
     },
-    [focusVerse, stackNote, readerOrigin, translation, navigate],
+    [focusVerse, stackNote, readerOrigin, translation, navigate, collapseToDockOriginNote],
   );
 
   /**
@@ -453,11 +490,24 @@ export default function PrototypeReadPage() {
     />
   );
 
-  // Same portal target and chrome classes as the note inspector — one inspector surface,
-  // two kinds of content, rather than a second panel that happens to look similar.
+  /*
+   * Same chrome classes as the note inspector — one inspector surface, two kinds of content,
+   * rather than a second panel that happens to look similar. Two *hosts*, though, and that
+   * distinction is load-bearing: `.proto-shell__right-panel-host` is `display: none` below
+   * 900px (prototype-shell.css), and a `position: fixed` child of a hidden ancestor is never
+   * rendered at all. Portalling the mobile slide-over there meant the reader's inspector
+   * simply did not exist on a phone. The note page hit this first and fixed it the same way;
+   * the reader shipped later and reproduced the old shape.
+   */
   const rightPanelHost =
     typeof document !== 'undefined'
-      ? document.querySelector('.proto-shell__right-panel-host') ?? document.body
+      ? document.querySelector('.proto-shell__right-panel-host') ??
+        document.querySelector('.proto-shell') ??
+        document.body
+      : null;
+  const shellHost =
+    typeof document !== 'undefined'
+      ? document.querySelector('.proto-shell') ?? document.body
       : null;
   const inspectorVisible = inspectorOpen || inspectorExiting;
   /*
@@ -469,26 +519,48 @@ export default function PrototypeReadPage() {
    * were adjusting it for.
    */
   const inspectorDocked = inspectorOpen && !inspectorExiting && !isMobileSidebar && paneIsWide;
-  const inspectorLayer =
-    inspectorVisible && rightPanelHost
+  /*
+   * Too narrow to dock, so the panel sits on top of the chapter instead. That needs a
+   * backdrop: floating, the only thing behind the panel is the text it is covering, and
+   * without a dismiss target there is nothing to click to get the chapter back. Docked it
+   * owns its own column and must not eat clicks on the verses beside it.
+   */
+  const inspectorFloating = inspectorOpen && !inspectorExiting && !isMobileSidebar && !paneIsWide;
+
+  const mobileInspectorLayer =
+    inspectorVisible && isMobileSidebar && shellHost
       ? createPortal(
-          isMobileSidebar ? (
-            <>
+          <>
+            <div
+              className="proto-inspector-mobile-backdrop"
+              role="presentation"
+              tabIndex={-1}
+              onClick={closeInspector}
+            />
+            <div
+              className={`proto-inspector-mobile-panel${inspectorExiting ? ' proto-inspector-mobile-panel--exiting' : ''}`}
+              role="dialog"
+              aria-label="Reading details"
+            >
+              {readerInspector}
+            </div>
+          </>,
+          shellHost,
+        )
+      : null;
+
+  const desktopInspectorLayer =
+    inspectorVisible && !isMobileSidebar && rightPanelHost
+      ? createPortal(
+          <>
+            {inspectorFloating ? (
               <div
-                className="proto-inspector-mobile-backdrop"
+                className="proto-inspector-desktop-backdrop"
                 role="presentation"
                 tabIndex={-1}
                 onClick={closeInspector}
               />
-              <div
-                className={`proto-inspector-mobile-panel${inspectorExiting ? ' proto-inspector-mobile-panel--exiting' : ''}`}
-                role="dialog"
-                aria-label="Reading details"
-              >
-                {readerInspector}
-              </div>
-            </>
-          ) : (
+            ) : null}
             <div
               className={`proto-inspector-desktop${inspectorExiting ? ' proto-inspector-desktop--exiting' : ''}`}
               role="dialog"
@@ -496,7 +568,7 @@ export default function PrototypeReadPage() {
             >
               {readerInspector}
             </div>
-          ),
+          </>,
           rightPanelHost,
         )
       : null;
@@ -505,13 +577,15 @@ export default function PrototypeReadPage() {
     <PrototypeMainPaneShell
       className={inspectorDocked ? 'proto-main-pane--inspector-docked' : undefined}
     >
-      {inspectorLayer}
+      {mobileInspectorLayer}
+      {desktopInspectorLayer}
       <div className="pds-reader-with-dock">
         <PrototypeBibleReaderPane
           book={book}
           chapter={chapter}
           translation={translation}
           focusVerse={Number.isFinite(focusVerse) ? focusVerse : undefined}
+          focusVerseEnd={Number.isFinite(focusVerseEnd) ? focusVerseEnd : undefined}
           onNavigateTo={handleNavigateTo}
           onStartNote={handleStartNote}
           // A cross-reference tapped inside the scripture dock is a place to go, not another
