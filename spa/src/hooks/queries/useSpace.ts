@@ -463,11 +463,13 @@ export function useSpaceItems(spaceId: string) {
 
 /** Single request for space + items; use on SpacePage for one round-trip. Populates cache for useSpace/useSpaceItems. */
 export function useSpaceBootstrap(spaceId: string) {
+  // Same gate its siblings already carry — the cached bootstrap below still paints at once.
+  const authReady = useAuthReady();
   const cachedBootstrap = spaceId ? getCachedSpaceBootstrap(spaceId) : undefined;
   const opts = getSpaceBootstrapQueryOptions(spaceId);
   return useQuery({
     ...opts,
-    enabled: !!spaceId,
+    enabled: authReady && !!spaceId,
     initialData: cachedBootstrap,
     initialDataUpdatedAt: cachedBootstrap ? Date.now() - 15_000 : undefined,
   });

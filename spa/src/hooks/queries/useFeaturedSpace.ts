@@ -16,6 +16,8 @@ export function useFeaturedSpace() {
   return useQuery({
     queryKey: featuredSpaceQueryKey,
     queryFn: async () => {
+      // auth-gate-exempt: /api/featured/space reads the Harvous system user's public
+      // featured space and checks no session, so a signed-out visitor gets the same answer.
       const res = await fetch('/api/featured/space', { credentials: 'include' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

@@ -492,6 +492,23 @@
   animation: none !important;
 }
 
+/* Replaced, not arriving — see SubtleContentMount's `instant`. Applying a note template
+   remounts the editor so TipTap re-seeds; animating that reads as lag over a canvas the
+   user is already looking at. */
+.subtle-content-mount--instant,
+.subtle-content-mount--instant .subtle-content-mount__inner {
+  animation: none !important;
+}
+
+.subtle-content-mount--instant {
+  grid-template-rows: 1fr;
+}
+
+.subtle-content-mount--instant .subtle-content-mount__inner {
+  opacity: 1;
+  transform: none;
+}
+
 /* Main column / flex scroll: grid 0fr→1fr yields zero height — fade inner only */
 .subtle-content-mount--fade {
   display: flex;

@@ -1,5 +1,6 @@
 import { useQuery, QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
 import { resolveNoteListPreview } from '@/utils/note-list-preview';
 
 /** Thread context when seeding note cache from a list (thread/space page). */
@@ -640,6 +641,13 @@ export function getNoteQueryOptions(noteId: string, contextSpaceId?: string | nu
 }
 
 export function useNote(noteId: string, contextSpaceId?: string | null) {
+  /*
+   * Gate the fetch, not the paint. `initialData` below still shows the session snapshot
+   * immediately; this only stops the GET firing before the session cookie is usable, which
+   * settled the query into `isError` on a cold open and left the toolbar's folder chip,
+   * Share and ⋯ with no note to render from.
+   */
+  const authReady = useAuthReady();
   const context = contextSpaceId?.trim() || null;
   const options = getNoteQueryOptions(noteId, context);
   // Prefer session snapshot for unscoped reads; for shared-context reads, still paint
@@ -661,7 +669,7 @@ export function useNote(noteId: string, contextSpaceId?: string | null) {
             : 0;
   return useQuery({
     ...options,
-    enabled: !!noteId,
+    enabled: authReady && !!noteId,
     initialData: cachedDetail,
     initialDataUpdatedAt,
   });

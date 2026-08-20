@@ -528,6 +528,31 @@ describe('shared permission and Thread picker policies', () => {
     ).toBeNull();
   });
 
+  it('reads an unresolved home space as personal, not as a shared context', () => {
+    /*
+     * Regression: home is resolved from navigation, which lands after first paint. While it
+     * was null, `active === home` could not be true, so a My Home note was reported as
+     * shared — capabilities failed closed and the folder chip and Share button vanished for
+     * as long as nav took. Foreign shared notes are caught by `readOnlyForeignNote`, which
+     * Share is gated on separately, so reading toward personal here cannot leak Share.
+     */
+    expect(
+      resolveNativeToolbarSharedContextId({
+        activeSpaceId: 'space_home',
+        noteSharedSpaceIds: ['space_home'],
+        homeSpaceId: null,
+      }),
+    ).toBeNull();
+    // And once nav lands, a genuinely shared context is still recognised.
+    expect(
+      resolveNativeToolbarSharedContextId({
+        activeSpaceId: 'space_A',
+        noteSharedSpaceIds: ['space_A'],
+        homeSpaceId: 'space_home',
+      }),
+    ).toBe('space_A');
+  });
+
   it('matches bare active ids against prefixed association ids', () => {
     expect(
       resolveNativeToolbarSharedContextId({

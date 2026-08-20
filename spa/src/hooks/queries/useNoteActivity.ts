@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useAuthReady } from '../useAuthReady';
 import { api } from '../../lib/api';
 
 /** JSON shape returned by GET /api/notes/:noteId/activity. */
@@ -53,8 +54,9 @@ export function getNoteActivityQueryOptions(noteId: string, contextSpaceId?: str
 }
 
 export function useNoteActivity(noteId: string, contextSpaceId?: string | null) {
+  const authReady = useAuthReady();
   return useQuery({
     ...getNoteActivityQueryOptions(noteId, contextSpaceId),
-    enabled: Boolean(noteId),
+    enabled: authReady && Boolean(noteId),
   });
 }

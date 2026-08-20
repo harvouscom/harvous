@@ -831,6 +831,19 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   }
 }
 
+/*
+ * An orb's worth of nothing.
+ *
+ * Held while the note (or the space id the ⋯ menu is addressed by) is still loading, so the
+ * toolbar row keeps its geometry instead of shoving sideways when the controls arrive. Not a
+ * shimmer: this is usually a few hundred milliseconds, and a pulsing skeleton would draw more
+ * attention to the wait than the wait deserves.
+ */
+.proto-toolbar-icon-btn--placeholder {
+  pointer-events: none;
+  visibility: hidden;
+}
+
 /* Icon button — circular macOS toolbar "orb" */
 .proto-toolbar-icon-btn {
   position: relative;

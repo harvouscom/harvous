@@ -2426,11 +2426,21 @@ export default function PrototypeNotePage() {
   // inspector stays mounted but floats over the editor as a quiet overlay.
   // Drafts can open the inspector for Templates; they float (no dock reserve) so
   // the empty compose canvas stays full-width until the note persists.
+  /*
+   * `!isDraft` has one exception: a draft that has had a template applied.
+   *
+   * Drafts float so the empty compose canvas stays full-width. But applying a template fills
+   * the canvas, and ~2s later `scheduleComposeUrlIdleReplace` persists the note and moves the
+   * URL to `/{id}` — `isDraft` flips, the column reserves the inspector's width, and every
+   * line of the template the user is in the middle of reading re-wraps. Reserving as soon as
+   * there is content to reserve around makes that a no-op instead of a jump.
+   */
+  const draftHasTemplateContent = isDraft && templateApplyEpoch > 0;
   const inspectorReservesEditorSpace =
     inspectorOpen &&
     !parkedBehindReader &&
     !inspectorExiting &&
-    !isDraft &&
+    (!isDraft || draftHasTemplateContent) &&
     !!inspectorNote &&
     !isMobileSidebar &&
     paneIsWide;
@@ -2549,7 +2559,13 @@ export default function PrototypeNotePage() {
       {/* Editor column */}
       <div className="proto-editor-surface">
         <div className="proto-editor-scroll">
-          <SubtleContentMount key={editorSessionKey} variant="fade">
+          {/* `instant` once a template has been applied: the remount below is a re-seed of a
+              canvas already on screen, and an entrance animation over it reads as lag. */}
+          <SubtleContentMount
+            key={editorSessionKey}
+            variant="fade"
+            instant={templateApplyEpoch > 0}
+          >
             <div className="proto-editor-content-wrap">
               <div
                 className="proto-editor-paper"

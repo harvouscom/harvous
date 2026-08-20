@@ -30,12 +30,32 @@ import { extname, relative, resolve } from 'node:path';
 const root = process.cwd();
 const HOOKS_ROOT = resolve(root, 'spa/src/hooks');
 const EXEMPT_MARKER = /auth-gate-exempt:\s*\S/;
-const API_CALL = /\bapi\.(get|post|put|patch|delete)\s*[<(]/;
+/*
+ * Two shapes of authenticated call, because the checker used to see only the first and
+ * therefore passed clean on hooks that had no gate at all.
+ *
+ * `useNavigation` calls `fetch('/api/navigation/data')` directly rather than going through
+ * the `api` wrapper, so `API_CALL` never matched — and it was ungated, firing into the
+ * cold-start cookie gap with `retry: 2`, which is exactly the incident this check exists to
+ * prevent. Both forms count now.
+ */
+const API_CALL = /\bapi\.(get|post|put|patch|delete)\s*[<(]|\bfetch\s*\(\s*[`'"]\/api\//;
 const REACT_QUERY_CALL = /\b(useQuery|useInfiniteQuery)\s*\(/;
 const AUTH_READY_CALL = /\buseAuthReady\s*\(/;
 // Matches `export function useFoo(` or `export const useFoo = (` — this
 // codebase only uses the former today, but both are supported.
 const HOOK_START = /export\s+(?:function\s+(use[A-Za-z0-9_]*)\s*\(|const\s+(use[A-Za-z0-9_]*)\s*=[^=]*?=>\s*\{)/g;
+/*
+ * Any function in the file, hook or not — so a hook that assembles its query from a helper
+ * still counts as calling the endpoint that helper calls.
+ *
+ * `useNote` is the case that motivated this: its `useQuery` is in the hook, but the
+ * `api.get('/api/notes/:id/details')` lives in `getNoteQueryOptions`, a plain exported
+ * function. Attributing calls only to `use*` bodies meant the two halves never met and the
+ * hook looked like it touched no endpoint at all.
+ */
+const ANY_FUNCTION_START =
+  /(?:export\s+)?(?:async\s+)?(?:function\s+([A-Za-z0-9_]+)\s*\(|const\s+([A-Za-z0-9_]+)\s*=[^=]*?=>\s*\{)/g;
 
 function filesUnder(path) {
   if (statSync(path).isFile()) return [path];
@@ -82,6 +102,17 @@ for (const file of filesUnder(HOOKS_ROOT)) {
   scanned++;
   const source = readFileSync(file, 'utf8');
 
+  // Helpers in this file that reach an authenticated endpoint themselves. A hook that calls
+  // one of these is reaching that endpoint too, however indirectly.
+  const apiHelpers = new Set();
+  for (const match of source.matchAll(ANY_FUNCTION_START)) {
+    const name = match[1] ?? match[2];
+    if (!name || name.startsWith('use')) continue;
+    const end = findFunctionBodyEnd(source, match.index);
+    if (end === -1) continue;
+    if (API_CALL.test(source.slice(match.index, end))) apiHelpers.add(name);
+  }
+
   for (const match of source.matchAll(HOOK_START)) {
     const hookName = match[1] ?? match[2];
     const bodyEnd = findFunctionBodyEnd(source, match.index);
@@ -89,7 +120,10 @@ for (const file of filesUnder(HOOKS_ROOT)) {
     const body = source.slice(match.index, bodyEnd);
 
     if (!REACT_QUERY_CALL.test(body)) continue;
-    if (!API_CALL.test(body)) continue;
+    const callsApiHelper = [...apiHelpers].some((name) =>
+      new RegExp(`\\b${name}\\s*\\(`).test(body),
+    );
+    if (!API_CALL.test(body) && !callsApiHelper) continue;
     if (AUTH_READY_CALL.test(body)) continue;
     if (EXEMPT_MARKER.test(body)) continue;
 

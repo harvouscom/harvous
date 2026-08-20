@@ -80,7 +80,20 @@ export function resolveNativeToolbarSharedContextId(options: {
 }): string | null {
   const active = normalizeToolbarSpaceId(options.activeSpaceId);
   const home = normalizeToolbarSpaceId(options.homeSpaceId);
-  if (!active || active === home) return null;
+  /*
+   * `!home` matters as much as `active === home`.
+   *
+   * Home is resolved from navigation, which lands after the first paint. Until it does,
+   * `active === home` can never be true — so a My Home note fell through, matched its own
+   * space in `note.spaces`, and was reported as a *shared* context. Capabilities then failed
+   * closed, and the folder chip and Share button both disappeared for as long as nav took.
+   * That is the transient half of "folder info, more options and share don't load".
+   *
+   * Reading an unknown home as "personal" is the safe direction: a note that really is
+   * foreign-shared is caught separately by `readOnlyForeignNote`, which Share is also gated
+   * on, so this cannot expose Share on someone else's note.
+   */
+  if (!active || !home || active === home) return null;
   if (!options.noteSharedSpaceIds) return null;
   const associated = options.noteSharedSpaceIds.some(
     (id) => normalizeToolbarSpaceId(id) === active,
@@ -491,6 +504,18 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
               />
             ) : null}
 
+            {/*
+              * Reserve the orb rather than letting it pop in.
+              *
+              * `useNote` paints instantly from a sessionStorage snapshot, so a note opened
+              * in this session looks fine — but a hard refresh onto a note URL, or a tap on
+              * a Bible-reader margin bar, has no snapshot, and Share and ⋯ were simply
+              * absent for the whole fetch and then appeared, shoving the row. Holding their
+              * width keeps the toolbar still while the answer arrives.
+              */}
+            {isOnNotePage && toolbarNoteId && !isMobileSidebar && toolbarNoteLoading ? (
+              <span className="proto-toolbar-icon-btn proto-toolbar-icon-btn--placeholder" aria-hidden />
+            ) : null}
             {toolbarNote && toolbarNoteId && !isMobileSidebar && !readOnlyForeignNote && contextualCapabilities.canShare ? (
               <>
                 <button
@@ -522,6 +547,11 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
               />
             ) : null}
 
+            {/* The menu genuinely cannot render without a space id — every action it offers is
+                addressed by one — so hold its place until navigation has produced one. */}
+            {!noteSpaceId ? (
+              <span className="proto-toolbar-icon-btn proto-toolbar-icon-btn--placeholder" aria-hidden />
+            ) : null}
             {noteSpaceId ? (
               <PrototypeNoteMoreMenu
                 noteId={toolbarNoteId}

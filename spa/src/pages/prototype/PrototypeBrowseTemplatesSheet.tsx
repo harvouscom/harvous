@@ -30,7 +30,6 @@ import {
 } from './useProtoAnchoredPopoverPosition';
 import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
-import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { PrototypeListEmptyState, PrototypeListNoMatchEmptyState } from './design-system';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
@@ -537,51 +536,52 @@ export default function PrototypeBrowseTemplatesSheet({
             role="tabpanel"
             aria-label={tabPanelLabel}
           >
-            {isLoading && !data ? (
-              <ProtoSpaceLoading label="Loading templates" />
-            ) : (
-              <>
-                {showApiErrorHint ? (
-                  <p className="proto-inspector-muted proto-connect-note-sheet__status">
-                    Couldn’t reach saved templates — showing included ones.
-                  </p>
-                ) : null}
-                {activeItems.length > 0 ? (
-                  <ul className="proto-browse-templates-sheet__list">
-                    {activeItems.map((t) => {
-                      const rowKey = `${t.section}-${t.id}`;
-                      return (
-                        <TemplateListRow
-                          key={rowKey}
-                          template={t}
-                          showActions={rowCanShowActions(t)}
-                          menuOpen={openMenuId === rowKey}
-                          onToggleMenu={() =>
-                            setOpenMenuId((cur) => (cur === rowKey ? null : rowKey))
-                          }
-                          onCloseMenu={() => setOpenMenuId(null)}
-                          onApply={handleApply}
-                          onEdit={handleEdit}
-                          onRequestDelete={handleRequestDelete}
-                        />
-                      );
-                    })}
-                  </ul>
-                ) : showNoMatch ? (
-                  <div className="proto-browse-templates-sheet__empty">
-                    <PrototypeListNoMatchEmptyState title="No matching templates" />
-                  </div>
-                ) : showCategoryEmpty ? (
-                  <div className="proto-browse-templates-sheet__empty">
-                    <PrototypeListEmptyState
-                      iconName={categoryEmpty.iconName}
-                      title={categoryEmpty.title}
-                      description={categoryEmpty.description}
+            {/*
+             * No spinner: `sections` already falls back to the built-in templates when the
+             * query has not answered, so the list is useful from the first frame and the saved
+             * ones fill in behind it. A spinner hid content we already had in hand, and the
+             * swap re-measured the anchored popover — so choosing a template began with the
+             * panel moving under the cursor.
+             */}
+            {showApiErrorHint ? (
+              <p className="proto-inspector-muted proto-connect-note-sheet__status">
+                Couldn’t reach saved templates — showing included ones.
+              </p>
+            ) : null}
+            {activeItems.length > 0 ? (
+              <ul className="proto-browse-templates-sheet__list">
+                {activeItems.map((t) => {
+                  const rowKey = `${t.section}-${t.id}`;
+                  return (
+                    <TemplateListRow
+                      key={rowKey}
+                      template={t}
+                      showActions={rowCanShowActions(t)}
+                      menuOpen={openMenuId === rowKey}
+                      onToggleMenu={() =>
+                        setOpenMenuId((cur) => (cur === rowKey ? null : rowKey))
+                      }
+                      onCloseMenu={() => setOpenMenuId(null)}
+                      onApply={handleApply}
+                      onEdit={handleEdit}
+                      onRequestDelete={handleRequestDelete}
                     />
-                  </div>
-                ) : null}
-              </>
-            )}
+                  );
+                })}
+              </ul>
+            ) : showNoMatch ? (
+              <div className="proto-browse-templates-sheet__empty">
+                <PrototypeListNoMatchEmptyState title="No matching templates" />
+              </div>
+            ) : showCategoryEmpty ? (
+              <div className="proto-browse-templates-sheet__empty">
+                <PrototypeListEmptyState
+                  iconName={categoryEmpty.iconName}
+                  title={categoryEmpty.title}
+                  description={categoryEmpty.description}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

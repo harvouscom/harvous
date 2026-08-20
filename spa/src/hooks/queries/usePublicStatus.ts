@@ -59,6 +59,7 @@ export function usePublicStatus() {
   return useQuery({
     queryKey: publicStatusQueryKey,
     queryFn: async () => {
+      // auth-gate-exempt: the status page is public by definition and sends no credentials.
       const res = await fetch('/api/status/public');
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

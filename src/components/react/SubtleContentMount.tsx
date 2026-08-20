@@ -11,6 +11,15 @@ export default function SubtleContentMount({
   innerClassName = '',
   /** `expand`: grid height reveal (compact blocks). `fade`: use inside flex scroll columns (dashboard, thread, space) so layout height is not collapsed to 0. */
   variant = 'expand',
+  /**
+   * Skip the entrance entirely.
+   *
+   * For content that is being *replaced* rather than arriving — applying a note template
+   * remounts the editor so TipTap re-seeds, and playing a 0.42s fade-up over a canvas the
+   * user is already looking at reads as lag, not as an entrance. Nothing is appearing; the
+   * same surface is being refilled.
+   */
+  instant = false,
 }: {
   children: ReactNode;
   /** Applied to the outer grid wrapper */
@@ -18,8 +27,9 @@ export default function SubtleContentMount({
   /** Applied to the inner overflow clip + fade layer */
   innerClassName?: string;
   variant?: 'expand' | 'fade';
+  instant?: boolean;
 }) {
-  const [innerScrollSafe, setInnerScrollSafe] = useState(() => variant === 'fade');
+  const [innerScrollSafe, setInnerScrollSafe] = useState(() => instant || variant === 'fade');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -34,10 +44,14 @@ export default function SubtleContentMount({
     setInnerScrollSafe(true);
   };
 
-  const outerClass =
-    variant === 'fade'
-      ? `subtle-content-mount subtle-content-mount--fade${className ? ` ${className}` : ''}`
-      : `subtle-content-mount${className ? ` ${className}` : ''}`;
+  const outerClass = [
+    'subtle-content-mount',
+    variant === 'fade' ? 'subtle-content-mount--fade' : '',
+    instant ? 'subtle-content-mount--instant' : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div className={outerClass}>

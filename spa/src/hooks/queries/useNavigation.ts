@@ -1,4 +1,5 @@
 import { useAuth } from '@clerk/clerk-react';
+import { useAuthReady } from '../useAuthReady';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { APIError } from '../../lib/api';
 import { HARVOUS_NAV_CACHE_KEY } from '@/utils/user-cache-keys';
@@ -216,7 +217,19 @@ export function removeOwnedSpaceFromNavCache(
 }
 
 export function useNavigation(options?: { enabled?: boolean }) {
-  const { userId, isLoaded, isSignedIn } = useAuth();
+  const { userId } = useAuth();
+  /*
+   * Wait for a usable session JWT, not just for `isSignedIn`.
+   *
+   * There is a window on a cold start where Clerk reports a signed-in user before the
+   * `__session` cookie the API reads is usable. This query fired into it, 401'd, and with
+   * `retry: 2` could burn all three attempts inside that window — landing in `isError` with
+   * nothing to recover it until a refetch. Nav being absent is not cosmetic: the toolbar's
+   * home space id is derived from it, and without one the note page's ⋯ menu does not render
+   * at all, which is the "folder info, more options and share don't load" report, in its
+   * sticky form where a refresh is the only fix.
+   */
+  const authReady = useAuthReady();
   const sessionHint = hasClerkSessionCookieHint();
   const effectiveUserId =
     userId ?? (sessionHint ? readClerkUserIdForProfileCache() : undefined);
@@ -225,7 +238,7 @@ export function useNavigation(options?: { enabled?: boolean }) {
 
   const query = useQuery({
     queryKey: userId ? getNavigationQueryKey(userId) : ['navigation', effectiveUserId ?? ''],
-    enabled: (options?.enabled !== false) && isLoaded && isSignedIn && !!userId,
+    enabled: (options?.enabled !== false) && authReady && !!userId,
     queryFn: async () => {
       const res = await fetch('/api/navigation/data', {
         credentials: 'include',
