@@ -102,6 +102,8 @@ Start with the most recent file to see the latest updates!
 
 **Harvous for churches** (August 2026): [launches/harvous-for-churches.md](launches/harvous-for-churches.md) — the whole church release in one place, across v2.14.0–v2.33.0.
 
+**August 20, 2026:** [2026-08-20.md](2026-08-20.md) — passages that open as passages, reading details on a phone, and references that stay put (v2.72.13–v2.72.16).
+
 **August 6, 2026:** [2026-08-06.md](2026-08-06.md) — the Planner at full size, series that know how long they run, and a resource shelf for your church (v2.21.0–v2.33.0).
 
 **July 2026:** [v2.0-july-2026.md](v2.0-july-2026.md) — **Harvous 2.0** (Classic retired; prototype shell is production web). Social copy: [social/v2.0-july-2026-launch.md](social/v2.0-july-2026-launch.md).
