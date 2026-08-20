@@ -466,7 +466,12 @@ button .scripture-pill-chrome__trans-chip {
   font-size: 0.58em !important;
   font-weight: 500;
   color: var(--pds-text-secondary, rgba(29, 29, 31, 0.45));
-  margin-right: 0.1em;
+  /* Matches the reader's gap as rendered, which is not the same number.
+     The reader's verse number is 0.6875rem with `margin-inline-end: 0.25em`, so ~0.17rem of
+     space. This one is 0.58em of the passage text, so the same 0.25em would come out at
+     roughly half that — and at the 0.1em it had, a third. The dock read visibly more crowded
+     than the reader for the same verses. */
+  margin-right: 0.3em;
   display: inline-block;
 }
 

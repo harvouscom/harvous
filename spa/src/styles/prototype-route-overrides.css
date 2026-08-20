@@ -21,19 +21,20 @@ html.harvous-prototype-route [class*='proto-'] button * {
 }
 
 /*
- * Offline badge — its colour is the information.
+ * Offline badge — one neutral chip, both states.
  *
- * "Offline" in green and "Part-saved" in grey is the whole point of the badge, and it sits
- * inside the translation row's button, so the blanket rule above flattened both to primary
- * and left two identically-coloured pills saying different things.
+ * It sits inside the translation row's button, so the blanket rule above would otherwise
+ * flatten it to primary; this restates the chip colour rather than letting that happen. The
+ * `*` is for the check icon, whose SVG fills with `currentColor`.
+ *
+ * "Ready" used to be green here, which is what kept the badge green long after
+ * `.proto-offline-badge` in prototype-components.css was restyled neutral — this file is
+ * imported later and shouts `!important`, so it simply won. The states tell themselves apart
+ * by icon and label (a checkmark + "Offline" vs. plain "Part-saved"); green read as a success
+ * toast rather than a fact about a download, and matched no other pill in the app.
  */
-html.harvous-prototype-route .proto-offline-badge[data-state='ready'],
-html.harvous-prototype-route .proto-offline-badge[data-state='ready'] * {
-  color: var(--pds-success) !important;
-}
-
-html.harvous-prototype-route .proto-offline-badge[data-state='partial'],
-html.harvous-prototype-route .proto-offline-badge[data-state='partial'] * {
+html.harvous-prototype-route .proto-offline-badge,
+html.harvous-prototype-route .proto-offline-badge * {
   color: var(--pds-text-secondary) !important;
 }
 

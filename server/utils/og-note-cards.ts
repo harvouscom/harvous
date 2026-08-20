@@ -21,6 +21,10 @@ export interface OgResourceMeta {
 
 function stripHtml(html: string): string {
   return html
+    // Verse numbers ride in <sup>, with no separator of their own — dropping the tag without
+    // a space turns "<sup>16</sup>For God" into "16For God" on the share card.
+    .replace(/([^\s>])(<(?:sup|sub)[^>]*>)/gi, '$1 $2')
+    .replace(/(<\/(?:sup|sub)>)([^\s<])/gi, '$1 $2')
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -28,6 +32,7 @@ function stripHtml(html: string): string {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
     .trim();
 }
 

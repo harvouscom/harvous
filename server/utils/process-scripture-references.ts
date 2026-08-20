@@ -314,21 +314,34 @@ export function transformCanonicalScriptureContent(input: {
   const canonicalContent = canonicalizeNoteHtmlLineBreaks(input.content);
   if (!input.pillsOnly) return { updatedContent: canonicalContent, references: [] };
   const plainText = pillAwarePlainText(canonicalContent);
-  const references = [
-    ...new Set(
-      detectScriptureReferences(plainText)
-        .map((detected) => normalizeScriptureReference(detected.reference))
-        .filter(Boolean)
-        // Detection is permissive by design (unbounded digit runs), so a dropped hyphen
-        // like `Exodus 16:1620` reaches here looking well-formed. Pilling it would only
-        // produce "Could not load this passage" for the reader.
-        .filter((reference) => isResolvableScriptureReference(reference as string)),
-    ),
-  ];
+  /*
+   * Keep both forms of every reference.
+   *
+   * `normalizeScriptureReference` expands a chapter-only reference for lookup — "John 3"
+   * becomes "John 3:1-36" — which is right for the metadata rows and for resolving the
+   * passage, and wrong for finding the words in the note, which still say "John 3". Passing
+   * only the expanded form left the highlighter searching for text that was never there, and
+   * because it strips pending pills before re-wrapping, a miss deleted the pill rather than
+   * leaving it be. Deduped on the canonical form, so two spellings of one passage stay one.
+   */
+  const seen = new Set<string>();
+  const detectedPairs: Array<{ reference: string; matchText: string }> = [];
+  for (const detected of detectScriptureReferences(plainText)) {
+    const reference = normalizeScriptureReference(detected.reference);
+    // Detection is permissive by design (unbounded digit runs), so a dropped hyphen
+    // like `Exodus 16:1620` reaches here looking well-formed. Pilling it would only
+    // produce "Could not load this passage" for the reader.
+    if (!reference || !isResolvableScriptureReference(reference)) continue;
+    if (seen.has(reference)) continue;
+    seen.add(reference);
+    detectedPairs.push({ reference, matchText: detected.reference });
+  }
+  const references = detectedPairs.map((pair) => pair.reference);
   const highlighted = highlightScriptureReferences(
     canonicalContent,
-    references.map((reference) => ({
+    detectedPairs.map(({ reference, matchText }) => ({
       reference,
+      matchText,
       noteId: input.noteId,
       translation: input.translation ?? 'NET',
     })),

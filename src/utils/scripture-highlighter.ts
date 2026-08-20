@@ -17,7 +17,25 @@ const INLINE_TAG =
   '<(?!/?(?:p|br|hr|div|ul|ol|li|blockquote|h[1-6]|img|figure|pre|table|thead|tbody|tr|td|th)[\\s/>])[^>]+>';
 
 export interface ScriptureReference {
+  /**
+   * The canonical, resolvable reference — what goes in `data-scripture-reference` and what
+   * the dock and reader look the passage up by. "John 3" arrives here as "John 3:1-36".
+   */
   reference: string;
+  /**
+   * The text as it actually appears in the document, when that differs from the canonical
+   * form. Chapter-only references are the case that matters: the note says "John 3" while
+   * `reference` says "John 3:1-36", and matching on the canonical form found nothing.
+   *
+   * That was not a cosmetic miss. `stripBrokenPillSpans` removes every `data-note-id="pending"`
+   * pill before re-wrapping — which is exactly what a suggested note's seeded pill is — so a
+   * failed match did not leave the old pill alone, it left bare text where a pill had been,
+   * and the study dock, which prunes entries whose mark has gone, closed with it. That is the
+   * "the pill went away on its own" report.
+   *
+   * Defaults to `reference`, so callers with nothing to distinguish need not pass it.
+   */
+  matchText?: string;
   noteId: string;
   translation?: string;
   accent?: string;
@@ -114,9 +132,11 @@ export function highlightScriptureReferences(
   updatedContent = stripBrokenPillSpans(updatedContent);
 
   // Process each reference
-  for (const { reference, noteId, translation, accent } of references) {
+  for (const { reference, matchText, noteId, translation, accent } of references) {
+    // Search for what the document says, not for what the reference resolves to.
+    const documentText = matchText ?? reference;
     // Escape special regex characters in the reference
-    const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedReference = documentText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
     // Create regex pattern that matches the reference, allowing INLINE HTML tags between words
     // This handles cases like <em>John 3:16</em> or <i>John</i> 3:16.
@@ -143,12 +163,12 @@ export function highlightScriptureReferences(
     while ((match = pattern.exec(updatedContent)) !== null) {
       // Extract the clean text (without HTML tags) for validation
       const cleanText = match[0].replace(/<[^>]+>/g, '').trim();
-      // Only add if the clean text matches the reference (case-insensitive)
-      if (cleanText.toLowerCase() === reference.toLowerCase()) {
+      // Only add if the clean text matches what we searched for (case-insensitive)
+      if (cleanText.toLowerCase() === documentText.toLowerCase()) {
         matches.push({
           match: match[0],
           index: match.index,
-          cleanText: reference // Use original reference (always plain text, no formatting)
+          cleanText: documentText // Plain text, no formatting — and the shape the note used
         });
       }
     }
@@ -231,14 +251,27 @@ export function highlightScriptureReferences(
         continue;
       }
       
-      // Check if this exact match is already wrapped (look for data-note-id attribute nearby)
-      const contextBefore = beforeMatch.substring(Math.max(0, beforeMatch.length - 100));
-      const contextAfter = updatedContent.substring(matchEnd, Math.min(matchEnd + 100, updatedContent.length));
-      const fullContext = contextBefore + matchText + contextAfter;
-      
-      // If we see a note-link span or scripture pill with this noteId nearby, skip wrapping
-      if (fullContext.includes(`data-note-id="${noteId}"`)) {
-        continue;
+      /*
+       * Already wrapped by a span belonging to this note?
+       *
+       * This used to search for `data-note-id="…"` within 100 characters either side of the
+       * match, which is not a containment test: two references in one sentence put each
+       * pill's attributes inside the other's window, so whichever reference happened to be
+       * processed second was silently left as bare text. A pill *after* the match cannot be
+       * wrapping it at all, and 100 characters before it is a guess.
+       *
+       * The real question is whether the innermost span still open at this point carries this
+       * note's id — if it does, the match is inside it and re-wrapping would nest.
+       */
+      const lastSpanOpenBefore = beforeMatch.lastIndexOf('<span');
+      const lastSpanCloseBefore = beforeMatch.lastIndexOf('</span>');
+      if (lastSpanOpenBefore > lastSpanCloseBefore) {
+        const openTagEnd = updatedContent.indexOf('>', lastSpanOpenBefore);
+        const openTag =
+          openTagEnd === -1 ? '' : updatedContent.substring(lastSpanOpenBefore, openTagEnd + 1);
+        if (openTag.includes(`data-note-id="${noteId}"`)) {
+          continue;
+        }
       }
       
       // Extract leading and trailing whitespace from the original match
@@ -252,7 +285,9 @@ export function highlightScriptureReferences(
         ? ` data-scripture-translation="${escapeHtmlAttr(translation)}" data-scripture-translation-label="${escapeHtmlAttr(getTranslationAbbreviationDisplay(translation))}"`
         : '';
       const accentAttr = accent ? ` data-pill-accent="${escapeHtmlAttr(accent)}"` : '';
-      const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}"${translationAttr}${accentAttr} class="scripture-pill scripture-pill-clickable">${cleanText}</span>`;
+      // The attribute is the canonical reference (what the dock and reader resolve), the
+      // pill's text is what the note said. For all but chapter-only refs these are the same.
+      const wrapped = `<span data-scripture-reference="${escapeHtmlAttr(reference)}" data-note-id="${noteId}"${translationAttr}${accentAttr} class="scripture-pill scripture-pill-clickable">${cleanText}</span>`;
       
       // Preserve leading and trailing spaces outside the pill span
       updatedContent = updatedContent.substring(0, index) + leadingSpaces + wrapped + trailingSpaces + updatedContent.substring(index + matchText.length);

@@ -91,6 +91,26 @@ function collapseScripturePillsForPlainText(html: string): string {
 }
 
 /**
+ * Space out `<sup>`/`<sub>` before the tags are thrown away.
+ *
+ * Verse text arrives as `<sup class="verse-num">16</sup>For God so loved…` — correct while it
+ * is HTML, because CSS puts the gap in. Flattened to plain text it became "16For God so loved",
+ * and there is a live path that does exactly that: `passagePlainTextFromVerseHtml` rewrites a
+ * scripture quote's body whenever its pill's reference, translation or accent changes. So a
+ * quote read correctly when it was inserted and turned conjoined later, which is why only
+ * *some* of them were wrong.
+ *
+ * `<span>` and the block tags are already padded this way; superscripts were simply missed.
+ * Deliberately not a blanket tags-to-spaces change: that would split `un<b>der</b>stand` into
+ * two words. Only tags that stand between genuinely separate pieces of text get a space.
+ */
+function padSupSub(text: string): string {
+  return text
+    .replace(/([^\s>])(<(?:sup|sub)[^>]*>)/gi, '$1 $2')
+    .replace(/(<\/(?:sup|sub)>)([^\s<])/gi, '$1 $2');
+}
+
+/**
  * Main HTML stripping function
  * 
  * @param html - HTML string to strip
@@ -230,6 +250,9 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
     text = text.replace(/([^\s>])(<span[^>]*>)/gi, '$1 $2');
     // Add space after closing span if followed by non-whitespace
     text = text.replace(/(<\/span>)([^\s<])/gi, '$1 $2');
+
+    // Same for <sup>/<sub>, which is where verse numbers live.
+    text = padSupSub(text);
     
     // Now extract text from inline spans, ensuring spaces are preserved
     text = text.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (_match, content) => {
@@ -294,6 +317,7 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
     text = text.trim();
   } else {
     // Simple regex-based stripping (for most use cases)
+    text = padSupSub(text);
     // Remove all HTML tags
     text = text.replace(/<[^>]*>/g, '');
     

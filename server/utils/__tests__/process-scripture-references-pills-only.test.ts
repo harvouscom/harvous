@@ -86,3 +86,42 @@ describe('plain-text extraction around scripture pills', () => {
     expect(references).toContain('John 3:16');
   });
 });
+
+describe('transformCanonicalScriptureContent — surface vs canonical reference', () => {
+  const noteId = 'note_parent_1';
+  const transform = (content: string) =>
+    transformCanonicalScriptureContent({ noteId, content, pillsOnly: true });
+
+  it('pills a chapter-only reference, keeping the text the note actually used', () => {
+    const { updatedContent, references } = transform('<p>Reading John 3 today</p>');
+    // The metadata row is the resolvable form...
+    expect(references).toEqual(['John 3:1-36']);
+    // ...while the pill reads as written, and resolves to the same passage.
+    expect(updatedContent).toContain('data-scripture-reference="John 3:1-36"');
+    expect(updatedContent).toContain('>John 3</span>');
+  });
+
+  it('does not strip a pending pill it then fails to restore', () => {
+    // The reported failure: the pill vanished and the study dock closed with it.
+    const seeded =
+      '<p><span data-scripture-reference="John 3:1-36" data-note-id="pending" class="scripture-pill">John 3</span></p>';
+    const { updatedContent } = transform(seeded);
+    expect(updatedContent).toContain('class="scripture-pill');
+    expect(updatedContent).toContain(`data-note-id="${noteId}"`);
+  });
+
+  it('pills every reference in a sentence, not just the first one processed', () => {
+    const { updatedContent } = transform('<p>Psalm 23 and John 3:16</p>');
+    expect(updatedContent.match(/class="scripture-pill/g)).toHaveLength(2);
+    expect(updatedContent).toContain('>Psalm 23</span>');
+    expect(updatedContent).toContain('>John 3:16</span>');
+  });
+
+  it('is idempotent — re-saving neither duplicates nor nests pills', () => {
+    const once = transform('<p>Reading John 3 and Romans 5:8 today</p>').updatedContent;
+    const twice = transform(once).updatedContent;
+    expect(twice.match(/class="scripture-pill/g)).toHaveLength(2);
+    expect(twice).not.toMatch(/<span[^>]*scripture-pill[^>]*>[^<]*<span/);
+    expect(twice).toContain('>John 3</span>');
+  });
+});
