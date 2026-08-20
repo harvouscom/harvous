@@ -44,6 +44,34 @@ function blockHighlightAfterPill(state: any, dispatch: any): boolean {
 }
 
 /**
+ * The attributes this mark actually carries.
+ *
+ * `@tiptap/extension-highlight` declares `setHighlight` as taking `{ color: string }`, which
+ * stopped being true the moment `addAttributes` below grew `studyThreadEntryId`, `reference`
+ * and `linkedNoteId`. Callers passing them were correct and the compiler was rejecting them,
+ * which is the wrong way round — so re-declare the commands against the real shape rather
+ * than leaving real call sites red.
+ */
+export interface HighlightCustomAttributes {
+  color?: string | null;
+  /** Server id of the StudyThreadEntry this highlight is stored as, once it has one. */
+  studyThreadEntryId?: string | null;
+  /** Set when the highlight came from "Look up" — clicking it opens the reference dock. */
+  reference?: string | null;
+  /** Set when clicking should open a connected-note popup instead of a dock. */
+  linkedNoteId?: string | null;
+}
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    highlightCustom: {
+      setHighlight: (attributes?: HighlightCustomAttributes) => ReturnType;
+      toggleHighlight: (attributes?: HighlightCustomAttributes) => ReturnType;
+    };
+  }
+}
+
+/**
  * Multicolor highlight + optional server `studyThreadEntryId` on the mark.
  * Rendering avoids inline background fill — prototype CSS draws underline + `data-color`.
  */
@@ -53,8 +81,12 @@ export const HighlightCustom = Highlight.extend({
   inclusive: false,
 
   addOptions() {
+    const parent = this.parent?.();
     return {
-      ...this.parent?.(),
+      ...parent,
+      // Spelled out rather than left to the spread: `parent` is optional, so spreading it
+      // alone leaves `HTMLAttributes` optional while `HighlightOptions` requires it.
+      HTMLAttributes: parent?.HTMLAttributes ?? {},
       multicolor: true,
     };
   },
