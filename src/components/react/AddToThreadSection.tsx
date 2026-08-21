@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useMemo } from 'react';
 import SearchInput from './SearchInput';
 
@@ -78,7 +79,7 @@ export default function AddToSection({
       {item.color && (
         <div 
           className="w-3 h-3 rounded-full flex-shrink-0"
-          style={{ backgroundColor: `var(--color-${item.color})` }}
+          style={{ backgroundColor: colorTokenVar(item.color, 'purple') }}
         />
       )}
       

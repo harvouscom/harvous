@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import SearchInput from './SearchInput';
@@ -643,9 +644,9 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             {filteredThreads.length > 0 ? (
               filteredThreads.map((thread) => {
                 const isUnorganized = thread.id === 'thread_unorganized' || isMyPileDisplayTitle(thread.title);
-                const threadAccentColor = isUnorganized 
-                  ? "var(--color-paper)" 
-                  : (thread.color ? `var(--color-${thread.color})` : "var(--color-purple)");
+                const threadAccentColor = isUnorganized
+                  ? 'var(--color-paper)'
+                  : colorTokenVar(thread.color, 'purple');
                 
                 const matchesSuggestedName = suggestedThreadName && 
                   thread.title.trim().toLowerCase() === suggestedThreadName.trim().toLowerCase();

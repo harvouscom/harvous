@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
@@ -884,7 +885,7 @@ export default function EditSpacePanel({
 
   // Render compact thread item (same row metrics as CondensedNoteItem / AddToSpaceSection ThreadItem)
   const renderCompactThreadItem = (thread: Thread) => {
-    const threadAccentColor = thread.color ? `var(--color-${thread.color})` : "var(--color-purple)";
+    const threadAccentColor = colorTokenVar(thread.color, 'purple');
 
     return (
       <div

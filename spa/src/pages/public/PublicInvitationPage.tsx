@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
@@ -90,8 +91,7 @@ export default function PublicInvitationPage() {
   };
 
   const invitation = data?.invitation;
-  const spaceColor = invitation?.spaceColor || 'paper';
-  const colorVar = `var(--color-${spaceColor})`;
+  const colorVar = colorTokenVar(invitation?.spaceColor, 'paper');
   const inviterName = invitation?.invitedBy?.displayName || 'A Harvous User';
 
   const isAlreadyUsed = invitation && invitation.status !== 'pending' && !invitation.isExpired;

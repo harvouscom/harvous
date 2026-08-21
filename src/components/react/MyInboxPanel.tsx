@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useCallback, useMemo } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -73,7 +74,7 @@ function InboxFeaturedCard({
   const accentSurfaceStyle = useMemo(
     () => ({
       ...((item.contentType === 'space' || item.contentType === 'thread') && item.color
-        ? { backgroundColor: `var(--color-${item.color})` }
+        ? { backgroundColor: colorTokenVar(item.color, 'blue') }
         : { backgroundColor: 'var(--color-light-paper)', backgroundImage: accentGradient ?? undefined }),
       ['--thread-accent-icon-color' as string]: getThreadIconOnAccentCSS(item.color ?? undefined),
     }),

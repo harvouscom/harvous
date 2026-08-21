@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useEffect, useState } from 'react';
 import { getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 
@@ -26,7 +27,7 @@ const Avatar: React.FC<AvatarProps> = ({
   return (
     <div
       className={`avatar ${className}${hasPhoto ? ' avatar--photo' : ''}`}
-      style={hasPhoto ? undefined : { background: `var(--color-${color})` }}
+      style={hasPhoto ? undefined : { background: colorTokenVar(color, 'blue') }}
       data-avatar-color={color}
       data-avatar-initials={initials}
       data-avatar-has-photo={hasPhoto ? 'true' : 'false'}

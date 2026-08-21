@@ -5,7 +5,7 @@ import {
   imagePresetUrl,
   type ProtoBg,
 } from './prototype-background';
-import { appearanceAccentForThreadColor, coverBgForMode, effectiveSpaceCover, type SpaceCoverAppearance, type SpaceCoverBg } from '@/utils/space-cover';
+import { appearanceAccentForThreadColor, coverBgForMode, effectiveSpaceCover, type SpaceCoverAppearance, type SpaceCoverBg, colorTokenVar} from '@/utils/space-cover';
 import { resolveSpaceCoverImageUrl } from '@/utils/space-cover-presets';
 import { getThreadGradientCSS } from '@/utils/colors';
 
@@ -43,7 +43,7 @@ export function resolveJoinCoverDisplay(
   mode: 'light' | 'dark',
 ): JoinCoverDisplay {
   const accentCss =
-    appearanceAccentForThreadColor(space.color, mode) ?? `var(--color-${space.color || 'paper'})`;
+    appearanceAccentForThreadColor(space.color, mode) ?? colorTokenVar(space.color, 'paper');
   const fallbackGradient = space.backgroundGradient || getThreadGradientCSS(space.color || 'paper');
   const resolvedCover = effectiveSpaceCover(space.cover ?? { light: null, dark: null }, space.color);
   const cover = coverBgForMode(resolvedCover, mode);

@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useEffect, useMemo } from 'react';
 import { getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
@@ -226,7 +227,7 @@ export default function EditSpacePeoplePanel({
                               borderTopLeftRadius: '0.75rem',
                               borderBottomLeftRadius: '0.75rem',
                               overflow: 'hidden',
-                              backgroundColor: `var(--color-${member.userColor || 'blue'})`,
+                              backgroundColor: colorTokenVar(member.userColor, 'blue'),
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',

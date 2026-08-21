@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useEffect, useRef } from 'react';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
@@ -672,7 +673,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
 
   // Render compact thread item (same row metrics as EditSpacePanel / AddToSpaceSection)
   const renderCompactThreadItem = (thread: Thread) => {
-    const threadAccentColor = thread.color ? `var(--color-${thread.color})` : "var(--color-purple)";
+    const threadAccentColor = colorTokenVar(thread.color, 'purple');
 
     return (
       <div
