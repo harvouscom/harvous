@@ -190,6 +190,49 @@
   --proto-marquee-duration: clamp(5s, calc(var(--proto-marquee-chars) * 0.13s), 20s);
 }
 
+/*
+ * Soft edges while a label is travelling.
+ *
+ * At rest the ellipsis says "there is more"; mid-slide there is no ellipsis, just a letter cut
+ * in half at the clip boundary. The same fade the menu pill uses for its scrolled rows, applied
+ * to whichever box is doing the clipping — narrow, because the rows are only ~145px wide and a
+ * wide fade would eat a word rather than soften an edge.
+ *
+ * Only while marqueeing. A resting label keeps its ellipsis at full strength, which is the
+ * affordance that says the text is truncated at all.
+ *
+ * Both edges, and the cost of that is worth stating: a `-self` label is clipped by the column
+ * it shares with the title, so while the row is hovered the title's first character or so is
+ * softened too, even when the title fits and never moves. Fading only the trailing edge would
+ * spare it, but then the left-hand cut stays hard through the middle of the travel — which is
+ * the state that prompted this. Fading in step with the slide would solve both and is not
+ * available here: the overflow distance is `100cqw - 100%`, which only resolves on the moving
+ * child, while the mask has to sit on the parent that clips it.
+ */
+.proto-marquee,
+.proto-marquee-frame,
+.proto-church-tools__row-text,
+.proto-list-panel__row-text {
+  --proto-marquee-mask: linear-gradient(
+    to right,
+    transparent 0,
+    #000 8px,
+    #000 calc(100% - 8px),
+    transparent 100%
+  );
+}
+
+/*
+ * A frame already fades both of its lines, so the title's own marquee box must not fade again.
+ * Two nested masks multiply, which turns a soft edge into a hard-ish one a few pixels further in
+ * — the opposite of the point.
+ */
+.proto-marquee-frame .proto-marquee,
+.proto-church-tools__row-text .proto-marquee,
+.proto-list-panel__row-text .proto-marquee {
+  --proto-marquee-mask: none;
+}
+
 .proto-marquee {
   overflow: hidden;
   white-space: nowrap;
@@ -276,6 +319,31 @@
     max-width: none;
     text-overflow: clip;
     animation: proto-marquee-reveal var(--proto-marquee-duration) linear infinite alternate;
+  }
+}
+
+/*
+ * Fade the cut edges for the duration of the travel.
+ *
+ * Applied to the clipping box, which differs by form: the self-clipping `.proto-marquee`
+ * fades itself, while a `-self` label is clipped by the column above it, so the column fades.
+ * The lists mirror the animation rules above — same hover surfaces, one level out.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .proto-marquee:hover,
+  .proto-marquee-hover-root:hover .proto-marquee,
+  .proto-marquee-hover-root:focus-visible .proto-marquee,
+  .proto-marquee-hover-root:hover .proto-marquee-frame,
+  .proto-menu-item:hover .proto-marquee,
+  .proto-menu-item:focus-visible .proto-marquee,
+  .proto-planner-card:hover .proto-marquee,
+  .proto-planner-card:focus-visible .proto-marquee,
+  .proto-church-tools__row:hover .proto-church-tools__row-text,
+  .proto-church-tools__row:focus-visible .proto-church-tools__row-text,
+  .proto-list-panel__row:hover .proto-list-panel__row-text,
+  .proto-list-panel__row:focus-within .proto-list-panel__row-text {
+    -webkit-mask-image: var(--proto-marquee-mask);
+    mask-image: var(--proto-marquee-mask);
   }
 }
 
