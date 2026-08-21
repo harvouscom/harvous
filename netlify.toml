@@ -101,14 +101,10 @@
   status = 200
   force = true
 
-# Crawlers on share URLs → server OG meta HTML (humans keep SPA)
-[[edge_functions]]
-  path = "/shared/note/*"
-  function = "shared-og"
-
-[[edge_functions]]
-  path = "/shared/thread/*"
-  function = "shared-og"
+# Crawlers on share URLs → server OG meta HTML (humans keep SPA).
+# Declared in-source only (netlify/edge-functions/shared-og.ts) so the
+# declaration can carry pattern + user-agent matchers that keep non-crawler
+# traffic from counting as billed invocations. Do not re-declare here.
 
 # API routes must never be cached at the edge
 [[headers]]
