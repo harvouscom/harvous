@@ -1744,7 +1744,15 @@ function MarginIndicatorScene() {
  */
 const MARK_SAMPLE = 'the light shines in the darkness';
 
-/** The proposed spec, applied as overrides so the two columns differ only where the spec does. */
+/**
+ * The decided spec (August 21, 2026), applied as overrides so the two columns differ only where
+ * the spec does.
+ *
+ * Everything levels on 2px rather than on the dock's 3 — so the thickness of the most-looked-at
+ * text in the product never changes, and native's `.thick` comes down to meet web instead. What
+ * separates a saved reference from a highlight is then the OFFSET: 3px holds the line away from
+ * the word, so it reads as annotating it; 2px sits it close, so it reads as attached to it.
+ */
 const PROPOSED: Record<string, React.CSSProperties> = {
   suggestion: {},
   reference: {
@@ -1757,7 +1765,7 @@ const PROPOSED: Record<string, React.CSSProperties> = {
   highlight: {
     textDecorationLine: 'underline',
     textDecorationStyle: 'solid',
-    textDecorationThickness: '3px',
+    textDecorationThickness: '2px',
     textUnderlineOffset: '2px',
     textDecorationColor: 'var(--pds-highlight-violet)',
   },
@@ -1831,7 +1839,7 @@ function MarkStylingScene() {
         </button>
         <span className="pds-caption">
           {proposed
-            ? 'One spec on every surface: suggestion dotted 1.5, reference solid 2, highlight solid 3.'
+            ? 'Decided spec: all solid 2px; a reference sits at offset 3, a highlight at offset 2.'
             : 'Today. Watch the note-body column, and the highlight row.'}
         </span>
       </div>
@@ -1937,8 +1945,9 @@ function MarkStylingScene() {
         <p className="pds-caption" style={{ margin: '0 0 6px' }}>
           <strong>Highlight row, across:</strong> 2px in the reader, 2px in the note body, 3px in
           the dock. The dock is the correct one — its rule exists to mirror native&apos;s
-          <code> NSUnderlineStyle.thick</code> — which makes the reader the outlier, not the dock.
-          Toggle the proposed spec and the two marks separate on every surface for the first time.
+          <code> NSUnderlineStyle.thick</code>. The decision levels everything down to 2px instead,
+          so the chapter&apos;s thickness never changes and native comes to meet web. Toggle the
+          spec and the two marks separate on every surface by offset alone.
         </p>
         <p className="pds-caption" style={{ margin: 0 }}>
           <strong>Not visible here, and the reason the spec matters more than the pixels:</strong>{' '}

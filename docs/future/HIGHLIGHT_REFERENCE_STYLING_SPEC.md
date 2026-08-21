@@ -1,6 +1,7 @@
 # Highlights, References and the Selected Verse — Styling Spec
 
-**Status:** Decision doc. Not started.
+**Status:** **Decided** August 21, 2026. Unbuilt. Compare the surfaces in the
+`ds-23-mark-styling` gallery scene. Not started.
 **Last Updated:** August 21, 2026
 **Audience:** Whoever settles what a mark means visually, across reader, note body, dock and native.
 **Covers:** improvement-list items #5 (the selected/highlighted verse experience) and the second half
@@ -101,9 +102,21 @@ One table, four surfaces, no exceptions:
 | State | Style | Thickness | Offset | Colour source |
 |---|---|---|---|---|
 | Dictionary suggestion, unsaved | dotted | 1.5px | 3px | `--pds-text-tertiary` |
-| Saved reference | solid | 2px | 3px | `--reference-accent` |
-| Highlight | solid | **3px** | 2px | `--mark-accent` |
-| Highlight, dimmed by spotlight | solid | 3px | 2px | `--pds-text-tertiary` |
+| Saved reference | solid | 2px | **3px** | `--reference-accent` |
+| Highlight | solid | 2px | **2px** | `--mark-accent` |
+| Highlight, dimmed by spotlight | solid | 2px | 2px | `--pds-text-tertiary` |
+
+**Decided August 21, 2026, and it is not the table this doc originally proposed.** Everything
+levels on **2px**, not on the dock's 3. The distinction between a saved reference and a highlight
+is carried by **offset** instead of thickness: 3px holds the line away from the word so it reads
+as annotating it, 2px sits it close so it reads as attached to it.
+
+That inverts which platform moves, and it is the better trade. The original table asked the reader
+and the note body to go 2px → 3px — a thickness change to the most-looked-at text in the product,
+and the top risk in this doc's own watch-list. Levelling down instead means **the chapter's
+thickness never changes at all**; only its offset moves by a pixel. What moves instead is the
+dock (3px → 2px) and native's `NSUnderlineStyle.thick`, which comes down to meet web rather than
+web going up to meet it.
 
 **Reading of the table:** weight carries meaning. A dotted hairline is an offer; 2px solid is
 something you kept; 3px solid is something you marked. That ordering is already latent in the dock,
@@ -118,8 +131,10 @@ proposal is to make the rest of the app agree with it.
   highlight.
 - Dock stops writing `text-decoration-color` directly and adopts the `--mark-accent` variable route,
   so all three web surfaces can be dimmed by one mechanism.
-- Consolidate the two web spotlights onto that variable; native keeps its own greyscale, which is an
-  allowed platform difference under `HARVOUS_DESIGN_PARITY_SPEC.md` §5.
+- Consolidate the two web spotlights onto that variable — **and native with them.** The parity spec
+  §5 would permit native keeping its greyscale as a platform difference, and that was the
+  recommendation; the call went the other way. One dim model across all four surfaces, so "one
+  mechanism dims marks everywhere" is true without a footnote.
 
 **Reuse:** `--mark-accent` and `--reference-accent` already exist and already work in two surfaces.
 The accent tokens, their dark overrides, and the JS helpers in `src/utils/study-highlight-accents.ts`
@@ -195,4 +210,8 @@ bottom would enter the dock band, reusing the same flip logic
 
 | Date | Decision | Rationale |
 |---|---|---|
-| | | |
+| 2026-08-21 | **Everything levels on 2px, not 3.** The dock drops 3px → 2px and native's `.thick` comes with it; the reader and note body keep their thickness. | Derek's call, against my recommendation to level up. It avoids the top risk in this doc's own watch-list — a thickness change to the most-looked-at text in the product — by moving the two surfaces nobody stares at instead. Web stops chasing native here; native comes to meet web. |
+| 2026-08-21 | **A saved reference and a highlight are told apart by offset, not weight.** Reference at 3px, highlight at 2px. | Follows from levelling on 2px: the thickness difference that was going to carry the distinction is gone, so something had to. Offset reads as meaning — held away from the word is annotating it, sat close is attached to it — and it was already a per-state value in the spec table. Rejected: accepting they look identical, and relying on colour (which breaks the moment someone highlights in amber). |
+| 2026-08-21 | **One spotlight mechanism across all four surfaces**, native included. | Derek's call, against my recommendation. The parity spec §5 would have permitted native keeping its greyscale, but a single model makes "one mechanism dims marks everywhere" true without an exception to remember. Requires the dock to stop writing `text-decoration-color` directly and adopt the variable route. |
+| 2026-08-21 | **The toolbar/dock-band collision is fixed as part of this**, by flipping the toolbar above the selection when its projected bottom would enter the band. | The one real defect in the selected-verse half, in a file this work already touches. Reuses the flip logic `LinkPreviewCard.tsx` has for viewport edges. |
+| 2026-08-21 | **`HighlightDockWeb`'s excerpt stays plain** — no mark painted. | A mark distinguishes marked text from unmarked text, and that card has no unmarked text: the excerpt *is* the highlight. Different from the scripture dock, where a mark sits inside a fuller passage and genuinely separates part from whole. |

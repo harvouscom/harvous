@@ -187,7 +187,11 @@ trade-offs, and a recommendation; each ends with a Decision log to fill in on re
   - Recommends two honest answers: "Not now" (21 days) and a genuinely permanent "Not interested"
   - Documents that "Don't suggest this again" was a 21-day snooze; two contained fixes already shipped
 - **`HIGHLIGHT_REFERENCE_STYLING_SPEC.md`** - What the four marks look like, everywhere (#5, #3)
-  - Proposes one spec: suggestion dotted 1.5px, saved reference solid 2px, highlight solid 3px
+  - **Decided Aug 21, unbuilt:** everything levels on solid 2px (the dock and native come *down*,
+    so the chapter's thickness never changes); a saved reference and a highlight are told apart by
+    offset — 3px vs 2px — rather than by weight; one spotlight mechanism across all four surfaces;
+    the reader toolbar flips above a selection rather than overlapping the dock band; the highlight
+    dock's excerpt stays unpainted
   - Records that the same highlight renders 2px in the reader and 3px in the dock, and — corrected
     by measurement in the `ds-23-mark-styling` scene — that a highlight and a saved reference are
     indistinguishable in the reader *and* the note body, not just the note body
