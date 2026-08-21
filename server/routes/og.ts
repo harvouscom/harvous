@@ -8,7 +8,14 @@
  *   GET /api/og/image/thread/:shareToken  — 1200×630 PNG (screenshot only)
  *
  * Production Netlify prefers the dedicated `og-image` function (Chromium) via
- * public/_redirects. These Hono routes power local `dev:api`.
+ * public/_redirects. These Hono routes power local `dev:api`, and become the
+ * production path once /api/* proxies to Fly.
+ *
+ * Origins here come from getPublicAppOrigin(), never from the request URL: every
+ * URL these routes emit or screenshot belongs to the SPA, which is served by a
+ * different host than the API once the API is proxied. The request host is the
+ * API's, so deriving from it would produce canonical/image URLs and capture
+ * targets pointing at a host with no app on it.
  *
  * No generated-card fallback — if the screenshot fails, the image route 404s
  * (crawlers unfurl title/description without a preview image).
@@ -31,6 +38,7 @@ import {
 import { isValidShareToken } from '@/utils/ids';
 import { rateLimit } from '@/utils/rate-limit';
 import { renderShareOgHtml, renderNotFoundOgHtml } from '../utils/og-html';
+import { getPublicAppOrigin } from '../utils/public-app-origin';
 import {
   noteOgDescription,
   noteOgTitle,
@@ -152,7 +160,7 @@ function noImageResponse(): Response {
 
 route.get('/api/og/share/note/:shareToken', rateLimit('read'), async (c) => {
   const shareToken = c.req.param('shareToken');
-  const origin = new URL(c.req.url).origin;
+  const origin = getPublicAppOrigin(c);
   const canonicalUrl = `${origin}/shared/note/${shareToken}`;
 
   if (!isValidShareToken(shareToken)) {
@@ -182,7 +190,7 @@ route.get('/api/og/share/note/:shareToken', rateLimit('read'), async (c) => {
 
 route.get('/api/og/share/thread/:shareToken', rateLimit('read'), async (c) => {
   const shareToken = c.req.param('shareToken');
-  const origin = new URL(c.req.url).origin;
+  const origin = getPublicAppOrigin(c);
   const canonicalUrl = `${origin}/shared/thread/${shareToken}`;
 
   if (!isValidShareToken(shareToken)) {
@@ -212,7 +220,7 @@ route.get('/api/og/share/thread/:shareToken', rateLimit('read'), async (c) => {
 
 route.get('/api/og/image/note/:shareToken', rateLimit('read'), async (c) => {
   const shareToken = c.req.param('shareToken');
-  const origin = new URL(c.req.url).origin;
+  const origin = getPublicAppOrigin(c);
 
   if (!isValidShareToken(shareToken)) {
     return noImageResponse();
@@ -224,7 +232,7 @@ route.get('/api/og/image/note/:shareToken', rateLimit('read'), async (c) => {
 
 route.get('/api/og/image/thread/:shareToken', rateLimit('read'), async (c) => {
   const shareToken = c.req.param('shareToken');
-  const origin = new URL(c.req.url).origin;
+  const origin = getPublicAppOrigin(c);
 
   if (!isValidShareToken(shareToken)) {
     return noImageResponse();

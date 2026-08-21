@@ -27,9 +27,13 @@ export const ALL_SAMPLE_FEATURED_IDS = [
 /** Same IDs; used by featured feed filter */
 export const DEV_SAMPLE_FEATURED_ITEM_IDS: string[] = [...ALL_SAMPLE_FEATURED_IDS];
 
-/** Netlify Functions or explicit production Node build — never treat as local dev. */
+/** Any deployed host (Netlify, Fly) or explicit production build — never treat as local dev. */
 export function isDeployedProductionLike(): boolean {
-  return process.env.NODE_ENV === 'production' || process.env.NETLIFY === 'true';
+  return (
+    process.env.NODE_ENV === 'production' ||
+    process.env.NETLIFY === 'true' ||
+    !!process.env.FLY_APP_NAME
+  );
 }
 
 export function getInboundHost(c: Context): string {
@@ -78,16 +82,10 @@ export function featuredSampleSeedForbiddenResponse(c: Context): Response | null
   return null;
 }
 
-/** Block destructive / non-featured test routes (stricter than NODE_ENV alone — Netlify may omit it). */
+/** Block destructive / non-featured test routes (stricter than NODE_ENV alone — a host may omit it). */
 export function isTestRoutesForbidden(): boolean {
   if (process.env.HARVOUS_ALLOW_TEST_API_ROUTES === 'true') {
     return false;
   }
-  if (process.env.NODE_ENV === 'production') {
-    return true;
-  }
-  if (process.env.NETLIFY === 'true') {
-    return true;
-  }
-  return false;
+  return isDeployedProductionLike();
 }

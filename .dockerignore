@@ -1,0 +1,37 @@
+# The build needs package*.json, server/, src/, shared/, scripts/, tsconfig.json
+# and nothing else — everything below is either huge, platform-specific, or secret.
+
+node_modules
+dist
+dist-spa
+dist-server
+
+# Native clients
+ios
+android
+native
+apps
+
+# Tests, tooling, docs
+e2e
+test-results
+playwright-report
+docs
+help
+release-notes
+supabase
+netlify
+public
+spa
+.github
+.claude
+.git
+
+# Secrets and local state
+.env
+.env.*
+*.log
+
+# Large data the server never reads at runtime (bundled JSON is imported from
+# src/ and server/data by esbuild only for the files that are actually imported)
+server/data/bibles/*.json
