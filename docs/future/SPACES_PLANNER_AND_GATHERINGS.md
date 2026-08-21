@@ -1,6 +1,7 @@
 # Shared Spaces, the Planner, and Where a Gathering Shows Up
 
-**Status:** Decision doc, and a correction. Most of what this item asked for is already built.
+**Status:** **Decided** (August 21, 2026) — Option B, with placement and bounds settled. Not built.
+Most of what this item originally asked for already was.
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides how a room's rhythm reaches the people in it.
 **Covers:** improvement-list item #1 (shared spaces + planner + "add gathering") — design-track
@@ -93,26 +94,40 @@ means it is Tuesday's problem, not every day's.
 **Reuse:** the card, the wall, the membership-gated endpoint, and the note-seeding path all
 already exist. This is a placement decision, not a new surface.
 
+**Placement — one group, soonest first.** The church's service and a room's gathering interleave
+in a single "Coming up" group ordered by date, rather than the church keeping a card of its own
+above a separate room list. One idea — what is next — instead of two lists to scan for the same
+kind of thing. This is the half that makes it a decision about Home rather than an addition to it:
+"This Sunday" stops being its own furniture and becomes the church's row in a group it shares.
+
+**One card for everyone, leader or member.** A leader already reaches the Planner from the room
+itself, so Home does not need a second affordance, and a role-conditional card state is a class of
+bug this codebase has hit before. The tempting version — "you lead this and next week has no entry
+yet" — is a real idea and deliberately deferred: it is a second state to design, test and keep
+honest, and it can be added later without disturbing anything decided here.
+
 **Done when:** a member of a churchless shared space that meets this week sees it on Home,
-gets one tap into notes on it, and sees nothing at all in a week the room does not meet.
+gets one tap into notes on it, sees it ordered against the church's service by date rather than by
+kind, and sees nothing at all in a week the room does not meet.
 
 ---
 
-## The question that is genuinely Derek's
+## The question that was genuinely Derek's — answered
 
-Everything above follows from one call, and it is the product conversation the plan flagged:
+Everything above followed from one call, and it was the product conversation the plan flagged:
 
 > **Is Home a place that tells you what is next across every context you are in, or is it your
 > own study and nothing else?**
 
-Today it is a hybrid, and the hybrid is uneven rather than principled: the church gets a card,
-rooms do not, and the difference traces to build order rather than to a decision. Option B
-resolves it toward "what is next across your contexts". The opposite resolution — Home is yours
-alone, rooms are places you visit — is also coherent, and would mean **removing** the This Sunday
-card rather than adding siblings to it.
+**Answered August 21, 2026: the former.** Home tells you what is next across the contexts you are
+in. Today's hybrid was uneven rather than principled — the church got a card, rooms did not, and
+the difference traced to build order — and this resolves it in the direction that keeps both.
 
-I recommend B, but A-by-way-of-removal is the honest alternative and should be rejected
-deliberately rather than by default.
+The alternative was live and was rejected deliberately, which is the part worth recording: "Home
+is yours alone" would have meant **removing** the This Sunday card, not merely declining to add
+siblings to it. It was put that way when the call was made, so nobody later reads "we chose to add
+gathering rows" as the whole of the decision. The decision is that Home is a cross-context front
+page, and the rows follow from it.
 
 ---
 
@@ -153,4 +168,7 @@ deliberately rather than by default.
 
 | Date | Decision | Rationale |
 |---|---|---|
-| _pending_ | | |
+| 2026-08-21 | **Home is a cross-context front page.** A joined room's next gathering reaches Home on the same terms the church's service does. | Derek's call. The asymmetry was build order rather than intent — a context you merely follow outranked one you committed to. The coherent alternative (Home is yours alone, and This Sunday is *removed*) was put on the table and rejected deliberately. |
+| 2026-08-21 | **Bounded by the four-day wall, no cap.** | `SERVICE_GRACE_DAYS = 4` already governs the church card and is tied to the engagement research behind harvous.com/about. A cap would silently hide a gathering someone agreed to attend; the wall means a busy Tuesday is Tuesday's problem and not every day's. |
+| 2026-08-21 | **One "Coming up" group, soonest first** — church service and room gatherings interleaved by date, not separated by kind. | One idea rather than two lists for the same kind of thing. Means "This Sunday" stops being its own furniture and becomes the church's row in a shared group. |
+| 2026-08-21 | **One card for everyone; no leader variant.** | A leader reaches the Planner from the room itself. A role-conditional card state is a class of bug this codebase has hit before. The "you lead this and next week is empty" cue is a good idea, deferred rather than rejected — it can be added later without disturbing anything above. |

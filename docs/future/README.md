@@ -195,7 +195,8 @@ trade-offs, and a recommendation; each ends with a Decision log to fill in on re
   - **Mostly a correction**: nearly every piece this item was framed around has since shipped,
     checked row by row against `main`
   - The one live gap: a church's next service reaches Home, a room's next gathering does not
-  - Recommends closing that asymmetry, bounded by the existing four-day wall rather than a count
+  - **Decided Aug 21:** Home is a cross-context front page — gatherings reach it, bounded by the
+    four-day wall, in one "Coming up" group ordered by date, one card for leaders and members alike
 - **`READER_MARGIN_INDICATORS.md`** - How the reader says "you have written about this" (#8)
   - Recommends keeping the bar: its length is the note's span, which no point marker can express
   - Finds the presence signal has no non-visual equivalent, and that a bar merged past the
