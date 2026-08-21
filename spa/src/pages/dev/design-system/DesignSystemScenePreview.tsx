@@ -1366,9 +1366,18 @@ function FloatingSurfacesScene() {
       <p className="pds-caption" style={{ marginBottom: 10 }}>
         {where} · today: {today}
       </p>
+      {/*
+        * Each specimen shrink-wraps, because every one of these floats.
+        *
+        * A plain block cell stretched them to the column: the selection bar rendered 382px wide
+        * around 157px of buttons, which reads as enormous end padding and is not a thing the
+        * component does — in production it is `position: fixed` at the selection and sizes to
+        * its content. The scene was inviting a judgement about padding that only its own layout
+        * had created.
+        */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
-        <div>{render(false)}</div>
-        <div>{render(true)}</div>
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>{render(false)}</div>
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>{render(true)}</div>
       </div>
     </div>
   );
