@@ -1333,6 +1333,8 @@ export default function PrototypeSidebarHomeView({
         id: note.id,
         kind: 'revisitNote',
         noteId: note.id,
+        // Safe to warm: for this kind the id really is the note the row opens.
+        prefetchNoteId: note.id,
         canonSection: fp?.canonSection ?? undefined,
         score: meaningWeightById[note.id] ?? 0.5,
         eyebrow: 'Worth another look',
@@ -1558,7 +1560,10 @@ export default function PrototypeSidebarHomeView({
         score: Math.min(0.85, 0.5 + topConnectSuggestion.score / 10),
         eyebrow: connectSuggestionRecallEyebrow(),
         title: formatConnectSuggestionTitle(topConnectSuggestion.noteATitle, topConnectSuggestion.noteBTitle),
-        meta: connectSuggestionRecallMeta(topConnectSuggestion.reason),
+        meta: connectSuggestionRecallMeta(
+          topConnectSuggestion.reason,
+          topConnectSuggestion.sharedSubject,
+        ),
         iconName: RECALL_KIND_ICONS.connectNotes,
         onOpen: () => {
           onOpenCreateThreadPrefill({
@@ -1567,6 +1572,7 @@ export default function PrototypeSidebarHomeView({
               topConnectSuggestion.noteATitle,
               topConnectSuggestion.noteBTitle,
               topConnectSuggestion.reason,
+              topConnectSuggestion.sharedSubject,
             ),
           });
         },

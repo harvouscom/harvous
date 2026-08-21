@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Icon, { type IconName } from '@/components/react/Icon';
+import { getNoteQueryOptions } from '../../hooks/queries/useNote';
 import type { RecallCandidate } from '@/utils/prototype-home-trends';
 import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { recordRecallOpportunityEvent } from './proto-recall-events';
@@ -33,6 +35,14 @@ export interface RecallOpportunity extends RecallCandidate {
   kind: RecallOpportunityKind;
   /** Owned note id for spaced-repetition when opening note-backed opportunities. */
   noteId?: string;
+  /**
+   * A note this row will actually open, warmed on hover.
+   *
+   * Deliberately separate from `noteId`: for highlight kinds that field holds the highlight
+   * row's id, not a note's, so prefetching it would ask the notes endpoint for something
+   * that was never a note. Only set this where the id is a note the row navigates to.
+   */
+  prefetchNoteId?: string;
   /** Dominant canon section for revisit diversity tracking. */
   canonSection?: string;
   /**
@@ -62,7 +72,32 @@ export default function PrototypeRecallCarousel({
   homeSpaceId?: string | null;
 }) {
   const { stackNote } = useProtoShell();
+  const queryClient = useQueryClient();
   const seenImpressionsRef = useRef<Set<string>>(new Set());
+
+  /**
+   * Warm the note a row will open, so opening it does not start with an empty frame.
+   *
+   * Opening a recall card was the one way into a note with nothing cached behind it: the
+   * note list prefetches on hover, but these rows never did, so the note page hit its
+   * 250ms loading grace and showed a framed, empty pane before the stack edge and the note
+   * arrived — the "in-between state" this fixes. Same freshness guard the sidebar uses, so
+   * running the pointer down the shelf cannot turn into a refetch storm.
+   */
+  const prefetchOpportunityNote = useCallback(
+    (noteId: string | undefined) => {
+      if (!noteId) return;
+      const options = getNoteQueryOptions(noteId);
+      const cached = queryClient.getQueryData(options.queryKey) as
+        | { __contentIsPreview?: boolean }
+        | undefined;
+      const state = queryClient.getQueryState(options.queryKey);
+      const isFresh = state ? Date.now() - state.dataUpdatedAt < 30_000 : false;
+      if (cached && cached.__contentIsPreview === false && isFresh) return;
+      void queryClient.prefetchQuery(options).catch(() => {});
+    },
+    [queryClient],
+  );
 
   useEffect(() => {
     for (const op of opportunities) {
@@ -129,6 +164,8 @@ export default function PrototypeRecallCarousel({
           title={op.title}
           meta={[op.eyebrow, op.meta]}
           onClick={() => openOpportunity(op)}
+          onMouseEnter={() => prefetchOpportunityNote(op.prefetchNoteId)}
+          onFocus={() => prefetchOpportunityNote(op.prefetchNoteId)}
           trailing={
             <button
               type="button"

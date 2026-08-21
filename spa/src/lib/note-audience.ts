@@ -299,7 +299,17 @@ function plural(count: number, noun: string): string {
 }
 
 /**
- * Whether switching spaces should close the open note.
+ * What a space switch should do with the note that is open.
+ *
+ * - `close`    — the destination cannot hold this note.
+ * - `retarget` — the note belongs in the destination too, so the URL's `?space=`
+ *   is re-stamped and the note re-reads under that context.
+ * - `leave`    — we do not yet know, so nothing is touched.
+ */
+export type NoteSpaceSwitchOutcome = 'close' | 'retarget' | 'leave';
+
+/**
+ * What switching spaces should do with the open note.
  *
  * The space switcher is navigation and outranks the open note: if a note is still
  * on screen, it belongs to the space you're in. This is an **event** rule, fired
@@ -307,31 +317,41 @@ function plural(count: number, noun: string): string {
  * it would vanish a private note the moment you opened it from a My-Home-scoped
  * list inside a shared space.
  *
- * Fails open in every uncertain case. Closing a note that actually belonged is
- * indistinguishable from losing it.
+ * Three outcomes rather than a boolean, because "do not close" was hiding two
+ * different situations and the caller was treating them alike.
+ *
+ * Folder assignment is per-space, so retargeting re-reads the note under the
+ * destination and the folder chip changes with it — correct when the note really
+ * is in both spaces, and wrong when we are only guessing. Membership arrives with
+ * the note *detail*; a note seeded from a list has `spaces: undefined`, meaning
+ * unknown (see `seedNoteFromList`, which preserves that distinction deliberately).
+ * Retargeting on unknown is what made a switch shortly after opening a note appear
+ * to erase its folders, then behave correctly on the next switch once detail had
+ * loaded. Unknown now leaves the note alone: keeping a note whose context we have
+ * not verified is honest, whereas asserting that context is a claim we cannot back.
  */
-export function shouldCloseNoteOnSpaceSwitch(input: {
+export function resolveNoteSpaceSwitch(input: {
   /** Destination space, or null for My Home. */
   destinationSpaceId: string | null | undefined;
   homeSpaceId: string | null | undefined;
-  /** `note.spaces[].id`. `undefined` = membership unknown; never close on unknown. */
+  /** `note.spaces[].id`. `undefined` = membership unknown. */
   noteSpaceIds: string[] | undefined;
   isOwnNote: boolean;
   /** An unsaved draft retargets to the new space instead of closing. */
   isDraft: boolean;
-}): boolean {
-  if (input.isDraft) return false;
-  if (!input.noteSpaceIds) return false;
+}): NoteSpaceSwitchOutcome {
+  if (input.isDraft) return 'retarget';
+  if (!input.noteSpaceIds) return 'leave';
 
   const home = normalizeSpaceId(input.homeSpaceId);
   const destination = normalizeSpaceId(input.destinationSpaceId);
 
   // My Home is an aggregate — every note you authored is in it regardless of
   // which shared spaces it's also published to, so your own note never closes.
-  if (!destination || destination === home) return !input.isOwnNote;
+  if (!destination || destination === home) return input.isOwnNote ? 'retarget' : 'close';
 
   const associated = input.noteSpaceIds
     .map(normalizeSpaceId)
     .some((id) => id !== null && id === destination);
-  return !associated;
+  return associated ? 'retarget' : 'close';
 }

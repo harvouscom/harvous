@@ -6,7 +6,7 @@ import {
   resolveNoteAudience,
   resolveNoteEditStatusVisibility,
   resolveSharedNoteEditStatus,
-  shouldCloseNoteOnSpaceSwitch,
+  resolveNoteSpaceSwitch,
   type NoteAudienceSpaceInput,
 } from '../note-audience';
 
@@ -487,7 +487,7 @@ describe('noteAudienceLabel', () => {
   });
 });
 
-describe('shouldCloseNoteOnSpaceSwitch', () => {
+describe('resolveNoteSpaceSwitch', () => {
   const base = {
     homeSpaceId: 'space_home',
     noteSpaceIds: [] as string[] | undefined,
@@ -495,84 +495,95 @@ describe('shouldCloseNoteOnSpaceSwitch', () => {
     isDraft: false,
   };
 
-  it('never closes your own note when switching to My Home', () => {
+  it('keeps your own note when switching to My Home, re-reading it there', () => {
     // My Home is an aggregate — it drops the spaceId filter entirely.
     expect(
-      shouldCloseNoteOnSpaceSwitch({ ...base, destinationSpaceId: null, noteSpaceIds: ['space_a'] })
-    ).toBe(false);
+      resolveNoteSpaceSwitch({ ...base, destinationSpaceId: null, noteSpaceIds: ['space_a'] })
+    ).toBe('retarget');
   });
 
   it('treats an explicit home id the same as null', () => {
-    expect(
-      shouldCloseNoteOnSpaceSwitch({ ...base, destinationSpaceId: 'space_home' })
-    ).toBe(false);
+    expect(resolveNoteSpaceSwitch({ ...base, destinationSpaceId: 'space_home' })).toBe('retarget');
   });
 
-  it('closes another member’s note when switching to My Home', () => {
+  it('closes another member\u2019s note when switching to My Home', () => {
     expect(
-      shouldCloseNoteOnSpaceSwitch({
+      resolveNoteSpaceSwitch({
         ...base,
         destinationSpaceId: null,
         isOwnNote: false,
         noteSpaceIds: ['space_a'],
       })
-    ).toBe(true);
+    ).toBe('close');
   });
 
-  it('keeps a note that is associated with the destination space', () => {
+  it('re-reads a note that is associated with the destination space', () => {
     expect(
-      shouldCloseNoteOnSpaceSwitch({
+      resolveNoteSpaceSwitch({
         ...base,
         destinationSpaceId: 'space_b',
         noteSpaceIds: ['space_a', 'space_b'],
       })
-    ).toBe(false);
+    ).toBe('retarget');
   });
 
   it('closes a note that is not associated with the destination space', () => {
     expect(
-      shouldCloseNoteOnSpaceSwitch({
+      resolveNoteSpaceSwitch({
         ...base,
         destinationSpaceId: 'space_b',
         noteSpaceIds: ['space_a'],
       })
-    ).toBe(true);
+    ).toBe('close');
   });
 
   it('closes a Home-only note when switching into a shared space', () => {
     expect(
-      shouldCloseNoteOnSpaceSwitch({ ...base, destinationSpaceId: 'space_b', noteSpaceIds: [] })
-    ).toBe(true);
+      resolveNoteSpaceSwitch({ ...base, destinationSpaceId: 'space_b', noteSpaceIds: [] })
+    ).toBe('close');
   });
 
-  // Fail-open cases: closing a note that actually belonged reads as data loss.
-  it('never closes while membership is unknown', () => {
+  /*
+   * The case this three-way answer exists for.
+   *
+   * Membership arrives with the note detail; a note seeded from a list has
+   * `spaces: undefined`. Closing on unknown would vanish notes that belonged, and
+   * retargeting on unknown re-reads the note under a space it may not be in — which,
+   * because folders are per-space, looked exactly like its folders being wiped.
+   */
+  it('leaves the note completely alone while membership is unknown', () => {
     expect(
-      shouldCloseNoteOnSpaceSwitch({
+      resolveNoteSpaceSwitch({
         ...base,
         destinationSpaceId: 'space_b',
         noteSpaceIds: undefined,
       })
-    ).toBe(false);
+    ).toBe('leave');
   });
 
-  it('never closes an unsaved draft — it retargets instead', () => {
+  it('does not even retarget on unknown membership when heading to My Home', () => {
     expect(
-      shouldCloseNoteOnSpaceSwitch({
+      resolveNoteSpaceSwitch({ ...base, destinationSpaceId: null, noteSpaceIds: undefined })
+    ).toBe('leave');
+  });
+
+  it('never closes an unsaved draft \u2014 it retargets instead', () => {
+    expect(
+      resolveNoteSpaceSwitch({
         ...base,
         destinationSpaceId: 'space_b',
         noteSpaceIds: [],
         isDraft: true,
       })
-    ).toBe(false);
+    ).toBe('retarget');
   });
 
   it('matches bare against prefixed ids in both directions', () => {
     expect(
-      shouldCloseNoteOnSpaceSwitch({ ...base, destinationSpaceId: 'b', noteSpaceIds: ['space_b'] })
-    ).toBe(false);
+      resolveNoteSpaceSwitch({ ...base, destinationSpaceId: 'b', noteSpaceIds: ['space_b'] })
+    ).toBe('retarget');
     expect(
-      shouldCloseNoteOnSpaceSwitch({ ...base, destinationSpaceId: 'space_b', noteSpaceIds: ['b'] })
-    ).toBe(false);
+      resolveNoteSpaceSwitch({ ...base, destinationSpaceId: 'space_b', noteSpaceIds: ['b'] })
+    ).toBe('retarget');
   });
 });

@@ -1784,6 +1784,21 @@ describe('connectSuggestionRecallMeta', () => {
   it('falls back for unknown reasons', () => {
     expect(connectSuggestionRecallMeta('Something else')).toBe('These notes fit together');
   });
+
+  it('names the shared subject when the server identified one', () => {
+    // "Both cite the same passage" is a riddle; "Both cite Romans 8" is a reason to tap.
+    expect(connectSuggestionRecallMeta('Shared passage', 'Romans 8')).toBe('Both cite Romans 8');
+    expect(connectSuggestionRecallMeta('Cross-reference', 'Psalm 73')).toBe(
+      'Cross-referenced through Psalm 73',
+    );
+    expect(connectSuggestionRecallMeta('Shared theme', 'Perseverance')).toBe(
+      'Both on Perseverance',
+    );
+  });
+
+  it('ignores a blank subject rather than printing a dangling phrase', () => {
+    expect(connectSuggestionRecallMeta('Shared passage', '   ')).toBe('Both cite the same passage');
+  });
 });
 
 describe('connect suggestion recall copy helpers', () => {
@@ -1813,6 +1828,32 @@ describe('connect suggestion recall copy helpers', () => {
 
   it('falls back to reason-based thread names when titles are too long', () => {
     expect(suggestConnectThreadName('A'.repeat(50), 'B'.repeat(50), 'Shared passage')).toBe('Shared passage');
+  });
+
+  it('names the thread after what the notes share, not what they are called', () => {
+    // A thread over two notes both working through Romans 8 should arrive called
+    // "Romans 8" — a name someone would keep — rather than a description of the pair.
+    expect(
+      suggestConnectThreadName('My journey', 'Adoption', 'Shared passage', 'Romans 8'),
+    ).toBe('Romans 8');
+  });
+
+  it('prefers the shared subject even when the joined titles would have fitted', () => {
+    expect(suggestConnectThreadName('A', 'B', 'Shared theme', 'Perseverance')).toBe('Perseverance');
+  });
+
+  it('titles a lowercase topic label, since this becomes a name and not a sentence', () => {
+    // Topic labels are stored lowercase, which suits the meta line ("Both on assurance")
+    // and not the thread it is naming.
+    expect(suggestConnectThreadName('A', 'B', 'Shared theme', 'assurance')).toBe('Assurance');
+    // A passage subject is already capitalised and must come through untouched.
+    expect(suggestConnectThreadName('A', 'B', 'Shared passage', 'Genesis 1')).toBe('Genesis 1');
+  });
+
+  it('still joins the titles when the server could not name the overlap', () => {
+    expect(suggestConnectThreadName('Evangelism', 'What Now?', 'Cross-reference', undefined)).toBe(
+      'Evangelism and What Now?',
+    );
   });
 });
 

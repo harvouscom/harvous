@@ -1639,8 +1639,26 @@ export function formatConnectSuggestionTitle(noteATitle: string, noteBTitle: str
   return `${joined.slice(0, CONNECT_SUGGESTION_TITLE_MAX - 1).trimEnd()}…`;
 }
 
-/** Recall carousel meta for connect-suggestion cards (API reason → factual line). */
-export function connectSuggestionRecallMeta(reason: string): string {
+/**
+ * Recall carousel meta for connect-suggestion cards.
+ *
+ * Names the thing the pair share when the server could identify it, because "Both cite
+ * Romans 8" is a reason to tap and "Both cite the same passage" is a riddle.
+ */
+export function connectSuggestionRecallMeta(reason: string, sharedSubject?: string): string {
+  const subject = sharedSubject?.trim();
+  if (subject) {
+    switch (reason) {
+      case 'Shared passage':
+        return `Both cite ${subject}`;
+      case 'Cross-reference':
+        return `Cross-referenced through ${subject}`;
+      case 'Shared theme':
+        return `Both on ${subject}`;
+      default:
+        return `Both touch ${subject}`;
+    }
+  }
   switch (reason) {
     case 'Shared passage':
       return 'Both cite the same passage';
@@ -1653,8 +1671,28 @@ export function connectSuggestionRecallMeta(reason: string): string {
   }
 }
 
-/** Prefill for the New thread sheet name field from a suggested pair. */
-export function suggestConnectThreadName(noteATitle: string, noteBTitle: string, reason: string): string {
+/**
+ * Prefill for the New thread sheet name field from a suggested pair.
+ *
+ * What the notes are *about* beats what they are called. Joining the two titles with
+ * "and" describes the pair rather than naming the study, and it stops being a name at
+ * all once either title is long — so the shared subject is used whenever the server
+ * managed to identify one. A thread over two notes that both work through Romans 8
+ * should arrive called "Romans 8", which is a name someone would keep.
+ */
+export function suggestConnectThreadName(
+  noteATitle: string,
+  noteBTitle: string,
+  reason: string,
+  sharedSubject?: string,
+): string {
+  const subject = sharedSubject?.trim();
+  // A name is a title, not a sentence fragment. Topic labels are stored lowercase
+  // ("assurance"), which is right for the meta line that reads "Both on assurance" and
+  // wrong for the thread this is about to be called. Passage subjects already start
+  // capitalised, so this only ever touches the themes.
+  if (subject && subject.length <= 80) return subject.charAt(0).toUpperCase() + subject.slice(1);
+
   const a = cleanConnectSuggestionNoteTitle(noteATitle);
   const b = cleanConnectSuggestionNoteTitle(noteBTitle);
   const pair = `${a} and ${b}`;

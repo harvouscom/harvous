@@ -9,6 +9,8 @@ export interface ConnectSuggestion {
   noteBTitle: string;
   reason: string;
   score: number;
+  /** What the pair share, named — e.g. "Romans 8". Absent on older responses. */
+  sharedSubject?: string;
 }
 
 interface Response {
