@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import PrototypePaperStack from '../PrototypePaperStack';
 import { buildRevisitCardStackOrigin } from '../paper-stack-origins';
 import type { PaperStackState } from '../../../layouts/proto-shell-context';
+import { RECALL_DISMISS_COPY } from '../proto-recall-copy';
 
 /**
  * The edge carries two rules that are easy to break by accident and invisible in a diff:
@@ -81,7 +82,7 @@ describe('suggestion edge', () => {
     suggestion: { id: 'hl:7', kind: 'highlight' },
   };
 
-  it('offers nevermind, ignore and dismiss', () => {
+  it('offers nevermind, not-interested and dismiss', () => {
     const nevermind = vi.fn();
     const ignore = vi.fn();
     renderStack(
@@ -90,19 +91,55 @@ describe('suggestion edge', () => {
     );
 
     fireEvent.click(
-      screen.getByLabelText('Nevermind — back to Worth another look and keep suggesting it'),
+      screen.getByLabelText('Nevermind — back to The first book and keep suggesting it'),
     );
-    fireEvent.click(screen.getByLabelText('Stop suggesting Worth another look for now'));
+    fireEvent.click(screen.getByLabelText('Not interested — never suggest The first book again'));
 
     expect(nevermind).toHaveBeenCalledTimes(1);
     expect(ignore).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText('Stop showing Worth another look behind this')).toBeTruthy();
+    expect(screen.getByLabelText('Stop showing The first book behind this')).toBeTruthy();
+  });
+
+  /**
+   * The row, not the kind of row.
+   *
+   * These labels used to be built from `origin.label`, which is the eyebrow — so a screen
+   * reader heard "Stop suggesting Worth another look", the category, for every revisit card
+   * on the shelf. Two suggestions of one kind were indistinguishable by their controls.
+   */
+  it('names the suggestion by its title, not its eyebrow', () => {
+    renderStack(
+      { origin: suggested, noteId: 'note_1', open: true },
+      { onSuggestionNevermind: vi.fn(), onSuggestionIgnore: vi.fn() },
+    );
+
+    // All three of the edge's controls name it, so this is an all-query on purpose.
+    expect(screen.getAllByLabelText(/The first book/)).toHaveLength(3);
+    expect(screen.queryByLabelText(/Worth another look/)).toBeNull();
+  });
+
+  /**
+   * The eye-slash reads "Never suggest this again" and now means it. It said as much for
+   * months while posting a plain three-week snooze, so the wording is pinned here against
+   * the module the handler reads from — a future edit to one has to pass this to reach main.
+   */
+  it('promises permanence in the words the copy module owns', () => {
+    renderStack(
+      { origin: suggested, noteId: 'note_1', open: true },
+      { onSuggestionNevermind: vi.fn(), onSuggestionIgnore: vi.fn() },
+    );
+
+    const button = screen.getByLabelText(RECALL_DISMISS_COPY.ariaFor('The first book'));
+    expect(button.getAttribute('title')).toBe(RECALL_DISMISS_COPY.hint);
+    expect(RECALL_DISMISS_COPY.hint).toMatch(/never/i);
   });
 
   it('leaves an ordinary origin with only its way back and its dismiss', () => {
     renderStack({ origin, noteId: 'note_1', open: true });
 
-    expect(screen.queryByLabelText('Stop suggesting Worth another look for now')).toBeNull();
+    expect(
+      screen.queryByLabelText('Not interested — never suggest The first book again'),
+    ).toBeNull();
     expect(screen.getByLabelText('Show Worth another look')).toBeTruthy();
   });
 });
