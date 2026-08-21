@@ -177,7 +177,9 @@ Written August 2026 from the improvement list. Each states the problem, the real
 trade-offs, and a recommendation; each ends with a Decision log to fill in on review.
 
 - **`TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md`** - Toolbar orb vs sidebar tile (#11, #24)
-  - Recommends the hybrid: icon controls become tiles, labelled chips stay pills, avatar stays round
+  - **Decided Aug 21, unbuilt:** icon controls become tiles, labelled chips stay pills, avatar stays
+    round; floating surfaces adopt the same rule (12px surface, 10px tiles); floating bars square on
+    both platforms; 36px targets hold; toolbar and surfaces land as one change
   - Finds the sidebar tile's `9px` radius is an untokenized literal, and that web/native radii have
     already drifted on `button` and `scripturePill`
   - Includes the floating-menu cohesion half and why it should follow, not lead

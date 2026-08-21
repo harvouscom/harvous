@@ -1,6 +1,7 @@
 # Toolbar Shape Language — Options
 
-**Status:** Decision doc. Not started.
+**Status:** **Decided** — shape, floating surfaces, target size and sequencing all settled
+August 21, 2026. Unbuilt; see the Decision log.
 **Last Updated:** August 21, 2026
 **Audience:** Whoever picks the shape, and whoever implements it afterwards.
 **Covers:** improvement-list items #11 (orb → square icon blocks) and #24 (floating menu cohesion).
@@ -231,7 +232,7 @@ two link surfaces onto the editor-side system is worth doing whether or not the 
 first, then align popover radii to whatever the toolbar settles on, then fold the two link surfaces
 in. Doing it in the other order means aligning to a target that is about to move.
 
-### The follow-on, now that Option B has landed
+### The follow-on — decided August 21, 2026
 
 Rendered side by side in the `ds-21-floating-shape` gallery scene, using the production classes
 rather than copies of their markup — so the "today" column cannot drift from what the CSS says.
@@ -279,10 +280,23 @@ capsule happens to both at once.
 CSS rather than in positioning code. Tokenising them is most of the change, and it is worth doing
 even if the number does not move.
 
-**Native parity is a blocker here, not a footnote.** The selection bar mirrors macOS
-`SelectionActionBar`, which is a `Capsule`. Squaring the web one alone is precisely the visual
-identity drift the parity rules forbid, so a `HarvousShape` member and the Swift change belong in
-the same decision — see [Native parity](#native-parity) above.
+**Native parity is a blocker here, not a footnote — and native already disagrees with itself.**
+Found while preparing the decision, so it is not in the analysis above:
+
+| Native surface | Shape today |
+|---|---|
+| `SelectionActionBar.swift:66,71` | `Capsule()`, height 36, `.padding(.horizontal, 6)` |
+| `SelectionFormatBar.swift:79` | `RoundedRectangle(cornerRadius: 8)` |
+
+Two floating bars, two shapes, no rule between them. **Swift therefore changes whichever way this
+goes** — the question was never "leave native alone", only which direction it moves.
+
+Worth knowing for implementation: the numbers already exist in Swift under other names.
+`HarvousRadius.button = 12` is the same value as `--pds-radius-menu`, and `HarvousRadius.input = 10`
+is the same as `--pds-radius-row`. So this needs naming work more than it needs new tokens — a
+constant called `button` carrying a menu surface's radius is the kind of thing that drifts next.
+Note also that the native bar's `.padding(.horizontal, 6)` is the same 6px the web bar carried,
+and inherits the same concentric-corner problem the moment the capsule becomes a rounded rect.
 
 ---
 
@@ -323,3 +337,7 @@ the same decision — see [Native parity](#native-parity) above.
 | Date | Decision | Rationale |
 |---|---|---|
 | 2026-08-21 | **Option B accepted — tile shape, glass kept.** This is the toolbar/top-nav pattern: glass material, tile for icon targets, pill for labelled controls, circle for the avatar. | Derek's call, made against the rendered `ds-20-toolbar-shape` scene rather than the description. The doc had originally recommended flattening the surface as well; seeing it showed the glass was carrying meaning — it says the toolbar floats over the page — and only the shape was arbitrary. Implementation still open: `--pds-radius-row` vs a new token, and the `9px` literals to retire. |
+| 2026-08-21 | **Floating surfaces adopt the same rule.** One surface radius (`--pds-radius-menu`, 12px) for anything that floats, `--pds-radius-row` (10px) tiles for icon targets inside, material untouched. The two hardcoded literals (link preview 14, link prompt 12) are tokenised on the way. | Derek's call against the rendered `ds-21-floating-shape` scene. Six radii answered one question with nothing recording why; 12 is the value the shell menu already uses, so every other surface moves toward something rather than to a new number. |
+| 2026-08-21 | **Floating bars square too, on both platforms.** Native's `Capsule()` becomes a rounded rect at the same radius, and `SelectionFormatBar`'s `RoundedRectangle(8)` goes with it. | A floating bar is a surface like any other, and this matches the toolbar call — the top bar is already a rounded rect with tile buttons. The alternative (capsules for transient action bars, rects for content surfaces) was live and coherent, but would have left the top toolbar as the odd one out. Native was going to change either way: it has two floating bars with two shapes and no rule. |
+| 2026-08-21 | **Icon targets hold at 36px.** The selection bar's remaining 14px end inset stays. | Derek raised the end padding; the principled half was the 6px side padding, fixed to 2px by the concentric-corner rule (12 − 10). What is left is a 15px glyph centred in a 36px target — tappability, not padding. 36 is the touch floor for a bar used one-handed while reading, and what macOS already uses. |
+| 2026-08-21 | **Toolbar and floating surfaces land as one change.** | They are one shape language; reviewing them apart means judging half a system, and the toolbar's tile radius is the same token the menus adopt. Avoids an in-between state where the bar is squared and the menus opening from it are not. |
