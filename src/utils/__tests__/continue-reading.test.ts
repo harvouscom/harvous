@@ -158,6 +158,26 @@ describe('continue-reading copy', () => {
     expect(continueReadingEyebrow(next)).toBe('Keep reading');
     expect(continueReadingMeta(next)).toBe('Next in John');
   });
+
+  it('names the verse when the row will land on one', () => {
+    // The row returns you to the verse now, so saying only the chapter would be a small lie
+    // told by the one card whose promise is remembering where you were.
+    const resume = deriveContinueReading(
+      { lastRead: { ...lastRead('John', 15), verse: 12 }, readChapters: [] },
+      chapterCounts,
+    )!;
+
+    expect(continueReadingMeta(resume)).toBe('Back to John 15:12');
+  });
+
+  it('still names just the chapter when there is no verse to return to', () => {
+    const resume = deriveContinueReading(
+      { lastRead: lastRead('John', 15), readChapters: [] },
+      chapterCounts,
+    )!;
+
+    expect(continueReadingMeta(resume)).toBe('Back to John 15');
+  });
 });
 
 describe('deriveContinueBook with reading', () => {

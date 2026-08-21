@@ -51,6 +51,26 @@
   transition: background-color 0.1s ease;
 }
 
+/*
+ * The row a suggestion pointed at.
+ *
+ * Opening the passage answers "where"; a list of eight related passages does not say which
+ * one was meant, so the card that arrived from a cross-reference suggestion marks it. Held
+ * rather than flashed — you may read the passage first and come back to the list, and a cue
+ * that has already faded by then was never for you.
+ *
+ * A tint and a leading rule rather than a border: the rows sit in a tight column and a full
+ * outline reads as a control, which this is not — it is the same row, pointed at.
+ */
+.passage-context-strip__row--marked {
+  background: color-mix(in srgb, var(--pds-accent-indicator, #006eff) 8%, transparent);
+  box-shadow: inset 2px 0 0 0 var(--pds-accent-indicator, #006eff);
+}
+
+.passage-context-strip__row--marked .passage-context-strip__row-label {
+  font-weight: 600;
+}
+
 .passage-context-strip__row:hover:not(:disabled) {
   background: var(--pds-bg-faint, rgba(0, 0, 0, 0.03));
 }

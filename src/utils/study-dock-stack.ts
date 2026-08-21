@@ -15,6 +15,14 @@ export type ScripturePillDockSession = {
   pillAccent: string | null;
   /** Read-only passage card — no pill write-back, no highlight/study-thread chrome. */
   readOnly?: boolean;
+  /**
+   * A cross-reference to point out in this card's related-passages list.
+   *
+   * Set when the card was opened by a suggestion that named one. Opening the passage answers
+   * "where", but a list of eight related passages does not say which of them the suggestion
+   * meant — so the one it meant is marked.
+   */
+  highlightCrossRef?: string | null;
 };
 
 /** Build a read-only scripture session for opening a referenced passage (cross-ref) as a card. */

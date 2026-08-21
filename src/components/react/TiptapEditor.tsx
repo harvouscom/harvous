@@ -369,8 +369,13 @@ function openSourceScriptureDockWithOptionalCrossRef(
   sourceNoteId: string | null,
   translation: string | null,
 ): StudyDockStack {
-  let next = openOrFocusScripture(stack, session);
   const targetRef = crossRefTarget?.trim();
+  // Marked on the source card, not the target: the target is the answer, and the source is
+  // where the list of eight related passages needs to say which one was meant.
+  let next = openOrFocusScripture(
+    stack,
+    targetRef ? { ...session, highlightCrossRef: targetRef } : session,
+  );
   if (targetRef) {
     next = openOrFocusScripture(
       next,
@@ -9866,6 +9871,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   return (
                     <ScripturePillChromeWeb
                       key={entry.id}
+                      /* The row a suggestion pointed at, marked in this card's related-passages
+                         list — see `highlightCrossRef` on the session. */
+                      highlightCrossRef={entry.session.highlightCrossRef ?? null}
                       reference={entry.session.reference}
                       translation={entry.session.translation}
                       sourceNoteId={sourceNoteId ?? null}

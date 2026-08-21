@@ -1879,10 +1879,19 @@ export function deriveContinueReading(
 }
 
 /** Home card copy for continue-reading. */
+/**
+ * Names the place the row will actually land you.
+ *
+ * Resuming carries the verse when there is one, because the row now returns you to it rather
+ * than to the top of the chapter. Saying "Back to Romans 5" while landing on Romans 5:8 is a
+ * small lie that costs trust in the one card whose whole promise is remembering where you were.
+ */
 export function continueReadingMeta(suggestion: ContinueReadingSuggestion): string {
-  return suggestion.reason === 'resume'
-    ? `Back to ${suggestion.book} ${suggestion.chapter}`
-    : `Next in ${suggestion.book}`;
+  if (suggestion.reason !== 'resume') return `Next in ${suggestion.book}`;
+  const at = suggestion.resumeVerse
+    ? `${suggestion.book} ${suggestion.chapter}:${suggestion.resumeVerse}`
+    : `${suggestion.book} ${suggestion.chapter}`;
+  return `Back to ${at}`;
 }
 
 export function continueReadingEyebrow(suggestion: ContinueReadingSuggestion): string {
