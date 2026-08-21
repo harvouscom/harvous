@@ -1179,6 +1179,145 @@ function NoteAudienceBarScene() {
   );
 }
 
+/**
+ * The three toolbar shape options, side by side, against the real tokens.
+ *
+ * A decision aid rather than a shipped pattern — see docs/future/TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md.
+ * Deliberately built from `.proto-toolbar-icon-btn` with only the properties under discussion
+ * overridden inline, so what is on screen is the real control wearing each candidate shape rather
+ * than a drawing of one. Delete this scene once the shape is settled.
+ */
+function ToolbarShapeScene() {
+  type Glyph = React.ComponentProps<typeof Icon>['name'];
+  const icons: Glyph[] = ['pen-to-square', 'book-open', 'magnifying-glass', 'ellipsis'];
+
+  /* Option A is the shipped orb, so it overrides nothing. B and C change only radius and surface. */
+  const asTile: React.CSSProperties = {
+    borderRadius: 'var(--pds-radius-row)',
+    background: 'var(--pds-bg-control)',
+    borderColor: 'transparent',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+  };
+  const asFlatCircle: React.CSSProperties = {
+    background: 'var(--pds-bg-control)',
+    borderColor: 'transparent',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+  };
+
+  const Row = ({
+    label,
+    note,
+    iconStyle,
+    chipIsTile,
+  }: {
+    label: string;
+    note: string;
+    iconStyle?: React.CSSProperties;
+    chipIsTile?: boolean;
+  }) => (
+    <div style={{ marginBottom: 26 }}>
+      <p className="pds-section-header" style={{ marginBottom: 2 }}>{label}</p>
+      <p className="pds-caption" style={{ marginBottom: 10 }}>{note}</p>
+      <div
+        className="proto-glass-surface"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          height: 'var(--pds-toolbar-h)',
+          padding: '0 12px',
+          borderRadius: 14,
+          border: '0.5px solid var(--pds-border)',
+        }}
+      >
+        {icons.map((name) => (
+          <button key={name} type="button" className="proto-toolbar-icon-btn" style={iconStyle}>
+            <Icon name={name} size={17} className="proto-toolbar-icon" />
+          </button>
+        ))}
+
+        <span style={{ flex: 1 }} />
+
+        {/* The two labelled controls — the reason this is a decision and not a find-replace. */}
+        <span
+          className="proto-toolbar-folder-chip"
+          style={chipIsTile ? { borderRadius: 'var(--pds-radius-row)' } : undefined}
+        >
+          <Icon name="book-open" size={12} aria-hidden />
+          <span>Salvation</span>
+        </span>
+        <button
+          type="button"
+          className="proto-toolbar-space-switcher"
+          style={chipIsTile ? { borderRadius: 'var(--pds-radius-row)' } : undefined}
+        >
+          <span className="proto-toolbar-space-switcher__icon" aria-hidden>
+            <Icon name="book-open-reader" size={13} />
+          </span>
+          <span className="proto-toolbar-space-switcher__label">My Home</span>
+        </button>
+
+        {/* The avatar. Round in every option — it is a face, not a control. */}
+        <span className="proto-toolbar-icon-btn" aria-hidden>
+          <span className="proto-profile-orb" />
+        </span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: 760 }}>
+      <Row
+        label="A — today"
+        note="30px glass circles. The sidebar's tiles are 30x30 rounded squares on a flat surface, visible at the same time."
+      />
+      <Row
+        label="B — flat circles"
+        note="Surface only: same shape, tile material. Removes the material mismatch and leaves the shape mismatch."
+        iconStyle={asFlatCircle}
+      />
+      <Row
+        label="C — hybrid (recommended)"
+        note="Icon controls become tiles at 10px. The folder chip and space switcher stay pills because they carry words. Avatar stays round."
+        iconStyle={asTile}
+      />
+      <Row
+        label="D — everything square"
+        note="For comparison: the labelled chips squared off too. One rule, but a chip in a near-square is not a shape that wants a label in it."
+        iconStyle={asTile}
+        chipIsTile
+      />
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'var(--pds-bg-control)',
+        }}
+      >
+        <span className="proto-sidebar-back-tile" aria-hidden>
+          <Icon name="caret-left" size={14} />
+        </span>
+        <p className="pds-caption" style={{ margin: 0 }}>
+          The sidebar tile being matched. Its 9px radius is a hardcoded literal with no token and no
+          Swift counterpart; options above use `--pds-radius-row` (10px) instead.
+        </p>
+      </div>
+
+      <p className="pds-caption" style={{ marginTop: 14 }}>
+        Check each option in light, dark and image-wallpaper appearance. Flattening the toolbar
+        matters most over a photo wallpaper, which is where the glass is doing the most work.
+      </p>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1219,6 +1358,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <TranslationRowScene />;
     case 'ds-19-note-audience-bar':
       return <NoteAudienceBarScene />;
+    case 'ds-20-toolbar-shape':
+      return <ToolbarShapeScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

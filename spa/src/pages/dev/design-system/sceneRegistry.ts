@@ -234,6 +234,20 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-19-note-audience-bar',
     // Interactive: the destination sheet retargets a fixture draft.
   },
+  {
+    id: 'ds-20-toolbar-shape',
+    title: 'Toolbar shape options',
+    phase: 'Shell',
+    editFiles: [
+      'spa/src/pages/prototype/NativeToolbar.tsx',
+      'spa/src/styles/prototype-components.css',
+      'docs/future/TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md',
+    ],
+    screenshotSlug: 'ds-20-toolbar-shape',
+    // A decision aid, not a shipped pattern: the three options from the options doc rendered
+    // side by side against the real tokens, so the choice is made by looking rather than by
+    // reading a description. Delete this scene once the shape is settled.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

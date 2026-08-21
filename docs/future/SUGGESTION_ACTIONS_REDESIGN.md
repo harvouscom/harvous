@@ -214,4 +214,4 @@ Two objective defects were repaired alongside this doc, because they are bugs ra
 
 | Date | Decision | Rationale |
 |---|---|---|
-| | | |
+| 2026-08-21 | **Option B accepted — permanent dismissal will exist.** "Not now" (21 days) plus "Not interested" (never returns). | Derek's call. The tooltip has promised this since it was written, so people already believe it exists; the fix is to build it rather than to walk the promise back. Open sub-question left to implementation: whether "Not interested" sits behind an overflow or long-press so deferral stays one tap — see the row-shape constraint above. |

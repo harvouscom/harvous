@@ -57,6 +57,17 @@ export default defineConfig({
   },
   server: {
     port: 4322,
+    /*
+     * Bind IPv4 explicitly.
+     *
+     * Vite's default host is `localhost`, and Node 17+ resolves that verbatim — which on this
+     * machine hands back `::1` first, so the dev server bound IPv6 loopback only and
+     * `http://127.0.0.1:4322` was refused while `http://localhost:4322` worked. Anything that
+     * prefers IPv4 (some browsers, Electron shells, curl with `-4`, other tooling) simply could
+     * not reach the dev server. Use `true` instead of this if you want it reachable from another
+     * device on the network — that also exposes it to the LAN.
+     */
+    host: '127.0.0.1',
     watch: {
       // Also watch shared src/ components (outside the spa/ root) for HMR
       ignored: ['!**/src/**'],
