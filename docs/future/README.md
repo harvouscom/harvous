@@ -191,6 +191,11 @@ trade-offs, and a recommendation; each ends with a Decision log to fill in on re
 - **`READER_PARTIAL_VERSE_HIGHLIGHTS.md`** - Highlighting less than a whole verse (#7)
   - Recommends reusing the excerpt model the dock and native already share, painted imperatively
   - Names the blocking piece: the server upsert key is verse-granular and must gain the excerpt
+- **`SPACES_PLANNER_AND_GATHERINGS.md`** - Shared spaces, the planner, and gatherings (#1)
+  - **Mostly a correction**: nearly every piece this item was framed around has since shipped,
+    checked row by row against `main`
+  - The one live gap: a church's next service reaches Home, a room's next gathering does not
+  - Recommends closing that asymmetry, bounded by the existing four-day wall rather than a count
 - **`READER_MARGIN_INDICATORS.md`** - How the reader says "you have written about this" (#8)
   - Recommends keeping the bar: its length is the note's span, which no point marker can express
   - Finds the presence signal has no non-visual equivalent, and that a bar merged past the
