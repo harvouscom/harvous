@@ -480,24 +480,3 @@
   border-radius: var(--pds-radius-card);
 }
 
-/*
- * Margin-indicator specimens (ds-22).
- *
- * Deliberately NOT in prototype-components.css: these draw designs the product does not have
- * and, on current recommendation, will not get. Keeping them in the gallery sheet means the
- * comparison exists without a dot style sitting in the reader's stylesheet waiting to be
- * mistaken for something in use. They go when the scene does.
- */
-.pds-gallery-margin-dot {
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background-color: var(--pds-text-tertiary);
-}
-
-.pds-gallery-margin-glyph {
-  position: absolute;
-  display: inline-flex;
-  color: var(--pds-text-tertiary);
-}
