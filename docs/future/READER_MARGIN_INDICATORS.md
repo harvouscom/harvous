@@ -1,6 +1,6 @@
 # Reader Margin Indicators — Options
 
-**Status:** Decision doc.
+**Status:** **Decided** August 21, 2026 — the bar stays; two defects to fix. Unbuilt.
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides how the reader says "you have written about this", and whoever
 implements it.
@@ -130,13 +130,24 @@ bar's **length** is wrong for that case, not its contents.
 - Derive it from `anchorLanes`, which already knows the covered ranges — no second query, and no
   dependency on the measured `bars`, which exist only once layout has settled.
 
-**Build — the merge:**
-- Stop stretching the host bar. Either draw the merged note at its own extent in lane 3 and
-  accept two bars in one lane (they overlap visually, which is honest — there genuinely is more
-  here than three lanes can show), or keep the host's own span and let the card's list carry the
-  extra note without the bar claiming its verses.
-- Prefer the second: it keeps every drawn length truthful, and the card already lists the merged
-  notes correctly. The bar stops promising a span it does not have.
+**Build — the merge (decided):**
+- Stop stretching the host bar. **The host keeps its own span**, and the extra note rides in the
+  card's list, which already shows every merged note correctly. Every drawn length stays truthful
+  and the bar stops promising a span it does not have.
+- The rejected alternative was drawing the merged note at its own extent, overlapping inside
+  lane 3 — honest in a different way, since there genuinely is more there than three lanes can
+  show. It lost on legibility: a 9px lane holding two 2px rules is muddy, and the gutter has no
+  room for a fourth lane at any width.
+- **Name the cost, because it is real:** the fourth note gets no mark of its own. It is findable
+  only by opening the bar it hid behind. That is the price of every drawn length being true, and
+  it was accepted deliberately rather than overlooked.
+
+**Build — the opt-out:**
+- The spoken cue follows `showMarginNotes` (`spa/src/lib/proto-reading-prefs.ts:49`). Off means
+  off for everyone. The setting reads as "do not tell me about my notes while I am reading", and
+  that reason applies just as much when the telling is spoken — one switch, one meaning. The
+  alternative, treating the preference as being about gutter clutter specifically and keeping the
+  announcement, would make one setting mean two things depending on how it is read.
 
 **Reuse:** `assignAnchorLanes` is pure and already unit-tested — the merge branch is four lines
 and the test can pin the invariant directly ("no bar's span exceeds the union of the spans it
@@ -215,4 +226,7 @@ justified by CSS positioning does not.
 
 | Date | Decision | Rationale |
 |---|---|---|
-| _pending_ | | |
+| 2026-08-21 | **The bar stays.** No visual redesign. | Derek's call against the rendered `ds-22-margin-indicators` scene. A bar's length is the note's span and two side by side are the overlap — most of what the margin knows, and neither survives a point marker. This declines the redesign #8 asked for, so it was put as an explicit question rather than assumed. |
+| 2026-08-21 | **The verse carries the non-visual signal.** A verse covered by a note gains a visually-hidden suffix; the margin layer stays `aria-hidden`. | Adds no pixels and keeps the chapter readable aloud. Making the bars focusable was the direct alternative and was rejected: it interleaves a list of marks into Scripture — the exact thing the existing comment refuses — and adds tab stops to a reading surface. |
+| 2026-08-21 | **A merged bar keeps the host's own span.** The extra note rides in the card's list rather than the bar claiming its verses. | Every drawn length stays true. Rejected: drawing both at their own extents inside lane 3, which is muddy at a 9px pitch. Accepted cost: the fourth note has no mark of its own and is findable only through the bar it hid behind. |
+| 2026-08-21 | **The spoken cue follows `showMarginNotes`.** | One switch, one meaning. The preference reads as "do not tell me about my notes while I am reading", which applies equally to a spoken cue. |
