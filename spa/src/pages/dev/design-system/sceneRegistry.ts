@@ -263,6 +263,22 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     // that open from it. Production classes, not copies of their markup, so the "today" column
     // is whatever the CSS says today. Also a decision aid — delete it with ds-20.
   },
+  {
+    id: 'ds-22-margin-indicators',
+    title: 'Margin indicators — options',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeBibleReaderPane.tsx',
+      'spa/src/hooks/queries/usePrototypeChapterNotes.ts',
+      'spa/src/styles/prototype-components.css',
+      'docs/future/READER_MARGIN_INDICATORS.md',
+    ],
+    screenshotSlug: 'ds-22-margin-indicators',
+    // The case for bars over dots is entirely about length, which cannot be judged from a
+    // description — dots were rejected once without the two being seen side by side. Also
+    // renders the lane-merge defect, which is easier to see than to read about. Decision aid;
+    // delete it once D-5 is settled.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {
