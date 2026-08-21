@@ -101,14 +101,10 @@
   status = 200
   force = true
 
-# Crawlers on share URLs → server OG meta HTML (humans keep SPA)
-[[edge_functions]]
-  path = "/shared/note/*"
-  function = "shared-og"
-
-[[edge_functions]]
-  path = "/shared/thread/*"
-  function = "shared-og"
+# Crawlers on share URLs → server OG meta HTML (humans keep SPA).
+# Declared in-source only (netlify/edge-functions/shared-og.ts) so the
+# declaration can carry pattern + user-agent matchers that keep non-crawler
+# traffic from counting as billed invocations. Do not re-declare here.
 
 # API routes must never be cached at the edge
 [[headers]]
@@ -121,12 +117,6 @@
   for = "/api/og/*"
   [headers.values]
     Cache-Control = "public, max-age=86400, s-maxage=86400"
-
-# SPA assets (hashed filenames) — long cache so CDN/browser don't revalidate
-[[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
 
 # Security Headers + prevent stale index.html after deploy (reduces chunk 404s)
 [[headers]]
@@ -147,6 +137,45 @@
     X-XSS-Protection = "1; mode=block"
     # Strict Transport Security (HSTS)
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+# ─── Long-lived caching — declared AFTER the catch-all above, deliberately ────
+#
+# The order is load-bearing and used to be wrong. Netlify applies every matching
+# `[[headers]]` rule and lets a later one override an earlier one for the same key, so
+# the `/*` block's `no-cache, must-revalidate` was quietly beating the `immutable` that
+# sat above it. Confirmed against production before changing anything: the deployed
+# 2.7MB `/assets/index-*.js` answered `cache-control: no-cache,must-revalidate`, so every
+# visit revalidated the whole bundle and every cold cache paid for it in full.
+#
+# The catch-all's `no-cache` exists to stop a stale index.html serving dead chunk hashes
+# after a deploy. That reasoning is about HTML and should never have reached anything
+# content-addressed. Moving these below it is the whole fix — do not "tidy" them back up.
+
+# Hashed filenames: a change is a new name, so these can be kept forever.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Fonts are NOT content-hashed, so not `immutable` — a year would be unrecallable if a
+# face were ever replaced. Thirty days still turns the 1.4MB variable font from a
+# revalidation on every page load into one fetch a month.
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
+
+# Wallpapers, space covers, auth heroes — 13MB of them. Stable names, same reasoning as
+# fonts: a long but finite window rather than `immutable`.
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
+
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
 
 # Branch deploy: staging → new.harvous.com (dev Clerk, production DB).
 # Assign new.harvous.com as branch domain in Netlify dashboard.

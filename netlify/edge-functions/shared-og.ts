@@ -64,6 +64,24 @@ export default async function sharedOg(request: Request, _context: Context) {
   return new URL(`/api/og/share/${kind}/${token}`, request.url);
 }
 
+/**
+ * Declaration-level matchers so Netlify's routing layer filters requests
+ * BEFORE they count as billed invocations (Aug 2026: bot floods on /shared/*
+ * burned ~772K of the 1M free-tier invocations in three weeks, because a
+ * bare `path` glob invoked the function for every human and scraper hit).
+ *
+ * - `pattern` only matches well-formed 12-char share tokens, so junk-path
+ *   scans never invoke.
+ * - `header.user-agent` must match a known unfurler, so humans and generic
+ *   scrapers never invoke. Keep this regex in sync with CRAWLER_UA_SNIPPETS
+ *   (the runtime check above stays as the authority; this is the cost gate).
+ *
+ * Netlify statically parses this export — literals only, no derived values.
+ */
 export const config: Config = {
-  path: ['/shared/note/*', '/shared/thread/*'],
+  pattern: '/shared/(note|thread)/[A-Za-z0-9]{12}/?',
+  header: {
+    'user-agent':
+      '(facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Slackbot|Slack-ImgProxy|Discordbot|TelegramBot|WhatsApp|Applebot|facebookcatalog|meta-externalagent|Pinterestbot|Embedly|Quora Link Preview|outbrain|vkShare|W3C_Validator|redditbot|SkypeUriPreview|Iframely|Googlebot|bingbot|Baiduspider|DuckDuckBot|YandexBot|ia_archiver)',
+  },
 };
