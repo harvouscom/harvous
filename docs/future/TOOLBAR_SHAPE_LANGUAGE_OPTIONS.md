@@ -231,6 +231,52 @@ two link surfaces onto the editor-side system is worth doing whether or not the 
 first, then align popover radii to whatever the toolbar settles on, then fold the two link surfaces
 in. Doing it in the other order means aligning to a target that is about to move.
 
+### The follow-on, now that Option B has landed
+
+Rendered side by side in the `ds-21-floating-shape` gallery scene, using the production classes
+rather than copies of their markup — so the "today" column cannot drift from what the CSS says.
+
+**What floats over the note and the reader today — six radii:**
+
+| Surface | Class | Radius today | Source |
+|---|---|---|---|
+| Selection actions (note **and** reader) | `.pds-native-selection-bar` | `--pds-radius-pill` (999) | `spa/src/styles/prototype-editor.css:1366` |
+| Menu popover (reader pickers, every shell menu) | `.proto-menu__popover` | `--pds-radius-menu` (12) | `spa/src/styles/prototype-components.css:1226` |
+| Scripture pill translation menu | `.harvous-menu-pill__menu` | `--pds-radius-menu`, **fallback 10** | `src/styles/harvous-menu-pill.css:95` |
+| Link preview card | `.link-preview-card` | 14, hardcoded | `src/styles/link-preview-card.css:11` |
+| Link prompt | `.url-link-prompt` | 12, hardcoded | `src/styles/tiptap-editor.css:472` |
+| Delete confirm | `.harvous-delete-confirm` | 22 compact / 16 stacked | `src/styles/delete-confirm-bar.css:5,32` |
+| Margin "in your note" card | `.pds-reader__note-card` | 2 | `spa/src/styles/prototype-components.css:18341` |
+| Docked format bar | `.tiptap-toolbar--portal` | 0 | `spa/src/styles/prototype-editor.css` |
+
+One point of existing cohesion worth protecting: the reader's verse menu is not its own chrome. It
+reuses `.pds-native-selection-bar` and adds only placement (`.pds-reader-menu`,
+`prototype-components.css:19461`), so note and reader already agree here. Whatever happens to that
+capsule happens to both at once.
+
+**Proposed rule — the same two axes Option B settled, extended outward:**
+
+- **Surface radius: `--pds-radius-menu` (12px), everywhere something floats.** Not a new number —
+  it is what the shell's menu already uses, and it is the squarest of the ones in play, so every
+  other surface moves *toward* an existing value rather than to one nothing uses yet.
+- **Icon targets inside them: `--pds-radius-row` (10px) tiles**, the same tile the toolbar decision
+  picked. A button then means one shape wherever it appears.
+- **Material unchanged.** Glass stays glass, solid popover stays solid. That was the whole finding
+  of Option B: the material was carrying meaning and only the shape was arbitrary.
+- **Two deliberate exceptions, which stay.** `.pds-reader__note-card` at 2px and the docked format
+  bar at 0. Neither floats — one is printed on the paper (its own comment makes the case: a real
+  radius there reads as a widget dropped onto the page), the other is full-bleed chrome.
+
+**The two hardcoded radii are the actual work.** 14 and 12 as literals in
+`link-preview-card.css` and `tiptap-editor.css` are the same off-system problem flagged above, in
+CSS rather than in positioning code. Tokenising them is most of the change, and it is worth doing
+even if the number does not move.
+
+**Native parity is a blocker here, not a footnote.** The selection bar mirrors macOS
+`SelectionActionBar`, which is a `Capsule`. Squaring the web one alone is precisely the visual
+identity drift the parity rules forbid, so a `HarvousShape` member and the Swift change belong in
+the same decision — see [Native parity](#native-parity) above.
+
 ---
 
 ## Risks / watch-items

@@ -432,11 +432,18 @@
   overflow: hidden;
 }
 
+/*
+ * Content only — the surface comes from `.proto-editor-paper`, which this sits inside.
+ *
+ * A bespoke fixture surface was the wrong instinct: everything the stack does to a sheet
+ * (the opaque fill that stops the layer behind reading through, the lighter tint once this
+ * layer is the one behind) is keyed to the production paper classes in
+ * prototype-components.css, so a stand-in with its own class silently opted out of all of it.
+ */
 .pds-gallery-reader-note {
   display: flex;
   flex-direction: column;
   gap: var(--pds-space-2);
-  padding: var(--pds-space-5);
 }
 
 /* Reader dock fixture (ds-16-reader-dock) — production mounts this in the main pane,

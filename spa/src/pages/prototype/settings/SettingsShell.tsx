@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 
@@ -161,7 +161,22 @@ export function SettingsRow({
       ) : leadingIcon ? (
         <span
           className={['proto-settings-list-row__leading', leadingClassName].filter(Boolean).join(' ')}
-          style={leadingAccent ? { color: leadingAccent } : undefined}
+          /*
+           * A custom property, not `color`.
+           *
+           * The prototype route ends with a blanket
+           * `button[class*='proto-'] * { color: … !important }` (prototype-route-overrides.css)
+           * to beat global.css, and `!important` outranks an inline style — so setting `color`
+           * here worked on a static row and was silently dropped on a tappable one. The real
+           * add-ons page reached for `leadingClassName` plus its own override rather than this
+           * prop, which is the workaround this failure produces. A custom property is not
+           * `color`, so nothing overrides it, and both CSS sides read it the same way.
+           */
+          style={
+            leadingAccent
+              ? ({ '--pds-settings-row-accent': leadingAccent } as CSSProperties)
+              : undefined
+          }
           aria-hidden
         >
           <Icon name={leadingIcon} size={20} />

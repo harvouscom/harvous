@@ -248,6 +248,21 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     // side by side against the real tokens, so the choice is made by looking rather than by
     // reading a description. Delete this scene once the shape is settled.
   },
+  {
+    id: 'ds-21-floating-shape',
+    title: 'Floating surfaces — shape',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/styles/prototype-components.css',
+      'src/styles/link-preview-card.css',
+      'src/styles/tiptap-editor.css',
+      'docs/future/TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md',
+    ],
+    screenshotSlug: 'ds-21-floating-shape',
+    // The other half of ds-20: the toolbar decision settled the bar, not the menus and cards
+    // that open from it. Production classes, not copies of their markup, so the "today" column
+    // is whatever the CSS says today. Also a decision aid — delete it with ds-20.
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {
