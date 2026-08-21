@@ -14,10 +14,27 @@ circles (`.proto-toolbar-icon-btn`, `spa/src/styles/prototype-components.css`); 
 30×30 rounded squares on a flat surface (`.proto-sidebar-back-tile`, same file). Same size, same
 job, different vocabulary — and they are visible at the same time.
 
-**Recommendation: Option C — unify the icon-only controls as tiles, keep the two labelled controls
-as pills, and leave the account avatar round.** A pill is the right shape for something with a label
-in it; a circle is the right shape for a face. Everything else is a 30px icon target and should look
-like one thing.
+**Recommendation: Option B — icon-only controls become tiles and keep their glass; the two labelled
+controls stay pills; the account avatar stays round.**
+
+The framing that makes this obvious is that there are *two* axes, not one, and today's toolbar
+differs from the sidebar on both at once — which is why the mismatch reads as arbitrary rather than
+as a distinction:
+
+| Axis | What it should say | Toolbar | Sidebar |
+|---|---|---|---|
+| **Material** | what the control sits *on* | glass — it floats over the page | flat — it rests on a panel |
+| **Shape** | what *kind* of control it is | tile = icon target, pill = labelled chip, circle = avatar | same |
+
+Read that way, the material difference is not a mismatch at all — it is correct, and it is doing
+work. The toolbar floats over the note and over an image wallpaper, and the glass is what says so.
+Only the *shape* was arbitrary. So the recommendation changes exactly one thing and leaves the other
+alone. **This is the toolbar/top-nav pattern**: glass material, tile shape for icon targets, pill for
+anything carrying a label, circle only for the avatar.
+
+An earlier draft of this doc recommended flattening the surface too (now Option D). Seeing the
+options rendered side by side is what corrected it — a flat toolbar stops reading as chrome floating
+over the page and starts reading as another panel, which loses something the glass was earning.
 
 Two findings change what "adopt the tile" means, and both argue against copying the sidebar tile
 verbatim:
@@ -34,12 +51,16 @@ verbatim:
 
 ## The alternatives
 
+Letters match the rows in the `ds-20-toolbar-shape` gallery scene, which renders all five against
+the real tokens.
+
 | Option | Verdict | Trade-off |
 |---|---|---|
-| A. Full tile swap — every toolbar control becomes a square tile, including the folder chip and space switcher | Not recommended | Consistent, but forces a labelled chip into a square-ish shape it does not want, and squares off the avatar |
-| B. Surface-only unification — keep circles, swap glass for the tile's flat `--pds-bg-control` | Viable, cheapest | Removes the material mismatch and leaves the shape mismatch, which is the more visible half |
-| **C. Hybrid — icon controls become tiles; labelled controls stay pills; avatar stays round** | **Recommended** | One more rule to hold in your head ("labels get pills"), in exchange for each shape meaning something |
-| D. Do nothing | Defensible | The mismatch is real but quiet; nothing is broken |
+| A. Do nothing | Defensible | The mismatch is real but quiet; nothing is broken |
+| **B. Tiles, glass kept — icon controls take the tile shape and keep the toolbar's glass; labelled controls stay pills; avatar stays round** | **Recommended** | One more rule to hold ("labels get pills"), in exchange for each shape meaning something. Changes only the axis that was arbitrary |
+| C. Tiles, flat — shape *and* material both move to the sidebar's | Not recommended | Fully consistent with the sidebar, but the toolbar stops reading as floating chrome. Discards a distinction that was carrying meaning |
+| D. Flat circles — material only, shape unchanged | Weakest | The inverse of B: fixes the axis that was already correct and leaves the one that was not |
+| E. Everything square — chips and avatar squared off too | Not recommended | One rule, but a labelled chip in a near-square is not a shape that wants a label in it, and a squared avatar reads as a control rather than a face |
 
 ---
 
@@ -92,7 +113,7 @@ controls that are wide because they carry words.
 
 ---
 
-## Option C in detail
+## Option B in detail
 
 **Goal:** one shape per kind of thing, so the toolbar stops looking like two design systems met in
 the middle.
@@ -183,7 +204,7 @@ Concept 8 as superseded on cards, consistent on inputs and pills, and **silent o
 buttons** — it has no entry for them, which is the gap this doc fills.
 
 The relevant inheritance from Concept 8 is its principle, not its numbers: pills and chips are 999,
-everything structural is a small rounded square. Option C is that principle applied to a surface
+everything structural is a small rounded square. Option B is that principle applied to a surface
 Concept 8 did not cover.
 
 ---
@@ -248,4 +269,4 @@ in. Doing it in the other order means aligning to a target that is about to move
 
 | Date | Decision | Rationale |
 |---|---|---|
-| | | |
+| 2026-08-21 | **Option B accepted — tile shape, glass kept.** This is the toolbar/top-nav pattern: glass material, tile for icon targets, pill for labelled controls, circle for the avatar. | Derek's call, made against the rendered `ds-20-toolbar-shape` scene rather than the description. The doc had originally recommended flattening the surface as well; seeing it showed the glass was carrying meaning — it says the toolbar floats over the page — and only the shape was arbitrary. Implementation still open: `--pds-radius-row` vs a new token, and the `9px` literals to retire. |

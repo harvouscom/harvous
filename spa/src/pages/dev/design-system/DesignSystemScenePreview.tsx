@@ -1191,15 +1191,13 @@ function ToolbarShapeScene() {
   type Glyph = React.ComponentProps<typeof Icon>['name'];
   const icons: Glyph[] = ['pen-to-square', 'book-open', 'magnifying-glass', 'ellipsis'];
 
-  /* Option A is the shipped orb, so it overrides nothing. B and C change only radius and surface. */
-  const asTile: React.CSSProperties = {
-    borderRadius: 'var(--pds-radius-row)',
-    background: 'var(--pds-bg-control)',
-    borderColor: 'transparent',
-    backdropFilter: 'none',
-    WebkitBackdropFilter: 'none',
-  };
-  const asFlatCircle: React.CSSProperties = {
+  /*
+   * Two axes, not one. Material says what a control sits on — glass floats over the page,
+   * flat rests on a panel. Shape says what kind of control it is. Today's orb differs from the
+   * sidebar tile on both at once, which is why the mismatch reads as arbitrary.
+   */
+  const tileShape: React.CSSProperties = { borderRadius: 'var(--pds-radius-row)' };
+  const flatSurface: React.CSSProperties = {
     background: 'var(--pds-bg-control)',
     borderColor: 'transparent',
     backdropFilter: 'none',
@@ -1210,12 +1208,12 @@ function ToolbarShapeScene() {
     label,
     note,
     iconStyle,
-    chipIsTile,
+    chipStyle,
   }: {
     label: string;
     note: string;
     iconStyle?: React.CSSProperties;
-    chipIsTile?: boolean;
+    chipStyle?: React.CSSProperties;
   }) => (
     <div style={{ marginBottom: 26 }}>
       <p className="pds-section-header" style={{ marginBottom: 2 }}>{label}</p>
@@ -1241,18 +1239,11 @@ function ToolbarShapeScene() {
         <span style={{ flex: 1 }} />
 
         {/* The two labelled controls — the reason this is a decision and not a find-replace. */}
-        <span
-          className="proto-toolbar-folder-chip"
-          style={chipIsTile ? { borderRadius: 'var(--pds-radius-row)' } : undefined}
-        >
+        <span className="proto-toolbar-folder-chip" style={chipStyle}>
           <Icon name="book-open" size={12} aria-hidden />
           <span>Salvation</span>
         </span>
-        <button
-          type="button"
-          className="proto-toolbar-space-switcher"
-          style={chipIsTile ? { borderRadius: 'var(--pds-radius-row)' } : undefined}
-        >
+        <button type="button" className="proto-toolbar-space-switcher" style={chipStyle}>
           <span className="proto-toolbar-space-switcher__icon" aria-hidden>
             <Icon name="book-open-reader" size={13} />
           </span>
@@ -1271,23 +1262,28 @@ function ToolbarShapeScene() {
     <div style={{ maxWidth: 760 }}>
       <Row
         label="A — today"
-        note="30px glass circles. The sidebar's tiles are 30x30 rounded squares on a flat surface, visible at the same time."
+        note="Pill shape, glass surface. The sidebar's tiles are rounded squares on a flat surface, visible at the same time — so the two differ on shape and material at once."
       />
       <Row
-        label="B — flat circles"
-        note="Surface only: same shape, tile material. Removes the material mismatch and leaves the shape mismatch."
-        iconStyle={asFlatCircle}
+        label="B — tiles, glass kept (recommended)"
+        note="Shape moves to the sidebar's; material stays. The toolbar floats over the page and the glass is what says so, especially over an image wallpaper. Only the thing that was mismatched changes."
+        iconStyle={tileShape}
       />
       <Row
-        label="C — hybrid (recommended)"
-        note="Icon controls become tiles at 10px. The folder chip and space switcher stay pills because they carry words. Avatar stays round."
-        iconStyle={asTile}
+        label="C — tiles, flat"
+        note="Shape and material both move to the sidebar's. Fully consistent with the sidebar, but the toolbar stops reading as floating chrome and starts reading as a panel."
+        iconStyle={{ ...tileShape, ...flatSurface }}
       />
       <Row
-        label="D — everything square"
+        label="D — flat circles"
+        note="Material only: same shape, tile surface. Removes the material difference and leaves the shape difference — the inverse of B, and the weaker half."
+        iconStyle={flatSurface}
+      />
+      <Row
+        label="E — everything square"
         note="For comparison: the labelled chips squared off too. One rule, but a chip in a near-square is not a shape that wants a label in it."
-        iconStyle={asTile}
-        chipIsTile
+        iconStyle={tileShape}
+        chipStyle={tileShape}
       />
 
       <div
