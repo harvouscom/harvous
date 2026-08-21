@@ -188,8 +188,10 @@ trade-offs, and a recommendation; each ends with a Decision log to fill in on re
   - Documents that "Don't suggest this again" was a 21-day snooze; two contained fixes already shipped
 - **`HIGHLIGHT_REFERENCE_STYLING_SPEC.md`** - What the four marks look like, everywhere (#5, #3)
   - Proposes one spec: suggestion dotted 1.5px, saved reference solid 2px, highlight solid 3px
-  - Records that the same highlight renders 2px in the reader and 3px in the dock, and that a
-    highlight and a saved reference are indistinguishable in a note body
+  - Records that the same highlight renders 2px in the reader and 3px in the dock, and — corrected
+    by measurement in the `ds-23-mark-styling` scene — that a highlight and a saved reference are
+    indistinguishable in the reader *and* the note body, not just the note body
+  - Compare the surfaces, and toggle the proposed spec, in `ds-23-mark-styling`
 - **`READER_PARTIAL_VERSE_HIGHLIGHTS.md`** - Highlighting less than a whole verse (#7)
   - Recommends reusing the excerpt model the dock and native already share, painted imperatively
   - Names the blocking piece: the server upsert key is verse-granular and must gain the excerpt

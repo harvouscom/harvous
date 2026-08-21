@@ -1726,6 +1726,231 @@ function MarginIndicatorScene() {
   );
 }
 
+/*
+ * Mark styling across the three surfaces — the decision aid for D-4
+ * (docs/future/HIGHLIGHT_REFERENCE_STYLING_SPEC.md).
+ *
+ * A matrix rather than a list, because every disagreement in that doc is a comparison: the same
+ * mark drawn two ways on two surfaces, or two different marks drawn the same way on one. Neither
+ * is visible reading a spec table.
+ *
+ * Every cell is LIVE — each specimen sits inside the ancestor its real rule requires
+ * (`.pds-reader-text`, `.proto-editor-surface .ProseMirror`,
+ * `.scripture-pill-chrome__passage-html`) and carries the real attributes, so what renders is
+ * whatever those three stylesheets currently say. Restating the marks here would have hidden the
+ * very drift the scene exists to show.
+ *
+ * Delete this scene once D-4 is decided.
+ */
+const MARK_SAMPLE = 'the light shines in the darkness';
+
+/** The proposed spec, applied as overrides so the two columns differ only where the spec does. */
+const PROPOSED: Record<string, React.CSSProperties> = {
+  suggestion: {},
+  reference: {
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'solid',
+    textDecorationThickness: '2px',
+    textUnderlineOffset: '3px',
+    textDecorationColor: 'var(--pds-highlight-violet)',
+  },
+  highlight: {
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'solid',
+    textDecorationThickness: '3px',
+    textUnderlineOffset: '2px',
+    textDecorationColor: 'var(--pds-highlight-violet)',
+  },
+};
+
+function MarkStylingScene() {
+  const [proposed, setProposed] = useState(false);
+  const at = (kind: keyof typeof PROPOSED) => (proposed ? PROPOSED[kind] : undefined);
+
+  /* Each surface's real ancestor chain, so its own stylesheet applies. */
+  const Reader = ({ children }: { children: React.ReactNode }) => (
+    <p className="pds-reader-text" style={{ margin: 0 }}>{children}</p>
+  );
+  const NoteBody = ({ children }: { children: React.ReactNode }) => (
+    <div className="proto-editor-surface">
+      <div className="ProseMirror" style={{ padding: 0 }}>
+        <p style={{ margin: 0 }}>{children}</p>
+      </div>
+    </div>
+  );
+  const Dock = ({ children }: { children: React.ReactNode }) => (
+    <div className="scripture-pill-chrome__passage-html" style={{ margin: 0 }}>{children}</div>
+  );
+
+  const Cell = ({ children }: { children: React.ReactNode }) => (
+    <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--pds-bg-control)' }}>
+      {children}
+    </div>
+  );
+
+  const Row = ({
+    mark,
+    note,
+    reader,
+    noteBody,
+    dock,
+  }: {
+    mark: string;
+    note: string;
+    reader: React.ReactNode;
+    noteBody: React.ReactNode;
+    dock: React.ReactNode;
+  }) => (
+    <>
+      <div style={{ paddingTop: 10 }}>
+        <p className="pds-section-header" style={{ margin: 0 }}>{mark}</p>
+        <p className="pds-caption" style={{ margin: '2px 0 0' }}>{note}</p>
+      </div>
+      <Cell>{reader}</Cell>
+      <Cell>{noteBody}</Cell>
+      <Cell>{dock}</Cell>
+    </>
+  );
+
+  return (
+    <div style={{ maxWidth: 940 }}>
+      <p className="pds-caption" style={{ marginBottom: 12 }}>
+        The same four marks on the three surfaces that draw them. Every cell is live — each sits
+        inside the ancestor its real rule needs and carries the real attributes, so this is what
+        the three stylesheets say today, not a restatement of them.
+      </p>
+
+      <div className="pds-gallery-btn-row" style={{ marginBottom: 16 }}>
+        <button
+          type="button"
+          className="proto-share-popover__copy"
+          onClick={() => setProposed((p) => !p)}
+          aria-pressed={proposed}
+        >
+          {proposed ? 'Back to today' : 'Apply the proposed spec'}
+        </button>
+        <span className="pds-caption">
+          {proposed
+            ? 'One spec on every surface: suggestion dotted 1.5, reference solid 2, highlight solid 3.'
+            : 'Today. Watch the note-body column, and the highlight row.'}
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(150px, 1fr) 1.2fr 1.2fr 1.2fr',
+          gap: 10,
+          alignItems: 'center',
+        }}
+      >
+        <span />
+        <p className="pds-section-header" style={{ margin: 0 }}>Reader</p>
+        <p className="pds-section-header" style={{ margin: 0 }}>Note body</p>
+        <p className="pds-section-header" style={{ margin: 0 }}>Scripture dock</p>
+
+        <Row
+          mark="Dictionary suggestion"
+          note="Unsaved. The one mark every surface already agrees on."
+          reader={<Reader><span className="reference-suggestion" style={at('suggestion')}>{MARK_SAMPLE}</span></Reader>}
+          noteBody={<NoteBody><span className="pds-caption">— not drawn here —</span></NoteBody>}
+          dock={<Dock><span className="reference-suggestion" style={at('suggestion')}>{MARK_SAMPLE}</span></Dock>}
+        />
+
+        <Row
+          mark="Saved reference"
+          note="Drawn in the same violet as the highlight below, deliberately: holding colour constant leaves weight as the only variable, which is the thing in question."
+          reader={
+            <Reader>
+              <span
+                className="reference-suggestion"
+                data-reference-saved="true"
+                data-reference-accent="violet"
+                style={at('reference')}
+              >
+                {MARK_SAMPLE}
+              </span>
+            </Reader>
+          }
+          noteBody={<NoteBody><mark data-reference="" data-color="violet" style={at('reference')}>{MARK_SAMPLE}</mark></NoteBody>}
+          dock={<Dock><mark data-reference="" data-color="violet" style={at('reference')}>{MARK_SAMPLE}</mark></Dock>}
+        />
+
+        <Row
+          mark="Highlight"
+          note="A passage you kept. Compare its weight across the three."
+          reader={
+            <Reader>
+              <span
+                className="pds-reader__verse"
+                data-highlighted="true"
+                data-highlight-color="violet"
+              >
+                <span className="pds-reader__verse-text" style={at('highlight')}>{MARK_SAMPLE}</span>
+              </span>
+            </Reader>
+          }
+          noteBody={<NoteBody><mark data-color="violet" style={at('highlight')}>{MARK_SAMPLE}</mark></NoteBody>}
+          dock={
+            <Dock>
+              {/* `data-reference` as well as `data-entry-kind`, because the painter always sets
+                  both (`TiptapReferenceSuggestion.ts:318-321`). Only the `[data-reference]` rule
+                  carries `background: transparent !important`, so a specimen with just the entry
+                  kind picks up the browser's default yellow `mark` fill — a defect the dock does
+                  not have. */}
+              <mark
+                data-reference="the light"
+                data-entry-kind="scriptureLink"
+                data-color="violet"
+                style={at('highlight')}
+              >
+                {MARK_SAMPLE}
+              </mark>
+            </Dock>
+          }
+        />
+      </div>
+
+      <div
+        style={{
+          marginTop: 20,
+          padding: '12px 14px',
+          borderRadius: 10,
+          background: 'var(--pds-bg-control)',
+        }}
+      >
+        <p className="pds-section-header" style={{ marginBottom: 6 }}>What the matrix is showing</p>
+        <p className="pds-caption" style={{ margin: '0 0 6px' }}>
+          <strong>Rows 2 and 3, reader and note body:</strong> at the same colour, a saved reference
+          and a highlight are indistinguishable — both solid 2px at offset 3. Measured, not
+          estimated. The dock is the only surface that tells them apart, and only because the
+          highlight there is 3px.
+        </p>
+        <p className="pds-caption" style={{ margin: '0 0 6px' }}>
+          <strong>This corrects the doc.</strong> D-4 says the reader &ldquo;deliberately
+          separates&rdquo; the two via <code>--reference-accent</code> vs{' '}
+          <code>--mark-accent</code>. Those variables are real, but what they buy is colour{' '}
+          <em>isolation</em> — a reference inside a highlighted verse keeps its own accent instead
+          of inheriting the verse&apos;s. That is a correctness property, not a visual distinction.
+          Give the two the same colour and the reader cannot tell them apart either.
+        </p>
+        <p className="pds-caption" style={{ margin: '0 0 6px' }}>
+          <strong>Highlight row, across:</strong> 2px in the reader, 2px in the note body, 3px in
+          the dock. The dock is the correct one — its rule exists to mirror native&apos;s
+          <code> NSUnderlineStyle.thick</code> — which makes the reader the outlier, not the dock.
+          Toggle the proposed spec and the two marks separate on every surface for the first time.
+        </p>
+        <p className="pds-caption" style={{ margin: 0 }}>
+          <strong>Not visible here, and the reason the spec matters more than the pixels:</strong>{' '}
+          the dock writes <code>text-decoration-color</code> directly per <code>data-color</code>{' '}
+          instead of through a variable. With no variable to override, the dock cannot join a
+          dim/spotlight pass at all — so the styling split is also a feature blocker.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1772,6 +1997,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <FloatingSurfacesScene />;
     case 'ds-22-margin-indicators':
       return <MarginIndicatorScene />;
+    case 'ds-23-mark-styling':
+      return <MarkStylingScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

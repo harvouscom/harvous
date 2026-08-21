@@ -44,11 +44,27 @@ Sources: `spa/src/styles/prototype-components.css` (reader), `spa/src/styles/pro
 
 ### Four disagreements worth fixing
 
-1. **Highlight and saved reference are indistinguishable in a note body.** The reader deliberately
-   separates them — a highlight reads `--mark-accent`, a saved reference reads `--reference-accent`,
-   isolated so it does not inherit the enclosing verse's colour. In a note body both are the same
-   `mark` element under one rule in `prototype-editor.css`, coloured only by `data-color`. So the
-   same distinction the reader takes trouble to draw does not exist one surface over.
+1. **Highlight and saved reference are indistinguishable — and not only in a note body.**
+
+   *Corrected August 21, 2026, by measuring the rendered marks in `ds-23-mark-styling` rather than
+   reading the rules.* This originally said the note body lost a distinction the reader
+   "deliberately separates". The reader does not draw one either. Holding colour constant and
+   reading computed styles off the live specimens:
+
+   | Surface | Saved reference | Highlight | Same? |
+   |---|---|---|---|
+   | Reader | solid 2px, offset 3 | solid 2px, offset 3 | **yes** |
+   | Note body | solid 2px, offset 3 | solid 2px, offset 3 | **yes** |
+   | Scripture dock | solid 2px, offset 3 | solid 3px, offset 2 | no |
+
+   `--reference-accent` and `--mark-accent` are real and do real work, but what they buy is colour
+   **isolation** — a reference inside a highlighted verse keeps its own accent instead of
+   inheriting the verse's. That is a correctness property, not a visual distinction. Give the two
+   marks the same colour and only the dock can tell them apart.
+
+   This strengthens the case for the spec rather than weakening it: the proposed weights are not
+   tidying an inconsistency between two surfaces, they are introducing a distinction that does not
+   currently exist on any surface but one.
 
 2. **A scripture highlight has two weights.** 2px in the reader, 3px in the dock. The dock's 3px is
    correct — its rule is explicitly there to mirror native's `.thick`. The reader is the outlier.
