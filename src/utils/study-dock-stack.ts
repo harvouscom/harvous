@@ -235,6 +235,24 @@ export type ReferenceDockSession = {
   } | null;
   /** Set once a passage reference is saved — drives accent/remove chrome without a note mark. */
   passageReferenceSaved?: boolean;
+  /**
+   * A word looked up while reading, rather than from inside a note.
+   *
+   * Deliberately not `passageReference`, which requires a `sourceNoteId`: there is no note
+   * behind a reader lookup, and widening that field would mean threading a null through ten
+   * of the editor's save paths to serve a surface that never touches them.
+   *
+   * `reference` is where the word was read — a single verse when tapped in the chapter, the
+   * whole passage when tapped inside a passage card — and it is what a saved reference points
+   * back at. `verse` is set only in the first case: it is where a note started from this
+   * lookup returns the reader to, and a passage has no single verse to return to.
+   */
+  readerAnchor?: {
+    reference: string;
+    verse?: number;
+    /** Set when this exact (anchor, word) is already saved, so the dock opens in saved chrome. */
+    savedReferenceId?: string | null;
+  } | null;
 };
 
 /**
@@ -477,6 +495,13 @@ export function referenceDockStableKey(session: ReferenceDockSession): string {
   if (session.passageReference) {
     const norm = normalizeScriptureReference(session.passageReference.reference) ?? session.passageReference.reference;
     return `reference:passage:${norm}:${session.passageReference.translation}:${session.query.trim().toLowerCase()}`;
+  }
+  // A reader lookup is keyed by where it was read as well as what was read: the same word at
+  // two anchors is two different things to save, so they must not collapse into one entry.
+  if (session.readerAnchor) {
+    const norm =
+      normalizeScriptureReference(session.readerAnchor.reference) ?? session.readerAnchor.reference;
+    return `reference:reader:${norm}:${session.query.trim().toLowerCase()}`;
   }
   return `reference:q:${session.query.trim().toLowerCase()}`;
 }
