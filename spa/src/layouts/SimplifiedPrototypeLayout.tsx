@@ -45,11 +45,10 @@ import {
 } from '../pages/prototype/paper-stack-origins';
 import {
   notifyRecallCooldownChanged,
-  recordRecallSnoozed,
+  recordRecallDismissed,
   restoreRecallOpportunity,
 } from '../pages/prototype/proto-recall-cooldown';
 import { recordRecallOpportunityEvent } from '../pages/prototype/proto-recall-events';
-import { localDayIndex } from '@/utils/local-day-index';
 import {
   PROTO_PAPER_STACK_EXIT_MS,
   PROTO_RESOURCE_MORPH_MS,
@@ -523,6 +522,19 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     const stack = paperStack;
     const suggestion = stack?.origin.suggestion;
     if (!stack || !suggestion) return;
+    /*
+     * Posted as well as recorded locally, which the undo did not used to do.
+     *
+     * It mattered less when everything it undid expired on its own — a snooze restored on
+     * only one device still came right everywhere in three weeks. "Not interested" has no
+     * such backstop, so an undo the other devices never hear about would leave the mistake
+     * standing on them forever.
+     */
+    recordRecallOpportunityEvent({
+      opportunityId: suggestion.id,
+      kind: suggestion.kind as never,
+      action: 'restored',
+    });
     restoreRecallOpportunity(homeSpaceId, suggestion.id);
     clearPaperStack();
     if (isMobileSidebar) openDrawer();
@@ -539,9 +551,9 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     recordRecallOpportunityEvent({
       opportunityId: suggestion.id,
       kind: suggestion.kind as never,
-      action: 'snooze',
+      action: 'dismissed',
     });
-    recordRecallSnoozed(homeSpaceId, suggestion.id, localDayIndex(new Date()));
+    recordRecallDismissed(homeSpaceId, suggestion.id);
     notifyRecallCooldownChanged();
     clearPaperStack();
   }, [paperStack, homeSpaceId, clearPaperStack]);

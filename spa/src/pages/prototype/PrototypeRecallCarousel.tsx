@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { getNoteQueryOptions } from '../../hooks/queries/useNote';
@@ -6,6 +6,12 @@ import type { RecallCandidate } from '@/utils/prototype-home-trends';
 import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { recordRecallOpportunityEvent } from './proto-recall-events';
 import { recordRecallSectionEngaged } from './proto-recall-cooldown';
+import {
+  RECALL_DISMISS_COPY,
+  RECALL_MORE_COPY,
+  RECALL_SNOOZE_COPY,
+} from './proto-recall-copy';
+import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { buildRecallCardStackOrigin } from './paper-stack-origins';
@@ -25,6 +31,17 @@ import { buildRecallCardStackOrigin } from './paper-stack-origins';
  * Every row records an impression once it is on screen (they all are, now), and each keeps
  * its own "Not now" — snoozing is how the deck gets trained, so it must never be more than
  * one tap away.
+ *
+ * The permanent answer sits behind the overflow beside it, and the asymmetry is the design.
+ * Deferral is the common answer and stays one tap; "not interested" never expires, so it
+ * should cost a moment's deliberation. It also means neither mis-tap is expensive: hitting the
+ * ✕ costs three weeks, and hitting the overflow costs a menu you can close.
+ *
+ * Both answers live here rather than only on the breadcrumb edge, which is where the permanent
+ * one used to live. That edge is not built for four of the kinds (`arc`, `subject`, `crossref`,
+ * `connectNotes` resolve in the sidebar and stack nothing), and it disappears the moment you
+ * navigate — so for those kinds the answer was unreachable, and for the rest it was available
+ * only in the seconds after opening the card.
  */
 
 export interface RecallOpportunity extends RecallCandidate {
@@ -59,12 +76,15 @@ export interface RecallOpportunity extends RecallCandidate {
 export default function PrototypeRecallCarousel({
   opportunities,
   onSnooze,
+  onDismiss,
   onOpened,
   onRecallSynced,
   homeSpaceId,
 }: {
   opportunities: RecallOpportunity[];
   onSnooze: (id: string) => void;
+  /** "Not interested" — suppress with no expiry. See proto-recall-copy.ts. */
+  onDismiss: (id: string) => void;
   /** Acting on a card — rests it so the same suggestion doesn't return tomorrow. */
   onOpened?: (id: string) => void;
   /** Called after a note-backed open event syncs (e.g. invalidate fingerprints). */
@@ -155,30 +175,112 @@ export default function PrototypeRecallCarousel({
     onSnooze(op.id);
   };
 
+  const dismissOpportunity = (op: RecallOpportunity) => {
+    recordRecallOpportunityEvent({
+      opportunityId: op.id,
+      kind: op.kind,
+      action: 'dismissed',
+      noteId: op.noteId,
+    });
+    onDismiss(op.id);
+  };
+
   return (
     <>
       {opportunities.map((op) => (
-        <PrototypeHomeRow
+        <RecallRow
           key={op.id}
-          icon={op.iconName}
-          title={op.title}
-          meta={[op.eyebrow, op.meta]}
-          onClick={() => openOpportunity(op)}
-          onMouseEnter={() => prefetchOpportunityNote(op.prefetchNoteId)}
-          onFocus={() => prefetchOpportunityNote(op.prefetchNoteId)}
-          trailing={
-            <button
-              type="button"
-              className="proto-side-panel__action-btn"
-              aria-label={`Not now — remind me later about ${op.title}`}
-              title="Not now"
-              onClick={() => snoozeOpportunity(op)}
-            >
-              <Icon name="xmark" size={12} aria-hidden />
-            </button>
-          }
+          op={op}
+          onOpen={() => openOpportunity(op)}
+          onPrefetch={() => prefetchOpportunityNote(op.prefetchNoteId)}
+          onSnooze={() => snoozeOpportunity(op)}
+          onDismiss={() => dismissOpportunity(op)}
         />
       ))}
     </>
+  );
+}
+
+/**
+ * One shelf row and its two answers.
+ *
+ * A component of its own because the overflow has state — which row's menu is open — and the
+ * outside-click hook needs a ref per row. Hoisting either into the carousel would mean one
+ * `openMenuId` compared against every row on every render, for no gain.
+ */
+function RecallRow({
+  op,
+  onOpen,
+  onPrefetch,
+  onSnooze,
+  onDismiss,
+}: {
+  op: RecallOpportunity;
+  onOpen: () => void;
+  onPrefetch: () => void;
+  onSnooze: () => void;
+  onDismiss: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLSpanElement>(null);
+  useDismissOnOutside(menuRef, () => setMenuOpen(false), menuOpen);
+
+  return (
+    <PrototypeHomeRow
+      icon={op.iconName}
+      title={op.title}
+      meta={[op.eyebrow, op.meta]}
+      onClick={onOpen}
+      onMouseEnter={onPrefetch}
+      onFocus={onPrefetch}
+      trailing={
+        <>
+          <button
+            type="button"
+            className="proto-side-panel__action-btn"
+            aria-label={RECALL_SNOOZE_COPY.ariaFor(op.title)}
+            title={RECALL_SNOOZE_COPY.label}
+            onClick={onSnooze}
+          >
+            <Icon name="xmark" size={12} aria-hidden />
+          </button>
+          <span className="proto-recall-row__more" ref={menuRef}>
+            <button
+              type="button"
+              className="proto-side-panel__action-btn"
+              aria-label={RECALL_MORE_COPY.ariaFor(op.title)}
+              title={RECALL_MORE_COPY.hint}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <Icon name="ellipsis-vertical" size={12} aria-hidden />
+            </button>
+            {menuOpen ? (
+              <div
+                className="proto-menu__popover proto-menu__popover--right proto-menu__popover--list-view proto-recall-row__menu"
+                role="menu"
+                aria-label={RECALL_MORE_COPY.ariaFor(op.title)}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDismiss();
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="eye-slash" size={14} />
+                  </span>
+                  <span className="proto-menu-item__label">{RECALL_DISMISS_COPY.label}</span>
+                </button>
+              </div>
+            ) : null}
+          </span>
+        </>
+      }
+    />
   );
 }

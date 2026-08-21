@@ -12023,6 +12023,25 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   gap: 4px;
 }
 
+/* A suggestion row's overflow, holding the answer that does not expire.
+   `relative` so its menu hangs off the button rather than off the panel — the row itself is
+   not positioned, so without this the popover would anchor to whichever ancestor was. */
+.proto-recall-row__more {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Wide enough for one item and no wider. The shared `--list-view` modifier drops the
+   checkmark column but keeps a min-width sized for a translation list. */
+.proto-recall-row__menu {
+  top: calc(100% + 4px);
+  left: auto;
+  right: 0;
+  min-width: 168px;
+  transform-origin: top right;
+}
+
 /* At the chevron's weight, because they occupy the chevron's place. A row's trailing mark
    is punctuation until you reach for it: full-strength glyphs there made every dismissable
    row look like it was asking to be dismissed. Rises to full on the pointer. */

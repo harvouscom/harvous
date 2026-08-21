@@ -107,8 +107,11 @@ export function recordRecallSnoozed(
  * it happened. Any server row *older* than that mark is the thing being undone and stops
  * counting; a later open or snooze is a new decision and still does.
  *
- * Per-device, like the local store it corrects. Restoring on a laptop does not restore on a
- * phone that never saw the tap — the same limit the local cooldowns have always had.
+ * Local only, by design — this module touches nothing but localStorage so it stays testable
+ * without a server. The cross-device half is a `restored` event the caller posts alongside
+ * this, and it is not optional for a permanent dismissal: a snooze made on a phone heals
+ * itself in three weeks, but "not interested" never does, so an undo that only worked on the
+ * device that made the mistake would not be an undo at all.
  */
 export function restoreRecallOpportunity(
   spaceId: string | undefined | null,
@@ -120,6 +123,13 @@ export function restoreRecallOpportunity(
   if (id in map) {
     delete map[id];
     safeWrite(spaceId, map);
+  }
+  // A permanent dismissal is the one this most has to reach: a snooze heals itself in three
+  // weeks, so an undo that missed it would still come right. This one never would.
+  const dismissed = safeReadDismissed(spaceId);
+  if (id in dismissed) {
+    delete dismissed[id];
+    safeWriteDismissed(spaceId, dismissed);
   }
   const restored = safeReadRestored(spaceId);
   restored[id] = nowMs;
@@ -135,6 +145,85 @@ export function restoreRecallOpportunity(
 export function recallRestoredAt(spaceId: string | undefined | null): Record<string, number> {
   if (!spaceId) return {};
   return safeReadRestored(spaceId);
+}
+
+/**
+ * Permanently dismissed ids — "not interested", which is the one answer with no window.
+ *
+ * Its own store rather than a very long entry in the cooldown map above, for two reasons the
+ * map cannot accommodate: that map is pruned by window on every write (a permanent entry would
+ * delete itself), and `activeCooldownIds` decides membership by comparing day indices, which
+ * has no way to express "forever". The value here is the epoch ms of the dismissal, kept so a
+ * later restore can be compared against it the same way server rows are.
+ *
+ * Bounded by count, not by age — see RECALL_PERMANENT_MAX_LOCAL.
+ */
+const DISMISSED_PREFIX = 'harvous.prototype.recallDismissed.';
+
+/**
+ * Local dismissals are capped so one device's storage cannot grow without limit, and the cap
+ * is generous because overflowing it un-dismisses something. The server keeps its own, larger
+ * copy (`RECALL_PERMANENT_MAX_ROWS`), so an overflow here is recovered on the next history
+ * fetch rather than lost — this store is the offline half, not the record.
+ */
+const RECALL_PERMANENT_MAX_LOCAL = 500;
+
+function safeReadDismissed(spaceId: string): Record<string, number> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(`${DISMISSED_PREFIX}${spaceId}`);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, number> = {};
+    for (const [id, at] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof at === 'number' && Number.isFinite(at)) out[id] = at;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function safeWriteDismissed(spaceId: string, map: Record<string, number>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(`${DISMISSED_PREFIX}${spaceId}`, JSON.stringify(map));
+  } catch {
+    // quota / storage disabled — ignore
+  }
+}
+
+/**
+ * "Not interested" — stop offering this, with no expiry.
+ *
+ * Distinct from {@link recordRecallSnoozed} in effect and not only in wording. The control
+ * that used to say "Don't suggest this again" posted a plain snooze, so the promise it made
+ * had never once been kept; this is the call that keeps it.
+ */
+export function recordRecallDismissed(
+  spaceId: string | undefined | null,
+  id: string,
+  nowMs: number = Date.now(),
+): void {
+  if (!spaceId || !id) return;
+  const map = safeReadDismissed(spaceId);
+  map[id] = nowMs;
+  const entries = Object.entries(map);
+  if (entries.length > RECALL_PERMANENT_MAX_LOCAL) {
+    // Newest kept. An overflow drops the oldest dismissals, which are the likeliest to have
+    // gone stale and the ones the server is most able to restore from its own copy.
+    entries.sort((a, b) => b[1] - a[1]);
+    safeWriteDismissed(spaceId, Object.fromEntries(entries.slice(0, RECALL_PERMANENT_MAX_LOCAL)));
+    return;
+  }
+  safeWriteDismissed(spaceId, map);
+}
+
+/** Ids this device has been told never to offer again. */
+export function dismissedRecallIds(spaceId: string | undefined | null): Set<string> {
+  if (!spaceId) return new Set();
+  return new Set(Object.keys(safeReadDismissed(spaceId)));
 }
 
 const RESTORED_PREFIX = 'harvous.prototype.recallRestored.';
@@ -243,7 +332,7 @@ export function recentRecallSectionCounts(
 
 export type ServerRecallHistoryEntry = {
   opportunityId: string;
-  action: 'open' | 'snooze' | 'complete';
+  action: 'open' | 'snooze' | 'complete' | 'dismissed' | 'restored';
   createdAt: string;
 };
 
@@ -264,19 +353,48 @@ export function mergeServerRecallHistoryIntoCooldowns(
     snooze: RECALL_COOLDOWN_DAYS,
     complete: RECALL_COMPLETED_COOLDOWN_DAYS,
   },
-  /** See {@link restoreRecallOpportunity} — ids put back, and when. */
+  /** See {@link restoreRecallOpportunity} — ids put back on this device, and when. */
   restoredAt: Record<string, number> = {},
 ): Set<string> {
   const merged = new Set(localIds);
   const nowMs = now.getTime();
+
+  /*
+   * One restore mark per id, taking whichever is later: this device's, or a `restored` row
+   * from another device.
+   *
+   * Built in a first pass rather than checked inline, because the events arrive in no
+   * particular order and a restore has to be able to cancel a row that appears before it in
+   * the list. Reading them in one pass would let a dismissal listed first win over the undo
+   * that came after it.
+   */
+  const restoreMark: Record<string, number> = { ...restoredAt };
+  for (const event of serverEvents ?? []) {
+    if (event?.action !== 'restored' || !event.opportunityId) continue;
+    const at = Date.parse(event.createdAt);
+    if (!Number.isFinite(at)) continue;
+    const existing = restoreMark[event.opportunityId];
+    if (existing == null || at > existing) restoreMark[event.opportunityId] = at;
+  }
+
   for (const event of serverEvents ?? []) {
     if (!event?.opportunityId) continue;
+    if (event.action === 'restored') continue;
     const at = Date.parse(event.createdAt);
     if (!Number.isFinite(at)) continue;
     // Undone. The row this event recorded was put back by hand afterwards, so it no longer
     // says anything about whether the suggestion should show.
-    const restored = restoredAt[event.opportunityId];
+    const restored = restoreMark[event.opportunityId];
     if (restored != null && at <= restored) continue;
+    /*
+     * The one action with no window. Everything else asks "how long ago?"; this one only
+     * asks whether it happened, because the reader said never rather than not yet. Checked
+     * before the age arithmetic so no window can be accidentally applied to it.
+     */
+    if (event.action === 'dismissed') {
+      if (at <= nowMs) merged.add(event.opportunityId);
+      continue;
+    }
     const windowDays =
       event.action === 'complete'
         ? windows.complete

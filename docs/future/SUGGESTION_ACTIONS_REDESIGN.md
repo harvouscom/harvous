@@ -1,6 +1,6 @@
 # Suggestion Actions — Options
 
-**Status:** Decision doc. Two contained fixes shipped alongside it (see [Already fixed](#already-fixed)).
+**Status:** Decided and built. Option B shipped; see [What shipped](#what-shipped).
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides what a reader can say to a suggestion, and whoever implements it.
 **Covers:** improvement-list item #19 (suggestion action redesign), and the unresolved half of #2
@@ -182,6 +182,53 @@ Two objective defects were repaired alongside this doc, because they are bugs ra
 
 ---
 
+## What shipped
+
+Option B, as written, plus one addition the doc named but did not put in the build list.
+
+| Piece | Where |
+|---|---|
+| `dismissed` action, no expiry | `src/utils/recall-opportunity-kinds.ts`, `spa/src/pages/prototype/proto-recall-cooldown.ts` |
+| `restored` action — the cross-device undo | same, plus `handleSuggestionNevermind` in `spa/src/layouts/SimplifiedPrototypeLayout.tsx` |
+| Both answers on the shelf row | `spa/src/pages/prototype/PrototypeRecallCarousel.tsx` |
+| Edge's eye-slash made real, copy restored | `spa/src/pages/prototype/PrototypePaperStack.tsx` |
+| Copy centralized, aria labels use the title | `spa/src/pages/prototype/proto-recall-copy.ts` |
+
+**The row-shape sub-question, resolved: an overflow, not a long-press.** ✕ stays the visible
+one-tap "Not now"; "Not interested" sits in a small menu behind `⋯`. Long-press was rejected for
+having no desktop equivalent and no discoverability on either platform. The overflow also makes
+both mis-taps cheap, which a second adjacent button would not have: hitting ✕ costs three weeks,
+hitting `⋯` costs a menu you can close.
+
+**Two things the doc under-specified, found while building:**
+
+1. **A windowed history query cannot carry a permanent dismissal.** `RECALL_HISTORY_WINDOW_DAYS`
+   bounds the server's response, so a `dismissed` row would have vanished on its 32nd day and
+   handed the suggestion straight back — the same silent failure the window constant already has
+   a test for, with a worse consequence. The route now runs a second, unwindowed query for the
+   two actions that never expire (`RECALL_UNBOUNDED_ACTIONS`), bounded by count instead.
+
+2. **The permanent answer cannot live in the cooldown map.** `recordRecallOpened` prunes every
+   entry older than the window on each write, so a permanent entry parked there would delete
+   itself the next time anything else was snoozed. It has its own store, keyed by epoch ms so a
+   restore can be compared against it the way server rows are.
+
+**Cross-device undo was built, not deferred.** The doc listed it as a "should"; it is closer to a
+requirement. A mistaken snooze heals itself in three weeks, so a per-device undo was survivable.
+A mistaken permanent dismissal never heals, so an undo that only worked on the device that made
+the mistake would not be an undo.
+
+**Test coverage the doc called for.** `proto-recall-dismissal.test.ts` and
+`recall-row-answers.test.tsx` are new; `recall-history-window.test.ts` gained the unbounded-action
+cases. They assert the *absence* of an expiry and the pairing of copy with behaviour, which is the
+only shape of test that would have caught the original defect — nothing errored when the tooltip
+and the handler disagreed.
+
+**Still open:** widening `complete` past `connectNotes`, and the `RecallEvents`-has-no-`spaceId`
+mismatch below, which a permanent action makes matter more.
+
+---
+
 ## Risks / watch-items
 
 - **`RecallEvents` has no `spaceId`** while the local cooldown store is space-scoped
@@ -215,3 +262,4 @@ Two objective defects were repaired alongside this doc, because they are bugs ra
 | Date | Decision | Rationale |
 |---|---|---|
 | 2026-08-21 | **Option B accepted — permanent dismissal will exist.** "Not now" (21 days) plus "Not interested" (never returns). | Derek's call. The tooltip has promised this since it was written, so people already believe it exists; the fix is to build it rather than to walk the promise back. Open sub-question left to implementation: whether "Not interested" sits behind an overflow or long-press so deferral stays one tap — see the row-shape constraint above. |
+| 2026-08-21 | **Built.** Overflow, not long-press. `restored` added alongside `dismissed`. | See [What shipped](#what-shipped). Long-press has no desktop equivalent; an overflow keeps deferral one tap and makes both mis-taps cheap. `restored` was upgraded from a "should" to part of the build because a permanent action with a per-device undo is not undoable. |

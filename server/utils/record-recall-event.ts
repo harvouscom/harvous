@@ -1,5 +1,5 @@
 /**
- * Record a Home recall carousel event (open, snooze, impression or complete). Non-throwing.
+ * Record a Home recall carousel event. Non-throwing.
  * When action is open or complete and noteId is set, also bumps spaced-repetition stability.
  */
 
@@ -9,8 +9,10 @@ import { generateTimestampId } from '@/utils/ids';
 import {
   isRecallEventAction,
   isRecallOpportunityKind,
+  isRecallSuppressionAction,
   type RecallEventAction,
   type RecallOpportunityKind,
+  type RecallSuppressionAction,
 } from '@/utils/recall-opportunity-kinds';
 import { isRecallEventsTableMissing } from './pg-undefined-relation';
 import { recordNoteRecallEngaged } from './note-recall-state';
@@ -25,7 +27,7 @@ export type RecordRecallEventInput = {
 /** One row's worth of recall history, as returned to the client. */
 export type RecallHistoryEntry = {
   opportunityId: string;
-  action: 'open' | 'snooze' | 'complete';
+  action: RecallSuppressionAction;
   createdAt: string;
 };
 
@@ -33,7 +35,12 @@ export type RecallHistoryEntry = {
  * Reduce raw RecallEvents rows to the most recent entry per (opportunityId, action).
  *
  * `impression` is dropped: it records that a card was on screen, which says nothing about
- * whether it should be shown again. The other three each carry their own suppression window.
+ * whether it should be shown again. The rest either suppress — each with its own window, and
+ * `dismissed` with none — or, in `restored`'s case, cancel the ones older than it.
+ *
+ * Kept per *action* rather than per opportunity, because the client needs both sides: a
+ * `restored` only undoes what came before it, so collapsing to one row per opportunity would
+ * throw away the very row the comparison is against.
  *
  * Pure so it can be tested without a database. `rows` must arrive newest-first — the
  * query orders by createdAt desc — so the first row seen for a pair wins.
@@ -43,16 +50,15 @@ export function collapseRecallHistory(
 ): RecallHistoryEntry[] {
   const seen = new Map<string, RecallHistoryEntry>();
   for (const row of rows) {
-    if (row.action !== 'open' && row.action !== 'snooze' && row.action !== 'complete') continue;
+    if (!isRecallSuppressionAction(row.action)) continue;
     if (!row.opportunityId) continue;
     /*
      * Action first, space-separated — and not the NUL byte this used to use.
      *
      * A NUL is the obvious collision-proof separator and it worked, but git's binary
      * detection scans the first 8000 bytes of a file for one, so this single character made
-     * the whole file binary: every diff of it rendered as `Bin 3918 -> 4222 bytes` and could
-     * not be reviewed as text. A source file whose diffs nobody can read is a poor trade for
-     * a separator.
+     * the whole file binary: every diff of it rendered as `Bin` with no text to read. A
+     * source file whose diffs nobody can read is a poor trade for a separator.
      *
      * Still unambiguous. `action` comes from the closed `RECALL_EVENT_ACTIONS` allowlist —
      * lowercase words, no spaces — so the first space is always the boundary. Putting it

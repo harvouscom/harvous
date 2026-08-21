@@ -117,8 +117,10 @@ import { loadPinnedHighlightIds } from './proto-pinned-stores';
 import { stabilityById, mergeStabilityMaps } from './proto-recall-stability';
 import {
   activeCooldownIds,
+  dismissedRecallIds,
   mergeServerRecallHistoryIntoCooldowns,
   recallRestoredAt,
+  recordRecallDismissed,
   recordRecallOpened,
   recordRecallSnoozed,
   subscribeRecallCooldownChanged,
@@ -822,7 +824,12 @@ export default function PrototypeSidebarHomeView({
       // Local store is per-device; the server history is what makes a card dismissed on
       // one device stay dismissed on the others.
       mergeServerRecallHistoryIntoCooldowns(
-        activeCooldownIds(homeSpaceId, recallDayIndex),
+        // Two local stores, because the two answers have different lifetimes: the cooldown map
+        // expires by window, and "not interested" never does.
+        new Set([
+          ...activeCooldownIds(homeSpaceId, recallDayIndex),
+          ...dismissedRecallIds(homeSpaceId),
+        ]),
         recallHistoryQuery.data?.events,
         new Date(),
         undefined,
@@ -1775,6 +1782,20 @@ export default function PrototypeSidebarHomeView({
     [homeSpaceId, recallDayIndex],
   );
 
+  /**
+   * "Not interested" — the answer with no expiry.
+   *
+   * Its own store rather than a snooze with a large window; see `recordRecallDismissed` for
+   * why the cooldown map cannot hold one (it prunes by window on every write).
+   */
+  const handleRecallDismiss = useCallback(
+    (id: string) => {
+      recordRecallDismissed(homeSpaceId, id);
+      setRecallTick((t) => t + 1);
+    },
+    [homeSpaceId],
+  );
+
   const handleRecallOpened = useCallback(
     (id: string) => {
       // Acting on a card rests it. This is the call that never existed: only the ✕ ever
@@ -1930,6 +1951,7 @@ export default function PrototypeSidebarHomeView({
           <PrototypeRecallCarousel
             opportunities={recallOpportunities}
             onSnooze={handleRecallSnooze}
+            onDismiss={handleRecallDismiss}
             onOpened={handleRecallOpened}
             onRecallSynced={handleRecallSynced}
             homeSpaceId={homeSpaceId}

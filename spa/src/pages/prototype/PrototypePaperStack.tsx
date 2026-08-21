@@ -25,6 +25,11 @@ import type { PaperStackState } from '../../layouts/proto-shell-context';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import { morphFromIfStillPlaced, readPaperStackDockPlacement } from './paper-stack-origins';
+import {
+  RECALL_DISMISS_COPY,
+  RECALL_NEVERMIND_COPY,
+  RECALL_PUT_DOWN_COPY,
+} from './proto-recall-copy';
 
 export default function PrototypePaperStack({
   stack,
@@ -69,6 +74,16 @@ export default function PrototypePaperStack({
   const collapses = origin.kind === 'noteDock';
   /** A row off Home's Suggested shelf — its edge answers the suggestion, not just the way back. */
   const suggestion = origin.suggestion;
+  /*
+   * What the edge's answers name, and why it is the title rather than `origin.label`.
+   *
+   * `origin.label` is the eyebrow — the category — so screen readers were being given
+   * "Stop suggesting A passage you keep returning to", which is the kind of row rather than
+   * the row. The base card carries the actual title, and two suggestions of the same kind are
+   * only distinguishable by it. Falls back to the label where a card has no title of its own.
+   */
+  const suggestionName =
+    (origin.base.type === 'originCard' ? origin.base.title?.trim() : '') || origin.label;
   /** `New Note` is what every other surface calls a note with no title yet — rows, search,
       the mention picker. The edge is one more of those, so it uses the same word. */
   const parkedLabel = stripServerAutoUntitledNoteTitleForDisplay(stack.noteTitle ?? '') || 'New Note';
@@ -206,8 +221,8 @@ export default function PrototypePaperStack({
             type="button"
             className="pds-paper-stack__edge"
             onClick={onSuggestionNevermind ?? onFlipDown}
-            aria-label={`Nevermind — back to ${origin.label} and keep suggesting it`}
-            title="Nevermind"
+            aria-label={RECALL_NEVERMIND_COPY.ariaFor(suggestionName)}
+            title={RECALL_NEVERMIND_COPY.label}
           >
             <Icon name={origin.icon as IconName} size={12} aria-hidden />
             <span className="pds-caption">{origin.label}</span>
@@ -217,13 +232,13 @@ export default function PrototypePaperStack({
               type="button"
               className="proto-side-panel__action-btn pds-paper-stack__edge-dismiss pds-paper-stack__edge-ignore"
               onClick={onSuggestionIgnore}
-              aria-label={`Stop suggesting ${origin.label} for now`}
-              /* Says what it does. This read "Don't suggest this again" while the handler posted an
-                 ordinary `snooze` — a three-week rest, identical to the shelf's "Not now". Whether
-                 a genuinely permanent answer should exist is the open question in
-                 docs/future/SUGGESTION_ACTIONS_REDESIGN.md; until it is answered the copy should
-                 not promise one. */
-              title="Rest this for three weeks"
+              aria-label={RECALL_DISMISS_COPY.ariaFor(suggestionName)}
+              /* Now says what it does, having spent a long time not doing so: this read "Don't
+                 suggest this again" while the handler posted an ordinary `snooze`, identical in
+                 effect to the shelf's "Not now". The copy was walked back to match the behaviour
+                 rather than left lying; `dismissed` is what finally makes the original promise
+                 true, so the original words come back with it. */
+              title={RECALL_DISMISS_COPY.hint}
             >
               <Icon name="eye-slash" size={12} aria-hidden />
             </button>
@@ -232,8 +247,8 @@ export default function PrototypePaperStack({
             type="button"
             className="proto-side-panel__action-btn pds-paper-stack__edge-dismiss"
             onClick={onDismiss}
-            aria-label={`Stop showing ${origin.label} behind this`}
-            title="Put the way back down"
+            aria-label={RECALL_PUT_DOWN_COPY.ariaFor(suggestionName)}
+            title={RECALL_PUT_DOWN_COPY.label}
           >
             <Icon name="xmark" size={12} aria-hidden />
           </button>
