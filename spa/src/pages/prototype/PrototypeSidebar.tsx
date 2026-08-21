@@ -1572,9 +1572,11 @@ export default function PrototypeSidebar({
   const [createThreadPrefill, setCreateThreadPrefill] = useState<{
     noteIds: string[];
     threadName?: string;
+    /** Set when the sheet was opened by a suggestion that wants to know it was carried out. */
+    onCreated?: () => void;
   } | null>(null);
   const openCreateThreadSheet = useCallback(
-    (prefill?: { noteIds: string[]; threadName?: string } | null) => {
+    (prefill?: { noteIds: string[]; threadName?: string; onCreated?: () => void } | null) => {
       if (!canCreateSidebarCollections) return;
       setCreateThreadPrefill(prefill ?? null);
       setCreateThreadSheetOpen(true);
@@ -3552,8 +3554,8 @@ export default function PrototypeSidebar({
               ensureSidebarExpanded();
             }}
             onOpenHighlight={onHighlightRow}
-            onOpenCreateThreadPrefill={({ noteIds, threadName }) => {
-              openCreateThreadSheet({ noteIds, threadName });
+            onOpenCreateThreadPrefill={({ noteIds, threadName, onCreated }) => {
+              openCreateThreadSheet({ noteIds, threadName, onCreated });
             }}
           />
         ) : sidebarThreadProposal ? (
@@ -4629,6 +4631,9 @@ export default function PrototypeSidebar({
               initialSelectedNoteIds={createThreadPrefill?.noteIds}
               initialThreadName={createThreadPrefill?.threadName}
               onCreated={(repNoteId) => {
+                // Tell whoever opened the sheet that it went through, before the prefill is
+                // cleared by the close that follows.
+                createThreadPrefill?.onCreated?.();
                 setSidebarListMode('threads');
                 setSidebarThreadDrilldownId(threadClusterDrillSlug(repNoteId));
               }}

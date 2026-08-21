@@ -94,6 +94,41 @@ describe('deriveContinueReading', () => {
     expect(deriveContinueReading({ lastRead: null, readChapters: [] }, chapterCounts)).toBeNull();
   });
 
+  it('carries the verse back when resuming a chapter left partway through', () => {
+    expect(
+      deriveContinueReading(
+        { lastRead: { ...lastRead('John', 15), verse: 12 }, readChapters: [] },
+        chapterCounts,
+      ),
+    ).toMatchObject({ chapter: 15, reason: 'resume', resumeVerse: 12 });
+  });
+
+  it('does not carry a verse onto a chapter that has never been read', () => {
+    // "Next in John" is chapter 16, which the stored verse said nothing about — landing
+    // partway into it would be inventing a position rather than restoring one.
+    const out = deriveContinueReading(
+      {
+        lastRead: { ...lastRead('John', 15), verse: 12 },
+        readChapters: [{ book: 'John', chapter: 15, countsAsRead: true }],
+      },
+      chapterCounts,
+    );
+
+    expect(out).toMatchObject({ chapter: 16, reason: 'next' });
+    expect(out).not.toHaveProperty('resumeVerse');
+  });
+
+  it('treats verse 1 as no position at all', () => {
+    // It is where the chapter opens anyway, and putting it on the URL would focus a verse
+    // nobody chose.
+    const out = deriveContinueReading(
+      { lastRead: { ...lastRead('John', 15), verse: 1 }, readChapters: [] },
+      chapterCounts,
+    );
+
+    expect(out).not.toHaveProperty('resumeVerse');
+  });
+
   it('ignores a stored position outside the canon', () => {
     expect(
       deriveContinueReading({ lastRead: lastRead('Hezekiah', 1), readChapters: [] }, chapterCounts),
@@ -122,6 +157,26 @@ describe('continue-reading copy', () => {
     expect(continueReadingMeta(resume)).toBe('Back to John 15');
     expect(continueReadingEyebrow(next)).toBe('Keep reading');
     expect(continueReadingMeta(next)).toBe('Next in John');
+  });
+
+  it('names the verse when the row will land on one', () => {
+    // The row returns you to the verse now, so saying only the chapter would be a small lie
+    // told by the one card whose promise is remembering where you were.
+    const resume = deriveContinueReading(
+      { lastRead: { ...lastRead('John', 15), verse: 12 }, readChapters: [] },
+      chapterCounts,
+    )!;
+
+    expect(continueReadingMeta(resume)).toBe('Back to John 15:12');
+  });
+
+  it('still names just the chapter when there is no verse to return to', () => {
+    const resume = deriveContinueReading(
+      { lastRead: lastRead('John', 15), readChapters: [] },
+      chapterCounts,
+    )!;
+
+    expect(continueReadingMeta(resume)).toBe('Back to John 15');
   });
 });
 
@@ -181,6 +236,15 @@ describe('deriveSmartJumpDestination', () => {
       translation: 'NLT',
       source: 'continue',
     });
+  });
+
+  it('lands on the verse reading stopped at, when resuming', () => {
+    const out = deriveSmartJumpDestination(
+      { book: 'John', bookOrder: 42, chapter: 15, translation: 'NLT', reason: 'resume', resumeVerse: 12 },
+      votd,
+    );
+
+    expect(out).toMatchObject({ book: 'John', chapter: 15, verse: 12, source: 'continue' });
   });
 
   it("falls to today's passage when there is no reading position", () => {

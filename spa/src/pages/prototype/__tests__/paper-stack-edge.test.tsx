@@ -92,7 +92,7 @@ describe('suggestion edge', () => {
     fireEvent.click(
       screen.getByLabelText('Nevermind — back to Worth another look and keep suggesting it'),
     );
-    fireEvent.click(screen.getByLabelText('Stop suggesting Worth another look'));
+    fireEvent.click(screen.getByLabelText('Stop suggesting Worth another look for now'));
 
     expect(nevermind).toHaveBeenCalledTimes(1);
     expect(ignore).toHaveBeenCalledTimes(1);
@@ -102,7 +102,7 @@ describe('suggestion edge', () => {
   it('leaves an ordinary origin with only its way back and its dismiss', () => {
     renderStack({ origin, noteId: 'note_1', open: true });
 
-    expect(screen.queryByLabelText('Stop suggesting Worth another look')).toBeNull();
+    expect(screen.queryByLabelText('Stop suggesting Worth another look for now')).toBeNull();
     expect(screen.getByLabelText('Show Worth another look')).toBeTruthy();
   });
 });

@@ -87,7 +87,6 @@ export function useEditorHoverPreview({ containerRef, disabled }: UseEditorHover
         return {
           href,
           urlTitle: anchor.getAttribute('data-url-title'),
-          favicon: anchor.getAttribute('data-url-favicon'),
         };
       }
       return null;

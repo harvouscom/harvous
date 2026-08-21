@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { findCachedNoteAcrossContexts } from '../useSwitchToSpace';
+import { resolveNoteSpaceSwitch } from '../../lib/note-audience';
 import type { NoteDetail } from '../queries/useNote';
 
 /**
  * Regression coverage for the bug where switching to My Home left a foreign,
- * read-only note open and editable. `shouldCloseNoteOnSpaceSwitch` itself was
+ * read-only note open and editable. `resolveNoteSpaceSwitch` itself was
  * always correct — this pins the caller, which was feeding it `undefined`
  * because it looked the note up under the wrong cache key.
  */
@@ -82,5 +83,62 @@ describe('findCachedNoteAcrossContexts', () => {
     queryClient.setQueryData(['note', 'note_2', 'space_shared'], detail({ id: 'note_2' }));
 
     expect(findCachedNoteAcrossContexts(queryClient, 'note_1')).toBeUndefined();
+  });
+});
+
+/**
+ * The lookup and the decision together — which is where the reported bug lived.
+ *
+ * Neither half was wrong on its own: the cache genuinely did not know the note's
+ * spaces yet, and "do not close" was the right call on unknown. What went wrong is
+ * that the caller had only a boolean, so "we know it belongs here" and "we have no
+ * idea" both took the branch that re-stamps `?space=` — and re-reading the note
+ * under an unconfirmed space cleared the folder chip, because folders are per-space.
+ *
+ * Reproduces the sequence Derek reported: the first switch after opening a note
+ * appeared to erase its folders, and switching again behaved correctly, because by
+ * then the detail read had populated `spaces`.
+ */
+describe('what a switch decides from what is cached', () => {
+  const home = 'space_home';
+
+  function outcomeFor(queryClient: QueryClient, destinationSpaceId: string | null) {
+    const note = findCachedNoteAcrossContexts(queryClient, 'note_1');
+    return resolveNoteSpaceSwitch({
+      destinationSpaceId,
+      homeSpaceId: home,
+      noteSpaceIds: note?.spaces?.map((s) => s.id),
+      isOwnNote: note?.isOwnNote !== false,
+      isDraft: false,
+    });
+  }
+
+  it('touches nothing on the first switch, when only a list seed is cached', () => {
+    const queryClient = new QueryClient();
+    // Exactly what seedNoteFromList leaves behind: content to paint with, and
+    // `spaces` left undefined to mean "not loaded" rather than "none".
+    queryClient.setQueryData(['note', 'note_1'], detail({ isOwnNote: true, spaces: undefined }));
+
+    expect(outcomeFor(queryClient, 'space_b')).toBe('leave');
+  });
+
+  it('closes on the next switch, once detail has said the note is not in that space', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      ['note', 'note_1'],
+      detail({ isOwnNote: true, spaces: [{ id: 'space_a', title: 'A', coEditEnabled: false }] }),
+    );
+
+    expect(outcomeFor(queryClient, 'space_b')).toBe('close');
+  });
+
+  it('re-reads under the destination once detail confirms the note is in it', () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      ['note', 'note_1'],
+      detail({ isOwnNote: true, spaces: [{ id: 'space_b', title: 'B', coEditEnabled: false }] }),
+    );
+
+    expect(outcomeFor(queryClient, 'space_b')).toBe('retarget');
   });
 });

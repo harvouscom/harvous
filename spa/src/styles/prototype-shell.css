@@ -121,12 +121,13 @@
 /*
  * A dock portalled straight into the slot, with no carousel between it and the layer.
  *
- * The Bible reader does this — one card, no stack to shuffle — and the carousel is where
- * all the centring lives: it measures the paper and scrolls its track so the active card
- * sits over it. Skipping the carousel skipped that too, so a dock opened while reading
- * stretched across sidebar and main while the chapter sat in a 720px column in the middle,
- * which is the "doesn't respect the middle" of it. Here the same two facts are stated in
- * CSS instead: clear the sidebar, then sit on the paper's own width.
+ * This is the fallback shape now rather than the reader's. The reader used to do it — one
+ * card, no stack to shuffle — and the carousel is where all the centring lives: it measures
+ * the paper and scrolls its track so the active card sits over it. Skipping the carousel
+ * skipped that too, so a dock opened while reading stretched across sidebar and main while
+ * the chapter sat in a 720px column in the middle, which is the "doesn't respect the middle"
+ * of it. These two rules restated those facts in CSS: clear the sidebar, sit on the paper's
+ * width. They stay for any surface that still portals a bare card.
  */
 .proto-shell__study-dock-layer__slot > .study-dock-card {
   box-sizing: border-box;
@@ -134,6 +135,13 @@
   margin-inline: auto;
 }
 
+/*
+ * Clear the sidebar for a bare card only.
+ *
+ * Deliberately not extended to the carousel, which the reader now portals here as well: the
+ * carousel already carries this exact offset on its own track (study-dock-carousel.css), so
+ * matching it here too would push the dock band right by two sidebars.
+ */
 @media (min-width: 900px) {
   .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card) {
     padding-left: var(--proto-sidebar-w-clamped);

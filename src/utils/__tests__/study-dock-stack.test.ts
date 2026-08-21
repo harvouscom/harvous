@@ -13,6 +13,8 @@ import {
   emptyStudyDockStack,
   highlightDockExcerptFromStudyThread,
   highlightDockStableKey,
+  referenceDockStableKey,
+  buildReadOnlyScriptureSession,
   isPersistableStudyDockNoteId,
   isHighlightDockReadOnly,
   openOrFocusHighlight,
@@ -584,5 +586,54 @@ describe('resource dock entries (collapsed-only)', () => {
       title: 'A'.repeat(50),
     });
     expect(dockChipLabel(stack.entries[0])).toBe(`${'A'.repeat(28)}…`);
+  });
+});
+
+describe('reader word lookups', () => {
+  it('keeps the same word at two anchors as two separate docks', () => {
+    // The dock is what you save from, and saving is scoped to (anchor, word). Collapsing
+    // "grace" in John 1 with "grace" in Romans 5 would make the second lookup adopt the
+    // first one's saved state and write its reference back to the wrong verse.
+    const john = referenceDockStableKey({ query: 'grace', readerAnchor: { reference: 'John 1:14' } });
+    const romans = referenceDockStableKey({ query: 'grace', readerAnchor: { reference: 'Romans 5:2' } });
+
+    expect(john).not.toBe(romans);
+  });
+
+  it('focuses the existing dock when the same word is tapped at the same anchor again', () => {
+    const a = referenceDockStableKey({ query: 'Grace', readerAnchor: { reference: 'John 1:14' } });
+    const b = referenceDockStableKey({ query: ' grace ', readerAnchor: { reference: 'John 1:14' } });
+
+    expect(a).toBe(b);
+  });
+
+  it('does not collide with a lookup of the same word from inside a note', () => {
+    const reader = referenceDockStableKey({ query: 'grace', readerAnchor: { reference: 'John 1:14' } });
+    const note = referenceDockStableKey({ query: 'grace' });
+
+    expect(reader).not.toBe(note);
+  });
+
+  it('opens alongside an existing card rather than replacing it', () => {
+    // The whole point of giving the reader the stack: looking a word up used to destroy the
+    // passage card you looked it up from.
+    let stack = emptyStudyDockStack();
+    stack = openOrFocusScripture(stack, buildReadOnlyScriptureSession('John 3:16', 'NLT', null));
+    stack = openOrFocusReference(stack, { query: 'grace', readerAnchor: { reference: 'John 3:16' } });
+
+    expect(stack.entries).toHaveLength(2);
+    // One open card, the rest collapsed to chips beside it.
+    expect(stack.entries.filter((e) => e.expanded)).toHaveLength(1);
+    expect(stack.activeId).toBe(stack.entries[1].id);
+  });
+
+  it('files a reader highlight by its verses, so the row id arriving later still finds it', () => {
+    // The card opens before the network returns an id. Keying on the id would file it under
+    // one name and then look for it under another.
+    const beforeId = highlightDockStableKey(null, { from: 16, to: 18 });
+    const sameVerses = highlightDockStableKey(null, { from: 16, to: 18 });
+
+    expect(beforeId).toBe(sameVerses);
+    expect(beforeId).not.toContain('anonymous');
   });
 });

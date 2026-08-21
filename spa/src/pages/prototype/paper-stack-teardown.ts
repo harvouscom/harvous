@@ -12,6 +12,7 @@
  */
 
 import type { PaperStackState } from '../../layouts/proto-shell-context';
+import { READER_DESTINED_CARD_KINDS } from './paper-stack-origins';
 
 export type PaperStackVerdict = 'keep' | 'clear' | { adoptNoteId: string };
 
@@ -90,5 +91,15 @@ export function resolvePaperStackAfterNavigation(
   }
 
   // homeCard
-  return helpers.isHomePath(pathname) ? 'keep' : 'clear';
+  if (helpers.isHomePath(pathname)) return 'keep';
+  /*
+   * A chapter normally ends a Home card's stack — the reader is its own base. The exception
+   * is a card that opened the reader on purpose: then the chapter under the edge is exactly
+   * what the card promised, and clearing would drop the only thing on screen saying why this
+   * passage is open.
+   */
+  if (helpers.isReadPath(pathname) && READER_DESTINED_CARD_KINDS.has(origin.cardKind ?? '')) {
+    return 'keep';
+  }
+  return 'clear';
 }

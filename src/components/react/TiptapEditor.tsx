@@ -369,8 +369,13 @@ function openSourceScriptureDockWithOptionalCrossRef(
   sourceNoteId: string | null,
   translation: string | null,
 ): StudyDockStack {
-  let next = openOrFocusScripture(stack, session);
   const targetRef = crossRefTarget?.trim();
+  // Marked on the source card, not the target: the target is the answer, and the source is
+  // where the list of eight related passages needs to say which one was meant.
+  let next = openOrFocusScripture(
+    stack,
+    targetRef ? { ...session, highlightCrossRef: targetRef } : session,
+  );
   if (targetRef) {
     next = openOrFocusScripture(
       next,
@@ -4152,6 +4157,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     strike: false,
     orderedList: false,
     bulletList: false,
+    urlLink: false,
+    /* Not read for its own sake — it is what makes the toolbar re-render when the selection
+       opens or collapses, so the Link button's enabled state can follow it. */
+    hasSelection: false,
     headingLevel: 0, // 0 = normal/paragraph, 2 = H2, 3 = H3
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
@@ -4215,6 +4224,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     initialHref: string;
     mode: 'create' | 'edit';
   } | null>(null);
+  /* Mirrors openUrlLinkPrompt for Mod-K inside handleKeyDown. `editorProps` is built once, on
+     the render that creates the editor, so a direct reference there would freeze that render's
+     closure — same stale-closure reason as deleteConfirmPillRef below. */
+  const openUrlLinkPromptRef = useRef<((range?: { from: number; to: number }) => void) | null>(null);
   // Ref mirrors deleteConfirmPill for reading inside handleKeyDown (avoids stale closure)
   const deleteConfirmPillRef = useRef<{
     rect: DOMRect;
@@ -4988,6 +5001,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Check if view.docView is still valid (docView exists at runtime but not in TS types)
         if (!view || !(view as any).docView) {
           return false;
+        }
+
+        /* Mod-K over a selection raises the link prompt — the shortcut every editor has.
+           The live selection is trustworthy here, unlike from the toolbar, because the keypress
+           happened with focus in the document. Passed over when nothing is selected so the
+           browser's own Cmd-K is not swallowed for no reason. */
+        if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+          if (!editor.state.selection.empty) {
+            event.preventDefault();
+            openUrlLinkPromptRef.current?.();
+            return true;
+          }
         }
 
         // @ mention picker keyboard navigation. NEVER intercepts the space key (iOS
@@ -5913,9 +5938,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     safeNavigate(noteUrlForCurrentSurface(fullNoteId, threadContext, currentNoteId || undefined));
   }, [hoverPreview, dismissHoverPreview]);
 
-  const openUrlLinkPrompt = useCallback(() => {
+  /**
+   * Raise the href prompt over a range.
+   *
+   * `explicitRange` is for callers that cannot trust the live selection — the format toolbar
+   * collapses it on pointer-down, which is why it freezes a copy first. Callers with focus in
+   * the editor (the selection bar, the keyboard shortcut) can leave it out.
+   */
+  const openUrlLinkPrompt = useCallback((explicitRange?: { from: number; to: number }) => {
     if (!editor || !isEditorValid(editor)) return;
-    const { from, to } = editor.state.selection;
+    const { from, to } = explicitRange ?? editor.state.selection;
     if (from === to) return;
     const existingMark = editor.state.doc.rangeHasMark(from, to, editor.state.schema.marks.urlLink);
     const start = editor.view.coordsAtPos(from);
@@ -5942,6 +5974,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       mode: existingMark ? 'edit' : 'create',
     });
   }, [editor, clearSelectionActionBar]);
+
+  useEffect(() => {
+    openUrlLinkPromptRef.current = openUrlLinkPrompt;
+  }, [openUrlLinkPrompt]);
 
   const applyUrlLink = useCallback((rawHref: string) => {
     if (!editor || !urlLinkPrompt) return;
@@ -8274,6 +8310,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         strike: editor.isActive('strike'),
         orderedList: editor.isActive('orderedList'),
         bulletList: editor.isActive('bulletList'),
+        urlLink: editor.isActive('urlLink'),
+        hasSelection: !editor.state.selection.empty,
         headingLevel: headingLevel
       };
       // This fires on every keystroke and every caret move ('selectionUpdate' + 'update').
@@ -8291,6 +8329,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           prev.strike !== newStates.strike ||
           prev.orderedList !== newStates.orderedList ||
           prev.bulletList !== newStates.bulletList ||
+          prev.urlLink !== newStates.urlLink ||
+          prev.hasSelection !== newStates.hasSelection ||
           prev.headingLevel !== newStates.headingLevel;
         return changed ? newStates : prev;
       });
@@ -8521,19 +8561,40 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
   }, [editor]);
 
+  /**
+   * The range a format-toolbar press should act on.
+   *
+   * Never simply the live selection: pressing a toolbar button collapses it, so the toolbar
+   * freezes a copy on pointer-down and this prefers that when the live one has gone degenerate.
+   * Shared so the Link button asks the same question the format commands do — a button whose
+   * enabled state and whose action disagreed about the range would be worse than either.
+   */
+  const resolveFormatToolbarRange = useCallback(() => {
+    if (!editor || !isEditorValid(editor)) return null;
+    const live = editor.state.selection;
+    const doc = editor.state.doc;
+    return pickFormatToolbarSelection({
+      frozen: formatToolbarSelectionRef.current,
+      liveFrom: live.from,
+      liveTo: live.to,
+      docSize: doc.content.size,
+      lastInBody: lastInBodySelectionRef.current,
+      isEmptyTrailingDocEnd: (from, to) => isEmptyTrailingDocEndSelection(doc, from, to),
+    });
+  }, [editor]);
+
+  const openUrlLinkPromptFromToolbar = useCallback(() => {
+    const range = resolveFormatToolbarRange();
+    if (!range || range.from === range.to) return;
+    openUrlLinkPrompt(range);
+  }, [resolveFormatToolbarRange, openUrlLinkPrompt]);
+
   const runPrototypeFormatCommand = useCallback(
     (apply: (chain: ReturnType<typeof editor.chain>) => ReturnType<typeof editor.chain>) => {
       if (!editor || !isEditorValid(editor)) return;
-      const live = editor.state.selection;
       const doc = editor.state.doc;
-      const range = pickFormatToolbarSelection({
-        frozen: formatToolbarSelectionRef.current,
-        liveFrom: live.from,
-        liveTo: live.to,
-        docSize: doc.content.size,
-        lastInBody: lastInBodySelectionRef.current,
-        isEmptyTrailingDocEnd: (from, to) => isEmptyTrailingDocEndSelection(doc, from, to),
-      });
+      const range = resolveFormatToolbarRange();
+      if (!range) return;
       const ran = runFormatCommandWithPreservedSelection(editor, range, apply);
       if (!ran && import.meta.env?.DEV) {
         console.warn('[TiptapEditor] prototype format command failed', { range });
@@ -8564,10 +8625,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         /* ignore */
       }
     },
-    [editor, onContentChange],
+    [editor, onContentChange, resolveFormatToolbarRange],
   );
 
-  const ToolbarButton = ({ 
+  const ToolbarButton = ({
     onClick, 
     isActive, 
     children, 
@@ -8736,6 +8797,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const canLift = isInListItem
       ? editor.can().liftListItem('listItem')
       : editor.can().decreaseIndent();
+    // Recomputed per render, which `activeStates.hasSelection` is what guarantees: it changes
+    // whenever the selection opens or collapses, so this re-runs at the moments that matter.
+    const linkRange = resolveFormatToolbarRange();
+    const canLinkSelection = !!linkRange && linkRange.from !== linkRange.to;
     const isPortal = placement === 'portal';
     const positionalStyle: React.CSSProperties = isPortal
       ? {}
@@ -8802,6 +8867,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 ariaLabel="Toggle strikethrough"
               >
                 <Icon name="strikethrough" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
+              </PrototypeToolbarButton>
+              <PrototypeToolbarButton
+                onClick={openUrlLinkPromptFromToolbar}
+                isActive={activeStates.urlLink}
+                /* A link needs words to attach to. Judged on the range the press would
+                   actually use, not on the live selection, so the button is not greyed out by
+                   the very collapse that pressing it causes. */
+                disabled={!canLinkSelection}
+                title={activeStates.urlLink ? 'Edit link' : 'Link'}
+                ariaLabel={activeStates.urlLink ? 'Edit link' : 'Add link'}
+              >
+                <Icon name="link" size={PROTO_FORMAT_ICON_SIZE} className="proto-toolbar-icon" />
               </PrototypeToolbarButton>
               <FormatToolbarDivider />
               <PrototypeToolbarButton
@@ -9794,6 +9871,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   return (
                     <ScripturePillChromeWeb
                       key={entry.id}
+                      /* The row a suggestion pointed at, marked in this card's related-passages
+                         list — see `highlightCrossRef` on the session. */
+                      highlightCrossRef={entry.session.highlightCrossRef ?? null}
                       reference={entry.session.reference}
                       translation={entry.session.translation}
                       sourceNoteId={sourceNoteId ?? null}

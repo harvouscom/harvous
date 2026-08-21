@@ -18,7 +18,15 @@ export const RECALL_OPPORTUNITY_KINDS = [
 
 export type RecallOpportunityKind = (typeof RECALL_OPPORTUNITY_KINDS)[number];
 
-export const RECALL_EVENT_ACTIONS = ['open', 'snooze', 'impression'] as const;
+/**
+ * `open` is intent, `complete` is the loop actually closing.
+ *
+ * They are not the same and the deck should not treat them alike: tapping "thread these two
+ * notes" says you were interested, whereas the thread existing afterwards says the suggestion
+ * was right. Only the generative kinds can report `complete` — the ones that ask you to make
+ * something — because for the rest, opening the thing *is* doing the thing.
+ */
+export const RECALL_EVENT_ACTIONS = ['open', 'snooze', 'impression', 'complete'] as const;
 
 export type RecallEventAction = (typeof RECALL_EVENT_ACTIONS)[number];
 

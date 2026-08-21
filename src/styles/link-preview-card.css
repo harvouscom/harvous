@@ -85,13 +85,6 @@
   font-size: 12px;
 }
 
-.link-preview-card__favicon {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-
 .link-preview-card__host {
   overflow: hidden;
   text-overflow: ellipsis;

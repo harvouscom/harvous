@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import { useNote } from '../../../spa/src/hooks/queries/useNote';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { fetchLinkMetadata, peekLinkMetadata, type LinkMetadata } from '@/utils/link-metadata';
 import '@/styles/link-preview-card.css';
 
 const CARD_WIDTH = 280;
@@ -21,7 +22,6 @@ export interface LinkPreviewPayload {
   /** URL kind */
   href?: string;
   urlTitle?: string | null;
-  favicon?: string | null;
 }
 
 export interface LinkPreviewCardProps {
@@ -100,56 +100,22 @@ function ScripturePreviewBody({ reference, translation }: { reference: string; t
   );
 }
 
-interface UrlMetadata {
-  title: string | null;
-  description: string | null;
-  image: string | null;
-  siteName: string | null;
-}
-
-const urlMetadataCache = new Map<string, UrlMetadata>();
-const urlMetadataInflight = new Map<string, Promise<UrlMetadata | null>>();
-
-function fetchUrlMetadata(url: string): Promise<UrlMetadata | null> {
-  const cached = urlMetadataCache.get(url);
-  if (cached) return Promise.resolve(cached);
-  const inflight = urlMetadataInflight.get(url);
-  if (inflight) return inflight;
-  const p = fetch('/api/resource/metadata', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ url }),
-  })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((data) => {
-      const m = data?.metadata;
-      if (!m) return null;
-      const md: UrlMetadata = {
-        title: m.title || null,
-        description: m.description || null,
-        image: m.image || null,
-        siteName: m.siteName || null,
-      };
-      urlMetadataCache.set(url, md);
-      return md;
-    })
-    .catch(() => null)
-    .finally(() => {
-      urlMetadataInflight.delete(url);
-    });
-  urlMetadataInflight.set(url, p);
-  return p;
-}
-
 function UrlPreviewBody({ href, urlTitle }: { href: string; urlTitle?: string | null }) {
-  const [meta, setMeta] = useState<UrlMetadata | null>(() => urlMetadataCache.get(href) ?? null);
+  // Seeded from the cache the editor warmed on paste, so the common case renders resolved on
+  // the first frame instead of flashing a loading line at a link it already knows about.
+  const [meta, setMeta] = useState<LinkMetadata | null>(() => peekLinkMetadata(href));
   const [loading, setLoading] = useState(!meta);
 
   useEffect(() => {
     let cancelled = false;
-    if (!urlMetadataCache.has(href)) setLoading(true);
-    fetchUrlMetadata(href).then((m) => {
+    const known = peekLinkMetadata(href);
+    if (known) {
+      setMeta(known);
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
+    setLoading(true);
+    fetchLinkMetadata(href).then((m) => {
       if (cancelled) return;
       setMeta(m);
       setLoading(false);
@@ -160,9 +126,12 @@ function UrlPreviewBody({ href, urlTitle }: { href: string; urlTitle?: string | 
   const displayUrl = href.replace(/^https?:\/\//i, '').replace(/\/$/, '');
   const displayTitle = urlTitle || meta?.title || null;
   const displayDescription = meta?.description || null;
+  /* The site name was being fetched and thrown away. It is the one line that says *where* a
+     link goes without making anyone parse a URL, and it is free — already in the response. */
+  const displaySite = meta?.siteName?.trim() || null;
   return (
     <div className="link-preview-card__body">
-      <span className="link-preview-card__host">{displayUrl}</span>
+      <span className="link-preview-card__host">{displaySite || displayUrl}</span>
       {displayTitle ? <div className="link-preview-card__title">{displayTitle}</div> : null}
       {displayDescription ? <div className="link-preview-card__excerpt">{displayDescription}</div> : null}
       {!displayTitle && loading ? <div className="link-preview-card__body--loading">Loading preview…</div> : null}

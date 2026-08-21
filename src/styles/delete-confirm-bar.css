@@ -38,9 +38,17 @@
   align-items: stretch;
 }
 
+/*
+ * Row-first, wrapping. The card is shrink-to-fit under a 300px cap, so short copy leaves
+ * room for the actions beside it and long copy does not. Letting flex decide that means the
+ * layout follows the actual text rather than a breakpoint someone has to keep in step with
+ * the copy — a one-line confirm ("It will stop working.") reads as a compact card, while a
+ * two-sentence one keeps the roomier stack.
+ */
 .harvous-delete-confirm__stack {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
   padding: 12px 10px 8px 14px;
   width: 100%;
@@ -49,6 +57,7 @@
 
 .harvous-delete-confirm__copy {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
@@ -72,12 +81,15 @@
   color: var(--color-stone-grey);
 }
 
+/* `margin-left: auto` holds the actions to the right edge on both layouts — beside the copy
+   when they share a row, and under it when they wrap onto their own line. */
 .harvous-delete-confirm__actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
-  margin: 0 -2px -2px 0;
+  margin: 0 -2px -2px auto;
 }
 
 /* No hairline dividers at any copy length (compact or stacked). */

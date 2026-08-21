@@ -9,6 +9,8 @@ import {
   recallRestoredAt,
   restoreRecallOpportunity,
   RECALL_COOLDOWN_DAYS,
+  RECALL_COMPLETED_COOLDOWN_DAYS,
+  RECALL_OPENED_COOLDOWN_DAYS,
 } from '../proto-recall-cooldown';
 
 const SPACE = 'space_home';
@@ -201,5 +203,52 @@ describe('restoreRecallOpportunity', () => {
       { 'hl:7': restoredAt },
     );
     expect(merged.has('hl:7')).toBe(true);
+  });
+});
+
+describe('a suggestion that was actually carried out', () => {
+  const NOW = new Date('2026-08-03T12:00:00.000Z');
+  const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
+
+  it('rests far longer than one that was merely opened', () => {
+    // Opening and abandoning the create-thread sheet should let the card come back. A thread
+    // that exists should not be proposed again — it is no longer a suggestion.
+    expect(RECALL_COMPLETED_COOLDOWN_DAYS).toBeGreaterThan(RECALL_OPENED_COOLDOWN_DAYS);
+
+    const opened = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'connect:a|b', action: 'open', createdAt: daysAgo(14) }],
+      NOW,
+    );
+    const completed = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'connect:a|b', action: 'complete', createdAt: daysAgo(14) }],
+      NOW,
+    );
+
+    // Two weeks on, the open has expired and the completion has not.
+    expect(opened.has('connect:a|b')).toBe(false);
+    expect(completed.has('connect:a|b')).toBe(true);
+  });
+
+  it('lets the material come back round eventually', () => {
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'connect:a|b', action: 'complete', createdAt: daysAgo(45) }],
+      NOW,
+    );
+    expect(merged.has('connect:a|b')).toBe(false);
+  });
+
+  it('is undone by putting the suggestion back, like any other event', () => {
+    const at = daysAgo(2);
+    const merged = mergeServerRecallHistoryIntoCooldowns(
+      new Set(),
+      [{ opportunityId: 'connect:a|b', action: 'complete', createdAt: at }],
+      NOW,
+      undefined,
+      { 'connect:a|b': Date.parse(daysAgo(1)) },
+    );
+    expect(merged.has('connect:a|b')).toBe(false);
   });
 });

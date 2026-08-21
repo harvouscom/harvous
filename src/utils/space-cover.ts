@@ -249,12 +249,38 @@ export function appearanceAccentForThreadColor(
   return preset.light;
 }
 
+/**
+ * Every hue the legacy `--color-*` set actually defines.
+ *
+ * The column these values come from (`UserMetadata.userColor`, `Spaces.color`) is free text with
+ * no enum, so a value can arrive that no token backs — a retired hue, a fixture, a typo. CSS
+ * treats `var(--color-teal)` with nothing behind it as invalid and drops the whole declaration,
+ * so the element loses its background entirely rather than falling back to something. That is
+ * silent, and it is how activity-feed avatars ended up as empty rings.
+ */
+const DEFINED_COLOR_TOKENS = new Set([
+  'blue', 'gray', 'green', 'highlighter', 'navy', 'orange',
+  'paper', 'pink', 'purple', 'red', 'white', 'yellow',
+]);
+
+/**
+ * A legacy thread-token reference that always resolves to something visible.
+ *
+ * Blue because that is what every server path already defaults an absent colour to
+ * (`userColor ?? 'blue'`), so an unrecognised hue degrades to the same thing a missing one does.
+ */
+export function threadColorVar(color: string | null | undefined): string {
+  const key = (color || 'paper').toLowerCase();
+  if (DEFINED_COLOR_TOKENS.has(key)) return `var(--color-${key})`;
+  return `var(--color-${key}, var(--color-blue))`;
+}
+
 /** Color-picker dot fill — appearance hex when paired, else legacy thread token. */
 export function spacePickerSwatchColor(
   color: string,
   mode: 'light' | 'dark' = 'light',
 ): string {
-  return appearanceAccentForThreadColor(color, mode) ?? `var(--color-${color})`;
+  return appearanceAccentForThreadColor(color, mode) ?? threadColorVar(color);
 }
 
 /** Icon glyph on a space-color tile — saturated mid-tone from the tile hue (not near-black dark preset). */
@@ -272,7 +298,7 @@ export function appearanceIconGlyphColor(
   if (accent) {
     return `color-mix(in oklch, ${accent} 55%, var(--site-ink))`;
   }
-  return `var(--color-${color || 'paper'})`;
+  return threadColorVar(color);
 }
 
 /**
@@ -297,7 +323,7 @@ export function spaceIconAccentHex(
   if (DARK_AWARE_THREAD_TOKENS.has(key)) {
     return `var(--pds-thread-${key}, var(--color-${key}))`;
   }
-  return `var(--color-${key})`;
+  return threadColorVar(key);
 }
 
 /** @deprecated Prefer `spaceIconAccentHex` + `.space-icon-tile` CSS for glyph color. */

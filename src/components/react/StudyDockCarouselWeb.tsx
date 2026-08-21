@@ -271,8 +271,18 @@ export default function StudyDockCarouselWeb({
     event.dataTransfer.setData('text/plain', entryId);
     event.dataTransfer.effectAllowed = 'move';
     dragPreviewCleanupRef.current?.();
+    /*
+     * The ghost is the card, not the row holding it.
+     *
+     * `.study-dock-carousel__item` is a flex row of [14px handle][4px gap][card], so cloning it
+     * dragged an 18px strip of empty space along the card's left edge — reading as stray
+     * padding on one side of an otherwise square ghost. The card is what is being reordered, so
+     * the card is what should follow the cursor. Falls back to the row if the inner is somehow
+     * missing, which is still better than no preview at all.
+     */
     const item = event.currentTarget.closest('.study-dock-carousel__item') as HTMLElement | null;
-    const preview = applyHtml5DragPreview(event, item, {
+    const card = item?.querySelector<HTMLElement>('.study-dock-carousel__item-inner') ?? item;
+    const preview = applyHtml5DragPreview(event, card, {
       className: 'study-dock-carousel__drag-preview',
     });
     dragPreviewCleanupRef.current = preview?.cleanup ?? null;

@@ -1639,8 +1639,26 @@ export function formatConnectSuggestionTitle(noteATitle: string, noteBTitle: str
   return `${joined.slice(0, CONNECT_SUGGESTION_TITLE_MAX - 1).trimEnd()}…`;
 }
 
-/** Recall carousel meta for connect-suggestion cards (API reason → factual line). */
-export function connectSuggestionRecallMeta(reason: string): string {
+/**
+ * Recall carousel meta for connect-suggestion cards.
+ *
+ * Names the thing the pair share when the server could identify it, because "Both cite
+ * Romans 8" is a reason to tap and "Both cite the same passage" is a riddle.
+ */
+export function connectSuggestionRecallMeta(reason: string, sharedSubject?: string): string {
+  const subject = sharedSubject?.trim();
+  if (subject) {
+    switch (reason) {
+      case 'Shared passage':
+        return `Both cite ${subject}`;
+      case 'Cross-reference':
+        return `Cross-referenced through ${subject}`;
+      case 'Shared theme':
+        return `Both on ${subject}`;
+      default:
+        return `Both touch ${subject}`;
+    }
+  }
   switch (reason) {
     case 'Shared passage':
       return 'Both cite the same passage';
@@ -1653,8 +1671,28 @@ export function connectSuggestionRecallMeta(reason: string): string {
   }
 }
 
-/** Prefill for the New thread sheet name field from a suggested pair. */
-export function suggestConnectThreadName(noteATitle: string, noteBTitle: string, reason: string): string {
+/**
+ * Prefill for the New thread sheet name field from a suggested pair.
+ *
+ * What the notes are *about* beats what they are called. Joining the two titles with
+ * "and" describes the pair rather than naming the study, and it stops being a name at
+ * all once either title is long — so the shared subject is used whenever the server
+ * managed to identify one. A thread over two notes that both work through Romans 8
+ * should arrive called "Romans 8", which is a name someone would keep.
+ */
+export function suggestConnectThreadName(
+  noteATitle: string,
+  noteBTitle: string,
+  reason: string,
+  sharedSubject?: string,
+): string {
+  const subject = sharedSubject?.trim();
+  // A name is a title, not a sentence fragment. Topic labels are stored lowercase
+  // ("assurance"), which is right for the meta line that reads "Both on assurance" and
+  // wrong for the thread this is about to be called. Passage subjects already start
+  // capitalised, so this only ever touches the themes.
+  if (subject && subject.length <= 80) return subject.charAt(0).toUpperCase() + subject.slice(1);
+
   const a = cleanConnectSuggestionNoteTitle(noteATitle);
   const b = cleanConnectSuggestionNoteTitle(noteBTitle);
   const pair = `${a} and ${b}`;
@@ -1759,7 +1797,14 @@ export function deriveContinueBook(
 
 export interface ContinueReadingInput {
   /** Where the reader was last, from `UserMetadata.lastReadPosition`. */
-  lastRead: { book: string; bookOrder: number; chapter: number; translation: string } | null;
+  lastRead: {
+    book: string;
+    bookOrder: number;
+    chapter: number;
+    translation: string;
+    /** How far into the chapter they got, when the surface recorded one. */
+    verse?: number;
+  } | null;
   /** Chapters the reader has been through, from the reading log. */
   readChapters: { book: string; chapter: number; countsAsRead: boolean }[];
 }
@@ -1774,6 +1819,12 @@ export interface ContinueReadingSuggestion {
    * `next`   — the following chapter, because the last one was actually read.
    */
   reason: 'resume' | 'next';
+  /**
+   * The verse to land on, set only when resuming a chapter that was left partway through.
+   * A `next` chapter has never been read, so it has no position to restore — and verse 1 is
+   * where it opens anyway.
+   */
+  resumeVerse?: number;
 }
 
 /**
@@ -1810,7 +1861,14 @@ export function deriveContinueReading(
   };
 
   if (!readThrough.has(lastRead.chapter)) {
-    return { ...base, chapter: lastRead.chapter, reason: 'resume' };
+    return {
+      ...base,
+      chapter: lastRead.chapter,
+      reason: 'resume',
+      // Verse 1 is not a position worth restoring — it is where the chapter opens regardless,
+      // and putting it on the URL would focus a verse nobody chose.
+      ...(lastRead.verse && lastRead.verse > 1 ? { resumeVerse: lastRead.verse } : {}),
+    };
   }
 
   for (let c = lastRead.chapter + 1; c <= total; c++) {
@@ -1821,10 +1879,19 @@ export function deriveContinueReading(
 }
 
 /** Home card copy for continue-reading. */
+/**
+ * Names the place the row will actually land you.
+ *
+ * Resuming carries the verse when there is one, because the row now returns you to it rather
+ * than to the top of the chapter. Saying "Back to Romans 5" while landing on Romans 5:8 is a
+ * small lie that costs trust in the one card whose whole promise is remembering where you were.
+ */
 export function continueReadingMeta(suggestion: ContinueReadingSuggestion): string {
-  return suggestion.reason === 'resume'
-    ? `Back to ${suggestion.book} ${suggestion.chapter}`
-    : `Next in ${suggestion.book}`;
+  if (suggestion.reason !== 'resume') return `Next in ${suggestion.book}`;
+  const at = suggestion.resumeVerse
+    ? `${suggestion.book} ${suggestion.chapter}:${suggestion.resumeVerse}`
+    : `${suggestion.book} ${suggestion.chapter}`;
+  return `Back to ${at}`;
 }
 
 export function continueReadingEyebrow(suggestion: ContinueReadingSuggestion): string {
@@ -1862,7 +1929,8 @@ export function deriveSmartJumpDestination(
     return {
       book: continueReading.book,
       chapter: continueReading.chapter,
-      verse: null,
+      // Only a resumed chapter has a verse to return to; `next` opens at the top.
+      verse: continueReading.resumeVerse ?? null,
       translation: continueReading.translation || null,
       source: 'continue',
     };

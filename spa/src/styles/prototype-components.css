@@ -163,6 +163,108 @@
  * Always pair with a `title` attribute: touch has no hover, and reduced motion
  * deliberately keeps the ellipsis rather than sliding.
  */
+/*
+ * How long the reveal takes, from how much there is to read.
+ *
+ * A fixed duration meant the speed rose with the length: the longer the label — exactly the
+ * case the marquee exists for — the faster it had to travel to finish in the same five
+ * seconds, until the text it was revealing went past too quickly to read.
+ *
+ * Duration is driven off an approximate character count instead, so the *speed* stays roughly
+ * constant and a long label simply takes longer. The count is set per element where the caller
+ * knows its text (see `PrototypeHomeRow`); anything that does not set it keeps a sensible pace
+ * via the default and the lower clamp.
+ *
+ * The per-character constant is paired with the keyframes below, where 90% of the run is travel
+ * and the last 10% is the dwell at the tail. Changing either without the other changes the
+ * reading speed: the two together are what put a ~145px row's overflow past the eye at roughly
+ * 45-50px/s, which is fast enough not to feel stuck and slow enough to actually read.
+ *
+ * Not measured in CSS, because it cannot be: `100cqw` resolves in `animation-duration` but a
+ * percentage does not, so the overflow distance — which is `100cqw - 100%` — is unavailable
+ * where a duration is wanted. A character count is a good proxy at one type size, and this is
+ * a reveal, not a layout.
+ *
+ * `linear`, not `ease-in-out`: easing put the fastest travel in the middle of the label, which
+ * is the part being read. Constant speed with the dwell already in the keyframes is what makes
+ * the pace predictable enough to follow.
+ */
+.proto-marquee,
+.proto-marquee-self {
+  --proto-marquee-chars: 40;
+  /* The subtraction is the characters that already fit — roughly a row's width. Scaling by the
+     total instead let speed creep up with length, because a 250-character label overflows by
+     far more than three times what an 80-character one does. */
+  --proto-marquee-duration: clamp(
+    4s,
+    calc(var(--proto-marquee-chars) * 0.14s - 3.2s),
+    28s
+  );
+}
+
+/*
+ * Soft edges while a label is travelling.
+ *
+ * At rest the ellipsis says "there is more"; mid-slide there is no ellipsis, just a letter cut
+ * in half at the clip boundary. The same fade the menu pill uses for its scrolled rows, applied
+ * to whichever box is doing the clipping — narrow, because the rows are only ~145px wide and a
+ * wide fade would eat a word rather than soften an edge.
+ *
+ * Only while marqueeing. A resting label keeps its ellipsis at full strength, which is the
+ * affordance that says the text is truncated at all.
+ *
+ * Both edges, and the cost of that is worth stating: a `-self` label is clipped by the column
+ * it shares with the title, so while the row is hovered the title's first character or so is
+ * softened too, even when the title fits and never moves. Fading only the trailing edge would
+ * spare it, but then the left-hand cut stays hard through the middle of the travel — which is
+ * the state that prompted this. Fading in step with the slide would solve both and is not
+ * available here: the overflow distance is `100cqw - 100%`, which only resolves on the moving
+ * child, while the mask has to sit on the parent that clips it.
+ */
+.proto-marquee,
+.proto-marquee-frame,
+.proto-church-tools__row-text,
+.proto-list-panel__row-text {
+  /* A frame holds two labels and fades once for both, so its count is the longer of them
+     (set in `PrototypeHomeRow`). Declared here as well so the calc below always resolves —
+     an unset custom property would invalidate the whole mask rather than widen it. */
+  --proto-marquee-chars: 40;
+  /*
+   * Zero-width until there is actually something cut off.
+   *
+   * A fade on a label that fits softens text nothing is hiding — "Salvation / 2 notes" has no
+   * edge to dissolve, and greying its first letter on hover is a worse artefact than the hard
+   * cut this exists to fix. The subtraction is the characters a row's width already holds, so
+   * a label shorter than that resolves to `0px`, the two gradient stops collapse onto each
+   * other, and the mask stops being a fade at all.
+   *
+   * An approximation, and it has to be: the overflow distance is `100cqw - 100%`, which only
+   * resolves on the element that shrink-wraps the text — the moving child — while the mask has
+   * to sit on the parent that clips it. The same character count that paces the animation is
+   * the closest thing available on the right element, and it is wrong only in the band where
+   * the fade is fractions of a pixel anyway.
+   */
+  --proto-marquee-fade: clamp(0px, calc((var(--proto-marquee-chars) - 24) * 1px), 8px);
+  --proto-marquee-mask: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--proto-marquee-fade),
+    #000 calc(100% - var(--proto-marquee-fade)),
+    transparent 100%
+  );
+}
+
+/*
+ * A frame already fades both of its lines, so the title's own marquee box must not fade again.
+ * Two nested masks multiply, which turns a soft edge into a hard-ish one a few pixels further in
+ * — the opposite of the point.
+ */
+.proto-marquee-frame .proto-marquee,
+.proto-church-tools__row-text .proto-marquee,
+.proto-list-panel__row-text .proto-marquee {
+  --proto-marquee-mask: none;
+}
+
 .proto-marquee {
   overflow: hidden;
   white-space: nowrap;
@@ -210,7 +312,7 @@
   .proto-planner-card:focus-visible .proto-marquee > span {
     max-width: none;
     text-overflow: clip;
-    animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
+    animation: proto-marquee-reveal var(--proto-marquee-duration) linear infinite alternate;
   }
 }
 
@@ -248,17 +350,53 @@
     width: max-content;
     max-width: none;
     text-overflow: clip;
-    animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
+    animation: proto-marquee-reveal var(--proto-marquee-duration) linear infinite alternate;
   }
 }
 
-/* Dwell at both ends: the tail is only useful if it stops long enough to read. */
+/*
+ * Fade the cut edges for the duration of the travel.
+ *
+ * Applied to the clipping box, which differs by form: the self-clipping `.proto-marquee`
+ * fades itself, while a `-self` label is clipped by the column above it, so the column fades.
+ * The lists mirror the animation rules above — same hover surfaces, one level out.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .proto-marquee:hover,
+  .proto-marquee-hover-root:hover .proto-marquee,
+  .proto-marquee-hover-root:focus-visible .proto-marquee,
+  .proto-marquee-hover-root:hover .proto-marquee-frame,
+  .proto-menu-item:hover .proto-marquee,
+  .proto-menu-item:focus-visible .proto-marquee,
+  .proto-planner-card:hover .proto-marquee,
+  .proto-planner-card:focus-visible .proto-marquee,
+  .proto-church-tools__row:hover .proto-church-tools__row-text,
+  .proto-church-tools__row:focus-visible .proto-church-tools__row-text,
+  .proto-list-panel__row:hover .proto-list-panel__row-text,
+  .proto-list-panel__row:focus-within .proto-list-panel__row-text {
+    -webkit-mask-image: var(--proto-marquee-mask);
+    mask-image: var(--proto-marquee-mask);
+  }
+}
+
+/*
+ * Moves the moment it is asked to, and dwells only at the far end.
+ *
+ * There used to be a pause at both ends. The opening one was redundant even then — the label
+ * sits at rest showing its beginning for as long as you care to look, so holding still again
+ * once you point at it buys nothing — and it became actively wrong once the duration started
+ * scaling with length: a percentage of a 20s run is three seconds of a label that has visibly
+ * begun something and is not moving. The edge fade comes up on hover, so those seconds read as
+ * the fade arriving early rather than the travel arriving late.
+ *
+ * The tail still stops long enough to read. `alternate` holds it there across the turn — the
+ * end of the outbound run and the start of the return — so one 10% dwell is worth double.
+ */
 @keyframes proto-marquee-reveal {
-  0%,
-  15% {
+  0% {
     transform: translateX(0);
   }
-  85%,
+  90%,
   100% {
     transform: translateX(min(0px, calc(100cqw - 100%)));
   }
@@ -727,6 +865,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 .proto-toolbar-space-switcher {
   display: inline-flex;
   align-items: center;
+  /* The unseen dot is absolutely placed against this, same as on the round orb — without a
+     positioning context here it would escape the pill and land against the toolbar. */
+  position: relative;
   gap: 5px;
   flex-shrink: 1;
   min-width: 0;
@@ -941,8 +1082,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   border-color: var(--pds-border-control-strong);
 }
 
-/* Native parity — accent dot when a share link is active (glyph stays neutral). */
-.proto-toolbar-icon-btn__share-dot {
+/* Native parity — accent dot when a share link is active (glyph stays neutral).
+   The same mark serves "there is something here you have not looked at": one dot shape for
+   one meaning, rather than a second nearly-identical circle a few pixels away. */
+.proto-toolbar-icon-btn__share-dot,
+.proto-toolbar-icon-btn__unseen-dot {
   position: absolute;
   top: 4px;
   right: 4px;
@@ -18092,17 +18236,31 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * highlight wash's height, never horizontal alignment. */
 .pds-reader__verse {
   /* `--mark-accent` carries the per-verse highlight colour, exactly as note marks do, so the
-     state rules below never re-list a palette. */
+     state rules below never re-list a palette. It is declared here, on the element that also
+     carries `data-highlight-color`, and inherits down to the text span that draws the line. */
   --mark-accent: var(--pds-highlight-warm-amber);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
   padding: 1px 0;
-  /* The underline is always present and always transparent when idle.
-   *
-   * `text-decoration-color` initially resolves to `currentcolor` — near-black body text — so
-   * animating in from the unset state ran black → grey and read as a flicker. Declaring the
-   * line up front and starting it transparent means the only thing that ever changes is the
-   * colour's alpha: it fades up from nothing instead of darkening down from the text. */
+}
+
+/* The underline paints on the words, not on the verse.
+ *
+ * It used to sit on `.pds-reader__verse`, which wraps the verse number as well as the text —
+ * and text decoration paints across the whole inline box, including a descendant `<sup>` and
+ * its trailing margin. So highlighting a verse drew the accent under its superscript number
+ * too. The number is a locator for finding your place, not part of what you marked.
+ *
+ * Only the painting moved inward. Every state below still keys off the outer span's data
+ * attributes, because those are what the selection and highlight logic sets.
+ *
+ * The underline is always present and always transparent when idle.
+ *
+ * `text-decoration-color` initially resolves to `currentcolor` — near-black body text — so
+ * animating in from the unset state ran black → grey and read as a flicker. Declaring the
+ * line up front and starting it transparent means the only thing that ever changes is the
+ * colour's alpha: it fades up from nothing instead of darkening down from the text. */
+.pds-reader__verse-text {
   text-decoration-line: underline;
   text-decoration-color: transparent;
   text-decoration-thickness: 2px;
@@ -18111,7 +18269,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pds-reader__verse {
+  .pds-reader__verse-text {
     transition: none;
   }
 }
@@ -18127,21 +18285,21 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * by hue, so a blue selection and a blue highlight would look like the same mark — and you
  * could not see what a highlight is about to become while choosing its colour. Grey says
  * "pending" and leaves the whole palette to mean "saved". */
-.pds-reader__verse:hover {
+.pds-reader__verse:hover .pds-reader__verse-text {
   text-decoration-color: color-mix(in oklab, var(--pds-text-tertiary) 55%, transparent);
 }
 
-.pds-reader__verse[data-selected='true'] {
+.pds-reader__verse[data-selected='true'] .pds-reader__verse-text {
   text-decoration-color: var(--pds-text-tertiary);
 }
 
-.pds-reader__verse[data-highlighted='true'] {
+.pds-reader__verse[data-highlighted='true'] .pds-reader__verse-text {
   text-decoration-color: var(--mark-accent);
 }
 
 /* A selected highlight keeps its own colour. The highlight is the fact; selection is a mode
    the verse is temporarily in, and greying it out would look like the colour was lost. */
-.pds-reader__verse[data-highlighted='true'][data-selected='true'] {
+.pds-reader__verse[data-highlighted='true'][data-selected='true'] .pds-reader__verse-text {
   text-decoration-color: var(--mark-accent);
 }
 
@@ -18360,18 +18518,35 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   background: color-mix(in srgb, var(--pds-text-tertiary) 12%, transparent);
 }
 
-/* Already kept — solid instead of dotted, in the accent every saved reference defaults to
-   server-side. Set imperatively (see PrototypeBibleReaderPane's save-tracking effect), not
-   from `verseHtml`'s own markup, which stays save-state-agnostic so it can keep its identity
-   across renders. */
+/* Already kept — solid instead of dotted, in the colour it was actually kept in. Both the
+   saved flag and the accent are set imperatively (see PrototypeBibleReaderPane's save-tracking
+   effect), not from `verseHtml`'s own markup, which stays save-state-agnostic so it can keep
+   its identity across renders.
+
+   `--reference-accent` rather than the `--mark-accent` the verse marks use, and with the
+   default inlined as the fallback: this span is a descendant of `.pds-reader__verse`, so
+   reading `--mark-accent` here would inherit the enclosing verse's highlight colour and paint
+   a reference in a colour nobody chose for it. An unmapped or missing accent falls back to the
+   server-side default instead, which is what every row used to render as. */
+.pds-reader-text .reference-suggestion[data-reference-accent='neutral'] { --reference-accent: var(--pds-highlight-neutral); }
+.pds-reader-text .reference-suggestion[data-reference-accent='warmAmber'] { --reference-accent: var(--pds-highlight-warm-amber); }
+.pds-reader-text .reference-suggestion[data-reference-accent='skyBlue'] { --reference-accent: var(--pds-highlight-sky-blue); }
+.pds-reader-text .reference-suggestion[data-reference-accent='violet'] { --reference-accent: var(--pds-highlight-violet); }
+.pds-reader-text .reference-suggestion[data-reference-accent='mintGreen'] { --reference-accent: var(--pds-highlight-mint-green); }
+.pds-reader-text .reference-suggestion[data-reference-accent='coralRose'] { --reference-accent: var(--pds-highlight-coral-rose); }
+
 .pds-reader-text .reference-suggestion[data-reference-saved='true'] {
   text-decoration-style: solid;
   text-decoration-thickness: 2px;
-  text-decoration-color: var(--pds-highlight-warm-amber);
+  text-decoration-color: var(--reference-accent, var(--pds-highlight-warm-amber));
 }
 
 .pds-reader-text .reference-suggestion[data-reference-saved='true']:hover {
-  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 14%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--reference-accent, var(--pds-highlight-warm-amber)) 14%,
+    transparent
+  );
 }
 
 /* Highlight colours, aliased to the same tokens the note marks use. */
@@ -19151,6 +19326,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 
   .pds-reader__verse,
+  .pds-reader__verse-text,
   .pds-reader__bar-line {
     transition: none;
   }

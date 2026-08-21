@@ -1,4 +1,5 @@
 import { Mark, markPasteRule, mergeAttributes } from '@tiptap/core';
+import { prefetchLinkMetadata } from '@/utils/link-metadata';
 
 export interface UrlLinkOptions {
   HTMLAttributes: Record<string, any>;
@@ -7,7 +8,7 @@ export interface UrlLinkOptions {
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     urlLink: {
-      setUrlLink: (attributes: { href: string; title?: string | null; favicon?: string | null }) => ReturnType;
+      setUrlLink: (attributes: { href: string; title?: string | null }) => ReturnType;
       unsetUrlLink: () => ReturnType;
       updateUrlLink: (attributes: { href: string }) => ReturnType;
     };
@@ -63,11 +64,6 @@ export const UrlLink = Mark.create<UrlLinkOptions>({
         default: null,
         parseHTML: (element) => element.getAttribute('data-url-title'),
         renderHTML: (attributes) => (attributes.title ? { 'data-url-title': attributes.title } : {}),
-      },
-      favicon: {
-        default: null,
-        parseHTML: (element) => element.getAttribute('data-url-favicon'),
-        renderHTML: (attributes) => (attributes.favicon ? { 'data-url-favicon': attributes.favicon } : {}),
       },
     };
   },
@@ -130,7 +126,18 @@ export const UrlLink = Mark.create<UrlLinkOptions>({
       markPasteRule({
         find: URL_REGEX,
         type: this.type,
-        getAttributes: (match) => ({ href: match[0] }),
+        getAttributes: (match) => {
+          /*
+           * Start resolving the page while the paste is still settling.
+           *
+           * Nothing here waits on it and nothing is written to the document — the answer lands
+           * in the metadata cache, so the hover card has it before anyone hovers. Doing it at
+           * paste is the only moment the round trip costs nothing, because the reader is still
+           * typing rather than waiting on a card.
+           */
+          prefetchLinkMetadata(match[0]);
+          return { href: match[0] };
+        },
       }),
     ];
   },

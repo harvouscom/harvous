@@ -70,46 +70,82 @@ import {
   isOptimisticChapterHighlightId,
   chapterReferenceLookupKey,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
+import type { SavedReference } from '../../hooks/queries/usePrototypeChapterHighlights';
 import ReferenceDockWeb from '@/components/react/ReferenceDockWeb';
 import ScripturePillChromeWeb from '@/components/react/ScripturePillChromeWeb';
 import HighlightDockWeb from '@/components/react/HighlightDockWeb';
+import StudyDockCarouselWeb from '@/components/react/StudyDockCarouselWeb';
+import {
+  buildReadOnlyScriptureSession,
+  closeDockEntry,
+  emptyStudyDockStack,
+  getActiveDockEntry,
+  moveDockEntryToIndex,
+  openOrFocusHighlight,
+  openOrFocusReference,
+  openOrFocusScripture,
+  setActiveDockEntry,
+  studyDockStackHasEntries,
+  updateDockEntry,
+  highlightDockStableKey,
+  type HighlightDockSession,
+  type StudyDockEntry,
+  type StudyDockStack,
+} from '@/utils/study-dock-stack';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
 
 /**
- * What the reader currently has open in the shell's study dock.
+ * Patch one highlight card's session in place, found by the key it was filed under.
  *
- * The reader has no dock of its own. A scripture dock IS a snippet view of this reader, so a
- * reader-only panel would be a second, lesser copy of a surface that already exists — and one
- * that answers the same questions in a different shape. These are the same dock components a
- * note opens, in the same place, so what you learn about a passage in one is what you see in
- * the other.
+ * By key rather than by entry id because the id is generated inside `openOrFocusHighlight`
+ * and reading it back out of a state updater is not something a pure updater can do. The key
+ * is derived from the verses, which the caller knew before it opened anything.
  */
-type ReaderDockState =
-  /** `anchor` is where the word was read, and it is what a saved reference points back at:
-      the single verse when the word was tapped in the chapter, the whole passage when it was
-      tapped inside a passage card. `verse` is set only in the first case — it is the verse a
-      newly started note returns the reader to, and a passage has no single one. */
-  | {
-      kind: 'reference';
-      query: string;
-      anchor: string;
-      verse?: number;
-      /** Set when this exact (anchor, word) already has a saved reference — the dock opens
-          straight into "saved" chrome instead of showing Save again over one that already is. */
-      savedReferenceId?: string | null;
-    }
-  | { kind: 'passage'; reference: string }
-  | {
-      kind: 'highlight';
-      reference: string;
-      excerpt: string;
-      accent: StudyHighlightAccentKey;
-      /** Null until `onAnnotate`'s create request resolves — see the click handler below. */
-      studyThreadEntryId: string | null;
-      /** Seeded from the existing row when reopening one, so the note box isn't blank over it. */
-      miniNoteBody: string;
-    }
-  | null;
+function updateHighlightSessionAt(
+  stack: StudyDockStack,
+  stableKey: string,
+  patch: (session: HighlightDockSession) => HighlightDockSession,
+): StudyDockStack {
+  const entry = stack.entries.find((e) => e.stableKey === stableKey && e.kind === 'highlight');
+  if (!entry) return stack;
+  return updateDockEntry(stack, entry.id, (e) =>
+    e.kind === 'highlight' ? { ...e, session: patch(e.session) } : e,
+  );
+}
+
+/**
+ * The verses of this chapter a dock card is about, or null when it is about something else.
+ *
+ * This is what makes the chapter's fade follow the active card. Each kind states its passage
+ * in its own field, but they all state it the same way — "Book 3:16" or "Book 3:16-18" — so
+ * one reader of the verse tail serves all three. Guarded on the book and chapter because a
+ * cross-reference card can be pointing at another part of the Bible entirely, and the chapter
+ * on screen should not fade to verses it does not contain.
+ */
+function dockEntryVerseRange(
+  entry: StudyDockEntry | null,
+  book: string,
+  chapter: number,
+): [number, number] | null {
+  if (!entry) return null;
+  const reference =
+    entry.kind === 'scripture'
+      ? entry.session.reference
+      : entry.kind === 'highlight'
+        ? entry.session.focusTitle
+        : entry.kind === 'reference'
+          ? entry.session.readerAnchor?.reference
+          : null;
+  if (!reference) return null;
+
+  const [head, tail] = reference.split(':');
+  if (!tail || head?.trim() !== `${book} ${chapter}`) return null;
+  const [startRaw, endRaw] = tail.split('-');
+  const start = Number.parseInt(startRaw, 10);
+  if (!Number.isFinite(start)) return null;
+  const end = endRaw ? Number.parseInt(endRaw, 10) : start;
+  return [start, Number.isFinite(end) && end >= start ? end : start];
+}
 
 /** Breathing room above and below the passage a note card holds up. */
 const CARD_BLEED = 6;
@@ -189,7 +225,7 @@ const VerseSpan = memo(function VerseSpan({
       onKeyDown={(e) => onKeys(verse.number, e)}
     >
       <sup className="pds-reader-verse-num">{verse.number}</sup>
-      <span dangerouslySetInnerHTML={html} />
+      <span className="pds-reader__verse-text" dangerouslySetInnerHTML={html} />
     </span>
   );
 });
@@ -302,7 +338,13 @@ export interface PrototypeBibleReaderPaneProps {
    * word)`. Looked up when a word's card opens so a previously-saved one shows "saved" chrome
    * immediately rather than the pending Save button it would show if this were absent.
    */
-  savedReferences?: ReadonlyMap<string, string>;
+  savedReferences?: ReadonlyMap<string, SavedReference>;
+  /**
+   * Filled with the verse currently at the top of the view, tagged with the chapter it belongs
+   * to. The reading log reads it when a session ends so continuing lands where you stopped
+   * rather than at verse 1.
+   */
+  visiblePositionRef?: React.MutableRefObject<{ book: string; chapter: number; verse: number } | null>;
   /**
    * Open a looked-up word's card on arrival, for a saved reference tapped somewhere else.
    *
@@ -339,6 +381,7 @@ export default function PrototypeBibleReaderPane({
   onSaveReference,
   saveReferenceLabel,
   savedReferences,
+  visiblePositionRef,
   referenceRequest,
   landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
@@ -450,11 +493,21 @@ export default function PrototypeBibleReaderPane({
       const verseNumber = span.closest<HTMLElement>('[data-reader-verse]')?.dataset.readerVerse;
       const word = span.dataset.referenceWord || span.textContent?.trim();
       const saved =
-        !!verseNumber &&
-        !!word &&
-        !!savedReferences?.has(chapterReferenceLookupKey(`${book} ${chapter}:${verseNumber}`, word));
-      if (saved) span.setAttribute('data-reference-saved', 'true');
-      else span.removeAttribute('data-reference-saved');
+        verseNumber && word
+          ? savedReferences?.get(
+              chapterReferenceLookupKey(`${book} ${chapter}:${verseNumber}`, word),
+            )
+          : undefined;
+      if (saved) {
+        span.setAttribute('data-reference-saved', 'true');
+        // Its own accent, not the verse's: this span sits inside `.pds-reader__verse`, which
+        // sets `--mark-accent` for the verse's highlight, so a reference reading that variable
+        // would take on whatever colour the verse around it happens to be highlighted in.
+        span.setAttribute('data-reference-accent', saved.accent);
+      } else {
+        span.removeAttribute('data-reference-saved');
+        span.removeAttribute('data-reference-accent');
+      }
     });
   }, [book, chapter, savedReferences, verseHtml]);
 
@@ -473,13 +526,78 @@ export default function PrototypeBibleReaderPane({
     [chapterAnchors, verses.length, showMarginNotes],
   );
 
-  /** What the shell's study dock is showing on behalf of the reader; null when closed. */
-  const [dock, setDock] = useState<ReaderDockState>(null);
+  /**
+   * What the reader has open in the shell's study dock — the same stack a note keeps.
+   *
+   * This used to be a single card. Not by decision: the reader portalled one dock straight
+   * into the shell slot and skipped the carousel, so there was nowhere for a second one to go,
+   * and opening a cross-reference silently replaced the passage you opened it from. The
+   * carousel was always the thing that holds several and centres the active one over the
+   * paper; using it is what makes "keep this open while I look at that" possible here too.
+   *
+   * Not persisted, unlike a note's stack: a note's docks are part of a document you return to,
+   * while these belong to a passage you are passing through.
+   */
+  const [dockStack, setDockStack] = useState<StudyDockStack>(emptyStudyDockStack());
+
+  /** A word looked up while reading — keyed by where it was read, so the same word at two
+      verses is two cards rather than one that quietly changes what it would save. */
+  const openReferenceDock = useCallback(
+    (input: { query: string; anchor: string; verse?: number; savedReferenceId?: string | null }) => {
+      setDockStack((s) =>
+        openOrFocusReference(s, {
+          query: input.query,
+          readerAnchor: {
+            reference: input.anchor,
+            verse: input.verse,
+            savedReferenceId: input.savedReferenceId ?? null,
+          },
+        }),
+      );
+    },
+    [],
+  );
+
+  /** A passage opened for reading beside the chapter — no pill behind it to write back to. */
+  const openPassageDock = useCallback(
+    (reference: string) => {
+      setDockStack((s) =>
+        openOrFocusScripture(s, buildReadOnlyScriptureSession(reference, translation, null)),
+      );
+    },
+    [translation],
+  );
+
+  /**
+   * A highlight's own card, keyed by the verses it covers rather than by its row id.
+   *
+   * The id is not there yet when the card opens — it arrives from the network a moment later —
+   * so keying on it would file the card under one name and then look for it under another.
+   * The verse range is known at the tap and never changes, which also means annotating the
+   * same verses twice focuses the card that is already up.
+   */
+  const openHighlightDock = useCallback(
+    (range: [number, number], session: Omit<HighlightDockSession, 'range' | 'studyThreadEntryId'>,
+     studyThreadEntryId: string | null) => {
+      const key = highlightDockStableKey(null, { from: range[0], to: range[1] });
+      setDockStack((s) =>
+        openOrFocusHighlight(s, {
+          ...session,
+          studyThreadEntryId: null,
+          range: { from: range[0], to: range[1] },
+        }),
+      );
+      if (studyThreadEntryId) {
+        setDockStack((s) => updateHighlightSessionAt(s, key, (sess) => ({ ...sess, studyThreadEntryId })));
+      }
+    },
+    [],
+  );
 
   /** The saved row for this exact (anchor, word), if a Save already went through for it. */
   const lookupSavedReferenceId = useCallback(
     (anchor: string, word: string): string | null =>
-      savedReferences?.get(chapterReferenceLookupKey(anchor, word)) ?? null,
+      savedReferences?.get(chapterReferenceLookupKey(anchor, word))?.id ?? null,
     [savedReferences],
   );
 
@@ -493,14 +611,13 @@ export default function PrototypeBibleReaderPane({
     if (!referenceRequest?.word || !referenceRequest.requestKey) return;
     if (lastReferenceRequestKey.current === referenceRequest.requestKey) return;
     lastReferenceRequestKey.current = referenceRequest.requestKey;
-    setDock({
-      kind: 'reference',
+    openReferenceDock({
       query: referenceRequest.word,
       anchor: referenceRequest.anchor,
       verse: referenceRequest.verse,
       savedReferenceId: lookupSavedReferenceId(referenceRequest.anchor, referenceRequest.word),
     });
-  }, [referenceRequest, lookupSavedReferenceId]);
+  }, [referenceRequest, lookupSavedReferenceId, openReferenceDock]);
   /** The menu is showing colours for the highlight just made, rather than the action list. */
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -526,6 +643,51 @@ export default function PrototypeBibleReaderPane({
     setFocusedVerse(null);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [book, chapter, translation]);
+
+  /**
+   * Which verse is at the top of the view, for "where you left off".
+   *
+   * Written to a ref rather than state on purpose: this changes on every scroll frame, and
+   * nothing on screen depends on it — only the reading log, which reads it when a session
+   * ends. Putting it in state would re-render the whole chapter while scrolling it.
+   *
+   * The book and chapter ride along with the number. The effect that reports this runs on
+   * chapter change, by which point the DOM already holds the NEXT chapter's verses, so a bare
+   * number would be attributed to the chapter being left. The reader of this ref checks that
+   * the address matches what it thinks it is reporting.
+   */
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!visiblePositionRef || !container) return;
+
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const top = container.getBoundingClientRect().top;
+      // First verse whose bottom is still below the top edge — the one being read, rather
+      // than the one that has just scrolled out of sight above it. Bails on the first hit, so
+      // this stays cheap even in Psalm 119.
+      for (const el of container.querySelectorAll<HTMLElement>('[data-reader-verse]')) {
+        if (el.getBoundingClientRect().bottom > top) {
+          const n = Number(el.dataset.readerVerse);
+          if (Number.isFinite(n)) visiblePositionRef.current = { book, chapter, verse: n };
+          return;
+        }
+      }
+    };
+
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(measure);
+    };
+
+    measure();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [book, chapter, verses, visiblePositionRef]);
 
   /**
    * Margin bars, measured rather than laid out.
@@ -805,8 +967,7 @@ export default function PrototypeBibleReaderPane({
         const query = suggestion.dataset.referenceWord || suggestion.textContent?.trim() || '';
         if (query) {
           const anchor = `${book} ${chapter}:${n}`;
-          setDock({
-            kind: 'reference',
+          openReferenceDock({
             query,
             anchor,
             verse: n,
@@ -895,10 +1056,17 @@ export default function PrototypeBibleReaderPane({
    * a passage has been singled out and the rest of the chapter is context. Treating them as
    * one range means the fade is one behaviour rather than two that could drift apart, and a
    * card opened over an existing selection does not fight it for which verses matter.
+   *
+   * With several dock cards up there is no longer one obvious answer, so the fade follows the
+   * active one: bringing a card forward in the carousel re-focuses the chapter on its passage,
+   * which turns the stack into a way of moving around the chapter rather than a pile in front
+   * of it. A card about somewhere else entirely — a cross-reference into another book —
+   * contributes nothing, and the chapter simply stays as it was.
    */
+  const activeDockRange = dockEntryVerseRange(getActiveDockEntry(dockStack), data.book, data.chapter);
   const focusRange: [number, number] | null = activeBar
     ? [activeBar.startVerse, activeBar.endVerse]
-    : (selection ?? landing);
+    : (selection ?? activeDockRange ?? landing);
 
   /** Text of the selected verses — what a highlight is *of*, for the dock's excerpt. */
   const selectedText =
@@ -1059,42 +1227,52 @@ export default function PrototypeBibleReaderPane({
                     if (existingAnnotationId) {
                       // Already annotated — go straight to the existing row instead of
                       // starting another network round trip for one that's already there.
-                      setDock({
-                        kind: 'highlight',
-                        reference: selectionLabel,
-                        excerpt: selectedText,
-                        accent: existingHighlight!.accent,
-                        studyThreadEntryId: existingAnnotationId,
-                        miniNoteBody: existingHighlight!.miniNoteBody ?? '',
-                      });
-                      setLanding(selection);
+                      openHighlightDock(
+                        selection,
+                        {
+                          accent: existingHighlight!.accent,
+                          excerpt: selectedText,
+                          focusTitle: selectionLabel ?? undefined,
+                          miniNoteBody: existingHighlight!.miniNoteBody ?? '',
+                          entryKind: 'scriptureLink',
+                        },
+                        existingAnnotationId,
+                      );
                       setSelection(null);
                       return;
                     }
                     // Open on the id-less state right away — the id arrives after the network
                     // round trip, and HighlightDockWeb already knows how to hold onto whatever
                     // gets typed before then and flush it once `studyThreadEntryId` shows up.
-                    setDock({
-                      kind: 'highlight',
-                      reference: selectionLabel,
-                      excerpt: selectedText,
-                      accent,
-                      studyThreadEntryId: null,
-                      miniNoteBody: '',
-                    });
+                    const annotated = selection;
+                    openHighlightDock(
+                      annotated,
+                      {
+                        accent,
+                        excerpt: selectedText,
+                        focusTitle: selectionLabel ?? undefined,
+                        miniNoteBody: '',
+                        entryKind: 'scriptureLink',
+                      },
+                      null,
+                    );
                     void Promise.resolve(
-                      onAnnotate({ start: selection[0], end: selection[1] }, accent, selectedText),
+                      onAnnotate({ start: annotated[0], end: annotated[1] }, accent, selectedText),
                     ).then((id) => {
                       if (!id) return;
-                      setDock((prev) =>
-                        prev && prev.kind === 'highlight' && prev.reference === selectionLabel
-                          ? { ...prev, studyThreadEntryId: id }
-                          : prev,
+                      const key = highlightDockStableKey(null, {
+                        from: annotated[0],
+                        to: annotated[1],
+                      });
+                      setDockStack((s) =>
+                        updateHighlightSessionAt(s, key, (sess) => ({
+                          ...sess,
+                          studyThreadEntryId: id,
+                        })),
                       );
                     });
-                    // Same as Passages: the dock now owns this passage, so keep it in focus
-                    // without the toolbar left floating over the note field underneath it.
-                    setLanding(selection);
+                    // The card owns this passage now, so the toolbar steps out rather than
+                    // floating over the note field underneath it.
                     setSelection(null);
                   }}
                 />
@@ -1106,10 +1284,9 @@ export default function PrototypeBibleReaderPane({
               icon="shuffle"
               label="Passages"
               onClick={() => {
-                setDock({ kind: 'passage', reference: selectionLabel });
-                // The dock now shows what the selection was for — keep the passage in focus
-                // (the fade on the rest of the chapter) without the toolbar sitting over it.
-                setLanding(selection);
+                if (selectionLabel) openPassageDock(selectionLabel);
+                // The card now shows what the selection was for, and the fade follows it from
+                // there — so the toolbar steps out rather than sitting over the passage.
                 setSelection(null);
               }}
             />
@@ -1418,94 +1595,133 @@ export default function PrototypeBibleReaderPane({
       {readerToolbar}
 
       {/* Every reader action lands in the shell's study dock — the same components a note
-          opens, in the same place. */}
-      {dock && studyDockCarouselHostEl
+          opens, in the same carousel, so several can be up at once and the active one centres
+          over the paper. */}
+      {studyDockStackHasEntries(dockStack) && studyDockCarouselHostEl
         ? createPortal(
-            dock.kind === 'reference' ? (
-              <ReferenceDockWeb
-                initialQuery={dock.query}
-                onDone={() => setDock(null)}
-                // Pending only when this exact word hasn't already been saved against this
-                // exact passage — `savedReferenceId` is looked up before the dock even opens
-                // (see `lookupSavedReferenceId`), so a word saved on an earlier visit shows
-                // its saved chrome immediately instead of the Save button all over again.
-                pendingSuggestion={!dock.savedReferenceId && !!onSaveReference}
-                // Drives the header's accent colour: without this a saved word's dock looked
-                // exactly as neutral as one that was never saved at all, the same "nothing
-                // visibly changed" gap the save button itself had.
-                passageReferenceSaved={!!dock.savedReferenceId}
-                saveReferenceLabel={saveReferenceLabel}
-                onSaveReference={
-                  onSaveReference
-                    ? () => {
-                        // Wait for the result: closing unconditionally made a save that
-                        // silently failed (offline, space not ready yet) look identical to
-                        // one that worked — the dock vanished either way. `false` keeps it
-                        // open so there's something to retry against.
-                        void Promise.resolve(
-                          onSaveReference({
-                            word: dock.query,
-                            reference: dock.anchor,
-                            verse: dock.verse,
-                          }),
-                        ).then((ok) => {
-                          if (ok !== false) setDock(null);
-                        });
+            <StudyDockCarouselWeb
+              stack={dockStack}
+              onSelectEntry={(id) => setDockStack((s) => setActiveDockEntry(s, id))}
+              onMoveEntry={(id, toIndex) => setDockStack((s) => moveDockEntryToIndex(s, id, toIndex))}
+              renderEntry={(entry, isActive) => {
+                const expanded = isActive && entry.expanded;
+                const close = () => setDockStack((s) => closeDockEntry(s, entry.id));
+                const setExpanded = (next: boolean) =>
+                  setDockStack((s) => updateDockEntry(s, entry.id, (e) => ({ ...e, expanded: next })));
+
+                if (entry.kind === 'reference') {
+                  const anchor = entry.session.readerAnchor;
+                  const saved = !!anchor?.savedReferenceId;
+                  return (
+                    <ReferenceDockWeb
+                      key={entry.id}
+                      initialQuery={entry.session.query}
+                      onDone={close}
+                      // Pending only when this exact word hasn't already been saved against this
+                      // exact passage — `savedReferenceId` is looked up before the dock even opens
+                      // (see `lookupSavedReferenceId`), so a word saved on an earlier visit shows
+                      // its saved chrome immediately instead of the Save button all over again.
+                      pendingSuggestion={!saved && !!onSaveReference}
+                      // Drives the header's accent colour: without this a saved word's dock looked
+                      // exactly as neutral as one that was never saved at all, the same "nothing
+                      // visibly changed" gap the save button itself had.
+                      passageReferenceSaved={saved}
+                      saveReferenceLabel={saveReferenceLabel}
+                      onSaveReference={
+                        onSaveReference && anchor
+                          ? () => {
+                              // Wait for the result: closing unconditionally made a save that
+                              // silently failed (offline, space not ready yet) look identical to
+                              // one that worked — the dock vanished either way. `false` keeps it
+                              // open so there's something to retry against.
+                              void Promise.resolve(
+                                onSaveReference({
+                                  word: entry.session.query,
+                                  reference: anchor.reference,
+                                  verse: anchor.verse,
+                                }),
+                              ).then((ok) => {
+                                if (ok !== false) close();
+                              });
+                            }
+                          : undefined
                       }
-                    : undefined
+                      onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
+                    />
+                  );
                 }
-                onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
-              />
-            ) : dock.kind === 'passage' ? (
-              <ScripturePillChromeWeb
-                reference={dock.reference}
-                translation={translation}
-                // No pill to write back to: the passage is already the document behind this
-                // dock, so editing the reference here would mean editing what you are reading.
-                readOnly
-                // "Passages" is the shuffle icon precisely because this dock is for cross-
-                // references — opening on the plain verse text would make the button's own
-                // promise a second tap away.
-                initialShowCrossRefs
-                editorChromeMode="prototypeNative"
-                onDone={() => setDock(null)}
-                onApply={() => undefined}
-                onOpenPassageReference={(word) =>
-                  setDock({
-                    kind: 'reference',
-                    query: word,
-                    anchor: dock.reference,
-                    savedReferenceId: lookupSavedReferenceId(dock.reference, word),
-                  })
+
+                if (entry.kind === 'scripture') {
+                  return (
+                    <ScripturePillChromeWeb
+                      key={entry.id}
+                      reference={entry.session.reference}
+                      translation={entry.session.translation ?? translation}
+                      interactionActive={isActive}
+                      animateEnter={false}
+                      expanded={expanded}
+                      onExpandedChange={setExpanded}
+                      // No pill to write back to: the passage is already the document behind this
+                      // dock, so editing the reference here would mean editing what you are reading.
+                      readOnly
+                      // "Passages" is the shuffle icon precisely because this dock is for cross-
+                      // references — opening on the plain verse text would make the button's own
+                      // promise a second tap away.
+                      initialShowCrossRefs
+                      editorChromeMode="prototypeNative"
+                      onDone={close}
+                      onApply={() => undefined}
+                      onOpenPassageReference={(word) =>
+                        openReferenceDock({
+                          query: word,
+                          anchor: entry.session.reference,
+                          savedReferenceId: lookupSavedReferenceId(entry.session.reference, word),
+                        })
+                      }
+                      onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
+                    />
+                  );
                 }
-                onOpenScripturePassage={(ref) => onOpenDock?.(ref)}
-              />
-            ) : (
-              <HighlightDockWeb
-                accent={dock.accent}
-                excerpt={dock.excerpt}
-                focusTitle={dock.reference}
-                miniNoteBody={dock.miniNoteBody}
-                entryKind="scriptureLink"
-                studyThreadEntryId={dock.studyThreadEntryId}
-                contextSpaceId={homeSpaceId}
-                onAccentChange={(next) => {
-                  setAccent(next);
-                  // `selection` is already cleared by the time this dock is open (see the
-                  // Annotate handlers above) — `focusRange` is what still names the verses it
-                  // covers, whether they got here via a fresh selection or a reopened one.
-                  if (focusRange) {
-                    onHighlight?.({ start: focusRange[0], end: focusRange[1] }, next, dock.excerpt);
-                  }
-                  setDock({ ...dock, accent: next });
-                }}
-                onRemove={() => {
-                  if (dock.studyThreadEntryId) onRemoveHighlight?.(dock.studyThreadEntryId);
-                  setDock(null);
-                }}
-                onDone={() => setDock(null)}
-              />
-            ),
+
+                // The reader opens three kinds; `resource` belongs to notes and cannot appear
+                // here, but the union says otherwise so the narrowing has to be explicit.
+                if (entry.kind !== 'highlight') return null;
+                const range = entry.session.range;
+                return (
+                  <HighlightDockWeb
+                    key={entry.id}
+                    accent={entry.session.accent}
+                    excerpt={entry.session.excerpt}
+                    focusTitle={entry.session.focusTitle}
+                    miniNoteBody={entry.session.miniNoteBody}
+                    entryKind="scriptureLink"
+                    studyThreadEntryId={entry.session.studyThreadEntryId}
+                    contextSpaceId={homeSpaceId}
+                    onAccentChange={(next) => {
+                      setAccent(next);
+                      // The card's own verses, not whatever the reader last focused. With
+                      // several cards up, the one being recoloured is not necessarily the one
+                      // the chapter is faded to.
+                      if (range) {
+                        onHighlight?.({ start: range.from, end: range.to }, next, entry.session.excerpt);
+                      }
+                      setDockStack((s) =>
+                        updateDockEntry(s, entry.id, (e) =>
+                          e.kind === 'highlight' ? { ...e, session: { ...e.session, accent: next } } : e,
+                        ),
+                      );
+                    }}
+                    onRemove={() => {
+                      if (entry.session.studyThreadEntryId) {
+                        onRemoveHighlight?.(entry.session.studyThreadEntryId);
+                      }
+                      close();
+                    }}
+                    onDone={close}
+                  />
+                );
+              }}
+            />,
             studyDockCarouselHostEl,
           )
         : null}

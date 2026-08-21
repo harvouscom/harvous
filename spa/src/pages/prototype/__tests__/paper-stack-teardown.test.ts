@@ -151,6 +151,21 @@ describe('resolvePaperStackAfterNavigation', () => {
       expect(resolvePaperStackAfterNavigation(stacked(homeOrigin, 'n1'), '/note-n2', helpers)).toBe('clear');
       expect(resolvePaperStackAfterNavigation(stacked(homeOrigin, 'n1'), '/settings', helpers)).toBe('clear');
     });
+
+    it('keeps the edge over the chapter when the card is the one that opened it', () => {
+      // The rule above holds because a chapter usually has nothing to do with the card. A
+      // passage card is the case where it has everything to do with it: the chapter under the
+      // edge is what the card promised, and it is the only thing saying why it is open.
+      const passageOrigin: PaperStackOrigin = { ...homeOrigin, cardKind: 'passage' };
+
+      expect(resolvePaperStackAfterNavigation(stacked(passageOrigin), '/read/John/3', helpers)).toBe('keep');
+    });
+
+    it('still clears a passage card on anything that is not a chapter', () => {
+      const passageOrigin: PaperStackOrigin = { ...homeOrigin, cardKind: 'passage' };
+
+      expect(resolvePaperStackAfterNavigation(stacked(passageOrigin), '/settings', helpers)).toBe('clear');
+    });
   });
 
   describe('noteDock origin (a note is the base, the reader is the sheet)', () => {

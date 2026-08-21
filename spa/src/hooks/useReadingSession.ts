@@ -25,20 +25,33 @@ type ReadingSession = {
   /** When the current visible stretch began, or null while hidden. */
   resumedAt: number | null;
   reportedBucket: ReadingDwellBucket | null;
+  /** Last verse sent for this chapter, so an unchanged position is not re-sent. */
+  reportedVerse: number | null;
 };
 
 export function useReadingSession({
   canonicalReference,
   translationCode,
   enabled = true,
+  getVerse,
 }: {
   canonicalReference: string | undefined;
   translationCode: string | undefined;
   /** Pass false until the passage is actually on screen — a failed load is not a read. */
   enabled?: boolean;
+  /**
+   * Where in the chapter the reader has got to, asked for when the session ends. Optional
+   * because chapter-level surfaces have no answer — they simply omit the verse.
+   */
+  getVerse?: () => number | undefined;
 }): void {
   const sessionRef = useRef<ReadingSession | null>(null);
   const queryClient = useQueryClient();
+
+  /* Held in a ref so a caller passing an inline arrow does not restart the session — and with
+     it the dwell clock — on every render of the surface above. */
+  const getVerseRef = useRef(getVerse);
+  getVerseRef.current = getVerse;
 
   /**
    * Home reads this log to decide what to offer next, and its query is deliberately slow to
@@ -62,6 +75,7 @@ export function useReadingSession({
       accumulatedMs: 0,
       resumedAt: Date.now(),
       reportedBucket: null,
+      reportedVerse: null,
     };
 
     // Position is marked at the start of the session and the event is logged at the end,
@@ -72,6 +86,28 @@ export function useReadingSession({
       translation: translationCode,
       onSynced: refreshReadingHistory,
     });
+
+    /**
+     * Mark the position again, now with the verse actually reached.
+     *
+     * Runs when the session ends rather than while scrolling: this is a write to the account,
+     * and one per chapter read is the right cost. Skipped when the verse has not moved since
+     * the last mark, so paging through a book does not send the same position twice.
+     */
+    const markVerseReached = () => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const verse = getVerseRef.current?.();
+      if (verse === undefined || verse === session.reportedVerse) return;
+      session.reportedVerse = verse;
+      recordLastReadPosition({
+        book: session.book,
+        chapter: session.chapter,
+        translation: session.translation,
+        verse,
+        onSynced: refreshReadingHistory,
+      });
+    };
 
     const elapsedMs = (session: ReadingSession): number =>
       session.accumulatedMs + (session.resumedAt === null ? 0 : Date.now() - session.resumedAt);
@@ -100,6 +136,7 @@ export function useReadingSession({
         session.accumulatedMs = elapsedMs(session);
         session.resumedAt = null;
         report();
+        markVerseReached();
         return;
       }
       session.resumedAt = Date.now();
@@ -110,6 +147,7 @@ export function useReadingSession({
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       report();
+      markVerseReached();
       sessionRef.current = null;
     };
   }, [canonicalReference, translationCode, enabled, refreshReadingHistory]);

@@ -11,18 +11,32 @@ import type { PaperStackMorphFrom, PaperStackOrigin } from '../../layouts/proto-
 import { noteParamSlug } from './proto-route-slugs';
 
 /**
- * Recall kinds whose tap resolves in the sidebar layer or a passage pane rather than in the
- * main pane — a study arc drills the sidebar to a proposal, a passage opens the standalone
- * pane, connect-notes opens a thread prefill. Nothing stacks for those, because nothing is
- * put over anything: you are still on Home when they finish.
+ * Recall kinds whose tap resolves in the sidebar layer rather than in the main pane — a study
+ * arc drills the sidebar to a proposal, connect-notes opens a thread prefill. Nothing stacks
+ * for those, because nothing is put over anything: you are still on Home when they finish.
+ *
+ * `passage` used to be in here, and the reason was true at the time: it opened a standalone
+ * passage pane. That pane is gone and the card now opens the reader, which is a real
+ * navigation into the main pane — so it earns an edge like every other kind that takes you
+ * off the shelf. It was the one card that could move you somewhere and leave nothing behind
+ * saying why.
  */
 const SIDEBAR_LAYER_RECALL_KINDS: ReadonlySet<string> = new Set([
   'arc',
   'subject',
   'crossref',
-  'passage',
   'connectNotes',
 ]);
+
+/**
+ * Card kinds whose destination is a chapter rather than a note.
+ *
+ * The teardown table reads this: a Home card's edge normally clears the moment you land on
+ * the reader, because the reader is its own base and not something Home stands behind. When
+ * the card *is* "open this passage", the chapter you arrive on is the thing it sent you to,
+ * so the edge is still telling the truth and stays.
+ */
+export const READER_DESTINED_CARD_KINDS: ReadonlySet<string> = new Set(['passage']);
 
 export type RecallCardLike = {
   /** The row's own id on the shelf, so the edge can put it back or rest it. */

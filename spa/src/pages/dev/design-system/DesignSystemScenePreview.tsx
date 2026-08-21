@@ -760,7 +760,7 @@ function ReaderScene() {
                       }}
                     >
                       <sup className="pds-reader-verse-num">{verse.num}</sup>
-                      {verse.text}
+                      <span className="pds-reader__verse-text">{verse.text}</span>
                     </span>
                   </p>
                 </div>
@@ -912,18 +912,30 @@ function PaperStackScene() {
           // way to get the scene back short of a reload.
           onDismiss={() => setOpen(true)}
         >
-          <div className="pds-gallery-reader-note">
-            <p className="pds-compose-title">
-              {originKind === 'homeCard' ? 'The vine and the branches' : 'John 15'}
-            </p>
-            <p className="pds-caption">
-              {originKind === 'homeCard' ? 'John 15:5 · NLT' : 'New Living Translation'}
-            </p>
-            <p className="pds-body">
-              {originKind === 'homeCard'
-                ? 'Apart from me you can do nothing — the whole chapter turns on that clause…'
-                : '“I am the true grapevine, and my Father is the gardener…”'}
-            </p>
+          {/*
+            * The real paper class, not a bespoke fixture surface.
+            *
+            * Every rule the stack applies to a sheet is keyed to `.proto-editor-paper` or
+            * `.pds-reader__column` — the opaque fill that exists precisely so the layer behind
+            * cannot read through, and the lighter tint once this layer is the one behind. A
+            * stand-in with only its own class opted out of both, so the base's origin card
+            * printed straight through this sheet and the two sets of text overlapped. The
+            * scene was showing a defect the component does not have.
+            */}
+          <div className="proto-editor-paper">
+            <div className="pds-gallery-reader-note">
+              <p className="pds-compose-title">
+                {originKind === 'homeCard' ? 'The vine and the branches' : 'John 15'}
+              </p>
+              <p className="pds-caption">
+                {originKind === 'homeCard' ? 'John 15:5 · NLT' : 'New Living Translation'}
+              </p>
+              <p className="pds-body">
+                {originKind === 'homeCard'
+                  ? 'Apart from me you can do nothing — the whole chapter turns on that clause…'
+                  : '“I am the true grapevine, and my Father is the gardener…”'}
+              </p>
+            </div>
           </div>
         </PrototypePaperStack>
       </div>
@@ -981,7 +993,9 @@ function ReaderDockScene() {
                   <p className="pds-reader-text">
                     <span className="pds-reader__verse" data-selected="true">
                       <sup className="pds-reader-verse-num">28</sup>
-                      And we know that all things work together for good…
+                      <span className="pds-reader__verse-text">
+                        And we know that all things work together for good…
+                      </span>
                     </span>
                   </p>
                 </div>
@@ -1030,7 +1044,9 @@ function ReaderInspectorScene() {
                 <p className="pds-reader-text">
                   <span className="pds-reader__verse">
                     <sup className="pds-reader-verse-num">1</sup>
-                    In the beginning was the Word, and the Word was with God.
+                    <span className="pds-reader__verse-text">
+                      In the beginning was the Word, and the Word was with God.
+                    </span>
                   </span>
                 </p>
               </div>
@@ -1175,6 +1191,325 @@ function NoteAudienceBarScene() {
   );
 }
 
+/**
+ * The three toolbar shape options, side by side, against the real tokens.
+ *
+ * A decision aid rather than a shipped pattern — see docs/future/TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md.
+ * Deliberately built from `.proto-toolbar-icon-btn` with only the properties under discussion
+ * overridden inline, so what is on screen is the real control wearing each candidate shape rather
+ * than a drawing of one. Delete this scene once the shape is settled.
+ */
+function ToolbarShapeScene() {
+  type Glyph = React.ComponentProps<typeof Icon>['name'];
+  const icons: Glyph[] = ['pen-to-square', 'book-open', 'magnifying-glass', 'ellipsis'];
+
+  /*
+   * Two axes, not one. Material says what a control sits on — glass floats over the page,
+   * flat rests on a panel. Shape says what kind of control it is. Today's orb differs from the
+   * sidebar tile on both at once, which is why the mismatch reads as arbitrary.
+   */
+  const tileShape: React.CSSProperties = { borderRadius: 'var(--pds-radius-row)' };
+  const flatSurface: React.CSSProperties = {
+    background: 'var(--pds-bg-control)',
+    borderColor: 'transparent',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+  };
+
+  const Row = ({
+    label,
+    note,
+    iconStyle,
+    chipStyle,
+  }: {
+    label: string;
+    note: string;
+    iconStyle?: React.CSSProperties;
+    chipStyle?: React.CSSProperties;
+  }) => (
+    <div style={{ marginBottom: 26 }}>
+      <p className="pds-section-header" style={{ marginBottom: 2 }}>{label}</p>
+      <p className="pds-caption" style={{ marginBottom: 10 }}>{note}</p>
+      <div
+        className="proto-glass-surface"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          height: 'var(--pds-toolbar-h)',
+          padding: '0 12px',
+          borderRadius: 14,
+          border: '0.5px solid var(--pds-border)',
+        }}
+      >
+        {icons.map((name) => (
+          <button key={name} type="button" className="proto-toolbar-icon-btn" style={iconStyle}>
+            <Icon name={name} size={17} className="proto-toolbar-icon" />
+          </button>
+        ))}
+
+        <span style={{ flex: 1 }} />
+
+        {/* The two labelled controls — the reason this is a decision and not a find-replace. */}
+        <span className="proto-toolbar-folder-chip" style={chipStyle}>
+          <Icon name="book-open" size={12} aria-hidden />
+          <span>Salvation</span>
+        </span>
+        <button type="button" className="proto-toolbar-space-switcher" style={chipStyle}>
+          <span className="proto-toolbar-space-switcher__icon" aria-hidden>
+            <Icon name="book-open-reader" size={13} />
+          </span>
+          <span className="proto-toolbar-space-switcher__label">My Home</span>
+        </button>
+
+        {/* The avatar. Round in every option — it is a face, not a control. */}
+        <span className="proto-toolbar-icon-btn" aria-hidden>
+          <span className="proto-profile-orb" />
+        </span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: 760 }}>
+      <Row
+        label="A — today"
+        note="Pill shape, glass surface. The sidebar's tiles are rounded squares on a flat surface, visible at the same time — so the two differ on shape and material at once."
+      />
+      <Row
+        label="B — tiles, glass kept (recommended)"
+        note="Shape moves to the sidebar's; material stays. The toolbar floats over the page and the glass is what says so, especially over an image wallpaper. Only the thing that was mismatched changes."
+        iconStyle={tileShape}
+      />
+      <Row
+        label="C — tiles, flat"
+        note="Shape and material both move to the sidebar's. Fully consistent with the sidebar, but the toolbar stops reading as floating chrome and starts reading as a panel."
+        iconStyle={{ ...tileShape, ...flatSurface }}
+      />
+      <Row
+        label="D — flat circles"
+        note="Material only: same shape, tile surface. Removes the material difference and leaves the shape difference — the inverse of B, and the weaker half."
+        iconStyle={flatSurface}
+      />
+      <Row
+        label="E — everything square"
+        note="For comparison: the labelled chips squared off too. One rule, but a chip in a near-square is not a shape that wants a label in it."
+        iconStyle={tileShape}
+        chipStyle={tileShape}
+      />
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'var(--pds-bg-control)',
+        }}
+      >
+        <span className="proto-sidebar-back-tile" aria-hidden>
+          <Icon name="caret-left" size={14} />
+        </span>
+        <p className="pds-caption" style={{ margin: 0 }}>
+          The sidebar tile being matched. Its 9px radius is a hardcoded literal with no token and no
+          Swift counterpart; options above use `--pds-radius-row` (10px) instead.
+        </p>
+      </div>
+
+      <p className="pds-caption" style={{ marginTop: 14 }}>
+        Check each option in light, dark and image-wallpaper appearance. Flattening the toolbar
+        matters most over a photo wallpaper, which is where the glass is doing the most work.
+      </p>
+    </div>
+  );
+}
+
+/*
+ * Floating surfaces — what a menu, bar or card looks like when it floats over the page.
+ *
+ * A decision aid, like `ToolbarShapeScene` above, and it exists because the toolbar decision
+ * (Option B: tile shape, glass kept) only settled the bar itself. Everything that opens FROM
+ * that bar is a separate set of surfaces that never agreed with each other, let alone with it —
+ * `TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md` §"The floating-menu half (#24)" says to align these once
+ * the shape is chosen, and it now is.
+ *
+ * Specimens use the production classes rather than copies of their markup, so the "today"
+ * column is whatever the CSS actually says today and cannot drift from it. The "proposed"
+ * column is the same element with the two overrides the change would make permanent.
+ *
+ * Delete this scene once the shape is settled, along with `ds-20-toolbar-shape`.
+ */
+function FloatingSurfacesScene() {
+  /* One radius for the surface itself, `--pds-radius-menu` (12px) — the value the shell's
+     menu already uses, and the squarest of the ones in play, so the move is toward it rather
+     than to a number nothing uses yet. */
+  const surface: React.CSSProperties = { borderRadius: 'var(--pds-radius-menu)' };
+  /* ...and `--pds-radius-row` (10px) for icon targets inside it — the same tile the toolbar
+     decision picked, so a button means the same shape wherever it is. */
+  const tile: React.CSSProperties = { borderRadius: 'var(--pds-radius-row)' };
+
+  const Pair = ({
+    label,
+    where,
+    today,
+    render,
+  }: {
+    label: string;
+    where: string;
+    today: string;
+    render: (proposed: boolean) => React.ReactNode;
+  }) => (
+    <div style={{ marginBottom: 24 }}>
+      <p className="pds-section-header" style={{ marginBottom: 2 }}>{label}</p>
+      <p className="pds-caption" style={{ marginBottom: 10 }}>
+        {where} · today: {today}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+        <div>{render(false)}</div>
+        <div>{render(true)}</div>
+      </div>
+    </div>
+  );
+
+  const menuItems = ['Highlight', 'Add a note', 'Copy verse'];
+
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <p className="pds-caption" style={{ marginBottom: 6 }}>
+        Every surface that floats over the note or the reader, at its real radius. Six different
+        answers to one question: 0 (docked format bar), 2 (margin card), 12 (shell menu, link
+        prompt), 14 (link preview), 16/22 (delete confirm), 999 (selection bar). None of them
+        disagree for a reason anyone recorded.
+      </p>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16,
+          margin: '14px 0 18px',
+        }}
+      >
+        <p className="pds-section-header" style={{ margin: 0 }}>Today</p>
+        <p className="pds-section-header" style={{ margin: 0 }}>
+          Proposed — one surface radius, tile targets, glass kept
+        </p>
+      </div>
+
+      <Pair
+        label="Selection actions"
+        where="Note and reader — the one surface the two already share (.pds-native-selection-bar)"
+        today="capsule, glass"
+        render={(proposed) => (
+          <div className="pds-native-selection-bar" style={proposed ? surface : undefined}>
+            {(['pen', 'quote-left', 'link', 'ellipsis'] as const).map((name) => (
+              <button
+                key={name}
+                type="button"
+                className="pds-native-selection-bar__btn"
+                style={proposed ? tile : undefined}
+              >
+                <Icon name={name} size={15} />
+              </button>
+            ))}
+          </div>
+        )}
+      />
+
+      <Pair
+        label="Menu popover"
+        where="Reader book/chapter pickers, every shell menu (.proto-menu__popover)"
+        today="12px — already the target"
+        render={(proposed) => (
+          <div
+            className="proto-menu__popover"
+            style={{ position: 'static', minWidth: 0, animation: 'none', ...(proposed ? surface : {}) }}
+          >
+            {menuItems.map((item) => (
+              <button key={item} type="button" className="proto-menu-item">
+                <span className="proto-menu-item__label">{item}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      />
+
+      <Pair
+        label="Link preview card"
+        where="Note — hover a link (.link-preview-card)"
+        today="14px, hardcoded, own shadow"
+        render={(proposed) => (
+          <div className="link-preview-card" style={{ maxWidth: 260, ...(proposed ? surface : {}) }}>
+            <div className="link-preview-card__body">
+              <div className="link-preview-card__title">The Gospel Coalition</div>
+              <div className="link-preview-card__excerpt">
+                Union with Christ is the ground of assurance…
+              </div>
+            </div>
+          </div>
+        )}
+      />
+
+      <Pair
+        label="Link prompt"
+        where="Note — Cmd-K, or the toolbar link button (.url-link-prompt)"
+        today="12px, hardcoded"
+        render={(proposed) => (
+          <div className="url-link-prompt" style={{ maxWidth: 260, ...(proposed ? surface : {}) }}>
+            <div className="url-link-prompt__form">
+              <input className="url-link-prompt__input" defaultValue="thegospelcoalition.org" readOnly />
+            </div>
+          </div>
+        )}
+      />
+
+      <Pair
+        label="Delete confirm"
+        where="Note, reader, sidebar (.harvous-delete-confirm)"
+        today="22px compact / 16px stacked — pill and card in the prototype route"
+        render={(proposed) => (
+          <ProtoPopoverShell
+            className="harvous-delete-confirm harvous-delete-confirm--stacked"
+            style={{ position: 'relative', maxWidth: 260, ...(proposed ? surface : {}) }}
+          >
+            <DeleteConfirmBar
+              title="Delete this note?"
+              description="This can’t be undone."
+              onConfirm={() => undefined}
+              onCancel={() => undefined}
+            />
+          </ProtoPopoverShell>
+        )}
+      />
+
+      <div
+        style={{
+          marginTop: 8,
+          padding: '12px 14px',
+          borderRadius: 10,
+          background: 'var(--pds-bg-control)',
+        }}
+      >
+        <p className="pds-section-header" style={{ marginBottom: 6 }}>The two deliberate exceptions</p>
+        <p className="pds-caption" style={{ margin: 0 }}>
+          The reader&apos;s <code>.pds-reader__note-card</code> stays at 2px and the docked format bar
+          stays at 0. Neither floats over the page — one is printed on the paper (its own comment
+          argues the case: a real radius there reads as a widget dropped onto the page), the other is
+          full-bleed chrome. This proposal is about surfaces that float, so neither moves.
+        </p>
+      </div>
+
+      <p className="pds-caption" style={{ marginTop: 14 }}>
+        Native parity: the selection bar mirrors macOS <code>SelectionActionBar</code>, which is a
+        capsule. Squaring the web one without squaring that is exactly the identity drift the parity
+        rules forbid — so this needs a <code>HarvousShape</code> member and the Swift change in the
+        same decision, not after it.
+      </p>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1215,6 +1550,10 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <TranslationRowScene />;
     case 'ds-19-note-audience-bar':
       return <NoteAudienceBarScene />;
+    case 'ds-20-toolbar-shape':
+      return <ToolbarShapeScene />;
+    case 'ds-21-floating-shape':
+      return <FloatingSurfacesScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

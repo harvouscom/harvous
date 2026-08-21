@@ -141,6 +141,11 @@ export interface ScripturePillChromeWebProps {
    * closing it, just not the first thing you have to do.
    */
   initialShowCrossRefs?: boolean;
+  /**
+   * A related passage to point out, when this card was opened by a suggestion that named one.
+   * Opening the passage answers "where"; eight related passages do not say which was meant.
+   */
+  highlightCrossRef?: string | null;
 }
 
 /**
@@ -168,6 +173,7 @@ export default function ScripturePillChromeWeb({
   onOpenScripturePassage,
   readOnly = false,
   initialShowCrossRefs = false,
+  highlightCrossRef = null,
 }: ScripturePillChromeWebProps) {
   const books = useMemo(() => orderedCanonBooks(), []);
   const { data: eastonsIndex } = useEastonsSlugIndex();
@@ -933,6 +939,7 @@ export default function ScripturePillChromeWeb({
               sourceNoteId={sourceNoteId}
               active={interactionActive && isExpanded}
               showCrossRefs={showCrossRefs}
+              highlightCrossRef={highlightCrossRef}
               showRelatedNotes={showRelatedNotes}
               onOpenScripturePassage={(ref) => onOpenScripturePassage?.(ref, trans)}
               onOpenEntity={(name, slug) => onOpenPassageReference?.(name, { slug })}

@@ -100,7 +100,6 @@ function SettingsAddonsScene({ active }: { active: boolean }) {
           label="Shared Spaces"
           sublabel="Host spaces for group study. Free to join."
           leadingIcon="user-group"
-          leadingAccent="var(--pds-highlight-coral-rose)"
           badge={active ? 'Active' : 'In 1 space'}
           onClick={() => {}}
         />
@@ -108,7 +107,6 @@ function SettingsAddonsScene({ active }: { active: boolean }) {
           label="Review"
           sublabel="Spaced practice from your notes and highlights."
           leadingIcon="rotate-left"
-          leadingAccent="var(--pds-highlight-sky-blue)"
           badge="Coming later"
           trailing="none"
           disabled
@@ -229,7 +227,7 @@ function SpaceSwitcherScene({ creating }: { creating?: boolean }) {
 function SharedSidebarScene({ asMember }: { asMember?: boolean }) {
   const notes = [
     { title: 'Romans 8 — Spirit vs flesh', author: asMember ? 'Test O.' : 'You', color: asMember ? 'purple' : 'blue', isOwn: !asMember, preview: 'Paul contrasts life in the Spirit…' },
-    { title: 'July 3, 2026', author: asMember ? 'You' : 'Test J.', color: asMember ? 'blue' : 'teal', isOwn: asMember, preview: 'Member observation on adoption…' },
+    { title: 'July 3, 2026', author: asMember ? 'You' : 'Test J.', color: asMember ? 'blue' : 'purple', isOwn: asMember, preview: 'Member observation on adoption…' },
   ];
   return (
     <ProtoChrome>
@@ -319,7 +317,7 @@ export const ACTIVITY_SCENE_ITEMS = {
       entryKind: 'highlight',
       actorDisplayName: 'James',
       actorUserId: 'user_james',
-      actorColor: 'teal',
+      actorColor: 'purple',
       actorFirstName: 'James',
       subject: 'the law of the Spirit of life',
       preview: 'This phrase connects the opening of Romans 8 to the argument in chapter 7.',
@@ -356,7 +354,7 @@ export const ACTIVITY_SCENE_GROUPS = {
     {
       spaceId: 'space_ephesians',
       spaceTitle: 'Ephesians Circle',
-      spaceColor: 'teal',
+      spaceColor: 'purple',
       associationStatus: 'archived' as const,
       items: [
         {
@@ -737,7 +735,7 @@ function CopyMenuScene() {
         <div className="proto-copy-space-group-label">Spaces you&apos;ve joined</div>
         <button type="button" className="proto-menu-item">
           <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
-            <ProtoSpaceMenuIcon color="teal" />
+            <ProtoSpaceMenuIcon color="purple" />
           </span>
           <span className="proto-menu-item__label">Acts Community</span>
         </button>

@@ -6,7 +6,7 @@ import {
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
 } from '@/lib/prototype-path';
-import { shouldCloseNoteOnSpaceSwitch } from '../lib/note-audience';
+import { resolveNoteSpaceSwitch } from '../lib/note-audience';
 import { toPrototypeSpaceSearchParam } from '../utils/prototype-space-api-id';
 import { useProtoShell } from '../layouts/proto-shell-context';
 import { HOME_LOCATION, HOME_PARENT, type SpaceParent } from '../layouts/proto-location';
@@ -21,7 +21,7 @@ import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/pro
  * A note opened with `?space=` caches under the context-suffixed key
  * `['note', id, 'space_X']` (see `getNoteQueryOptions` in `queries/useNote.ts`),
  * not the bare `['note', id]`. An exact-key read misses it entirely, which
- * used to make every downstream guard in `shouldCloseNoteOnSpaceSwitch` fail
+ * used to make every downstream guard in `resolveNoteSpaceSwitch` fail
  * open on the resulting `undefined` — a foreign, read-only note would never
  * close on switching to My Home. Prefix-matching finds it under any key;
  * when more than one cached entry exists, prefer whichever has `spaces`
@@ -81,20 +81,20 @@ export function useSwitchToSpace() {
       if (hasOpenNote && !isDraft && slug) {
         const noteId = normalizeNoteIdFromParam(slug);
         const note = findCachedNoteAcrossContexts(queryClient, noteId);
-        const shouldClose = shouldCloseNoteOnSpaceSwitch({
+        const outcome = resolveNoteSpaceSwitch({
           destinationSpaceId: spaceId,
           homeSpaceId,
           noteSpaceIds: note?.spaces?.map((space) => space.id),
           isOwnNote: note?.isOwnNote !== false,
           isDraft: false,
         });
-        if (shouldClose) {
+        if (outcome === 'close') {
           // Push, don't replace: back returns to the note with its original
           // `?space=`, which remounts and re-syncs the switcher to that space.
           // `as any` matches the existing call sites — the router's generated
           // route union doesn't include the dynamic prototype base path.
           void navigate({ to: prototypeHomeRouteTo() });
-        } else {
+        } else if (outcome === 'retarget') {
           // The note survives the switch (it's in the destination space too, or we
           // moved to Home). Re-stamp `?space=` so the URL doesn't keep asserting the
           // space we just left — otherwise the toolbar and the switcher disagree.
@@ -107,6 +107,10 @@ export function useSwitchToSpace() {
             replace: true,
           } as any);
         }
+        // `leave`: membership is still unknown, so the note keeps the context it was
+        // opened in. Re-stamping here would swap it to a space we have not confirmed
+        // it belongs to, and since folders are per-space that reads as the note's
+        // folders being cleared. The switcher still moves; only the note is untouched.
       }
 
       setLocation(spaceId ? { parent, spaceId } : HOME_LOCATION);

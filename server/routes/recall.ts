@@ -17,8 +17,17 @@ import { isRecallEventsTableMissing } from '../utils/pg-undefined-relation';
 
 const route = new Hono();
 
-/** Matches the longest client-side cooldown window, so nothing suppressible is missed. */
-const RECALL_HISTORY_WINDOW_DAYS = 21;
+/**
+ * Covers the longest client-side cooldown window, so nothing suppressible is missed.
+ *
+ * One day of headroom past the longest window (`RECALL_COMPLETED_COOLDOWN_DAYS`, 30) rather than
+ * exactly equal to it, so a row is not dropped by clock skew on the boundary day. This was 21 —
+ * correct when the longest window was `RECALL_COOLDOWN_DAYS`, and quietly wrong once completions
+ * started resting for 30: a completion aged 21-30 days was never returned, so finishing something
+ * on a laptop stopped suppressing it on a phone. Keep this above every window in
+ * `spa/src/pages/prototype/proto-recall-cooldown.ts`.
+ */
+export const RECALL_HISTORY_WINDOW_DAYS = 31;
 const RECALL_HISTORY_MAX_ROWS = 500;
 
 route.post('/api/recall/event', requireAuth, rateLimit('write'), async (c) => {
@@ -64,7 +73,9 @@ route.get('/api/recall/events/recent', requireAuth, rateLimit('read'), async (c)
       .where(
         and(
           eq(RecallEvents.userId, auth.userId),
-          inArray(RecallEvents.action, ['open', 'snooze']),
+          // The three that suppress. `impression` is excluded here rather than filtered later
+          // so the row cap is spent on events that can actually change what the shelf offers.
+          inArray(RecallEvents.action, ['open', 'snooze', 'complete']),
           gte(RecallEvents.createdAt, since),
         ),
       )
