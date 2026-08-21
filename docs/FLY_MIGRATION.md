@@ -50,60 +50,66 @@ Behavior fixes that were latent Netlify couplings:
   recognizes `FLY_APP_NAME`, and `isTestRoutesForbidden()` now delegates to it
   rather than repeating the checks.
 
-## Phase 2 — create the app (needs your Fly account)
+## Phase 2 — the app (done 2026-08-21)
 
-Fly has no free tier; a card is required. Then, from the repo root:
+App **`harvous`** in org `testament-made`, region `iad`, one `shared-cpu-1x`
+machine with 1GB, live at **https://harvous.fly.dev**. Nothing in production
+points at it yet.
 
-```bash
-fly launch --no-deploy --name harvous-api --region iad
-```
+Deployed from the working directory (`fly deploy --remote-only`) rather than
+through Fly's GitHub launch flow — that flow clones the repo's default branch,
+which has no Dockerfile until this branch merges. Deploying locally is also the
+right order of operations: prove the image, then cut over, then let CI take it.
 
-Push the secrets:
+Verified on the deployed machine:
 
-```bash
-DRY_RUN=1 bash scripts/fly-secrets-import.sh
-```
+| Check | Result |
+|---|---|
+| `/api/health` | 200 in ~100ms (Netlify production measured 250-280ms) |
+| `/api/votd/today` | 200 with real data — Postgres reachable |
+| Scheduler | `[scheduler] next run in 155m` at boot |
+| SIGTERM/SIGINT drain | `draining` → `drained cleanly` when a machine was destroyed |
+| OG screenshot | 200, real 1200×630 PNG, `x-og-source: screenshot` |
+| Image size | 319 MB |
 
-That prints which variables it found and which it could not. **`.env` is not the
-full production environment** — the cron secrets the GitHub scheduled workflows
-authenticate with (`VOTD_CRON_SECRET`, `BACKUP_CRON_SECRET`,
-`HMC_SYNC_CRON_SECRET`, `AUTO_ARCHIVE_SECRET_TOKEN`, `INBOX_RESET_SECRET_TOKEN`,
-`SUPPORT_NOTIFY_SECRET_TOKEN`) live only in the Netlify dashboard. Copy them from
-Netlify → Site settings → Environment variables, then:
+Two things worth knowing:
 
-```bash
-bash scripts/fly-secrets-import.sh
-```
+- **Fly auto-creates a second machine for HA on first deploy**, doubling the
+  cost. Scaled back with `fly scale count 1`. Reverse it with `fly scale count 2`
+  if zero-downtime deploys become worth ~$5.70/mo.
+- **OG renders take ~6s warm and ~36s cold.** The cold case would have exceeded
+  Netlify's `timeout = 26` and returned nothing, so that path was likely already
+  failing there intermittently. 6s is still slow for a crawler; each render boots
+  a fresh Chromium and loads the full SPA bundle. Reusing a browser instance
+  across renders is the obvious fix — tracked separately, not a blocker.
 
-Set anything still missing with `fly secrets set NAME=value`, then deploy:
+### Still to do before cutover
 
-```bash
-fly deploy
-```
-
-One-time manual step: create a **private** `user-exports` bucket in the Supabase
-dashboard (Storage → New bucket), or the nightly backup job returns 503.
-
-For the GitHub Action, create a deploy token and add it as the `FLY_API_TOKEN`
-repository secret:
-
-```bash
-fly tokens create deploy --name github-actions
-```
+1. **The 13 Netlify-only secrets.** `DRY_RUN=1 bash scripts/fly-secrets-import.sh`
+   reports them. 21 of 34 came from `.env`; the rest — including every cron secret
+   the GitHub scheduled workflows authenticate with (`VOTD_CRON_SECRET`,
+   `BACKUP_CRON_SECRET`, `HMC_SYNC_CRON_SECRET`, `INBOX_RESET_SECRET_TOKEN`,
+   `SUPPORT_NOTIFY_SECRET_TOKEN`) — live only in the Netlify dashboard under Site
+   settings → Environment variables. Copy them there, then re-run the script
+   without `DRY_RUN`. Those endpoints 401 after cutover otherwise.
+2. **A private `user-exports` bucket** in Supabase (Storage → New bucket, not
+   public), or the nightly backup job returns 503.
+3. **`FLY_API_TOKEN`** as a GitHub repository secret, so `fly-deploy.yml` can
+   deploy once this merges: `fly tokens create deploy --name github-actions`.
 
 ## Phase 3 — bake before cutover
 
 Nothing points at Fly yet, so this is all non-destructive.
 
 ```bash
-curl -s -w " | %{http_code} %{time_total}s\n" https://harvous-api.fly.dev/api/health
+curl -s -w " | %{http_code} %{time_total}s\n" https://harvous.fly.dev/api/health
 ```
 
 Run the real SPA against it — the Vite proxy keeps it same-origin, so auth and
 cookies behave as in production:
 
 ```bash
-VITE_API_PROXY_TARGET=https://harvous-api.fly.dev npm run dev:spa
+VITE_API_PROXY_TARGET=https://harvous.fly.dev npm run dev:spa
 ```
 
 Exercise sign-in, note create/edit with scripture pills, spaces, billing pages,
@@ -123,10 +129,10 @@ One commit, reverting cleanly. In `public/_redirects`, point the two API rules a
 Fly, keeping their order and the `/assets/*` rule below them:
 
 ```
-/api/og/image/*  https://harvous-api.fly.dev/api/og/image/:splat  200
-/api/*           https://harvous-api.fly.dev/api/:splat           200
-/assets/*        /assets/:splat                                   404
-/*               /index.html                                      200
+/api/og/image/*  https://harvous.fly.dev/api/og/image/:splat  200
+/api/*           https://harvous.fly.dev/api/:splat           200
+/assets/*        /assets/:splat                               404
+/*               /index.html                                  200
 ```
 
 The `/assets/* → 404` rule is load-bearing: hashed chunks from a previous deploy

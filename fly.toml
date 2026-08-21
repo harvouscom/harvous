@@ -4,7 +4,7 @@
 # rewrites /api/* here. Clients (web, native, offline queue) see no change —
 # the origin they call is still app.harvous.com.
 
-app = 'harvous-api'
+app = 'harvous'
 # Colocated with Supabase (aws-1-us-east-1) so the DB round-trip stays short.
 primary_region = 'iad'
 
