@@ -19511,6 +19511,13 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   z-index: var(--pds-z-popover, 100);
 }
 
+/* Flipped above the selection to clear the study-dock band (see the placement effect in
+   PrototypeBibleReaderPane). The transform origin follows, so the entrance still grows out of
+   the text rather than dropping toward it. */
+.pds-reader-menu[data-placement='above'] {
+  transform-origin: 50% 100%;
+}
+
 /* Way back up to a parked note. It sits on the band at the top like every other edge —
    the band there is the parked note's own paper now — so there is nothing to reposition;
    the modifier stays so the component can keep saying which state it is in.

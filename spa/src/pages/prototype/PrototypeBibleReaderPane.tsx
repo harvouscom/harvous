@@ -148,6 +148,15 @@ function dockEntryVerseRange(
 }
 
 /** Breathing room above and below the passage a note card holds up. */
+/** Clearance between the selection and its action bar, either side of it. */
+const READER_MENU_GAP = 8;
+/**
+ * The action bar's own height — `.pds-native-selection-bar` is a fixed 36px, so this is read
+ * from the design rather than measured. Measuring would mean rendering it once at the wrong
+ * place to find out where it goes.
+ */
+const READER_MENU_HEIGHT = 36;
+
 const CARD_BLEED = 6;
 
 /**
@@ -852,7 +861,9 @@ export default function PrototypeBibleReaderPane({
    * Re-measured on scroll and resize because the menu is `position: fixed` (so it is never
    * clipped by the scroller) while its anchor moves with the text.
    */
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; above: boolean } | null>(
+    null,
+  );
   const selectionEnd = selection?.[1] ?? null;
 
   useEffect(() => {
@@ -869,7 +880,33 @@ export default function PrototypeBibleReaderPane({
       // Last rect, not the bounding box: a verse that wraps spans several lines, and the
       // menu belongs under the line the selection actually ends on.
       const rect = rects[rects.length - 1] ?? el.getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + 8, left: rect.left + rect.width / 2 });
+      /*
+       * Flip above the selection rather than sit over the dock band.
+       *
+       * Two portals share this screen and neither knew about the other: the toolbar goes to
+       * `document.body`, the study-dock carousel to the shell's dock layer. A verse selected low
+       * in the chapter with a card already open put the action capsule on top of the cards.
+       *
+       * Two things already softened it and neither is collision handling: Annotate and Passages
+       * clear the selection when they open a card, so the toolbar often leaves of its own accord,
+       * and the dock layer is in the outside-click allow-list, so touching a card does not dismiss
+       * the selection. A selection low in the chapter over an already-open card still overlapped.
+       *
+       * Measured from the live dock layer rather than a constant: the band's height depends on
+       * how many cards are open and whether the carousel is collapsed, so any number written here
+       * would be wrong in most states.
+       */
+      const dockBand = document
+        .querySelector('.proto-shell__study-dock-layer')
+        ?.getBoundingClientRect();
+      const dockTop = dockBand && dockBand.height > 0 ? dockBand.top : window.innerHeight;
+      const below = rect.bottom + READER_MENU_GAP;
+      const above = below + READER_MENU_HEIGHT > dockTop;
+      setMenuPos({
+        top: above ? rect.top - READER_MENU_GAP - READER_MENU_HEIGHT : below,
+        left: rect.left + rect.width / 2,
+        above,
+      });
     };
     place();
     const scroller = scrollRef.current;
@@ -1143,6 +1180,9 @@ export default function PrototypeBibleReaderPane({
             className="pds-reader-menu pds-native-selection-bar floating-picker-enter"
             role="group"
             aria-label={`Actions for ${selectionLabel}`}
+            /* Flipped bars grow from the edge nearest the selection, so the motion still reads as
+               coming out of the text rather than falling toward it. */
+            data-placement={menuPos.above ? 'above' : 'below'}
             style={{ top: menuPos.top, left: menuPos.left }}
             // Keep the verse selection while the menu is used: a press that lands on the menu
             // must not read as a press outside the selection.
