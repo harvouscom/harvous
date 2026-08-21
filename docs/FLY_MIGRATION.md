@@ -8,21 +8,74 @@ app, and the offline mutation queue are unchanged.
 
 ## Why
 
-Netlify's free plan is a single hard-capped pool of 300 credits/month covering
-deploys (15 each), bandwidth (20/GB), and function compute (10/GB-hour).
-Exceeding it does not throttle — the site goes offline until the 1st of the next
-month. The `og-image` function ran at `memory = 3008` / `timeout = 26`, about
-0.21 credits per full-length render, so roughly 1,400 crawler-triggered renders
-would have consumed the entire month. That is the same traffic shape as the
-August 2026 bot flood.
+This section was rewritten after two claims in the original version turned out to
+be false. Both are recorded here rather than deleted, because the corrected case
+is weaker than the original pitch and anyone revisiting this decision deserves
+the real one.
 
-One `shared-cpu-1x` 1GB machine is ~$5.70/month flat, has no per-request billing
-to weaponize, no invocation cap, no execution-time ceiling, a Postgres pool that
-stays warm, and real Chromium instead of `@sparticuz/chromium`.
+**Retracted 1 — the billing-catastrophe argument does not apply.** The original
+rationale described Netlify's 300-credit shared pool and a hard cap that takes
+the site offline until the 1st. This account is not on that plan. Verified via
+`netlify api listAccountsForUser` (team "Harvous", `type_name: Free`,
+`credit_features: {'included': False}`):
+
+| capability | included |
+|---|---|
+| `bandwidth` | 100 GB |
+| `functions` | 125,000 invocations |
+| `edge_functions` | 1,000,000 invocations |
+| `build_minutes` | 300 |
+| `background_functions` | **True** |
+| `block_builds_when_usage_exceeded` | True |
+
+Separate allowances, not one pool, and **overage blocks builds rather than taking
+the site down**. `background_functions` are also available, so OG render-to-cache
+and longer cron were both achievable on Netlify.
+
+**Retracted 2 — OG rendering was never broken on Netlify.** The original claimed
+the ~35s cold render exceeded `timeout = 26` and silently returned nothing. That
+number was measured on *Fly*, and the Netlify behavior was inferred from it, not
+tested. Measured against live Netlify: **12.9s cold, 6.8s warm, HTTP 200, real
+PNG.** Netlify's function had 3008MB — and therefore more Lambda CPU — than
+Fly's `shared-cpu-1x`, so it is genuinely faster on a cold render.
+
+### The case that actually holds
+
+Measured, both hosts, same method (`curl` `time_total`, distinct unknown tokens):
+
+| | Netlify | Fly |
+|---|---|---|
+| `/api/health` warm | 250–280ms | **~100ms** |
+| OG render, warm | 6.8s | **2.18s** |
+| OG render, cold | **12.9s** | ~35s, prewarmed at boot so unseen |
+| Monthly | **$0** | ~$5.70 |
+
+The one win that reaches users is **warm OG renders, 6.8s → 2.18s**. Unfurlers
+commonly give up in the 5–10s window, so that is the difference between link
+previews usually working and reliably working. It comes from retaining a browser
+across renders, which is impossible under per-request functions at any price.
+
+Secondary: no 26s ceiling, cron that is not shaped around a 25s Lambda budget, a
+Postgres pool that stays warm, and workarounds deleted rather than added — on
+Netlify the same OG outcome needs a render-to-cache pipeline with an invalidation
+story; here it was ~20 lines and no new state.
 
 **This does not make the app feel faster to tap.** Optimistic mutations and the
 offline queue already paint before the network. Server latency shows up in
 first-load data readiness, offline-queue replay, and cold-start tail latency.
+
+### Honest verdict
+
+A close call, not a rescue. Staying on Netlify was defensible: nothing was
+broken and nothing was at risk. The migration buys measurably better link
+previews, lower API latency, and simpler code, for ~$5.70/month and one machine
+to own.
+
+**The number that should have decided it was never measured:** actual function
+invocations against the 125,000/month allowance, readable only from the Netlify
+dashboard. If usage is a small fraction of that, the headroom argument is moot
+and this is purely a latency-and-code-quality decision. Check it before
+revisiting.
 
 ## What changed in the repo
 
@@ -159,6 +212,16 @@ Rollback is `git revert` of that commit.
   because Netlify's proxy headers caused false 403s. The proxy is still in the
   path until the SPA calls `api.harvous.com` directly, so this is not yet a free
   win.
+
+## Do not "upgrade" the Netlify plan
+
+Netlify may offer to move the account onto its newer credit-based free tier.
+Decline. The legacy plan is more generous on every comparable axis — roughly 6.7×
+the bandwidth (100 GB vs ~15 GB) and ~3× the deploys — and its overage blocks
+builds rather than taking the site offline. The switch is very likely one-way.
+
+Cutting `/api/*` over to Fly makes Netlify usage almost purely static bandwidth,
+which makes the legacy allowance roomier still.
 
 ## Not doing (yet)
 
