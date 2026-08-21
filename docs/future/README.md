@@ -177,7 +177,9 @@ Written August 2026 from the improvement list. Each states the problem, the real
 trade-offs, and a recommendation; each ends with a Decision log to fill in on review.
 
 - **`TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md`** - Toolbar orb vs sidebar tile (#11, #24)
-  - Recommends the hybrid: icon controls become tiles, labelled chips stay pills, avatar stays round
+  - **Decided Aug 21, unbuilt:** icon controls become tiles, labelled chips stay pills, avatar stays
+    round; floating surfaces adopt the same rule (12px surface, 10px tiles); floating bars square on
+    both platforms; 36px targets hold; toolbar and surfaces land as one change
   - Finds the sidebar tile's `9px` radius is an untokenized literal, and that web/native radii have
     already drifted on `button` and `scripturePill`
   - Includes the floating-menu cohesion half and why it should follow, not lead
@@ -185,14 +187,28 @@ trade-offs, and a recommendation; each ends with a Decision log to fill in on re
   - Recommends two honest answers: "Not now" (21 days) and a genuinely permanent "Not interested"
   - Documents that "Don't suggest this again" was a 21-day snooze; two contained fixes already shipped
 - **`HIGHLIGHT_REFERENCE_STYLING_SPEC.md`** - What the four marks look like, everywhere (#5, #3)
-  - Proposes one spec: suggestion dotted 1.5px, saved reference solid 2px, highlight solid 3px
-  - Records that the same highlight renders 2px in the reader and 3px in the dock, and that a
-    highlight and a saved reference are indistinguishable in a note body
+  - **Decided Aug 21, unbuilt:** everything levels on solid 2px (the dock and native come *down*,
+    so the chapter's thickness never changes); a saved reference and a highlight are told apart by
+    offset — 3px vs 2px — rather than by weight; one spotlight mechanism across all four surfaces;
+    the reader toolbar flips above a selection rather than overlapping the dock band; the highlight
+    dock's excerpt stays unpainted
+  - Records that the same highlight renders 2px in the reader and 3px in the dock, and — corrected
+    by measurement in the `ds-23-mark-styling` scene — that a highlight and a saved reference are
+    indistinguishable in the reader *and* the note body, not just the note body
+  - Compare the surfaces, and toggle the proposed spec, in `ds-23-mark-styling`
 - **`READER_PARTIAL_VERSE_HIGHLIGHTS.md`** - Highlighting less than a whole verse (#7)
   - Recommends reusing the excerpt model the dock and native already share, painted imperatively
   - Names the blocking piece: the server upsert key is verse-granular and must gain the excerpt
+- **`SPACES_PLANNER_AND_GATHERINGS.md`** - Shared spaces, the planner, and gatherings (#1)
+  - **Mostly a correction**: nearly every piece this item was framed around has since shipped,
+    checked row by row against `main`
+  - The one live gap: a church's next service reaches Home, a room's next gathering does not
+  - **Decided Aug 21:** Home is a cross-context front page — gatherings reach it, bounded by the
+    four-day wall, in one "Coming up" group ordered by date, one card for leaders and members alike
 - **`READER_MARGIN_INDICATORS.md`** - How the reader says "you have written about this" (#8)
-  - Recommends keeping the bar: its length is the note's span, which no point marker can express
+  - **Decided Aug 21, unbuilt:** the bar stays; the verse carries a visually-hidden "in one of your
+    notes" so the signal is not sight-only; a merged bar keeps its own span; the spoken cue follows
+    the `showMarginNotes` preference
   - Finds the presence signal has no non-visual equivalent, and that a bar merged past the
     three-lane cap is stretched to a span no note actually cites
   - Compare the options in the `ds-22-margin-indicators` gallery scene rather than from the prose
