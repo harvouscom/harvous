@@ -18,6 +18,11 @@ import { parentForSpace } from '../../layouts/proto-location';
 import { resolveSpaceSwitcherToolbarState, useActiveSpace } from '../../hooks/useActiveSpace';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import { useSwitchToSpace } from '../../hooks/useSwitchToSpace';
+import {
+  recallShelfHasUnseen,
+  subscribeRecallShelfSeenChanged,
+} from './proto-recall-seen';
+import { localDayIndex } from '@/utils/local-day-index';
 import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
 import { useSubscriptionStatus } from '../../hooks/queries/useSubscriptionStatus';
 import { useProfile } from '../../hooks/queries/useProfile';
@@ -202,6 +207,21 @@ export default function SpaceSwitcherMenu({
   const { data: subscription } = useSubscriptionStatus();
 
   const hasSharedSpaces = Boolean(subscription?.hasSharedSpaces);
+
+  /**
+   * Mark the way back to Home when today's suggestions have not been looked at.
+   *
+   * Only while you are somewhere else — on the Home layer the shelf is right there, and a dot
+   * pointing at what you are already reading is noise. Re-read on the seen-changed event so it
+   * clears the moment the shelf renders rather than on the next navigation.
+   */
+  const [seenTick, setSeenTick] = useState(0);
+  useEffect(() => subscribeRecallShelfSeenChanged(() => setSeenTick((t) => t + 1)), []);
+  const hasUnseenSuggestions = useMemo(
+    () => sidebarLayer !== 'space' && recallShelfHasUnseen(homeSpaceId, localDayIndex(new Date())),
+    // `seenTick` is the subscription; the day is read fresh each time it fires.
+    [sidebarLayer, homeSpaceId, seenTick],
+  );
 
   const normalizedActive = useMemo(
     () => (homeSpaceId == null ? null : normalizeSpaceId(homeSpaceId)),
@@ -700,7 +720,11 @@ export default function SpaceSwitcherMenu({
           className={useSpaceSwitcherPill ? 'proto-toolbar-space-switcher' : 'proto-toolbar-icon-btn'}
           data-active={iconOnly ? undefined : sidebarLayer === 'space'}
           title={triggerTitle}
-          aria-label={triggerTitle}
+          /* The dot is `aria-hidden`, so what it means has to reach the label — otherwise the
+             only people told there is something new are the ones who can see 7px of colour. */
+          aria-label={
+            hasUnseenSuggestions ? `${triggerTitle} — new suggestions` : triggerTitle
+          }
           aria-haspopup="menu"
           aria-expanded={open}
           disabled={!hasHome}
@@ -739,6 +763,9 @@ export default function SpaceSwitcherMenu({
           ) : (
             triggerIcon
           )}
+          {hasUnseenSuggestions ? (
+            <span className="proto-toolbar-icon-btn__unseen-dot" aria-hidden />
+          ) : null}
         </button>
       </PrototypeToolbarShortcutItem>
       {popover}

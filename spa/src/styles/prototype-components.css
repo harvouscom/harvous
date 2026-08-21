@@ -845,6 +845,9 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 .proto-toolbar-space-switcher {
   display: inline-flex;
   align-items: center;
+  /* The unseen dot is absolutely placed against this, same as on the round orb — without a
+     positioning context here it would escape the pill and land against the toolbar. */
+  position: relative;
   gap: 5px;
   flex-shrink: 1;
   min-width: 0;
@@ -1059,8 +1062,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   border-color: var(--pds-border-control-strong);
 }
 
-/* Native parity — accent dot when a share link is active (glyph stays neutral). */
-.proto-toolbar-icon-btn__share-dot {
+/* Native parity — accent dot when a share link is active (glyph stays neutral).
+   The same mark serves "there is something here you have not looked at": one dot shape for
+   one meaning, rather than a second nearly-identical circle a few pixels away. */
+.proto-toolbar-icon-btn__share-dot,
+.proto-toolbar-icon-btn__unseen-dot {
   position: absolute;
   top: 4px;
   right: 4px;

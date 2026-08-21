@@ -127,6 +127,7 @@ import {
   RECALL_COMPLETED_COOLDOWN_DAYS,
 } from './proto-recall-cooldown';
 import { recordRecallOpportunityEvent } from './proto-recall-events';
+import { markRecallShelfSeen } from './proto-recall-seen';
 import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { useRecallEventHistory } from '../../hooks/queries/useRecallEventHistory';
 import PrototypeHomeRow from './PrototypeHomeRow';
@@ -1802,6 +1803,16 @@ export default function PrototypeSidebarHomeView({
     },
     [homeSpaceId, recallDayIndex],
   );
+
+  /**
+   * Today's shelf has been looked at, so the way back to it stops being marked.
+   *
+   * Gated on the shelf having something: marking an empty one as seen would spend the day's
+   * only chance to tell you about suggestions that had not been assembled yet.
+   */
+  useEffect(() => {
+    if (recallOpportunities.length > 0) markRecallShelfSeen(homeSpaceId, recallDayIndex);
+  }, [recallOpportunities.length, homeSpaceId, recallDayIndex]);
 
   const onCreateFirstNote = useCallback(() => {
     if (!homeSpaceId) return;
