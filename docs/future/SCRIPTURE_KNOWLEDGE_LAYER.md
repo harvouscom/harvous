@@ -293,9 +293,6 @@ related-note rows. GMMC is deferred; Compete challenges use deterministic + edit
   (challenges, recall/quizzes) that consume this layer.
 - [SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md](./SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md) — related
   scripture-note enhancements (overlapping passages, collected-verses view).
-- [SCRIPTURE_CONCORDANCE.md](./SCRIPTURE_CONCORDANCE.md) — word-level Scripture search
-  (Postgres FTS on `BibleVerses`, no new dataset) that composes with this layer for
-  ranking/enrichment, for verse search and suggested-reference pills.
 - [../BIBLE_STUDY_TAG_SUGGESTER_TUNING.md](../BIBLE_STUDY_TAG_SUGGESTER_TUNING.md) — current
   auto-tag/folder scoring + native parity (Phase 2 touches this).
 - [../ARCHITECTURE.md](../ARCHITECTURE.md) — core data model (`ScriptureMetadata`,
