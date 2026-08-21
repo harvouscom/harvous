@@ -261,6 +261,13 @@ capsule happens to both at once.
   other surface moves *toward* an existing value rather than to one nothing uses yet.
 - **Icon targets inside them: `--pds-radius-row` (10px) tiles**, the same tile the toolbar decision
   picked. A button then means one shape wherever it appears.
+- **Side padding follows the corners, and is not a taste call.** Concentric corners need
+  `inner radius = outer radius − gap`, so a 12px surface holding 10px tiles wants **2px**, not the
+  6px the selection bar carries today. That 6 comes from the pill it is replacing, where circular
+  buttons had to be held off a capsule's end curve — a constraint a rounded rect does not have.
+  Left at 6 the corners are non-concentric *and* the ends read as padded, which is the first thing
+  anyone says about the rendered proposal. On `.pds-native-selection-bar` this takes the inset from
+  the bar's edge to the first glyph's ink from 18px to 14px.
 - **Material unchanged.** Glass stays glass, solid popover stays solid. That was the whole finding
   of Option B: the material was carrying meaning and only the shape was arbitrary.
 - **Two deliberate exceptions, which stay.** `.pds-reader__note-card` at 2px and the docked format

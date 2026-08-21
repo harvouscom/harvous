@@ -1346,6 +1346,15 @@ function FloatingSurfacesScene() {
      menu already uses, and the squarest of the ones in play, so the move is toward it rather
      than to a number nothing uses yet. */
   const surface: React.CSSProperties = { borderRadius: 'var(--pds-radius-menu)' };
+  /*
+   * A rounded rect wants less side padding than the pill it replaces, and the amount is not a
+   * taste call: concentric corners need `inner radius = outer radius - gap`. The bar is 12 and
+   * its tiles are 10, so the gap is 2. Today's 6px comes from the pill, where the buttons were
+   * circles inside a capsule and had to be held off its end curve — a constraint a rounded rect
+   * does not have. Keeping 6 here would leave the corners non-concentric AND the ends looking
+   * padded, which is what they look like.
+   */
+  const barInset: React.CSSProperties = { paddingLeft: 2, paddingRight: 2 };
   /* ...and `--pds-radius-row` (10px) for icon targets inside it — the same tile the toolbar
      decision picked, so a button means the same shape wherever it is. */
   const tile: React.CSSProperties = { borderRadius: 'var(--pds-radius-row)' };
@@ -1409,9 +1418,12 @@ function FloatingSurfacesScene() {
       <Pair
         label="Selection actions"
         where="Note and reader — the one surface the two already share (.pds-native-selection-bar)"
-        today="capsule, glass"
+        today="capsule, glass · 6px side padding"
         render={(proposed) => (
-          <div className="pds-native-selection-bar" style={proposed ? surface : undefined}>
+          <div
+            className="pds-native-selection-bar"
+            style={proposed ? { ...surface, ...barInset } : undefined}
+          >
             {(['pen', 'quote-left', 'link', 'ellipsis'] as const).map((name) => (
               <button
                 key={name}
