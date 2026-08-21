@@ -124,7 +124,10 @@ import {
   subscribeRecallCooldownChanged,
   recentRecallSectionCounts,
   RECALL_OPENED_COOLDOWN_DAYS,
+  RECALL_COMPLETED_COOLDOWN_DAYS,
 } from './proto-recall-cooldown';
+import { recordRecallOpportunityEvent } from './proto-recall-events';
+import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { useRecallEventHistory } from '../../hooks/queries/useRecallEventHistory';
 import PrototypeHomeRow from './PrototypeHomeRow';
 /* Shared with the shared-space view — see its docblock for why it moved out of here. */
@@ -228,7 +231,12 @@ type Props = {
   onOpenScriptureBook: (bookOrder: number) => void;
   onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void;
-  onOpenCreateThreadPrefill: (prefill: { noteIds: [string, string]; threadName: string }) => void;
+  onOpenCreateThreadPrefill: (prefill: {
+    noteIds: [string, string];
+    threadName: string;
+    /** Fired once the thread actually exists — see `handleRecallCompleted`. */
+    onCreated?: () => void;
+  }) => void;
 };
 
 function pickSpotlightHighlight(
@@ -1552,8 +1560,9 @@ export default function PrototypeSidebarHomeView({
 
     if (topConnectSuggestion && homeSpaceId) {
       const pairKey = [topConnectSuggestion.noteAId, topConnectSuggestion.noteBId].sort().join('|');
+      const connectId = `connect:${pairKey}`;
       out.push({
-        id: `connect:${pairKey}`,
+        id: connectId,
         kind: 'connectNotes',
         noteId: topConnectSuggestion.noteAId,
         isGenerative: true,
@@ -1574,6 +1583,8 @@ export default function PrototypeSidebarHomeView({
               topConnectSuggestion.reason,
               topConnectSuggestion.sharedSubject,
             ),
+            onCreated: () =>
+              handleRecallCompleted(connectId, 'connectNotes', topConnectSuggestion.noteAId),
           });
         },
       });
@@ -1770,6 +1781,23 @@ export default function PrototypeSidebarHomeView({
       // and generative cards (continue book, reflection, cross-ref gap) have no noteId,
       // so they didn't even get the server-side stability bump.
       recordRecallOpened(homeSpaceId, id, recallDayIndex, RECALL_OPENED_COOLDOWN_DAYS);
+      setRecallTick((t) => t + 1);
+    },
+    [homeSpaceId, recallDayIndex],
+  );
+
+  /**
+   * The loop closed: the thing the card asked for now exists.
+   *
+   * Distinct from `handleRecallOpened`, which fires on the tap. Opening the create-thread
+   * sheet and abandoning it should leave the suggestion in its short rest and let it come
+   * back; a thread that actually got made should not be suggested again for a good while,
+   * because it is no longer a suggestion — it is a description of what already happened.
+   */
+  const handleRecallCompleted = useCallback(
+    (id: string, kind: RecallOpportunityKind, noteId?: string) => {
+      recordRecallOpened(homeSpaceId, id, recallDayIndex, RECALL_COMPLETED_COOLDOWN_DAYS);
+      recordRecallOpportunityEvent({ opportunityId: id, kind, action: 'complete', noteId });
       setRecallTick((t) => t + 1);
     },
     [homeSpaceId, recallDayIndex],

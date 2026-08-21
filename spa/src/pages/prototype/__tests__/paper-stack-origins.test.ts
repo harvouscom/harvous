@@ -49,9 +49,19 @@ describe('buildRecallCardStackOrigin', () => {
   });
 
   it('does not stack sidebar-layer kinds — nothing is put over anything', () => {
-    for (const kind of ['arc', 'subject', 'crossref', 'passage', 'connectNotes']) {
+    for (const kind of ['arc', 'subject', 'crossref', 'connectNotes']) {
       expect(buildRecallCardStackOrigin(card(kind)), kind).toBeNull();
     }
+  });
+
+  it('stacks a passage card, which now opens the reader rather than a sidebar pane', () => {
+    // It was excluded while it opened a standalone passage pane on Home. That pane is gone;
+    // the card navigates into the main pane like any other, and was the only kind that could
+    // move you somewhere and leave nothing on screen saying why.
+    const origin = buildRecallCardStackOrigin(card('passage'));
+
+    expect(origin).not.toBeNull();
+    expect(origin?.cardKind).toBe('passage');
   });
 
   it('puts the card eyebrow on the edge and restates the card underneath', () => {

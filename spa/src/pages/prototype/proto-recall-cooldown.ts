@@ -22,6 +22,17 @@ export const RECALL_COOLDOWN_DAYS = 21;
  */
 export const RECALL_OPENED_COOLDOWN_DAYS = 7;
 
+/**
+ * Window after *finishing* what a card asked for.
+ *
+ * Longer than merely acting on it, and for a different reason than snoozing. A snooze says
+ * "not this"; a completion says "done" — the thread exists, the note is written — so offering
+ * it again is not badly timed, it is asking for something that already happened. Short of the
+ * full dismissal window because the underlying material can move on: a passage you wrote about
+ * this month is fair to raise again next month.
+ */
+export const RECALL_COMPLETED_COOLDOWN_DAYS = 30;
+
 type CooldownMap = Record<string, number>;
 
 function key(spaceId: string): string {
@@ -232,7 +243,7 @@ export function recentRecallSectionCounts(
 
 export type ServerRecallHistoryEntry = {
   opportunityId: string;
-  action: 'open' | 'snooze';
+  action: 'open' | 'snooze' | 'complete';
   createdAt: string;
 };
 
@@ -248,9 +259,10 @@ export function mergeServerRecallHistoryIntoCooldowns(
   localIds: Set<string>,
   serverEvents: ServerRecallHistoryEntry[] | undefined,
   now: Date,
-  windows: { open: number; snooze: number } = {
+  windows: { open: number; snooze: number; complete: number } = {
     open: RECALL_OPENED_COOLDOWN_DAYS,
     snooze: RECALL_COOLDOWN_DAYS,
+    complete: RECALL_COMPLETED_COOLDOWN_DAYS,
   },
   /** See {@link restoreRecallOpportunity} — ids put back, and when. */
   restoredAt: Record<string, number> = {},
@@ -265,7 +277,12 @@ export function mergeServerRecallHistoryIntoCooldowns(
     // says anything about whether the suggestion should show.
     const restored = restoredAt[event.opportunityId];
     if (restored != null && at <= restored) continue;
-    const windowDays = event.action === 'open' ? windows.open : windows.snooze;
+    const windowDays =
+      event.action === 'complete'
+        ? windows.complete
+        : event.action === 'open'
+          ? windows.open
+          : windows.snooze;
     const ageDays = (nowMs - at) / (24 * 60 * 60 * 1000);
     if (ageDays >= 0 && ageDays < windowDays) merged.add(event.opportunityId);
   }

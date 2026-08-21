@@ -78,6 +78,24 @@ describe('collapseRecallHistory', () => {
     expect(collapsed).toHaveLength(2);
   });
 
+  it('carries completions through, so a finished loop suppresses across devices', () => {
+    const collapsed = collapseRecallHistory([
+      { opportunityId: 'a', action: 'complete', createdAt: '2026-08-03T00:00:00.000Z' },
+    ]);
+    expect(collapsed).toEqual([
+      { opportunityId: 'a', action: 'complete', createdAt: '2026-08-03T00:00:00.000Z' },
+    ]);
+  });
+
+  it('keeps a completion separate from the open that preceded it', () => {
+    // Tapping the card and finishing what it asked for are two events with two windows.
+    const collapsed = collapseRecallHistory([
+      { opportunityId: 'a', action: 'complete', createdAt: '2026-08-03T00:00:00.000Z' },
+      { opportunityId: 'a', action: 'open', createdAt: '2026-08-03T00:00:00.000Z' },
+    ]);
+    expect(collapsed).toHaveLength(2);
+  });
+
   it('drops impressions, which say nothing about intent', () => {
     const collapsed = collapseRecallHistory([
       { opportunityId: 'a', action: 'impression', createdAt: '2026-08-03T00:00:00.000Z' },

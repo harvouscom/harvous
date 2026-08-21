@@ -64,7 +64,9 @@ route.get('/api/recall/events/recent', requireAuth, rateLimit('read'), async (c)
       .where(
         and(
           eq(RecallEvents.userId, auth.userId),
-          inArray(RecallEvents.action, ['open', 'snooze']),
+          // The three that suppress. `impression` is excluded here rather than filtered later
+          // so the row cap is spent on events that can actually change what the shelf offers.
+          inArray(RecallEvents.action, ['open', 'snooze', 'complete']),
           gte(RecallEvents.createdAt, since),
         ),
       )
