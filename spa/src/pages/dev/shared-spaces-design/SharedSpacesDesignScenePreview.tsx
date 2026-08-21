@@ -100,7 +100,6 @@ function SettingsAddonsScene({ active }: { active: boolean }) {
           label="Shared Spaces"
           sublabel="Host spaces for group study. Free to join."
           leadingIcon="user-group"
-          leadingAccent="var(--pds-highlight-coral-rose)"
           badge={active ? 'Active' : 'In 1 space'}
           onClick={() => {}}
         />
@@ -108,7 +107,6 @@ function SettingsAddonsScene({ active }: { active: boolean }) {
           label="Review"
           sublabel="Spaced practice from your notes and highlights."
           leadingIcon="rotate-left"
-          leadingAccent="var(--pds-highlight-sky-blue)"
           badge="Coming later"
           trailing="none"
           disabled

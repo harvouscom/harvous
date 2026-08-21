@@ -300,7 +300,6 @@ function ChurchSettingsScene({ connected }: { connected: boolean }) {
                 label="Testament Made"
                 sublabel="Nashville, TN"
                 leadingIcon="church"
-                leadingAccent="var(--pds-highlight-sky-blue)"
                 badge="Home"
                 onClick={() => {}}
               />

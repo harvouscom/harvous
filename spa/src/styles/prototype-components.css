@@ -5674,10 +5674,7 @@ html.harvous-prototype-route
   border-radius: 10px;
   background: var(--pds-bg-input);
   border: 0.5px solid var(--pds-border);
-  /* `--pds-settings-row-accent` is the `leadingAccent` prop (SettingsShell.tsx). Set inline as
-     a custom property rather than as `color`, so the prototype route's blanket
-     `!important` button rule cannot flatten it — see prototype-route-overrides.css. */
-  color: var(--pds-settings-row-accent, var(--pds-text-secondary));
+  color: var(--pds-text-secondary);
 }
 
 /* The tile brings its own fill and colour (e.g. a Shared Space icon), so the

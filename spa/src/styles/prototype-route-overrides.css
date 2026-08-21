@@ -314,31 +314,6 @@ html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb pa
   fill: var(--pds-on-accent) !important;
 }
 
-/*
- * Settings row leading tile — let `leadingAccent` survive inside a tappable row.
- *
- * The blanket rule at the top of this file paints every descendant of a `proto-` button with
- * `--pds-text-primary !important`, which an inline `color` cannot beat. So the same accent
- * came through on a static row and vanished on a tappable one — visible in the add-ons
- * gallery scene as one coloured glyph beside one black one, with both asking for a colour.
- *
- * The accent now arrives as `--pds-settings-row-accent` (a custom property is untouched by a
- * `color` override) and this restates it with the weight it needs. The fallback is
- * `--pds-text-primary`, not the component's own secondary default, so rows with no accent
- * keep exactly the colour they have today — this fixes the dropped accent without repainting
- * every settings icon in the app.
- *
- * Must stay ABOVE the `--plus` block below: same specificity, so source order decides, and
- * the Plus glyph's own colour has to win over this.
- */
-html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading,
-html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading *,
-html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading svg,
-html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading path {
-  color: var(--pds-settings-row-accent, var(--pds-text-primary)) !important;
-  fill: currentColor !important;
-}
-
 /* Settings › Plan — true-blue Plus glyph (beats blanket button svg/path rules) */
 html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading--plus,
 html.harvous-prototype-route [class*='proto-'] button .proto-settings-list-row__leading--plus *,
