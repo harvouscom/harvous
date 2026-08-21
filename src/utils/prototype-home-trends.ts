@@ -1759,7 +1759,14 @@ export function deriveContinueBook(
 
 export interface ContinueReadingInput {
   /** Where the reader was last, from `UserMetadata.lastReadPosition`. */
-  lastRead: { book: string; bookOrder: number; chapter: number; translation: string } | null;
+  lastRead: {
+    book: string;
+    bookOrder: number;
+    chapter: number;
+    translation: string;
+    /** How far into the chapter they got, when the surface recorded one. */
+    verse?: number;
+  } | null;
   /** Chapters the reader has been through, from the reading log. */
   readChapters: { book: string; chapter: number; countsAsRead: boolean }[];
 }
@@ -1774,6 +1781,12 @@ export interface ContinueReadingSuggestion {
    * `next`   — the following chapter, because the last one was actually read.
    */
   reason: 'resume' | 'next';
+  /**
+   * The verse to land on, set only when resuming a chapter that was left partway through.
+   * A `next` chapter has never been read, so it has no position to restore — and verse 1 is
+   * where it opens anyway.
+   */
+  resumeVerse?: number;
 }
 
 /**
@@ -1810,7 +1823,14 @@ export function deriveContinueReading(
   };
 
   if (!readThrough.has(lastRead.chapter)) {
-    return { ...base, chapter: lastRead.chapter, reason: 'resume' };
+    return {
+      ...base,
+      chapter: lastRead.chapter,
+      reason: 'resume',
+      // Verse 1 is not a position worth restoring — it is where the chapter opens regardless,
+      // and putting it on the URL would focus a verse nobody chose.
+      ...(lastRead.verse && lastRead.verse > 1 ? { resumeVerse: lastRead.verse } : {}),
+    };
   }
 
   for (let c = lastRead.chapter + 1; c <= total; c++) {
@@ -1862,7 +1882,8 @@ export function deriveSmartJumpDestination(
     return {
       book: continueReading.book,
       chapter: continueReading.chapter,
-      verse: null,
+      // Only a resumed chapter has a verse to return to; `next` opens at the top.
+      verse: continueReading.resumeVerse ?? null,
       translation: continueReading.translation || null,
       source: 'continue',
     };

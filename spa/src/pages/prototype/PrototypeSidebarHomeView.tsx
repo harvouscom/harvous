@@ -106,6 +106,7 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { readerRouteForReference } from '../../utils/reader-nav';
 import { protoRelativeCaption, protoRelativeCaptionAbbrev } from './proto-time';
+import { RECALL_KIND_ICONS, recallKindIcon } from './recall-kind-icons';
 import {
   highlightEntryKindIconName,
   prototypeHighlightListTitle,
@@ -185,7 +186,7 @@ function pushAnnotateHighlightRecallCard(
     eyebrow: 'Add a thought',
     title: prototypeHighlightListTitle(highlight),
     meta: 'Worth a quick reflection',
-    iconName: 'pen-to-square',
+    iconName: RECALL_KIND_ICONS.annotateHighlight,
     onOpen: () => onOpenHighlight(highlight),
   });
 }
@@ -311,7 +312,10 @@ function HomeGreeting({
         const chipClass = isPassage
           ? 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage'
           : 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread';
-        const iconName: IconName = trend.kind === 'passage' ? 'book' : 'arrow-right-arrow-left';
+        /* Passage chips keep `book`: at 11px the shelf's scroll glyph is a smudge. Every other
+           kind takes the shelf's own icon, so a cross-reference named in the greeting and one
+           sitting in the list below it are the same thing to look at. */
+        const iconName: IconName = isPassage ? 'book' : recallKindIcon(trend.kind);
         const iconSize = isPassage ? 11 : 10;
         return (
           <Fragment key={`${label}-${i}`}>
@@ -1251,7 +1255,17 @@ export default function PrototypeSidebarHomeView({
         book: bookSlug(continueReadingSuggestion.book),
         chapter: String(continueReadingSuggestion.chapter),
       },
-      search: { v: undefined, t: continueReadingSuggestion.translation || undefined },
+      search: {
+        /*
+         * The verse only when picking a chapter back up. "Next in Mark" is a chapter you have
+         * not read, so there is nowhere in it to return to — landing anywhere but its first
+         * verse would be inventing a position rather than restoring one.
+         */
+        v: continueReadingSuggestion.resumeVerse
+          ? String(continueReadingSuggestion.resumeVerse)
+          : undefined,
+        t: continueReadingSuggestion.translation || undefined,
+      },
     });
   }, [continueReadingSuggestion, isMobileSidebar, closeDrawer, navigate]);
 
@@ -1324,7 +1338,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: 'Worth another look',
         title: stripServerAutoUntitledNoteTitleForDisplay(note.title?.trim() ?? '') || 'New Note',
         meta,
-        iconName: 'arrow-rotate-left',
+        iconName: RECALL_KIND_ICONS.revisitNote,
         onOpen: () => handleOpenRevisitNote(note, { stack: false }),
       });
     };
@@ -1364,7 +1378,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: activeArcIsSection ? 'A section on your mind' : 'Seems to be on your mind',
         title: arcTitle,
         meta: studyArcCopy ?? '',
-        iconName: 'arrow-right-arrow-left',
+        iconName: RECALL_KIND_ICONS.arc,
         onOpen: openStudyArc,
       });
     }
@@ -1378,7 +1392,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: 'A theme taking shape in your notes',
         title: subjectConnection.subject,
         meta: `Across ${subjectConnection.noteCount} of your notes`,
-        iconName: 'arrow-right-arrow-left',
+        iconName: RECALL_KIND_ICONS.subject,
         onOpen: openSubjectConnection,
       });
     }
@@ -1392,7 +1406,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: 'Linked in your study',
         title: `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`,
         meta: `Across ${crossRefConnection.noteCount} of your notes`,
-        iconName: 'arrow-right-arrow-left',
+        iconName: RECALL_KIND_ICONS.crossref,
         onOpen: openCrossRefConnection,
       });
     }
@@ -1406,7 +1420,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: 'A passage you keep returning to',
         title: passageConnection.displayRef,
         meta: `Across ${passageConnection.noteCount} of your notes`,
-        iconName: 'scroll',
+        iconName: RECALL_KIND_ICONS.passage,
         onOpen: openPassageConnection,
       });
     }
@@ -1423,7 +1437,7 @@ export default function PrototypeSidebarHomeView({
           eyebrow: 'A word you keep looking up',
           title: referenceWordConnection.displayWord,
           meta: `Across ${referenceWordConnection.noteCount} of your notes`,
-          iconName: 'lines-leaning',
+          iconName: RECALL_KIND_ICONS.referenceWord,
           onOpen: () => onOpenHighlight(latestRow),
         });
       }
@@ -1462,7 +1476,7 @@ export default function PrototypeSidebarHomeView({
             eyebrow: `Keep going in ${continueBookSuggestion.book}`,
             title: ref,
             meta: continueBookRecallMeta(continueBookSuggestion.book, continueBookSuggestion.nextChapter),
-            iconName: 'scroll',
+            iconName: RECALL_KIND_ICONS.continueBook,
             onOpen: () => startDraftNote({ title: ref, contentHtml: buildVotdScripturePillHtml(ref, 'NET') }),
           });
         }
@@ -1478,7 +1492,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: 'Someone you keep meeting',
         title: recurringPerson.name,
         meta: recurringPersonRecallMeta(recurringPerson.noteCount),
-        iconName: 'circle-user',
+        iconName: RECALL_KIND_ICONS.studyPerson,
         onOpen: () => startDraftNote({ title: recurringPerson.name }),
       });
     }
@@ -1497,7 +1511,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: isSeason ? `It's ${reflectionPrompt.label}` : 'A prayer to write',
         title: reflectionPrompt.title,
         meta: isSeason ? 'Start a reflection for the season' : 'Bring this stretch of study to prayer',
-        iconName: isSeason ? 'calendar' : 'pen-to-square',
+        iconName: isSeason ? 'calendar' : RECALL_KIND_ICONS.reflection,
         onOpen: () => startDraftNote({ title: reflectionPrompt.title }),
       });
     }
@@ -1527,7 +1541,7 @@ export default function PrototypeSidebarHomeView({
             eyebrow: 'A cross-reference to explore',
             title: topCrossRefGap.to.displayRef,
             meta: crossRefGapRecallMeta(topCrossRefGap.from.displayRef, topCrossRefGap.to.displayRef),
-            iconName: 'arrow-right-arrow-left',
+            iconName: RECALL_KIND_ICONS.crossrefGap,
             onOpen: () => openCrossRefGap(topCrossRefGap),
           });
         }
@@ -1545,7 +1559,7 @@ export default function PrototypeSidebarHomeView({
         eyebrow: connectSuggestionRecallEyebrow(),
         title: formatConnectSuggestionTitle(topConnectSuggestion.noteATitle, topConnectSuggestion.noteBTitle),
         meta: connectSuggestionRecallMeta(topConnectSuggestion.reason),
-        iconName: 'arrow-right-arrow-left',
+        iconName: RECALL_KIND_ICONS.connectNotes,
         onOpen: () => {
           onOpenCreateThreadPrefill({
             noteIds: [topConnectSuggestion.noteAId, topConnectSuggestion.noteBId],

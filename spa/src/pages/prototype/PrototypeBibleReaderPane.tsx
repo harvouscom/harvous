@@ -70,6 +70,7 @@ import {
   isOptimisticChapterHighlightId,
   chapterReferenceLookupKey,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
+import type { SavedReference } from '../../hooks/queries/usePrototypeChapterHighlights';
 import ReferenceDockWeb from '@/components/react/ReferenceDockWeb';
 import ScripturePillChromeWeb from '@/components/react/ScripturePillChromeWeb';
 import HighlightDockWeb from '@/components/react/HighlightDockWeb';
@@ -189,7 +190,7 @@ const VerseSpan = memo(function VerseSpan({
       onKeyDown={(e) => onKeys(verse.number, e)}
     >
       <sup className="pds-reader-verse-num">{verse.number}</sup>
-      <span dangerouslySetInnerHTML={html} />
+      <span className="pds-reader__verse-text" dangerouslySetInnerHTML={html} />
     </span>
   );
 });
@@ -302,7 +303,13 @@ export interface PrototypeBibleReaderPaneProps {
    * word)`. Looked up when a word's card opens so a previously-saved one shows "saved" chrome
    * immediately rather than the pending Save button it would show if this were absent.
    */
-  savedReferences?: ReadonlyMap<string, string>;
+  savedReferences?: ReadonlyMap<string, SavedReference>;
+  /**
+   * Filled with the verse currently at the top of the view, tagged with the chapter it belongs
+   * to. The reading log reads it when a session ends so continuing lands where you stopped
+   * rather than at verse 1.
+   */
+  visiblePositionRef?: React.MutableRefObject<{ book: string; chapter: number; verse: number } | null>;
   /**
    * Open a looked-up word's card on arrival, for a saved reference tapped somewhere else.
    *
@@ -339,6 +346,7 @@ export default function PrototypeBibleReaderPane({
   onSaveReference,
   saveReferenceLabel,
   savedReferences,
+  visiblePositionRef,
   referenceRequest,
   landRequestKey,
 }: PrototypeBibleReaderPaneProps) {
@@ -450,11 +458,21 @@ export default function PrototypeBibleReaderPane({
       const verseNumber = span.closest<HTMLElement>('[data-reader-verse]')?.dataset.readerVerse;
       const word = span.dataset.referenceWord || span.textContent?.trim();
       const saved =
-        !!verseNumber &&
-        !!word &&
-        !!savedReferences?.has(chapterReferenceLookupKey(`${book} ${chapter}:${verseNumber}`, word));
-      if (saved) span.setAttribute('data-reference-saved', 'true');
-      else span.removeAttribute('data-reference-saved');
+        verseNumber && word
+          ? savedReferences?.get(
+              chapterReferenceLookupKey(`${book} ${chapter}:${verseNumber}`, word),
+            )
+          : undefined;
+      if (saved) {
+        span.setAttribute('data-reference-saved', 'true');
+        // Its own accent, not the verse's: this span sits inside `.pds-reader__verse`, which
+        // sets `--mark-accent` for the verse's highlight, so a reference reading that variable
+        // would take on whatever colour the verse around it happens to be highlighted in.
+        span.setAttribute('data-reference-accent', saved.accent);
+      } else {
+        span.removeAttribute('data-reference-saved');
+        span.removeAttribute('data-reference-accent');
+      }
     });
   }, [book, chapter, savedReferences, verseHtml]);
 
@@ -479,7 +497,7 @@ export default function PrototypeBibleReaderPane({
   /** The saved row for this exact (anchor, word), if a Save already went through for it. */
   const lookupSavedReferenceId = useCallback(
     (anchor: string, word: string): string | null =>
-      savedReferences?.get(chapterReferenceLookupKey(anchor, word)) ?? null,
+      savedReferences?.get(chapterReferenceLookupKey(anchor, word))?.id ?? null,
     [savedReferences],
   );
 
@@ -526,6 +544,51 @@ export default function PrototypeBibleReaderPane({
     setFocusedVerse(null);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [book, chapter, translation]);
+
+  /**
+   * Which verse is at the top of the view, for "where you left off".
+   *
+   * Written to a ref rather than state on purpose: this changes on every scroll frame, and
+   * nothing on screen depends on it — only the reading log, which reads it when a session
+   * ends. Putting it in state would re-render the whole chapter while scrolling it.
+   *
+   * The book and chapter ride along with the number. The effect that reports this runs on
+   * chapter change, by which point the DOM already holds the NEXT chapter's verses, so a bare
+   * number would be attributed to the chapter being left. The reader of this ref checks that
+   * the address matches what it thinks it is reporting.
+   */
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!visiblePositionRef || !container) return;
+
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const top = container.getBoundingClientRect().top;
+      // First verse whose bottom is still below the top edge — the one being read, rather
+      // than the one that has just scrolled out of sight above it. Bails on the first hit, so
+      // this stays cheap even in Psalm 119.
+      for (const el of container.querySelectorAll<HTMLElement>('[data-reader-verse]')) {
+        if (el.getBoundingClientRect().bottom > top) {
+          const n = Number(el.dataset.readerVerse);
+          if (Number.isFinite(n)) visiblePositionRef.current = { book, chapter, verse: n };
+          return;
+        }
+      }
+    };
+
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(measure);
+    };
+
+    measure();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [book, chapter, verses, visiblePositionRef]);
 
   /**
    * Margin bars, measured rather than laid out.

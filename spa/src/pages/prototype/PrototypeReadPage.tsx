@@ -5,7 +5,7 @@
  * `PrototypeBibleReaderPane`, so it can also be mounted over/under other
  * surfaces later (paper stack, split view) without dragging routing along.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
@@ -43,6 +43,7 @@ import {
   chapterReferencesKey,
   chapterReferenceLookupKey,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
+import type { SavedReference } from '../../hooks/queries/usePrototypeChapterHighlights';
 
 /**
  * Verse numbers a stored reference covers: "Exodus 5:3" → [3], "Exodus 5:3-5" → [3,4,5].
@@ -142,12 +143,15 @@ export default function PrototypeReadPage() {
    * dotted word already has a reference kept against it, instead of opening "Save" again on
    * every tap regardless of whether an earlier one already went through.
    */
+  /** Where the reader has scrolled to, kept current by the pane. See `useReadingSession`. */
+  const visiblePositionRef = useRef<{ book: string; chapter: number; verse: number } | null>(null);
+
   const { data: chapterReferences } = usePrototypeChapterReferences(book, chapter, translation);
   const savedReferences = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, SavedReference>();
     for (const r of chapterReferences ?? []) {
       if (!r.scriptureReference) continue;
-      map.set(chapterReferenceLookupKey(r.scriptureReference, r.word), r.id);
+      map.set(chapterReferenceLookupKey(r.scriptureReference, r.word), { id: r.id, accent: r.accent });
     }
     return map;
   }, [chapterReferences]);
@@ -464,6 +468,17 @@ export default function PrototypeReadPage() {
     canonicalReference: chapterData ? `${chapterData.book} ${chapter}` : undefined,
     translationCode: translation,
     enabled: Boolean(chapterData?.verses.length),
+    /*
+     * Only answer for the chapter being reported. This is asked as a session ends, which for a
+     * chapter change is after the reader has already rendered the next chapter — so the ref
+     * holds a verse of the chapter arrived at, not the one departed. Matching the address is
+     * what stops "left off at John 4:1" being written the moment John 3 is closed.
+     */
+    getVerse: () => {
+      const at = visiblePositionRef.current;
+      if (!at || !chapterData) return undefined;
+      return at.book === chapterData.book && at.chapter === chapter ? at.verse : undefined;
+    },
   });
 
   const handleChangeTranslation = useCallback(
@@ -603,6 +618,7 @@ export default function PrototypeReadPage() {
           onSaveReference={handleSaveReference}
           saveReferenceLabel={saveReferenceLabel}
           savedReferences={savedReferences}
+          visiblePositionRef={visiblePositionRef}
           referenceRequest={referenceRequest}
           landRequestKey={search.req}
         />

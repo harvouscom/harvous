@@ -65,42 +65,42 @@ export function bibleChapterQueryOptions(
       return failureCount < 2;
     },
     queryFn: async () => {
+      /*
+       * The offline copy first, whenever there is one.
+       *
+       * This used to be a fallback reached only when the network failed, which meant a reader
+       * with the whole translation on disk still waited on a round trip for every chapter —
+       * and on a cold load that wait crossed the 250ms grace and put "Loading Genesis 1…" on
+       * screen for text that was already sitting locally. Asking disk first is the difference
+       * between a chapter appearing and a chapter loading.
+       *
+       * Safe to prefer, because a packed chapter cannot be the case the network answer would
+       * have corrected. `staleTime: Infinity` above already declares this text immutable
+       * within a session; the pack extends the same assumption across sessions, which is the
+       * assumption the offline-pack feature is built on. And the one answer the network gives
+       * that the pack must never mask — "this translation does not have this chapter" — cannot
+       * apply to a chapter the pack has, since the pack was built from the same endpoint.
+       *
+       * Note this also means a book read once online is served from disk from then on:
+       * `cacheBookInBackground` keeps the whole book on the way past, so paging through it
+       * stops touching the API at all.
+       */
+      const packed = await readOfflineChapter(book!, chapter!, translation);
+      if (packed) return packed;
+
       const params = new URLSearchParams({
         book: book!,
         chapter: String(chapter),
         translation,
       });
-      try {
-        const response = await api.get<BibleChapterResponse>(
-          `/api/scripture/chapter?${params.toString()}`,
-        );
-        // Keep the book on the way past. The bytes for this chapter were already paid for;
-        // fetching its neighbours costs one background request and means the chapters
-        // someone actually reads are the ones most likely to be there offline.
-        void cacheBookInBackground(book!, translation);
-        return response;
-      } catch (error) {
-        /*
-         * Fall back to the offline copy, if there is one.
-         *
-         * The test is whether the server ANSWERED, not whether an HTTP status came back. A 4xx
-         * is an answer about this chapter — a 404 means the translation genuinely lacks it, and
-         * serving stale text there would hide a real gap behind old words. A 5xx is not an
-         * answer at all; it is the server saying it cannot produce one, which is the same
-         * situation as the network being down.
-         *
-         * That distinction used to be drawn at "is there a status", which put 5xx on the wrong
-         * side: with a complete pack in IndexedDB and the API returning 502, the reader spent
-         * 10.8s over 12 requests to reach "That chapter didn't load", while the verses sat
-         * 0.2ms away on disk.
-         */
-        const status = (error as { status?: number } | null)?.status;
-        if (status != null && status < 500) throw error;
-
-        const offline = await readOfflineChapter(book!, chapter!, translation);
-        if (offline) return offline;
-        throw error;
-      }
+      const response = await api.get<BibleChapterResponse>(
+        `/api/scripture/chapter?${params.toString()}`,
+      );
+      // Keep the book on the way past. The bytes for this chapter were already paid for;
+      // fetching its neighbours costs one background request and means the chapters
+      // someone actually reads are the ones most likely to be there offline.
+      void cacheBookInBackground(book!, translation);
+      return response;
     },
   };
 }

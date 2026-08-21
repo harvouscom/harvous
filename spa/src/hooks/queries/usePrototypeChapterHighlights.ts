@@ -170,6 +170,9 @@ export interface ChapterReference {
   scriptureReference: string | null;
   /** The looked-up word this reference is for — `sourceSnippet` on the row. */
   word: string;
+  /** The colour it was kept in, so the reader can underline it in that colour rather than
+      in the server-side default every row happens to share most of the time. */
+  accent: StudyHighlightAccentKey;
 }
 
 export function chapterReferencesKey(book: string, chapter: number, translation: string) {
@@ -183,6 +186,17 @@ export function chapterReferencesKey(book: string, chapter: number, translation:
  */
 export function chapterReferenceLookupKey(reference: string, word: string): string {
   return `${reference}::${word.trim().toLowerCase()}`;
+}
+
+/**
+ * What the reader keeps per saved look-up: the row to act on, and the colour to draw it in.
+ *
+ * The accent rides along because the underline is painted imperatively onto DOM the memoised
+ * verse HTML owns — there is no second lookup at paint time to go and fetch it from.
+ */
+export interface SavedReference {
+  id: string;
+  accent: StudyHighlightAccentKey;
 }
 
 /**
@@ -213,6 +227,12 @@ export function usePrototypeChapterReferences(
           id: String(row.id),
           scriptureReference: (row.scriptureReference as string | null) ?? null,
           word: ((row.sourceSnippet as string | undefined) || (row.focusTitle as string | undefined) || '').trim(),
+          // Same wire-field rename as the highlights half above, and the same explicit
+          // fallback: reading the wrong one yields `undefined`, which shows up not as a
+          // crash but as every reference silently rendering in the default colour.
+          accent: (row.highlightAccentRaw ??
+            row.highlightAccent ??
+            'warmAmber') as StudyHighlightAccentKey,
         }))
         .filter((row) => row.word);
     },

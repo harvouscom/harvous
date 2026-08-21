@@ -18092,17 +18092,31 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * highlight wash's height, never horizontal alignment. */
 .pds-reader__verse {
   /* `--mark-accent` carries the per-verse highlight colour, exactly as note marks do, so the
-     state rules below never re-list a palette. */
+     state rules below never re-list a palette. It is declared here, on the element that also
+     carries `data-highlight-color`, and inherits down to the text span that draws the line. */
   --mark-accent: var(--pds-highlight-warm-amber);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
   padding: 1px 0;
-  /* The underline is always present and always transparent when idle.
-   *
-   * `text-decoration-color` initially resolves to `currentcolor` — near-black body text — so
-   * animating in from the unset state ran black → grey and read as a flicker. Declaring the
-   * line up front and starting it transparent means the only thing that ever changes is the
-   * colour's alpha: it fades up from nothing instead of darkening down from the text. */
+}
+
+/* The underline paints on the words, not on the verse.
+ *
+ * It used to sit on `.pds-reader__verse`, which wraps the verse number as well as the text —
+ * and text decoration paints across the whole inline box, including a descendant `<sup>` and
+ * its trailing margin. So highlighting a verse drew the accent under its superscript number
+ * too. The number is a locator for finding your place, not part of what you marked.
+ *
+ * Only the painting moved inward. Every state below still keys off the outer span's data
+ * attributes, because those are what the selection and highlight logic sets.
+ *
+ * The underline is always present and always transparent when idle.
+ *
+ * `text-decoration-color` initially resolves to `currentcolor` — near-black body text — so
+ * animating in from the unset state ran black → grey and read as a flicker. Declaring the
+ * line up front and starting it transparent means the only thing that ever changes is the
+ * colour's alpha: it fades up from nothing instead of darkening down from the text. */
+.pds-reader__verse-text {
   text-decoration-line: underline;
   text-decoration-color: transparent;
   text-decoration-thickness: 2px;
@@ -18111,7 +18125,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pds-reader__verse {
+  .pds-reader__verse-text {
     transition: none;
   }
 }
@@ -18127,21 +18141,21 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * by hue, so a blue selection and a blue highlight would look like the same mark — and you
  * could not see what a highlight is about to become while choosing its colour. Grey says
  * "pending" and leaves the whole palette to mean "saved". */
-.pds-reader__verse:hover {
+.pds-reader__verse:hover .pds-reader__verse-text {
   text-decoration-color: color-mix(in oklab, var(--pds-text-tertiary) 55%, transparent);
 }
 
-.pds-reader__verse[data-selected='true'] {
+.pds-reader__verse[data-selected='true'] .pds-reader__verse-text {
   text-decoration-color: var(--pds-text-tertiary);
 }
 
-.pds-reader__verse[data-highlighted='true'] {
+.pds-reader__verse[data-highlighted='true'] .pds-reader__verse-text {
   text-decoration-color: var(--mark-accent);
 }
 
 /* A selected highlight keeps its own colour. The highlight is the fact; selection is a mode
    the verse is temporarily in, and greying it out would look like the colour was lost. */
-.pds-reader__verse[data-highlighted='true'][data-selected='true'] {
+.pds-reader__verse[data-highlighted='true'][data-selected='true'] .pds-reader__verse-text {
   text-decoration-color: var(--mark-accent);
 }
 
@@ -18360,18 +18374,35 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   background: color-mix(in srgb, var(--pds-text-tertiary) 12%, transparent);
 }
 
-/* Already kept — solid instead of dotted, in the accent every saved reference defaults to
-   server-side. Set imperatively (see PrototypeBibleReaderPane's save-tracking effect), not
-   from `verseHtml`'s own markup, which stays save-state-agnostic so it can keep its identity
-   across renders. */
+/* Already kept — solid instead of dotted, in the colour it was actually kept in. Both the
+   saved flag and the accent are set imperatively (see PrototypeBibleReaderPane's save-tracking
+   effect), not from `verseHtml`'s own markup, which stays save-state-agnostic so it can keep
+   its identity across renders.
+
+   `--reference-accent` rather than the `--mark-accent` the verse marks use, and with the
+   default inlined as the fallback: this span is a descendant of `.pds-reader__verse`, so
+   reading `--mark-accent` here would inherit the enclosing verse's highlight colour and paint
+   a reference in a colour nobody chose for it. An unmapped or missing accent falls back to the
+   server-side default instead, which is what every row used to render as. */
+.pds-reader-text .reference-suggestion[data-reference-accent='neutral'] { --reference-accent: var(--pds-highlight-neutral); }
+.pds-reader-text .reference-suggestion[data-reference-accent='warmAmber'] { --reference-accent: var(--pds-highlight-warm-amber); }
+.pds-reader-text .reference-suggestion[data-reference-accent='skyBlue'] { --reference-accent: var(--pds-highlight-sky-blue); }
+.pds-reader-text .reference-suggestion[data-reference-accent='violet'] { --reference-accent: var(--pds-highlight-violet); }
+.pds-reader-text .reference-suggestion[data-reference-accent='mintGreen'] { --reference-accent: var(--pds-highlight-mint-green); }
+.pds-reader-text .reference-suggestion[data-reference-accent='coralRose'] { --reference-accent: var(--pds-highlight-coral-rose); }
+
 .pds-reader-text .reference-suggestion[data-reference-saved='true'] {
   text-decoration-style: solid;
   text-decoration-thickness: 2px;
-  text-decoration-color: var(--pds-highlight-warm-amber);
+  text-decoration-color: var(--reference-accent, var(--pds-highlight-warm-amber));
 }
 
 .pds-reader-text .reference-suggestion[data-reference-saved='true']:hover {
-  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 14%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--reference-accent, var(--pds-highlight-warm-amber)) 14%,
+    transparent
+  );
 }
 
 /* Highlight colours, aliased to the same tokens the note marks use. */
@@ -19151,6 +19182,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 
   .pds-reader__verse,
+  .pds-reader__verse-text,
   .pds-reader__bar-line {
     transition: none;
   }

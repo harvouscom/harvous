@@ -760,7 +760,7 @@ function ReaderScene() {
                       }}
                     >
                       <sup className="pds-reader-verse-num">{verse.num}</sup>
-                      {verse.text}
+                      <span className="pds-reader__verse-text">{verse.text}</span>
                     </span>
                   </p>
                 </div>
@@ -981,7 +981,9 @@ function ReaderDockScene() {
                   <p className="pds-reader-text">
                     <span className="pds-reader__verse" data-selected="true">
                       <sup className="pds-reader-verse-num">28</sup>
-                      And we know that all things work together for good…
+                      <span className="pds-reader__verse-text">
+                        And we know that all things work together for good…
+                      </span>
                     </span>
                   </p>
                 </div>
@@ -1030,7 +1032,9 @@ function ReaderInspectorScene() {
                 <p className="pds-reader-text">
                   <span className="pds-reader__verse">
                     <sup className="pds-reader-verse-num">1</sup>
-                    In the beginning was the Word, and the Word was with God.
+                    <span className="pds-reader__verse-text">
+                      In the beginning was the Word, and the Word was with God.
+                    </span>
                   </span>
                 </p>
               </div>
