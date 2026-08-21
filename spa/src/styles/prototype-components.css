@@ -225,11 +225,31 @@
 .proto-marquee-frame,
 .proto-church-tools__row-text,
 .proto-list-panel__row-text {
+  /* A frame holds two labels and fades once for both, so its count is the longer of them
+     (set in `PrototypeHomeRow`). Declared here as well so the calc below always resolves —
+     an unset custom property would invalidate the whole mask rather than widen it. */
+  --proto-marquee-chars: 40;
+  /*
+   * Zero-width until there is actually something cut off.
+   *
+   * A fade on a label that fits softens text nothing is hiding — "Salvation / 2 notes" has no
+   * edge to dissolve, and greying its first letter on hover is a worse artefact than the hard
+   * cut this exists to fix. The subtraction is the characters a row's width already holds, so
+   * a label shorter than that resolves to `0px`, the two gradient stops collapse onto each
+   * other, and the mask stops being a fade at all.
+   *
+   * An approximation, and it has to be: the overflow distance is `100cqw - 100%`, which only
+   * resolves on the element that shrink-wraps the text — the moving child — while the mask has
+   * to sit on the parent that clips it. The same character count that paces the animation is
+   * the closest thing available on the right element, and it is wrong only in the band where
+   * the fade is fractions of a pixel anyway.
+   */
+  --proto-marquee-fade: clamp(0px, calc((var(--proto-marquee-chars) - 24) * 1px), 8px);
   --proto-marquee-mask: linear-gradient(
     to right,
     transparent 0,
-    #000 8px,
-    #000 calc(100% - 8px),
+    #000 var(--proto-marquee-fade),
+    #000 calc(100% - var(--proto-marquee-fade)),
     transparent 100%
   );
 }

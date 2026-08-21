@@ -83,6 +83,10 @@ export default function PrototypeHomeRow({
   title_attr,
 }: HomeRowProps) {
   const metaItems = homeRowMetaItems(meta);
+  const titleChars = marqueeCharCount(title);
+  // The separators are rendered between items, so they count toward what has to scroll past —
+  // two characters each ("·" plus its spacing).
+  const metaChars = marqueeCharCount(metaItems) + Math.max(0, metaItems.length - 1) * 2;
 
   const body = (
     <>
@@ -100,21 +104,22 @@ export default function PrototypeHomeRow({
           whose parts come from the caller — moves itself (`proto-marquee-self`) inside
           `__row-text`, which is already the clipping box. A row is 260px wide on Home and
           most titles fit; the ones that do not are exactly the ones worth reading. */}
-      <span className="proto-list-panel__row-text">
+      {/* The column fades once for both lines, so it takes the longer of the two counts —
+          whichever line overflows furthest is the one the fade has to cover. */}
+      <span
+        className="proto-list-panel__row-text"
+        style={marqueePace(Math.max(titleChars, metaChars))}
+      >
         <span
           className="pds-list-title proto-list-panel__row-title proto-marquee"
-          style={marqueePace(marqueeCharCount(title))}
+          style={marqueePace(titleChars)}
         >
           <span>{title}</span>
         </span>
         {metaItems.length > 0 ? (
           <span
             className="proto-caption proto-list-panel__row-meta proto-marquee-self"
-            /* The separators are rendered between items, so they count toward what has to
-               scroll past — two characters each ( "·" plus its spacing ). */
-            style={marqueePace(
-              marqueeCharCount(metaItems) + Math.max(0, metaItems.length - 1) * 2,
-            )}
+            style={marqueePace(metaChars)}
           >
             {metaItems.map((item, i) => (
               <span key={i} className="proto-home-row__meta-item">
