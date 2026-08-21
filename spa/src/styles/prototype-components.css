@@ -172,8 +172,13 @@
  *
  * Duration is driven off an approximate character count instead, so the *speed* stays roughly
  * constant and a long label simply takes longer. The count is set per element where the caller
- * knows its text (see `PrototypeHomeRow`); anything that does not set it keeps the old pace
+ * knows its text (see `PrototypeHomeRow`); anything that does not set it keeps a sensible pace
  * via the default and the lower clamp.
+ *
+ * The per-character constant is paired with the keyframes below, where 90% of the run is travel
+ * and the last 10% is the dwell at the tail. Changing either without the other changes the
+ * reading speed: the two together are what put a ~145px row's overflow past the eye at roughly
+ * 45-50px/s, which is fast enough not to feel stuck and slow enough to actually read.
  *
  * Not measured in CSS, because it cannot be: `100cqw` resolves in `animation-duration` but a
  * percentage does not, so the overflow distance — which is `100cqw - 100%` — is unavailable
@@ -187,7 +192,14 @@
 .proto-marquee,
 .proto-marquee-self {
   --proto-marquee-chars: 40;
-  --proto-marquee-duration: clamp(5s, calc(var(--proto-marquee-chars) * 0.13s), 20s);
+  /* The subtraction is the characters that already fit — roughly a row's width. Scaling by the
+     total instead let speed creep up with length, because a 250-character label overflows by
+     far more than three times what an 80-character one does. */
+  --proto-marquee-duration: clamp(
+    4s,
+    calc(var(--proto-marquee-chars) * 0.14s - 3.2s),
+    28s
+  );
 }
 
 /*
@@ -347,13 +359,24 @@
   }
 }
 
-/* Dwell at both ends: the tail is only useful if it stops long enough to read. */
+/*
+ * Moves the moment it is asked to, and dwells only at the far end.
+ *
+ * There used to be a pause at both ends. The opening one was redundant even then — the label
+ * sits at rest showing its beginning for as long as you care to look, so holding still again
+ * once you point at it buys nothing — and it became actively wrong once the duration started
+ * scaling with length: a percentage of a 20s run is three seconds of a label that has visibly
+ * begun something and is not moving. The edge fade comes up on hover, so those seconds read as
+ * the fade arriving early rather than the travel arriving late.
+ *
+ * The tail still stops long enough to read. `alternate` holds it there across the turn — the
+ * end of the outbound run and the start of the return — so one 10% dwell is worth double.
+ */
 @keyframes proto-marquee-reveal {
-  0%,
-  15% {
+  0% {
     transform: translateX(0);
   }
-  85%,
+  90%,
   100% {
     transform: translateX(min(0px, calc(100cqw - 100%)));
   }
