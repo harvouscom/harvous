@@ -17,12 +17,22 @@ async function main() {
   const { default: app } = await import('./app');
   const { warmPostgresConnection } = await import('./db/client');
   const { startScheduler } = await import('./scheduler');
+  const { prewarmOgRenderer } = await import('./utils/og-screenshot');
 
   await warmPostgresConnection();
 
   const server = serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, () => {
     console.log(`[fly] Hono API listening on 0.0.0.0:${port}`);
   });
+
+  // Deliberately after listen and deliberately not awaited: a cold OG render
+  // takes ~34s, which would fail the health check if it gated startup. The
+  // token is well-formed but unknown, so this renders the error card through
+  // the real path — warming Chromium, the SPA fetch, and V8's code cache.
+  const appOrigin = process.env.PUBLIC_APP_ORIGIN?.trim();
+  if (appOrigin) {
+    void prewarmOgRenderer(`${appOrigin}/shared/note/aaaaaaaaaaaa?ogCapture=1`);
+  }
 
   const stopScheduler = startScheduler();
 
