@@ -171,6 +171,27 @@ These were designed here and are now live. The stub files in this folder point t
 - **`OFFLINE_MODE_IMPLEMENTATION.md`** - Offline mode architecture reference (✅ implemented)
   - Full offline read/write support with IndexedDB, sync queues, and conflict resolution
 
+### Design track (decision docs — options + recommendation, awaiting a call)
+
+Written August 2026 from the improvement list. Each states the problem, the real alternatives with
+trade-offs, and a recommendation; each ends with a Decision log to fill in on review.
+
+- **`TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md`** - Toolbar orb vs sidebar tile (#11, #24)
+  - Recommends the hybrid: icon controls become tiles, labelled chips stay pills, avatar stays round
+  - Finds the sidebar tile's `9px` radius is an untokenized literal, and that web/native radii have
+    already drifted on `button` and `scripturePill`
+  - Includes the floating-menu cohesion half and why it should follow, not lead
+- **`SUGGESTION_ACTIONS_REDESIGN.md`** - What a reader can say to a suggestion (#19, and #2's generalization)
+  - Recommends two honest answers: "Not now" (21 days) and a genuinely permanent "Not interested"
+  - Documents that "Don't suggest this again" was a 21-day snooze; two contained fixes already shipped
+- **`HIGHLIGHT_REFERENCE_STYLING_SPEC.md`** - What the four marks look like, everywhere (#5, #3)
+  - Proposes one spec: suggestion dotted 1.5px, saved reference solid 2px, highlight solid 3px
+  - Records that the same highlight renders 2px in the reader and 3px in the dock, and that a
+    highlight and a saved reference are indistinguishable in a note body
+- **`READER_PARTIAL_VERSE_HIGHLIGHTS.md`** - Highlighting less than a whole verse (#7)
+  - Recommends reusing the excerpt model the dock and native already share, painted imperatively
+  - Names the blocking piece: the server upsert key is verse-granular and must gain the excerpt
+
 ## 🎯 Implementation Priority
 
 > **This section is stale (last accurate ~early 2026) and kept for history, not

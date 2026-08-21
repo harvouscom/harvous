@@ -217,8 +217,13 @@ export default function PrototypePaperStack({
               type="button"
               className="proto-side-panel__action-btn pds-paper-stack__edge-dismiss pds-paper-stack__edge-ignore"
               onClick={onSuggestionIgnore}
-              aria-label={`Stop suggesting ${origin.label}`}
-              title="Don't suggest this again"
+              aria-label={`Stop suggesting ${origin.label} for now`}
+              /* Says what it does. This read "Don't suggest this again" while the handler posted an
+                 ordinary `snooze` — a three-week rest, identical to the shelf's "Not now". Whether
+                 a genuinely permanent answer should exist is the open question in
+                 docs/future/SUGGESTION_ACTIONS_REDESIGN.md; until it is answered the copy should
+                 not promise one. */
+              title="Rest this for three weeks"
             >
               <Icon name="eye-slash" size={12} aria-hidden />
             </button>
