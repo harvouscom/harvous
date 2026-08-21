@@ -191,6 +191,15 @@ trade-offs, and a recommendation; each ends with a Decision log to fill in on re
 - **`READER_PARTIAL_VERSE_HIGHLIGHTS.md`** - Highlighting less than a whole verse (#7)
   - Recommends reusing the excerpt model the dock and native already share, painted imperatively
   - Names the blocking piece: the server upsert key is verse-granular and must gain the excerpt
+- **`READER_MARGIN_INDICATORS.md`** - How the reader says "you have written about this" (#8)
+  - Recommends keeping the bar: its length is the note's span, which no point marker can express
+  - Finds the presence signal has no non-visual equivalent, and that a bar merged past the
+    three-lane cap is stretched to a span no note actually cites
+  - Compare the options in the `ds-22-margin-indicators` gallery scene rather than from the prose
+
+Two of these are decided and built. `TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md` (Option B: tile shape,
+glass kept) is decided and awaiting implementation; `SUGGESTION_ACTIONS_REDESIGN.md` (Option B)
+shipped in v2.78.0.
 
 ## 🎯 Implementation Priority
 

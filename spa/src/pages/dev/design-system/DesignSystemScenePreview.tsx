@@ -1510,6 +1510,201 @@ function FloatingSurfacesScene() {
   );
 }
 
+/*
+ * Margin indicators — what the reader uses to say "you have written about this".
+ *
+ * A decision aid for `docs/future/READER_MARGIN_INDICATORS.md` (D-5), and it exists because the
+ * argument for bars over dots is entirely about *length*: a bar's extent is the note's span, and
+ * two bars side by side are an overlap. That is impossible to judge from a description, and the
+ * dot design was rejected once already without anyone seeing the two next to each other.
+ *
+ * Same three notes in every panel, over the same five verses, measured from the same rendered
+ * text — so the only variable is how the margin draws them. The bars panel uses the production
+ * classes; the others are specimens of designs that do not exist, which is the point.
+ *
+ * Delete this scene once D-5 is decided.
+ */
+const MARGIN_SPANS = [
+  { key: 'a', from: 1, to: 1, lane: 0, label: 'One note — John 1:1' },
+  { key: 'b', from: 3, to: 5, lane: 0, label: 'One note — John 1:3-5' },
+  { key: 'c', from: 3, to: 4, lane: 1, label: '3 notes — John 1:3-4' },
+];
+
+type MeasuredSpan = { key: string; top: number; height: number; lane: number; label: string; from: number; to: number };
+
+/** The shared specimen column. `render` draws whatever the variant puts in the gutter. */
+function MarginSpecimen({
+  title,
+  note,
+  render,
+}: {
+  title: string;
+  note: string;
+  render: (spans: MeasuredSpan[]) => React.ReactNode;
+}) {
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  const [spans, setSpans] = useState<MeasuredSpan[]>([]);
+
+  useLayoutEffect(() => {
+    const column = columnRef.current;
+    if (!column) return;
+    // Same measure the pane runs: first rect of the start verse to the last rect of the end
+    // verse, so a range that begins mid-paragraph starts on the right line.
+    const measure = () => {
+      const base = column.getBoundingClientRect().top;
+      setSpans(
+        MARGIN_SPANS.flatMap((s) => {
+          const a = column.querySelector(`[data-verse="${s.from}"]`);
+          const b = column.querySelector(`[data-verse="${s.to}"]`);
+          if (!(a instanceof HTMLElement) || !(b instanceof HTMLElement)) return [];
+          const first = a.getClientRects()[0];
+          const rects = b.getClientRects();
+          const last = rects[rects.length - 1];
+          if (!first || !last) return [];
+          return [{
+            key: s.key,
+            top: Math.round(first.top - base),
+            height: Math.max(4, Math.round(last.bottom - first.top)),
+            lane: s.lane,
+            label: s.label,
+            from: s.from,
+            to: s.to,
+          }];
+        }),
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div>
+      <p className="pds-section-header" style={{ marginBottom: 2 }}>{title}</p>
+      <p className="pds-caption" style={{ marginBottom: 10 }}>{note}</p>
+      <div className="pds-reader pds-gallery-reader">
+        <div className="pds-reader__scroll">
+          <div className="pds-reader__column" ref={columnRef}>
+            {render(spans)}
+            <div role="listbox" aria-label="John 1 verses">
+              {READER_VERSES.map((verse) => (
+                <div className="pds-reader__block" role="none" key={verse.num}>
+                  <p className="pds-reader-text" role="none">
+                    <span className="pds-reader__verse" role="option" data-verse={verse.num} aria-selected={false}>
+                      <sup className="pds-reader-verse-num">{verse.num}</sup>
+                      <span className="pds-reader__verse-text">{verse.text}</span>
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MarginIndicatorScene() {
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <p className="pds-caption" style={{ marginBottom: 18 }}>
+        Three notes over John 1, drawn four ways. One covers verse 1 alone, one covers 3–5, and a
+        third — three notes on the same passage — covers 3–4. Watch what survives each treatment:
+        the length of a span, and the fact that two of them overlap.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+        <MarginSpecimen
+          title="A — bars (today)"
+          note="Length is the span; the second lane is the overlap. Production classes, so this is live."
+          render={(spans) => (
+            <div className="pds-reader__margin" aria-hidden>
+              {spans.map((s) => (
+                <ReaderBar
+                  key={s.key}
+                  top={s.top}
+                  height={s.height}
+                  lane={s.lane}
+                  heat={s.key === 'c' ? 3 : 1}
+                  label={s.label}
+                />
+              ))}
+            </div>
+          )}
+        />
+
+        <MarginSpecimen
+          title="C — dots (the design bars replaced)"
+          note="A point marker can say something is here and nothing else. Both spans and the overlap are gone; verse 3 carries two dots that look like one busier verse."
+          render={(spans) => (
+            <div className="pds-reader__margin" aria-hidden>
+              {spans.map((s) => (
+                <span
+                  key={s.key}
+                  className="pds-gallery-margin-dot"
+                  style={{ top: s.top + 7, right: s.lane * 9 }}
+                />
+              ))}
+            </div>
+          )}
+        />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <MarginSpecimen
+          title="D — inline glyph"
+          note="Reachable by keyboard for free, and that is its only advantage. It competes with the verse number the reader just finished keeping clean, and puts an editorial mark inside Scripture's own line."
+          render={(spans) => (
+            <div className="pds-reader__margin" aria-hidden>
+              {spans.map((s) => (
+                <span
+                  key={s.key}
+                  className="pds-gallery-margin-glyph"
+                  style={{ top: s.top + 2, right: s.lane * 9 }}
+                >
+                  <Icon name="note-sticky" size={9} aria-hidden />
+                </span>
+              ))}
+            </div>
+          )}
+        />
+
+        <MarginSpecimen
+          title="The merge defect (finding 2)"
+          note="A fourth concurrent note folds into lane 3 and stretches that bar to the union of both spans. The outer bar here covers 1–5; no note cites 1–5. Length is the one thing the design promises, and this is where it lies."
+          render={(spans) => {
+            const stretched = spans.length
+              ? { ...spans[0], height: (spans[2]?.top ?? 0) + (spans[2]?.height ?? 0) - spans[0].top }
+              : null;
+            return (
+              <div className="pds-reader__margin" aria-hidden>
+                {stretched ? (
+                  <ReaderBar
+                    top={stretched.top}
+                    height={stretched.height}
+                    lane={0}
+                    heat={4}
+                    label="Stretched to the union — John 1:1 and John 1:3-4"
+                  />
+                ) : null}
+              </div>
+            );
+          }}
+        />
+      </div>
+
+      <p className="pds-caption" style={{ marginTop: 16 }}>
+        Not shown, because it is invisible by definition: the recommended change adds no pixels.
+        A verse covered by a note gains a visually-hidden suffix so the chapter&apos;s listbox
+        announces &ldquo;Verse 3, in three of your notes&rdquo; — the margin stays `aria-hidden`,
+        which is correct, and the fact stops being sight-only.
+      </p>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1554,6 +1749,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <ToolbarShapeScene />;
     case 'ds-21-floating-shape':
       return <FloatingSurfacesScene />;
+    case 'ds-22-margin-indicators':
+      return <MarginIndicatorScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }
