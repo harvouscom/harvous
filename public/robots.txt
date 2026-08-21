@@ -1,0 +1,39 @@
+# Harvous app (app.harvous.com).
+#
+# This host is the signed-in application, not the marketing site. Almost nothing here is
+# meant to be indexed: behind the front door every route is a client-rendered SPA shell
+# that a crawler can only fetch as a 2.7MB bundle plus fonts and wallpapers, learning
+# nothing. In August 2026 a bot flood on /shared/* came close to exhausting the edge
+# function quota; the same traffic is bandwidth, and nothing had ever told it to stop.
+#
+# Shared links are the deliberate exception. A shared note or thread is meant to be
+# opened, previewed and passed on, so unfurlers and crawlers stay welcome there — the OG
+# meta they need is served by the shared-og edge function without loading the app.
+
+User-agent: *
+
+# The application itself. Nothing to index; everything to download.
+Disallow: /api/
+Disallow: /__dev/
+Disallow: /read/
+Disallow: /note/
+Disallow: /space/
+Disallow: /settings/
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /invitations/
+
+# Large static payloads no crawler has a reason to fetch.
+Disallow: /assets/
+Disallow: /videos/
+Disallow: /images/prototype-backgrounds/
+Disallow: /images/space-covers/
+Disallow: /images/auth-hero/
+
+# ...but shared pages and their previews stay open.
+Allow: /shared/
+Allow: /api/og/
+
+# Politeness for the crawlers that honour it. Not a substitute for the rules above —
+# Googlebot ignores this directive — but it meaningfully slows the ones that do.
+Crawl-delay: 10
