@@ -93,7 +93,7 @@ export function fixtureToSpaceDetail(fixture: SharedSpaceDashboardFixture): Spac
 const AUTHORS = {
   self: { isOwn: true, authorName: 'You', authorColor: 'blue' },
   sarah: { isOwn: false, authorName: 'Sarah', authorColor: 'green' },
-  james: { isOwn: false, authorName: 'James', authorColor: 'teal' },
+  james: { isOwn: false, authorName: 'James', authorColor: 'purple' },
 } as const;
 
 function resolveAuthor(note: import('../../../hooks/queries/useSpace').SpaceNoteRow) {
@@ -106,7 +106,7 @@ function resolveAuthor(note: import('../../../hooks/queries/useSpace').SpaceNote
 const ROMANS_MEMBERS: SpaceMemberRow[] = [
   fixtureMember('user_derek', 'Derek', 'owner', 'blue'),
   fixtureMember('user_sarah', 'Sarah', 'member', 'green'),
-  fixtureMember('user_james', 'James', 'member', 'teal'),
+  fixtureMember('user_james', 'James', 'member', 'purple'),
   fixtureMember('user_elena', 'Elena', 'member', 'pink'),
 ];
 
@@ -179,7 +179,7 @@ export const SHARED_SPACE_DASHBOARD_FIXTURE_FULL: SharedSpaceDashboardFixture = 
         title: 'Creation groaning — Romans 8:22',
         authorUserId: 'user_james',
         authorDisplayName: 'James',
-        authorColor: 'teal',
+        authorColor: 'purple',
         isOwnNote: false,
         updatedAt: '2026-07-03T09:00:00.000Z',
         lastUpdated: '2026-07-03T09:00:00.000Z',
@@ -194,7 +194,7 @@ export const SHARED_SPACE_DASHBOARD_FIXTURE_FULL: SharedSpaceDashboardFixture = 
 /** Quiet day — social greeting instead of new-since banner; member view (no owner gear). */
 export const SHARED_SPACE_DASHBOARD_FIXTURE_SOCIAL: SharedSpaceDashboardFixture = {
   spaceTitle: 'Acts Community',
-  spaceColor: 'teal',
+  spaceColor: 'purple',
   spaceDescription: 'Walking through Acts together — one chapter at a time.',
   spaceId: 'space_fixture_acts',
   ownerId: 'user_marcus',
