@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { threadColorVar, spaceIconAccentHex } from '../space-cover';
+import { colorTokenVar, threadColorVar, spaceIconAccentHex } from '../space-cover';
 
 /**
  * The colour columns these values come from are free text with no enum, and CSS drops a whole
@@ -44,5 +44,52 @@ describe('spaceIconAccentHex never emits an unguarded reference', () => {
 
   it('keeps the dark ramp for hues that have one', () => {
     expect(spaceIconAccentHex('yellow', 'dark')).toBe('var(--pds-thread-yellow, var(--color-yellow))');
+  });
+});
+
+/**
+ * The general form, which the sweep across ~14 components uses.
+ *
+ * Each of those had written the reference by hand with its own default — purple for a thread
+ * accent, blue for a member avatar, paper for a space cover — and none of them guarded the
+ * hue. The point of the helper is that a call site keeps its own default and stops having to
+ * remember the guard.
+ */
+describe('colorTokenVar', () => {
+  it('keeps a defined hue exactly as it is', () => {
+    expect(colorTokenVar('green', 'purple')).toBe('var(--color-green)');
+  });
+
+  it("uses the call site's own default when there is no colour", () => {
+    expect(colorTokenVar(null, 'purple')).toBe('var(--color-purple)');
+    expect(colorTokenVar(undefined, 'paper')).toBe('var(--color-paper)');
+    expect(colorTokenVar('', 'blue')).toBe('var(--color-blue)');
+    // Whitespace is not a colour. Left unguarded this produced `var(--color- )`.
+    expect(colorTokenVar('   ', 'blue')).toBe('var(--color-blue)');
+  });
+
+  it('guards an unknown hue with that same default', () => {
+    expect(colorTokenVar('teal', 'purple')).toBe('var(--color-teal, var(--color-purple))');
+  });
+
+  /**
+   * One parameter, not two. A surface that wants purple for "no colour" wants purple for "a
+   * colour I cannot resolve" as well; letting those differ is how the same question gets two
+   * answers in one codebase.
+   */
+  it('answers missing and unknown the same way', () => {
+    const missing = colorTokenVar(null, 'blue');
+    const unknown = colorTokenVar('chartreuse', 'blue');
+    expect(missing).toContain('var(--color-blue)');
+    expect(unknown).toContain('var(--color-blue)');
+  });
+
+  it('normalises case, since the columns are free text', () => {
+    expect(colorTokenVar('GREEN', 'blue')).toBe('var(--color-green)');
+  });
+
+  it('still describes threadColorVar, which is now a special case of it', () => {
+    expect(threadColorVar('teal')).toBe(colorTokenVar('teal', 'blue'));
+    expect(threadColorVar(null)).toBe(colorTokenVar('paper', 'blue'));
   });
 });

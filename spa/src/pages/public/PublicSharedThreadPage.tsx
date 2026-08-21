@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
@@ -176,9 +177,8 @@ export default function PublicSharedThreadPage() {
   const thread = data?.thread;
   const notes = data?.notes || [];
   const creator = data?.creator;
-  const threadColor = thread?.color || 'blue';
 
-  const colorVar = `var(--color-${threadColor})`;
+  const colorVar = colorTokenVar(thread?.color, 'blue');
 
   return (
     <>
@@ -206,7 +206,7 @@ export default function PublicSharedThreadPage() {
                   <div className="public-card">
                     <div
                       className="public-card__color-stripe"
-                      style={{ background: `var(--color-${plan.plan.color || 'blue'})` }}
+                      style={{ background: colorTokenVar(plan.plan.color, 'blue') }}
                     />
                     <div className="public-card__header">
                       <h1 className="public-card__title">{plan.plan.title}</h1>

@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import { useAuth } from '@clerk/clerk-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -240,7 +241,7 @@ export default function FeaturedCard({ item, onClose }: { item: FeaturedItem; on
   const accentSurfaceStyle = useMemo(
     () => ({
       ...((item.contentType === 'space' || item.contentType === 'thread') && item.color
-        ? { backgroundColor: `var(--color-${item.color})` }
+        ? { backgroundColor: colorTokenVar(item.color, 'blue') }
         : { backgroundColor: 'var(--color-light-paper)', backgroundImage: accentGradient ?? undefined }),
       ['--thread-accent-icon-color' as string]: getThreadIconOnAccentCSS(item.color ?? undefined),
     }),

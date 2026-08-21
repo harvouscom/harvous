@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import SearchInput from './SearchInput';
@@ -179,7 +180,7 @@ const ThreadItem: React.FC<{
 }> = ({ item, isSelected, isLoading, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [hasHover, setHasHover] = useState(true); // Default to true (desktop)
-  const threadAccentColor = item.color ? `var(--color-${item.color})` : "var(--color-purple)";
+  const threadAccentColor = colorTokenVar(item.color, 'purple');
   
   useEffect(() => {
     // Detect if device supports hover (has cursor)

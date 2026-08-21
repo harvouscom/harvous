@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ButtonSmall from './ButtonSmall';
@@ -51,8 +52,11 @@ function getColorCSSVariable(colorName: string | undefined | null): string {
     "purple": "purple",
   };
   
-  const mappedColor = colorMap[colorName.toLowerCase()] || "paper";
-  return `var(--color-${mappedColor})`;
+  // Every value in the map above is a defined token today, so this is belt-and-braces — but
+  // the map is the kind of thing a new hue gets added to, and `colorTokenVar` means a bad
+  // entry degrades to paper instead of dropping the declaration and painting nothing.
+  const mappedColor = colorMap[colorName.toLowerCase()] || 'paper';
+  return colorTokenVar(mappedColor, 'paper');
 }
 
 // Extract color name from CSS variable format (e.g., "var(--color-blue)" -> "blue")

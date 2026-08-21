@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useMemo, useEffect } from 'react';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
@@ -129,7 +130,7 @@ export default function AddToSection({
 
   // Default item renderer for threads - inspired by CardThread but more compact
   const defaultItemRenderer = (item: AddableItem, onClick: () => void) => {
-    const threadAccentColor = item.color ? `var(--color-${item.color})` : "var(--color-purple)";
+    const threadAccentColor = colorTokenVar(item.color, 'purple');
     
     return (
       <div

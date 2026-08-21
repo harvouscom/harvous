@@ -1,3 +1,4 @@
+import { colorTokenVar } from '@/utils/space-cover';
 import React, { useState, useEffect } from 'react';
 
 interface ProfileCardStackHeaderProps {
@@ -40,7 +41,7 @@ export default function ProfileCardStackHeader({
     <div
       className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full"
       style={{
-        backgroundColor: `var(--color-${color})`,
+        backgroundColor: colorTokenVar(color, 'blue'),
         color: 'var(--color-deep-grey)'
       }}
     >

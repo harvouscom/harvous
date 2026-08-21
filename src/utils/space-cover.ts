@@ -258,21 +258,47 @@ export function appearanceAccentForThreadColor(
  * so the element loses its background entirely rather than falling back to something. That is
  * silent, and it is how activity-feed avatars ended up as empty rings.
  */
-const DEFINED_COLOR_TOKENS = new Set([
+const DEFINED_COLOR_TOKENS = [
   'blue', 'gray', 'green', 'highlighter', 'navy', 'orange',
   'paper', 'pink', 'purple', 'red', 'white', 'yellow',
-]);
+] as const;
+
+export type DefinedColorToken = (typeof DEFINED_COLOR_TOKENS)[number];
+
+const DEFINED_COLOR_TOKEN_SET: ReadonlySet<string> = new Set(DEFINED_COLOR_TOKENS);
+
+/**
+ * A `--color-*` reference that always resolves to something visible.
+ *
+ * `fallback` answers both of the questions a call site has — what to show when there is no
+ * colour at all, and what to show when the colour names a token nothing defines. One parameter
+ * rather than two on purpose: a surface that wants purple for "this thread has no colour" wants
+ * purple for "this thread's colour is one I cannot resolve" too. Splitting them would invite
+ * call sites to answer the same question two different ways by accident, which is close to how
+ * this class of bug arises in the first place.
+ *
+ * Typed to the defined set, so a fallback that is itself undefined cannot be passed — a guard
+ * that falls back to nothing is worse than no guard, because it looks like protection.
+ */
+export function colorTokenVar(
+  color: string | null | undefined,
+  fallback: DefinedColorToken,
+): string {
+  const key = color?.trim().toLowerCase();
+  if (!key) return `var(--color-${fallback})`;
+  if (DEFINED_COLOR_TOKEN_SET.has(key)) return `var(--color-${key})`;
+  return `var(--color-${key}, var(--color-${fallback}))`;
+}
 
 /**
  * A legacy thread-token reference that always resolves to something visible.
  *
- * Blue because that is what every server path already defaults an absent colour to
- * (`userColor ?? 'blue'`), so an unrecognised hue degrades to the same thing a missing one does.
+ * Paper for a missing colour, because that is the neutral a space without one has always shown;
+ * blue for an unrecognised one, because that is what every server path already substitutes
+ * (`userColor ?? 'blue'`), so an unknown hue degrades to the same thing an absent one does.
  */
 export function threadColorVar(color: string | null | undefined): string {
-  const key = (color || 'paper').toLowerCase();
-  if (DEFINED_COLOR_TOKENS.has(key)) return `var(--color-${key})`;
-  return `var(--color-${key}, var(--color-blue))`;
+  return colorTokenVar(color || 'paper', 'blue');
 }
 
 /** Color-picker dot fill — appearance hex when paired, else legacy thread token. */
