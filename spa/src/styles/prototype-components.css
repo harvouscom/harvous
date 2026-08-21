@@ -985,7 +985,20 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   visibility: hidden;
 }
 
-/* Icon button — circular macOS toolbar "orb" */
+/*
+ * Icon button — a tile, on glass.
+ *
+ * Was a circle, and the circle was the arbitrary half. The sidebar's controls are rounded
+ * squares on a flat surface and both are on screen at once, so the toolbar differed on shape
+ * AND material simultaneously — which is what made the mismatch read as accidental rather than
+ * as two kinds of thing. Only the shape moves: the glass stays, because the glass is what says
+ * this bar floats over the page, and that matters most over an image wallpaper.
+ *
+ * Decided against the rendered `ds-20-toolbar-shape` scene — see
+ * docs/future/TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md. Two things deliberately do NOT follow:
+ * the labelled chips below keep `--pds-radius-pill` (a pill is the shape a label wants), and
+ * the account control keeps a circle (it is a face, not a control).
+ */
 .proto-toolbar-icon-btn {
   position: relative;
   display: inline-flex;
@@ -999,7 +1012,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   max-width: var(--pds-toolbar-orb-size);
   min-height: var(--pds-toolbar-orb-size);
   max-height: var(--pds-toolbar-orb-size);
-  border-radius: var(--pds-radius-pill);
+  border-radius: var(--pds-radius-row);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-glass-medium);
   -webkit-backdrop-filter: var(--pds-glass-blur-control);
@@ -1096,6 +1109,18 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   background: var(--pds-accent-indicator);
   box-shadow: 0 0 0 1.5px var(--pds-bg-page);
   pointer-events: none;
+}
+
+/*
+ * ...except the account control, which stays a circle.
+ *
+ * A face is not a control. Squaring an avatar makes it read as a button that happens to have a
+ * person in it, and every other surface in the app draws a person round. Derived with `:has()`
+ * rather than a modifier class because the account button is the only consumer that wraps a
+ * profile orb — the same trick the photo rule below already uses.
+ */
+.proto-toolbar-icon-btn:has(.proto-profile-orb) {
+  border-radius: var(--pds-radius-pill);
 }
 
 /* Toolbar account orb — fixed inner shell (mirrors native HarvousProfileOrb). */
@@ -8033,8 +8058,10 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
 }
 
 /* ─── Delete confirm bar — prototype token overrides ───────────────────── */
+/* Radius is no longer overridden here. It was a pill for the compact row and a card for the
+   stacked one — two shapes for one surface, and neither the shape anything else that floats
+   uses. Both now take `--pds-radius-menu` from delete-confirm-bar.css with everything else. */
 html.harvous-prototype-route .harvous-delete-confirm {
-  border-radius: var(--pds-radius-pill);
   border-color: var(--pds-border-modal-highlight);
   background: var(--pds-bg-popover-solid);
   box-shadow: var(--pds-shadow-popover), inset 0 0.5px 0 var(--pds-bg-modal-inset-highlight);
@@ -8049,13 +8076,6 @@ html.harvous-prototype-route .harvous-delete-confirm__title {
   font-family: var(--pds-font-body);
   font-variation-settings: var(--pds-font-body-variation);
   color: var(--pds-text-primary);
-}
-
-/* Card, not capsule. This was `--pds-radius-scripture` (999px, meant for inline
-   scripture pills) — on a two-line confirm that rounds into a blob, and the shell's
-   `overflow: hidden` then clips the first character of the title. */
-html.harvous-prototype-route .harvous-delete-confirm--stacked {
-  border-radius: var(--pds-radius-card);
 }
 
 html.harvous-prototype-route .harvous-delete-confirm__description {
@@ -18279,11 +18299,22 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * animating in from the unset state ran black → grey and read as a flicker. Declaring the
  * line up front and starting it transparent means the only thing that ever changes is the
  * colour's alpha: it fades up from nothing instead of darkening down from the text. */
+/*
+ * Offset 2, not 3 — and that pixel is the whole distinction between a highlight and a saved
+ * reference now.
+ *
+ * They used to be indistinguishable here and in the note body, both solid 2px at offset 3;
+ * only the dock told them apart, and only because its highlight was 3px. Levelling on 2px
+ * everywhere (so the chapter's thickness never changes and native comes down to meet web) meant
+ * weight could no longer carry the difference, so offset does: held away from the word reads as
+ * annotating it, sat close reads as attached to it. Reference stays at 3 —
+ * `.reference-suggestion` below. See docs/future/HIGHLIGHT_REFERENCE_STYLING_SPEC.md.
+ */
 .pds-reader__verse-text {
   text-decoration-line: underline;
   text-decoration-color: transparent;
   text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  text-underline-offset: 2px;
   transition: text-decoration-color 140ms var(--pds-ease-standard);
 }
 

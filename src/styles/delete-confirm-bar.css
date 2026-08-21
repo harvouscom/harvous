@@ -2,7 +2,9 @@
 
 .harvous-delete-confirm {
   max-width: 320px;
-  border-radius: 22px;
+  /* One radius for everything that floats. Was 22 compact / 16 stacked — two numbers for one
+     surface, neither of them anything else's. */
+  border-radius: var(--pds-radius-menu, 12px);
   border: 0.5px solid rgba(0, 0, 0, 0.1);
   background: var(--color-snow-white);
   box-shadow:
@@ -29,7 +31,6 @@
 /* Roomier layout when supporting copy is present — copy above, actions below. */
 .harvous-delete-confirm--stacked {
   max-width: 300px;
-  border-radius: 16px;
 }
 
 .harvous-delete-confirm--stacked > .proto-popover-shell__content {
