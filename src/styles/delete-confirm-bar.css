@@ -50,7 +50,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 12px 10px 8px 14px;
+  /* Bottom is 6, not 8: it absorbs the 2px the actions used to claim with a negative margin, so
+     a wrapped card keeps exactly the inset it had while an inline one centres honestly. */
+  padding: 12px 10px 6px 14px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -82,14 +84,20 @@
 }
 
 /* `margin-left: auto` holds the actions to the right edge on both layouts — beside the copy
-   when they share a row, and under it when they wrap onto their own line. */
+   when they share a row, and under it when they wrap onto their own line.
+
+   Vertical margins stay symmetric, which matters more than it looks. `align-items: center` on
+   the stack centres each item's MARGIN box, so a negative bottom margin here — there was a -2px,
+   pulling the buttons into the card's bottom padding — shifted the buttons 1px below the copy
+   whenever the two shared a row. The pull is now taken out of the stack's bottom padding
+   instead, where it cannot lean on the centring. */
 .harvous-delete-confirm__actions {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
-  margin: 0 -2px -2px auto;
+  margin: 0 -2px 0 auto;
 }
 
 /* No hairline dividers at any copy length (compact or stacked). */
