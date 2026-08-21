@@ -203,6 +203,7 @@ const VerseSpan = memo(function VerseSpan({
   accent,
   inFocus,
   roving,
+  noteCount,
   html,
   onFocusVerse,
   onActivate,
@@ -213,6 +214,8 @@ const VerseSpan = memo(function VerseSpan({
   accent?: string;
   inFocus: boolean;
   roving: boolean;
+  /** How many of your notes cite this verse, 0 for none. See `noteCountLabel` below. */
+  noteCount: number;
   html: { __html: string };
   onFocusVerse: (n: number) => void;
   onActivate: (n: number, e: ReactMouseEvent<HTMLSpanElement>) => void;
@@ -235,9 +238,34 @@ const VerseSpan = memo(function VerseSpan({
     >
       <sup className="pds-reader-verse-num">{verse.number}</sup>
       <span className="pds-reader__verse-text" dangerouslySetInnerHTML={html} />
+      {/*
+        The margin's signal, for anyone not looking at it.
+
+        The bars are `aria-hidden` and should stay that way — a screen reader walking a chapter
+        should hear Scripture, not a list of marks interleaved between verses. But nothing else
+        VOLUNTEERED the fact that you had written about a verse: the verse's own actions are
+        Highlight / Annotate / Passages / Note, and the notes are reachable only by opening the
+        passage dock, which you would have to already suspect was worth doing.
+
+        So the verse says it itself. It is already a `role="option"` with an accessible name, and
+        this rides inside that name — no pixels, no extra tab stop, nothing interleaved.
+      */}
+      {noteCount > 0 ? (
+        <span className="proto-visually-hidden">{noteCountLabel(noteCount)}</span>
+      ) : null}
     </span>
   );
 });
+
+/**
+ * "in one of your notes" / "in 3 of your notes".
+ *
+ * Spelled out rather than a bare count, because it is read aloud in the middle of a verse and a
+ * naked number there sounds like part of Scripture.
+ */
+function noteCountLabel(count: number): string {
+  return count === 1 ? 'in one of your notes' : `in ${count} of your notes`;
+}
 
 const LOADING_GRACE_MS = 250;
 
@@ -697,6 +725,28 @@ export default function PrototypeBibleReaderPane({
       if (frame) cancelAnimationFrame(frame);
     };
   }, [book, chapter, verses, visiblePositionRef]);
+
+  /**
+   * How many of your notes cite each verse — the margin's signal, in a form that can be spoken.
+   *
+   * Derived from `anchorLanes`, not from the measured `bars`: the bars only exist once layout has
+   * settled, and an accessible name that appears a frame late is worse than one that is simply
+   * right. `anchorLanes` is already gated on `showMarginNotes`, so turning margin notes off takes
+   * the spoken cue with it — one switch, one meaning, which is the decision recorded in
+   * docs/future/READER_MARGIN_INDICATORS.md.
+   */
+  const noteCountByVerse = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const lane of anchorLanes) {
+      // Every verse the anchor covers, not just its first — a note on 3-5 is "in your notes" on
+      // all three. `mergedCount` rather than `notes.length` so a bar standing for a folded note
+      // still speaks for both, which is the whole reason the bar keeps its own span.
+      for (let v = lane.startVerse; v <= lane.endVerse; v++) {
+        counts.set(v, (counts.get(v) ?? 0) + lane.mergedCount);
+      }
+    }
+    return counts;
+  }, [anchorLanes]);
 
   /**
    * Margin bars, measured rather than laid out.
@@ -1552,6 +1602,7 @@ export default function PrototypeBibleReaderPane({
                           verse.number <= selection[1]
                         }
                         accent={highlights?.get(verse.number)?.accent}
+                        noteCount={noteCountByVerse.get(verse.number) ?? 0}
                         inFocus={
                           focusRange != null &&
                           verse.number >= focusRange[0] &&
@@ -1579,6 +1630,7 @@ export default function PrototypeBibleReaderPane({
                         verse.number <= selection[1]
                       }
                       accent={highlights?.get(verse.number)?.accent}
+                      noteCount={noteCountByVerse.get(verse.number) ?? 0}
                       inFocus={
                         focusRange != null &&
                         verse.number >= focusRange[0] &&

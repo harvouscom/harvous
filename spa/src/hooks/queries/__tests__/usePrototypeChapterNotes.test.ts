@@ -111,7 +111,15 @@ describe('assignAnchorLanes', () => {
     expect(merged?.notes).toHaveLength(2);
   });
 
-  it('grows the host bar to cover what was merged into it', () => {
+  /**
+   * The host keeps its own span — this test asserted the opposite until August 2026.
+   *
+   * Stretching the host to the union made the drawn bar cover verses no note it stands for
+   * actually cited, and the note card, which is sized from the bar, then held a passage wider
+   * than anything anyone had written about. Length is the property the whole margin design rests
+   * on, and that was the one case where it lied. See docs/future/READER_MARGIN_INDICATORS.md.
+   */
+  it('keeps the host bar at its own span rather than growing it over the merged note', () => {
     // Four DISTINCT overlapping ranges — identical ones would group into a single bar and
     // never reach the lane cap at all.
     const bars = assignAnchorLanes(
@@ -119,7 +127,24 @@ describe('assignAnchorLanes', () => {
       20,
     );
     const merged = bars.find((b) => b.mergedCount > 1);
-    expect(merged?.endVerse).toBe(12);
+    // 8, not 12: the host's own end. Verse 12 is cited only by the note that folded into it.
+    expect(merged?.endVerse).toBe(8);
+    // ...and no bar anywhere claims a verse its own range does not reach.
+    for (const bar of bars) {
+      expect(bar.endVerse).toBeGreaterThanOrEqual(bar.startVerse);
+      expect(bar.endVerse).toBeLessThanOrEqual(12);
+    }
+  });
+
+  /** The folded note is still reachable — it rides in the host's card, which lists them all. */
+  it('carries the merged note in the host bar it hid behind', () => {
+    const bars = assignAnchorLanes(
+      [anchor(1, 6), anchor(2, 7), anchor(3, 8), anchor(4, 12)],
+      20,
+    );
+    const merged = bars.find((b) => b.mergedCount > 1);
+    expect(merged?.notes).toHaveLength(2);
+    expect(merged?.mergedCount).toBe(2);
   });
 
   it('clamps a cross-chapter range to the last verse shown', () => {

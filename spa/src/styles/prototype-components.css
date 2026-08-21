@@ -18613,9 +18613,13 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /* ── Margin notifiers ──
-   A dot means one note on this verse; a capsule of stacked dots means several.
+   A bar per note, its length the verses that note covers; two side by side are an overlap.
    Quiet at rest: this is a presence signal you notice while reading, not a
-   control competing with the text. */
+   control competing with the text.
+
+   (This described dots until August 2026 — the design bars replaced, still sitting above the
+   rule that replaced it. See docs/future/READER_MARGIN_INDICATORS.md for why bars won: a point
+   marker can say something is here and nothing else.) */
 /*
  * The margin layer sits over the column's gutter track.
  *
