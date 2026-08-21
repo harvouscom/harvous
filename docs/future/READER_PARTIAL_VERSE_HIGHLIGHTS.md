@@ -1,6 +1,7 @@
 # Partial-Verse Highlights in the Reader — Options
 
-**Status:** Decision doc. Not started.
+**Status:** Decision doc. Not started. The server blocker is scoped — see
+[Scoping the blocker](#scoping-the-blocker-august-21-2026).
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides whether the chapter reader should highlight less than a whole verse.
 **Covers:** improvement-list item #7.
@@ -134,6 +135,93 @@ same reference recolours the existing row rather than inserting. That key is ver
 different phrases highlighted in the same verse would collide into one row today. **Option B requires
 changing that key** (adding the excerpt) before it can store two spans in one verse, and that is the
 one piece of work that cannot be deferred or faked.
+
+---
+
+## Scoping the blocker (August 21, 2026)
+
+The doc above calls the server upsert "the one piece of work that cannot be deferred or faked".
+That is still true, but the shape of the work is not what it sounds like. Scoped against the code:
+
+### There is no migration, and no backfill
+
+**The "upsert key" is not a database constraint.** `StudyThreadEntries` has no unique index on
+those columns — its indexes are `parentNoteId`, `userId`, `noteVersionId`, `resolvedVersionId`,
+`(spaceId, parentNoteId)` and `anchorStatus` (`server/db/schema.ts:519-524`). The key is purely the
+`where` clause of a `SELECT … LIMIT 1` in `server/routes/study-threads.ts:970-987`, followed by an
+`UPDATE` or an `INSERT`. Changing it is a code change to that clause. There is no constraint to
+drop, no index to rebuild, and nothing that fails mid-migration.
+
+**The excerpt already travels end to end.** `scripturePassageExcerpt` exists on the table, the
+endpoint already accepts `body.excerpt` (`:1018`), the client mutation already takes an optional
+`excerpt` (`usePrototypeChapterHighlights.ts`), and the reader already sends one — `selectedText`,
+the selected verses' own text (`PrototypeBibleReaderPane.tsx:1071-1078`). Nothing needs plumbing.
+
+### The trap: do not put the excerpt itself in the key
+
+This is the thing worth knowing before anyone starts, because it looks like the obvious move and it
+reintroduces the exact bug the current upsert exists to prevent.
+
+Today's excerpt for a whole-verse highlight is **the rendered text of the verses**, joined from the
+translation data. Put that in the key and the key becomes dependent on Bible text that can change:
+a punctuation fix, a whitespace difference, any correction to a translation JSON, and the lookup
+stops matching. Re-highlighting then *inserts* instead of recolouring — silently, which is
+precisely the duplicate-row failure the comment at `:962-969` says it was written to stop.
+
+The excerpt is a fine way to *paint* a highlight, which is why the dock and native use it. It is a
+poor primary key.
+
+### What to do instead
+
+Add one nullable column — a stable span discriminator, computed client-side from the normalised
+selected substring — and key on that:
+
+| Case | Discriminator | Lookup |
+|---|---|---|
+| Whole-verse highlight | `NULL` | `… AND spanKey IS NULL` |
+| Sub-verse highlight | short hash of the normalised span | `… AND spanKey = ?` |
+
+Why this is the cheap version:
+
+- **Every existing row is already correct.** They are all whole-verse, and `NULL` is exactly what
+  they should have. No backfill, no data touched.
+- **Whole-verse behaviour does not change at all.** Its lookup gains `IS NULL`, which every current
+  row satisfies, so re-highlighting a verse recolours it exactly as it does today.
+- **Only the new feature takes on text-matching fragility**, and only for spans the reader had no
+  way to create until now. Nothing that exists today becomes less reliable.
+- **`db:push` handles a nullable column** with no data migration; `db:check` reports schema drift
+  and pushing stays an explicit act (`scripts/db-sync.js`). RLS does not enumerate columns, so
+  `db:rls` needs no change.
+
+### What happens to a highlight saved before the change
+
+Nothing. It keeps its row, its colour and its reference; it gains a `NULL` span key, which is the
+correct value for what it is; and re-highlighting those verses still finds and recolours it. There
+is no version of this where an existing highlight is orphaned or duplicated — provided the key is
+the discriminator and **not** the excerpt.
+
+### The precedent already in the file
+
+`POST /api/scripture/references` sits directly below the highlight route and has the *opposite*
+write semantics, with the reasoning stated inline (`study-threads.ts:1036-1047`): "two different
+words looked up in one verse are two references, not one recoloured — same table, opposite write
+semantics." That is the same distinction sub-verse highlights need, already made once in this file
+for the neighbouring case. Follow it rather than inventing a second pattern.
+
+### One thing to check before building, that this scoping could not
+
+Both `NULL` and `''` are written to `scripturePassageExcerpt` for the same logical state — the
+highlight route writes `''` (`:1018`), while the general entry route (`:537`) and native sync
+(`sync.ts:1245`) write `null`. That inconsistency is harmless while nothing keys on the column and
+is a live hazard the moment something does. It does not affect the recommendation above, which keys
+on a new column rather than this one — but if anyone is tempted back toward keying on the excerpt,
+this is the second reason not to.
+
+**Revised cost:** the server side is roughly one column, one `where` clause and one client-side
+hash. The doc's framing of it as the immovable blocker overstated it. The real weight of Option B
+is the reader work already listed under [What breaks, honestly](#what-breaks-honestly) — the
+`Map<verse, highlight>` shape, the `"Book C:V-V"` grammar parsed in four places, the margin
+measuring, and the keyboard/a11y model. That is where the estimate should sit.
 
 ---
 
