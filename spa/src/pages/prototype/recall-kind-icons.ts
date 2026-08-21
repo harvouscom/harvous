@@ -28,9 +28,13 @@ export const RECALL_KIND_ICONS: Record<RecallOpportunityKind, IconName> = {
    * Cross-references do not. They point one passage at another; nothing about them creates or
    * opens a thread, so wearing the thread glyph made them read as thread suggestions and left
    * the shelf looking like it was proposing the same thing five times over.
+   *
+   * `shuffle` rather than something new: it is already the cross-reference glyph in the
+   * scripture dock, where it toggles "Show cross-references" — so the shelf now names the
+   * thing with the same mark the surface it opens uses for it.
    */
-  crossref: 'link',
-  crossrefGap: 'link',
+  crossref: 'shuffle',
+  crossrefGap: 'shuffle',
 
   passage: 'scroll',
   continueBook: 'scroll',

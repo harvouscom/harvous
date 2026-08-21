@@ -18,7 +18,7 @@
  * separator the church rows use — so nothing is lost, and the title stays the specific
  * thing the row is about, as it is in the church hub's Following list.
  */
-import type { MouseEventHandler, ReactNode } from 'react';
+import type { CSSProperties, MouseEventHandler, ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 
 export type HomeRowProps = {
@@ -46,6 +46,26 @@ export type HomeRowProps = {
 
 export function homeRowMetaItems(items: HomeRowProps['meta']): ReactNode[] {
   return (items ?? []).filter((m): m is ReactNode => Boolean(m));
+}
+
+/**
+ * Roughly how many characters a label is, for pacing the hover marquee.
+ *
+ * The marquee's duration scales off this so that long labels scroll at the same speed as
+ * short ones instead of racing to finish in a fixed five seconds (see `--proto-marquee-chars`
+ * in prototype-components.css). Only strings and numbers are counted — a caller that passes
+ * elements gets 0 and the CSS default pace, which is the old behaviour and fine.
+ */
+export function marqueeCharCount(node: ReactNode): number {
+  if (typeof node === 'string') return node.length;
+  if (typeof node === 'number') return String(node).length;
+  if (Array.isArray(node)) return node.reduce<number>((n, child) => n + marqueeCharCount(child), 0);
+  return 0;
+}
+
+/** `style` carrying the character count, or nothing when the text could not be read. */
+function marqueePace(count: number): CSSProperties | undefined {
+  return count > 0 ? ({ '--proto-marquee-chars': count } as CSSProperties) : undefined;
 }
 
 export default function PrototypeHomeRow({
@@ -81,11 +101,21 @@ export default function PrototypeHomeRow({
           `__row-text`, which is already the clipping box. A row is 260px wide on Home and
           most titles fit; the ones that do not are exactly the ones worth reading. */}
       <span className="proto-list-panel__row-text">
-        <span className="pds-list-title proto-list-panel__row-title proto-marquee">
+        <span
+          className="pds-list-title proto-list-panel__row-title proto-marquee"
+          style={marqueePace(marqueeCharCount(title))}
+        >
           <span>{title}</span>
         </span>
         {metaItems.length > 0 ? (
-          <span className="proto-caption proto-list-panel__row-meta proto-marquee-self">
+          <span
+            className="proto-caption proto-list-panel__row-meta proto-marquee-self"
+            /* The separators are rendered between items, so they count toward what has to
+               scroll past — two characters each ( "·" plus its spacing ). */
+            style={marqueePace(
+              marqueeCharCount(metaItems) + Math.max(0, metaItems.length - 1) * 2,
+            )}
+          >
             {metaItems.map((item, i) => (
               <span key={i} className="proto-home-row__meta-item">
                 {i > 0 ? <span className="proto-home-row__meta-sep" aria-hidden>·</span> : null}

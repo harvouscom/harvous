@@ -163,6 +163,33 @@
  * Always pair with a `title` attribute: touch has no hover, and reduced motion
  * deliberately keeps the ellipsis rather than sliding.
  */
+/*
+ * How long the reveal takes, from how much there is to read.
+ *
+ * A fixed duration meant the speed rose with the length: the longer the label — exactly the
+ * case the marquee exists for — the faster it had to travel to finish in the same five
+ * seconds, until the text it was revealing went past too quickly to read.
+ *
+ * Duration is driven off an approximate character count instead, so the *speed* stays roughly
+ * constant and a long label simply takes longer. The count is set per element where the caller
+ * knows its text (see `PrototypeHomeRow`); anything that does not set it keeps the old pace
+ * via the default and the lower clamp.
+ *
+ * Not measured in CSS, because it cannot be: `100cqw` resolves in `animation-duration` but a
+ * percentage does not, so the overflow distance — which is `100cqw - 100%` — is unavailable
+ * where a duration is wanted. A character count is a good proxy at one type size, and this is
+ * a reveal, not a layout.
+ *
+ * `linear`, not `ease-in-out`: easing put the fastest travel in the middle of the label, which
+ * is the part being read. Constant speed with the dwell already in the keyframes is what makes
+ * the pace predictable enough to follow.
+ */
+.proto-marquee,
+.proto-marquee-self {
+  --proto-marquee-chars: 40;
+  --proto-marquee-duration: clamp(5s, calc(var(--proto-marquee-chars) * 0.13s), 20s);
+}
+
 .proto-marquee {
   overflow: hidden;
   white-space: nowrap;
@@ -210,7 +237,7 @@
   .proto-planner-card:focus-visible .proto-marquee > span {
     max-width: none;
     text-overflow: clip;
-    animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
+    animation: proto-marquee-reveal var(--proto-marquee-duration) linear infinite alternate;
   }
 }
 
@@ -248,7 +275,7 @@
     width: max-content;
     max-width: none;
     text-overflow: clip;
-    animation: proto-marquee-reveal 5s ease-in-out infinite alternate;
+    animation: proto-marquee-reveal var(--proto-marquee-duration) linear infinite alternate;
   }
 }
 
