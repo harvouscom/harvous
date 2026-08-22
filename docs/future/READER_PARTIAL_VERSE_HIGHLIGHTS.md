@@ -99,6 +99,17 @@ any other.
 **Done when:** dragging across part of a verse in the chapter produces a highlight that survives
 reload, appears in the dock for the same passage, and matches native.
 
+### Decided mechanics (August 21, 2026)
+
+- **Span key:** a hash of the selected text, lowercased with whitespace collapsed. Not the raw
+  text — see the trap in [Scoping the blocker](#scoping-the-blocker-august-21-2026) — and not
+  character offsets, which is Option C.
+- **Whole-verse wins ties.** If a dragged selection matches a verse's full text, store `NULL` and
+  write the row a tap would have written. The two gestures must never produce two rows over
+  identical text.
+- **The listbox is untouched.** Sub-verse is a pointer gesture. Keyboard and screen-reader users
+  keep the verse model exactly as it is, and a keyboard route is deferred rather than refused.
+
 ### The constraint that shapes the implementation
 
 `verseHtml` is memoised per verse with a stable `{__html}` object, and the comment above it records
@@ -273,4 +284,8 @@ single word deterministically, or anchoring that must survive a text correction.
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-08-21 | **Option B accepted — a drag inside the chapter creates a sub-verse highlight.** Verse-tap is unchanged. | Derek's call. Sub-verse already ships in the dock and on native; the reader was the holdout, and it is the surface people actually read in. Two gestures, two granularities, one storage model. |
+| 2026-08-21 | **The span key hashes normalised text** — lowercased, whitespace collapsed. | Survives the common kind of translation correction. A real wording or punctuation fix still breaks the match, and the highlight re-adds rather than recolours — acceptable for a span that exists only because someone dragged over it, and not a risk the whole-verse case takes on at all. |
+| 2026-08-21 | **A drag that covers exactly one whole verse is stored as whole-verse** (`NULL` span key), the same row a tap would have made. | One passage, one highlight, however it was selected. Without this the two gestures produce duplicate rows on identical text that nobody can tell apart — the same duplicate-row failure the upsert exists to prevent, arriving through the front door. |
+| 2026-08-21 | **The verse listbox stays the primary interaction.** Drag-to-highlight is a pointer gesture that adds a capability rather than replacing one; sub-verse is pointer-only for now. | Keyboard and screen-reader users keep the model they have, in a component whose focus handling already has regression history. A keyboard route (shift+arrow within a verse) is deferred, not refused. |
 | | | |
