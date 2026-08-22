@@ -64,6 +64,15 @@ export function marqueeCharCount(node: ReactNode): number {
 }
 
 /**
+ * Below this, a label is assumed to fit and gets no edge fade at all.
+ *
+ * Mirrors the subtraction in `--proto-marquee-fade` (prototype-components.css). Kept as a named
+ * constant on this side because the two have to agree: if CSS says a 20-character label fades 0px
+ * while JS still hands it a mask, the mask is a compositing layer bought for nothing.
+ */
+export const MARQUEE_FADE_MIN_CHARS = 24;
+
+/**
  * `style` carrying the character count, or nothing when the text could not be read.
  *
  * Sets the fade count as well as the pacing one. They are separate properties because they fail
@@ -75,12 +84,24 @@ export function marqueeCharCount(node: ReactNode): number {
  * time this row was the only caller, and every other marquee faded on hover for no reason.
  */
 export function marqueePace(count: number): CSSProperties | undefined {
-  return count > 0
-    ? ({
-        '--proto-marquee-chars': count,
-        '--proto-marquee-fade-chars': count,
-      } as CSSProperties)
-    : undefined;
+  if (count <= 0) return undefined;
+  return {
+    '--proto-marquee-chars': count,
+    '--proto-marquee-fade-chars': count,
+    /*
+     * Drop the mask outright for a label that fits, rather than leaving a zero-width one.
+     *
+     * A 0px fade already looks like no fade — its gradient stops land on top of each other — but
+     * `mask-image` still promotes the element to its own compositing layer, and text on a
+     * composited layer can lose subpixel antialiasing. That reads as a faint haze along the label
+     * on hover: not the gradient it was reported as, but a real artefact in the same place, and
+     * the reason "it still looks wrong" survived the arithmetic being correct.
+     *
+     * The threshold is `MARQUEE_FADE_MIN_CHARS`, the same number the CSS clamp subtracts, so the
+     * two cannot disagree about which labels fade.
+     */
+    ...(count > MARQUEE_FADE_MIN_CHARS ? null : { '--proto-marquee-mask': 'none' }),
+  } as CSSProperties;
 }
 
 export default function PrototypeHomeRow({
