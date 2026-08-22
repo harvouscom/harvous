@@ -26,15 +26,32 @@ import json,sys
 try: print((json.load(sys.stdin).get('VITE_CLERK_PUBLISHABLE_KEY') or '')[:8])
 except Exception: print('')
 ")"
-if [[ -z "$spa_key" ]]; then
-  echo "  ?  could not read VITE_CLERK_PUBLISHABLE_KEY from Netlify"
-else
-  echo "  SPA issues tokens from:  ${spa_key}…"
-fi
+spa_mode=""
+case "$spa_key" in
+  pk_live_*) spa_mode="live" ;;
+  pk_test_*) spa_mode="test" ;;
+esac
+echo "  SPA issues tokens from:  ${spa_key:-?}  → ${spa_mode:-unknown}"
 
-# Fly secrets are write-only, so ask the server what it loaded instead of
-# reading the value back. /api/health does not expose this, so use the digest
-# comparison as a weak signal and rely on the live probe below for the real one.
+# Fly's secrets are write-only, so ask the server which instance it loaded.
+# /api/debug/auth-config reports the MODE only, never the key — so this whole
+# check needs no credential from anyone.
+fly_mode="$(curl -s "${FLY_HOST}/api/debug/auth-config" --max-time 30 | python3 -c "
+import json,sys
+try: print(json.load(sys.stdin).get('clerkMode','?'))
+except Exception: print('?')
+")"
+echo "  Fly verifies against:    ${fly_mode}"
+
+if [[ -n "$spa_mode" && "$fly_mode" != "?" ]]; then
+  if [[ "$spa_mode" == "$fly_mode" ]]; then
+    echo "  MATCH — both on the ${spa_mode} instance."
+  else
+    echo "  MISMATCH — the SPA issues ${spa_mode} tokens and Fly verifies"
+    echo "  against ${fly_mode}. Every signed-in request will 401. Do NOT cut over."
+    fail=1
+  fi
+fi
 echo
 echo "── Does Fly accept a token the live SPA would issue? ──────────────"
 echo "  This needs a real session cookie. Sign in at app.harvous.com, copy the"
@@ -44,9 +61,9 @@ echo "    SESSION='<paste>' bash scripts/verify-fly-auth.sh"
 echo
 
 if [[ -z "${SESSION:-}" || "$SESSION" == *"<"* ]]; then
-  echo "  SKIPPED — no real SESSION provided. This is the check that matters;"
-  echo "  a cutover verified without it is not verified."
-  fail=1
+  echo "  SKIPPED — optional. The instance-match check above catches the"
+  echo "  failure that actually took production down, without a credential."
+  echo "  Supply SESSION only if you want end-to-end proof."
 else
   # /api/debug/me answers 200 either way and reports auth state in the body, so
   # a rejected session is distinguishable from a route that simply errored.

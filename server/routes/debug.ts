@@ -2,6 +2,7 @@
  * Debug routes.
  * - GET /api/debug/request-headers — dev-only, request headers.
  * - GET /api/debug/me — auth + DB counts for current user (safe to use in prod to verify userId vs Turso).
+ * - GET /api/debug/auth-config — which Clerk instance this host is configured against.
  */
 
 import { Hono } from 'hono';
@@ -9,6 +10,40 @@ import { getAuth } from '../middleware/auth';
 import { db, first, Threads, Spaces, Notes, eq, and, isNull, count, sql } from '../db';
 
 const route = new Hono();
+
+/**
+ * GET /api/debug/auth-config — is this host on Clerk's live or test instance?
+ *
+ * Exists because answering that previously required a real `__session` cookie,
+ * and a session cookie is a live credential — checking a config value should
+ * not mean handling one. A host running a test key while the SPA issues live
+ * tokens rejects every session, which is how a cutover once reached production
+ * green on health checks and broken for every signed-in user.
+ *
+ * Reports the key's MODE only, never the key. "live"/"test" is derived from the
+ * documented sk_live_/sk_test_ prefix and tells an attacker nothing they could
+ * not infer from whether their own login works.
+ */
+route.get('/api/debug/auth-config', (c) => {
+  const key = process.env.CLERK_SECRET_KEY?.trim() ?? '';
+  const mode = key.startsWith('sk_live_')
+    ? 'live'
+    : key.startsWith('sk_test_')
+      ? 'test'
+      : key
+        ? 'unrecognized'
+        : 'unset';
+
+  return c.json(
+    {
+      clerkMode: mode,
+      // Distinguishes "this host" from whatever is proxying to it.
+      host: process.env.FLY_APP_NAME ? 'fly' : process.env.NETLIFY ? 'netlify' : 'other',
+    },
+    200,
+    { 'Cache-Control': 'no-store' },
+  );
+});
 
 route.get('/api/debug/request-headers', (c) => {
   if (process.env.NODE_ENV === 'production') {
