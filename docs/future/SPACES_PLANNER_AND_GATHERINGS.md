@@ -1,7 +1,11 @@
 # Shared Spaces, the Planner, and Where a Gathering Shows Up
 
-**Status:** **Decided** (August 21, 2026) — Option B, with placement and bounds settled. Not built.
-Most of what this item originally asked for already was.
+**Status:** **Decided** (August 21, 2026) — Option B, with placement and bounds settled. Most of
+what this item originally asked for was already built, **including the placement itself**: Home
+already draws a row per context, on the four-day wall, sorted soonest-first. What remains is a
+server change with an authorization question in it — see
+[Correction, August 21, 2026](#correction-august-21-2026--the-placement-already-exists). Read that
+before the roadmap below, which describes the placement as still to build.
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides how a room's rhythm reaches the people in it.
 **Covers:** improvement-list item #1 (shared spaces + planner + "add gathering") — design-track
@@ -212,4 +216,5 @@ page, and the rows follow from it.
 | 2026-08-21 | **Home is a cross-context front page.** A joined room's next gathering reaches Home on the same terms the church's service does. | Derek's call. The asymmetry was build order rather than intent — a context you merely follow outranked one you committed to. The coherent alternative (Home is yours alone, and This Sunday is *removed*) was put on the table and rejected deliberately. |
 | 2026-08-21 | **Bounded by the four-day wall, no cap.** | `SERVICE_GRACE_DAYS = 4` already governs the church card and is tied to the engagement research behind harvous.com/about. A cap would silently hide a gathering someone agreed to attend; the wall means a busy Tuesday is Tuesday's problem and not every day's. |
 | 2026-08-21 | **One "Coming up" group, soonest first** — church service and room gatherings interleaved by date, not separated by kind. | One idea rather than two lists for the same kind of thing. Means "This Sunday" stops being its own furniture and becomes the church's row in a shared group. |
+| 2026-08-21 | **Corrected: the placement is already built; the remaining work is server-side.** No decision above changes. | Checked against `main` before building rather than after. `selectHomeCards` already emits a context row per space on the four-day wall, soonest-first — the recommendation had been implemented for church-org spaces. The gap is a church-scoped data source in three places, one of which (`listViewerPlanSources`) decides which spaces' plans a viewer may read. That the existing rows already behave the way this doc argued for is the best evidence the calls were right. |
 | 2026-08-21 | **One card for everyone; no leader variant.** | A leader reaches the Planner from the room itself. A role-conditional card state is a class of bug this codebase has hit before. The "you lead this and next week is empty" cue is a good idea, deferred rather than rejected — it can be added later without disturbing anything above. |
