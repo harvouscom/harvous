@@ -15,8 +15,9 @@
 # Values are piped from one CLI to the other and never printed. The script
 # reports names and outcomes only.
 #
-# Usage:  bash scripts/fly-secrets-from-netlify.sh            # copy them
-#         DRY_RUN=1 bash scripts/fly-secrets-from-netlify.sh  # report only
+# Usage:  bash scripts/fly-secrets-from-netlify.sh                    # default list
+#         bash scripts/fly-secrets-from-netlify.sh NAME [NAME...]     # just these
+#         DRY_RUN=1 bash scripts/fly-secrets-from-netlify.sh          # report only
 #
 # Requires: netlify + fly CLIs, both authenticated. Safe to re-run.
 
@@ -40,8 +41,14 @@ NETLIFY_ONLY_VARS=(
   LOG_LEVEL
 )
 
+# Explicit names override the default list, so this can be pointed at a specific
+# repair rather than re-sending everything.
+if [[ $# -gt 0 ]]; then
+  NETLIFY_ONLY_VARS=("$@")
+fi
+
 payload="$(
-  netlify env:list --json 2>/dev/null | NAMES="${NETLIFY_ONLY_VARS[*]}" python3 -c '
+  netlify env:list --json --context "$CONTEXT" 2>/dev/null | NAMES="${NETLIFY_ONLY_VARS[*]}" python3 -c '
 import json, os, sys
 try:
     d = json.load(sys.stdin)
