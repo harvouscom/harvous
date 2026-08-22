@@ -190,17 +190,30 @@ export function assignAnchorLanes(
     if (lane >= MAX_LANES) {
       /*
        * Out of lanes. Rather than draw a fourth hairline, fold this note into the innermost
-       * bar it overlaps and let that bar speak for both — the exact count lives in the
-       * tooltip and the dock, where there is room to name them.
+       * bar it overlaps and let that bar carry it in its card, which lists every note it
+       * stands for.
+       *
+       * The host keeps its OWN span. It used to be stretched to the union
+       * (`host.endVerse = Math.max(host.endVerse, span.endVerse)`), which made the drawn bar
+       * cover verses that no note it represented actually cited — and the note card, sized from
+       * the bar, then held a passage wider than anything anyone had written about. Length is the
+       * one property this whole design rests on ("its length IS the span"), and that was the one
+       * case where it lied.
+       *
+       * The cost, accepted deliberately: the folded note gets no mark of its own and is findable
+       * only by opening the bar it hid behind. That is the price of every drawn length being
+       * true. See docs/future/READER_MARGIN_INDICATORS.md.
        */
       const host = out
         .filter((b) => b.lane === MAX_LANES - 1 && b.startVerse <= span.endVerse && b.endVerse >= span.startVerse)
         .pop();
       if (host) {
-        host.endVerse = Math.max(host.endVerse, span.endVerse);
         host.notes.push(...span.notes);
         host.mergedCount += span.notes.length;
-        laneEnds[MAX_LANES - 1] = host.endVerse;
+        // The lane is occupied as far as the folded span reaches even though the bar is not
+        // drawn that far — otherwise the next span would be packed into a lane that is visually
+        // free but semantically taken.
+        laneEnds[MAX_LANES - 1] = Math.max(laneEnds[MAX_LANES - 1] ?? 0, span.endVerse);
         continue;
       }
       lane = MAX_LANES - 1;

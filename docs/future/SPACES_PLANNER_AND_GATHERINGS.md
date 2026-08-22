@@ -1,11 +1,11 @@
 # Shared Spaces, the Planner, and Where a Gathering Shows Up
 
-**Status:** **Decided** (August 21, 2026) — Option B, with placement and bounds settled. Most of
-what this item originally asked for was already built, **including the placement itself**: Home
-already draws a row per context, on the four-day wall, sorted soonest-first. What remains is a
-server change with an authorization question in it — see
-[Correction, August 21, 2026](#correction-august-21-2026--the-placement-already-exists). Read that
-before the roadmap below, which describes the placement as still to build.
+**Status:** **Decided** (August 21, 2026) — Option B, with placement and bounds settled; see
+[Option B in detail](#option-b-in-detail). Most of what this item originally asked for was already
+built, **including the placement itself**: Home already draws a row per context, on the four-day
+wall, sorted soonest-first. What remains is a server change with an authorization question in it —
+see [Correction, August 21, 2026](#correction-august-21-2026--the-placement-already-exists). Read
+that before the roadmap below, which still describes the placement as work to do.
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides how a room's rhythm reaches the people in it.
 **Covers:** improvement-list item #1 (shared spaces + planner + "add gathering") — design-track

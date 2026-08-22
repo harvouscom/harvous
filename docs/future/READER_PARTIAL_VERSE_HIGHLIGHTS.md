@@ -1,7 +1,8 @@
 # Partial-Verse Highlights in the Reader — Options
 
-**Status:** Decision doc. Not started. The server blocker is scoped — see
-[Scoping the blocker](#scoping-the-blocker-august-21-2026).
+**Status:** **Decided and built** (August 21, 2026) — Option B. The scoping held: one nullable
+column, one `where` clause. The *actual* blocker was somewhere else entirely — see
+[What the blocker turned out to be](#what-the-blocker-turned-out-to-be).
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides whether the chapter reader should highlight less than a whole verse.
 **Covers:** improvement-list item #7.
@@ -98,6 +99,17 @@ any other.
 
 **Done when:** dragging across part of a verse in the chapter produces a highlight that survives
 reload, appears in the dock for the same passage, and matches native.
+
+### Decided mechanics (August 21, 2026)
+
+- **Span key:** a hash of the selected text, lowercased with whitespace collapsed. Not the raw
+  text — see the trap in [Scoping the blocker](#scoping-the-blocker-august-21-2026) — and not
+  character offsets, which is Option C.
+- **Whole-verse wins ties.** If a dragged selection matches a verse's full text, store `NULL` and
+  write the row a tap would have written. The two gestures must never produce two rows over
+  identical text.
+- **The listbox is untouched.** Sub-verse is a pointer gesture. Keyboard and screen-reader users
+  keep the verse model exactly as it is, and a keyboard route is deferred rather than refused.
 
 ### The constraint that shapes the implementation
 
@@ -225,6 +237,32 @@ measuring, and the keyboard/a11y model. That is where the estimate should sit.
 
 ---
 
+## What the blocker turned out to be
+
+The scoping pass was right that the server was cheap: one nullable `scriptureSpanKey`, one `where`
+clause, no migration and no backfill. 111 existing rows, all `null`, all still correct.
+
+**The thing that actually stopped this working was `user-select`.** Option B's whole premise is
+"allow a native text selection inside the chapter", and the chapter forbade it: `global.css` sets
+`* { user-select: none }` as an app-wide reset and the reader had no carve-out, so a drag across
+words produced a range containing no text at all.
+
+So the reader's whole-verse-only model was never a decision about granularity. It was an inherited
+reset that nobody had reason to notice, because tapping verses was the only gesture anyone had
+built.
+
+The scripture dock already had the carve-out — added when sub-verse shipped there, with the reason
+in the comment: *"drags must be able to start on them (native parity)"*. The reader now has the
+matching rule, including the detail worth copying: **the verse number is excluded**. Without that,
+a drag starting at the top of a verse swallows the numeral, the excerpt reads "5 The light
+shines", and the span key computed from it can never match the passage it is meant to be part of.
+
+Worth generalising from: two of this item's three hard parts were "something already does this,
+one surface over". The excerpt model, the painter, and the selection carve-out were all shipped in
+the dock. The reader was the holdout every time.
+
+---
+
 ## Why not Option C
 
 Character offsets are the precise answer, the note-body columns already exist, and it would survive
@@ -273,4 +311,8 @@ single word deterministically, or anchoring that must survive a text correction.
 
 | Date | Decision | Rationale |
 |---|---|---|
+| 2026-08-21 | **Option B accepted — a drag inside the chapter creates a sub-verse highlight.** Verse-tap is unchanged. | Derek's call. Sub-verse already ships in the dock and on native; the reader was the holdout, and it is the surface people actually read in. Two gestures, two granularities, one storage model. |
+| 2026-08-21 | **The span key hashes normalised text** — lowercased, whitespace collapsed. | Survives the common kind of translation correction. A real wording or punctuation fix still breaks the match, and the highlight re-adds rather than recolours — acceptable for a span that exists only because someone dragged over it, and not a risk the whole-verse case takes on at all. |
+| 2026-08-21 | **A drag that covers exactly one whole verse is stored as whole-verse** (`NULL` span key), the same row a tap would have made. | One passage, one highlight, however it was selected. Without this the two gestures produce duplicate rows on identical text that nobody can tell apart — the same duplicate-row failure the upsert exists to prevent, arriving through the front door. |
+| 2026-08-21 | **The verse listbox stays the primary interaction.** Drag-to-highlight is a pointer gesture that adds a capability rather than replacing one; sub-verse is pointer-only for now. | Keyboard and screen-reader users keep the model they have, in a component whose focus handling already has regression history. A keyboard route (shift+arrow within a verse) is deferred, not refused. |
 | | | |

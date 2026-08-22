@@ -28,6 +28,8 @@ import { noteDockReturnSearch } from './paper-stack-origins';
 import { createPortal } from 'react-dom';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
+import { spanKeyForSelection } from '@/utils/scripture-span-key';
+import type { PassageHighlightPaint } from '@/components/react/TiptapReferenceSuggestion';
 import PrototypeBibleReaderPane from './PrototypeBibleReaderPane';
 import PrototypeReaderInspectorPane from './PrototypeReaderInspectorPane';
 import { usePrototypeBibleChapter } from '../../hooks/queries/usePrototypeBibleChapter';
@@ -131,8 +133,47 @@ export default function PrototypeReadPage() {
   const highlights = useMemo(() => {
     const map = new Map<number, ReaderVerseHighlight>();
     for (const h of chapterHighlights ?? []) {
+      /*
+       * Whole-verse rows only. A sub-verse highlight covers part of a verse, so painting the
+       * whole verse in its colour would be a lie — those go to `versePaints` below and are drawn
+       * as marks inside the text instead.
+       *
+       * This is also what keeps the `Map<verse, highlight>` shape honest. It holds one highlight
+       * per verse, last write wins, which is fine for whole-verse rows (there can only be one)
+       * and would silently drop all but one of several spans inside a verse.
+       */
+      if (h.spanKey) continue;
       for (const v of versesInReference(h.scriptureReference)) {
         map.set(v, { accent: h.highlightAccent, studyThreadEntryId: h.id, miniNoteBody: h.miniNoteBody });
+      }
+    }
+    return map;
+  }, [chapterHighlights]);
+
+  /**
+   * Sub-verse highlights, as paints for the passage painter — keyed by the verse they sit in.
+   *
+   * Deliberately separate from `highlights` above. That map drives a CSS attribute on the verse
+   * span; these are `<mark>` elements wrapped around a substring, which is a different mechanism
+   * and the one the scripture dock and native already share (`decoratePassageHtmlWithSavedHighlights`).
+   * Reusing it rather than writing a second painter is the whole point of the excerpt model.
+   */
+  const versePaints = useMemo(() => {
+    const map = new Map<number, PassageHighlightPaint[]>();
+    for (const h of chapterHighlights ?? []) {
+      if (!h.spanKey || !h.excerpt) continue;
+      /* A span lives inside one verse. If a row's reference spans several, the excerpt can only
+         match within whichever verse actually contains that text — so every covered verse is
+         offered the paint and the painter's own `indexOf` decides. */
+      for (const v of versesInReference(h.scriptureReference)) {
+        const list = map.get(v) ?? [];
+        list.push({
+          id: h.id,
+          excerpt: h.excerpt,
+          accentRaw: h.highlightAccent,
+          entryKind: 'scriptureLink',
+        });
+        map.set(v, list);
       }
     }
     return map;
@@ -205,11 +246,22 @@ export default function PrototypeReadPage() {
       { start, end }: { start: number; end: number },
       accent: StudyHighlightAccentKey,
       excerpt: string,
+      /**
+       * The full text of the verses `start..end`, when the caller has it.
+       *
+       * Used only to answer "is this excerpt the whole passage or a span inside it". Passing it
+       * is what lets a drag that happens to cover a whole verse be stored as a whole-verse
+       * highlight — the same row a tap would have written — instead of a span that duplicates
+       * one. Callers that already select whole verses may omit it: excerpt and passage are then
+       * the same string by construction and the span key is null either way.
+       */
+      fullPassageText?: string,
     ): Promise<string | null> => {
       const reference =
         start === end ? `${book} ${chapter}:${start}` : `${book} ${chapter}:${start}-${end}`;
+      const spanKey = spanKeyForSelection(excerpt, fullPassageText ?? excerpt);
       try {
-        const result = await createHighlight.mutateAsync({ reference, accent, excerpt });
+        const result = await createHighlight.mutateAsync({ reference, accent, excerpt, spanKey });
         return result?.highlight?.id ?? null;
       } catch {
         return null;
@@ -608,6 +660,7 @@ export default function PrototypeReadPage() {
           onOpenDock={handleOpenReference}
           fontOverride={fontOverride}
           highlights={highlights}
+          versePaints={versePaints}
           onHighlight={applyHighlight}
           // Annotate records the highlight; the pane opens the highlight dock over it, so the
           // dock lifecycle stays with the surface that owns the selection.

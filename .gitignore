@@ -80,3 +80,9 @@ server/data/scripture-knowledge/_subjects-batch.json
 # run — a test-status file committed into the repo says nothing true about anyone else's checkout.
 test-results/
 playwright-report/
+
+# A working draft that keeps getting swept into commits by `git add -A`, and keeps having to be
+# untracked again — three times so far, each one a separate cleanup commit. Ignoring it is the only
+# version of the fix that survives the next wide `add`. The file stays on disk and is not deleted;
+# if it ever becomes something to publish, remove this line and add it deliberately.
+docs/future/SCRIPTURE_CONCORDANCE.md
