@@ -12039,7 +12039,22 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 11px 13px;
+  /*
+   * No right padding, unlike the other three sides.
+   *
+   * The negative margin below cancels top, bottom and left, which turns that padding into extra
+   * hit area rather than inset — the button reaches the row's edges while the text still sits on
+   * the row's own 13px. The right had padding with no margin to cancel it, so it was the one side
+   * where the number inset the text for real, and it landed on top of the row's 13px padding and
+   * the 11px flex gap: 24px of dead space between the title and the dismiss glyph, on a 260px
+   * row where the meta line wants 382px and gets 113px.
+   *
+   * Zero is the symmetric answer, not a tightening. The text now ends 13px from the row's edge,
+   * the same 13px it starts from on the left. It is not given a negative margin to match the left
+   * either, because the trailing controls are 11px away and a button whose hit area slid under
+   * them would steal presses meant for the ✕.
+   */
+  padding: 11px 0 11px 13px;
   margin: -11px 0 -11px -13px;
   border-radius: 0;
 }
@@ -12065,6 +12080,24 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   align-items: center;
 }
 
+/*
+ * A row holding an open menu outranks the rows under it.
+ *
+ * The menu already carries `z-index: 5000`, and that number was doing nothing here. Its row is
+ * `position: relative; z-index: 1`, which makes the row a stacking context — so 5000 only ever
+ * ranked the menu against its own row's contents, never against the next row. With every row at
+ * the same z-index, painting fell back to DOM order and the rows *below* drew on top: the
+ * "Not interested" card came up with the following row's dismiss glyph sitting on it.
+ *
+ * Lifting the row is the fix rather than raising the menu again, because no value on the menu can
+ * escape a stacking context its ancestor owns. `:has()` keeps it to the moment the menu exists —
+ * a row that is permanently lifted would re-order hover and focus rings against its neighbours
+ * for the 99% of the time nothing is open.
+ */
+.proto-list-panel__row:has(.proto-recall-row__menu) {
+  z-index: 3;
+}
+
 /* Wide enough for one item and no wider. The shared `--list-view` modifier drops the
    checkmark column but keeps a min-width sized for a translation list. */
 .proto-recall-row__menu {
@@ -12077,18 +12110,35 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 
 /* At the chevron's weight, because they occupy the chevron's place. A row's trailing mark
    is punctuation until you reach for it: full-strength glyphs there made every dismissable
-   row look like it was asking to be dismissed. Rises to full on the pointer. */
-.proto-list-panel__row-trailing > button {
+   row look like it was asking to be dismissed. Rises to full on the pointer.
+   
+   The overflow trigger is named separately because it is a grandchild: it sits inside
+   `.proto-recall-row__more`, which exists to anchor the popover, and a `>` combinator does not
+   reach through it. So the ✕ dimmed and the ⋮ beside it stayed at full strength — same colour,
+   different weight, on two glyphs that are meant to read as one pair.
+   
+   Deliberately not a descendant selector. The popover lives inside `.proto-recall-row__more`
+   too, and `trailing button` would dim every item in the open menu along with the trigger. */
+.proto-list-panel__row-trailing > button,
+.proto-list-panel__row-trailing > .proto-recall-row__more > button {
   opacity: 0.4;
   transition: opacity var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-.proto-list-panel__row:hover .proto-list-panel__row-trailing > button {
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > button,
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-recall-row__more > button {
   opacity: 0.62;
 }
 
 .proto-list-panel__row-trailing > button:hover,
-.proto-list-panel__row-trailing > button:focus-visible {
+.proto-list-panel__row-trailing > button:focus-visible,
+.proto-list-panel__row-trailing > .proto-recall-row__more > button:hover,
+.proto-list-panel__row-trailing > .proto-recall-row__more > button:focus-visible {
+  opacity: 1;
+}
+
+/* An open menu keeps its trigger lit, or the ⋮ fades out from under the panel it opened. */
+.proto-list-panel__row-trailing > .proto-recall-row__more:has(.proto-recall-row__menu) > button {
   opacity: 1;
 }
 
