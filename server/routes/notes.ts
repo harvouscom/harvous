@@ -29,6 +29,7 @@
 
 import { appendFileSync } from 'node:fs';
 import { Hono } from 'hono';
+import { isDeployedProductionLike } from '../constants/dev-featured-samples';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, StudyThreadEntries, Comments, Tags, NoteTags,
@@ -898,11 +899,12 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
  * `origin` is threaded from the client (e.g. "proto-autosave#k3f9a2") so two writers
  * from different editor instances are distinguishable from one instance double-firing.
  *
- * Gated off on Netlify; no-ops silently if the file isn't writable.
+ * Gated off on any deployed host — a container filesystem is not a place to
+ * append a line per note save. No-ops silently if the file isn't writable.
  */
 const NOTE_SAVE_TRAIL_PATH = '.dev-note-saves.log';
 function logNoteSaveTrail(entry: Record<string, unknown>): void {
-  if (process.env.NETLIFY) return;
+  if (isDeployedProductionLike()) return;
   try {
     appendFileSync(
       NOTE_SAVE_TRAIL_PATH,

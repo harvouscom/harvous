@@ -1,6 +1,7 @@
 # build output
 dist/
 dist-spa/
+dist-server/
 
 # generated types
 .astro/

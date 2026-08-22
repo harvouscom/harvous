@@ -29,7 +29,12 @@
 
 import { Hono } from 'hono';
 import { repairMissingNoteThreadJunctionsForUser } from '../utils/thread-junction-repair';
-import { getStore } from '@netlify/blobs';
+import {
+  deleteUserExports,
+  isUserExportBackupConfigured,
+  listUserExportKeys,
+  putUserExport,
+} from '../utils/user-export-backup-store';
 import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db,
@@ -403,10 +408,10 @@ app.post('/api/admin/aggregate-analytics', handleAggregateAnalytics);
 app.get('/api/admin/aggregate-analytics', handleAggregateAnalytics);
 
 // ─── POST /api/admin/backup-exports ────────────────────────────────────
-// Scheduled job: export each user with notes to Netlify Blob (CSV), then run retention.
+// Scheduled job: export each user with notes to the private `user-exports`
+// Supabase bucket (CSV), then run retention.
 // Env: BACKUP_CRON_SECRET. Retention: BACKUP_RETENTION_DAYS (default 30).
 
-const BACKUP_STORE_NAME = 'user-exports';
 const DEFAULT_RETENTION_DAYS = 30;
 
 app.post('/api/admin/backup-exports', async (c) => {
@@ -421,7 +426,10 @@ app.post('/api/admin/backup-exports', async (c) => {
     const retentionDays = Math.max(1, parseInt(process.env.BACKUP_RETENTION_DAYS || String(DEFAULT_RETENTION_DAYS), 10) || DEFAULT_RETENTION_DAYS);
     const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-    const store = getStore({ name: BACKUP_STORE_NAME });
+    if (!isUserExportBackupConfigured()) {
+      return c.json({ error: 'Backup storage is not configured', success: false }, 503);
+    }
+
     const userIdRows = await db.select({ userId: Notes.userId }).from(Notes);
     const userIds = [...new Set(userIdRows.map((r) => r.userId))];
 
@@ -431,7 +439,7 @@ app.post('/api/admin/backup-exports', async (c) => {
       try {
         const { content, fileExtension } = await generateUserExport(userId, 'csv-threads');
         const key = `${userId}/${date}.${fileExtension}`;
-        await store.set(key, content, { metadata: { contentType: 'text/csv' } });
+        await putUserExport(key, content);
         exported++;
       } catch (e) {
         errors.push(`${userId}: ${e instanceof Error ? e.message : String(e)}`);
@@ -441,16 +449,12 @@ app.post('/api/admin/backup-exports', async (c) => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - retentionDays);
     const cutoffStr = cutoff.toISOString().split('T')[0];
-    let deleted = 0;
-    const listResult = await store.list();
-    for (const blob of listResult.blobs ?? []) {
-      const key = blob.key;
+    const expired = (await listUserExportKeys()).filter((key) => {
       const match = key.match(/^[^/]+\/(\d{4}-\d{2}-\d{2})\.(csv|md)$/);
-      if (match && match[1] < cutoffStr) {
-        await store.delete(key);
-        deleted++;
-      }
-    }
+      return !!match && match[1] < cutoffStr;
+    });
+    await deleteUserExports(expired);
+    const deleted = expired.length;
 
     return c.json({
       success: true,
