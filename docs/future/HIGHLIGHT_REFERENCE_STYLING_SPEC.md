@@ -1,8 +1,9 @@
 # Highlights, References and the Selected Verse — Styling Spec
 
-**Status:** **Decided; mostly built** (August 21, 2026). The weights, the offset distinction and
-the dock's variable route shipped. **Outstanding: the single spotlight mechanism** and a
-device measurement of native's underline weight — see [Outstanding](#outstanding).
+**Status:** **Decided and built** (August 21, 2026) — weights, offsets, the dock's variable route
+and the single spotlight contract all shipped. **Outstanding: a device measurement of native's
+underline weight**, and one open design question about the reader — see
+[Outstanding](#outstanding).
 **Last Updated:** August 21, 2026
 **Audience:** Whoever settles what a mark means visually, across reader, note body, dock and native.
 **Covers:** improvement-list items #5 (the selected/highlighted verse experience) and the second half
@@ -183,7 +184,32 @@ bottom would enter the dock band, reusing the same flip logic
 
 Two pieces of this spec are decided but not built. Everything else shipped August 21, 2026.
 
-### 1. One spotlight mechanism across all four surfaces
+### 1. One spotlight mechanism — built, with one question left open
+
+**Built August 21, 2026.** `src/styles/mark-spotlight.css` is now the contract: put
+`data-dim-highlights="<id>"` on any container, everything mark-like inside dims to tertiary, and a
+per-id restore rule (injected by whichever surface owns the container) gives the active one its
+accent back. The note body's driver in `TiptapEditor.tsx` is unchanged in behaviour; what changed
+is that neither the dim nor the restore carries a surface prefix any more, so the dock — which can
+now be overridden, because its accents route through `--mark-accent` — is spotlit by the same pair.
+
+**One selector was never going to be possible, and finding that out is the useful part.** The
+reader draws no `<mark>` elements at all: a highlighted verse is `data-highlighted` on
+`.pds-reader__verse` with the decoration on an inner text span, and a saved reference is a
+`.reference-suggestion` span. So the surfaces share an attribute, a dim colour and a restore rule
+— three selector lists, one idea — rather than one rule. That is the honest version of "one
+mechanism", and it is written at the top of the file so nobody tries to collapse it further.
+
+**Still open:** the reader's rule exists in that file and is deliberately **inert** — nothing sets
+the attribute on a reader container. Whether the chapter should gain a per-mark dim *in addition
+to* its whole-verse focus fade is a design question, not a plumbing one: the fade already answers
+"what am I looking at" at a different granularity, and two dimming systems on one surface could
+easily read as a bug. Having the rule ready means answering it is one attribute rather than a
+fourth mechanism.
+
+Native keeps `StudyHighlightUnderlineGrayscale`, and has to — a UIKit text view has no CSS.
+
+### (superseded) The original framing
 
 The decision was a single dim model everywhere, native included — the parity spec §5 would have
 permitted native keeping its greyscale, and that was the recommendation; the call went the other
