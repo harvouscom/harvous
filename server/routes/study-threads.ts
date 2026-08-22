@@ -273,6 +273,9 @@ export function mapStudyRow(row: typeof StudyThreadEntries.$inferSelect) {
     scriptureReference: row.scriptureReference,
     scripturePassageTranslation: row.scripturePassageTranslation,
     scripturePassageExcerpt: row.scripturePassageExcerpt,
+    /* Null for a whole-verse highlight. The reader needs it to know whether to paint the whole
+       verse or find the span inside it. */
+    scriptureSpanKey: row.scriptureSpanKey,
     isArchived: row.isArchived,
     highlightListEditedAt: row.highlightListEditedAt,
     createdAt: row.createdAt,
@@ -929,6 +932,19 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
     const norm = normalizeScriptureReference(refRaw) ?? refRaw;
     if (!norm) return c.json({ error: 'reference is required' }, 400);
 
+    /*
+     * Which span inside the passage this covers — null for the whole thing.
+     *
+     * Taken from the client rather than derived here, because deriving it would mean the server
+     * re-deciding what text the reader actually selected, and the reader is the only thing that
+     * knows. Validated as a span key rather than trusted as free text so a malformed value cannot
+     * quietly become a row nothing can ever find again.
+     */
+    const spanKey =
+      typeof body.spanKey === 'string' && /^s:[0-9a-f]{1,16}$/.test(body.spanKey)
+        ? body.spanKey
+        : null;
+
     const accent =
       typeof body.accent === 'string' && isStudyHighlightAccentKey(body.accent)
         ? body.accent
@@ -982,6 +998,19 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
             eq(StudyThreadEntries.entryKindRaw, 'scriptureLink'),
             eq(StudyThreadEntries.scriptureReference, norm),
             eq(StudyThreadEntries.scripturePassageTranslation, translation),
+            /*
+             * The span, so two phrases in one verse are two highlights rather than one
+             * overwriting the other.
+             *
+             * `isNull` for the whole-verse case, not `eq(col, null)` — SQL `= NULL` is never
+             * true, and every row written before this column existed has NULL here. Getting this
+             * wrong would not error; it would silently stop finding existing highlights and
+             * insert duplicates on every recolour, which is the exact bug the upsert exists to
+             * prevent.
+             */
+            spanKey === null
+              ? isNull(StudyThreadEntries.scriptureSpanKey)
+              : eq(StudyThreadEntries.scriptureSpanKey, spanKey),
           ),
         )
         .limit(1),
@@ -1016,6 +1045,7 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
           scriptureReference: norm,
           scripturePassageTranslation: translation,
           scripturePassageExcerpt: typeof body.excerpt === 'string' ? body.excerpt : '',
+          scriptureSpanKey: spanKey,
           sourceSnippet: typeof body.excerpt === 'string' ? body.excerpt : '',
           miniNoteBody: typeof body.miniNoteBody === 'string' ? body.miniNoteBody : '',
           createdAt: now,

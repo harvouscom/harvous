@@ -510,6 +510,24 @@ export const StudyThreadEntries = pgTable(
     scriptureReference: text('scriptureReference'),
     scripturePassageTranslation: text('scripturePassageTranslation'),
     scripturePassageExcerpt: text('scripturePassageExcerpt'),
+    /**
+     * Which span inside the passage a highlight covers, or NULL for the whole passage.
+     *
+     * The reader highlight upsert keys on `(userId, parentNoteId IS NULL, entryKind, reference,
+     * translation)` — verse-granular, so two phrases inside one verse would collide into one row.
+     * This separates them.
+     *
+     * Deliberately NOT `scripturePassageExcerpt`, which is the obvious candidate and is wrong:
+     * that column holds rendered Bible text, so keying on it would make the key depend on text
+     * that can change, and one punctuation fix in a translation would turn a recolour into a
+     * silent duplicate. This holds a hash of the normalised span instead — see
+     * `src/utils/scripture-span-key.ts`.
+     *
+     * NULL for a whole-verse highlight, which is what every row written before this column
+     * existed already is. That is what makes adding it a no-backfill change: existing rows are
+     * correct as they stand, and their lookup gains `IS NULL`, which they all satisfy.
+     */
+    scriptureSpanKey: text('scriptureSpanKey'),
     isArchived: boolean('isArchived').notNull().default(false),
     highlightListEditedAt: ts('highlightListEditedAt'),
     createdAt: ts('createdAt').notNull(),

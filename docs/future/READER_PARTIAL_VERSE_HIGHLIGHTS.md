@@ -1,7 +1,8 @@
 # Partial-Verse Highlights in the Reader — Options
 
-**Status:** **Decided, not built** (August 21, 2026) — Option B. The server blocker is scoped and
-is smaller than it looks; see [Scoping the blocker](#scoping-the-blocker-august-21-2026).
+**Status:** **Decided and built** (August 21, 2026) — Option B. The scoping held: one nullable
+column, one `where` clause. The *actual* blocker was somewhere else entirely — see
+[What the blocker turned out to be](#what-the-blocker-turned-out-to-be).
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides whether the chapter reader should highlight less than a whole verse.
 **Covers:** improvement-list item #7.
@@ -233,6 +234,32 @@ hash. The doc's framing of it as the immovable blocker overstated it. The real w
 is the reader work already listed under [What breaks, honestly](#what-breaks-honestly) — the
 `Map<verse, highlight>` shape, the `"Book C:V-V"` grammar parsed in four places, the margin
 measuring, and the keyboard/a11y model. That is where the estimate should sit.
+
+---
+
+## What the blocker turned out to be
+
+The scoping pass was right that the server was cheap: one nullable `scriptureSpanKey`, one `where`
+clause, no migration and no backfill. 111 existing rows, all `null`, all still correct.
+
+**The thing that actually stopped this working was `user-select`.** Option B's whole premise is
+"allow a native text selection inside the chapter", and the chapter forbade it: `global.css` sets
+`* { user-select: none }` as an app-wide reset and the reader had no carve-out, so a drag across
+words produced a range containing no text at all.
+
+So the reader's whole-verse-only model was never a decision about granularity. It was an inherited
+reset that nobody had reason to notice, because tapping verses was the only gesture anyone had
+built.
+
+The scripture dock already had the carve-out — added when sub-verse shipped there, with the reason
+in the comment: *"drags must be able to start on them (native parity)"*. The reader now has the
+matching rule, including the detail worth copying: **the verse number is excluded**. Without that,
+a drag starting at the top of a verse swallows the numeral, the excerpt reads "5 The light
+shines", and the span key computed from it can never match the passage it is meant to be part of.
+
+Worth generalising from: two of this item's three hard parts were "something already does this,
+one surface over". The excerpt model, the painter, and the selection carve-out were all shipped in
+the dock. The reader was the holdout every time.
 
 ---
 
