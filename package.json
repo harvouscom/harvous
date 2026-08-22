@@ -25,6 +25,7 @@
     "build:api": "node scripts/generate-founder-letter.js && esbuild server/netlify.ts --bundle --platform=node --target=node22 --format=cjs --alias:@=src --alias:punycode=./node_modules/punycode/punycode.js --loader:.md=text --outfile=netlify/functions/api.cjs && esbuild server/netlify-purge-shared-spaces.ts --bundle --platform=node --target=node22 --format=cjs --alias:@=src --alias:punycode=./node_modules/punycode/punycode.js --loader:.md=text --outfile=netlify/functions/purge-shared-spaces.cjs && esbuild server/netlify-audienceful-activity-sync.ts --bundle --platform=node --target=node22 --format=cjs --alias:@=src --alias:punycode=./node_modules/punycode/punycode.js --loader:.md=text --outfile=netlify/functions/audienceful-activity-sync.cjs && esbuild server/og-image-function.ts --bundle --platform=node --target=node22 --format=cjs --external:@sparticuz/chromium --outfile=netlify/functions/og-image.cjs",
     "dev:spa": "node scripts/sync-appearance-image-presets.js && vite",
     "dev:prod-spa": "VITE_CLERK_PUBLISHABLE_KEY=pk_live_Y2xlcmsuaGFydm91cy5jb20k VITE_API_PROXY_TARGET=https://app.harvous.com vite",
+    "build:fly": "node scripts/generate-founder-letter.js && esbuild server/fly.ts --bundle --platform=node --target=node22 --format=cjs --alias:@=src --alias:punycode=./node_modules/punycode/punycode.js --loader:.md=text --external:@sparticuz/chromium --outfile=dist-server/api.cjs",
     "build:spa": "vite build",
     "preview:spa": "vite preview",
     "build:native": "npm run build:spa && node_modules/.bin/cap sync",
