@@ -58,6 +58,8 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   createDictionaryReferenceProvider,
   decoratePassageHtmlWithReferenceSuggestions,
+  decoratePassageHtmlWithSavedHighlights,
+  type PassageHighlightPaint,
   type ReferenceProvider,
 } from '@/components/react/TiptapReferenceSuggestion';
 import { useEastonsSlugIndex } from '../../hooks/useEastonsSlugIndex';
@@ -317,6 +319,12 @@ export interface PrototypeBibleReaderPaneProps {
    */
   highlights?: ReadonlyMap<number, ReaderVerseHighlight>;
   /**
+   * Sub-verse highlights, keyed by the verse they sit in — drawn as marks inside the text rather
+   * than as a colour on the whole verse. Separate from `highlights` because they are a different
+   * mechanism, not a different value: see `versePaints` in PrototypeReadPage.
+   */
+  versePaints?: ReadonlyMap<number, PassageHighlightPaint[]>;
+  /**
    * Paint the selected verses in this accent.
    *
    * `excerpt` is the selected verses' own text — required server-side for a `scriptureLink`
@@ -328,6 +336,8 @@ export interface PrototypeBibleReaderPaneProps {
     range: { start: number; end: number },
     accent: StudyHighlightAccentKey,
     excerpt: string,
+    /** The full text of the verses in `range` — how the caller tells a phrase from a passage. */
+    passageText?: string,
   ) => void;
   /**
    * Highlight, then open the study dock on it so a thought can be written straight away.
@@ -410,6 +420,7 @@ export default function PrototypeBibleReaderPane({
   onOpenDock,
   fontOverride,
   highlights,
+  versePaints,
   onHighlight,
   onAnnotate,
   onRemoveHighlight,
@@ -502,18 +513,51 @@ export default function PrototypeBibleReaderPane({
    * re-apply innerHTML every time, which destroys any text selection the reader is holding —
    * the same bug that bit the note body. Memoizing the whole map keeps them identity-stable.
    */
+  /**
+   * A signature of the sub-verse paints, so the memo below re-runs when a span appears or changes
+   * colour — and only then.
+   *
+   * `versePaints` is a fresh Map every render, so depending on it directly would rebuild every
+   * verse's HTML on every render, which is exactly the bug the memo exists to prevent: a new
+   * `{ __html }` object makes React re-apply innerHTML, and re-applying innerHTML destroys any
+   * text selection the reader is holding. A string signature is stable when the content is.
+   *
+   * Whole-verse highlights are deliberately not in it. They paint through a CSS attribute on the
+   * verse span, so recolouring one must not regenerate any markup at all.
+   */
+  const versePaintSignature = useMemo(() => {
+    if (!versePaints || versePaints.size === 0) return '';
+    const parts: string[] = [];
+    for (const [verse, paints] of [...versePaints.entries()].sort((a, b) => a[0] - b[0])) {
+      for (const p of paints) parts.push(`${verse}:${p.id}:${p.accentRaw}:${p.excerpt}`);
+    }
+    return parts.join('|');
+  }, [versePaints]);
+
   const verseHtml = useMemo(() => {
     const map = new Map<number, { __html: string }>();
     for (const verse of verses) {
       const escaped = escapeHtml(verse.text);
+      const decorated = eastonsIndex
+        ? decoratePassageHtmlWithReferenceSuggestions(escaped, referenceProviders)
+        : escaped;
+      /*
+       * Marks go on after the dictionary suggestions, matching the order the scripture dock uses
+       * — the painter splits text nodes, and running it last means it can split a suggestion span
+       * rather than a suggestion decorator having to reason about marks that already exist.
+       */
+      const paints = versePaints?.get(verse.number);
       map.set(verse.number, {
-        __html: eastonsIndex
-          ? decoratePassageHtmlWithReferenceSuggestions(escaped, referenceProviders)
-          : escaped,
+        __html:
+          paints && paints.length > 0
+            ? decoratePassageHtmlWithSavedHighlights(decorated, [...paints])
+            : decorated,
       });
     }
     return map;
-  }, [verses, eastonsIndex, referenceProviders]);
+    // versePaintSignature stands in for versePaints — see its own comment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verses, eastonsIndex, referenceProviders, versePaintSignature]);
 
   /**
    * Mark already-saved words in the passage text with a solid underline instead of the dotted
@@ -660,6 +704,20 @@ export default function PrototypeBibleReaderPane({
 
   /** Selected verse range, as [start, end] — a range because selection can extend. */
   const [selection, setSelection] = useState<[number, number] | null>(null);
+
+  /**
+   * A drag across words, as opposed to a tap on a verse.
+   *
+   * Two gestures, two granularities, one storage model: tapping a verse marks a verse, dragging
+   * across words marks a phrase. This holds the phrase; `selection` still holds the verse range
+   * either way, so the focus fade, the toolbar's placement and every existing action keep working
+   * without knowing which gesture produced them.
+   *
+   * Pointer-only by decision. The verse listbox stays the primary interaction and keyboard users
+   * keep exactly the model they have — a keyboard route (shift+arrow within a verse) is deferred
+   * rather than refused. See docs/future/READER_PARTIAL_VERSE_HIGHLIGHTS.md.
+   */
+  const [dragText, setDragText] = useState<string | null>(null);
   const [focusedVerse, setFocusedVerse] = useState<number | null>(null);
 
   /**
@@ -877,6 +935,7 @@ export default function PrototypeBibleReaderPane({
       setPinnedKey(null);
       setActiveKey(null);
       setSelection(null);
+      setDragText(null);
       setLanding(null);
     };
     const onKeyDown = (e: KeyboardEvent) => {
@@ -884,6 +943,7 @@ export default function PrototypeBibleReaderPane({
       setPinnedKey(null);
       setActiveKey(null);
       setSelection(null);
+      setDragText(null);
       setLanding(null);
     };
 
@@ -904,6 +964,58 @@ export default function PrototypeBibleReaderPane({
    * means a re-measure flows straight through to the open card.
    */
   const activeBar = activeKey ? (bars.find((b) => b.key === activeKey) ?? null) : null;
+
+  /**
+   * Turn a native text selection inside the chapter into a verse range plus its text.
+   *
+   * `selectionchange` on the document rather than `mouseup` on the column: a drag can end
+   * outside the column (past the last line, over the margin) and a `mouseup` listener there
+   * would miss it, leaving a visible selection the toolbar never offered to act on.
+   *
+   * Collapsed selections are ignored — that is a click, and clicks are the verse-tap path, which
+   * must keep working exactly as it does. A selection that touches no verse is ignored too:
+   * dragging across the chapter heading is not a highlight of anything.
+   */
+  useEffect(() => {
+    const onSelectionChange = () => {
+      const sel = document.getSelection();
+      const column = columnRef.current;
+      if (!sel || !column || sel.isCollapsed || sel.rangeCount === 0) {
+        setDragText(null);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!column.contains(range.commonAncestorContainer)) {
+        setDragText(null);
+        return;
+      }
+      const text = sel.toString().trim();
+      if (!text) {
+        setDragText(null);
+        return;
+      }
+      /* Which verses the drag touches. Taken from the DOM rather than from character offsets:
+         the verse spans are the only thing that knows where one verse ends. */
+      const touched: number[] = [];
+      for (const el of column.querySelectorAll<HTMLElement>('[data-reader-verse]')) {
+        if (!sel.containsNode(el, true)) continue;
+        const n = Number(el.dataset.readerVerse);
+        if (Number.isFinite(n)) touched.push(n);
+      }
+      if (touched.length === 0) {
+        setDragText(null);
+        return;
+      }
+      const start = Math.min(...touched);
+      const end = Math.max(...touched);
+      setDragText(text);
+      setSelection((current) =>
+        current && current[0] === start && current[1] === end ? current : [start, end],
+      );
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
+  }, []);
 
   /**
    * Where the floating menu sits — under the last selected verse, in viewport coordinates.
@@ -1155,14 +1267,23 @@ export default function PrototypeBibleReaderPane({
     ? [activeBar.startVerse, activeBar.endVerse]
     : (selection ?? activeDockRange ?? landing);
 
-  /** Text of the selected verses — what a highlight is *of*, for the dock's excerpt. */
-  const selectedText =
+  /** The full text of the selected verses — the passage a highlight sits inside. */
+  const passageText =
     selection == null
       ? ''
       : verses
           .filter((v) => v.number >= selection[0] && v.number <= selection[1])
           .map((v) => v.text)
           .join(' ');
+
+  /**
+   * What a highlight is *of* — the dragged phrase when there is one, the whole passage otherwise.
+   *
+   * A drag that happens to cover the whole passage collapses back to the passage on the way out
+   * (`spanKeyForSelection` returns null for it), so the two gestures cannot produce two rows over
+   * identical text.
+   */
+  const selectedText = dragText ?? passageText;
 
   /**
    * Whatever is already on the selection. Its presence is what turns Highlight and Annotate
@@ -1266,7 +1387,7 @@ export default function PrototypeBibleReaderPane({
                       // Re-colours the existing row rather than adding one — the write is
                       // keyed on the passage, so trying colours leaves a single highlight.
                       setAccent(token);
-                      onHighlight({ start: selection[0], end: selection[1] }, token, selectedText);
+                      onHighlight({ start: selection[0], end: selection[1] }, token, selectedText, passageText);
                     }}
                   >
                     <span className="dock-accent-swatch__choice-ring" aria-hidden />
@@ -1299,7 +1420,7 @@ export default function PrototypeBibleReaderPane({
                     // you guessed what it did. Committing on the first tap means the palette
                     // only ever appears attached to a highlight that already exists, so each
                     // colour is a change you can see rather than a choice you must predict.
-                    onHighlight({ start: selection[0], end: selection[1] }, accent, selectedText);
+                    onHighlight({ start: selection[0], end: selection[1] }, accent, selectedText, passageText);
                     setPaletteOpen(true);
                   }}
                 />
@@ -1329,6 +1450,7 @@ export default function PrototypeBibleReaderPane({
                         existingAnnotationId,
                       );
                       setSelection(null);
+      setDragText(null);
                       return;
                     }
                     // Open on the id-less state right away — the id arrives after the network
@@ -1364,6 +1486,7 @@ export default function PrototypeBibleReaderPane({
                     // The card owns this passage now, so the toolbar steps out rather than
                     // floating over the note field underneath it.
                     setSelection(null);
+      setDragText(null);
                   }}
                 />
                 <Divider />
@@ -1378,6 +1501,7 @@ export default function PrototypeBibleReaderPane({
                 // The card now shows what the selection was for, and the fade follows it from
                 // there — so the toolbar steps out rather than sitting over the passage.
                 setSelection(null);
+      setDragText(null);
               }}
             />
 

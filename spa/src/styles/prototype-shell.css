@@ -217,6 +217,24 @@
   -webkit-user-select: text !important;
 }
 
+/*
+ * ...and the chapter reader, for the same reason.
+ *
+ * The dock has had this carve-out since sub-verse highlights shipped there; the reader never got
+ * one, so `* { user-select: none }` from global.css reached the chapter and a drag across words
+ * produced a range with no text in it. That is why the reader could only ever highlight whole
+ * verses by tapping — not a decision about granularity, an inherited reset.
+ *
+ * The verse number is excluded, exactly as the dock excludes its own. Without that a drag
+ * beginning at the start of a verse swallows the numeral, the excerpt reads "5 The light shines",
+ * and the span key computed from it can never match the passage text it is meant to be a part of.
+ */
+.pds-reader__column,
+.pds-reader__column *:not(sup.pds-reader-verse-num) {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
 /* Study dock cards — opaque surfaces (glass-light reads too translucent over the shell). */
 .proto-shell__study-dock-layer .study-dock-card {
   --study-dock-paper-width: var(--proto-study-dock-paper-width-measured, 720px);
