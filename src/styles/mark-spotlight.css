@@ -1,0 +1,51 @@
+/**
+ * Spotlight — dim every mark on a surface except the one you are looking at.
+ *
+ * One contract, in one file, because there were three mechanisms for one idea: the note body
+ * dimmed marks via an injected `[data-dim-highlights]` rule, the reader faded whole verses by
+ * opacity, and the scripture dock could not dim at all — it wrote `text-decoration-color`
+ * straight onto each `data-color`, so there was no variable to override. That last one is fixed
+ * (the dock routes through `--mark-accent` now), which is what made this file possible.
+ *
+ * ── The contract ──
+ *
+ *   1. Put `data-dim-highlights="<studyThreadEntryId>"` on a container.
+ *   2. Everything mark-like inside it dims to tertiary.
+ *   3. Anything carrying `data-study-thread-id="<that id>"` keeps its own accent.
+ *
+ * Step 3 is a per-id rule injected at runtime by whichever surface owns the container — see
+ * `TiptapEditor.tsx`'s dim-highlights effect. It is injected rather than written here because a
+ * static sheet cannot know the id, and driving it by attribute rather than by mutating each mark
+ * is what survives ProseMirror re-rendering its own DOM.
+ *
+ * ── Why the selectors differ per surface, when the mechanism does not ──
+ *
+ * The note body and the dock both draw highlights as `<mark>`. The reader draws none at all: a
+ * highlighted verse is `data-highlighted` on `.pds-reader__verse` with the decoration on an inner
+ * text span, and a saved reference is a `.reference-suggestion` span. So "one selector everywhere"
+ * was never available — what is shared is the attribute, the tertiary colour and the restore rule.
+ * Three selector lists, one idea, instead of three ideas.
+ *
+ * The reader's rule is written here and is deliberately INERT: nothing sets the attribute on a
+ * reader container today, because whether the chapter should gain a per-mark dim *in addition to*
+ * its whole-verse focus fade is an open design question
+ * (docs/future/HIGHLIGHT_REFERENCE_STYLING_SPEC.md §Outstanding). Having the rule ready means
+ * answering that question is one attribute, not a fourth mechanism.
+ *
+ * Native keeps `StudyHighlightUnderlineGrayscale`. Same idea, and it has to be — a UIKit text
+ * view has no CSS to hand.
+ */
+
+/* ── Dim ── everything mark-like inside a spotlit container. */
+[data-dim-highlights] mark,
+[data-dim-highlights] .pds-reader__verse-text,
+[data-dim-highlights] .reference-suggestion {
+  /* `!important` because each surface's own accent rule is equally specific and would otherwise
+     win by source order — which of the two sheets loads last is not something this should depend
+     on. The runtime restore rule below is also `!important` for the same reason, so the pair
+     stays symmetrical. */
+  text-decoration-color: var(--pds-text-tertiary) !important;
+  /* The note body's dark-mode marks carry an accent glow; a dimmed mark must not keep it, or the
+     one thing that is supposed to stand out is the only thing that does not glow. */
+  text-shadow: none !important;
+}
