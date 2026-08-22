@@ -1,7 +1,8 @@
 # Highlights, References and the Selected Verse — Styling Spec
 
-**Status:** **Decided** August 21, 2026. Unbuilt. Compare the surfaces in the
-`ds-23-mark-styling` gallery scene. Not started.
+**Status:** **Decided; mostly built** (August 21, 2026). The weights, the offset distinction and
+the dock's variable route shipped. **Outstanding: the single spotlight mechanism** and a
+device measurement of native's underline weight — see [Outstanding](#outstanding).
 **Last Updated:** August 21, 2026
 **Audience:** Whoever settles what a mark means visually, across reader, note body, dock and native.
 **Covers:** improvement-list items #5 (the selected/highlighted verse experience) and the second half
@@ -177,6 +178,54 @@ bottom would enter the dock band, reusing the same flip logic
 
 ---
 
+
+## Outstanding
+
+Two pieces of this spec are decided but not built. Everything else shipped August 21, 2026.
+
+### 1. One spotlight mechanism across all four surfaces
+
+The decision was a single dim model everywhere, native included — the parity spec §5 would have
+permitted native keeping its greyscale, and that was the recommendation; the call went the other
+way, so that "one mechanism dims marks everywhere" is true without an exception to remember.
+
+**The blocker is gone.** The dock used to write `text-decoration-color` directly per `data-color`,
+so there was no variable to override; it now routes through `--mark-accent` like the reader and
+note body (`src/styles/scripture-pill-chrome.css`). All three web surfaces can therefore be dimmed
+by one rule for the first time.
+
+**What is left:** three mechanisms to collapse into one.
+
+| Today | Where |
+|---|---|
+| Note body dims marks via an injected `[data-dim-highlights]` rule | driven from `TiptapEditor.tsx`, styles in `prototype-editor.css` |
+| Reader fades whole verses by opacity | `data-focus` on `.pds-reader__verses` — a different channel entirely, not per-mark |
+| Native greyscales non-focused threads | `StudyHighlightUnderlineGrayscale` |
+
+The reader's is the awkward one: whole-verse opacity is not a per-mark dim and does not become one
+by renaming it. Deciding whether the reader gains a per-mark dim *in addition to* its focus fade,
+or whether the fade is considered its implementation of the same idea, is the first question.
+
+### 2. Native's underline weight needs measuring, not assuming
+
+The decision reads "everything levels on 2px and native's `NSUnderlineStyle.thick` comes down with
+it". That instruction cannot be followed literally, and following it approximately would be a
+regression.
+
+`.thick` is not a pixel value. AppKit sizes underlines from the font's own metrics, and `.thick` at
+body size is already roughly 2px — which means **the dock's CSS 3px was never really mirroring
+it**. That 3 was an approximation, and lowering the dock to 2 has probably moved web *toward*
+native rather than away from it.
+
+The only other option in that enum is `.single`, which is roughly 1px: thinner than web, and a
+regression wearing parity's clothes. So nothing was changed.
+
+**What is left:** put the new 2px web mark beside a native one on a device and compare. If they
+match, record that and close this. If they do not, the fix is a custom underline thickness in
+`HarvousLayoutManager`'s `drawUnderline`, which already special-cases `.thick` to add a 2pt gap and
+is therefore the place that could set a width too.
+
+---
 ## Risks / watch-items
 
 - **Changing the reader's thickness touches the most-looked-at text in the product.** It should be

@@ -234,67 +234,6 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-19-note-audience-bar',
     // Interactive: the destination sheet retargets a fixture draft.
   },
-  {
-    id: 'ds-20-toolbar-shape',
-    title: 'Toolbar shape options',
-    phase: 'Shell',
-    editFiles: [
-      'spa/src/pages/prototype/NativeToolbar.tsx',
-      'spa/src/styles/prototype-components.css',
-      'docs/future/TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md',
-    ],
-    screenshotSlug: 'ds-20-toolbar-shape',
-    // A decision aid, not a shipped pattern: the three options from the options doc rendered
-    // side by side against the real tokens, so the choice is made by looking rather than by
-    // reading a description. Delete this scene once the shape is settled.
-  },
-  {
-    id: 'ds-21-floating-shape',
-    title: 'Floating surfaces — shape',
-    phase: 'Patterns',
-    editFiles: [
-      'spa/src/styles/prototype-components.css',
-      'src/styles/link-preview-card.css',
-      'src/styles/tiptap-editor.css',
-      'docs/future/TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md',
-    ],
-    screenshotSlug: 'ds-21-floating-shape',
-    // The other half of ds-20: the toolbar decision settled the bar, not the menus and cards
-    // that open from it. Production classes, not copies of their markup, so the "today" column
-    // is whatever the CSS says today. Also a decision aid — delete it with ds-20.
-  },
-  {
-    id: 'ds-22-margin-indicators',
-    title: 'Margin indicators — options',
-    phase: 'Patterns',
-    editFiles: [
-      'spa/src/pages/prototype/PrototypeBibleReaderPane.tsx',
-      'spa/src/hooks/queries/usePrototypeChapterNotes.ts',
-      'spa/src/styles/prototype-components.css',
-      'docs/future/READER_MARGIN_INDICATORS.md',
-    ],
-    screenshotSlug: 'ds-22-margin-indicators',
-    // The case for bars over dots is entirely about length, which cannot be judged from a
-    // description — dots were rejected once without the two being seen side by side. Also
-    // renders the lane-merge defect, which is easier to see than to read about. Decision aid;
-    // delete it once D-5 is settled.
-  },
-  {
-    id: 'ds-23-mark-styling',
-    title: 'Mark styling — three surfaces',
-    phase: 'Patterns',
-    editFiles: [
-      'spa/src/styles/prototype-components.css',
-      'spa/src/styles/prototype-editor.css',
-      'src/styles/scripture-pill-chrome.css',
-      'docs/future/HIGHLIGHT_REFERENCE_STYLING_SPEC.md',
-    ],
-    screenshotSlug: 'ds-23-mark-styling',
-    // Every disagreement in D-4 is a comparison — the same mark drawn two ways on two surfaces,
-    // or two different marks drawn identically on one — and none of it is visible in a spec
-    // table. Cells are live: each specimen sits inside the ancestor its real rule requires, so
-    // the "today" state is whatever the three stylesheets currently say. Delete with D-4.
-  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

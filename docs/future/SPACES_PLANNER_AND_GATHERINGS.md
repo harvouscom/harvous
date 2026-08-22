@@ -1,7 +1,7 @@
 # Shared Spaces, the Planner, and Where a Gathering Shows Up
 
-**Status:** **Decided** (August 21, 2026) — Option B, with placement and bounds settled. Not built.
-Most of what this item originally asked for already was.
+**Status:** **Decided, not built** (August 21, 2026) — Option B, with placement and bounds
+settled. This is the whole implementation brief; see [Option B in detail](#option-b-in-detail).
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides how a room's rhythm reaches the people in it.
 **Covers:** improvement-list item #1 (shared spaces + planner + "add gathering") — design-track

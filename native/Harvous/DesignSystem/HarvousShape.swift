@@ -13,6 +13,14 @@ enum HarvousRadius {
 #endif
     static let rowHighlight: CGFloat = 10   // warm rounded row selection
     static let formatButton: CGFloat = 8    // format toolbar button press
+    /// Anything that floats over the page: menus, cards, and the selection bars.
+    /// Mirrors web `--pds-radius-menu`. Same number as `button` by coincidence, not by
+    /// meaning — a surface and a control are different things and should be able to diverge.
+    static let floatingSurface: CGFloat = 12
+    /// An icon target inside a floating surface. Mirrors web `--pds-radius-row`.
+    /// A 12pt surface holding 10pt tiles wants 2pt of side padding for concentric corners —
+    /// see `SelectionActionBar`.
+    static let floatingTile: CGFloat = 10
     /// macOS sidebar: **bottom** leading corner radius (split side stays square; top leading stays 0 for title bar). Tune vs system chrome.
     static let sidebarGlassLeading: CGFloat = 16
 }

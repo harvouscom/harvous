@@ -8,7 +8,9 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 14px;
+  /* One radius for everything that floats — tokenised, not 14 by hand. Falls back for
+     non-prototype mounts, which is why this file carries fallbacks throughout. */
+  border-radius: var(--pds-radius-menu, 12px);
   background: var(--pds-bg-toolbar, rgba(255, 255, 255, 0.98));
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
