@@ -1,10 +1,3 @@
-# Diagnostics kept through the cutover so a regression can be told apart from a
-# misconfiguration without another outage. /flyprobe reports Fly's Clerk key
-# state (including whether Clerk actually accepts it); /flyprobe-session
-# verifies the caller's own session end to end. Remove once this is settled.
-/flyprobe  https://harvous.fly.dev/api/debug/auth-config  200
-/flyprobe-session  https://harvous.fly.dev/api/debug/verify-session  200
-
 # API → the Hono server on Fly (docs/FLY_MIGRATION.md). Netlify still fronts the
 # domain and serves the SPA; only /api/* is proxied, so clients keep calling
 # app.harvous.com and neither the web app, the native app, nor the offline queue

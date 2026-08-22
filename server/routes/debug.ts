@@ -102,8 +102,8 @@ route.get('/api/debug/auth-config', async (c) => {
  * This exists because auth failures are otherwise a single undifferentiated
  * 401: no cookie, wrong Clerk instance, expired token and rejected `azp` all
  * look identical from outside, and two cutovers were misdiagnosed as a result.
- *
- * TEMPORARY — remove once the Fly cutover is settled.
+ * Kept deliberately — it is what turned the third attempt from a guess into a
+ * check, and the next auth question will be the same shape.
  */
 route.get('/api/debug/verify-session', async (c) => {
   const cookieHeader = c.req.header('Cookie') ?? '';

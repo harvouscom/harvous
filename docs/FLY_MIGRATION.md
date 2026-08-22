@@ -176,7 +176,43 @@ into `"v, v"`; Fly does not do this, and the workarounds take the first
 comma-split value, so they are inert rather than wrong — but this is the code
 path that silently disabled CSRF for months, so verify rather than assume.
 
-## The first cutover failed — read this before the second
+## Status: live since 2026-08-22, on the third attempt
+
+`app.harvous.com/api/*` is proxied to Fly. Two earlier attempts were rolled back
+within minutes; the section below is kept because the way they were misdiagnosed
+is more useful than the fix.
+
+**The cause never changed across all three attempts: the Clerk secret key on Fly
+was wrong.** What changed was the ability to see it.
+
+| Attempt | Key on Fly | What cleared it | Outcome |
+|---|---|---|---|
+| 1 | `sk_test_…` | `/api/health`, a public DB read, an OG render | 401 on every authenticated route |
+| 2 | `sk_live_…` but invalid | a **prefix** check reporting "live, MATCH" | identical failure |
+| 3 | valid | Clerk's own API accepting the key, **plus** a live session verified end to end | working |
+
+Every green light in attempts 1 and 2 came from checking the *shape* of the
+configuration rather than exercising it. Public health endpoints cannot verify an
+app whose entire surface is authenticated, and a `sk_live_` prefix is not a
+working key.
+
+Between attempts 2 and 3 a proxy-cookie theory was pursued and disproven —
+Netlify forwards `Cookie` to an external host intact. That detour happened
+because `clerkAuth` swallowed the verification error, making "no cookie", "wrong
+instance" and "invalid key" indistinguishable. It now logs Clerk's reason.
+
+### What to run before touching this again
+
+```bash
+bash scripts/verify-fly-auth.sh
+```
+
+Fails unless Clerk's API **accepts** the key. Then, in a signed-in browser, open
+`https://app.harvous.com/api/debug/verify-session` and require
+`"result":"verified"`. That is a real session over the real path, and it is the
+assertion both failed cutovers lacked.
+
+## The first two cutovers failed — the detail
 
 Cut over 2026-08-22 and rolled back the same morning. Production served the SPA
 fine and **401'd every authenticated API call**, because Fly was running
