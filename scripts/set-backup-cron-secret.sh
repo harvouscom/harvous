@@ -21,14 +21,17 @@ SECRET="$(openssl rand -hex 32)"
 
 echo "Generated a 64-character secret. Setting it in three places…"
 
+# Output is deliberately NOT suppressed on any of these: netlify env:set prompts
+# before overwriting an existing value, and hiding that makes the script look
+# hung. --force skips the prompt; the visible output is the backstop.
 echo "  1/3 GitHub Actions…"
 gh secret set BACKUP_CRON_SECRET --repo "$REPO" --body "$SECRET"
 
 echo "  2/3 Netlify (production context)…"
-netlify env:set BACKUP_CRON_SECRET "$SECRET" --context production >/dev/null
+netlify env:set BACKUP_CRON_SECRET "$SECRET" --context production --force
 
-echo "  3/3 Fly (restarts the machine)…"
-fly secrets set "BACKUP_CRON_SECRET=$SECRET" --app "$FLY_APP" >/dev/null
+echo "  3/3 Fly (restarts the machine, takes ~40s)…"
+fly secrets set "BACKUP_CRON_SECRET=$SECRET" --app "$FLY_APP"
 
 unset SECRET
 
