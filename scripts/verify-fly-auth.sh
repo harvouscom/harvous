@@ -33,19 +33,36 @@ case "$spa_key" in
 esac
 echo "  SPA issues tokens from:  ${spa_key:-?}  → ${spa_mode:-unknown}"
 
-# Fly's secrets are write-only, so ask the server which instance it loaded.
-# /api/debug/auth-config reports the MODE only, never the key — so this whole
-# check needs no credential from anyone.
-fly_mode="$(curl -s "${FLY_HOST}/api/debug/auth-config" --max-time 30 | python3 -c "
+# Fly's secrets are write-only, so ask the server. This reports the key's mode
+# AND whether Clerk actually accepts it — a prefix alone is not enough, since a
+# truncated or wrong-application key still reads sk_live_ and still fails every
+# session. That exact case shipped twice.
+cfg="$(curl -s "${FLY_HOST}/api/debug/auth-config" --max-time 45)"
+fly_mode="$(printf '%s' "$cfg" | python3 -c "
 import json,sys
 try: print(json.load(sys.stdin).get('clerkMode','?'))
 except Exception: print('?')
 ")"
+key_valid="$(printf '%s' "$cfg" | python3 -c "
+import json,sys
+try: print(str(json.load(sys.stdin).get('clerkKeyValid')).lower())
+except Exception: print('?')
+")"
+key_detail="$(printf '%s' "$cfg" | python3 -c "
+import json,sys
+try: print(json.load(sys.stdin).get('clerkKeyDetail',''))
+except Exception: print('')
+")"
 echo "  Fly verifies against:    ${fly_mode}"
+echo "  Clerk accepts the key:   ${key_valid}"
 
-if [[ -n "$spa_mode" && "$fly_mode" != "?" ]]; then
+if [[ "$key_valid" != "true" ]]; then
+  echo "  FAIL — Clerk rejects Fly's secret key: ${key_detail}"
+  echo "  Every signed-in request will 401. Do NOT cut over."
+  fail=1
+elif [[ -n "$spa_mode" && "$fly_mode" != "?" ]]; then
   if [[ "$spa_mode" == "$fly_mode" ]]; then
-    echo "  MATCH — both on the ${spa_mode} instance."
+    echo "  PASS — same instance, and Clerk accepts the key."
   else
     echo "  MISMATCH — the SPA issues ${spa_mode} tokens and Fly verifies"
     echo "  against ${fly_mode}. Every signed-in request will 401. Do NOT cut over."

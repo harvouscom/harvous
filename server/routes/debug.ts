@@ -6,11 +6,41 @@
  */
 
 import { Hono } from 'hono';
-import { verifyToken } from '@clerk/backend';
+import { createClerkClient, verifyToken } from '@clerk/backend';
 import { getAuth } from '../middleware/auth';
 import { db, first, Threads, Spaces, Notes, eq, and, isNull, count, sql } from '../db';
 
 const route = new Hono();
+
+/**
+ * Does the configured Clerk secret key actually work?
+ *
+ * A prefix check is not enough. A key can read `sk_live_…` and still be
+ * rejected by Clerk — truncated on paste, or belonging to a different
+ * application. That exact case shipped twice: the prefix check reported "live,
+ * match, safe to cut over" while every session failed with "The provided Clerk
+ * Secret Key is invalid."
+ *
+ * Answered by making the cheapest real API call and caching the verdict, so a
+ * public endpoint cannot be used to hammer Clerk.
+ */
+let clerkKeyVerdict: { ok: boolean; detail: string; at: number } | null = null;
+const CLERK_VERDICT_TTL_MS = 60_000;
+
+async function checkClerkSecretKey(secretKey: string): Promise<{ ok: boolean; detail: string }> {
+  if (clerkKeyVerdict && Date.now() - clerkKeyVerdict.at < CLERK_VERDICT_TTL_MS) {
+    return { ok: clerkKeyVerdict.ok, detail: clerkKeyVerdict.detail };
+  }
+  let verdict: { ok: boolean; detail: string };
+  try {
+    await createClerkClient({ secretKey }).users.getUserList({ limit: 1 });
+    verdict = { ok: true, detail: 'accepted by Clerk' };
+  } catch (err) {
+    verdict = { ok: false, detail: err instanceof Error ? err.message : String(err) };
+  }
+  clerkKeyVerdict = { ...verdict, at: Date.now() };
+  return verdict;
+}
 
 /**
  * GET /api/debug/auth-config — is this host on Clerk's live or test instance?
@@ -25,7 +55,7 @@ const route = new Hono();
  * documented sk_live_/sk_test_ prefix and tells an attacker nothing they could
  * not infer from whether their own login works.
  */
-route.get('/api/debug/auth-config', (c) => {
+route.get('/api/debug/auth-config', async (c) => {
   const key = process.env.CLERK_SECRET_KEY?.trim() ?? '';
   const mode = key.startsWith('sk_live_')
     ? 'live'
@@ -42,9 +72,14 @@ route.get('/api/debug/auth-config', (c) => {
   const cookieHeader = c.req.header('Cookie') ?? '';
   const authHeader = c.req.header('Authorization') ?? '';
 
+  // The prefix says what the key claims to be; this says whether Clerk agrees.
+  const keyCheck = key ? await checkClerkSecretKey(key) : { ok: false, detail: 'unset' };
+
   return c.json(
     {
       clerkMode: mode,
+      clerkKeyValid: keyCheck.ok,
+      clerkKeyDetail: keyCheck.detail,
       // Distinguishes "this host" from whatever is proxying to it.
       host: process.env.FLY_APP_NAME ? 'fly' : process.env.NETLIFY ? 'netlify' : 'other',
       receivedCookieHeader: cookieHeader.length > 0,
