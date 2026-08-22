@@ -226,7 +226,12 @@ html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismi
 html.harvous-prototype-route .proto-list-panel__row-trailing > button,
 html.harvous-prototype-route .proto-list-panel__row-trailing > button svg,
 html.harvous-prototype-route .proto-list-panel__row-trailing > button path,
-html.harvous-prototype-route .proto-list-panel__row-trailing > button * {
+html.harvous-prototype-route .proto-list-panel__row-trailing > button *,
+/* The overflow trigger is a grandchild — see the opacity rules in prototype-components.css,
+   which had the same blind spot for the same reason. */
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button path {
   color: var(--pds-text-primary) !important;
 }
 
