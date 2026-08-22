@@ -221,8 +221,11 @@ document corrections found while building rather than while writing.
     indistinguishable in the reader *and* the note body, not just the note body
   - Compare the surfaces, and toggle the proposed spec, in `ds-23-mark-styling`
 - **`READER_PARTIAL_VERSE_HIGHLIGHTS.md`** - Highlighting less than a whole verse (#7)
-  - Recommends reusing the excerpt model the dock and native already share, painted imperatively
-  - Names the blocking piece: the server upsert key is verse-granular and must gain the excerpt
+  - **Decided Aug 21, unbuilt:** drag inside the chapter to highlight a phrase, verse-tap unchanged;
+    span key hashes normalised text; a drag covering a whole verse is stored as whole-verse; the
+    verse listbox stays primary and sub-verse is pointer-only for now
+  - The server blocker is scoped: no migration and no backfill — one nullable column, one `where`
+    clause. The trap is keying on the excerpt itself, which depends on Bible text that can change
 - **`SPACES_PLANNER_AND_GATHERINGS.md`** - Shared spaces, the planner, and gatherings (#1)
   - **Mostly a correction**: nearly every piece this item was framed around has since shipped,
     checked row by row against `main`
