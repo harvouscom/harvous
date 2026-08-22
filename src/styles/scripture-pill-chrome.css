@@ -371,7 +371,18 @@ button .scripture-pill-chrome__trans-chip {
   background: color-mix(in srgb, var(--pds-text-tertiary) 12%, transparent);
 }
 
-/* Saved passage reference — solid underline (parity with note-body mark[data-reference]). */
+/*
+ * Saved passage reference — solid underline (parity with note-body mark[data-reference]).
+ *
+ * The reader's verse text is on this rule rather than in a sheet of its own. D-1 gave the chapter
+ * sub-verse highlights, painted by the same helper that paints the dock's, carrying exactly the
+ * same attributes — `data-reference`, `data-color`, `data-study-thread-id`, `data-entry-kind`.
+ * Only the ancestor differed, so the chapter matched nothing here and fell through to the UA
+ * default: a raw yellow `<mark>` block, in a product whose highlight language is an accent
+ * underline. Copying the declarations into the reader's sheet would have re-created the drift
+ * `mark-spotlight.css` exists to prevent, so the selector list grew instead of the rule count.
+ */
+.pds-reader__verse-text mark[data-reference],
 .scripture-pill-chrome__passage-html mark[data-reference] {
   background: transparent !important;
   color: inherit !important;
@@ -394,6 +405,7 @@ button .scripture-pill-chrome__trans-chip {
    everything comes down to 2 and native comes with it, so the chapter's thickness — the
    most-looked-at text in the product — never changes. See
    docs/future/HIGHLIGHT_REFERENCE_STYLING_SPEC.md. */
+.pds-reader__verse-text mark[data-entry-kind="scriptureLink"],
 .scripture-pill-chrome__passage-html mark[data-entry-kind="scriptureLink"] {
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
@@ -402,11 +414,17 @@ button .scripture-pill-chrome__trans-chip {
 /* Accent through a variable, not written straight onto `text-decoration-color`.
    The direct declaration is why the dock could not take part in a dim/spotlight pass at all:
    there was nothing to override. Same route the reader and note body already use. */
+.pds-reader__verse-text mark[data-color="neutral"],
 .scripture-pill-chrome__passage-html mark[data-color="neutral"] { --mark-accent: var(--pds-highlight-neutral); }
+.pds-reader__verse-text mark[data-color="warmAmber"],
 .scripture-pill-chrome__passage-html mark[data-color="warmAmber"] { --mark-accent: var(--pds-highlight-warm-amber); }
+.pds-reader__verse-text mark[data-color="skyBlue"],
 .scripture-pill-chrome__passage-html mark[data-color="skyBlue"] { --mark-accent: var(--pds-highlight-sky-blue); }
+.pds-reader__verse-text mark[data-color="violet"],
 .scripture-pill-chrome__passage-html mark[data-color="violet"] { --mark-accent: var(--pds-highlight-violet); }
+.pds-reader__verse-text mark[data-color="mintGreen"],
 .scripture-pill-chrome__passage-html mark[data-color="mintGreen"] { --mark-accent: var(--pds-highlight-mint-green); }
+.pds-reader__verse-text mark[data-color="coralRose"],
 .scripture-pill-chrome__passage-html mark[data-color="coralRose"] { --mark-accent: var(--pds-highlight-coral-rose); }
 
 .scripture-pill-chrome__passage-html {
