@@ -18,6 +18,13 @@ export interface ChapterHighlight {
   miniNoteBody?: string;
   /** False when it came from a note rather than from reading. */
   madeWhileReading: boolean;
+  /**
+   * Null for a whole-verse highlight — which is every highlight made before sub-verse existed.
+   * Non-null means this covers a span inside the verse, and `excerpt` is the text to find.
+   */
+  spanKey: string | null;
+  /** The text this highlight is of. Only meaningful alongside a non-null `spanKey`. */
+  excerpt: string;
 }
 
 export function chapterHighlightsKey(book: string, chapter: number, translation: string) {
@@ -82,6 +89,8 @@ export function usePrototypeChapterHighlights(
             'warmAmber') as StudyHighlightAccentKey,
           miniNoteBody: row.miniNoteBody as string | undefined,
           madeWhileReading: Boolean(row.madeWhileReading),
+          spanKey: (row.scriptureSpanKey as string | null) ?? null,
+          excerpt: (row.scripturePassageExcerpt as string | null) ?? '',
         }));
     },
   });
@@ -110,6 +119,8 @@ export function useCreateChapterHighlight(
       reference: string;
       accent: StudyHighlightAccentKey;
       excerpt?: string;
+      /** Null (or absent) for a whole-verse highlight; see `src/utils/scripture-span-key.ts`. */
+      spanKey?: string | null;
     }) => {
       if (!spaceId) throw new Error('No space to save this highlight to yet');
       const res = await fetch('/api/scripture/highlights', {
@@ -131,8 +142,18 @@ export function useCreateChapterHighlight(
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<ChapterHighlight[]>(key);
+      const spanKey = input.spanKey ?? null;
       queryClient.setQueryData<ChapterHighlight[]>(key, (rows = []) => {
-        const idx = rows.findIndex((r) => r.scriptureReference === input.reference);
+        /*
+         * Matched on reference AND span, not reference alone.
+         *
+         * Two phrases in one verse share a reference and are different highlights, so matching
+         * on the reference would have the second drag recolour the first instead of adding one —
+         * the same collision the server upsert had to be taught about, arriving one layer up.
+         */
+        const idx = rows.findIndex(
+          (r) => r.scriptureReference === input.reference && (r.spanKey ?? null) === spanKey,
+        );
         if (idx === -1) {
           return [
             ...rows,
@@ -142,6 +163,9 @@ export function useCreateChapterHighlight(
               highlightAccent: input.accent,
               miniNoteBody: '',
               madeWhileReading: true,
+              spanKey,
+              // Carried so the optimistic paint can find the span before the network answers.
+              excerpt: input.excerpt ?? '',
             },
           ];
         }
