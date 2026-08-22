@@ -1,34 +1,58 @@
 #!/usr/bin/env bash
 #
-# Check that BACKUP_CRON_SECRET actually works, without printing it.
+# Verify the nightly backup job actually runs.
 #
-# Reads the value from Netlify (the one place it is readable) and calls both
-# backup endpoints with it. 401 means that host holds a different value; 200
-# means it matches and the job ran.
+# This CANNOT be done by reading the secret and calling the endpoint yourself:
+# Netlify returns a 20-character mask for secret-marked variables via
+# `netlify env:get`, and an earlier version of this script did exactly that and
+# reported two false 401s. GitHub and Fly are write-only, so no copy is readable.
+#
+# The only honest test is to let a party that holds the real value make the call.
+# GitHub Actions does, so this triggers the workflow and reports its outcome.
 #
 # Usage:  bash scripts/verify-backup-cron-secret.sh
 
 set -uo pipefail
 
-FLY_HOST="${FLY_HOST:-https://harvous.fly.dev}"
-NETLIFY_HOST="${NETLIFY_HOST:-https://app.harvous.com}"
+REPO="${REPO:-harvouscom/harvous}"
+WORKFLOW="${WORKFLOW:-backup-user-exports.yml}"
 
-value="$(netlify env:get BACKUP_CRON_SECRET --context production 2>/dev/null | tail -n 1)"
-if [[ -z "$value" || "$value" == *" "* ]]; then
-  echo "BACKUP_CRON_SECRET is not set in Netlify's production context — nothing to test."
+echo "Triggering ${WORKFLOW}…"
+gh workflow run "$WORKFLOW" --repo "$REPO" >/dev/null || {
+  echo "Could not trigger the workflow." >&2
+  exit 1
+}
+
+echo "Waiting for the run to start…"
+sleep 8
+RUN_ID="$(gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 1 --json databaseId --jq '.[0].databaseId')"
+if [[ -z "$RUN_ID" ]]; then
+  echo "Could not find the run." >&2
   exit 1
 fi
-echo "Read the value from Netlify (${#value} chars). Testing both hosts…"
+echo "Run ${RUN_ID} — waiting for it to finish…"
 
-for host in "$FLY_HOST" "$NETLIFY_HOST"; do
-  body=$(mktemp)
-  code=$(curl -s -o "$body" -w "%{http_code}" -X POST "${host}/api/admin/backup-exports" \
-    -H "Authorization: Bearer $value" --max-time 300)
-  case "$code" in
-    200) echo "  $host → 200 OK: $(head -c 200 "$body")" ;;
-    401) echo "  $host → 401: this host holds a DIFFERENT value (Netlify Functions need a redeploy to pick up env changes)" ;;
-    503) echo "  $host → 503: secret matched, but storage is unconfigured — check the private user-exports bucket" ;;
-    *)   echo "  $host → $code: $(head -c 200 "$body")" ;;
-  esac
-  rm -f "$body"
+while true; do
+  state="$(gh run view "$RUN_ID" --repo "$REPO" --json status,conclusion \
+            --jq '.status+" "+(.conclusion // "")' 2>/dev/null)"
+  [[ "$state" == completed* ]] && break
+  sleep 10
 done
+echo "Result: ${state}"
+echo
+
+gh run view "$RUN_ID" --repo "$REPO" --log 2>/dev/null \
+  | grep -iE "skipping backup|exported|usersWithNotes|HTTP [0-9]{3}|Unauthorized|not configured" \
+  | head -5
+
+cat <<'EOF'
+
+Reading the result:
+  "exported": N            the job ran and wrote to the user-exports bucket
+  "skipping backup"        BACKUP_CRON_SECRET is missing from GitHub
+  HTTP 401                 GitHub's value and the server's do not match. If you
+                           only just changed it, Netlify Functions capture env
+                           vars at DEPLOY time — redeploy, then retry.
+  HTTP 503                 secret matched, but storage is unconfigured: check
+                           the private user-exports bucket exists in Supabase
+EOF

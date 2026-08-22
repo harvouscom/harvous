@@ -2,10 +2,15 @@
 #
 # Copy the server secrets that live only in Netlify straight into the Fly app.
 #
-# Netlify's dashboard masks these (last 4 characters only) and `netlify
-# env:list` reports them empty, but `netlify env:get NAME --context production`
-# returns the real value — they are scoped to the production context, and the
-# CLI's default context does not carry them.
+# Values come from `netlify env:list --json`, which returns the real value for
+# variables Netlify will disclose.
+#
+# Do NOT use `netlify env:get` here. For secret-marked variables it returns a
+# 20-character masked stand-in rather than the value, with no error and no
+# visible difference — an earlier version of this script used it and wrote
+# masks into Fly. Anything env:list reports as empty is genuinely unreadable and
+# must be rotated instead of copied; this script reports those rather than
+# writing a placeholder.
 #
 # Values are piped from one CLI to the other and never printed. The script
 # reports names and outcomes only.
@@ -35,40 +40,47 @@ NETLIFY_ONLY_VARS=(
   LOG_LEVEL
 )
 
-payload=""
-copied=()
-absent=()
+payload="$(
+  netlify env:list --json 2>/dev/null | NAMES="${NETLIFY_ONLY_VARS[*]}" python3 -c '
+import json, os, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+readable, unreadable = [], []
+lines = []
+for name in os.environ["NAMES"].split():
+    v = d.get(name)
+    if isinstance(v, str) and v:
+        lines.append(f"{name}={v}")
+        readable.append(name)
+    else:
+        unreadable.append(name)
+sys.stderr.write("READABLE=" + " ".join(readable) + "\n")
+sys.stderr.write("UNREADABLE=" + " ".join(unreadable) + "\n")
+sys.stdout.write("\n".join(lines) + ("\n" if lines else ""))
+' 2>/tmp/fly-secrets-report.txt
+)"
 
-for name in "${NETLIFY_ONLY_VARS[@]}"; do
-  value="$(netlify env:get "$name" --context "$CONTEXT" 2>/dev/null | tail -n 1)"
+readable="$(grep '^READABLE=' /tmp/fly-secrets-report.txt 2>/dev/null | cut -d= -f2-)"
+unreadable="$(grep '^UNREADABLE=' /tmp/fly-secrets-report.txt 2>/dev/null | cut -d= -f2-)"
+rm -f /tmp/fly-secrets-report.txt
 
-  # A miss prints a sentence ("No value set in the ... context for ..."), so a
-  # real value is distinguished by containing no whitespace and being non-empty.
-  if [[ -z "$value" || "$value" == *" "* ]]; then
-    absent+=("$name")
-    continue
-  fi
+echo "Fly app: ${FLY_APP}"
+echo "Readable from Netlify: ${readable:-none}"
+echo "NOT readable:          ${unreadable:-none}"
 
-  payload+="${name}=${value}"$'\n'
-  copied+=("$name")
-done
-
-echo "Context: ${CONTEXT}   Fly app: ${FLY_APP}"
-echo "Found in Netlify (${#copied[@]}): ${copied[*]:-none}"
-echo "Not set in Netlify (${#absent[@]}): ${absent[*]:-none}"
-
-if [[ ${#absent[@]} -gt 0 ]]; then
+if [[ -n "${unreadable// }" ]]; then
   echo
-  echo "Those are not in Netlify either — they exist nowhere. If a job depends on"
-  echo "one (BACKUP_CRON_SECRET does), generate a value and set it on BOTH sides:"
-  echo "  openssl rand -hex 32"
-  echo "  fly secrets set NAME=value --app ${FLY_APP}"
-  echo "  ...and the same value as a GitHub Actions repository secret."
+  echo "Those are write-only in Netlify — the real value cannot be retrieved by"
+  echo "anyone, so they cannot be copied. Rotate each one instead: generate a new"
+  echo "value and set it in every place that uses it (GitHub if a workflow sends"
+  echo "it, Netlify, and Fly), the way scripts/set-backup-cron-secret.sh does."
 fi
 
-if [[ ${#copied[@]} -eq 0 ]]; then
+if [[ -z "${payload// }" ]]; then
   echo
-  echo "Nothing to copy."
+  echo "Nothing readable to copy."
   exit 0
 fi
 
