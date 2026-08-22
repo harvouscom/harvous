@@ -61,14 +61,20 @@ struct SelectionActionBar: View {
             }
         }
         .frame(height: 36)
-        .padding(.horizontal, 6)
+        // 2, not 6. Concentric corners want `outer - inner`, and a 12pt surface holding 10pt
+        // tiles gives 2. The 6 came from the capsule, where round buttons had to clear an end
+        // curve a rounded rect does not have. Mirrors web `.pds-native-selection-bar`.
+        .padding(.horizontal, 2)
         .background(
-            Capsule()
+            // A rounded rect, not a capsule. This bar and `SelectionFormatBar` were two floating
+            // bars with two shapes and no rule between them — this one a Capsule, that one an
+            // 8pt RoundedRectangle. Both are now `HarvousRadius.floatingSurface`, matching web.
+            RoundedRectangle(cornerRadius: HarvousRadius.floatingSurface, style: .continuous)
                 .fill(.regularMaterial)
                 .matchedGeometryEffect(id: morphID, in: morphNamespace, isSource: true)
         )
         .overlay(
-            Capsule()
+            RoundedRectangle(cornerRadius: HarvousRadius.floatingSurface, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.14), radius: 8, y: 3)

@@ -6535,11 +6535,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     runSelectionEvalRef.current();
   }, [studyDockStack]);
 
-  // Spotlight the expanded highlight: while a highlight/reference dock is expanded, dim every other
-  // highlight underline to neutral so only the active one keeps its color (prototype only). We tag the
-  // ProseMirror root with `data-dim-highlights="<id>"` (CSS dims all marks) and inject a per-id restore
-  // rule — driving it via attribute + injected style survives ProseMirror re-renders without mutating
-  // individual mark nodes. Scripture docks don't apply: pills aren't `<mark>` elements.
+  /*
+   * Spotlight the expanded highlight: while a highlight/reference dock is expanded, dim every
+   * other highlight underline to neutral so only the active one keeps its colour.
+   *
+   * Tag a container with `data-dim-highlights="<id>"` and inject a per-id restore rule. Driving
+   * it by attribute plus an injected style survives ProseMirror re-rendering its own DOM, which
+   * mutating each mark node would not.
+   *
+   * The dim rule itself is NOT here — it lives in `src/styles/mark-spotlight.css` and applies to
+   * any container carrying the attribute, not to the note body alone. That file is the contract;
+   * this effect is one of its drivers. The restore rule injected below is deliberately written
+   * without a surface prefix for the same reason: the dock can now be spotlit by the same pair,
+   * because its accents route through `--mark-accent` instead of being written straight onto
+   * `text-decoration-color`.
+   */
   const dimHighlightStyleRef = useRef<HTMLStyleElement | null>(null);
   useEffect(() => {
     if (!editor || !isEditorValid(editor)) return;
@@ -6562,8 +6572,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       const esc =
         typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(activeHighlightId) : activeHighlightId;
+      /* No surface prefix: any container with this id restores its own mark. `!important` to
+         match the dim it is undoing — the two must be equally weighted or which one wins would
+         depend on sheet order. */
       dimHighlightStyleRef.current.textContent =
-        `.proto-editor-surface .ProseMirror[data-dim-highlights="${esc}"] mark[data-study-thread-id="${esc}"]` +
+        `[data-dim-highlights="${esc}"] [data-study-thread-id="${esc}"]` +
         `{text-decoration-color:var(--mark-accent)!important}`;
     } else {
       dom.removeAttribute('data-dim-highlights');

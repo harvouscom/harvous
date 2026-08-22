@@ -80,7 +80,7 @@
 
 .harvous-menu-pill__menu {
   --harvous-menu-pill-pad: 4px;
-  --harvous-menu-pill-inner-radius: calc(var(--pds-radius-menu, 10px) - var(--harvous-menu-pill-pad));
+  --harvous-menu-pill-inner-radius: calc(var(--pds-radius-menu, 12px) - var(--harvous-menu-pill-pad));
   position: absolute;
   top: calc(100% + 5px);
   left: 0;
@@ -92,7 +92,7 @@
   margin: 0;
   padding: var(--harvous-menu-pill-pad);
   list-style: none;
-  border-radius: var(--pds-radius-menu, 10px);
+  border-radius: var(--pds-radius-menu, 12px);
   border: 0.5px solid var(--pds-border-control-strong, rgba(0, 0, 0, 0.14));
   background: var(--pds-bg-popover-solid, var(--pds-bg-page));
   box-shadow: var(--pds-shadow-popover, 0 8px 28px rgba(0, 0, 0, 0.12));

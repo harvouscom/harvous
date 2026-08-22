@@ -12,12 +12,18 @@ jobs:
     steps:
       - name: Trigger backup exports
         env:
-          SITE_URL: ${{ secrets.BACKUP_SITE_URL || 'https://app.harvous.com' }}
+          # Calls Fly directly rather than app.harvous.com. Exporting every user
+          # takes longer than Netlify's proxy will wait, so going through the
+          # proxy returns 504 while the job runs on happily to completion — a
+          # failed workflow for a backup that actually worked. Fly imposes no
+          # such ceiling. Only long-running admin jobs need this; ordinary API
+          # traffic should keep using app.harvous.com.
+          SITE_URL: ${{ secrets.BACKUP_SITE_URL || 'https://harvous.fly.dev' }}
           BACKUP_CRON_SECRET: ${{ secrets.BACKUP_CRON_SECRET }}
         run: |
           if [ -z "$BACKUP_CRON_SECRET" ]; then
             echo "BACKUP_CRON_SECRET not set; skipping backup."
-            exit 0
+            exit 1
           fi
           response=$(curl -s -w "\n%{http_code}" -X POST "$SITE_URL/api/admin/backup-exports" \
             -H "Authorization: Bearer $BACKUP_CRON_SECRET")

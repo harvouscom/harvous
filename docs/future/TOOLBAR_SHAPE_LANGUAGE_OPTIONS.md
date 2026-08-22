@@ -1,7 +1,7 @@
 # Toolbar Shape Language — Options
 
-**Status:** **Decided** — shape, floating surfaces, target size and sequencing all settled
-August 21, 2026. Unbuilt; see the Decision log.
+**Status:** **Decided and built** (August 21, 2026) — web and native. Nothing outstanding; the
+decision-aid scene `ds-20-toolbar-shape` has been retired along with the rest.
 **Last Updated:** August 21, 2026
 **Audience:** Whoever picks the shape, and whoever implements it afterwards.
 **Covers:** improvement-list items #11 (orb → square icon blocks) and #24 (floating menu cohesion).

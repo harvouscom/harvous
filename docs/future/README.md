@@ -171,10 +171,34 @@ These were designed here and are now live. The stub files in this folder point t
 - **`OFFLINE_MODE_IMPLEMENTATION.md`** - Offline mode architecture reference (✅ implemented)
   - Full offline read/write support with IndexedDB, sync queues, and conflict resolution
 
-### Design track (decision docs — options + recommendation, awaiting a call)
+### Design track — outstanding implementation
+
+All six items are decided. Three shipped on August 21, 2026; three pieces are outstanding, listed
+here so the next person does not have to read six docs to find out what is left.
+
+| Outstanding | Doc | Size |
+|---|---|---|
+| **D-6 — a room's next gathering reaches Home** | `SPACES_PLANNER_AND_GATHERINGS.md` §"Option B in detail" | Small. A placement change: the card, the four-day wall, the membership-gated endpoint and the note-seeding path all exist. The one design consequence is that "This Sunday" stops being its own furniture and becomes the church's row in a shared "Coming up" group ordered by date. |
+| **D-1 — drag to highlight a phrase** | `READER_PARTIAL_VERSE_HIGHLIGHTS.md` §"Decided mechanics" | Largest, and the only one touching storage. The server side is one nullable span-key column, one `where` clause and a client-side hash — **no migration and no backfill**; the weight is the reader's `Map<verse, highlight>` shape, the `"Book C:V-V"` grammar parsed in four places, and the margin measuring. Read §"Scoping the blocker" first: there is a trap that reintroduces a bug the upsert exists to prevent. |
+| **D-4 — one spotlight mechanism, and a native measurement** | `HIGHLIGHT_REFERENCE_STYLING_SPEC.md` §"Outstanding" | Medium. Unblocked now the dock routes accents through `--mark-accent`; three dim mechanisms to collapse into one, and the reader's whole-verse fade is the awkward one. Separately, native's underline weight needs comparing on a device rather than changed on the strength of the word "thick". |
+
+**Shipped:** D-2 (permanent dismissal, v2.78.0), D-3 + the floating-surface half (one shape
+language, web and native), D-4's weights and offsets, D-5 (the margin's spoken signal and the
+merge fix).
+
+**The decision-aid gallery scenes are gone.** `ds-20` through `ds-23` existed to make these calls
+by looking, and each said to delete itself once settled. They had begun describing the old state as
+the current one, which is the drift they were built to expose. The reasoning survives in the
+Decision log of each doc, with the measurements and the rejected alternatives.
+
+---
+
+### Design track — the decision docs themselves
 
 Written August 2026 from the improvement list. Each states the problem, the real alternatives with
-trade-offs, and a recommendation; each ends with a Decision log to fill in on review.
+trade-offs, and a recommendation; each ends with a Decision log recording what was chosen, what was
+rejected, and why. All six are now decided — the log entries are the durable record, and several
+document corrections found while building rather than while writing.
 
 - **`TOOLBAR_SHAPE_LANGUAGE_OPTIONS.md`** - Toolbar orb vs sidebar tile (#11, #24)
   - **Decided Aug 21, unbuilt:** icon controls become tiles, labelled chips stay pills, avatar stays

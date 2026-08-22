@@ -380,25 +380,34 @@ button .scripture-pill-chrome__trans-chip {
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
-  text-decoration-color: var(--pds-highlight-warm-amber);
+  /* Consumes the variable the `data-color` rules below set, so a dim pass has something to
+     override. Amber remains the default for a mark that names no colour. */
+  text-decoration-color: var(--mark-accent, var(--pds-highlight-warm-amber));
   border-radius: 0;
   padding: 0;
   cursor: pointer;
 }
 
-/* Saved passage highlight (scriptureLink) — thicker accent underline, native
-   `NSUnderlineStyle.thick` painting parity (vs the 2px reference-mark underline). */
+/* Saved passage highlight (scriptureLink) — 2px like everything else, told apart from a
+   reference by sitting a pixel closer to the word rather than by being heavier.
+   This was 3px for native `NSUnderlineStyle.thick` parity. The decision levelled the other way:
+   everything comes down to 2 and native comes with it, so the chapter's thickness — the
+   most-looked-at text in the product — never changes. See
+   docs/future/HIGHLIGHT_REFERENCE_STYLING_SPEC.md. */
 .scripture-pill-chrome__passage-html mark[data-entry-kind="scriptureLink"] {
-  text-decoration-thickness: 3px;
+  text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }
 
-.scripture-pill-chrome__passage-html mark[data-color="neutral"] { text-decoration-color: var(--pds-highlight-neutral); }
-.scripture-pill-chrome__passage-html mark[data-color="warmAmber"] { text-decoration-color: var(--pds-highlight-warm-amber); }
-.scripture-pill-chrome__passage-html mark[data-color="skyBlue"] { text-decoration-color: var(--pds-highlight-sky-blue); }
-.scripture-pill-chrome__passage-html mark[data-color="violet"] { text-decoration-color: var(--pds-highlight-violet); }
-.scripture-pill-chrome__passage-html mark[data-color="mintGreen"] { text-decoration-color: var(--pds-highlight-mint-green); }
-.scripture-pill-chrome__passage-html mark[data-color="coralRose"] { text-decoration-color: var(--pds-highlight-coral-rose); }
+/* Accent through a variable, not written straight onto `text-decoration-color`.
+   The direct declaration is why the dock could not take part in a dim/spotlight pass at all:
+   there was nothing to override. Same route the reader and note body already use. */
+.scripture-pill-chrome__passage-html mark[data-color="neutral"] { --mark-accent: var(--pds-highlight-neutral); }
+.scripture-pill-chrome__passage-html mark[data-color="warmAmber"] { --mark-accent: var(--pds-highlight-warm-amber); }
+.scripture-pill-chrome__passage-html mark[data-color="skyBlue"] { --mark-accent: var(--pds-highlight-sky-blue); }
+.scripture-pill-chrome__passage-html mark[data-color="violet"] { --mark-accent: var(--pds-highlight-violet); }
+.scripture-pill-chrome__passage-html mark[data-color="mintGreen"] { --mark-accent: var(--pds-highlight-mint-green); }
+.scripture-pill-chrome__passage-html mark[data-color="coralRose"] { --mark-accent: var(--pds-highlight-coral-rose); }
 
 .scripture-pill-chrome__passage-html {
   font-family: var(

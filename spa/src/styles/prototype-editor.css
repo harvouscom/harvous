@@ -565,13 +565,23 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   -webkit-box-decoration-break: clone;
   text-decoration: underline;
   text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  /* Offset 2 is the highlight. A saved reference takes 3 — see the rule below, and
+     docs/future/HIGHLIGHT_REFERENCE_STYLING_SPEC.md for why the two stopped being told apart by
+     weight. Before this the note body drew both identically, which the reader did too. */
+  text-underline-offset: 2px;
   /* `--mark-accent` carries the per-highlight color so the spotlight rules below can dim a mark to
    * neutral and restore its own accent without re-listing every color. */
   --mark-accent: var(--pds-highlight-warm-amber);
   text-decoration-color: var(--mark-accent);
   border-radius: 0;
   padding: 0;
+}
+
+/* A saved reference is not a highlight, and now looks like it. Same weight, one pixel further
+   from the word — the distinction the reader draws, finally drawn here too. */
+.proto-editor-surface .ProseMirror mark[data-reference],
+.proto-editor-surface .card-full-editable__content-html mark[data-reference] {
+  text-underline-offset: 3px;
 }
 
 .proto-editor-surface .ProseMirror mark[data-color="neutral"],
@@ -610,10 +620,10 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
  * its color — every other highlight underline dims to neutral gray so the active one stands out.
  * `data-dim-highlights="<studyThreadEntryId>"` is set on the ProseMirror root by TiptapEditor, and a
  * per-id restore rule is injected alongside it (see `dim-highlights` effect). */
-.proto-editor-surface .ProseMirror[data-dim-highlights] mark {
-  text-decoration-color: var(--pds-text-tertiary) !important;
-  text-shadow: none !important;
-}
+/* The dim itself now lives in src/styles/mark-spotlight.css, which applies to any container
+   carrying the attribute rather than to the note body alone — the dock can join it, and the
+   reader could. Only the note body's *driver* is still here (TiptapEditor's dim-highlights
+   effect); the rule it drives is shared. */
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark,
@@ -1362,14 +1372,25 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   display: block;
 }
 
-/* Selection floating bar — mirrors macOS SelectionActionBar (capsule, icon tools, below selection) */
+/*
+ * Selection floating bar — mirrors macOS SelectionActionBar.
+ *
+ * A rounded rect now, not a capsule, and the side padding follows the corners rather than being
+ * chosen by eye: concentric corners need `inner radius = outer radius - gap`, so a 12px surface
+ * holding 10px tiles wants 2px. The old 6px came from the capsule, where circular buttons had to
+ * be held off an end curve a rounded rect does not have — left at 6 the corners would be
+ * non-concentric and the ends would read as padded.
+ *
+ * Native moves with it (`SelectionActionBar.swift`), which is the point: this is the one surface
+ * the note and the reader already share, and squaring the web alone would be identity drift.
+ */
 .pds-native-selection-bar {
   display: flex;
   align-items: center;
   gap: 2px;
   height: 36px;
-  padding: 0 6px;
-  border-radius: var(--pds-radius-pill);
+  padding: 0 2px;
+  border-radius: var(--pds-radius-menu);
   background: var(--pds-bg-toolbar);
   -webkit-backdrop-filter: var(--pds-glass-blur-elevated);
   backdrop-filter: var(--pds-glass-blur-elevated);
@@ -1379,6 +1400,8 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   transform-origin: 50% 0;
 }
 
+/* 36px stays: it is the touch floor for a bar used one-handed while reading, and what macOS
+   uses. Only the corner moves. */
 .pds-native-selection-bar__btn {
   position: relative;
   display: inline-flex;
@@ -1388,7 +1411,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   height: 36px;
   padding: 0;
   border: none;
-  border-radius: var(--pds-radius-pill);
+  border-radius: var(--pds-radius-row);
   background: transparent;
   color: inherit;
   cursor: pointer;

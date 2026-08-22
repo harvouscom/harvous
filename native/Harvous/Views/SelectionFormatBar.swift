@@ -76,7 +76,13 @@ struct SelectionFormatBar: View {
             } action: { proxy.indent() }
         }
         .frame(height: 36)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        // 12, not 8. This bar and `SelectionActionBar` were two floating bars with two shapes and
+        // no rule between them — one a Capsule, this one an 8pt rect. Both now take
+        // `HarvousRadius.floatingSurface`, which is what web uses for anything that floats.
+        .background(
+            .regularMaterial,
+            in: RoundedRectangle(cornerRadius: HarvousRadius.floatingSurface, style: .continuous)
+        )
         .shadow(color: .black.opacity(0.14), radius: 8, y: 3)
         .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
         .fixedSize()

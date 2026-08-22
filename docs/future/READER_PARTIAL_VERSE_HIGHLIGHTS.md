@@ -1,7 +1,7 @@
 # Partial-Verse Highlights in the Reader — Options
 
-**Status:** **Decided** August 21, 2026 — Option B. Not started. The server blocker is scoped; see
-[Scoping the blocker](#scoping-the-blocker-august-21-2026).
+**Status:** **Decided, not built** (August 21, 2026) — Option B. The server blocker is scoped and
+is smaller than it looks; see [Scoping the blocker](#scoping-the-blocker-august-21-2026).
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides whether the chapter reader should highlight less than a whole verse.
 **Covers:** improvement-list item #7.

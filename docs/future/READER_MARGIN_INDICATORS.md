@@ -1,6 +1,7 @@
 # Reader Margin Indicators — Options
 
-**Status:** **Decided** August 21, 2026 — the bar stays; two defects to fix. Unbuilt.
+**Status:** **Decided and built** (August 21, 2026) — the spoken signal and the merge fix both
+shipped. Nothing outstanding.
 **Last Updated:** August 21, 2026
 **Audience:** Whoever decides how the reader says "you have written about this", and whoever
 implements it.
