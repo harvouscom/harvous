@@ -43,21 +43,40 @@ echo
 echo "    SESSION='<paste>' bash scripts/verify-fly-auth.sh"
 echo
 
-if [[ -n "${SESSION:-}" ]]; then
-  code=$(curl -s -o /tmp/flyauth.json -w "%{http_code}" \
-    "${FLY_HOST}/api/user/get-profile" \
-    -H "Cookie: __session=${SESSION}" --max-time 60)
-  case "$code" in
-    200) echo "  200 — Fly accepted a live session. Safe to cut over." ;;
-    401) echo "  401 — Fly REJECTED a live session. Its Clerk key is for a"
-         echo "        different instance. Do NOT cut over."; fail=1 ;;
-    *)   echo "  $code — unexpected: $(head -c 200 /tmp/flyauth.json)"; fail=1 ;;
-  esac
-  rm -f /tmp/flyauth.json
-else
-  echo "  SKIPPED — no SESSION provided. This is the check that matters;"
+if [[ -z "${SESSION:-}" || "$SESSION" == *"<"* ]]; then
+  echo "  SKIPPED — no real SESSION provided. This is the check that matters;"
   echo "  a cutover verified without it is not verified."
   fail=1
+else
+  # /api/debug/me answers 200 either way and reports auth state in the body, so
+  # a rejected session is distinguishable from a route that simply errored.
+  body=$(curl -s "${FLY_HOST}/api/debug/me" \
+    -H "Cookie: __session=${SESSION}" --max-time 60)
+  case "$body" in
+    *'"hasUserId":true'*)
+      echo "  PASS — Fly resolved a live session to a real user."
+      echo "  Its Clerk key matches the SPA's instance. Safe to cut over."
+      ;;
+    *'"hasUserId":false'*)
+      echo "  FAIL — Fly could not resolve this session."
+      echo "  Either the cookie is stale/wrong, or CLERK_SECRET_KEY still"
+      echo "  belongs to a different Clerk instance. Do NOT cut over."
+      fail=1
+      ;;
+    *)
+      echo "  FAIL — unexpected response: $(printf '%s' "$body" | head -c 200)"
+      fail=1
+      ;;
+  esac
+
+  # Same call against production, as a control: if this also says false, the
+  # cookie is the problem rather than Fly.
+  ctl=$(curl -s "${NETLIFY_HOST:-https://app.harvous.com}/api/debug/me" \
+    -H "Cookie: __session=${SESSION}" --max-time 60)
+  case "$ctl" in
+    *'"hasUserId":true'*)  echo "  (control: production accepted the same cookie)" ;;
+    *) echo "  (control: production ALSO rejected it — the cookie is stale, grab a fresh one)" ;;
+  esac
 fi
 
 echo
