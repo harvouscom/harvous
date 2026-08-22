@@ -40,7 +40,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { verticalDragTransform } from '../../lib/sortable-vertical-transform';
 
 /** What a trail row needs to become draggable. */
 export interface ThreadTrailSortable {
@@ -127,7 +127,7 @@ export function ProtoThreadTrailSortableRow({
         setActivatorNodeRef,
         listeners,
         attributes,
-        style: { transform: CSS.Transform.toString(transform), transition }
+        style: { transform: verticalDragTransform(transform), transition }
       })}
     </>
   );

@@ -63,9 +63,24 @@ export function marqueeCharCount(node: ReactNode): number {
   return 0;
 }
 
-/** `style` carrying the character count, or nothing when the text could not be read. */
-function marqueePace(count: number): CSSProperties | undefined {
-  return count > 0 ? ({ '--proto-marquee-chars': count } as CSSProperties) : undefined;
+/**
+ * `style` carrying the character count, or nothing when the text could not be read.
+ *
+ * Sets the fade count as well as the pacing one. They are separate properties because they fail
+ * differently when unset: an unpaced marquee runs at the 4s floor, which is fine, while an
+ * unmeasured fade softens text nothing is hiding. So the fade defaults to off and every caller
+ * that can measure its text opts in here.
+ *
+ * Exported so other marquee surfaces can adopt it rather than re-deriving the pair — for a long
+ * time this row was the only caller, and every other marquee faded on hover for no reason.
+ */
+export function marqueePace(count: number): CSSProperties | undefined {
+  return count > 0
+    ? ({
+        '--proto-marquee-chars': count,
+        '--proto-marquee-fade-chars': count,
+      } as CSSProperties)
+    : undefined;
 }
 
 export default function PrototypeHomeRow({

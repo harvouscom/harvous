@@ -39,6 +39,7 @@ import {
   orderSwitcherSpaces,
 } from '../../lib/shared-space-switcher-order';
 import { useSharedSpaceSwitcherDragReorder } from '../../hooks/useSharedSpaceSwitcherDragReorder';
+import { marqueeCharCount, marqueePace } from './PrototypeHomeRow';
 import {
   DndContext,
   PointerSensor,
@@ -56,7 +57,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { verticalDragTransform } from '../../lib/sortable-vertical-transform';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
@@ -111,7 +112,7 @@ function SpaceSwitcherRow({
       className={`proto-space-switcher__row proto-space-switcher__row--reorderable${
         isDragging ? ' proto-space-switcher__row--dragging' : ''
       }${nested ? ' proto-space-switcher__row--nested' : ''}`}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: verticalDragTransform(transform), transition }}
       {...listeners}
     >
       <button
@@ -130,7 +131,13 @@ function SpaceSwitcherRow({
           )}
           {hasUnseen ? <span className="proto-space-switcher-dot" aria-hidden /> : null}
         </span>
-        <span className="proto-menu-item__label proto-marquee" title={row.title}>
+        <span
+          className="proto-menu-item__label proto-marquee"
+          title={row.title}
+          /* Opt into the edge fade with a real measurement. Without this the count falls back
+             to the pacing default and every label fades on hover, however short. */
+          style={marqueePace(marqueeCharCount(row.title))}
+        >
           <span>{row.title}</span>
         </span>
         <span className="proto-menu-item__check" aria-hidden>
@@ -614,7 +621,11 @@ export default function SpaceSwitcherMenu({
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="church" size={PROTO_TOOLBAR_ICON_SIZE} />
                 </span>
-                <span className="proto-menu-item__label proto-marquee" title={myChurch.churchName}>
+                <span
+                  className="proto-menu-item__label proto-marquee"
+                  title={myChurch.churchName}
+                  style={marqueePace(marqueeCharCount(myChurch.churchName))}
+                >
                   <span>{myChurch.churchName}</span>
                 </span>
                 <span className="proto-menu-item__check" aria-hidden>

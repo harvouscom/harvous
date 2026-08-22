@@ -244,7 +244,20 @@
    * the closest thing available on the right element, and it is wrong only in the band where
    * the fade is fractions of a pixel anyway.
    */
-  --proto-marquee-fade: clamp(0px, calc((var(--proto-marquee-chars) - 24) * 1px), 8px);
+  /*
+   * The fade opts IN, separately from the pacing above.
+   *
+   * Both used to read `--proto-marquee-chars`, whose default is 40 — so any surface that did not
+   * set a real count resolved to `clamp(0px, 16px, 8px)`, a full 8px fade, whether or not one
+   * character was cut off. Only `PrototypeHomeRow` ever set it; the other twenty-six marquee
+   * call sites all faded on hover for no reason, which is what Derek saw on the space switcher.
+   *
+   * Two properties from one number because they answer different questions, and only one of them
+   * is harmful when unset. An unpaced marquee just runs at the 4s floor, which is fine. An
+   * unmeasured fade softens text nothing is hiding.
+   */
+  --proto-marquee-fade-chars: 0;
+  --proto-marquee-fade: clamp(0px, calc((var(--proto-marquee-fade-chars) - 24) * 1px), 8px);
   --proto-marquee-mask: linear-gradient(
     to right,
     transparent 0,
