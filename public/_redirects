@@ -4,6 +4,7 @@
 # rather than at the key. This probes that on a throwaway path so /api/* stays on
 # Netlify Functions while we find out. Remove once answered.
 /flyprobe  https://harvous.fly.dev/api/debug/auth-config  200
+/flyprobe-session  https://harvous.fly.dev/api/debug/verify-session  200
 
 # OG screenshots → dedicated Chromium function (before general API)
 # :splat preserves /note/:token or /thread/:token for the function path parser

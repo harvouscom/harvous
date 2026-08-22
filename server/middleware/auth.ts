@@ -170,7 +170,15 @@ export async function clerkAuth(c: Context, next: Next) {
 
     c.set('auth', auth);
   } catch (err) {
-    // Token verification failed — treat as unauthenticated
+    // Token verification failed — treat as unauthenticated.
+    //
+    // Log the reason. This was silent, and a silent verification failure is
+    // indistinguishable from "no cookie sent" and from "wrong Clerk key": all
+    // three produce 401 on every route with nothing in the logs. Two failed
+    // cutovers were misdiagnosed for exactly that reason. The reason string is
+    // Clerk's own (expired, wrong azp, bad signature); the token is never logged.
+    const reason = err instanceof Error ? err.message : String(err);
+    console.warn('[auth] token verification failed:', reason);
     c.set('auth', NULL_AUTH);
   }
 

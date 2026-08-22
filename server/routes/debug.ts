@@ -6,6 +6,7 @@
  */
 
 import { Hono } from 'hono';
+import { verifyToken } from '@clerk/backend';
 import { getAuth } from '../middleware/auth';
 import { db, first, Threads, Spaces, Notes, eq, and, isNull, count, sql } from '../db';
 
@@ -53,6 +54,61 @@ route.get('/api/debug/auth-config', (c) => {
     200,
     { 'Cache-Control': 'no-store' },
   );
+});
+
+/**
+ * GET /api/debug/verify-session — why did this request's session fail?
+ *
+ * Open in a signed-in browser and it verifies whatever `__session` cookie the
+ * request carries, reporting Clerk's own failure reason. The token is never
+ * echoed, logged, or returned — only the outcome and, on success, the user id
+ * prefix.
+ *
+ * This exists because auth failures are otherwise a single undifferentiated
+ * 401: no cookie, wrong Clerk instance, expired token and rejected `azp` all
+ * look identical from outside, and two cutovers were misdiagnosed as a result.
+ *
+ * TEMPORARY — remove once the Fly cutover is settled.
+ */
+route.get('/api/debug/verify-session', async (c) => {
+  const cookieHeader = c.req.header('Cookie') ?? '';
+  const match = cookieHeader.match(/(?:^|;\s*)__session=([^;]+)/);
+  const secretKey = process.env.CLERK_SECRET_KEY?.trim() ?? '';
+
+  const base = {
+    host: process.env.FLY_APP_NAME ? 'fly' : process.env.NETLIFY ? 'netlify' : 'other',
+    clerkMode: secretKey.startsWith('sk_live_') ? 'live' : secretKey.startsWith('sk_test_') ? 'test' : 'unset',
+    sessionCookiePresent: Boolean(match),
+  };
+
+  if (!match) {
+    return c.json({ ...base, result: 'no-session-cookie' }, 200, { 'Cache-Control': 'no-store' });
+  }
+  if (!secretKey) {
+    return c.json({ ...base, result: 'no-secret-key' }, 200, { 'Cache-Control': 'no-store' });
+  }
+
+  const authorizedParties = process.env.CLERK_AUTHORIZED_PARTIES?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  try {
+    const payload = await verifyToken(match[1], {
+      secretKey,
+      ...(authorizedParties?.length ? { authorizedParties } : {}),
+    });
+    return c.json(
+      { ...base, result: 'verified', userIdPrefix: String(payload.sub).slice(0, 12), azp: payload.azp ?? null },
+      200,
+      { 'Cache-Control': 'no-store' },
+    );
+  } catch (err) {
+    return c.json(
+      { ...base, result: 'verification-failed', reason: err instanceof Error ? err.message : String(err) },
+      200,
+      { 'Cache-Control': 'no-store' },
+    );
+  }
 });
 
 route.get('/api/debug/request-headers', (c) => {
