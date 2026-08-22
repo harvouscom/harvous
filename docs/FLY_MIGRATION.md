@@ -213,6 +213,26 @@ Rollback is `git revert` of that commit.
   path until the SPA calls `api.harvous.com` directly, so this is not yet a free
   win.
 
+## The proxy reintroduces a timeout ceiling
+
+Removing the 26s function limit was a reason for this move, but `/api/*` is
+proxied through Netlify — and **the proxy has its own timeout**. A request that
+runs long returns 504 to the caller while the work continues on Fly to
+completion.
+
+Found the first time the nightly backup ran after cutover: HTTP 504 at ~28s, and
+the export had in fact written every user's file to the `user-exports` bucket. A
+failed workflow for a job that worked.
+
+Long-running admin jobs should therefore call **`https://harvous.fly.dev`
+directly**, bypassing the proxy — see `SITE_URL` in
+`.github/workflows/backup-user-exports.yml`. Ordinary API traffic should keep
+using `app.harvous.com`, which is what keeps the migration invisible to the web
+app, the native app and the offline queue.
+
+The other scheduled workflows are short and unaffected, but any new job that
+might exceed roughly half a minute belongs on the direct host.
+
 ## Do not "upgrade" the Netlify plan
 
 Netlify may offer to move the account onto its newer credit-based free tier.
