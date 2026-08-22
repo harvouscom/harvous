@@ -1,3 +1,10 @@
+# Temporary: does Netlify forward the Cookie header when proxying to an external
+# host? Two cutovers to Fly returned 401 on every authenticated route, the second
+# with a verified-correct Clerk key, which points at the cookie never arriving
+# rather than at the key. This probes that on a throwaway path so /api/* stays on
+# Netlify Functions while we find out. Remove once answered.
+/flyprobe  https://harvous.fly.dev/api/debug/auth-config  200
+
 # OG screenshots → dedicated Chromium function (before general API)
 # :splat preserves /note/:token or /thread/:token for the function path parser
 /api/og/image/*  /.netlify/functions/og-image/:splat  200

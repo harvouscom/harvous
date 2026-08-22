@@ -34,11 +34,21 @@ route.get('/api/debug/auth-config', (c) => {
         ? 'unrecognized'
         : 'unset';
 
+  // Whether the request ARRIVED with a session cookie, which is separate from
+  // whether that cookie is valid. A proxy that drops the Cookie header makes
+  // every request anonymous no matter which Clerk key is loaded — the same 401
+  // on every route, indistinguishable from a wrong key until you look here.
+  const cookieHeader = c.req.header('Cookie') ?? '';
+  const authHeader = c.req.header('Authorization') ?? '';
+
   return c.json(
     {
       clerkMode: mode,
       // Distinguishes "this host" from whatever is proxying to it.
       host: process.env.FLY_APP_NAME ? 'fly' : process.env.NETLIFY ? 'netlify' : 'other',
+      receivedCookieHeader: cookieHeader.length > 0,
+      receivedSessionCookie: /(?:^|;\s*)__session=/.test(cookieHeader),
+      receivedAuthorizationHeader: authHeader.length > 0,
     },
     200,
     { 'Cache-Control': 'no-store' },
