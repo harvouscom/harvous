@@ -1156,6 +1156,41 @@ export default function PrototypeBibleReaderPane({
 
   const handleVerseActivate = useCallback(
     (n: number, e: ReactMouseEvent<HTMLSpanElement>) => {
+      /*
+       * The click that ends a drag is not a tap.
+       *
+       * A browser fires `click` after `mouseup` even when the pointer moved, so dragging across
+       * a phrase inside ONE verse used to arrive here as a tap on that verse — and
+       * `nextVerseSelection` reads a tap on the sole selected verse as "the way back out",
+       * returning null. The drag selected [20,20], the trailing click cleared it, and the
+       * toolbar never appeared. Highlighting part of a single verse is the whole point of the
+       * feature, so this was the primary case failing while a cross-verse drag worked: clicking
+       * verse 18 of [17,18] narrows to [18,18] rather than clearing, which left a selection
+       * behind and made the bug look like it did not exist.
+       *
+       * Read from the live selection rather than tracked in a ref, so this stays one
+       * self-contained condition and the callback keeps the stable identity that
+       * `VerseSpan`'s memo depends on. A genuine tap always arrives with the selection already
+       * collapsed — mousedown collapses it before click — so "there is still a selection" is
+       * exactly the thing that distinguishes the two.
+       *
+       * Shift is let through: shift-click extends the verse range on purpose, and it drags the
+       * DOM selection along with it, so the same test would suppress the one gesture whose
+       * whole job is to extend.
+       */
+      if (!e.shiftKey) {
+        const active = document.getSelection();
+        const column = columnRef.current;
+        if (
+          active &&
+          !active.isCollapsed &&
+          active.rangeCount > 0 &&
+          active.toString().trim() &&
+          column?.contains(active.getRangeAt(0).commonAncestorContainer)
+        ) {
+          return;
+        }
+      }
       // A dotted word is its own target: tapping it asks "who/what is this?", which is a
       // different question from "I want to act on this verse". Selecting the verse as well
       // would answer both at once and open the format bar over the dock.
