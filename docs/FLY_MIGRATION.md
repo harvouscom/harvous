@@ -176,6 +176,43 @@ into `"v, v"`; Fly does not do this, and the workarounds take the first
 comma-split value, so they are inert rather than wrong — but this is the code
 path that silently disabled CSRF for months, so verify rather than assume.
 
+## The first cutover failed — read this before the second
+
+Cut over 2026-08-22 and rolled back the same morning. Production served the SPA
+fine and **401'd every authenticated API call**, because Fly was running
+`CLERK_SECRET_KEY=sk_test_…` while the deployed SPA issues `pk_live_` tokens.
+Clerk rejected every session.
+
+The cause was `scripts/fly-secrets-import.sh` pointed at `.env`, which is a
+**development** environment file. Production values live in each service's own
+dashboard — Clerk, Polar, Supabase — not in `.env`, and not readably in Netlify
+either, where most are write-only.
+
+**Why it got through:** the cutover was verified with `/api/health`, a public DB
+read, and an OG render. All three passed. **None of them require a signed-in
+user**, so none of them touched the broken path. Public health checks cannot
+verify an app whose entire surface is authenticated.
+
+Auditing what else `.env` pushed found more than Clerk: `CLERK_WEBHOOK_SECRET`,
+`POLAR_ACCESS_TOKEN`, `SUPABASE_DATABASE_URL` and `HARVOUS_SYSTEM_USER_ID` all
+differ from their production values.
+
+Two guards now exist:
+
+- `scripts/fly-secrets-import.sh` refuses values matching `sk_test_`, `pk_test_`
+  or `sandbox`, and exits non-zero rather than sending them.
+- `scripts/verify-fly-auth.sh` takes a real `__session` cookie and calls an
+  authenticated route on Fly. **A cutover without a green run of this is not
+  verified.**
+
+### Required before attempting again
+
+1. Set the production values on Fly for `CLERK_SECRET_KEY`,
+   `CLERK_WEBHOOK_SECRET`, `POLAR_ACCESS_TOKEN`, `SUPABASE_DATABASE_URL` and
+   `HARVOUS_SYSTEM_USER_ID`, sourced from each service's dashboard.
+2. Run `SESSION='<cookie>' bash scripts/verify-fly-auth.sh` and get a 200.
+3. Then, and only then, phase 4.
+
 ## Phase 4 — cutover
 
 One commit, reverting cleanly. In `public/_redirects`, point the two API rules at

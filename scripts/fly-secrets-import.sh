@@ -13,13 +13,24 @@
 # Safe to re-run: `fly secrets import` upserts. It restarts the machine once for
 # the whole batch rather than once per secret.
 #
-# IMPORTANT: .env is NOT the full production environment. Several variables —
-# notably the cron secrets the GitHub scheduled workflows authenticate with
-# (VOTD_CRON_SECRET, BACKUP_CRON_SECRET, HMC_SYNC_CRON_SECRET,
-# AUTO_ARCHIVE_SECRET_TOKEN, INBOX_RESET_SECRET_TOKEN, SUPPORT_NOTIFY_SECRET_TOKEN)
-# — are set only in the Netlify dashboard. This script reports what it could not
-# find; copy those from Netlify → Site settings → Environment variables and set
-# them with `fly secrets set NAME=value` before cutover, or those jobs 401.
+# ─────────────────────────────────────────────────────────────────────────────
+# READ THIS BEFORE POINTING IT AT .env
+#
+# .env is a DEVELOPMENT environment file. Running this against it and cutting
+# over took production down: it pushed CLERK_SECRET_KEY=sk_test_… to Fly while
+# the deployed SPA issues pk_live_ tokens, so Clerk rejected every session and
+# every authenticated route returned 401. Health checks, public reads and OG
+# rendering all passed the whole time, because none of them need a signed-in
+# user.
+#
+# Production values live in each service's own dashboard — Clerk, Polar,
+# Supabase. Not here, and not in Netlify either, where most are write-only.
+# The guard below refuses obvious test credentials; it is a backstop, not a
+# substitute for knowing which environment a value belongs to.
+#
+# .env is also INCOMPLETE. The cron secrets the GitHub workflows authenticate
+# with are set only in Netlify. This script reports what it could not find.
+# ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
@@ -71,6 +82,19 @@ SERVER_VARS=(
 payload=""
 found=0
 missing=()
+suspect=()
+
+# Markers that a value belongs to a test/sandbox instance. Pushing one of these
+# to production is the failure this script caused once already, and it fails
+# invisibly: the process boots, health checks pass, and only signed-in users see
+# anything wrong.
+is_test_credential() {
+  case "$1" in
+    sk_test_*|pk_test_*|whsec_test_*|*_test_*sandbox*) return 0 ;;
+    *sandbox*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 for name in "${SERVER_VARS[@]}"; do
   # Last definition wins, matching dotenv; strip optional surrounding quotes.
@@ -82,6 +106,12 @@ for name in "${SERVER_VARS[@]}"; do
   value="${line#*=}"
   value="${value%\"}"; value="${value#\"}"
   value="${value%\'}"; value="${value#\'}"
+
+  if is_test_credential "$value"; then
+    suspect+=("$name")
+    continue
+  fi
+
   payload+="${name}=${value}"$'\n'
   found=$((found + 1))
 done
@@ -89,6 +119,23 @@ done
 echo "Found ${found}/${#SERVER_VARS[@]} server variables in ${ENV_FILE}."
 if [[ ${#missing[@]} -gt 0 ]]; then
   echo "Not set locally (skipped): ${missing[*]}"
+fi
+
+if [[ ${#suspect[@]} -gt 0 ]]; then
+  echo
+  echo "REFUSING to send ${#suspect[@]} value(s) that look like test credentials:"
+  printf '  %s\n' "${suspect[@]}"
+  echo
+  echo "These would deploy a test instance into production, where the symptom is"
+  echo "401 on every authenticated route while health checks stay green. Get the"
+  echo "production values from the service's own dashboard and set each with:"
+  echo "  fly secrets set NAME=value --app \${FLY_APP:-harvous}"
+  echo
+  echo "Set ALLOW_TEST_CREDENTIALS=1 to override — only for a non-production app."
+  if [[ "${ALLOW_TEST_CREDENTIALS:-}" != "1" ]]; then
+    exit 1
+  fi
+  echo "ALLOW_TEST_CREDENTIALS=1 — proceeding anyway."
 fi
 
 if [[ "${DRY_RUN:-}" == "1" ]]; then
