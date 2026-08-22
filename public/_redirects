@@ -1,9 +1,17 @@
-# OG screenshots → dedicated Chromium function (before general API)
-# :splat preserves /note/:token or /thread/:token for the function path parser
-/api/og/image/*  /.netlify/functions/og-image/:splat  200
-
-# API routes → Hono Netlify Function
-/api/*  /.netlify/functions/api/:splat  200
+# API → the Hono server on Fly (docs/FLY_MIGRATION.md). Netlify still fronts the
+# domain and serves the SPA; only /api/* is proxied, so clients keep calling
+# app.harvous.com and neither the web app, the native app, nor the offline queue
+# can tell the difference.
+#
+# OG screenshots stay listed first: Fly serves them from the same process, but
+# the ordering is what routes them, and a general /api/* rule above would swallow
+# the more specific path.
+#
+# To roll back to Netlify Functions, restore:
+#   /api/og/image/*  /.netlify/functions/og-image/:splat  200
+#   /api/*           /.netlify/functions/api/:splat       200
+/api/og/image/*  https://harvous.fly.dev/api/og/image/:splat  200
+/api/*  https://harvous.fly.dev/api/:splat  200
 
 # Hashed build assets must NEVER fall through to the SPA catch-all below. Each deploy
 # publishes a fresh dist-spa, so the previous deploy's /assets/*-<hash>.js are gone; without
