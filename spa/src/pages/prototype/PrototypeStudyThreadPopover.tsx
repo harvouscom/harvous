@@ -17,7 +17,7 @@ import {
   usePrototypeStudyThread,
 } from '../../hooks/queries/usePrototypeStudyThread';
 import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
@@ -44,7 +44,6 @@ export default function PrototypeStudyThreadPopover({
   connectedNoteIds = [],
 }: PrototypeStudyThreadPopoverProps) {
   const navigate = useNavigate();
-  const { isMobileSidebar } = useProtoShell();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const effectiveSpaceId = (spaceId && spaceId.trim().length > 0 ? spaceId : null) ?? homeSpaceId ?? null;
 
@@ -117,8 +116,7 @@ export default function PrototypeStudyThreadPopover({
   };
 
   // ── Popover positioning (mirrors PrototypeConnectNoteSheet) ────────────────
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const shouldUsePopover = open && !shouldUseSheetPresentation;
 
   const { position } = useProtoAnchoredPopoverPosition(

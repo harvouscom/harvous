@@ -130,6 +130,9 @@
   /* Percentage of the (now correctly sized) backdrop — never `vh`, which on iOS measures the
      large viewport and made the sheet taller than the area actually on screen. */
   max-height: min(60%, 420px);
+  /* Leave room for two options even at the tightest keyboard-open geometry; without a floor
+     the rule below can still round down to a header and one row on a short device. */
+  min-height: min(100%, 168px);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -141,6 +144,21 @@
   box-shadow: var(--pds-shadow-popover, 0 -8px 28px rgba(0, 0, 0, 0.18));
   font-family: var(--pds-font-body, system-ui, sans-serif) !important;
   animation: harvous-menu-pill-sheet-up 200ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+/*
+   Keyboard up: take the whole backdrop.
+
+   `min(60%, 420px)` is the right cap against a full-height backdrop — it stops the sheet
+   swallowing the screen. But the backdrop is pinned to the *visual* viewport, so with the
+   keyboard open it is already only the strip above the keyboard (~350px on an iPhone).
+   Taking 60% of that, then subtracting the grabber, the header, the padding, and the 44px
+   form-assistant inset, left about two rows of a verse list — the reported "END VERSE sheet
+   is cut off". There is nothing to cap here: the backdrop *is* the visible area, so the
+   sheet may have all of it.
+*/
+.harvous-menu-pill__sheet[data-keyboard='open'] {
+  max-height: 100%;
 }
 
 /* Grab affordance — reads as a sheet you can dismiss, not a stuck overlay. */

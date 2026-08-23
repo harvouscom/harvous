@@ -4,7 +4,7 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import type { SpaceGroupStudyThread } from '../../hooks/queries/useSpaceGroupThreads';
 import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
@@ -37,7 +37,6 @@ export default function PrototypeChangeSharedThreadSheet({
   onChanged,
   onCleared,
 }: Props) {
-  const { isMobileSidebar } = useProtoShell();
   const setCurrent = useSetCurrentSpaceThread();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -45,8 +44,7 @@ export default function PrototypeChangeSharedThreadSheet({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const isPending = setCurrent.isPending;
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
   const { position } = useProtoAnchoredPopoverPosition(

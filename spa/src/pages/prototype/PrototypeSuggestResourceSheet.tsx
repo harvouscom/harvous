@@ -20,7 +20,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 
 export default function PrototypeSuggestResourceSheet({
@@ -32,7 +32,6 @@ export default function PrototypeSuggestResourceSheet({
   churchName: string | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const suggest = useSuggestLibraryItem();
@@ -42,8 +41,7 @@ export default function PrototypeSuggestResourceSheet({
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 

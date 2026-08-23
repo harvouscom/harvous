@@ -121,6 +121,8 @@ import {
   mapReferenceEndInSliceToDocPos,
   shouldSchedulePassiveScriptureDetection,
 } from '@/utils/scripture-pill-position';
+import { pointerIsInsideElementRect, isTouchPointerEvent } from '@/utils/pointer-hit-test';
+import { getVisualViewportBox } from '@/utils/visual-viewport-box';
 import { sanitizeScripturePillHtml } from '@/utils/scripture-pill-display';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import {
@@ -386,31 +388,6 @@ function openSourceScriptureDockWithOptionalCrossRef(
   return next;
 }
 
-/** True when pointer coordinates lie inside the pill element's border box (strict tap, not DOM ancestry alone). */
-function pointerIsInsideElementRect(e: MouseEvent | TouchEvent, el: HTMLElement): boolean {
-  let clientX: number;
-  let clientY: number;
-  if ('touches' in e && e.touches.length > 0) {
-    clientX = e.touches[0].clientX;
-    clientY = e.touches[0].clientY;
-  } else if ('changedTouches' in e && e.changedTouches.length > 0) {
-    clientX = e.changedTouches[0].clientX;
-    clientY = e.changedTouches[0].clientY;
-  } else if ('clientX' in e) {
-    clientX = e.clientX;
-    clientY = e.clientY;
-  } else {
-    return true;
-  }
-  const rect = el.getBoundingClientRect();
-  const pad = 'pointerType' in e && e.pointerType === 'touch' ? 4 : 0;
-  return (
-    clientX >= rect.left - pad &&
-    clientX <= rect.right + pad &&
-    clientY >= rect.top - pad &&
-    clientY <= rect.bottom + pad
-  );
-}
 
 /** Collapsed caret must sit inside the mark; expanded selection must intersect the pill span. */
 function selectionIntersectsScripturePillBoundaries(
@@ -4371,12 +4348,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setShowFormatBarForActivity(true);
     if (formatBarHideTimerRef.current) {
       clearTimeout(formatBarHideTimerRef.current);
+      formatBarHideTimerRef.current = null;
     }
+    /*
+     * No idle timer on touch.
+     *
+     * The 2s auto-hide is a mouse idea: with a cursor, "you stopped moving" is a decent
+     * proxy for "you are done". With a finger there is no idle — you are either typing or
+     * looking at the screen holding still, and the second one looked identical to the first,
+     * so the bar kept vanishing mid-thought and reappearing on the next tap. Blur already
+     * clears this flag, which is the event that actually means the toolbar is done.
+     */
+    if (isCoarsePointer) return;
     formatBarHideTimerRef.current = setTimeout(() => {
       setShowFormatBarForActivity(false);
       formatBarHideTimerRef.current = null;
     }, PROTOTYPE_FORMAT_BAR_HIDE_MS);
-  }, [editorChromeMode]);
+  }, [editorChromeMode, isCoarsePointer]);
   // This prevents errors when editor is destroyed but handlers still fire
   const isEditorValid = (editorInstance: any): boolean => isTiptapViewReady(editorInstance);
 
@@ -6459,12 +6447,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const rightEdge = Math.max(start.right, end.right);
           let centerX = (leftEdge + rightEdge) / 2;
           if (editorChromeMode === 'prototypeNative') {
+            // Measure the bar that is actually on screen; fall back to the historical
+            // estimates only for the first pass, before it has ever been rendered. Hard-coded
+            // widths went stale every time a button was added and clamped against a bar that
+            // no longer existed at that size.
             const hasHl = selectionIntersectsHighlightMark(editor);
-            const barW = hasHl ? 134 : 92;
+            const measured = createNoteBubbleRef.current?.getBoundingClientRect().width ?? 0;
+            const barW = measured > 0 ? measured : hasHl ? 134 : 92;
             const inset = 8;
-            const vw = typeof window !== 'undefined' ? window.innerWidth : centerX + barW;
-            const minCx = inset + barW / 2;
-            const maxCx = vw - inset - barW / 2;
+            // The visible band, not the layout viewport: on iOS `innerWidth`/`innerHeight` do
+            // not shrink for the keyboard, and the visual viewport can be panned sideways
+            // (offsetLeft) while zoomed. Same correction the scripture-draft checkmark applies.
+            const box = getVisualViewportBox();
+            const minCx = box.left + inset + barW / 2;
+            const maxCx = box.left + box.width - inset - barW / 2;
             centerX = Math.min(Math.max(centerX, minCx), maxCx);
           }
           const snippet = noteClipboardPlainTextFromRange(editor.state.doc, from, to);
@@ -6518,6 +6514,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     // Re-measure when the mobile shell frame resizes itself around the keyboard — no scroll or
     // resize event accompanies that, so the bar would otherwise sit at the pre-settle coords.
     const offSettle = onProtoViewportSettle(updateSelection);
+    // The settle event covers the shell resizing itself, but not the keyboard opening or iOS
+    // panning the visual viewport to reveal the caret. Both move the band this bar is clamped
+    // to while firing nothing else, which is how it ended up drawn a line too high.
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener('resize', updateSelection);
+    vv?.addEventListener('scroll', updateSelection);
 
     return () => {
       if (editor && !editor.isDestroyed) {
@@ -6525,6 +6527,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       document.removeEventListener('mousedown', handlePointerDownOutside);
       document.removeEventListener('pointerdown', handlePointerDownOutside);
+      vv?.removeEventListener('resize', updateSelection);
+      vv?.removeEventListener('scroll', updateSelection);
       offSettle();
     };
   }, [editor, enableCreateNoteFromSelection, editorChromeMode, clearSelectionActionBar]);
@@ -7069,6 +7073,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }
         setTranslationPicker(null);
         openReferenceDock({ query: word, pendingSuggestion: range });
+        // On touch, opening a dock should show the dock — not the dock and a keyboard fighting
+        // for the same half of the screen. Mirrors the highlight-mark path below; deferred a
+        // frame because iOS applies its own tap selection after this handler returns, and a
+        // blur issued before that just gets undone.
+        if (isTouchPointerEvent(e)) {
+          requestAnimationFrame(() => {
+            try {
+              window.getSelection()?.removeAllRanges();
+            } catch {
+              /* ignore */
+            }
+            releaseEditorFocusForStudyDock();
+          });
+        }
         return;
       }
 
@@ -7093,9 +7111,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     let touchHandledPill: HTMLElement | null = null;
 
+    /**
+     * Inline targets that own their own tap and must beat ProseMirror to it.
+     *
+     * A committed pill was the only one here, so a suggestion tap had no touchstart path at
+     * all and fell through to the synthesized `click` — which arrives *after* ProseMirror has
+     * already handled the touch, placed a caret inside the word, and raised the keyboard. The
+     * dock then opened underneath a keyboard nobody asked for, which is what "tapping a
+     * suggested reference is funky" looked like from the outside.
+     */
+    const TOUCH_OWNED_INLINE_TARGETS = '.scripture-pill, .reference-suggestion, .mention-pill';
+
     const handlePillTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
-      const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
+      const pillSpan = target.closest(TOUCH_OWNED_INLINE_TARGETS) as HTMLElement | null;
       if (!pillSpan) return;
       handlePillPointer(e);
       touchHandledPill = pillSpan;
@@ -7140,14 +7169,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
     const handlePillClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const pillSpan = target.closest('.scripture-pill') as HTMLElement | null;
+      // Match the same set touchstart claims, so the dedupe below covers every target that
+      // was already handled there — otherwise a suggestion opens its dock twice on one tap.
+      const pillSpan = target.closest(TOUCH_OWNED_INLINE_TARGETS) as HTMLElement | null;
       if (pillSpan && touchHandledPill === pillSpan) {
         e.preventDefault();
         e.stopImmediatePropagation();
         return;
       }
       handlePillPointer(e);
-      if (!pillSpan && !target.closest('.mention-pill')) focusEditorAtTapFallback(e.clientX, e.clientY, target);
+      if (!pillSpan) focusEditorAtTapFallback(e.clientX, e.clientY, target);
     };
 
     const handleDismiss = (e: MouseEvent) => {
@@ -8305,7 +8336,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const updateActiveStates = () => {
       // Check if editor is still valid before accessing it
       if (!isEditorValid(editor)) return;
-      
+
+      /*
+       * A press in flight is not new information about the selection.
+       *
+       * Pressing a toolbar button collapses the live selection and moves focus into the
+       * portalled bar, so the transaction that press produces would have every button read
+       * its state from a caret sitting where the user is not working — the whole row drops to
+       * inactive for a frame and comes back once the command lands. That blink is the flicker
+       * you see when an option genuinely IS active. `resolveFormatToolbarRange` is the same
+       * question `runPrototypeFormatCommand` asks; when it answers with the frozen range
+       * rather than the live one, the live one is degenerate and worth ignoring.
+       */
+      const live = editor.state.selection;
+      if (!editor.isFocused && live.empty) {
+        const acting = resolveFormatToolbarRange();
+        if (acting && acting.from !== acting.to) return;
+      }
+
       // Detect current heading level (0 = paragraph, 2–3 = headings)
       let headingLevel = 0;
       if (editor.isActive('heading', { level: 2 })) {
@@ -8349,19 +8397,40 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       });
     };
 
-    // Update on selection change
-    editor.on('selectionUpdate', updateActiveStates);
-    editor.on('update', updateActiveStates);
+    /*
+     * `transaction`, not `selectionUpdate` + `update`.
+     *
+     * TipTap gates `onUpdate` on `transactions.some(tr => tr.docChanged)`. Toggling a mark
+     * with a collapsed caret changes neither the doc nor the selection — it sets *stored
+     * marks*, the marks the next typed character will carry. So neither of the old two events
+     * fired, and the button kept whatever state it had before the press: bold shown as on
+     * after being switched off, and the reverse. That is the "shows an option as active when
+     * it isn't". `transaction` fires for every transaction, including this one.
+     *
+     * This is not louder than before in any way that matters: the changed-value bailout below
+     * already returns the previous state object when nothing moved, so the extra transactions
+     * this now sees cost a comparison and no render.
+     */
+    editor.on('transaction', updateActiveStates);
+    // The "press in flight" guard above holds state while the editor is blurred with a frozen
+    // range. Focus coming back is the moment that guard stops applying, and it does not always
+    // arrive as a transaction — so re-read here rather than wait for the next keystroke.
+    editor.on('focus', updateActiveStates);
 
     // Initial update
     updateActiveStates();
 
     return () => {
       if (editor && !editor.isDestroyed) {
-        editor.off('selectionUpdate', updateActiveStates);
-        editor.off('update', updateActiveStates);
+        editor.off('transaction', updateActiveStates);
+        editor.off('focus', updateActiveStates);
       }
     };
+    // `resolveFormatToolbarRange` is read from the closure and deliberately kept out of this
+    // array. It is a `useCallback([editor])` declared further down the component body, so the
+    // identity it would contribute is already covered by `editor` — and naming it here would
+    // evaluate the binding during render, before its own `const` runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor]);
 
   const studyDockChromeActive =
@@ -8400,14 +8469,40 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const columnFormatToolbarPortal = formatToolbarPortalTarget !== undefined;
 
   /* Touch: the selection actions take over the chrome slot rather than floating into the iOS
-     callout. Needs a real host to portal into, and a dock must not already own the chrome. */
+     callout. Needs a real host to portal into.
+
+     This used to also require `!studyDockChromeTakesOver`, which was too broad. An expanded
+     dock owning the chrome is the right reason to hide the *format* bar — those tools act on
+     a note body the dock is covering. It is the wrong reason to hide the selection row, whose
+     tools act on the selection the user is looking at right now. With the dock open the row
+     fell through to the floating capsule, which is precisely the thing this branch exists to
+     avoid: ScripturePillChromeWeb refuses to draw one on touch for the same reason ("floating
+     capsule competes with iOS callout"), and it landed over the dock's own text. */
   const selectionActionsInChromeBar =
     editorChromeMode === 'prototypeNative' &&
     isCoarsePointer &&
     enableCreateNoteFromSelection &&
     selectionActionBar != null &&
-    !studyDockChromeTakesOver &&
     !!formatToolbarPortalTarget;
+
+  /* No chrome host on a touch device means no selection bar at all.
+
+     The floating capsule is a mouse affordance: on iOS it lands on top of the system
+     selection callout, and the two are indistinguishable to a finger. Showing nothing is the
+     better failure — the selection is still live, the system callout still offers copy, and
+     the actions come back the moment a host exists. Drawing a second capsule over the first
+     is what made a dock-open selection unusable. */
+  /*
+   * Re-keying the track remounts every button and replays the enter animation. That reads as
+   * a deliberate arrival with a mouse, where focus changes once and stays. On a phone focus
+   * churns constantly — a pill tap, a dock, the picker sheet, the keyboard settling — so the
+   * same key made the whole bar flash in and out several times per edit. On touch it keeps one
+   * identity for the editor's lifetime; the toolbar is furniture there, not an event.
+   */
+  const toolbarTrackKey = isCoarsePointer ? 'touch' : toolbarEnterEpoch;
+
+  const selectionBarSuppressedOnTouch =
+    editorChromeMode === 'prototypeNative' && isCoarsePointer && !selectionActionsInChromeBar;
 
   // A read-only body (co-edit off, or a foreign shared note) still fires TipTap's
   // `focus` event on click — `contenteditable="false"` doesn't stop that — so
@@ -8426,14 +8521,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     // TipTap's focus event on click, so without this the parent's bottom bar would
     // switch to 'format' — editing tools with nothing to act on — for a note the
     // click can't actually edit.
-    if (studyDockChromeTakesOver) {
-      onPrototypeChromeModeChange('hidden');
-      return;
-    }
     // The selection row keeps the slot open even when the format bar itself has disengaged —
-    // on touch, tapping the bar's own buttons is not an editor-body signal.
+    // on touch, tapping the bar's own buttons is not an editor-body signal — and it outranks
+    // an expanded dock, which hides the format tools but has no claim on a live selection.
     if (selectionActionsInChromeBar) {
       onPrototypeChromeModeChange('selection');
+      return;
+    }
+    if (studyDockChromeTakesOver) {
+      onPrototypeChromeModeChange('hidden');
       return;
     }
     if (!formatToolbarEngaged || editor?.isEditable === false) {
@@ -8641,7 +8737,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     [editor, onContentChange, resolveFormatToolbarRange],
   );
 
-  const ToolbarButton = ({
+  /*
+   * Held stable across renders, and that is the whole point.
+   *
+   * This was a plain `const` in the component body, so every render produced a new function
+   * — a new element *type* as far as React is concerned — and the reconciler dutifully
+   * unmounted and remounted all fourteen toolbar buttons. Each remount restarted the 200ms
+   * transition and discarded the imperative filter/transform `setPressedVisual` had written,
+   * which is what the flicker was: not an animation, a teardown. It fires on every keystroke,
+   * because `activeStates` updates on every keystroke.
+   *
+   * `editor` is the only value here that can actually change identity; the refs are stable by
+   * construction and the two selection helpers are module imports.
+   */
+  const ToolbarButton = useCallback(({
     onClick, 
     isActive, 
     children, 
@@ -8672,7 +8781,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const restorePostCommandFocus = () => {
       if (skipPostFocusRestore) return;
       setTimeout(() => {
-        if (!editor || !isEditorValid(editor) || editor.isFocused) return;
+        if (!editor || !isTiptapViewReady(editor) || editor.isFocused) return;
         const doc = editor.state.doc;
         const range = pickFormatToolbarSelection({
           frozen: formatToolbarSelectionRef.current,
@@ -8792,16 +8901,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         </div>
       </button>
     );
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   const toggleHeadingLevel = (level: 2 | 3) => {
     if (!editor) return;
     runPrototypeFormatCommand((chain) => chain.toggleHeading({ level }));
   };
 
-  const PrototypeToolbarButton = (
-    props: Omit<React.ComponentProps<typeof ToolbarButton>, 'skipPostFocusRestore'>,
-  ) => <ToolbarButton {...props} skipPostFocusRestore />;
+  /* Stable for the same reason as ToolbarButton above — a fresh wrapper each render would
+     remount every button just as surely as a fresh inner component did. */
+  const PrototypeToolbarButton = useCallback(
+    (props: Omit<React.ComponentProps<typeof ToolbarButton>, 'skipPostFocusRestore'>) => (
+      <ToolbarButton {...props} skipPostFocusRestore />
+    ),
+    [ToolbarButton],
+  );
 
   const renderPrototypeNativeFormatToolbar = (placement: 'top' | 'bottom' | 'portal') => {
     if (!editor) return null;
@@ -8852,7 +8967,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         <div className="tiptap-toolbar__hscroll">
           <div className="tiptap-toolbar__scroll-region">
             <TiptapToolbarTrack
-              key={toolbarEnterEpoch}
+              key={toolbarTrackKey}
               compact
               skipEnterAnimation={isPortal}
               placement={placement === 'portal' ? 'bottom' : placement}
@@ -9017,7 +9132,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }}
         >
           <div className="tiptap-toolbar__hscroll">
-          <TiptapToolbarTrack key={toolbarEnterEpoch} placement="top">
+          <TiptapToolbarTrack key={toolbarTrackKey} placement="top">
           <ToolbarButton
             onClick={() => {
               if (!editor) {
@@ -9254,7 +9369,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         )}
         {/* Custom floating selection action bar — positioned via selectionUpdate event */}
         {/* Uses createPortal like the translation picker for reliable positioning */}
-        {selectionActionBar && enableCreateNoteFromSelection && createPortal(
+        {selectionActionBar && enableCreateNoteFromSelection && !selectionBarSuppressedOnTouch && createPortal(
           <SelectionBarShell
             inChromeBar={selectionActionsInChromeBar}
             barRef={createNoteBubbleRef}
@@ -10668,7 +10783,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }}
         >
           <div className="tiptap-toolbar__hscroll">
-          <TiptapToolbarTrack key={toolbarEnterEpoch} placement="bottom">
+          <TiptapToolbarTrack key={toolbarTrackKey} placement="bottom">
           <ToolbarButton
             onClick={() => {
               if (!editor) return;

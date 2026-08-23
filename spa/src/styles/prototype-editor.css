@@ -1019,10 +1019,16 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   color: currentColor;
 }
 
-.proto-editor-bottom-bar .tiptap-toolbar--prototype-native button:hover:not(:disabled),
-.proto-editor-surface .tiptap-toolbar--prototype-native button:hover:not(:disabled) {
-  background: var(--pds-bg-control);
-  color: var(--pds-text-primary);
+/* Hover, only where hovering is a thing. `--pds-bg-control` here is a shade off the
+   `--pds-bg-chip` active fill below, and iOS leaves `:hover` stuck on the last element a
+   finger touched — so on a phone the last button you pressed read as the active one whether
+   or not it was. See the matching guard in src/styles/tiptap-editor.css. */
+@media (hover: hover) and (pointer: fine) {
+  .proto-editor-bottom-bar .tiptap-toolbar--prototype-native button:hover:not(:disabled),
+  .proto-editor-surface .tiptap-toolbar--prototype-native button:hover:not(:disabled) {
+    background: var(--pds-bg-control);
+    color: var(--pds-text-primary);
+  }
 }
 
 .proto-editor-bottom-bar .tiptap-toolbar--prototype-native button[aria-pressed='true'],

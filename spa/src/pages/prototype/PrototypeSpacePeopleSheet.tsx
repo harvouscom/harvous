@@ -26,6 +26,7 @@ import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useSpaceMembers, useSpaceInvites } from '../../hooks/queries/useSpace';
 import { useCreateSpaceInvite, useRevokeSpaceInvite } from '../../hooks/mutations/useSpaceInviteActions';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
@@ -139,7 +140,7 @@ export default function PrototypeSpacePeopleSheet({
   const [view, setView] = useState<PeopleView>('hub');
   const navigate = useNavigate();
   const { userId: authUserId } = useAuth();
-  const { isMobileSidebar, setActiveSpaceId } = useProtoShell();
+  const { setActiveSpaceId } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const headingId = useId();
@@ -195,8 +196,7 @@ export default function PrototypeSpacePeopleSheet({
     if (view !== 'invites') setIsCreatingInvite(false);
   }, [view]);
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 

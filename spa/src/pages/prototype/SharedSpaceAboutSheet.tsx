@@ -9,7 +9,7 @@ import Icon from '@/components/react/Icon';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import type { SpaceDetail, SpaceMemberRow } from '../../hooks/queries/useSpace';
 import { mapSpaceToAboutLetterSpace } from '../../lib/shared-space-about';
 import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
@@ -39,14 +39,12 @@ export default function SharedSpaceAboutSheet({
   ministryChannel = false,
 }: SharedSpaceAboutSheetProps) {
   const { userId: authUserId } = useAuth();
-  const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const headingId = useId();
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 

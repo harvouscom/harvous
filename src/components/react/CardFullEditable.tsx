@@ -123,7 +123,11 @@ import {
   noteHtmlEquivalentIgnoringScripturePills,
   planTruncatedDraftRestore,
 } from '@/utils/note-draft-staleness';
-import { shouldSkipPrototypeUnloadSave } from '@/utils/prototype-note-save-guard';
+import {
+  shouldSkipPrototypeUnloadSave,
+  isRedundantUnloadResend,
+  type PrototypeUnloadSendRecord,
+} from '@/utils/prototype-note-save-guard';
 import { shouldUpgradePrototypeBodyFromServer } from '@/utils/prototype-note-body-upgrade';
 import { noteListPreviewTail } from '@/utils/note-list-preview';
 
@@ -590,6 +594,21 @@ export default function CardFullEditable({
   /** When the last network save actually started — enforces MIN_SAVE_INTERVAL_MS. */
   const protoLastSaveAtRef = useRef(0);
   /**
+   * The payload the unload keepalive PUT last put on the wire, and when.
+   *
+   * Deliberately separate from `protoLastSavedRef`, which must stay stale after an unload
+   * write (see the comment where that write is issued — the request is unverifiable, so
+   * claiming it landed would let a later save skip its dedup check). This ref makes no
+   * claim about the server; it only remembers what we already *sent*, which is enough to
+   * stop the same bytes going out again.
+   *
+   * It exists because `visibilitychange -> hidden` is not a rare event on a phone: iOS
+   * fires it on every app switch, home swipe, notification pull, and screen lock. Without
+   * this, backgrounding an unchanged note repeatedly spent one write per switch against a
+   * budget the editor's own autosave was already using.
+   */
+  const protoUnloadSentRef = useRef<PrototypeUnloadSendRecord | null>(null);
+  /**
    * Memoized folder auto-assign result, keyed by payload signature. Recomputing runs
    * scripture detection over the whole note body, so a retry of unchanged content must
    * not redo it — that was the source of the "Invalid verse number" console flood.
@@ -1051,11 +1070,23 @@ export default function CardFullEditable({
   /** iOS: focus synchronously on tap so keyboard opens; Tiptap focus in onEditorReady is too late for user-gesture chain */
   const keyboardProxyRef = useRef<HTMLTextAreaElement>(null);
 
-  // Mobile keyboard: when keyboard opens (visualViewport shrinks), set CSS vars on card root so toolbar floats 12px above keyboard and editor scrolls (same as NewNotePanel in sheet)
+  /*
+   * Classic-only mobile keyboard layout.
+   *
+   * There are two keyboard systems in this codebase and exactly one of them may run at a
+   * time. Classic sizes the *card* — CSS vars on the card root float the toolbar 12px above
+   * the keyboard and cap the editor's scroll height (see docs/MOBILE_KEYBOARD_NOTE_SHEET.md).
+   * The prototype sizes the *shell frame* instead, in SimplifiedPrototypeLayout, so the
+   * editor and toolbar read as one surface sitting above the keyboard.
+   *
+   * The guard below is the whole boundary between them. It is stated as an ownership rule
+   * rather than an incidental early return because running both produces a card measured
+   * against a viewport the shell has already resized — a bug that looks like a layout race
+   * and is really two owners.
+   */
   const RESERVE_EDITOR_PX = 130;
   useEffect(() => {
-    // Prototype shell portaled toolbar — SimplifiedPrototypeLayout owns keyboard layout.
-    if (editorChromeMode === 'prototypeNative') return;
+    if (editorChromeMode === 'prototypeNative') return; // prototype: the shell owns this
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!vv) return;
     const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -1125,12 +1156,14 @@ export default function CardFullEditable({
     };
   }, [editorChromeMode]);
 
-  // iOS focus scroll fix: when in bottom sheet or on touch device, reset window scroll on focusin so Safari doesn't push toolbar off
+  // iOS focus scroll fix: when in bottom sheet or on touch device, reset window scroll on focusin so Safari doesn't push toolbar off.
+  // Classic-only, for the same ownership reason as the effect above — the prototype shell pins
+  // page scroll itself while the keyboard is open, and a second writer fights it.
   useEffect(() => {
     const el = cardRootRef.current;
     if (!el) return;
     const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-    if (editorChromeMode === 'prototypeNative') return;
+    if (editorChromeMode === 'prototypeNative') return; // prototype: the shell owns this
     if (!inBottomSheet && !isTouchDevice) return;
 
     const timeouts: ReturnType<typeof setTimeout>[] = [];
@@ -2644,6 +2677,10 @@ export default function CardFullEditable({
       // a queued retry for this payload can't fire against already-persisted content.
       clearProtoSaveRetryTimer();
       protoSaveFailureRef.current = { attempts: 0, signature: '', timerId: null };
+      // A verified save supersedes whatever the last unload write put on the wire, so the
+      // send log has nothing left to suppress. Clearing it keeps the guard from outliving
+      // its usefulness and swallowing a later hide that genuinely needs to write.
+      protoUnloadSentRef.current = null;
       const result = saveResult as { processedContent?: string } | null;
       if (collectionExtras && isMountedRef.current) setCollectionChrome(chromeForSave);
 
@@ -2935,6 +2972,20 @@ export default function CardFullEditable({
         return;
       }
 
+      // Already sent these exact bytes on a recent hide. `protoLastSavedRef` cannot answer
+      // this — it is deliberately left stale by the write below — so ask the send log instead.
+      // This is what stops iOS spending one write per app switch on an unchanged note.
+      if (
+        isRedundantUnloadResend(protoUnloadSentRef.current, {
+          noteId: departingNoteId,
+          title: currentTitle,
+          content: currentContent,
+          collectionKey,
+        })
+      ) {
+        return;
+      }
+
       // Compose has no server note id to PUT against. The 700ms debounce normally
       // creates one; if the user bails before that, the draft is intentionally
       // discarded (matches isEffectivelyEmpty handling). Once it *has* created one,
@@ -2970,6 +3021,13 @@ export default function CardFullEditable({
           keepalive: true,
           body,
         }).catch(() => { /* best-effort on unload */ });
+        protoUnloadSentRef.current = {
+          noteId: departingNoteId,
+          title: currentTitle,
+          content: currentContent,
+          collectionKey,
+          at: Date.now(),
+        };
         // Deliberately NOT advancing protoLastSavedRef. This write is unverifiable —
         // it can 409 (a co-editor saved first) or be dropped outright, and marking it
         // as saved would make the next real save skip the dedup check and leave the

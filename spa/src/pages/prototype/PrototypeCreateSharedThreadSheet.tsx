@@ -5,7 +5,7 @@ import Icon from '@/components/react/Icon';
 import { useCreateSharedThread, type CreatedSharedThread } from '../../hooks/mutations/useCreateSharedThread';
 import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
 import { useAttachNotesToCurrentThread } from '../../hooks/mutations/useAttachNotesToCurrentThread';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
@@ -49,7 +49,6 @@ export default function PrototypeCreateSharedThreadSheet({
   onCreated,
   onPinFailure,
 }: Props) {
-  const { isMobileSidebar } = useProtoShell();
   const createThread = useCreateSharedThread();
   const setCurrent = useSetCurrentSpaceThread();
   const attachNotes = useAttachNotesToCurrentThread();
@@ -70,8 +69,7 @@ export default function PrototypeCreateSharedThreadSheet({
   const isPending = createThread.isPending || setCurrent.isPending;
   const submitMode = sharedThreadSubmitMode(createdThread?.id ?? null, title, isPending);
   const canSubmit = submitMode !== null;
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
   const { position } = useProtoAnchoredPopoverPosition(

@@ -58,16 +58,33 @@ export default defineConfig({
   server: {
     port: 4322,
     /*
-     * Bind IPv4 explicitly.
+     * Bind both loopback stacks.
+     *
+     * This line has now been wrong in both directions, so the history is worth keeping.
      *
      * Vite's default host is `localhost`, and Node 17+ resolves that verbatim — which on this
      * machine hands back `::1` first, so the dev server bound IPv6 loopback only and
-     * `http://127.0.0.1:4322` was refused while `http://localhost:4322` worked. Anything that
-     * prefers IPv4 (some browsers, Electron shells, curl with `-4`, other tooling) simply could
-     * not reach the dev server. Use `true` instead of this if you want it reachable from another
-     * device on the network — that also exposes it to the LAN.
+     * `http://127.0.0.1:4322` was refused. Anything preferring IPv4 (some browsers, Electron
+     * shells, `curl -4`, other tooling) could not reach it. The fix was to pin `127.0.0.1` —
+     * which bound IPv4 *only* and refused `[::1]`, breaking `localhost` instead. Vite then
+     * advertised `http://127.0.0.1:4322` in its startup banner, and that address is not in
+     * `DEDICATED_PROTOTYPE_HOSTS` (src/lib/prototype-path.ts), so following the printed link
+     * landed on Classic rather than the 2.0 prototype — "the dev server is showing an old
+     * design", a routing symptom with a networking cause.
+     *
+     * Neither pin can serve both: one address is IPv4, the other IPv6. `::` is the any-address,
+     * and Node opens it dual-stack, so `[::1]` and `127.0.0.1` both answer. Vite prints
+     * `localhost` again, which is the address the rest of the app is configured around.
+     *
+     * The cost is the `Network:` line in the banner — `::` reaches every interface, so the dev
+     * server is visible on the LAN. If that is not wanted, delete this line entirely: the vite
+     * default binds `[::1]` only, which fixes `localhost` and re-breaks `127.0.0.1`.
+     *
+     * Verify with a real IPv6 client, not `curl` — curl falls back to IPv4 on its own and
+     * reports success against a server that only answers on one stack. That fallback is why
+     * this was previously recorded as "verified both addresses answer" when only one did.
      */
-    host: '127.0.0.1',
+    host: '::',
     watch: {
       // Also watch shared src/ components (outside the spa/ root) for HMR
       ignored: ['!**/src/**'],

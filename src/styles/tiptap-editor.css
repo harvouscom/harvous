@@ -235,14 +235,25 @@
   color: var(--pds-text-secondary, var(--color-gray)) !important;
 }
 
-.tiptap-toolbar button:hover:not(:disabled) {
-  box-shadow: none !important;
-  background: var(--pds-bg-control, oklch(0% 0 0 / 0.04)) !important;
-  color: var(--pds-text-primary, var(--color-deep-grey)) !important;
-}
+/*
+   Hover, only where hovering is a thing.
 
-.tiptap-toolbar button:hover:not(:disabled) div {
-  color: inherit !important;
+   iOS leaves `:hover` applied to the last element a finger touched, and this fill
+   (`--pds-bg-control`) is a shade away from the active fill (`--pds-bg-chip` below). So after
+   tapping Bold the button stayed lit whether or not bold was on — indistinguishable from the
+   real active state, and the second half of "shows an option as active when it isn't". The
+   press feedback a finger actually needs is `:active`, which is further down and unguarded.
+*/
+@media (hover: hover) and (pointer: fine) {
+  .tiptap-toolbar button:hover:not(:disabled) {
+    box-shadow: none !important;
+    background: var(--pds-bg-control, oklch(0% 0 0 / 0.04)) !important;
+    color: var(--pds-text-primary, var(--color-deep-grey)) !important;
+  }
+
+  .tiptap-toolbar button:hover:not(:disabled) div {
+    color: inherit !important;
+  }
 }
 
 .tiptap-toolbar button.ql-active,

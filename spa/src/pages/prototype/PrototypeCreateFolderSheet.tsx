@@ -11,7 +11,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import {
   PrototypeAddNotesPicker,
@@ -48,7 +48,6 @@ export default function PrototypeCreateFolderSheet({
   initialSelectedNoteIds,
   onCreated,
 }: PrototypeCreateFolderSheetProps) {
-  const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const createFolder = useCreateFolderRegistryLabel();
   const addNotes = useAddNotesToFolder();
@@ -78,8 +77,7 @@ export default function PrototypeCreateFolderSheet({
   const isPending = createFolder.isPending || addNotes.isPending || associateNote.isPending;
   const canSubmit = folderName.trim().length > 0 && !isPending;
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 

@@ -25,7 +25,14 @@ import {
 import type { ScriptureDrillState } from '../pages/prototype/sidebar-universal-search';
 import { setComposeGroupThreadId } from '../lib/compose-group-thread';
 
-/** Breakpoint sync with prototype-shell.css (899px drawer). */
+/**
+ * Breakpoint sync with prototype-shell.css (899px drawer).
+ *
+ * The prototype's one mobile breakpoint. `SimplifiedPrototypeLayout`'s keyboard effect and
+ * the container queries in prototype-editor.css are all sized against this. Classic uses
+ * 1159px (`hooks/useIsMobile.ts`); the two must not be mixed inside one surface, or the shell
+ * and the component sitting in it disagree about which layout they are in across a 260px band.
+ */
 const MOBILE_MQ = '(max-width: 899px)';
 const PROTO_SIDEBAR_WIDTH_STORAGE_KEY = 'harvous-prototype-sidebar-width';
 export const PROTO_SIDEBAR_WIDTH_DEFAULT = 304;

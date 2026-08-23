@@ -17,6 +17,11 @@ interface RequestRecord {
 
 // In-memory store for rate limiting
 // In production, consider using Redis or Netlify's built-in rate limiting
+//
+// Process-local: on a multi-instance Fly deploy each machine keeps its own counters, so the
+// effective per-user limit is (instances x maxRequests) and which one a request lands on
+// decides whose budget it spends. Fine as an abuse ceiling, not exact. Every limit below is
+// sized as a *floor* on what a legitimate client may do, never as a precise quota.
 const rateLimitStore = new Map<string, RequestRecord>();
 
 // Cleanup old entries every 5 minutes
@@ -113,6 +118,26 @@ export const RATE_LIMITS = {
   },
   // Space invite: higher limit so owners can onboard larger spaces (e.g. 50 members)
   INVITE: {
+    maxRequests: 60,
+    windowMs: 60 * 1000 // 1 minute
+  },
+  /**
+   * Note autosave (PUT /api/notes/update). Separate from generic WRITE because the editor
+   * is the one caller that writes on a *timer* rather than on an explicit user action, and
+   * the generic budget left it no room at all:
+   *
+   *   MIN_SAVE_INTERVAL_MS (3s, see src/utils/autosave-retry.ts) = 20 saves/minute
+   *   RATE_LIMITS.WRITE                                          = 20 requests/minute
+   *
+   * Sustained typing therefore sat exactly on the cap, and any *other* write in the same
+   * minute — a second note, an unmount flush, the keepalive PUT iOS fires on every app
+   * switch — pushed it over and toasted "Too many changes at once". The bucket is keyed
+   * per user per path, so all of a user's notes share this one budget.
+   *
+   * 60/min against a client floor of 5s (12 saves/min) leaves 5x headroom for the flushes
+   * and second surfaces, while still bounding a scripted caller to one write per second.
+   */
+  NOTE_SAVE: {
     maxRequests: 60,
     windowMs: 60 * 1000 // 1 minute
   },
@@ -266,12 +291,18 @@ export function tryConsumeImportNoteCreates(
 }
 
 /**
+ * Which budget a route draws from. `'note-save'` is `'write'` with its own, larger bucket —
+ * see RATE_LIMITS.NOTE_SAVE for why the editor's timer-driven writes cannot share WRITE.
+ */
+export type RateLimitType = 'read' | 'write' | 'note-save';
+
+/**
  * Middleware function for rate limiting API endpoints
  */
 export function rateLimitMiddleware(
   userId: string | null,
   endpoint: string,
-  type: 'read' | 'write',
+  type: RateLimitType,
   ip?: string
 ): { allowed: boolean; error?: string; remaining?: number; resetTime?: number } {
   const isInviteEndpoint = endpoint.includes('members/invite');
@@ -279,7 +310,9 @@ export function rateLimitMiddleware(
     ? RATE_LIMITS.INVITE
     : type === 'read'
       ? RATE_LIMITS.READ
-      : RATE_LIMITS.WRITE;
+      : type === 'note-save'
+        ? RATE_LIMITS.NOTE_SAVE
+        : RATE_LIMITS.WRITE;
   const result = checkRateLimit(userId, endpoint, config, ip);
 
   if (!result.allowed) {
@@ -315,7 +348,7 @@ export function retryAfterSecondsFrom(resetTime: number | undefined, now: number
  *
  * Automatically extracts userId from auth context and IP from request headers.
  */
-export function rateLimit(type: 'read' | 'write'): (c: any, next: any) => Promise<any> {
+export function rateLimit(type: RateLimitType): (c: any, next: any) => Promise<any> {
   return async (c, next) => {
     const auth = c.get('auth') as { userId: string | null };
     const ip = getClientIP(c.req.raw);

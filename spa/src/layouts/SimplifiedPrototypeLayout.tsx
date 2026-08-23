@@ -676,15 +676,20 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
       }
     };
 
+    /*
+     * The lock itself is `data-proto-keyboard-open`, set in `apply()` below — that is the
+     * attribute `prototype-shell.css` hangs `overflow: hidden` on. There used to be a second
+     * attribute here, `data-proto-page-scroll-locked`, which no stylesheet ever read: it
+     * looked like the mechanism while doing nothing, so anyone debugging a scroll problem
+     * started at the wrong end. What these two functions actually contribute is the *pinning*
+     * — iOS can still pan the visual viewport to chase the caret while document scroll is
+     * held, and that pan is what leaves a white strip under the format bar.
+     */
     const lockPageScroll = () => {
-      if (!root.hasAttribute('data-proto-page-scroll-locked')) {
-        root.setAttribute('data-proto-page-scroll-locked', '');
-      }
       pinPageScroll();
     };
 
     const unlockPageScroll = () => {
-      root.removeAttribute('data-proto-page-scroll-locked');
       window.scrollTo(0, 0);
     };
 

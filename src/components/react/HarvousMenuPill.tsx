@@ -140,16 +140,47 @@ export default function HarvousMenuPill({
     };
   }, [open, isCoarse]);
 
-  // Backstop keyboard dismissal (the reliable attempt happens in the trigger's pointerdown, inside
-  // a real user gesture — iOS ignores a programmatic blur outside one). Correct placement no longer
-  // *depends* on this working; it just avoids a needless keyboard. Also scroll the selection in.
+  // Keep the keyboard down for as long as the sheet is open.
+  //
+  // The reliable *dismissal* happens in the trigger's pointerdown, inside a real user gesture —
+  // iOS ignores a programmatic blur outside one. What was missing is the second half: nothing
+  // stopped the editor taking focus back afterwards, and once it did, the visual viewport
+  // collapsed under the open sheet and left it two rows tall. So this is a standing guard, not
+  // a one-shot: any focus landing outside the sheet while it is open gets handed straight back.
   useEffect(() => {
     if (!open || !isCoarse) return;
-    const active = document.activeElement as HTMLElement | null;
-    if (active && (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-      active.blur();
-    }
-    requestAnimationFrame(() => selectedItemRef.current?.scrollIntoView({ block: 'center' }));
+
+    const blurIfOutsideSheet = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el || typeof el.blur !== 'function') return;
+      if (sheetRef.current?.contains(el)) return;
+      if (el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.blur();
+    };
+
+    blurIfOutsideSheet(document.activeElement);
+    const onFocusIn = (e: FocusEvent) => blurIfOutsideSheet(e.target);
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, [open, isCoarse]);
+
+  // Keep the selected option centred as the box changes size.
+  //
+  // Running this only on open was enough on a desktop, where the sheet's box never moves. On
+  // iOS the box is still settling when the sheet appears — keyboard animation, Safari bottom-bar
+  // collapse — and a list scrolled to centre an item in the *old* box ends up scrolled past its
+  // own content in the new one, showing blank space below the last row.
+  useEffect(() => {
+    if (!open || !isCoarse) return;
+    const center = () => selectedItemRef.current?.scrollIntoView({ block: 'center' });
+    const raf = requestAnimationFrame(center);
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener('resize', center);
+    const offSettle = onProtoViewportSettle(center);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv?.removeEventListener('resize', center);
+      offSettle();
+    };
   }, [open, isCoarse]);
 
   useEffect(() => {
@@ -230,6 +261,8 @@ export default function HarvousMenuPill({
                 role="dialog"
                 aria-modal="true"
                 aria-label={ariaLabel}
+                /* Lets the sheet drop its 60% cap — see the rule in harvous-menu-pill.css. */
+                data-keyboard={viewportBox?.keyboardLikely ? 'open' : undefined}
                 style={
                   // iOS keeps a ~44px form-assistant bar above the keyboard that visualViewport
                   // does not always exclude; pad for it so the last option stays tappable.

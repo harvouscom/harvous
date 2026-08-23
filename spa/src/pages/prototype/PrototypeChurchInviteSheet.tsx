@@ -14,7 +14,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 
 export interface PrototypeChurchInviteSheetProps {
@@ -43,12 +43,10 @@ export default function PrototypeChurchInviteSheet({
   onSubmit,
   onOpenChange,
 }: PrototypeChurchInviteSheetProps) {
-  const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 

@@ -41,6 +41,7 @@ import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
 import ProtoSpaceMeetingFields from './ProtoSpaceMeetingFields';
 
@@ -69,7 +70,7 @@ export default function CreateSharedSpaceSheet({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { userId } = useAuth();
-  const { isMobileSidebar, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
+  const { ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const headingId = useId();
@@ -131,8 +132,7 @@ export default function CreateSharedSpaceSheet({
   const iconAccent = spaceIconAccentHex(color, colorScheme);
   const iconGlyphColor = appearanceIconGlyphColor(color, colorScheme);
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 

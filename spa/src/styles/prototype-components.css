@@ -1269,8 +1269,14 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   /* Raised with the row height. At 38px rows the old 360px cap held eight
      items, so the space switcher started scrolling for a church with a couple
      of extra rooms — a menu that fits today should keep fitting. The `vh`
-     guard is what actually binds on a short window; only the pixel term moved. */
+     guard is what actually binds on a short window; only the pixel term moved.
+
+     `dvh`, not `vh`: on iOS `vh` measures the LARGE viewport, so with the keyboard open a
+     `72vh` cap let a 66-row book picker extend well behind it. `dvh` tracks the viewport
+     that is actually on screen. The `vh` fallback keeps the old behaviour on the handful
+     of engines without dynamic units, where the two are equal anyway. */
   max-height: min(440px, 72vh);
+  max-height: min(440px, 72dvh);
   overflow-y: auto;
   /* Reaching the end of a menu must not start scrolling whatever is behind it. The book
      picker is 66 rows over a reading surface, so scrolling to Revelation handed the rest of

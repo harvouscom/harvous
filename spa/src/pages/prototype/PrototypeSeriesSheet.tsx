@@ -33,7 +33,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
 import ProtoDatePicker from './ProtoDatePicker';
@@ -125,7 +125,6 @@ export default function PrototypeSeriesSheet({
   onRerun,
   onOpenChange,
 }: PrototypeSeriesSheetProps) {
-  const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [title, setTitle] = useState('');
@@ -159,8 +158,7 @@ export default function PrototypeSeriesSheet({
     setRerunDate('');
   }, [open, series?.id]);
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 

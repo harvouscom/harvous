@@ -916,7 +916,7 @@ function logNoteSaveTrail(entry: Record<string, unknown>): void {
 }
 
 // ─── PUT /api/notes/update ──────────────────────────────────────────────────
-route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
+route.put('/api/notes/update', requireAuth, rateLimit('note-save'), async (c) => {
   // Outside the try so the conflict logging in the catch can name them — `const`s
   // declared inside a try are block-scoped and invisible to its catch, which is why the
   // earlier conflict log could only ever print `noteId: null`.

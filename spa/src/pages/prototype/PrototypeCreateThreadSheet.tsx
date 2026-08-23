@@ -8,7 +8,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
@@ -35,7 +35,6 @@ export default function PrototypeCreateThreadSheet({
   initialSelectedNoteIds,
   initialThreadName,
 }: PrototypeCreateThreadSheetProps) {
-  const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const connectNote = useConnectNote();
   const updateTitle = useUpdateStudyThreadTitle();
@@ -59,8 +58,7 @@ export default function PrototypeCreateThreadSheet({
   const isPending = connectNote.isPending || updateTitle.isPending;
   const canSubmit = threadName.trim().length > 0 && selectedIds.length >= MIN_THREAD_NOTES && !isPending;
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;
 

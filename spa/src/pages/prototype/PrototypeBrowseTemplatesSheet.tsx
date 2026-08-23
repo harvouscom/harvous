@@ -16,7 +16,6 @@ import ProtoConfirmDialog from './ProtoConfirmDialog';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useDebouncedSearchState } from '../../hooks/useDebouncedSearchState';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
-import { useProtoShell } from '../../layouts/proto-shell-context';
 import { APIError } from '../../lib/api';
 import { useDeleteNoteTemplate } from '../../hooks/mutations/useDeleteNoteTemplate';
 import { setComposePurpose } from '../../lib/compose-purpose';
@@ -32,6 +31,7 @@ import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { PrototypeListEmptyState, PrototypeListNoMatchEmptyState } from './design-system';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import {
   NOTE_TEMPLATE_ICON_NAME,
@@ -245,7 +245,6 @@ export default function PrototypeBrowseTemplatesSheet({
   anchorEl = null,
   anchorRect = null,
 }: PrototypeBrowseTemplatesSheetProps) {
-  const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const listSpaceId = spaceId?.trim() || null;
@@ -354,8 +353,7 @@ export default function PrototypeBrowseTemplatesSheet({
     sections.space.length +
     sections.org.length;
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
 
   const usePopoverPresentation = !shouldUseSheetPresentation;
   const showPopoverPortal = usePopoverPresentation && mounted;

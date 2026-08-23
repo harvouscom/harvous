@@ -38,10 +38,20 @@ const MAX_BACKOFF_MS = 16_000;
 
 /**
  * Minimum gap between two network saves. The 700ms debounce only gates the *first*
- * attempt after a keystroke; this floor keeps sustained typing from approaching the
- * server's 20-writes/minute budget.
+ * attempt after a keystroke; this floor is what keeps sustained typing away from the
+ * server's budget for `PUT /api/notes/update`.
+ *
+ * It used to be 3s, which is 20 saves/minute — *exactly* the old `RATE_LIMITS.WRITE`
+ * cap of 20/minute. Sized at the limit rather than under it, so steady typing sat on the
+ * ceiling and any other write in the same minute (a second note, an unmount flush, the
+ * keepalive PUT iOS fires on every app switch) produced a 429 and the "Too many changes
+ * at once" toast. The endpoint now has its own 60/minute bucket (RATE_LIMITS.NOTE_SAVE)
+ * and this floor is 5s = 12 saves/minute, so the gap is a ratio, not a coincidence.
+ *
+ * Raising this only delays when an edit reaches the server. It never risks the edit: the
+ * 250ms local-draft writer in CardFullEditable is far tighter and survives a crash or close.
  */
-export const MIN_SAVE_INTERVAL_MS = 3_000;
+export const MIN_SAVE_INTERVAL_MS = 5_000;
 
 interface ErrorLike {
   status?: number;

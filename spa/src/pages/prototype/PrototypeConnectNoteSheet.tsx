@@ -10,7 +10,7 @@ import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
-import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { PrototypeAddNotesPicker, type AddNotesCandidate } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import {
@@ -64,7 +64,6 @@ export default function PrototypeConnectNoteSheet({
   spaceNotes = [],
   connectedNoteIds = [],
 }: PrototypeConnectNoteSheetProps) {
-  const { isMobileSidebar } = useProtoShell();
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const queryClient = useQueryClient();
   const connectMutation = useConnectNote();
@@ -90,8 +89,7 @@ export default function PrototypeConnectNoteSheet({
     }
   }, [open]);
 
-  const shouldUseSheetPresentation =
-    isMobileSidebar && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
 
   const handleConnect = () => {
     const linkedNoteId = selectedIds[0];
