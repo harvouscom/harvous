@@ -12406,31 +12406,34 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 /*
- * A row holding an open menu outranks the rows under it.
- *
- * The menu already carries `z-index: 5000`, and that number was doing nothing here. Its row is
- * `position: relative; z-index: 1`, which makes the row a stacking context — so 5000 only ever
- * ranked the menu against its own row's contents, never against the next row. With every row at
- * the same z-index, painting fell back to DOM order and the rows *below* drew on top: the
- * "Not interested" card came up with the following row's dismiss glyph sitting on it.
- *
- * Lifting the row is the fix rather than raising the menu again, because no value on the menu can
- * escape a stacking context its ancestor owns. `:has()` keeps it to the moment the menu exists —
- * a row that is permanently lifted would re-order hover and focus rings against its neighbours
- * for the 99% of the time nothing is open.
+ * The row-lift that used to rank an open menu above its neighbours is gone with the menu
+ * itself: it is portaled to `document.body` now, so it has no ancestor stacking context left
+ * to escape from. It was `.proto-list-panel__row:has(.proto-recall-row__menu) { z-index: 3 }`,
+ * which stopped matching the moment the popover left the row.
  */
-.proto-list-panel__row:has(.proto-recall-row__menu) {
-  z-index: 3;
-}
 
 /* Sized for its own labels, not inherited: the shared `--list-view` modifier drops the
    checkmark column but keeps a min-width meant for a translation list. */
 .proto-recall-row__menu {
-  top: calc(100% + 4px);
-  left: auto;
-  right: 0;
   min-width: 168px;
   transform-origin: top right;
+}
+
+/*
+ * Portaled out of the sidebar, and placed by `computeRightAnchoredPopoverPosition`.
+ *
+ * `top`/`left` arrive inline from that helper — which is why both are unset here and `right`
+ * is cleared: an `absolute`-era `right: 0` would fight the computed `left` and pin the card to
+ * the window's edge. Anchored to the *shelf row's* trigger, so it must escape the sidebar's
+ * scroller; the last rows on a full shelf were opening a menu the panel simply cut off.
+ */
+.proto-recall-row__menu--portal {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  z-index: 6000;
+  max-width: min(240px, calc(100vw - 24px));
+  box-sizing: border-box;
 }
 
 /* At the chevron's weight, because they occupy the chevron's place. A row's trailing mark

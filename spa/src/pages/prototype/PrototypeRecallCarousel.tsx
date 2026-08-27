@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { getNoteQueryOptions } from '../../hooks/queries/useNote';
@@ -12,6 +13,8 @@ import {
   RECALL_SNOOZE_COPY,
 } from './proto-recall-copy';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
+import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { buildRecallCardStackOrigin } from './paper-stack-origins';
@@ -48,6 +51,10 @@ import { buildRecallCardStackOrigin } from './paper-stack-origins';
  * navigate — so for those kinds the answer was unreachable, and for the rest it was available
  * only in the seconds after opening the card.
  */
+
+/** Matches `.proto-recall-row__menu`; only used until the real popover can be measured. */
+const RECALL_MENU_WIDTH = 168;
+const RECALL_MENU_FALLBACK_HEIGHT = 92;
 
 export interface RecallOpportunity extends RecallCandidate {
   eyebrow: string;
@@ -246,7 +253,50 @@ function RecallRow({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(null);
   useDismissOnOutside(menuRef, () => setMenuOpen(false), menuOpen);
+
+  /*
+   * Portaled and measured, the way every other menu in this chrome already is.
+   *
+   * It used to be an absolutely-positioned child of the row, pinned `top: 100%`, which meant
+   * two things it could not answer for. It was inside the sidebar's scroller, so the last
+   * rows on the shelf opened a menu that was simply cut off at the panel's edge; and it had
+   * no idea where the viewport was, so it opened downward whether or not there was anywhere
+   * to open downward into. `computeRightAnchoredPopoverPosition` flips it above the trigger
+   * when it does not fit below and clamps it to the *visual* viewport, which is the one that
+   * shrinks for the software keyboard.
+   *
+   * Re-measured on scroll with capture, because the surface it is anchored to is a scroller:
+   * without it the menu stays where the row *was*.
+   */
+  useLayoutEffect(() => {
+    if (!menuOpen) {
+      setAnchorPos(null);
+      return undefined;
+    }
+    const update = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const measured = popoverRef.current?.getBoundingClientRect();
+      const pos = computeRightAnchoredPopoverPosition(
+        rect,
+        measured?.width || RECALL_MENU_WIDTH,
+        measured?.height || RECALL_MENU_FALLBACK_HEIGHT,
+        PROTO_TOOLBAR_POPOVER_OFFSET,
+      );
+      setAnchorPos({ top: pos.top, left: pos.left });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [menuOpen]);
 
   /* Closed before the answer runs: both of these take the row off the shelf, and a menu
      asked to close on an element that is already gone leaves the popover painted over
@@ -267,6 +317,7 @@ function RecallRow({
       trailing={
         <span className="proto-recall-row__more" ref={menuRef}>
           <button
+            ref={triggerRef}
             type="button"
             className="proto-side-panel__action-btn"
             aria-label={RECALL_MORE_COPY.ariaFor(op.title)}
@@ -277,40 +328,46 @@ function RecallRow({
           >
             <Icon name="ellipsis-vertical" size={12} aria-hidden />
           </button>
-          {menuOpen ? (
-            <div
-              className="proto-menu__popover proto-menu__popover--right proto-menu__popover--list-view proto-recall-row__menu"
-              role="menu"
-              aria-label={RECALL_MORE_COPY.ariaFor(op.title)}
-            >
-              {/* Deferral above the permanent answer: the one that does not heal itself sits
-                  furthest from where muscle memory lands. */}
-              <button
-                type="button"
-                role="menuitem"
-                className="proto-menu-item"
-                aria-label={RECALL_SNOOZE_COPY.ariaFor(op.title)}
-                onClick={answer(onSnooze)}
-              >
-                <span className="proto-menu-item__icon" aria-hidden>
-                  <Icon name="clock" size={14} />
-                </span>
-                <span className="proto-menu-item__label">{RECALL_SNOOZE_COPY.label}</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="proto-menu-item"
-                aria-label={RECALL_DISMISS_COPY.ariaFor(op.title)}
-                onClick={answer(onDismiss)}
-              >
-                <span className="proto-menu-item__icon" aria-hidden>
-                  <Icon name="eye-slash" size={14} />
-                </span>
-                <span className="proto-menu-item__label">{RECALL_DISMISS_COPY.label}</span>
-              </button>
-            </div>
-          ) : null}
+          {menuOpen && typeof document !== 'undefined'
+            ? createPortal(
+                <div
+                  ref={popoverRef}
+                  className="proto-menu__popover proto-menu__popover--list-view proto-recall-row__menu proto-recall-row__menu--portal"
+                  role="menu"
+                  aria-label={RECALL_MORE_COPY.ariaFor(op.title)}
+                  /* Off-screen until measured, so the first paint is never in the wrong place. */
+                  style={{ top: anchorPos?.top ?? -9999, left: anchorPos?.left ?? 0 }}
+                >
+                  {/* Deferral above the permanent answer: the one that does not heal itself
+                      sits furthest from where muscle memory lands. */}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="proto-menu-item"
+                    aria-label={RECALL_SNOOZE_COPY.ariaFor(op.title)}
+                    onClick={answer(onSnooze)}
+                  >
+                    <span className="proto-menu-item__icon" aria-hidden>
+                      <Icon name="clock" size={14} />
+                    </span>
+                    <span className="proto-menu-item__label">{RECALL_SNOOZE_COPY.label}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="proto-menu-item"
+                    aria-label={RECALL_DISMISS_COPY.ariaFor(op.title)}
+                    onClick={answer(onDismiss)}
+                  >
+                    <span className="proto-menu-item__icon" aria-hidden>
+                      <Icon name="eye-slash" size={14} />
+                    </span>
+                    <span className="proto-menu-item__label">{RECALL_DISMISS_COPY.label}</span>
+                  </button>
+                </div>,
+                document.body,
+              )
+            : null}
         </span>
       }
     />
