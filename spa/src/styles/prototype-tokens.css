@@ -503,10 +503,55 @@
      enough that the paper behind visibly widens, which is the thing being offered, and not
      so far that a pointer passing through looks like it opened something. */
   --pds-paper-stack-hover-nudge: 12px;
-  /* The paper column — the note editor's paper and the reader's text column are both
-     this wide, centred. The stack paints its two sheets at exactly this width, so what
-     stacks is the papers themselves and nothing shows outside them. */
-  --pds-paper-column: 720px;
+  /*
+   * The paper column — the note editor's paper and the reader's text column are both
+   * this wide, centred. The stack paints its two sheets at exactly this width, so what
+   * stacks is the papers themselves and nothing shows outside them.
+   *
+   * This is the floor, and the value every consumer outside a paper's own query container
+   * still gets. The three `min-width` rules that widen it live next to the papers
+   * themselves (prototype-editor.css, and the reader and stack blocks in
+   * prototype-components.css), because the expression is written in container units and
+   * those only mean the pane when they are read inside the pane's container.
+   */
+  --pds-paper-column: var(--pds-paper-column-min);
+  /*
+   * The text measure. This is the one number in here that never moves.
+   *
+   * 656px is what 720 minus its two 32px margins has always come to, and every wide-screen
+   * rule below is built to keep it there: the padding is *derived* from the column rather
+   * than set beside it, so a wider sheet spends its extra width on margins and the line
+   * breaks never shift. If a line rewraps while resizing, that derivation is broken.
+   */
+  --pds-paper-measure: 656px;
+  --pds-paper-column-min: 720px;
+  /*
+   * On a wide pane the sheet grows to here — 816px, which leaves 80px of margin either
+   * side instead of 32. The point is the page around the text, not more text per line.
+   *
+   * Derived from the margin rather than chosen for itself: 656px of text plus 2x80. Moving
+   * the margin means moving this number, and the two must be changed together or the
+   * measure shifts — which is the one thing the derivation below exists to prevent.
+   */
+  --pds-paper-column-max: 816px;
+  /*
+   * How much pane has to stay clear beside the sheet before it takes any of it. Keeps the
+   * sheet from growing into its own shadow: it only widens once there is room to spare,
+   * which puts the start of the growth at 720 + 2x56 = 832px of pane.
+   */
+  --pds-paper-column-gutter: 56px;
+  /*
+   * The gutter at the other end of the range: the least the sheet will come to the pane
+   * edge once the pane is too narrow to hold the column at all.
+   *
+   * Carried in the column's own width — `min(column, 100% - 2x this)` — and not as padding
+   * on the wrap around it, which is what it used to be. As padding it could only be
+   * switched on and off at a breakpoint, and the switch was visible: below 760px of pane
+   * the sheet gave up 24px, above it took them all back, so the paper stepped 696 -> 720
+   * in one frame. Inside the width the same 12px is a floor the sheet slides along, and
+   * the step is gone.
+   */
+  --pds-paper-column-gutter-narrow: 12px;
   --pds-ease-standard: cubic-bezier(0.32, 0.72, 0.24, 1);
   --pds-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
   /*
@@ -674,9 +719,25 @@
   --pds-paper-shadow-subtle: 0 1px 3px 1px rgba(60, 64, 67, 0.1);
   /* Main column lacks sidebar-cell 8px margin — tuned to match search field top */
   --pds-editor-paper-inset-top: 17px;
-  --pds-editor-paper-inset-x: 0;
   --pds-editor-paper-padding-top: 48px;
-  --pds-editor-paper-padding-x: 32px;
+  /*
+   * Derived, not stated — this is what keeps the measure still.
+   *
+   * The sheet's side margin is whatever is left over after the text has taken its 656px,
+   * so the two can never drift apart the way two hand-kept numbers do. At the 720px floor
+   * it comes to exactly the 32px this used to be; at the 816px ceiling, 80px.
+   *
+   * Restated verbatim inside each of the three growth rules, and it has to be. A custom
+   * property is substituted at the element where it is *declared*, and the resolved value
+   * is what inherits — so this one collapses to 32px here against the floor below and
+   * cannot afterwards see a `--pds-paper-column` redefined further down the tree. Written
+   * only here, the sheet widened past its floor and took all the new width as measure
+   * instead of margin — the text ran wider and every line rewrapped, which is the one
+   * thing this must not do.
+   */
+  --pds-editor-paper-padding-x: calc(
+    (var(--pds-paper-column) - var(--pds-paper-measure)) / 2
+  );
   --pds-editor-paper-padding-bottom: 80px;
   --pds-editor-paper-padding-top-narrow: 28px;
   --pds-editor-paper-padding-x-narrow: 12px;

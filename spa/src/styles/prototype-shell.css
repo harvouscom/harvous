@@ -43,7 +43,8 @@
      reads as its own tray under the sheet rather than a border on it. */
   --proto-format-toolbar-overhang: 14px;
   /* Floor for that reach, so on a narrow column — where the paper is already near the
-     edges — the bar keeps the same breathing room the paper has (`--pds-editor-paper-inset-x`)
+     edges — the bar keeps the same breathing room the paper has
+     (`--pds-paper-column-gutter-narrow`, the same 12px)
      instead of running into the shell frame. */
   --proto-format-toolbar-edge-gap: 12px;
   /* Transparent — shell frame carries the primary blur; inner grid has no stacked backdrop-filter. */

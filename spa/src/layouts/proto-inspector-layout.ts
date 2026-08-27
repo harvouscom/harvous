@@ -1,4 +1,13 @@
-/** Max editor content column width (`prototype-editor.css` `.proto-editor-content-wrap`). */
+/**
+ * The editor content column's *base* width (`--pds-paper-column-min`), which is what the
+ * dock threshold below is asking about.
+ *
+ * No longer the maximum: above 832px of pane the sheet widens toward 816px. That growth is
+ * deliberately not reflected here. Docking the inspector shrinks the pane, the sheet clamps
+ * back down to this floor, and the question "is there room for both?" is answered by the
+ * width the paper can always fall back to — not by the width it would like on an empty pane.
+ * Using the ceiling instead would refuse to dock at pane widths where docking fits fine.
+ */
 export const PROTO_EDITOR_CONTENT_MAX_WIDTH = 720;
 
 /** Inspector column + trailing gutter (`--pds-inspector-w` 260 + 8px). */

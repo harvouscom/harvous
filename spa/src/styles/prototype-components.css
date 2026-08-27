@@ -18489,20 +18489,25 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      the reader's paper has nothing to clear and its own 48px of top padding inside, so the
      lip only added a band of dead space above the chapter — most visible stacked, where it
      opened a gap between the peeking edge and the paper right under it. */
-  padding: 0 var(--pds-editor-paper-inset-x) 0;
+  padding: 0;
   /* Named query container for the narrow overrides below. Safe: this element's width comes
      from its flex parent, never from its own contents, so containment changes no layout. */
   container-type: inline-size;
   container-name: pds-reader-scroll;
 }
 
-/* The sheet — same 720px centred paper as `.proto-editor-paper`, same fill, same shadow, same
-   square corners. Its 32px side padding leaves 656px of text, which is exactly the measure the
-   reading column used before, so the line length is unchanged; only the paper around it is new. */
+/* The sheet — the same centred paper as `.proto-editor-paper`, same fill, same shadow, same
+   square corners, and now the same `--pds-paper-column` rather than its own copy of the number.
+   Its side padding leaves 656px of text, which is exactly the measure the reading column used
+   before, so the line length is unchanged; only the paper around it is new. That stays true as
+   the sheet widens: see the growth rule below. */
 .pds-reader__column {
   flex: 1;
   width: 100%;
-  max-width: 720px;
+  max-width: min(
+    var(--pds-paper-column),
+    100% - 2 * var(--pds-paper-column-gutter-narrow)
+  );
   margin-inline: auto;
   box-sizing: border-box;
   /* Positioning context for `.pds-reader__margin`, whose marks are measured against this
@@ -18525,6 +18530,29 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   --pds-reader-paper-padding-x: var(--pds-editor-paper-padding-x);
   padding: var(--pds-editor-paper-padding-top) var(--pds-reader-paper-padding-x)
     var(--pds-editor-paper-padding-bottom);
+}
+
+/*
+ * The reader's half of the wide-screen growth (see prototype-editor.css for the reasoning
+ * and the gallery-fixture trap this gating avoids).
+ *
+ * Stated here against the reader's own container because container units are read where
+ * they are used, and this is the pane the reader's paper actually sits in. The padding
+ * follows without being mentioned: it is derived from the column in prototype-tokens.css
+ * and reaches the margin-bar layer and both note-card edges through
+ * `--pds-reader-paper-padding-x` above, which is the entire reason that variable exists.
+ */
+@container pds-reader-scroll (min-width: 832px) {
+  .pds-reader__column {
+    --pds-paper-column: clamp(
+      var(--pds-paper-column-min),
+      100cqi - 2 * var(--pds-paper-column-gutter),
+      var(--pds-paper-column-max)
+    );
+    --pds-editor-paper-padding-x: calc(
+      (var(--pds-paper-column) - var(--pds-paper-measure)) / 2
+    );
+  }
 }
 
 /*
@@ -19197,36 +19225,54 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /*
- * Both papers, the same width.
+ * Both papers, the same width — and nothing here to keep them that way any more.
  *
- * The note's paper keeps 12px clear of each column edge once its pane is narrow (see the
- * container query in prototype-editor.css); the reader's column has no such rule and runs
- * to its full 720. Apart, neither is wrong. Stacked, they are laid one over the other and
- * the difference is read as the scale being broken: at a 744px pane the chapter's paper was
- * 720 and the note's 696, so the 4% between them showed up as 2px a side instead of 14, and
- * the paper behind looked the same size as the paper in front.
+ * There used to be a rule at this point pulling the reader's column in by 24px whenever the
+ * stack was under 760px wide. It existed because the two papers reached that gutter by
+ * different routes: the note lost 24px to padding on the wrap around it, the reader had no
+ * such padding and ran to its full column, and stacked one over the other the difference
+ * read as the depth scale being broken — at a 744px pane the chapter's paper was 720 and
+ * the note's 696, so the 4% between them showed as 2px a side instead of 14.
  *
- * Matched here rather than in the reader, because here is where they are compared — a
- * chapter read on its own keeps its full measure.
- *
- * `width`, not just `max-width`. The note's paper loses its 24px through padding on the
- * wrap around it (`--pds-editor-paper-inset-x` in prototype-editor.css), which comes off
- * at every pane width, not only while the wrap is still hitting its 720px ceiling. A
- * `max-width` alone only pulls the column in while it would otherwise be wider than 696 —
- * on a pane already narrower than that (a phone), it does nothing and the column reverts
- * to full bleed, 24px wider than the note sharing its stack. The scale below then reads as
- * the *whole* difference between the two papers at 744px, where both start from 720 and
- * only the scale separates them, but as barely any difference at all on a phone, where the
- * column had already given up its 24px for free. `min(cap, 100% - 24px)` — the same shape
- * already used for the edge-row and the shadow-strip below — keeps the reduction constant
- * down to the smallest panes instead of losing it once the ceiling stops being the binding
- * constraint.
+ * Both now carry the narrow gutter inside their own `max-width`
+ * (`min(column, 100% - 2 x --pds-paper-column-gutter-narrow)`), from the same token, at
+ * every pane width. There is no longer a route by which they can differ, so there is
+ * nothing left to match here. The stack chrome below uses that identical expression.
  */
-@container pds-paper-stack (max-width: 760px) {
-  .pds-paper-stack__base .pds-reader__column,
-  .pds-paper-stack__sheet .pds-reader__column {
-    width: calc(100% - 24px);
-    max-width: calc(var(--pds-paper-column) - 24px);
+/*
+ * Both papers grow together, and so does everything drawn to their edges.
+ *
+ * The stack's own chrome — the edge row, the shadow strip, the collapse button — is sized
+ * from `--pds-paper-column`, not measured from the sheets. Widening the papers inside their
+ * own containers and stopping there would have left that chrome at 720 while the sheets
+ * reached 816: a band and a shadow ending 48px short of the paper they belong to. Restating
+ * the growth on the two layers puts one value on the whole stack, so the sheets and the
+ * chrome cannot disagree.
+ *
+ * One level in rather than on `.pds-paper-stack` itself, because an element cannot read its
+ * own container units — the value has to be computed inside the container and inherit out
+ * from there, which also reaches the `::before` shadow strips on the layers.
+ *
+ * `> *` rather than the two layers by name, because the chrome is not inside them: the edge
+ * rows and the collapse button are siblings of `__base` and `__sheet`, not descendants.
+ * Naming the layers left the edge row on the 720px floor while the sheet went to 816 — a
+ * band ending 48px short of the paper it belongs to. Every direct child sits in the
+ * container and so resolves the same `100cqi`, and a child added later is covered too.
+ *
+ * The scale that says depth is a transform, which does not change layout width, so both
+ * layers measure the same `100cqi` and the two papers stay identical. That is the whole
+ * constraint of the stack: a width mismatch reads as the depth scale being broken.
+ */
+@container pds-paper-stack (min-width: 832px) {
+  .pds-paper-stack > * {
+    --pds-paper-column: clamp(
+      var(--pds-paper-column-min),
+      100cqi - 2 * var(--pds-paper-column-gutter),
+      var(--pds-paper-column-max)
+    );
+    --pds-editor-paper-padding-x: calc(
+      (var(--pds-paper-column) - var(--pds-paper-measure)) / 2
+    );
   }
 }
 
@@ -19319,22 +19365,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      compensate for is now taken out of the base's own transform instead. */
   top: 0;
   left: 50%;
-  width: min(var(--pds-paper-column), 100%);
+  width: min(var(--pds-paper-column), 100% - 2 * var(--pds-paper-column-gutter-narrow));
   transform: translateX(-50%);
   z-index: var(--pds-z-sticky);
   height: var(--pds-paper-stack-peek);
-}
-
-/* Same 24px the papers give up at a narrow pane (see "Both papers, the same width" above,
-   and the matching shadow-strip override below). This edge IS one of those two papers,
-   peeking — at 687px measured on a real note-over-reader stack the row still ran the full
-   687px while the note's own `.proto-editor-paper` had already narrowed to 663px, so the
-   peek read as wider than the paper it belonged to instead of the same sheet continuing
-   underneath it. */
-@container pds-paper-stack (max-width: 760px) {
-  .pds-paper-stack__edge-row {
-    width: min(calc(var(--pds-paper-column) - 24px), 100% - 24px);
-  }
 }
 
 .pds-paper-stack__edge {
@@ -19539,21 +19573,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   top: 0;
   left: 50%;
   translate: -50% 0;
-  width: min(var(--pds-paper-column), 100% - 24px);
+  width: min(var(--pds-paper-column), 100% - 2 * var(--pds-paper-column-gutter-narrow));
   height: 0;
   box-shadow: 0 -4px 14px -3px rgb(0 0 0 / 0.22);
   pointer-events: none;
-}
-
-/* Same 24px the papers give up at a narrow pane (see the width match above), so the strip
-   keeps ending where the paper ends. */
-@container pds-paper-stack (max-width: 760px) {
-  .pds-paper-stack:not([data-origin-kind='noteDock'])
-    .pds-paper-stack__sheet[data-stacked='true']::before,
-  .pds-paper-stack:has(.pds-paper-stack__sheet[data-stacked='false'])
-    .pds-paper-stack__base::before {
-    width: min(calc(var(--pds-paper-column) - 24px), 100% - 24px);
-  }
 }
 
 /*
@@ -19661,7 +19684,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   top: var(--pds-space-4);
   right: max(
     var(--pds-space-3),
-    calc(50% - min(var(--pds-paper-column), 100%) / 2 + var(--pds-space-4))
+    calc(
+      50% - min(var(--pds-paper-column), 100% - 2 * var(--pds-paper-column-gutter-narrow)) / 2 +
+        var(--pds-space-4)
+    )
   );
   z-index: calc(var(--pds-z-dropdown) + 1);
 }

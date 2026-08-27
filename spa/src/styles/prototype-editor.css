@@ -88,25 +88,49 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  max-width: 720px;
+  /* The column, or as much of it as the pane can hold while keeping the narrow gutter
+     clear on both sides. One expression for the whole range: see the gutter tokens. */
+  max-width: min(
+    var(--pds-paper-column),
+    100% - 2 * var(--pds-paper-column-gutter-narrow)
+  );
   margin: 0 auto;
   width: 100%;
   /* Lined up with sidebar search (see --pds-editor-paper-inset-top) */
-  padding: var(--pds-editor-paper-inset-top) var(--pds-editor-paper-inset-x) 0;
+  padding: var(--pds-editor-paper-inset-top) 0 0;
 }
 
-/* Keep paper off the column edges when the editor pane is narrow (mobile, inspector open, etc.) */
-@container proto-editor-scroll (max-width: 760px) {
+/*
+ * The sheet grows on a wide pane; the text does not.
+ *
+ * Capped at 720, the paper was only 64px wider than the words on it — a card behind the
+ * text rather than a page around it. Above 832px of pane there is room to spare, so the
+ * sheet takes it and spends all of it on its own margins: the measure stays 656px (the
+ * padding is derived from the column in prototype-tokens.css), so no line ever rewraps
+ * while the window resizes. Only the paper around the text is new.
+ *
+ * Gated on a container query rather than written straight into the token, and this is the
+ * part that matters. `100cqi` means "the nearest ancestor query container", resolved
+ * wherever the value is *read* — not where it was written. `.proto-editor-paper` is also
+ * used as a bare fixture in the design-system gallery with no container above it at all,
+ * where `cqi` would silently fall back to the viewport and give a 460px frame 80px of
+ * padding on each side. A container query cannot match when its container is absent, so
+ * gating this way leaves every such consumer on the 720px floor by construction.
+ *
+ * Repeated for the reader and the paper stack (both in prototype-components.css) instead
+ * of hoisted, for the same reason: each has to be read inside its own pane's container.
+ */
+@container proto-editor-scroll (min-width: 832px) {
   .proto-editor-content-wrap,
   .proto-editor-loading-wrap {
-    --pds-editor-paper-inset-x: 12px;
-  }
-}
-
-@container proto-editor-scroll (max-width: 480px) {
-  .proto-editor-content-wrap,
-  .proto-editor-loading-wrap {
-    --pds-editor-paper-inset-x: 12px;
+    --pds-paper-column: clamp(
+      var(--pds-paper-column-min),
+      100cqi - 2 * var(--pds-paper-column-gutter),
+      var(--pds-paper-column-max)
+    );
+    --pds-editor-paper-padding-x: calc(
+      (var(--pds-paper-column) - var(--pds-paper-measure)) / 2
+    );
   }
 }
 
@@ -200,10 +224,14 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  max-width: 720px;
+  /* Same column as the real paper above, or the sheet changes width as the note loads. */
+  max-width: min(
+    var(--pds-paper-column),
+    100% - 2 * var(--pds-paper-column-gutter-narrow)
+  );
   margin: 0 auto;
   width: 100%;
-  padding: var(--pds-editor-paper-inset-top) var(--pds-editor-paper-inset-x) 0;
+  padding: var(--pds-editor-paper-inset-top) 0 0;
 }
 
 .proto-editor-loading-inner {
