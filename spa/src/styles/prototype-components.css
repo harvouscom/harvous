@@ -549,10 +549,19 @@
   z-index: 1;
 }
 
+/*
+ * Same gap as `.proto-toolbar-left`, on purpose.
+ *
+ * This was 20px, which set the note-actions orb adrift between the centre chip and the
+ * panel/profile orbs — near enough to neither to belong to either. The left side has never
+ * had that problem: its sidebar orb sits one 6px gap from the note/Bible segment and reads
+ * as part of the same cluster. Matching the number is what makes the two ends of the
+ * toolbar look like the same toolbar.
+ */
 .proto-toolbar-right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 6px;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
@@ -1258,9 +1267,12 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
     gap: 6px;
   }
 
-  .proto-toolbar-right {
-    gap: 8px;
-  }
+  /*
+   * `.proto-toolbar-right` used to be narrowed to 8px here, back when its base gap was 20px
+   * and phones needed the room. The base is 6px now, so that override would have made the
+   * gap *wider* on the narrowest screens than on a desktop — the opposite of what this
+   * block is for. Nothing replaces it: 6px is already the phone-friendly number.
+   */
 
   /*
    * The chip takes its turn in the row instead of lying across it.

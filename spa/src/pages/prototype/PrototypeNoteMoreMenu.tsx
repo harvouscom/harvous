@@ -352,7 +352,7 @@ export default function PrototypeNoteMoreMenu({
           }
           onClick={() => setOpen((x) => !x)}
         >
-          <Icon name="ellipsis" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
+          <Icon name="ellipsis-vertical" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
           {overflowActions && isPublic ? (
             <span className="proto-toolbar-icon-btn__share-dot" aria-hidden />
           ) : null}

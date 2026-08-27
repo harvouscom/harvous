@@ -49,8 +49,11 @@ export const ONBOARDING_STEP_COPY: readonly OnboardingStepCopy[] = [
     meta: 'A thought, a question, anything.',
   },
   {
+    // The same glyph the sidebar's Scripture list mode uses. A generic link icon said
+    // "hyperlink", which is the mechanism rather than the thing — every other scripture
+    // surface in the app is a scroll, and this row should be recognisable as one of them.
     id: 'pill',
-    icon: 'link',
+    icon: 'scroll',
     title: 'Mention a verse',
     meta: 'Type a reference — it becomes a live link.',
   },
