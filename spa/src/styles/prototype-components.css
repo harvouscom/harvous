@@ -11204,7 +11204,9 @@ html.harvous-prototype-route
 /* Bottom-center deploy/update notice (prototype shell only). */
 .proto-update-toast {
   position: fixed;
-  left: 50%;
+  /* Centred on the main pane when there is one (see `useMainPaneCenter`); the window
+     centre otherwise, which is what the auth and public shells get. */
+  left: var(--proto-toast-center, 50%);
   transform: translateX(-50%);
   bottom: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom));
   z-index: 1000021;
@@ -14271,25 +14273,77 @@ html.harvous-prototype-route
 /* Bar and sheet in one box, so "below the bar" is a fact about the DOM. The sheet is the
    bar's *sibling*, so positioning the bar itself achieved nothing — the sheet anchored to
    whatever positioned ancestor it found next and opened somewhere else entirely. */
-.proto-draft-destination-anchor {
+.proto-note-destination-anchor {
   position: relative;
 }
 
-.proto-draft-destination {
+.proto-note-destination {
   position: absolute;
   top: calc(100% + 2px);
   left: 0;
   z-index: 60;
-  min-width: 208px;
+  min-width: 224px;
+  max-width: 300px;
 }
 
-/* The tick on the destination you are already saving to, held at the trailing edge so the
-   labels stay in one column and the answer is scannable down the right. */
+/* The tick on a destination this note is in, held at the trailing edge so the labels stay
+   in one column and the answer is scannable down the right. Reserves its width whether or
+   not it is ticked, so ticking a row cannot shuffle the column. */
+.proto-note-destination__check,
 .proto-menu-item__trailing {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
+  /* Wide enough for the three-dot indicator, not just the check — otherwise a row
+     jumps sideways the moment it starts waiting on the server. */
+  min-width: 20px;
   color: var(--pds-accent);
+}
+
+/*
+  My Home, a blocked channel, and a row mid-request are all `disabled`, and all three are
+  states to *read* rather than dead controls — so they keep full label contrast and lose
+  only the pointer. The default menu-item disabled treatment dims the text, which made the
+  one row that is always true look like the one row that had failed.
+*/
+.proto-note-destination__row:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.proto-note-destination__row:disabled .proto-menu-item__label {
+  color: var(--pds-text-primary);
+}
+
+/* Blocked rows are the exception: they are an explanation, not a destination. */
+.proto-note-destination__row[aria-selected='false']:disabled .proto-menu-item__label {
+  color: var(--pds-text-muted);
+}
+
+.proto-note-destination__filter {
+  padding: 4px 10px 6px;
+}
+
+.proto-note-destination__filter input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--pds-border);
+  font: inherit;
+  font-size: 13px;
+  /* Inherits the popover's own surface — `--pds-paper` was never defined, so the copy of
+     this input in the old ⋯ submenu had been quietly transparent. */
+  background: transparent;
+  color: var(--pds-text-primary);
+}
+
+.proto-note-destination__hint {
+  margin: 2px 10px 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--pds-text-muted);
 }
 
 /*

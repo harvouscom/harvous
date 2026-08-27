@@ -1,6 +1,16 @@
 /**
- * Note toolbar "more" menu — pin and delete (native MacNoteShareMoreToolbar parity).
- * Note lock/unlock is temporarily disabled.
+ * Note toolbar "more" menu — pin, delete, save-a-copy, and leaving a shared space
+ * (native MacNoteShareMoreToolbar parity). Note lock/unlock is temporarily disabled.
+ *
+ * "Share to a space…" used to live here as a submenu with its own Shared-with / Add-to
+ * lists. It was a second implementation of a question the note itself now answers: the
+ * destination row above the editor (`PrototypeNoteDestinationSheet`) shows every space a
+ * note lives in and toggles them directly. Two controls writing the same associations is
+ * exactly how they drift — this one had already fallen behind the server on who may post
+ * to a ministry channel — so this menu no longer adds notes to spaces.
+ *
+ * `Remove from this space` stays: it is scoped to the space you are *reading in*, which
+ * this menu knows and the row deliberately does not treat as special.
  */
 import { useEffect, useMemo, useState, type RefObject } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -12,34 +22,18 @@ import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSaveNoteCopy } from '../../hooks/mutations/useCopyNotesToSpace';
-import {
-  useAssociateNoteWithSpace,
-  useRemoveNoteFromSpace,
-} from '../../hooks/mutations/useSpaceNoteAssociation';
+import { useRemoveNoteFromSpace } from '../../hooks/mutations/useSpaceNoteAssociation';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
-import { useNavigation, type NavSpace } from '../../hooks/queries/useNavigation';
-import { useProfile } from '../../hooks/queries/useProfile';
-import { isPersonalSharedSpace } from '../../lib/church-settings';
-import {
-  noteSpaceBlockedReasonLabel,
-  resolveNoteSpaceMembershipRows,
-} from '../../lib/shared-note-membership';
-import {
-  normalizeSharedSpaceSwitcherId,
-  orderSwitcherSpaces,
-} from '../../lib/shared-space-switcher-order';
 import { PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoPopoverShell from './ProtoPopoverShell';
-import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { noteParamSlug } from './proto-route-slugs';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import { toastError } from '../../lib/error-copy';
 import {
   DELETE_NOTE_EVERYWHERE_CONFIRMATION,
   REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
-  RESHARE_NOTE_CONFIRMATION_COPY,
 } from './proto-destructive-copy';
 
 interface CachedSpaceNotesPage {
@@ -47,7 +41,6 @@ interface CachedSpaceNotesPage {
 }
 
 // Copy lives in proto-destructive-copy.ts; re-exported so existing importers still work.
-export const RESHARE_NOTE_CONFIRMATION = RESHARE_NOTE_CONFIRMATION_COPY;
 export const REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION = REMOVE_NOTE_FROM_SPACE_CONFIRMATION;
 export const DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION = DELETE_NOTE_EVERYWHERE_CONFIRMATION;
 
@@ -83,12 +76,6 @@ export interface PrototypeNoteMoreMenuProps {
   currentSharedSpaceTitle?: string;
   canRemoveFromCurrentSpace?: boolean;
   canPin?: boolean;
-  /** The note's live associations (`note.spaces`) — decides added vs addable. */
-  noteSpaces?: { id: string; title: string }[];
-  /** Non-authors must save an attributed copy instead of sharing onward. */
-  isOwnNote?: boolean;
-  /** Locked notes are refused by the server; don't offer them as addable. */
-  contentEncrypted?: boolean;
   onFind?: () => void;
   onShare?: () => void;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -106,9 +93,6 @@ export default function PrototypeNoteMoreMenu({
   currentSharedSpaceTitle,
   canRemoveFromCurrentSpace = false,
   canPin = true,
-  noteSpaces,
-  isOwnNote = true,
-  contentEncrypted = false,
   onFind,
   onShare,
   menuButtonRef,
@@ -117,71 +101,14 @@ export default function PrototypeNoteMoreMenu({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
   const [pinOverride, setPinOverride] = useState<boolean | null>(null);
-  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
-  const [pendingAddTarget, setPendingAddTarget] = useState<{
-    spaceId: string;
-    title?: string;
-    anchorRect: DOMRect;
-  } | null>(null);
   const [removeConfirmRect, setRemoveConfirmRect] = useState<DOMRect | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { closeDrawer, isMobileSidebar } = useProtoShell();
   const pinNote = usePinSpaceNote();
   const deleteNote = useDeleteNote();
-  const associateWithSpace = useAssociateNoteWithSpace();
   const removeFromSpace = useRemoveNoteFromSpace();
   const saveCopy = useSaveNoteCopy();
-  const { data: nav } = useNavigation();
-  const { data: profile } = useProfile();
-
-  /** Same personal Shared Spaces list + preference order as the space switcher. */
-  const personalSharedTargets = useMemo(() => {
-    const byId = new Map<string, NavSpace>();
-    for (const s of nav?.spaces ?? []) {
-      if (isPersonalSharedSpace(s)) byId.set(normalizeSharedSpaceSwitcherId(s.id), s);
-    }
-    for (const s of nav?.memberOfSpaces ?? []) {
-      if (isPersonalSharedSpace(s)) byId.set(normalizeSharedSpaceSwitcherId(s.id), s);
-    }
-    return orderSwitcherSpaces([...byId.values()], profile?.sharedSpaceSwitcherOrder);
-  }, [nav?.spaces, nav?.memberOfSpaces, profile?.sharedSpaceSwitcherOrder]);
-
-  /**
-   * Split candidates by real membership. Previously every personal shared space
-   * was offered as a target regardless of whether the note was already in it, so
-   * picking one hit a server no-op and still toasted "Added to …".
-   */
-  const membershipRows = useMemo(
-    () =>
-      resolveNoteSpaceMembershipRows({
-        candidateSpaces: personalSharedTargets,
-        associatedSpaceIds: (noteSpaces ?? []).map((s) => s.id),
-        currentSharedSpaceId,
-        isOwnNote,
-        contentEncrypted,
-      }),
-    [personalSharedTargets, noteSpaces, currentSharedSpaceId, isOwnNote, contentEncrypted],
-  );
-
-  const sharedSpaceTargets = membershipRows;
-  const showCopySpaceSearch = membershipRows.length > 5;
-  const [copySpaceFilter, setCopySpaceFilter] = useState('');
-
-  const filteredSharedTargets = useMemo(() => {
-    const q = copySpaceFilter.trim().toLowerCase();
-    if (!q) return membershipRows;
-    return membershipRows.filter((row) => row.space.title.toLowerCase().includes(q));
-  }, [copySpaceFilter, membershipRows]);
-
-  const addedRows = useMemo(
-    () => filteredSharedTargets.filter((row) => row.state === 'added'),
-    [filteredSharedTargets],
-  );
-  const addableRows = useMemo(
-    () => filteredSharedTargets.filter((row) => row.state !== 'added'),
-    [filteredSharedTargets],
-  );
 
   const pinnedFromCache = useMemo(
     () => readNotePinnedFromCache(queryClient, spaceId, noteId),
@@ -193,55 +120,12 @@ export default function PrototypeNoteMoreMenu({
     setPinOverride(null);
   }, [noteId]);
 
-  useEffect(() => {
-    if (!open) {
-      setCopyMenuOpen(false);
-      if (!pendingAddTarget) setCopySpaceFilter('');
-    }
-  }, [open, pendingAddTarget]);
-
   /**
    * The ⋯ trigger's wrapper, which `.proto-menu__popover--right` positions against.
    * Confirms opened from the menu anchor here so they take over the menu's slot rather
    * than stacking below whichever item was clicked.
    */
   const menuSlotRect = () => rootRef.current?.getBoundingClientRect() ?? null;
-
-  const requestAddToSpace = (targetSpaceId: string, targetTitle?: string) => {
-    const anchorRect = menuSlotRect();
-    setOpen(false);
-    setCopyMenuOpen(false);
-    if (!anchorRect) return;
-    setPendingAddTarget({ anchorRect, spaceId: targetSpaceId, title: targetTitle });
-  };
-
-  const onAddToSpaceConfirm = () => {
-    if (!pendingAddTarget) return;
-    const { spaceId: targetSpaceId, title: targetTitle } = pendingAddTarget;
-    associateWithSpace.mutate(
-      { spaceId: targetSpaceId, noteId },
-      {
-        onSuccess: (response) => {
-          setPendingAddTarget(null);
-          setCopySpaceFilter('');
-          const where = targetTitle ?? 'space';
-          // Report what actually happened. The endpoint is idempotent, so a repeat
-          // pick used to claim success for work the server skipped.
-          if (response?.alreadyAssociated) {
-            toast.success(`Already shared with ${where}`);
-          } else if (response?.reactivated) {
-            toast.success(`Added back to ${where} — earlier responses are back`);
-          } else {
-            toast.success(targetTitle ? `Added to ${targetTitle}` : 'Added to space');
-          }
-        },
-        onError: (err) => {
-          setPendingAddTarget(null);
-          toastError(err, 'Could not add note');
-        },
-      },
-    );
-  };
 
   const onRemoveFromCurrentSpace = () => {
     if (!currentSharedSpaceId) return;
@@ -346,7 +230,6 @@ export default function PrototypeNoteMoreMenu({
           disabled={
             pinNote.isPending ||
             deleteNote.isPending ||
-            associateWithSpace.isPending ||
             removeFromSpace.isPending ||
             saveCopy.isPending
           }
@@ -449,113 +332,6 @@ export default function PrototypeNoteMoreMenu({
                 </span>
                 <span className="proto-menu-item__label">{pinned ? 'Unpin note' : 'Pin note'}</span>
               </button> : null}
-              {sharedSpaceTargets.length > 0 ? (
-                copyMenuOpen ? (
-                  <>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="proto-menu-item"
-                      onClick={() => {
-                        setCopyMenuOpen(false);
-                        setCopySpaceFilter('');
-                      }}
-                    >
-                      <span className="proto-menu-item__icon" aria-hidden>
-                        <Icon name="caret-left" size={iconSize} />
-                      </span>
-                      <span className="proto-menu-item__label">Share to a space…</span>
-                    </button>
-                    {showCopySpaceSearch ? (
-                      <div style={{ padding: '4px 10px 6px' }}>
-                        <input
-                          type="search"
-                          value={copySpaceFilter}
-                          onChange={(e) => setCopySpaceFilter(e.target.value)}
-                          placeholder="Filter spaces…"
-                          aria-label="Filter spaces"
-                          style={{
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            padding: '6px 8px',
-                            borderRadius: 8,
-                            border: '1px solid var(--pds-border)',
-                            font: 'inherit',
-                            fontSize: 13,
-                          }}
-                        />
-                      </div>
-                    ) : null}
-                    {addedRows.length > 0 ? (
-                      <p className="proto-menu-section-label">Shared with</p>
-                    ) : null}
-                    {addedRows.map(({ space }) => (
-                      <button
-                        key={space.id}
-                        type="button"
-                        role="menuitem"
-                        className="proto-menu-item"
-                        title={`${space.title} — already shared here`}
-                        disabled
-                      >
-                        <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
-                          <ProtoSpaceMenuIcon color={space.color || 'paper'} />
-                        </span>
-                        <span className="proto-menu-item__label">{space.title}</span>
-                        <span className="proto-menu-item__trail" aria-hidden>
-                          <Icon name="check" size={iconSize} />
-                        </span>
-                      </button>
-                    ))}
-                    {addedRows.length > 0 && addableRows.length > 0 ? (
-                      <p className="proto-menu-section-label">Add to</p>
-                    ) : null}
-                    {addableRows.map(({ space, state, reason }) => {
-                      const blocked = state === 'blocked';
-                      return (
-                        <button
-                          key={space.id}
-                          type="button"
-                          role="menuitem"
-                          className="proto-menu-item"
-                          title={
-                            blocked && reason ? noteSpaceBlockedReasonLabel(reason) : space.title
-                          }
-                          disabled={blocked || associateWithSpace.isPending}
-                          onClick={() => requestAddToSpace(space.id, space.title)}
-                        >
-                          <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
-                            <ProtoSpaceMenuIcon color={space.color || 'paper'} />
-                          </span>
-                          <span className="proto-menu-item__label">{space.title}</span>
-                        </button>
-                      );
-                    })}
-                    {showCopySpaceSearch && copySpaceFilter.trim() && filteredSharedTargets.length === 0 ? (
-                      <p className="proto-space-switcher__empty-hint">No spaces match your search.</p>
-                    ) : null}
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="proto-menu-item"
-                    onClick={() => setCopyMenuOpen(true)}
-                  >
-                    <span className="proto-menu-item__icon" aria-hidden>
-                      <Icon name="copy" size={iconSize} />
-                    </span>
-                    <span className="proto-menu-item__label">Share to a space…</span>
-                  </button>
-                )
-              ) : (
-                <button type="button" role="menuitem" className="proto-menu-item" disabled title="Create or join a shared space first">
-                  <span className="proto-menu-item__icon" aria-hidden>
-                    <Icon name="copy" size={iconSize} />
-                  </span>
-                  <span className="proto-menu-item__label">Share to a space…</span>
-                </button>
-              )}
               {currentSharedSpaceId && canRemoveFromCurrentSpace ? (
                 <button
                   type="button"
@@ -615,21 +391,6 @@ export default function PrototypeNoteMoreMenu({
               setDeleteConfirmOpen(false);
               setDeleteAnchorRect(null);
             }
-          }}
-        />
-      ) : null}
-      {pendingAddTarget ? (
-        <ProtoConfirmDialog
-          anchorRect={pendingAddTarget.anchorRect}
-          alignRight
-          title={RESHARE_NOTE_CONFIRMATION.title}
-          description={RESHARE_NOTE_CONFIRMATION.description}
-          confirmLabel="Add to space"
-          cancelLabel="Cancel"
-          busy={associateWithSpace.isPending}
-          onConfirm={onAddToSpaceConfirm}
-          onCancel={() => {
-            if (!associateWithSpace.isPending) setPendingAddTarget(null);
           }}
         />
       ) : null}

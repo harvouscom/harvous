@@ -84,7 +84,50 @@ export function invalidateSpaceNoteAssociationQueries(
   invalidatePrototypeSpaceDerivedQueries(queryClient, sid);
 }
 
-type AssociationInput = { spaceId: string; noteId: string };
+type AssociationInput = {
+  spaceId: string;
+  noteId: string;
+  /**
+   * Used only to paint the note-detail cache optimistically, so the destination row ticks
+   * on the click rather than a refetch later. The server is still the source of truth —
+   * the invalidation right after replaces whatever this wrote.
+   */
+  spaceTitle?: string;
+  spaceType?: string;
+};
+
+/**
+ * Patch `note.spaces` across every cached read of one note.
+ *
+ * Prefix-matched because a note is cached once per read context (`['note', id]` for My
+ * Home, `['note', id, spaceId]` inside a space) and an association is true in all of them.
+ *
+ * Exists because the destination row renders from this array: without it, ticking a space
+ * left the row unticked and the label stale for a whole round-trip, which reads as a
+ * control that did nothing.
+ */
+export function patchNoteDetailSpaces(
+  queryClient: QueryClient,
+  noteId: string,
+  update: (spaces: NoteDetailSpace[]) => NoteDetailSpace[],
+): void {
+  queryClient.setQueriesData<{ spaces?: NoteDetailSpace[] } | undefined>(
+    { queryKey: ['note', noteId] },
+    (current) => {
+      // `undefined` spaces means "not loaded", which is not the same as "no spaces" —
+      // inventing an array here would claim an audience we have not read.
+      if (!current || !Array.isArray(current.spaces)) return current;
+      return { ...current, spaces: update(current.spaces) };
+    },
+  );
+}
+
+interface NoteDetailSpace {
+  id: string;
+  title: string;
+  coEditEnabled: boolean;
+  spaceType?: string;
+}
 type AssociationResponse = {
   success: boolean;
   noteId: string;
@@ -105,6 +148,19 @@ export function useAssociateNoteWithSpace() {
     },
     onSuccess: (response, input) => {
       const sid = normalizeAssociationSpaceId(input.spaceId);
+      patchNoteDetailSpaces(queryClient, input.noteId, (spaces) =>
+        spaces.some((space) => normalizeAssociationSpaceId(space.id) === sid)
+          ? spaces
+          : [
+              ...spaces,
+              {
+                id: sid,
+                title: input.spaceTitle ?? 'Shared space',
+                coEditEnabled: false,
+                spaceType: input.spaceType ?? 'shared',
+              },
+            ],
+      );
       const source = findSpaceNoteRowInCache(queryClient, input.noteId);
       if (source) {
         prependSpaceNoteToCache(queryClient, sid, buildOptimisticAssociatedSpaceNote(source));
@@ -175,10 +231,15 @@ export function useRemoveNoteFromSpace() {
       await queryClient.cancelQueries({ queryKey: spaceNotesQueryKey(sid) });
       const previous = snapshotSpaceNotesCaches(queryClient, sid);
       removeSpaceNoteFromCache(queryClient, sid, input.noteId);
+      patchNoteDetailSpaces(queryClient, input.noteId, (spaces) =>
+        spaces.filter((space) => normalizeAssociationSpaceId(space.id) !== sid),
+      );
       return { sid, previous };
     },
-    onError: (_error, _input, context) => {
+    onError: (_error, input, context) => {
       restoreSpaceNotesCaches(queryClient, context?.previous);
+      // Put the association back on screen; the refetch below confirms it.
+      void queryClient.invalidateQueries({ queryKey: ['note', input.noteId] });
     },
     onSuccess: (_response, input) => {
       invalidateSpaceNoteAssociationQueries(queryClient, input.spaceId, input.noteId, {

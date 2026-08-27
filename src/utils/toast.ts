@@ -97,10 +97,26 @@ function showError(message: string, options: ShowErrorToastOptions = {}): void {
 }
 
 // Toast utility functions that can be used from anywhere
+/** An optional single affordance on a success toast — today, Undo. */
+export interface ShowSuccessToastOptions {
+  action?: { label: string; onAction: () => void };
+}
+
 export const toast = {
-  success: (message: string) => {
+  success: (message: string, options?: ShowSuccessToastOptions) => {
     const cleanedMessage = stripPunctuation(message);
-    safeToast(() => sonnerToast.success(cleanedMessage, { icon: null, duration: 4000 }), 'success', cleanedMessage);
+    const action = options?.action;
+    safeToast(
+      () =>
+        sonnerToast.success(cleanedMessage, {
+          icon: null,
+          duration: 4000,
+          ...(action ? { action: { label: action.label, onClick: action.onAction } } : {}),
+        }),
+      'success',
+      cleanedMessage,
+      action ? { action: { label: action.label, onAction: action.onAction } } : undefined,
+    );
   },
   
   error: (message: string, options?: ShowErrorToastOptions) => {

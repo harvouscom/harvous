@@ -522,9 +522,6 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 }
                 canRemoveFromCurrentSpace={contextualCapabilities.canRemove}
                 canPin={contextualCapabilities.canPin}
-                noteSpaces={toolbarNote?.spaces}
-                isOwnNote={toolbarNote?.isOwnNote !== false}
-                contentEncrypted={toolbarNote?.contentEncrypted === true}
                 overflowActions={isMobileSidebar}
                 isPublic={!!toolbarNote?.isPublic}
                 readOnlyForeign={readOnlyForeignNote}

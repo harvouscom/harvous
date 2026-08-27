@@ -28,7 +28,9 @@ import {
 import PassageContextStrip, { primePassageContextCache } from '@/components/react/PassageContextStrip';
 import PrototypeReaderInspectorPane from '../../prototype/PrototypeReaderInspectorPane';
 import PrototypeNoteAudienceBar from '../../prototype/PrototypeNoteAudienceBar';
-import PrototypeDraftDestinationSheet from '../../prototype/PrototypeDraftDestinationSheet';
+import PrototypeNoteDestinationSheet, {
+  type NoteDestination,
+} from '../../prototype/PrototypeNoteDestinationSheet';
 import PrototypeTranslationRow, {
   type TranslationRowState,
 } from '../../prototype/settings/PrototypeTranslationRow';
@@ -1125,17 +1127,38 @@ function TranslationRowScene() {
  * as it existed: there was no scene, so the only way to see it was to open a real compose
  * session inside a real shared space. The control and its sheet are both presentational,
  * so both can simply be looked at here.
+ *
+ * The interesting state to look at is the multi-select one: My Home ticked and inert, one
+ * or more shared spaces ticked beside it, and a blocked row that stays visible rather than
+ * being filtered out of the list.
  */
 function NoteAudienceBarScene() {
   const [open, setOpen] = useState(false);
-  const [destination, setDestination] = useState<string | null>('space_family');
+  const [added, setAdded] = useState<string[]>(['space_family']);
 
-  const options = [
-    { spaceId: null, label: 'My Home', isHome: true },
-    { spaceId: 'space_family', label: 'Family', isHome: false },
-    { spaceId: 'space_romans', label: 'Romans Study Group', isHome: false },
+  const rows: NoteDestination[] = [
+    { space: null, spaceId: null, title: 'My Home', isHome: true, state: 'added' },
+    ...[
+      { id: 'space_family', title: 'Family' },
+      { id: 'space_romans', title: 'Romans Study Group' },
+    ].map((space) => ({
+      space: { ...space, color: 'paper' } as unknown as NoteDestination['space'],
+      spaceId: space.id,
+      title: space.title,
+      isHome: false,
+      state: (added.includes(space.id) ? 'added' : 'addable') as NoteDestination['state'],
+    })),
+    {
+      space: { id: 'space_youth', title: 'Youth', color: 'paper' } as unknown as NoteDestination['space'],
+      spaceId: 'space_youth',
+      title: 'Youth (channel you follow)',
+      isHome: false,
+      state: 'blocked',
+      reason: 'channel-read-only',
+    },
   ];
-  const label = options.find((o) => o.spaceId === destination)?.label ?? 'My Home';
+  const addedTitles = rows.filter((row) => row.state === 'added').map((row) => row.title);
+  const label = `In ${addedTitles.join(', ')}`;
 
   return (
     <div className="proto-theme" style={{ width: 460, maxWidth: '100%', margin: '0 auto' }}>
@@ -1149,26 +1172,30 @@ function NoteAudienceBarScene() {
         }}
       >
         {/* The anchor box the note page wraps these two in. */}
-        <div className="proto-draft-destination-anchor">
+        <div className="proto-note-destination-anchor">
           <PrototypeNoteAudienceBar
             mode="hidden"
-            draftDestinationLabel={`Saving to ${label}`}
-            draftDestinationIsHome={destination === null}
+            destinationLabel={label}
+            draftDestinationIsHome={addedTitles.length === 1}
             onOpenDestination={() => setOpen((v) => !v)}
           />
-          <PrototypeDraftDestinationSheet
+          <PrototypeNoteDestinationSheet
             open={open}
-            options={options}
-            currentSpaceId={destination}
-            onChoose={(d) => setDestination(d.spaceId)}
-            onDismiss={() => setOpen(false)}
+            rows={rows}
+            onToggle={(destination, next) =>
+              setAdded((prev) =>
+                next
+                  ? [...prev, destination.spaceId ?? '']
+                  : prev.filter((id) => id !== destination.spaceId),
+              )
+            }
           />
         </div>
         <p className="pds-list-title" style={{ marginTop: 18 }}>Title</p>
       </div>
 
       <p className="pds-caption" style={{ marginTop: 12, textAlign: 'center' }}>
-        Tap the destination to retarget the draft. Below: the same slot, saved-note register.
+        Tick as many spaces as the note belongs in. Below: the same slot, foreign-note register.
       </p>
 
       <div

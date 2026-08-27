@@ -62,6 +62,31 @@ export function canAuthorInSpace(space: Pick<SpaceRow, 'type'>, role: SpaceRole)
   }
 }
 
+/**
+ * Whether a note's shared-space associations must be collapsed to the one space being
+ * read in, rather than reported in full.
+ *
+ * The privacy rule: a member reading a note inside one space must not learn the author's
+ * *other* audiences. Which spaces you have shared something into is yours to know.
+ *
+ * The author is not a stranger to their own note, though, and this used to fire for them
+ * too — so opening your own note inside a shared space reported exactly one association
+ * and the editor's destination row had nothing to render from.
+ *
+ * Pure and separately tested because it is a disclosure decision: it should be readable
+ * as one rule rather than inferred from a ternary in the middle of a response body.
+ */
+export function shouldCollapseAssociationsToReadContext(input: {
+  /** True when the note is being read inside a shared or public space. */
+  isSharedReadContext: boolean;
+  /** The note's canonical author. */
+  noteAuthorUserId: string;
+  viewerUserId: string;
+}): boolean {
+  if (!input.isSharedReadContext) return false;
+  return input.noteAuthorUserId !== input.viewerUserId;
+}
+
 /** Owner/leader creates folders, threads, and connect-link clusters; members compose and attach. */
 export function canManageSpaceStructure(space: Pick<SpaceRow, 'type'>, role: SpaceRole): boolean {
   if (space.type === 'personal') return role === 'owner';

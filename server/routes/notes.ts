@@ -84,7 +84,13 @@ import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { healScriptureNoteThreadsFromParents } from '../utils/heal-scripture-note-threads';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
-import { requireSpaceAccess, SpaceAccessError, canAuthorInSpace, canManageSpaceStructure } from '../utils/space-access';
+import {
+  requireSpaceAccess,
+  SpaceAccessError,
+  canAuthorInSpace,
+  canManageSpaceStructure,
+  shouldCollapseAssociationsToReadContext,
+} from '../utils/space-access';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
 import { mapStudyRow } from './study-threads';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
@@ -3094,7 +3100,18 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         isShared: readContext.isShared,
         organization: contextOrganization,
       },
-      activeSharedAssociations: readContext.isShared
+      /*
+        `activeAssociationRows` above already scopes the *query* this way — the author
+        selects every shared/public association they are a member of, everyone else gets
+        only the read-context row. The response then threw that away for the author too,
+        which is what left the editor's destination row with nothing to render inside a
+        shared space. See `shouldCollapseAssociationsToReadContext` for the rule.
+      */
+      activeSharedAssociations: shouldCollapseAssociationsToReadContext({
+        isSharedReadContext: readContext.isShared,
+        noteAuthorUserId: note.userId,
+        viewerUserId: auth.userId,
+      })
         ? [
             {
               spaceId: readContext.space.id,

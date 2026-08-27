@@ -21,7 +21,10 @@ export const REMOVE_NOTE_FROM_SPACE_CONFIRMATION = {
   description: 'You keep it in My Home. Replies here are kept and come back if you share it again.',
 } as const;
 
-export const RESHARE_NOTE_CONFIRMATION_COPY = {
-  title: 'Add this note to the selected space?',
-  description: 'Earlier replies can come back. Its Thread, folder, and pin placement will not.',
-} as const;
+/*
+  There is no re-share confirmation any more. Adding a note to a space is a tick in the
+  destination row that undoes with one more tick, so a modal in front of it was friction in
+  front of a reversible act. The one fact that dialog carried and the act does not — that
+  reactivating an old association brings back replies but not placement — moved into the
+  success toast, which is the only moment it is true.
+*/

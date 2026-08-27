@@ -47,9 +47,20 @@ import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeNoteAudienceBar from './PrototypeNoteAudienceBar';
-import PrototypeDraftDestinationSheet, {
-  draftDestinationOptions as buildDraftDestinationOptions,
-} from './PrototypeDraftDestinationSheet';
+import PrototypeNoteDestinationSheet, {
+  type NoteDestination,
+} from './PrototypeNoteDestinationSheet';
+import {
+  noteDestinationLabel,
+  resolveNoteDestinationRows,
+} from '../../lib/shared-note-membership';
+import {
+  useAssociateNoteWithSpace,
+  useRemoveNoteFromSpace,
+} from '../../hooks/mutations/useSpaceNoteAssociation';
+import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
+import { toast } from '@/utils/toast';
+import { toastError } from '../../lib/error-copy';
 import {
   dismissPurpose,
   getComposePurpose,
@@ -281,6 +292,13 @@ export default function PrototypeNotePage() {
       return typeof v === 'string' ? v : undefined;
     },
   });
+  /** `'1'` when a Home "Add a thought" card sent us here — the dock opens on its note field. */
+  const annotateHighlightParam = useRouterState({
+    select: (s) => {
+      const v = (s.location.search as Record<string, unknown>).annotate;
+      return typeof v === 'string' ? v : undefined;
+    },
+  });
   const initialCrossRefTargetSearch = useRouterState({
     select: (s) => {
       const v = (s.location.search as Record<string, unknown>).crossRefTarget;
@@ -424,8 +442,10 @@ export default function PrototypeNotePage() {
       studyThreadEntryId: initialHighlightThread,
       requestKey: dockReq ?? initialHighlightThread,
       metadata: buildHighlightDockOpenMetadataFromStudyThread(row),
+      // "Add a thought" asked for writing, not for looking — open on the note field.
+      focusMiniNote: annotateHighlightParam === '1',
     };
-  }, [initialHighlightThread, note?.studyThreads, dockReq]);
+  }, [initialHighlightThread, note?.studyThreads, dockReq, annotateHighlightParam]);
 
   const initialReferenceRequestKey = initialReferenceWord ? (dockReq ?? initialReferenceWord) : null;
 
@@ -460,7 +480,45 @@ export default function PrototypeNotePage() {
     return secondaries?.length ? secondaries : EMPTY_NOTE_COLLECTIONS;
   }, [isDraft, note?.secondaryCollections]);
 
+  // @ts-expect-error DEBUG-RENDER
+  const __snap: Record<string, unknown> = { pathname, note, nav, libraryData, penHolding: pen.holding, penLeaseActive: pen.leaseActive, penAvailable: pen.available, penObj: pen, coEditProbe, isLoading, isError, personalHomeSpaceId, clerkUser, authUserId, initialScriptureDock, initialHighlightDock, initialResourceDock, initialCrossRefTarget, editorSecondaryCollections, readOnlyInSharedSpace, isForeignSharedNote, noteInSharedSpace, foreignSharedSpaceId, foreignNoteAuthor, isCoEditable, canCoEdit, coEditContributors, coEditEnabledInContext, audienceScope, noteAudience, contextSpaceId, noteId, isDraft, dockReq, spaceSearchParam,
+    selectedSpaceId, inspectorOpen, inspectorExiting, isMobileSidebar, composeDraftActive, composeSeed, composeSessionEpoch, composeTargetSpaceIdOverride, formatToolbarHostEl, studyDockCarouselHostEl, studyThreadPopoverOpen, paperStack, noteSlugFromPath, noteSlugParam,
+    shell_closeInspector: closeInspector, shell_stackNote: stackNote, shell_openInspector: openInspector, shell_setEditorChromeMode: setEditorChromeMode, shell_openDrawer: openDrawer, shell_setStackNoteTitle: setStackNoteTitle, shell_ensureSidebarExpanded: ensureSidebarExpanded };
+  // @ts-expect-error DEBUG-RENDER
+  const __prev = useRef<Record<string, unknown> | null>(null);
+  // @ts-expect-error DEBUG-RENDER
+  if (typeof window !== 'undefined') {
+    // @ts-expect-error DEBUG-RENDER
+    window.__renders = (window.__renders || 0) + 1;
+    const prev = __prev.current;
+    if (prev) {
+      const changed = Object.keys(__snap).filter((k) => !Object.is(prev[k], __snap[k]));
+      // @ts-expect-error DEBUG-RENDER
+      window.__renderLog = window.__renderLog || [];
+      // @ts-expect-error DEBUG-RENDER
+      window.__renderLog.push(changed.join(',') || '(nothing tracked changed)');
+    }
+    __prev.current = __snap;
+  }
+
   const queryClient = useQueryClient();
+  // @ts-expect-error DEBUG-RENDER
+  useEffect(() => {
+    // @ts-expect-error DEBUG-RENDER
+    if (window.__cacheSubbed) return; window.__cacheSubbed = true;
+    // @ts-expect-error DEBUG-RENDER
+    window.__cacheEvents = [];
+    const qc = queryClient.getQueryCache();
+    qc.subscribe((e: { type?: string; query?: { queryKey?: unknown } }) => {
+      // @ts-expect-error DEBUG-RENDER
+      window.__cacheEvents.push([window.__renders, e.type, JSON.stringify(e.query?.queryKey ?? '').slice(0, 70)].join(' :: '));
+    });
+    const mc = queryClient.getMutationCache();
+    mc.subscribe((e: { type?: string }) => {
+      // @ts-expect-error DEBUG-RENDER
+      window.__cacheEvents.push([window.__renders, 'MUT-' + e.type, ''].join(' :: '));
+    });
+  }, [queryClient]);
   const router = useRouter();
   const updateNoteMutation = useUpdateNote();
   const createNoteMutation = useCreateSimpleNote();
@@ -681,52 +739,212 @@ export default function PrototypeNotePage() {
     return match?.title ?? null;
   }, [composeTargetSpaceId, nav?.spaces, nav?.memberOfSpaces]);
 
-  const draftDestinationLabel = useMemo(
-    () =>
-      isDraft
-        ? draftSaveDestinationLabel({
-            targetSpaceId: composeTargetSpaceId,
-            homeSpaceId: personalHomeSpaceId,
-            targetSpaceTitle: composeTargetTitle,
-            threadTitle: composeGroupThreads.find((t) => t.id === resolvedComposeThreadId)?.title,
-          })
-        : null,
-    [
-      isDraft,
-      composeTargetSpaceId,
-      personalHomeSpaceId,
-      composeTargetTitle,
-      composeGroupThreads,
-      resolvedComposeThreadId,
-    ],
-  );
+  const isOwnNote = note?.isOwnNote === true;
+  /*
+    Authorship for the destination row specifically.
 
-  const draftDestinationIsHome = useMemo(
-    () => isDraftSaveDestinationHome({ targetSpaceId: composeTargetSpaceId, homeSpaceId: personalHomeSpaceId }),
-    [composeTargetSpaceId, personalHomeSpaceId],
-  );
+    `isOwnNote` reads it off the loaded note, which a draft does not have — so keying the
+    row off that alone hid it during the one phase where it has always been shown. A draft
+    is by definition being written by the viewer. Kept separate from `isOwnNote` rather
+    than widening it, because the co-edit and pen logic below means "this saved note is
+    mine" and must keep meaning exactly that.
+  */
+  const viewerIsAuthor = isDraft || isOwnNote;
 
   /*
-    Retargeting a draft mid-sentence.
+    Where this note lives.
 
-    Only while it is still a draft: once the note exists, moving it between spaces is a
-    different operation with different consequences (memberships, activity, who can already
-    see it), and the inspector's Shared-with section owns that. This is the cheap case —
-    nothing has been written anywhere yet, so the destination is still just a plan.
+    One control for the whole life of a note. It used to be draft-only and single-select:
+    picking a space *retargeted* the draft, and the moment the note saved the control
+    disappeared entirely. Both were at odds with the storage model, where the canonical row
+    lives in My Home and every shared space is a `SpaceNotes` association on top of it — a
+    note has always been able to live in several places at once.
+
+    `destinationRows` is the same resolver the ⋯ menu's "Share to a space…" submenu used
+    before that submenu was retired, so there is exactly one copy of "which rooms may
+    receive this note" left.
   */
   const [destinationOpen, setDestinationOpen] = useState(false);
-  const draftDestinationOptions = useMemo(
-    () =>
-      buildDraftDestinationOptions({
-        spaces: nav?.spaces ?? [],
-        memberOfSpaces: nav?.memberOfSpaces ?? [],
-        homeSpaceId: personalHomeSpaceId,
-      }),
-    [nav?.spaces, nav?.memberOfSpaces, personalHomeSpaceId],
+  const destinationAnchorRef = useRef<HTMLDivElement>(null);
+  /* Dismiss is anchored to the wrapper rather than the sheet: the trigger lives in there
+     too, so its own toggle keeps working instead of racing an outside-click close. */
+  useDismissOnOutside(destinationAnchorRef, () => setDestinationOpen(false), destinationOpen);
+
+  const associateNoteWithSpace = useAssociateNoteWithSpace();
+  const removeNoteFromSpace = useRemoveNoteFromSpace();
+  /* Read by `persistDraftNote`, whose dependency list is deliberately narrow — a mutation
+     object in there would rebuild the save callback on every render. */
+  const associateNoteWithSpaceRef = useRef(associateNoteWithSpace.mutateAsync);
+  associateNoteWithSpaceRef.current = associateNoteWithSpace.mutateAsync;
+  const [pendingDestinationIds, setPendingDestinationIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
   );
-  /* Offered only when there is somewhere else to go — a viewer in no shared space has one
-     option, and a menu of one is a worse answer than a label. */
-  const canRetargetDraft = isDraft && draftDestinationOptions.length > 1;
+  /*
+    Ticks made before the draft has ever hit the server.
+
+    Autosave turns a draft into a real note quickly, so this set is usually empty — but a
+    space ticked in the first seconds has no note id to associate against yet. It is applied
+    right after create in `persistDraftNote`.
+  */
+  const [pendingDraftSpaceIds, setPendingDraftSpaceIds] = useState<string[]>([]);
+  const pendingDraftSpaceIdsRef = useRef(pendingDraftSpaceIds);
+  pendingDraftSpaceIdsRef.current = pendingDraftSpaceIds;
+  useEffect(() => {
+    if (!isDraft) setPendingDraftSpaceIds([]);
+  }, [isDraft, composeSessionEpoch]);
+
+  const destinationRows = useMemo(() => {
+    const associated = new Set<string>([
+      ...(note?.spaces ?? []).map((space) => space.id),
+      ...pendingDraftSpaceIds,
+      // A draft composed *from* a shared space is already headed there.
+      ...(isDraft && composeTargetSpaceId && composeTargetSpaceId !== personalHomeSpaceId
+        ? [composeTargetSpaceId]
+        : []),
+    ]);
+    return resolveNoteDestinationRows({
+      candidateSpaces: [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
+      associatedSpaceIds: associated,
+      isOwnNote: viewerIsAuthor,
+      contentEncrypted: note?.contentEncrypted === true,
+      viewerUserId: authUserId,
+      homeSpaceId: personalHomeSpaceId,
+    });
+  }, [
+    nav?.spaces,
+    nav?.memberOfSpaces,
+    note?.spaces,
+    note?.contentEncrypted,
+    pendingDraftSpaceIds,
+    isDraft,
+    composeTargetSpaceId,
+    personalHomeSpaceId,
+    viewerIsAuthor,
+    authUserId,
+  ]);
+
+  /* Associations are still in flight. "In My Home" is never a lie — the canonical row is
+     always there — but the *menu* must not draw ticks against a list it can't vouch for. */
+  const destinationsLoading = !isDraft && audienceScope === 'unknown';
+
+  const destinationLabel = useMemo(() => {
+    if (!viewerIsAuthor) return null;
+    if (isDraft) {
+      return draftSaveDestinationLabel({
+        targetSpaceId: composeTargetSpaceId,
+        homeSpaceId: personalHomeSpaceId,
+        targetSpaceTitle: composeTargetTitle,
+        threadTitle: composeGroupThreads.find((t) => t.id === resolvedComposeThreadId)?.title,
+      });
+    }
+    return noteDestinationLabel(destinationRows);
+  }, [
+    viewerIsAuthor,
+    isDraft,
+    composeTargetSpaceId,
+    personalHomeSpaceId,
+    composeTargetTitle,
+    composeGroupThreads,
+    resolvedComposeThreadId,
+    destinationRows,
+  ]);
+
+  const destinationIsHome = useMemo(
+    () => destinationRows.every((row) => row.state !== 'added' || row.isHome),
+    [destinationRows],
+  );
+
+  /* Offered whenever there is somewhere else this note could go. A viewer in no shared
+     space has one row, and a menu of one is a worse answer than a plain label. */
+  const canOpenDestinations = viewerIsAuthor && destinationRows.length > 1;
+
+  const handleToggleDestination = useCallback(
+    (destination: NoteDestination, nextChecked: boolean) => {
+      const spaceId = destination.spaceId;
+      // My Home is not a toggle: a note's canonical row *is* its Home row.
+      if (!spaceId) return;
+
+      const targetNoteId = adoptedComposeIdRef.current || persistedDraftIdRef.current || (isDraft ? null : noteId);
+      if (!targetNoteId) {
+        /* Nothing on the server yet. Record the intent; `persistDraftNote` applies it the
+           moment the note exists. */
+        setPendingDraftSpaceIds((prev) =>
+          nextChecked ? [...new Set([...prev, spaceId])] : prev.filter((id) => id !== spaceId),
+        );
+        if (nextChecked && !composeTargetSpaceId) setComposeTargetSpaceId(spaceId);
+        else if (!nextChecked && composeTargetSpaceId === spaceId) setComposeTargetSpaceId(null);
+        return;
+      }
+
+      const markPending = (on: boolean) =>
+        setPendingDestinationIds((prev) => {
+          const next = new Set(prev);
+          if (on) next.add(spaceId);
+          else next.delete(spaceId);
+          return next;
+        });
+
+      markPending(true);
+      const settle = () => markPending(false);
+
+      if (nextChecked) {
+        associateNoteWithSpace.mutate(
+          {
+            spaceId,
+            noteId: targetNoteId,
+            spaceTitle: destination.title,
+            spaceType: destination.space?.type ?? 'shared',
+          },
+          {
+            onSuccess: (response) => {
+              settle();
+              // Report what actually happened — the endpoint is idempotent, so a repeat
+              // tick used to claim success for work the server skipped.
+              if (response?.alreadyAssociated) {
+                toast.success(`Already shared with ${destination.title}`);
+                return;
+              }
+              toast.success(
+                response?.reactivated
+                  ? `Added back to ${destination.title} — earlier replies return, placement doesn’t`
+                  : `Added to ${destination.title}`,
+                { action: { label: 'Undo', onAction: () => handleToggleDestination(destination, false) } },
+              );
+            },
+            onError: (err) => {
+              settle();
+              toastError(err, `Could not add to ${destination.title}`);
+            },
+          },
+        );
+        return;
+      }
+
+      removeNoteFromSpace.mutate(
+        { spaceId, noteId: targetNoteId },
+        {
+          onSuccess: () => {
+            settle();
+            toast.success(`Removed from ${destination.title}`, {
+              action: { label: 'Undo', onAction: () => handleToggleDestination(destination, true) },
+            });
+          },
+          onError: (err) => {
+            settle();
+            toastError(err, `Could not remove from ${destination.title}`);
+          },
+        },
+      );
+    },
+    [
+      isDraft,
+      noteId,
+      composeTargetSpaceId,
+      setComposeTargetSpaceId,
+      associateNoteWithSpace,
+      removeNoteFromSpace,
+    ],
+  );
 
   const onHighlightOpenRequestConsumed = useCallback(() => {
     setHighlightOpenRequest(null);
@@ -1423,7 +1641,6 @@ export default function PrototypeNotePage() {
   const foreignSharedAnnotationMode =
     isForeignSharedNote && !isOnboardingReadonly && readOnlyInSharedSpace;
   const isEditable = !readOnlyInSharedSpace && !isOnboardingReadonly;
-  const isOwnNote = note?.isOwnNote === true;
   /**
    * Someone else holds the pen — TipTap follows live body updates and stays
    * non-editable. When the pen is free, allowed writers keep an editable editor
@@ -1757,6 +1974,23 @@ export default function PrototypeNotePage() {
   /** Bumped when the editor loses focus so a focus-bailed open-time reprocess can retry. */
   const [scriptureReprocessFocusTick, setScriptureReprocessFocusTick] = useState(0);
 
+  // @ts-expect-error DEBUG-RENDER2
+  const __snap2: Record<string, unknown> = { adoptedComposeId, draftPersistRemountTick, liveNoteSnapshotState, templatePrefill, templateApplyEpoch, templateProvenance, composeThreadSelection, destinationOpen, pendingDestinationIds, pendingDraftSpaceIds, activeActivityId, purposeDismissals, sharedOverlayContainerEl, sharedOverlayEditor, highlightOpenRequest, scriptureReprocessFocusTick };
+  // @ts-expect-error DEBUG-RENDER2
+  const __prev2 = useRef<Record<string, unknown> | null>(null);
+  // @ts-expect-error DEBUG-RENDER2
+  if (typeof window !== 'undefined') {
+    const prev = __prev2.current;
+    if (prev) {
+      const changed = Object.keys(__snap2).filter((k) => !Object.is(prev[k], __snap2[k]));
+      // @ts-expect-error DEBUG-RENDER2
+      window.__renderLog2 = window.__renderLog2 || [];
+      // @ts-expect-error DEBUG-RENDER2
+      window.__renderLog2.push(changed.join(',') || '(no local state changed)');
+    }
+    __prev2.current = __snap2;
+  }
+
   useEffect(() => {
     if (isDraft || !note || isLoading || note.contentEncrypted) return;
     // Never process list-truncated HTML — that can persist a truncated body to the DB.
@@ -1936,6 +2170,30 @@ export default function PrototypeNotePage() {
             // move the note's version and cannot race the editor's autosave. The personal
             // equivalent is applied by the create above.
             await patchSharedOrganization(createdId, sharedContextSpaceId, collectionExtras);
+          }
+          /*
+            Spaces ticked before the note existed.
+
+            Autosave usually beats the reader to this, so the set is normally empty — but a
+            space ticked in the first seconds of a compose has no note id to associate
+            against. Same shape as the shared-organization patch above: it writes SpaceNotes,
+            not the canonical note, so it cannot race the editor's autosave.
+          */
+          const pendingSpaces = pendingDraftSpaceIdsRef.current.filter(
+            (id) => id && id !== sharedContextSpaceId,
+          );
+          if (pendingSpaces.length > 0) {
+            setPendingDraftSpaceIds([]);
+            await Promise.all(
+              pendingSpaces.map((pendingSpaceId) =>
+                associateNoteWithSpaceRef
+                  .current({ spaceId: pendingSpaceId, noteId: createdId })
+                  // One room refusing the note must not fail the save that already landed.
+                  .catch((err: unknown) => {
+                    console.error('Could not add the new note to a ticked space', err);
+                  }),
+              ),
+            );
           }
           const chipForToolbar = noteFolderChipDisplayState({
             primaryCollection:
@@ -2595,16 +2853,18 @@ export default function PrototypeNotePage() {
                 of the bar, not a child — putting `position: relative` on the bar itself
                 left the sheet anchoring to whatever positioned ancestor it found next.
               */}
-              <div className="proto-draft-destination-anchor">
+              <div className="proto-note-destination-anchor" ref={destinationAnchorRef}>
               {/* Quiet "Shared with …" in My Home; the full pen banner inside a
                   shared space or the moment someone else starts writing. */}
               <PrototypeNoteAudienceBar
                 mode={audienceBarMode}
                 audienceLabel={audienceLabel}
-                draftDestinationLabel={draftDestinationLabel}
-                draftDestinationIsHome={draftDestinationIsHome}
+                destinationLabel={destinationLabel}
+                draftDestinationIsHome={destinationIsHome}
                 onOpenAudience={openInspector}
-                onOpenDestination={canRetargetDraft ? () => setDestinationOpen((v) => !v) : undefined}
+                onOpenDestination={
+                  canOpenDestinations ? () => setDestinationOpen((v) => !v) : undefined
+                }
                 authorDisplayName={foreignNoteAuthor?.displayName ?? note?.authorDisplayName}
                 authorUserId={foreignNoteAuthor?.userId ?? note?.authorUserId ?? note?.userId}
                 authorFirstName={foreignNoteAuthor?.firstName}
@@ -2617,16 +2877,14 @@ export default function PrototypeNotePage() {
                 onPurposeAction={openInspector}
                 onDismissPurpose={handleDismissPurpose}
               />
-              {/* Anchored under the bar it belongs to, and only while the draft can move. */}
-              {canRetargetDraft ? (
-                <PrototypeDraftDestinationSheet
+              {/* Anchored under the bar it belongs to. */}
+              {canOpenDestinations ? (
+                <PrototypeNoteDestinationSheet
                   open={destinationOpen}
-                  options={draftDestinationOptions}
-                  currentSpaceId={
-                    composeTargetSpaceId === personalHomeSpaceId ? null : composeTargetSpaceId
-                  }
-                  onChoose={(destination) => setComposeTargetSpaceId(destination.spaceId)}
-                  onDismiss={() => setDestinationOpen(false)}
+                  rows={destinationRows}
+                  loading={destinationsLoading}
+                  pendingSpaceIds={pendingDestinationIds}
+                  onToggle={handleToggleDestination}
                 />
               ) : null}
               </div>

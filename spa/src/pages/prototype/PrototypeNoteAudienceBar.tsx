@@ -12,8 +12,10 @@ import type { NotePurpose } from '../../lib/compose-purpose';
  *
  * Registers, deliberately sharing the same DOM slot and height:
  *
- *  - `quiet` — reading your own note in My Home. It's shared somewhere, but nobody
- *    is in it, so a pen/lease banner is noise. One subdued line, no co-edit chrome.
+ *  - destination — where this note lives, on any note the viewer authored. The one
+ *    control that answers "which spaces is this in?", and the one that changes it.
+ *  - `quiet` — a *foreign* note that is shared somewhere but has nobody in it, so a
+ *    pen/lease banner is noise. One subdued line, no co-edit chrome.
  *  - `loud`  — you're in the shared space, or someone actually has the pen. Full
  *    status banner.
  *  - purpose — what this note is *for*, when the author opened it to do a
@@ -24,15 +26,15 @@ import type { NotePurpose } from '../../lib/compose-purpose';
  * quiet and purpose variants only swap colour and trailing affordance. Any layout
  * shift here would jump the caret at the exact moment a collaborator starts writing.
  *
- * Precedence is loud → purpose → destination/quiet. Loud always wins because
+ * Precedence is loud → purpose → destination → quiet. Loud always wins because
  * "someone else has the pen" is the only one of these you cannot afford to miss;
- * purpose outranks the other two because it is the thing the author is actively
+ * purpose outranks the rest because it is the thing the author is actively
  * doing, and it disappears for good once dismissed.
  */
 export default function PrototypeNoteAudienceBar({
   mode,
   audienceLabel,
-  draftDestinationLabel,
+  destinationLabel,
   draftDestinationIsHome = false,
   onOpenAudience,
   onOpenDestination,
@@ -51,13 +53,17 @@ export default function PrototypeNoteAudienceBar({
   mode: NoteEditStatusVisibility;
   /** Copy for the quiet register, e.g. "Shared with Romans Group". */
   audienceLabel?: string | null;
-  /** While composing: where this draft will land, e.g. "Saving to My Home". */
-  draftDestinationLabel?: string | null;
-  /** True when the draft's destination is My Home — swaps the house icon in for the shared-space one. */
+  /**
+   * Where this note lives. Compose-tense while drafting ("Saving to My Home"), present
+   * tense once it exists ("In My Home, Romans Group"). Null for a foreign note, which
+   * falls through to the audience/pen registers below.
+   */
+  destinationLabel?: string | null;
+  /** True when My Home is the only destination — swaps the house icon in for the group one. */
   draftDestinationIsHome?: boolean;
   /** Opens the inspector's Shared-with section. */
   onOpenAudience?: () => void;
-  /** Opens the destination picker for a draft. Absent = the destination is fixed. */
+  /** Opens the destination picker. Absent = the destination is not the viewer's to change. */
   onOpenDestination?: () => void;
   authorDisplayName?: string | null;
   authorUserId?: string | null;
@@ -119,20 +125,22 @@ export default function PrototypeNoteAudienceBar({
     );
   }
 
-  // A draft has no audience yet — it has a destination. Same slot, so the bar
-  // doesn't appear out of nowhere the moment the note saves.
-  if (draftDestinationLabel) {
-    /*
-      Tappable when the caller can retarget the draft, inert when it cannot.
+  /*
+    Where this note lives — on a draft *and* on a saved note.
 
-      This read as a label for as long as it existed, which quietly made the
-      destination a decision you could only make *before* you started writing —
-      open compose from a shared space and there was no way back to your own
-      Home short of abandoning the draft. The shell has been able to retarget an
-      in-progress draft the whole time (`setComposeTargetSpaceId`); nothing ever
-      called it. Same chevron and the same "this opens something" grammar as the
-      audience control below, because it is the same kind of promise.
-    */
+    This branch used to fire only while composing, so the one control that answers "which
+    space is this in?" vanished the moment the note saved, and a note in My Home with no
+    shared spaces never showed it at all. It is the destination register for the whole
+    life of an authored note now, and the quiet "Shared with …" line below is what a
+    *foreign* note falls back to.
+
+    Below `loud`, deliberately. `loud` means someone has the pen or the editor has already
+    gone read-only, and that is the one thing here you cannot afford to miss — so this row
+    yields the slot rather than stacking under it and jumping the caret mid-sentence. The
+    trade is real: inside a co-edit-enabled space the row is unavailable, and the note's
+    destinations are managed from My Home instead.
+  */
+  if (destinationLabel && mode !== 'loud') {
     const icon = draftDestinationIsHome ? (
       <ProtoHouseIcon size={11} className="proto-shared-readonly-banner__icon" />
     ) : (
@@ -144,7 +152,7 @@ export default function PrototypeNoteAudienceBar({
         <div className="proto-shared-readonly-banner proto-shared-readonly-banner--quiet">
           <span className="proto-shared-readonly-banner__status proto-shared-readonly-banner__audience pds-caption">
             {icon}
-            {draftDestinationLabel}
+            {destinationLabel}
           </span>
         </div>
       );
@@ -159,9 +167,10 @@ export default function PrototypeNoteAudienceBar({
           // Don't steal focus from the editor — the author is usually mid-sentence.
           onMouseDown={(e) => e.preventDefault()}
           title="Change where this note is saved"
+          aria-haspopup="listbox"
         >
           {icon}
-          {draftDestinationLabel}
+          {destinationLabel}
           {/*
             Points down, not right. The audience control below goes *somewhere* — it opens
             the inspector — and a right caret says so. This opens a short menu directly

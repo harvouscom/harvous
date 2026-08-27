@@ -38,7 +38,6 @@ import {
 import {
   DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION,
   REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION,
-  RESHARE_NOTE_CONFIRMATION,
 } from '../PrototypeNoteMoreMenu';
 import {
   draftSaveDestinationLabel,
@@ -264,16 +263,10 @@ describe('canonical shared-note action contracts', () => {
       DELETE_CANONICAL_NOTE_CONFIRMATION,
       REMOVE_NOTE_FROM_SPACE_MENU_CONFIRMATION,
       DELETE_NOTE_EVERYWHERE_MENU_CONFIRMATION,
-      RESHARE_NOTE_CONFIRMATION,
     ]) {
       expect(copy.description.length).toBeLessThanOrEqual(120);
       expect(copy.description).not.toMatch(/canonical|association|archived/i);
     }
-  });
-
-  it('requires explicit acknowledgment before an association can reactivate responses', () => {
-    expect(RESHARE_NOTE_CONFIRMATION.description).toMatch(/replies can come back/i);
-    expect(RESHARE_NOTE_CONFIRMATION.description).toMatch(/will not/i);
   });
 });
 

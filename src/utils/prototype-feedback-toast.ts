@@ -4,6 +4,15 @@ export type PrototypeFeedbackToastVariant = 'success' | 'error' | 'info' | 'warn
 
 export interface PrototypeFeedbackToastAction {
   label: string;
+  /**
+   * What the action button does. Absent means the legacy behaviour — open the support
+   * sheet — which is what "Get support" on an error toast has always been.
+   *
+   * Carried on a CustomEvent detail, so this is a live function reference rather than
+   * anything serialized; it only ever travels in-process between the caller and the
+   * toast host.
+   */
+  onAction?: () => void;
 }
 
 export interface PrototypeFeedbackToastDetail {
