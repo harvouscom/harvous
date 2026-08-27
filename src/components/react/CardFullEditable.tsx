@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
-import { createPortal } from 'react-dom';
 import { TextSelection } from '@tiptap/pm/state';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
@@ -23,15 +22,11 @@ import Icon from './Icon';
 import SharedNoteCTAFooter from './SharedNoteCTAFooter';
 import LockNoteButton from './LockNoteButton';
 import InlinePinUnlock from './InlinePinUnlock';
-/** Collection-only inline bar (`prototypeNative`); tags are edited in Note Details — same on mobile new-note sheet and Mac web. */
-import NoteProductionActionBar from './NoteProductionActionBar';
 import {
   collectionChromeStatesEqual,
   collectionContextBannerText,
   type CollectionChromeState,
   type WebCollectionNavSource,
-  suggestPrimaryCollectionFromNote,
-  suggestSecondaryCollectionsFromNote,
 } from '@/utils/bible-study-collection-web';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isPrototypeNoteEditorFocused } from '@/utils/prototype-editor-focused';
@@ -248,10 +243,6 @@ interface CardFullEditableProps {
   onActiveHighlightEntryChange?: (entryId: string | null) => void;
   /** Prototype-only: native-like editor chrome (format vs scripture vs note action bar). */
   editorChromeMode?: 'default' | 'prototypeNative';
-  /** Shown when prototype bottom mode is `noteActions` (below editor, above save/cancel).
-   *  Ignored when `formatToolbarPortalTarget` is set — parent renders the bar at column level.
-   */
-  prototypeNoteActionBar?: React.ReactNode;
   /** Prototype-only: when set, the format toolbar is portaled into this element so the
    *  parent can render bars (format / note actions) as siblings of the scroll container,
    *  pinned to the bottom of the editor column. */
@@ -259,8 +250,8 @@ interface CardFullEditableProps {
   /** Prototype-only: bubbles up the current bottom chrome mode (format / scripture / highlight / search / noteActions / hidden). */
   onPrototypeChromeModeChange?: (mode: 'format' | 'selection' | 'scripture' | 'highlight' | 'reference' | 'noteActions' | 'hidden') => void;
   /**
-   * Prototype-only: when set, overrides whether the editor switches to note-actions chrome on blur /
-   * when the format toolbar is inactive. Omit to derive from `noteActionsPortalTarget` or `prototypeNoteActionBar`.
+   * Prototype-only: whether the editor switches to note-actions chrome on blur /
+   * when the format toolbar is inactive. Defaults to off when omitted.
    */
   prototypeNoteActionsChrome?: boolean;
   /** Prototype-only: folder chip derived from local collection chrome (keeps toolbar in sync while editing). */
@@ -328,8 +319,6 @@ interface CardFullEditableProps {
   onReferenceDeepLinkHandoff?: () => void;
   /** Prototype-only: the scripture-dock open request couldn't find a matching pill — host may fall back. */
   onScriptureDockUnresolved?: () => void;
-  /** When set with prototype chrome + column shell, portals the native-like note actions bar here. */
-  noteActionsPortalTarget?: HTMLElement | null;
   /** Server-stored Bible study collection (native parity). */
   initialPrimaryCollection?: string | null;
   initialSecondaryCollections?: string[];
@@ -409,12 +398,10 @@ export default function CardFullEditable({
   onHighlightOpenRequestConsumed,
   onActiveHighlightEntryChange,
   editorChromeMode = 'default',
-  prototypeNoteActionBar,
   formatToolbarPortalTarget,
   onPrototypeChromeModeChange,
   onPrototypeFolderDisplayChange,
   prototypeNoteActionsChrome,
-  noteActionsPortalTarget = null,
   initialPrimaryCollection = null,
   initialSecondaryCollections = EMPTY_SECONDARY_COLLECTIONS as unknown as string[],
   initialCollectionPinned = false,
@@ -454,7 +441,7 @@ export default function CardFullEditable({
 }: CardFullEditableProps) {
   const effectivePrototypeNoteActionsChrome =
     editorChromeMode === 'prototypeNative'
-      ? (prototypeNoteActionsChrome ?? !!(noteActionsPortalTarget || prototypeNoteActionBar))
+      ? (prototypeNoteActionsChrome ?? false)
       : false;
   const eagerTiptap = editorChromeMode === 'prototypeNative' && alwaysEditing && !isMobileDevice();
   const TiptapEditorComponent = eagerTiptap ? TiptapEditorEager : TiptapEditorLazy;
@@ -724,7 +711,6 @@ export default function CardFullEditable({
     collectionUserOverride: !!initialCollectionUserOverride,
     collectionLastAutoUpdatedAtIso: initialCollectionLastAutoUpdatedAtIso ?? null,
   });
-  const [addSecondaryDraft, setAddSecondaryDraft] = useState('');
   const lastPrototypeFolderChipRef = useRef<string>('');
 
   // Mirror collection state in a ref so the ref-based prototype saver (protoSaveAsync)
@@ -3711,94 +3697,8 @@ export default function CardFullEditable({
             isTitleEditing &&
             !isContentEditing &&
             renderSaveCancelButtons('px-3')}
-
-          {editorChromeMode === 'prototypeNative' &&
-            !formatToolbarPortalTarget &&
-            !noteActionsPortalTarget &&
-            prototypeBottomChromeMode === 'noteActions' &&
-            prototypeNoteActionBar ? (
-            <div className="w-full shrink-0 px-3">{prototypeNoteActionBar}</div>
-          ) : null}
         </div>
       </div>
-      {editorChromeMode === 'prototypeNative' &&
-        noteActionsPortalTarget &&
-        createPortal(
-          <NoteProductionActionBar
-            collectionDraft={collectionChrome.primaryCollection ?? ''}
-            onDraftChange={(v) => {
-              const t = v.trim();
-              const nextPrimary = t.length ? t : null;
-              const pLow = nextPrimary?.toLowerCase() ?? '';
-              setCollectionChrome(c => ({
-                ...c,
-                primaryCollection: nextPrimary,
-                secondaryCollections: c.secondaryCollections.filter(
-                  (s) => s.trim().length > 0 && s.trim().toLowerCase() !== pLow,
-                ),
-                collectionUserOverride: true,
-              }));
-            }}
-            secondaryCollections={collectionChrome.secondaryCollections}
-            onRemoveSecondary={(name) => {
-              const low = name.toLowerCase();
-              setCollectionChrome(c => ({
-                ...c,
-                secondaryCollections: c.secondaryCollections.filter((s) => s.toLowerCase() !== low),
-                collectionUserOverride: true,
-              }));
-            }}
-            addSecondaryDraft={addSecondaryDraft}
-            onAddSecondaryDraftChange={setAddSecondaryDraft}
-            onCommitAddSecondary={() => {
-              const t = addSecondaryDraft.trim();
-              if (!t.length) return;
-              const pLow = (collectionChrome.primaryCollection ?? '').trim().toLowerCase();
-              if (pLow && t.toLowerCase() === pLow) {
-                setAddSecondaryDraft('');
-                return;
-              }
-              setCollectionChrome(c => {
-                if (c.secondaryCollections.some((s) => s.toLowerCase() === t.toLowerCase())) {
-                  return c;
-                }
-                return {
-                  ...c,
-                  secondaryCollections: [...c.secondaryCollections, t],
-                  collectionUserOverride: true,
-                };
-              });
-              setAddSecondaryDraft('');
-            }}
-            collectionPinned={collectionChrome.collectionPinned}
-            collectionUserOverride={collectionChrome.collectionUserOverride}
-            onTogglePinned={() =>
-              setCollectionChrome(c => ({ ...c, collectionPinned: !c.collectionPinned }))
-            }
-            onRestoreAuto={() => {
-              let body = editContent;
-              if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
-                try {
-                  body = editorInstanceRef.current.getHTML();
-                } catch {
-                  /* keep editContent */
-                }
-              }
-              const sug = suggestPrimaryCollectionFromNote(editTitle, body);
-              const secs = suggestSecondaryCollectionsFromNote(editTitle, body, sug);
-              setCollectionChrome(c => ({
-                ...c,
-                primaryCollection: sug,
-                secondaryCollections: secs,
-                collectionUserOverride: false,
-                collectionPinned: false,
-                collectionLastAutoUpdatedAtIso: new Date().toISOString(),
-              }));
-            }}
-            disabled={!effectiveIsEditable}
-          />,
-          noteActionsPortalTarget,
-        )}
       </>
     );
   }
@@ -4183,94 +4083,8 @@ export default function CardFullEditable({
             />
           </div>
         ) : null}
-
-        {editorChromeMode === 'prototypeNative' &&
-          !formatToolbarPortalTarget &&
-          !noteActionsPortalTarget &&
-          prototypeBottomChromeMode === 'noteActions' &&
-          prototypeNoteActionBar ? (
-          <div className="w-full shrink-0 px-3">{prototypeNoteActionBar}</div>
-        ) : null}
       </div>
       </div>
-      {editorChromeMode === 'prototypeNative' &&
-        noteActionsPortalTarget &&
-        createPortal(
-          <NoteProductionActionBar
-            collectionDraft={collectionChrome.primaryCollection ?? ''}
-            onDraftChange={(v) => {
-              const t = v.trim();
-              const nextPrimary = t.length ? t : null;
-              const pLow = nextPrimary?.toLowerCase() ?? '';
-              setCollectionChrome(c => ({
-                ...c,
-                primaryCollection: nextPrimary,
-                secondaryCollections: c.secondaryCollections.filter(
-                  (s) => s.trim().length > 0 && s.trim().toLowerCase() !== pLow,
-                ),
-                collectionUserOverride: true,
-              }));
-            }}
-            secondaryCollections={collectionChrome.secondaryCollections}
-            onRemoveSecondary={(name) => {
-              const low = name.toLowerCase();
-              setCollectionChrome(c => ({
-                ...c,
-                secondaryCollections: c.secondaryCollections.filter((s) => s.toLowerCase() !== low),
-                collectionUserOverride: true,
-              }));
-            }}
-            addSecondaryDraft={addSecondaryDraft}
-            onAddSecondaryDraftChange={setAddSecondaryDraft}
-            onCommitAddSecondary={() => {
-              const t = addSecondaryDraft.trim();
-              if (!t.length) return;
-              const pLow = (collectionChrome.primaryCollection ?? '').trim().toLowerCase();
-              if (pLow && t.toLowerCase() === pLow) {
-                setAddSecondaryDraft('');
-                return;
-              }
-              setCollectionChrome(c => {
-                if (c.secondaryCollections.some((s) => s.toLowerCase() === t.toLowerCase())) {
-                  return c;
-                }
-                return {
-                  ...c,
-                  secondaryCollections: [...c.secondaryCollections, t],
-                  collectionUserOverride: true,
-                };
-              });
-              setAddSecondaryDraft('');
-            }}
-            collectionPinned={collectionChrome.collectionPinned}
-            collectionUserOverride={collectionChrome.collectionUserOverride}
-            onTogglePinned={() =>
-              setCollectionChrome(c => ({ ...c, collectionPinned: !c.collectionPinned }))
-            }
-            onRestoreAuto={() => {
-              let body = editContent;
-              if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
-                try {
-                  body = editorInstanceRef.current.getHTML();
-                } catch {
-                  /* keep editContent */
-                }
-              }
-              const sug = suggestPrimaryCollectionFromNote(editTitle, body);
-              const secs = suggestSecondaryCollectionsFromNote(editTitle, body, sug);
-              setCollectionChrome(c => ({
-                ...c,
-                primaryCollection: sug,
-                secondaryCollections: secs,
-                collectionUserOverride: false,
-                collectionPinned: false,
-                collectionLastAutoUpdatedAtIso: new Date().toISOString(),
-              }));
-            }}
-            disabled={!effectiveIsEditable}
-          />,
-          noteActionsPortalTarget,
-        )}
     </>
   );
 }
