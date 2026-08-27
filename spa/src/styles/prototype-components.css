@@ -829,16 +829,20 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   line-height: 1.2;
   font-size: var(--pds-toolbar-folder-chip-font-size);
   /*
-   * One weight for both halves. The raised fill and its shadow already say which half
-   * you are on; lightening the other one says it a second time, and what it actually
-   * reads as is the unselected tab being *dimmer* — less available rather than merely
-   * not current. Both are equally clickable, so both are 600.
+   * One weight for both halves, and the folder chip's weight at that — same 500, same size
+   * token, same variation axis. These two labels and the chip are the only words in the
+   * toolbar row, so a switch set heavier than the chip beside it reads as a different class
+   * of thing rather than the same chrome.
+   *
+   * One weight, not two, because the raised fill and its shadow already say which half you
+   * are on; lightening the other says it a second time, and what that actually reads as is
+   * the unselected tab being *dimmer* — less available rather than merely not current.
    *
    * (Worth knowing before reaching for `font-variation-settings` here: the chip token
    * carries a `wght` axis, but only `ROND` survives to the computed value on this
    * element, so weight is genuinely being set by `font-weight` and not by the axis.)
    */
-  font-weight: 600;
+  font-weight: 500;
   font-variation-settings: var(--pds-font-body-variation-toolbar-chip);
 }
 

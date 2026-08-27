@@ -76,9 +76,17 @@ html.harvous-prototype-route button.proto-side-panel__action-btn--danger:focus-v
   color: var(--pds-on-accent, #fff) !important;
 }
 
-/* Sidebar list view + toolbar folder chip — GSF axes inside buttons */
+/* Sidebar list view + toolbar folder chip + sidebar layer switch — GSF axes inside buttons.
+ *
+ * Every label in this row has to be named here or it silently loses the axes: something in
+ * the button reset drops them, and only `ROND` survives to the computed value. The switch's
+ * halves were missing, so they rendered at `font-weight: 500` while the folder chip inches
+ * away rendered at `wght 500` *and* `opsz 14` — the same nominal weight reached two different
+ * ways, which is exactly the near-miss this file exists to close. */
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger,
 html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label,
+html.harvous-prototype-route button.proto-sidebar-seg__btn,
+html.harvous-prototype-route button.proto-sidebar-seg__btn .proto-sidebar-seg__label,
 html.harvous-prototype-route button.proto-toolbar-folder-chip,
 html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label,
 html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__extra {
