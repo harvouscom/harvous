@@ -92,8 +92,29 @@ export function useAddNotesToFolder() {
         throw new Error('No notes were added to this folder');
       }
 
+      /*
+       * Personal notes go in one request.
+       *
+       * The fan-out below is one write per note against a 20/min per-endpoint limit, which
+       * is why this action used to grey out past twenty selected while every other bulk
+       * action allowed fifty. `assign-batch` does the same label maths server-side with the
+       * same helper, so the cap could go.
+       *
+       * Shared spaces keep the fan-out: their labels live on `SpaceNotes`, not on the note,
+       * and have their own per-note permission check.
+       */
+      const personal = operations.filter((op) => op.request.kind === 'personal');
+      const shared = operations.filter((op) => op.request.kind === 'shared');
+
+      if (personal.length > 0) {
+        await api.post('/api/notes/folders/assign-batch', {
+          noteIds: personal.map((op) => op.row.id),
+          folderName: bucket,
+        });
+      }
+
       await Promise.all(
-        operations.map(({ request }) =>
+        shared.map(({ request }) =>
           request.kind === 'shared'
             ? patchSpaceNoteOrganization.mutateAsync(request.input)
             : updateNote.mutateAsync(request.input),

@@ -39,6 +39,7 @@ import {
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
+import { computeNoteFolderAdditionPatch } from '@/utils/folder-bulk-actions';
 import { generateNoteId, generateShareToken, generateSpaceId, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { isUniqueViolationError } from '../utils/db-errors';
@@ -1936,6 +1937,118 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
 });
 
 // ─── POST /api/notes/delete-batch ────────────────────────────────────────────
+
+/**
+ * Put several of your own notes in a folder in one request.
+ *
+ * Folders are labels on the note itself (`primaryCollection` plus a JSON
+ * `secondaryCollections` array), so assigning one to fifty notes is fifty writes — and
+ * looping `PUT /api/notes/update` from the client is what forced the folder action to cap
+ * at 20 while every other bulk action allowed 50. Writes are rate limited at 20/min per
+ * endpoint, so the twenty-first note would 429 and leave the batch half-applied with no
+ * clean way to report it.
+ *
+ * The label maths is `computeNoteFolderAdditionPatch`, the same pure helper the client
+ * used to run before sending each note — one rule for what "add this label" means, whether
+ * it is applied here or optimistically in the cache.
+ *
+ * Personal notes only. Inside a shared space the labels live on `SpaceNotes` rather than
+ * on the note, and are patched through `/api/spaces/:spaceId/notes/:noteId`; that path
+ * keeps its fan-out for now.
+ *
+ * Ownership is enforced in the select, so ids belonging to someone else are dropped rather
+ * than erroring — the response reports what actually moved.
+ */
+route.post('/api/notes/folders/assign-batch', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      noteIds?: unknown;
+      folderName?: unknown;
+    };
+
+    if (!Array.isArray(body.noteIds)) {
+      return c.json({ error: 'noteIds must be an array', code: 'INVALID_NOTE_IDS' }, 400);
+    }
+    const folderName = typeof body.folderName === 'string' ? body.folderName.trim() : '';
+    if (!folderName) {
+      return c.json({ error: 'folderName is required', code: 'INVALID_FOLDER_NAME' }, 400);
+    }
+
+    const noteIds = [
+      ...new Set(
+        body.noteIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+      ),
+    ];
+    if (noteIds.length === 0) {
+      return c.json({ success: true, updatedNoteIds: [], requestedCount: 0 });
+    }
+    // The same ceiling as delete-batch and copy-notes — one selection cap covers them all.
+    if (noteIds.length > 50) {
+      return c.json({ error: 'Too many notes', code: 'NOTE_IDS_TOO_LONG' }, 400);
+    }
+
+    const owned = await db
+      .select({
+        id: Notes.id,
+        spaceId: Notes.spaceId,
+        primaryCollection: Notes.primaryCollection,
+        secondaryCollections: Notes.secondaryCollections,
+      })
+      .from(Notes)
+      .where(and(eq(Notes.userId, auth.userId), inArray(Notes.id, noteIds)));
+
+    if (owned.length === 0) {
+      return c.json({ error: 'Notes not found or access denied', code: 'NOT_FOUND' }, 404);
+    }
+
+    const now = nowISO();
+    const updatedNoteIds: string[] = [];
+
+    for (const note of owned) {
+      const patch = computeNoteFolderAdditionPatch(
+        {
+          primaryCollection: note.primaryCollection,
+          /* Stored as a JSON string; the helper works in real arrays. */
+          secondaryCollections: parseNoteSecondaryCollections(note.secondaryCollections),
+        },
+        folderName,
+      );
+      /* Null means the note already carries the label — not an error, just nothing to do,
+         so it stays out of `updatedNoteIds` rather than claiming a write that never
+         happened. */
+      if (!patch) continue;
+
+      await db
+        .update(Notes)
+        .set({
+          primaryCollection: patch.primaryCollection,
+          secondaryCollections: JSON.stringify(patch.secondaryCollections),
+          collectionUserOverride: patch.collectionUserOverride,
+          updatedAt: now,
+        })
+        .where(and(eq(Notes.id, note.id), eq(Notes.userId, auth.userId)));
+
+      updatedNoteIds.push(note.id);
+    }
+
+    for (const spaceId of new Set(owned.map((n) => n.spaceId))) {
+      void broadcastNoteInvalidation(auth.userId, spaceId, { type: 'note:updated', id: '' });
+    }
+
+    return c.json({
+      success: true,
+      updatedNoteIds,
+      requestedCount: noteIds.length,
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/notes/folders/assign-batch',
+      action: 'assign_notes_to_folder_batch',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 
 /**
  * Delete several of your own notes in one request.

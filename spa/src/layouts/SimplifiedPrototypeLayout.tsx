@@ -14,9 +14,12 @@ import { HARVOUS_REMOTE_SYNC_COMPLETED } from '@/utils/harvous-remote-sync-event
 import { refreshPrototypeLists } from '../lib/refresh-client-data';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -29,6 +32,11 @@ import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
+/**
+ * Lazy: most sessions never press ⇧K, and the palette pulls in `cmdk`. The shell owns the
+ * open flag because something has to hear the shortcut while this module is unfetched.
+ */
+const PrototypeCommandPalette = lazy(() => import('../pages/prototype/PrototypeCommandPalette'));
 import PrototypeSidebarSharedSpaceView from '../pages/prototype/PrototypeSidebarSharedSpaceView';
 import PrototypeSidebarChurchHubView from '../pages/prototype/PrototypeSidebarChurchHubView';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
@@ -110,6 +118,7 @@ import {
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
+  prototypeSettingsRouteTo,
 } from '@/lib/prototype-path';
 import { bookFromSlug, bookSlug } from '@/utils/bible-book-chapters';
 import {
@@ -1315,5 +1324,53 @@ function PrototypeShortcutBridge() {
     togglePrototypeSidebar,
   ]);
 
-  return null;
+  /**
+   * Where the palette goes to answer ⇧K.
+   *
+   * Mounted here rather than in the sidebar so it still opens with the sidebar collapsed,
+   * hidden, or swapped for the admin and church views — the moments you are most likely to
+   * reach for it. The list it acts on publishes itself; see
+   * `prototype-command-context-store`.
+   */
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setPaletteOpen(true);
+    window.addEventListener('prototypeShortcutOpenCommandPalette', onOpen);
+    return () => window.removeEventListener('prototypeShortcutOpenCommandPalette', onOpen);
+  }, []);
+
+  const paletteNavigation = useMemo(
+    () => [
+      { id: 'home', label: 'Show Home', icon: 'house', keys: '⇧H', run: showHomeLayer },
+      { id: 'list', label: 'Show list', icon: 'note-sticky', keys: '⇧L', run: showListLayer },
+      { id: 'reader', label: 'Read the Bible', icon: 'scroll', keys: '⇧R', run: toggleReader },
+      { id: 'new-note', label: 'New note', icon: 'plus', keys: '⇧N', run: createPrototypeNote },
+      {
+        id: 'settings',
+        label: 'Settings',
+        icon: 'gear',
+        keys: '⇧,',
+        run: () => navigate.navigate({ to: prototypeSettingsRouteTo() }),
+      },
+    ],
+    [showHomeLayer, showListLayer, toggleReader, createPrototypeNote, navigate],
+  );
+
+  /* No Suspense fallback: the chunk lands in a few ms and a flash of chrome under the
+     scrim would read as the palette opening twice. */
+  return paletteOpen ? (
+    <Suspense fallback={null}>
+      <PrototypeCommandPalette
+        homeSpaceId={homeSpaceId}
+        navigationItems={paletteNavigation}
+        onClose={() => setPaletteOpen(false)}
+        onOpenNote={(noteId) => {
+          navigate.navigate({
+            to: prototypeNoteRouteTo(),
+            params: { noteId: noteParamSlug(noteId) },
+          });
+        }}
+      />
+    </Suspense>
+  ) : null;
 }

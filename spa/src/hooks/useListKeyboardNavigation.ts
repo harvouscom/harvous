@@ -42,6 +42,35 @@ function focusListControl(
   control.scrollIntoView({ block: atScrollEdge ? 'center' : 'nearest' });
 }
 
+/**
+ * The row that currently holds keyboard focus, as `{ id, kind }`.
+ *
+ * Rows carry `data-select-id` / `data-select-kind` on their main button purely so the
+ * keyboard layer can name what you are standing on. Focus alone was not enough: the DOM
+ * knew which button was active but nothing tied it back to a note.
+ */
+export function focusedListRow(container: HTMLElement): { id: string; kind: string } | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return null;
+  if (!container.contains(active)) return null;
+  const id = active.dataset.selectId;
+  if (!id) return null;
+  return { id, kind: active.dataset.selectKind ?? 'note' };
+}
+
+/**
+ * Every selectable row inside `container`, in the order they are painted.
+ *
+ * This is the `orderedIds` a range needs, taken from the screen rather than from whichever
+ * array happened to build the list — which is what let search results, whose ordering lives
+ * one level down, finally answer to a range.
+ */
+export function orderedListRowIds(container: HTMLElement, kind?: string): string[] {
+  return Array.from(container.querySelectorAll<HTMLElement>('[data-select-id]'))
+    .filter((el) => !kind || (el.dataset.selectKind ?? 'note') === kind)
+    .map((el) => el.dataset.selectId as string);
+}
+
 /** Move roving focus among list rows inside `container`. Returns false when no rows match. */
 export function moveListRowFocus(
   container: HTMLElement,

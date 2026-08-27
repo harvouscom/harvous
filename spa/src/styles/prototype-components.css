@@ -20853,3 +20853,174 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
     outline-color: transparent;
   }
 }
+
+/* ── Command palette (⇧K) ───────────────────────────────────────────────────
+ *
+ * The one overlay in the prototype that is not anchored to the control that
+ * opened it. Everything else here is a popover hanging off a toolbar orb or a
+ * row; this is summoned by a key from anywhere, so it centres on the window and
+ * takes a backdrop, the way a spotlight does.
+ *
+ * It borrows the popover surface — same solid background, same hairline, same
+ * shadow — because it is still a menu, just one that arrived by keyboard. What
+ * it does not borrow is the pop-in transform-origin: with no anchor to grow
+ * from, a corner-origin scale reads as though it came from the wrong place.
+ */
+.proto-command-palette__backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  /* Not centred vertically — a dialog that sits on the optical centre reads as
+     lower than it is, and the list grows downward from here anyway. */
+  align-items: flex-start;
+  padding: 12vh 16px 16px;
+  /* Same scrim as every other portaled dialog — see `.proto-dialog-backdrop`. */
+  background: var(--pds-overlay-heavy);
+}
+
+.proto-command-palette {
+  width: min(560px, 100%);
+  max-height: min(60vh, 520px);
+  max-height: min(60dvh, 520px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--pds-bg-popover-solid);
+  border: 0.5px solid var(--pds-border-control-strong);
+  border-radius: var(--pds-radius-menu);
+  box-shadow: var(--pds-shadow-popover);
+  font-family: var(--pds-font-body);
+}
+
+.proto-command-palette * {
+  font-family: var(--pds-font-body) !important;
+}
+
+.proto-command-palette__field {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 0.5px solid var(--pds-border-control);
+  color: var(--pds-text-secondary);
+}
+
+.proto-command-palette__input {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  border: 0;
+  background: none;
+  outline: none;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+.proto-command-palette__input::placeholder {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+  font-weight: 400;
+}
+
+.proto-command-palette__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+}
+
+.proto-command-palette__group [cmdk-group-heading] {
+  padding: 8px 11px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* Same 38px row and inset hover pill as `.proto-menu-item` — a palette row and a
+   menu row are the same gesture reached two ways, so they should not differ. */
+.proto-command-palette__item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 11px;
+  border-radius: var(--pds-radius-menu-item);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--pds-text-primary);
+}
+
+.proto-command-palette__item[data-selected='true'] {
+  background: var(--pds-bg-subtle);
+}
+
+.proto-command-palette__icon {
+  display: flex;
+  color: var(--pds-text-secondary);
+}
+
+.proto-command-palette__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-command-palette__empty {
+  padding: 18px 11px;
+  font-size: 13px;
+  color: var(--pds-text-secondary);
+  text-align: center;
+}
+
+/* The chord legend, same idea as Spotlight's strip: the palette is where the
+   keyboard model gets taught, so it says how to drive itself. */
+.proto-command-palette__footer {
+  flex-shrink: 0;
+  display: flex;
+  gap: 14px;
+  padding: 8px 16px;
+  border-top: 0.5px solid var(--pds-border-control);
+  font-size: 11px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-command-palette__footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proto-command-palette {
+    animation: proto-menu-pop-in 120ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+    transform-origin: center top;
+  }
+}
+
+/*
+ * Chord badge on a bulk-bar button.
+ *
+ * Corner-anchored rather than straddling the bottom edge like the toolbar orbs'
+ * `.proto-toolbar-item__hint`: these buttons are `flex: 1 1 0` in a row that has
+ * to stay evenly divided, so they cannot take the `inline-flex` wrapper that
+ * positioning depends on. The badge lives inside the button instead.
+ */
+.proto-bulk-bar .proto-bulk-bar__btn {
+  position: relative;
+  overflow: visible;
+}
+
+.proto-bulk-bar__hint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(35%, -35%);
+  pointer-events: none;
+}

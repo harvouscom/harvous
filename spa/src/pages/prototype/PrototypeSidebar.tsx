@@ -61,7 +61,7 @@ import { useProtoShell, type SidebarTagSearchIntent, type ThreadProposal } from 
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { usePrototypeStudyThreadListSyncListener } from '../../hooks/usePrototypeStudyThreadListSyncListener';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
-import { moveListRowFocus } from '../../hooks/useListKeyboardNavigation';
+import { focusedListRow, moveListRowFocus } from '../../hooks/useListKeyboardNavigation';
 import {
   isPrototypeNotePath,
   matchPrototypeNoteId,
@@ -139,6 +139,17 @@ import {
   canCreateSidebarCollections as resolveCanCreateSidebarCollections,
 } from '../../lib/shared-space-capabilities';
 import { everyRowAllows, resolveNoteRowCapabilities } from '../../lib/note-row-capabilities';
+import {
+  availablePrototypeCommands,
+  FOLDER_FANOUT_CAP,
+  MIN_BULK_THREAD_NOTES,
+  SHARED_FOLDER_FANOUT_CAP,
+  PROTOTYPE_COMMAND_BY_VERB,
+  type CommandContext,
+  type PrototypeCommandId,
+} from '../../lib/prototype-commands';
+import { publishPrototypeCommandContext } from '../../lib/prototype-command-context-store';
+import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
 import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
 import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
@@ -999,6 +1010,10 @@ function PrototypeSidebarNoteRow({
       // a second button inside the row would also become a keyboard nav stop, because
       // SIDEBAR_LIST_ROW_SELECTOR matches on `button.proto-note-row__main`.
       aria-pressed={selectMode ? selected : undefined}
+      /* What the keyboard is standing on — see `focusedListRow`. Focus said which
+         button was active but nothing said which note that was. */
+      data-select-id={row.id}
+      data-select-kind="note"
       onClick={(e) => {
         cancelHoverPrefetch();
         /* ⌘/Ctrl adds one, Shift takes a range — the two gestures every list on
@@ -2037,15 +2052,15 @@ export default function PrototypeSidebar({
 
   /** Ceiling matched to `copy-notes`' server-side `.slice(0, 50)`. */
   const SELECTION_CAP = NOTE_SELECTION_CAP;
-  /**
-   * Folder assignment is the one action that still fans out to a request per note, and
-   * writes are capped at 20/min per endpoint — so it disables past that. Same rule as
-   * every other action, just triggered by size rather than permission: it greys out when
-   * it cannot apply to the whole selection.
+  /*
+   * The folder ceiling now comes from `prototype-commands.ts`, where it also gates the
+   * keyboard chord and the palette row. Personal notes assign in one batch request; a
+   * shared space still fans out per note, so it keeps the lower limit.
    */
-  const FOLDER_FANOUT_CAP = 20;
-  /** Mirrors `MIN_THREAD_NOTES` in the create sheet — a Thread needs two ends. */
-  const MIN_BULK_THREAD_NOTES = 2;
+  const folderCap = isScopedSharedSpace ? SHARED_FOLDER_FANOUT_CAP : FOLDER_FANOUT_CAP;
+
+  /* Holding Shift prints the chord on each bulk-bar button — see the hint spans below. */
+  const showShiftHints = usePrototypeShiftHints();
 
   const selectedNoteIdSet = useMemo(() => new Set(sidebarSelectedIds), [sidebarSelectedIds]);
 
@@ -2151,7 +2166,7 @@ export default function PrototypeSidebar({
     () => ({
       count: selectedRows.length,
       canOrganize:
-        everyRowAllows(bulkCapabilityRows, 'mayOrganize') && selectedRows.length <= FOLDER_FANOUT_CAP,
+        everyRowAllows(bulkCapabilityRows, 'mayOrganize') && selectedRows.length <= folderCap,
       /* A Thread is a relationship between notes, so one note cannot be one —
          `MIN_BULK_THREAD_NOTES` is the same floor the create sheet submits on.
          Below it the action is not offered at all rather than offered and
@@ -2163,7 +2178,7 @@ export default function PrototypeSidebar({
       canRemoveFromSpace: everyRowAllows(bulkCapabilityRows, 'mayRemoveFromSpace'),
       canShare: everyRowAllows(bulkCapabilityRows, 'mayShareToSpace'),
     }),
-    [bulkCapabilityRows, selectedRows.length],
+    [bulkCapabilityRows, selectedRows.length, folderCap],
   );
 
   const allSelectableSelected =
@@ -2224,8 +2239,8 @@ export default function PrototypeSidebar({
         className="proto-bulk-bar__btn"
         disabled={!bulkActions.canOrganize}
         title={
-          bulkActions.count > FOLDER_FANOUT_CAP
-            ? `A folder can take up to ${FOLDER_FANOUT_CAP} notes at a time`
+          bulkActions.count > folderCap
+            ? `A folder can take up to ${folderCap} notes at a time`
             : 'Put these notes in a folder'
         }
         onClick={() => setBulkFolderSheetOpen(true)}
@@ -2234,6 +2249,13 @@ export default function PrototypeSidebar({
             and the verb would read as the noun. The icon carries the doing. */}
         <Icon name="folder" size={15} aria-hidden />
         <span className="proto-bulk-bar__label">Folder</span>
+        {/* Hold Shift and the bar says how to reach it without the mouse — the same
+            teaching the toolbar orbs already do, at the moment you are acting. */}
+        {showShiftHints ? (
+          <span className="proto-bulk-bar__hint" aria-hidden="true">
+            <kbd className="proto-kbd proto-kbd--hint">M</kbd>
+          </span>
+        ) : null}
       </button>
       {bulkActions.canThread ? (
         <button
@@ -2244,6 +2266,11 @@ export default function PrototypeSidebar({
         >
           <Icon name="arrow-right-arrow-left" size={15} aria-hidden />
           <span className="proto-bulk-bar__label">Thread</span>
+          {showShiftHints ? (
+            <span className="proto-bulk-bar__hint" aria-hidden="true">
+              <kbd className="proto-kbd proto-kbd--hint">T</kbd>
+            </span>
+          ) : null}
         </button>
       ) : null}
       {isScopedSharedSpace ? (
@@ -2278,6 +2305,11 @@ export default function PrototypeSidebar({
           >
             <Icon name="trash-can" size={15} aria-hidden />
             <span className="proto-bulk-bar__label">Delete</span>
+            {showShiftHints ? (
+              <span className="proto-bulk-bar__hint" aria-hidden="true">
+                <kbd className="proto-kbd proto-kbd--hint">⌫</kbd>
+              </span>
+            ) : null}
           </button>
         </>
       )}
@@ -2483,6 +2515,225 @@ export default function PrototypeSidebar({
     const kind = selectionActive ? sidebarSelectionKind : 'note';
     setSidebarSelection(kind, allSelectableSelected ? [] : selectAllTargets);
   }, [allSelectableSelected, selectAllTargets, selectionActive, sidebarSelectionKind, setSidebarSelection]);
+
+  /**
+   * The keyboard's half of selecting and organizing.
+   *
+   * One rule decides what a verb points at: **the selection when one stands, otherwise the
+   * row holding keyboard focus**. That is what makes "act on this row" and "act on these
+   * fifty" one code path rather than two features that drift.
+   *
+   * Enablement is not re-derived here — `availablePrototypeCommands` runs the same
+   * `everyRowAllows` gate the bulk bar and the row menu read, so a chord can never reach a
+   * mutation the button for it would have greyed out.
+   *
+   * Organize verbs are notes-only for now. `select` and `selectAll` follow the checkbox
+   * wherever it goes, which today means notes and highlights; the folder, Thread and
+   * resource lists still enter selection from the list menu and act from their own bars.
+   */
+  const pinFocusedNote = usePinSpaceNote();
+
+  /**
+   * The target a verb points at, read fresh each time.
+   *
+   * Not memoised, and not state: half of it is which row holds keyboard focus, and focus
+   * moves without re-rendering. A snapshot taken at render time would answer for the row
+   * you were on two ⇧↓ ago.
+   *
+   * Returns null when there is nothing to act on, or when a selection of some other kind
+   * is standing — a highlight selection must not be retargeted by a note verb.
+   */
+  const buildCommandContext = useCallback((): CommandContext | null => {
+    const container = scrollRootRef.current;
+    if (!container) return null;
+    const focused = focusedListRow(container);
+
+    const fromSelection = sidebarSelectedIds.length > 0;
+    if (fromSelection && sidebarSelectionKind !== 'note') return null;
+    if (!fromSelection && focused?.kind !== 'note') return null;
+
+    const ids = fromSelection ? sidebarSelectedIds : focused ? [focused.id] : [];
+    if (ids.length === 0) return null;
+
+    const idSet = new Set(ids);
+    const rows = notesForMode.filter((n) => idSet.has(n.id));
+    /* A row scrolled out of the loaded page has no capability input, and guessing one is
+       how a batch half-applies. Offer nothing rather than act on part of it. */
+    if (rows.length !== ids.length) return null;
+
+    return {
+      kind: 'note',
+      ids,
+      rows: rows.map((n) => ({
+        isOwnNote: n.isOwnNote,
+        isScopedSharedSpace,
+        viewerIsSpaceOwner,
+      })),
+      fromSelection,
+      isScopedSharedSpace,
+    };
+  }, [
+    sidebarSelectedIds,
+    sidebarSelectionKind,
+    notesForMode,
+    isScopedSharedSpace,
+    viewerIsSpaceOwner,
+  ]);
+
+  /**
+   * Run one command against a context, reusing the sheets and confirms the bulk bar opens.
+   *
+   * Enablement is checked here rather than trusted from the caller: the palette filters its
+   * rows by `availablePrototypeCommands`, but a chord arrives unfiltered, and both should
+   * meet the same gate.
+   */
+  const runCommand = useCallback(
+    (commandId: PrototypeCommandId, ctx: CommandContext) => {
+      if (!availablePrototypeCommands(ctx).some((c) => c.id === commandId)) return;
+
+      /* Confirms anchor to what you are acting on — the focused row, or the list itself
+         when a whole set is in play and no single row is the subject. */
+      const anchorRect =
+        (document.activeElement instanceof HTMLElement
+          ? document.activeElement.getBoundingClientRect()
+          : null) ??
+        scrollRootRef.current?.getBoundingClientRect() ??
+        null;
+
+      /* Acting on a focused row promotes it to the selection first, so the sheets — which
+         all read `sidebarSelectedIds` — see the same thing the verb named. */
+      const commit = () => {
+        if (!ctx.fromSelection) setSidebarSelection('note', ctx.ids);
+      };
+
+      switch (commandId) {
+        case 'organize.folder':
+          commit();
+          setBulkFolderSheetOpen(true);
+          return;
+        case 'organize.thread':
+          openCreateThreadSheet({ noteIds: ctx.ids });
+          return;
+        case 'organize.share':
+          commit();
+          setBulkShareSheetOpen(true);
+          return;
+        case 'organize.removeFromSpace':
+          commit();
+          if (anchorRect) setBulkRemoveConfirmOpen(anchorRect);
+          return;
+        case 'organize.delete':
+          commit();
+          if (anchorRect) setBulkDeleteConfirmOpen(anchorRect);
+          return;
+        case 'organize.pin': {
+          const row = notesForMode.find((n) => n.id === ctx.ids[0]);
+          if (!row || !homeSpaceId) return;
+          pinFocusedNote.mutate(
+            {
+              spaceId: homeSpaceId,
+              noteId: row.id,
+              isPinned: row.isPinned !== true,
+              spaceKind: isScopedSharedSpace ? 'shared' : 'personal',
+            },
+            { onError: (err) => toastError(err, 'Could not update pin') },
+          );
+          return;
+        }
+        default:
+          return;
+      }
+    },
+    [
+      notesForMode,
+      homeSpaceId,
+      isScopedSharedSpace,
+      openCreateThreadSheet,
+      pinFocusedNote,
+      setSidebarSelection,
+    ],
+  );
+
+  /**
+   * The keyboard's half of selecting and organizing.
+   *
+   * One rule decides what a verb points at: **the selection when one stands, otherwise the
+   * row holding keyboard focus**. That is what makes "act on this row" and "act on these
+   * fifty" one code path rather than two features that drift.
+   *
+   * Organize verbs are notes-only for now. `select` and `selectAll` follow the checkbox
+   * wherever it goes, which today means notes and highlights; the folder, Thread and
+   * resource lists still enter selection from the list menu and act from their own bars.
+   */
+  const runListVerb = useCallback(
+    (verb: string) => {
+      const container = scrollRootRef.current;
+      if (!container) return;
+
+      if (verb === 'selectAll') {
+        if (selectAllTargets.length > 0) toggleSelectAll();
+        return;
+      }
+
+      if (verb === 'select') {
+        const focused = focusedListRow(container);
+        if (!focused) return;
+        if (focused.kind === 'highlight') toggleHighlightSelected(focused.id);
+        else toggleNoteSelected(focused.id);
+        return;
+      }
+
+      const commandId = PROTOTYPE_COMMAND_BY_VERB[verb];
+      if (!commandId) return;
+      const ctx = buildCommandContext();
+      if (!ctx) return;
+      runCommand(commandId, ctx);
+    },
+    [
+      selectAllTargets.length,
+      toggleSelectAll,
+      toggleHighlightSelected,
+      toggleNoteSelected,
+      buildCommandContext,
+      runCommand,
+    ],
+  );
+
+  useEffect(() => {
+    const onListVerb = (event: Event) => {
+      const verb = (event as CustomEvent<{ verb?: string }>).detail?.verb;
+      if (verb) runListVerb(verb);
+    };
+    window.addEventListener('prototypeShortcutListVerb', onListVerb);
+    return () => window.removeEventListener('prototypeShortcutListVerb', onListVerb);
+  }, [runListVerb]);
+
+  /**
+   * What ⇧K offers under "Actions". The palette is mounted by the shell, so it cannot see
+   * this list's selection directly — see `prototype-command-context-store`.
+   *
+   * Published once, through refs. Publishing the callbacks themselves re-ran this on every
+   * render — `runCommand` depends on the mutation object from `usePinSpaceNote()`, whose
+   * identity is new each time — and each publish notifies the store, so the palette
+   * re-rendered continuously. The store only ever calls these on demand, so a stable
+   * wrapper over a ref is all it needs.
+   */
+  const buildCommandContextRef = useRef(buildCommandContext);
+  const runCommandRef = useRef(runCommand);
+  buildCommandContextRef.current = buildCommandContext;
+  runCommandRef.current = runCommand;
+
+  useEffect(
+    () =>
+      publishPrototypeCommandContext(
+        () => buildCommandContextRef.current(),
+        (id) => {
+          const ctx = buildCommandContextRef.current();
+          if (ctx) runCommandRef.current(id, ctx);
+        },
+      ),
+    [],
+  );
 
   const filteredScriptureBooks = useMemo(() => {
     const t = q.trim().toLowerCase();

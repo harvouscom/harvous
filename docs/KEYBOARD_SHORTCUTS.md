@@ -1,200 +1,180 @@
-# Keyboard Shortcuts Documentation
+# Keyboard Shortcuts
 
-This document describes the keyboard shortcuts system implemented in Harvous for power users. All shortcuts are context-aware and designed to not interfere with normal typing.
+Harvous has two keyboard schemes, and they are not variations on each other.
 
-## Overview
+- **Prototype (2.0)** uses bare **Shift + key** chords. No Cmd. This is the scheme the
+  current app and the native apps share.
+- **Classic** uses **Cmd/Ctrl + chord**. Legacy; documented here because Classic routes are
+  still reachable.
 
-The keyboard shortcuts system provides quick access to common actions throughout the application. Shortcuts are automatically disabled when typing in text inputs, textareas, or contenteditable elements to prevent conflicts with normal text entry.
-
-## Available Shortcuts
-
-### Primary Actions
-
-| Shortcut | Action | Description |
-|----------|--------|-------------|
-| **Cmd/Ctrl + '** | Create New Note | Opens the NewNotePanel; **'** and **;** are adjacent on the right (US QWERTY), left hand on modifier |
-| **Cmd/Ctrl + ;** | Create New Thread | Opens the NewThreadPanel; same row as **'**, next to **Enter** |
-| **Cmd/Ctrl + K** | Spotlight search | Opens the Spotlight overlay |
-| **Cmd/Ctrl + F** | Find | Navigates to the Find page, or focuses the Find input if already on the Find page |
-| **Esc** | Close Panel | Closes any currently open panel (NewNotePanel, NewThreadPanel, NoteDetailsPanel, EditThreadPanel) |
-
-### Navigation Shortcuts
-
-| Shortcut | Action | Description |
-|----------|--------|-------------|
-| **Cmd/Ctrl + Shift + H** | Home | Navigates to the app root (home / dashboard route) |
-| **Cmd/Ctrl + Left Arrow** | Back | Closes the top overlay or panel first, then moves up the app hierarchy (note → thread → space → home), or browser history on other routes |
-| **Cmd/Ctrl + Alt + [ / ]** | Cycle open items | Previous / next item in the desktop nav column (active space + persistent strip) when the strip is visible |
-| **Cmd/Ctrl + Alt + ← / →** | Switch tab | Cycle content tabs on Space/Thread pages (buttons with tab nav) |
-| **Cmd/Ctrl + Alt + S** | Switch space | Opens the desktop space switcher |
-
-### Context-Aware Shortcuts
-
-| Shortcut | Action | Description |
-|----------|--------|-------------|
-| **Cmd/Ctrl + Shift + D** | Open Details Panel | Opens the appropriate details panel based on current context:<br>- **Note page**: Opens NoteDetailsPanel<br>- **Thread page**: Opens EditThreadPanel |
-| **Cmd/Ctrl + Shift + E** | Edit | **Note**: edit mode · **Thread**: edit thread panel · **Space**: edit space panel |
-| **Cmd/Ctrl + S** | Save | Saves the current note/thread when editing or when a panel is open<br>**Note**: Cmd/Ctrl + Enter is not used for saving because it's used by the editor to start a new line |
-
-## Platform Support
-
-- **Mac**: Uses `Cmd` (⌘) for most shortcuts, including new note (`⌘'`) and new thread (`⌘;`)
-- **Windows/Linux**: Uses `Ctrl` for most shortcuts, including new note (`Ctrl+'`) and new thread (`Ctrl+;`)
-- The system automatically detects the platform and uses the appropriate modifier key
-
-## Smart Input Detection
-
-The keyboard shortcuts system automatically detects when you're typing in:
-- Text input fields (`input[type="text"]`, `input[type="search"]`, etc.)
-- Textarea elements
-- Contenteditable elements (like the TiptapEditor)
-
-**Shortcuts are automatically disabled** when typing in these elements to prevent conflicts with normal text entry.
-
-## Context Detection
-
-The system intelligently detects the current page context:
-
-- **Note pages**: URLs starting with `/note_`
-- **Thread pages**: URLs starting with `/thread_` or other non-standard routes
-- **Space pages**: URLs starting with `/space_`
-
-This allows context-aware shortcuts like **Cmd/Ctrl + Shift + D** to open the correct panel based on what you're viewing.
-
-### App Focus Detection
-
-The system also detects whether the app is focused (vs. browser chrome like the address bar):
-
-- **App focused**: When you're interacting with the app content, **Cmd/Ctrl + '** and **Cmd/Ctrl + ;** create a new note or thread (Harvous does not use **Cmd/Ctrl + N** for create)
-- **Browser chrome focused**: When the address bar or browser UI is focused, use the browser’s shortcuts as usual
-
-## Technical Implementation
-
-### File Structure
-
-- **Handler**: `src/utils/keyboard-shortcuts.ts` - Main keyboard shortcuts handler
-- **Initialization (production SPA)**: `spa/src/App.tsx` mounts `KeyboardShortcutsInit` (`src/components/react/KeyboardShortcutsInit.tsx`), which calls `initKeyboardShortcuts()` on load
-
-### Key Functions
-
-#### `isTypingInInput()`
-Checks if the user is currently typing in an input field. Returns `true` if the active element is:
-- A text input field
-- A textarea
-- A contenteditable element
-
-#### `isModifierPressed(event)`
-Checks if the appropriate modifier key is pressed (Cmd on Mac, Ctrl on Windows/Linux).
-
-#### `getPageContext()`
-Detects the current page context (note, thread, or space) based on the URL pathname.
-
-#### `isPanelOpen()`
-Checks if any panel is currently open by:
-- Checking localStorage for panel state
-- Checking if the square buttons container is hidden (indicates a panel is open)
-
-#### `navigateTo(path)`
-Navigates to a path using Astro's View Transitions if available, otherwise falls back to standard navigation.
-
-### Event System
-
-The keyboard shortcuts system uses CustomEvents to communicate with components:
-
-- `openSpotlightSearch` / `closeSpotlightSearch` - Spotlight overlay
-- `openNewNotePanel` - Opens the NewNotePanel
-- `closeNewNotePanel` - Closes the NewNotePanel
-- `openNewThreadPanel` - Opens the NewThreadPanel
-- `closeNewThreadPanel` - Closes the NewThreadPanel
-- `openNoteDetailsPanel` - Opens the NoteDetailsPanel
-- `closeNoteDetailsPanel` - Closes the NoteDetailsPanel
-- `openEditThreadPanel` - Opens the EditThreadPanel
-- `closeEditThreadPanel` - Closes the EditThreadPanel
-- `openEditSpacePanel` - Opens the EditSpacePanel (detail: `contentId`, `contentType`)
-- `editNote` - Triggers edit mode for the current note (shortcut on note pages)
-- `saveContent` - Triggers save action for the current content
-
-### View Transitions Support
-
-The keyboard shortcuts system is fully compatible with Astro's View Transitions:
-
-- Shortcuts are re-initialized after each page transition
-- Navigation uses Astro's `navigate()` function for smooth transitions
-- Event listeners are properly cleaned up to prevent duplicates
-
-## Usage Examples
-
-### Creating a New Note
-1. Press **Cmd/Ctrl + '** from the app (including from the note editor)
-2. The NewNotePanel opens
-3. Type your note content
-4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
-
-### Creating a New Thread
-1. Press **Cmd/Ctrl + ;** from the app (including from the note editor)
-2. The NewThreadPanel opens
-3. Enter thread details
-4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
-
-### Quick Navigation
-1. Press **Cmd/Ctrl + F** to go to the Find page
-2. If already on the Find page, **Cmd/Ctrl + F** focuses the search input
-3. Press **Cmd/Ctrl + Shift + H** to return to home
-
-### Editing a Note
-1. Navigate to a note page
-2. Press **Cmd/Ctrl + Shift + E** to enter edit mode
-3. Make your changes
-4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
-
-### Opening Details Panel
-1. While viewing a note, press **Cmd/Ctrl + Shift + D** to open NoteDetailsPanel
-2. While viewing a thread, press **Cmd/Ctrl + Shift + D** to open EditThreadPanel
-
-## Best Practices
-
-1. **Don't interfere with typing**: All shortcuts are automatically disabled when typing in inputs
-2. **Context-aware**: Use shortcuts that match your current context (e.g., Cmd/Ctrl + Shift + D opens different panels based on what you're viewing)
-3. **Escape to cancel**: Press **Esc** to quickly close any open panel
-4. **Save frequently**: Use **Cmd/Ctrl + S** to save your work when editing
-
-## Troubleshooting
-
-### Shortcuts Not Working
-
-1. **Check if you're typing**: Shortcuts are disabled when typing in inputs. Click outside the input first.
-2. **Check browser focus**: Make sure the browser window has focus
-3. **Check for conflicts**: Some browser extensions may interfere with keyboard shortcuts
-
-### Shortcuts Work After Page Load But Not After Navigation
-
-This is normal - shortcuts are re-initialized after View Transitions. If they don't work after navigation, try:
-1. Refreshing the page
-2. Checking the browser console for errors
-
-### Platform-Specific Issues
-
-- **Mac**: Make sure you're using `Cmd` (⌘), not `Ctrl`
-- **Windows/Linux**: Make sure you're using `Ctrl`, not `Cmd`
-
-## Future Enhancements
-
-Potential future improvements to the keyboard shortcuts system:
-
-- Customizable shortcuts (user preferences)
-- Shortcut help modal (press `?` to view all shortcuts)
-- Additional shortcuts for specific actions
-- Visual indicators when shortcuts are available
-- Shortcut hints in tooltips
-
-## Related Documentation
-
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall application architecture
-- [REACT_ISLANDS_STRATEGY.md](./REACT_ISLANDS_STRATEGY.md) - React Islands pattern
-- [TYPESCRIPT_INLINE_SCRIPTS.md](./TYPESCRIPT_INLINE_SCRIPTS.md) - TypeScript in inline scripts
+Both are handled by one file — `src/utils/keyboard-shortcuts.ts` — which branches on the
+route. `handlePrototypeKeyboardShortcut()` owns the Shift scheme, and Cmd+Shift chords are
+suppressed on prototype routes so the two can't collide.
 
 ---
 
-**Last Updated**: January 2025  
-**Version**: 1.0.0
+## Prototype shortcuts
 
+### General
+
+| Shortcut | Action |
+|---|---|
+| **⇧N** | New note |
+| **⇧R** | Read the Bible |
+| **⇧K** | Search and commands (opens the command palette) |
+| **⇧,** | Settings |
+| **⇧S** | Toggle sidebar |
+| **⇧H** | Show Home |
+| **⇧L** | Show list |
+| **⇧J** | Focus the note list |
+| **Esc** | Dismiss / clear a selection |
+
+### Sidebar
+
+| Shortcut | Action |
+|---|---|
+| **⇧← / ⇧→** | Cycle list mode (Notes, Folders, Highlights, Scripture, Threads, Resources) |
+| **⇧↑ / ⇧↓** | Move focus in the list |
+| **Home / End** | Jump to first / last |
+| **Enter** | Open the focused item |
+| **⌘F** | Focus the search field |
+| **⌘←** | Back |
+
+### Organize
+
+These act on the **selection when one stands, and on the row holding keyboard focus when
+none does**. That single rule is what makes bulk actions and one-row actions the same
+gesture.
+
+| Shortcut | Action |
+|---|---|
+| **⇧X** | Select / deselect the focused row |
+| **⇧A** | Select all / none |
+| **⇧M** | Move to folder |
+| **⇧T** | Add to Thread |
+| **⇧P** | Pin or unpin |
+| **⇧⌫** | Delete |
+
+Notes on the vocabulary:
+
+- **⇧F is not "folder".** It is Find-in-note on note routes, and a note can be open while
+  the sidebar holds a selection. **⇧M** ("move") takes folder instead.
+- **⇧B is left alone** because native binds it to the sidebar toggle. See the divergence
+  below.
+- A verb never reaches a mutation the equivalent button would have greyed out — chord,
+  palette row and bulk-bar button all pass through the same `everyRowAllows` gate in
+  `spa/src/lib/note-row-capabilities.ts`.
+- Organize verbs are **notes-only** today. `⇧X` / `⇧A` follow the checkbox wherever it
+  goes, which currently means notes and highlights. The folder, Thread and resource lists
+  still enter selection from the list menu and act from their own bars.
+
+### Note
+
+| Shortcut | Action |
+|---|---|
+| **⇧F** | Find in note |
+| **⇧D** | Note details (inspector) |
+| **⌘S** | Save |
+| **Enter** | New paragraph, or title → body |
+| **⇧Enter** | Line break within a paragraph |
+
+⌘Enter is deliberately not a save chord — the editor uses it.
+
+---
+
+## Classic shortcuts
+
+| Shortcut | Action |
+|---|---|
+| **⌘'** | New note |
+| **⌘;** | New thread |
+| **⌘K** | Spotlight search |
+| **⌘S** | Save |
+| **⌘⇧D** | Details panel |
+| **⌘⇧S** | Share panel |
+| **⌘⇧L** | Lock note |
+| **⌘⇧E** | Edit |
+| **⌘⇧H** | Home |
+| **⌘←** | Back (overlay → hierarchy → history) |
+| **⌘⌥S** | Space switcher |
+| **⌘⌥[ / ]** | Previous / next item in the nav strip |
+| **⌘⌥← / →** | Cycle content tabs |
+| **⌘⌫** | Erase |
+| **Esc** | Close the top panel |
+
+Harvous does not use ⌘N for create, on either scheme.
+
+---
+
+## Where shortcuts are surfaced
+
+| Surface | Path |
+|---|---|
+| Prototype settings page | `spa/src/pages/prototype/settings/PrototypeKeyboardShortcutsPage.tsx` |
+| Classic preferences panel | `src/components/react/MyPreferencesPanel.tsx` |
+| Native settings screen | `native/Harvous/Views/ProfileAndSettingsViews.swift` |
+| Command palette | `spa/src/pages/prototype/PrototypeCommandPalette.tsx` |
+| Shift-hold badges | `spa/src/hooks/usePrototypeShiftHints.ts` |
+
+**Hold Shift for 400ms** and keycaps appear on toolbar buttons, and on the bulk bar's
+Folder / Thread / Delete once a selection stands. The hold is what keeps Shift+letter typing
+in the editor from flashing hints on every capital.
+
+The prototype reference page is generated from `getPrototypeKeyboardShortcutsReference()`,
+whose Organize group is derived from the command table in
+`spa/src/lib/prototype-commands.ts`. A verb cannot exist as a chord without appearing on
+that page. (The two used to be independent lists, and the page had already drifted — it was
+missing ⌘F and ⌘←.)
+
+There is no `?` cheatsheet overlay. The palette and the settings page cover it.
+
+---
+
+## Implementation
+
+- **Handler:** `src/utils/keyboard-shortcuts.ts` — one capture-phase `keydown` listener.
+- **Init:** `src/components/react/KeyboardShortcutsInit.tsx`, mounted from `spa/src/App.tsx`
+  and `spa/src/layouts/SimplifiedPrototypeLayout.tsx`.
+- **Dispatch:** the handler never calls app code directly. It fires `CustomEvent`s on
+  `window`; components listen. Organize verbs share **one** event,
+  `prototypeShortcutListVerb`, carrying `{ verb }` — the decision about whether a verb
+  applies belongs with the selection state in `PrototypeSidebar`, not with the key.
+- **Typing guard:** `isPrototypeTypingContext()` defers every Shift chord to any active
+  text field, so `x`, `m`, `p` and `a` type normally.
+- **Command palette target:** the sidebar publishes a context *getter* to
+  `spa/src/lib/prototype-command-context-store.ts`. A getter rather than a value because
+  part of the context is which row has focus, and focus moves without re-rendering React.
+
+**Tests:** `src/utils/__tests__/keyboard-shortcuts.test.ts` drives the real listener;
+`spa/src/lib/__tests__/prototype-commands.test.ts` covers the gates and wording.
+
+---
+
+## Native parity
+
+Native has its own implementations: SwiftUI `.keyboardShortcut()` in
+`native/Harvous/HarvousCommands.swift` for menu commands, plus a Shift monitor in
+`native/Harvous/DesignSystem/HarvousShortcutKeycap.swift` (macOS `NSEvent` monitor,
+iOS `UIKeyCommand`) with the same 400ms hold-to-hint.
+
+Two divergences worth knowing:
+
+1. **Sidebar toggle differs by platform.** Web binds **⇧S**; native binds **⇧B**.
+   `docs/design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md` sides with native, so the
+   parity doc and the web implementation currently contradict each other. Unresolved.
+2. **Native is ahead on editor and note navigation.** It has a full Format menu
+   (bold/italic/headings/lists/link/code), Daily Note, Random Revisit, Insert Wikilink,
+   New Connected Note, next/prev note, next/prev scripture pill, next/prev study highlight,
+   and dock toggles. The web prototype has none of these.
+
+Native has no multi-select, so the Organize chords above are new vocabulary there. When
+native follows, hang them on the existing `HarvousShiftShortcut` enum.
+
+Prototype-only today: ⇧H, ⇧L, ⇧R, ⇧↑/⇧↓, and the whole Organize group.
+
+---
+
+## Related
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md](./design-parity/PROTOTYPE_NATIVE_MENU_CONTENT_PARITY.md)

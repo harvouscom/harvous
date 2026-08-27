@@ -16,6 +16,8 @@ import {
   prototypeHomePath,
   prototypeSettingsRouteTo,
 } from '@/lib/prototype-path';
+/* Pure table — no React reaches this early-loading module. See `prototype-commands.ts`. */
+import { PROTOTYPE_COMMANDS } from '../../spa/src/lib/prototype-commands';
 
 /** Second press of the same browser-conflicting shortcut within this window lets the browser handle it. */
 const PASSTHROUGH_WINDOW_MS = 600;
@@ -316,6 +318,22 @@ function isPrototypeShiftChord(event: KeyboardEvent): boolean {
   return event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && event.key !== 'Shift';
 }
 
+/**
+ * Shift+letter → the verb the sidebar should try against its selection, or against the
+ * row that currently holds keyboard focus. Backspace maps to `delete` alongside these.
+ *
+ * `select` and `selectAll` are selection itself rather than organizing, but they travel
+ * the same event because the sidebar needs the same "which list, which row" answer to act
+ * on any of them.
+ */
+const PROTOTYPE_LIST_VERB_KEYS: Readonly<Record<string, string | undefined>> = {
+  x: 'select',
+  a: 'selectAll',
+  m: 'folder',
+  t: 'thread',
+  p: 'pin',
+};
+
 function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
   if (typeof window === 'undefined') return false;
 
@@ -336,10 +354,15 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       window.dispatchEvent(new CustomEvent('prototypeShortcutNewNote'));
       return true;
     }
+    /**
+     * The palette opens with its field focused and searches notes as you type, so this
+     * still does what it always did — it just also runs commands. The old behaviour is
+     * not lost either: ⌘F focuses the sidebar's own search field (see below).
+     */
     if (key === 'k') {
       event.preventDefault();
       event.stopImmediatePropagation();
-      window.dispatchEvent(new CustomEvent('prototypeShortcutFocusSidebarSearch'));
+      window.dispatchEvent(new CustomEvent('prototypeShortcutOpenCommandPalette'));
       return true;
     }
     if (event.key === ',') {
@@ -374,6 +397,26 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       event.preventDefault();
       event.stopImmediatePropagation();
       window.dispatchEvent(new CustomEvent('prototypeShortcutOpenReader'));
+      return true;
+    }
+    /**
+     * Selecting and organizing from the keyboard.
+     *
+     * One event for all of them rather than six, because the decision they need — is a
+     * selection standing, or is a row merely focused, and may this verb act on it — lives
+     * in the sidebar with the selection state and the sheets. Here we only name the verb.
+     *
+     * `f` is not among them on purpose: it is Find-in-note on note routes, and a note can
+     * be open while the sidebar holds a selection. `b` is left alone because native binds
+     * it to the sidebar toggle.
+     */
+    const listVerb = PROTOTYPE_LIST_VERB_KEYS[key] ?? (key === 'backspace' ? 'delete' : null);
+    if (listVerb) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(
+        new CustomEvent('prototypeShortcutListVerb', { detail: { verb: listVerb } }),
+      );
       return true;
     }
     if (isPrototypeNoteRoute(path)) {
@@ -767,7 +810,7 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       items: [
         { action: 'New note', keyParts: [shift, 'N'] },
         { action: 'Read the Bible', keyParts: [shift, 'R'] },
-        { action: 'Search', keyParts: [shift, 'K'] },
+        { action: 'Search and commands', keyParts: [shift, 'K'] },
         { action: 'Settings', keyParts: [shift, ','] },
         { action: 'Toggle sidebar', keyParts: [shift, 'S'] },
         { action: 'Show Home', keyParts: [shift, 'H'] },
@@ -783,6 +826,27 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
         { action: 'Move in list', keyParts: [shift, '↑ / ↓'] },
         { action: 'Jump to first / last', keyParts: ['Home / End'] },
         { action: 'Open item', keyParts: ['Enter'] },
+        { action: 'Focus search field', keyParts: [getKeyboardShortcutModifierLabel(), 'F'] },
+        { action: 'Back', keyParts: [getKeyboardShortcutModifierLabel(), '←'] },
+      ],
+    },
+    {
+      /**
+       * Derived from the command table rather than restated, so a verb cannot exist as a
+       * chord without appearing here. The two lists used to be independent, and this one
+       * had already drifted — it was missing ⌘F and ⌘← above.
+       *
+       * These act on the selection when one stands, and on the row holding keyboard focus
+       * when none does.
+       */
+      heading: 'Organize',
+      items: [
+        { action: 'Select focused row', keyParts: [shift, 'X'] },
+        { action: 'Select all / none', keyParts: [shift, 'A'] },
+        ...PROTOTYPE_COMMANDS.filter((command) => command.keys).map((command) => ({
+          action: command.referenceLabel,
+          keyParts: [...command.keys],
+        })),
       ],
     },
     {

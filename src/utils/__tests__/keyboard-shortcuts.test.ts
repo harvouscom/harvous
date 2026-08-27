@@ -127,8 +127,23 @@ describe('prototype shell shortcuts (Shift + key)', () => {
     expectEvent('prototypeShortcutNewNote', () => press({ key: 'N', code: 'KeyN', shift: true }));
   });
 
-  it('Shift+K → focus sidebar search', () => {
-    expectEvent('prototypeShortcutFocusSidebarSearch', () => press({ key: 'K', code: 'KeyK', shift: true }));
+  it('Shift+K → open the command palette', () => {
+    expectEvent('prototypeShortcutOpenCommandPalette', () =>
+      press({ key: 'K', code: 'KeyK', shift: true }),
+    );
+  });
+
+  /* The behaviour Shift+K used to have is not lost — Mod+F still has it. */
+  it('Shift+K no longer focuses the sidebar search', () => {
+    expectNoEvent('prototypeShortcutFocusSidebarSearch', () =>
+      press({ key: 'K', code: 'KeyK', shift: true }),
+    );
+  });
+
+  it('Mod+F still focuses the sidebar search', () => {
+    expectEvent('prototypeShortcutFocusSidebarSearch', () =>
+      press({ key: 'f', code: 'KeyF', meta: true }),
+    );
   });
 
   it('Mod+K does not open production spotlight', () => {
@@ -188,6 +203,53 @@ describe('prototype shell shortcuts (Shift + key)', () => {
       press({ key: 'ArrowDown', code: 'ArrowDown', shift: true }),
     );
     expect(e.detail).toEqual({ step: 1 });
+  });
+
+  describe('organize verbs', () => {
+    /*
+     * One event carries all of them — the sidebar is what knows whether a selection
+     * stands, which row has focus, and whether the verb may act on either. Here we only
+     * check the naming.
+     */
+    it.each([
+      ['X', 'KeyX', 'select'],
+      ['A', 'KeyA', 'selectAll'],
+      ['M', 'KeyM', 'folder'],
+      ['T', 'KeyT', 'thread'],
+      ['P', 'KeyP', 'pin'],
+    ])('Shift+%s → %s', (key, code, verb) => {
+      const e = expectEvent('prototypeShortcutListVerb', () => press({ key, code, shift: true }));
+      expect(e.detail).toEqual({ verb });
+    });
+
+    it('Shift+Backspace → delete', () => {
+      const e = expectEvent('prototypeShortcutListVerb', () =>
+        press({ key: 'Backspace', code: 'Backspace', shift: true }),
+      );
+      expect(e.detail).toEqual({ verb: 'delete' });
+    });
+
+    it('leaves Shift+F to Find-in-note rather than claiming it for folder', () => {
+      expectNoEvent('prototypeShortcutListVerb', () => press({ key: 'F', code: 'KeyF', shift: true }));
+    });
+
+    it('does not fire while typing', () => {
+      const editor = document.createElement('div');
+      editor.className = 'ProseMirror';
+      const inner = document.createElement('div');
+      editor.appendChild(inner);
+      document.body.appendChild(editor);
+      expectNoEvent('prototypeShortcutListVerb', () => {
+        const event = new KeyboardEvent('keydown', {
+          key: 'M',
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        });
+        inner.dispatchEvent(event);
+      });
+      editor.remove();
+    });
   });
 
   it('defers to typing context (does not fire in editor)', () => {
