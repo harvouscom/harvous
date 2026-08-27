@@ -15,3 +15,20 @@ export const PROTO_INSTALL_WEB_APP_DISMISSED_KEY = 'harvous-prototype-install-we
 
 /** Dev-only: force the install web app card for UI testing (`import.meta.env.DEV` only). */
 export const PROTO_INSTALL_WEB_APP_PREVIEW_KEY = 'harvous-prototype-install-web-app-preview';
+
+/** This device's cache of the onboarding checklist — first paint, before the account answers. */
+export const PROTO_ONBOARDING_KEY = 'harvous-proto-onboarding';
+
+/** A local checklist edit awaiting push to the account (survives reload and offline). */
+export const PROTO_ONBOARDING_PENDING_KEY = 'harvous-proto-onboarding-pending';
+
+/** Dev-only: force the getting-started dock for UI testing (`import.meta.env.DEV` only). */
+export const PROTO_ONBOARDING_PREVIEW_KEY = 'harvous-proto-onboarding-preview';
+
+/**
+ * Handoff for the one-shot spotlight: the target a checklist row is sending you to.
+ *
+ * sessionStorage rather than local — a glow is about this trip across the app, and should
+ * not be waiting in a tab you open tomorrow.
+ */
+export const PROTO_SPOTLIGHT_KEY = 'harvous-proto-spotlight';

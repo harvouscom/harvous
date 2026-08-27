@@ -64,10 +64,15 @@ describe('a suggestion row', () => {
     posted.length = 0;
   });
 
-  it('keeps deferral one tap, on the visible control', () => {
+  /*
+   * One deferral, and it names no window — the length is the store's decision, from this
+   * card's own history. A row that passed a number here would be picking for it.
+   */
+  it('sends "Remind me later" down the snooze path, carrying no window', () => {
     const { onSnooze, onDismiss } = renderShelf();
 
-    fireEvent.click(screen.getByLabelText(RECALL_SNOOZE_COPY.ariaFor(op.title)));
+    fireEvent.click(screen.getByLabelText(RECALL_MORE_COPY.ariaFor(op.title)));
+    fireEvent.click(screen.getByText(RECALL_SNOOZE_COPY.label));
 
     expect(onSnooze).toHaveBeenCalledWith('hl:7');
     expect(onDismiss).not.toHaveBeenCalled();
@@ -75,18 +80,35 @@ describe('a suggestion row', () => {
   });
 
   /**
-   * The asymmetry is deliberate: permanence should cost a moment's deliberation, and neither
-   * mis-tap should be expensive. Hitting the ✕ costs three weeks; hitting the overflow costs
-   * a menu you can close.
+   * Both behind the one overflow, and both *named* there.
+   *
+   * Deferral used to be a bare ✕ on the row, one tap, with only the permanent answer in the
+   * menu — permanence costing a moment's deliberation. What that traded away is the thing this
+   * asserts: a ✕ on a suggestion cannot say which of the two answers it means, and they differ
+   * by forever. Reading the choice is worth the extra tap.
    */
-  it('hides the permanent answer behind the overflow', () => {
+  it('keeps both answers behind the overflow, and names them there', () => {
     renderShelf();
 
+    expect(screen.queryByText(RECALL_SNOOZE_COPY.label)).toBeNull();
     expect(screen.queryByText(RECALL_DISMISS_COPY.label)).toBeNull();
 
     fireEvent.click(screen.getByLabelText(RECALL_MORE_COPY.ariaFor(op.title)));
 
+    expect(screen.getByText(RECALL_SNOOZE_COPY.label)).toBeTruthy();
     expect(screen.getByText(RECALL_DISMISS_COPY.label)).toBeTruthy();
+  });
+
+  /** Deferral first, permanent last — the answer that cannot be undone sits furthest away. */
+  it('lists deferral above the permanent answer', () => {
+    renderShelf();
+    fireEvent.click(screen.getByLabelText(RECALL_MORE_COPY.ariaFor(op.title)));
+
+    const labels = screen
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent?.trim());
+
+    expect(labels).toEqual([RECALL_SNOOZE_COPY.label, RECALL_DISMISS_COPY.label]);
   });
 
   it('sends "Not interested" down the permanent path, not the snooze one', () => {
@@ -101,14 +123,17 @@ describe('a suggestion row', () => {
     expect(answers()).toEqual([{ action: 'dismissed', opportunityId: 'hl:7' }]);
   });
 
-  it('closes the menu after answering, so the row is not left mid-decision', () => {
-    renderShelf();
+  it.each([RECALL_SNOOZE_COPY.label, RECALL_DISMISS_COPY.label])(
+    'closes the menu after answering %s, so the row is not left mid-decision',
+    (label) => {
+      renderShelf();
 
-    fireEvent.click(screen.getByLabelText(RECALL_MORE_COPY.ariaFor(op.title)));
-    fireEvent.click(screen.getByText(RECALL_DISMISS_COPY.label));
+      fireEvent.click(screen.getByLabelText(RECALL_MORE_COPY.ariaFor(op.title)));
+      fireEvent.click(screen.getByText(label));
 
-    expect(screen.queryByText(RECALL_DISMISS_COPY.label)).toBeNull();
-  });
+      expect(screen.queryByText(label)).toBeNull();
+    },
+  );
 
   /**
    * Reachable for every kind, which is the other half of why both answers moved onto the row.

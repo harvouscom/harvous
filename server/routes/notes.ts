@@ -108,6 +108,7 @@ import {
 } from '../utils/note-collaboration';
 import { recordDeletedEntities } from '../utils/sync-deletion-log';
 import { getUserNoteFingerprints } from '../utils/note-fingerprint';
+import { getUserNoteVisitAggregate } from '../utils/record-note-visit';
 import { getCrossRefGaps } from '../utils/crossref-gaps';
 import { tryRecordVotdAddNoteFromCreatedNote } from '../utils/votd-record-engagement';
 import { getConnectSuggestions } from '../utils/connect-suggestions';
@@ -2080,7 +2081,24 @@ route.get('/api/notes/recent', requireAuth, async (c) => {
 route.get('/api/notes/fingerprints', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const fingerprints = await getUserNoteFingerprints(auth.userId);
+    /*
+     * Two halves, fetched together and failing apart.
+     *
+     * Together because both are per-note memory signals the same ranking pass consumes, and
+     * this route is already inside Home's readiness gate — a second endpoint would mean a
+     * second gate flag, and `selectRecallOpportunities` rotates modulo the candidate count,
+     * so anything that can arrive late reshuffles the deck under the reader.
+     *
+     * Apart because the gate is exactly why the visit half must never be able to fail the
+     * request: a database without NoteVisitEvents has to read as "no visits yet", not as a
+     * failed fingerprints response that strands Home on loading dots.
+     * `getUserNoteVisitAggregate` is non-throwing by contract; the catch is the belt to
+     * its braces.
+     */
+    const [fingerprints, visits] = await Promise.all([
+      getUserNoteFingerprints(auth.userId),
+      getUserNoteVisitAggregate(auth.userId).catch(() => []),
+    ]);
     const compact = fingerprints.map((f) => ({
       noteId: f.noteId,
       meaningWeight: f.meaningWeight,
@@ -2096,7 +2114,14 @@ route.get('/api/notes/fingerprints', requireAuth, async (c) => {
       recallStabilityDays: f.recallStabilityDays,
       lastRecallEngagedAt: f.lastRecallEngagedAt?.toISOString() ?? null,
     }));
-    return c.json({ success: true, fingerprints: compact });
+    /*
+     * A sibling array rather than fields on each fingerprint. `getUserNoteFingerprints`
+     * inner-joins Notes and only returns notes that have been through the fingerprint
+     * pipeline, so a note that has been read but never fingerprinted would have nowhere to
+     * appear if visits were merged per entry — and that note is precisely the one this
+     * whole signal exists to see.
+     */
+    return c.json({ success: true, fingerprints: compact, visits });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/fingerprints', action: 'get_fingerprints' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

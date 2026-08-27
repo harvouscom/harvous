@@ -70,3 +70,61 @@ Not code: a query. Open-rate per `kind` over the last 60 days, across all users.
 spread is flat, ranking isn't the problem and this whole document is premature. If it's
 steep, it tells you exactly which kinds to cut or promote, and the scoring work becomes
 optional.
+
+## The finding (Aug 2026)
+
+The suggested first step was run: `npm run recall:kind-rates`
+(`server/scripts/recall-open-rate-by-kind.ts`). Sixty days, deduped to one row per
+(kind, user, opportunity, day) — an impression fires per shelf render, so the raw ratio
+would understate acceptance by however often someone loads Home.
+
+| kind | shown | opened | rate | users |
+|---|---:|---:|---:|---:|
+| revisitNote | 145 | 8 | **5.5%** | 9 |
+| annotateHighlight | 130 | 14 | 10.8% | 17 |
+| continueBook | 99 | 31 | **31.3%** | 39 |
+| crossrefGap | 67 | 12 | 17.9% | 23 |
+| highlight | 32 | 3 | 9.4% | 8 |
+| connectNotes | 28 | 2 | 7.1% | 12 |
+| passage | 25 | 3 | 12.0% | 9 |
+| reflection | 18 | 3 | 16.7% | 3 |
+| arc | 18 | 1 | 5.6% | 3 |
+| subject | 17 | 3 | 17.6% | 5 |
+| studyPerson | 5 | 1 | 20.0% | 3 |
+| referenceWord | 1 | 0 | 0% | 1 |
+
+**The spread is steep, and it runs against `RECALL_KIND_TIER`.** `continueBook` is tier 1
+and outperforms everything — six times `revisitNote`'s rate, and reached 39 users against
+its 9. `crossrefGap`, also tier 1, is more than three times `revisitNote`. The two kinds we
+rank highest, `revisitNote` and `annotateHighlight`, account for 275 of 585 impressions and
+22 of 81 opens.
+
+**Position cannot explain that away — which is what makes it usable.** The confound the
+script prints is real: tier-0 kinds get pinned to the head slot, so their rates are
+*flattered*, not suppressed. `revisitNote` has the positional advantage and still has the
+worst rate of anything with volume. That direction is safe to act on. The reverse is not:
+`continueBook` may be even better than 31% once position is controlled for, so its number
+is a floor, not an estimate.
+
+**So the answer to the question this document asked is: not a multiplier, not yet.** Two
+cheaper things come first.
+
+1. **Re-tier by hand, on this evidence.** `continueBook` and `crossrefGap` are earning
+   their impressions and are being ranked below two kinds that are not. That is a one-line
+   change to `RECALL_KIND_TIER`, not a scoring model — and a scoring model built on these
+   numbers would only launder the current tiers into "the users chose this".
+2. **Add a `position` column to `RecallEvents`.** Without it no rate here can ever be
+   decomposed, so the multiplier stays unbuildable on evidence no matter how long the log
+   grows. This is the actual prerequisite.
+
+**One more thing the numbers say: `complete` has never been recorded. Not once, for any
+kind.** Every generative kind can report it and none has. Either the completion callbacks
+are not wired on most of them, or nobody has finished what a generative card asked for.
+Worth finding out which before any of the above — a whole action of
+`RECALL_EVENT_ACTIONS` being empty is a measurement bug until proven otherwise.
+
+**A note on `revisitNote` specifically.** Its low rate was measured before visits became a
+ranking signal (see `NoteVisitEvents` and `revisitReturnsBoost`). The kind was picking notes
+using only what had been *written*, which is exactly the blind spot that work closes — so
+re-measure it after the visit log has a few weeks of data rather than cutting it on this
+number.

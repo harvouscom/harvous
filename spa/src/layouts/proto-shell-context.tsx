@@ -379,6 +379,16 @@ type ProtoShellContextValue = {
   sidebarLayer: SidebarLayer;
   setSidebarLayer: (layer: SidebarLayer) => void;
   /**
+   * Where the Notes half of the toolbar's Notes/Bible switch goes back to — the last
+   * non-reader path visited. Null until something records one; callers fall back to home.
+   *
+   * The provider is deliberately router-free (its test renders it with no router), so the
+   * recording happens in `useReaderToggle`, which has the location. Writes of an unchanged
+   * path bail out, so the several callers of that hook cannot fight each other.
+   */
+  lastNotesPath: string | null;
+  recordNotesPath: (path: string) => void;
+  /**
    * Where the user is — parent (My Home / a church) plus the space inside it.
    * The single source of truth; everything below is derived. Persisted across refresh.
    */
@@ -577,6 +587,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
   const persistedNav = readPersistedSidebarNav();
   const [sidebarLayer, setSidebarLayerState] = useState<SidebarLayer>(persistedNav.layer);
+  const [lastNotesPath, setLastNotesPath] = useState<string | null>(null);
+  const recordNotesPath = useCallback((path: string) => {
+    setLastNotesPath((prev) => (prev === path ? prev : path));
+  }, []);
   /**
    * Single source of truth for "where am I". `activeSpaceId` and
    * `activeChurchOrgId` below are derived reads of this — see proto-location.ts
@@ -1347,6 +1361,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       sidebarWidthMax: PROTO_SIDEBAR_WIDTH_MAX,
       sidebarLayer,
       setSidebarLayer,
+      lastNotesPath,
+      recordNotesPath,
       location,
       setLocation,
       activeSpaceId,
@@ -1434,6 +1450,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       persistSidebarWidth,
       sidebarLayer,
       setSidebarLayer,
+      lastNotesPath,
+      recordNotesPath,
       location,
       setLocation,
       activeSpaceId,

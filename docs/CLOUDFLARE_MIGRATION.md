@@ -1,0 +1,464 @@
+# Phase A: Netlify → Cloudflare (app.harvous.com)
+
+**Status: PLANNED.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+
+Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
+static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
+and DNS/TLS for the zone. Fly, Supabase, Clerk, and Polar are untouched. The web
+app, the native app, and the offline queue keep calling `app.harvous.com` and must
+not be able to tell the difference.
+
+This is the seventh sibling of the "Six Sites to Cloudflare" runbook (the other
+Netlify properties, which use Cloudflare Pages). This one cannot use Pages — see
+the architecture decision — but the five-phase cutover shape is the same.
+
+---
+
+## Architecture decision: Workers with static assets, not Pages
+
+Verified against Cloudflare docs (2026-08-27):
+
+- Cloudflare's `_redirects` **cannot 200-proxy to an external domain** ("Proxying
+  will only support relative URLs on your site. You cannot proxy external
+  domains."). The `/api/*` → `harvous.fly.dev` proxy therefore requires code.
+- Workers static assets supports `run_worker_first` with path patterns
+  (e.g. `"/api/*"`, negations like `"!/api/docs/*"`), and
+  `not_found_handling: "single-page-application"` for SPA fallback.
+- Pages is in maintenance mode; Workers is the platform's recommended target for
+  new projects, and the only one where DOs (Phase B) attach directly.
+
+One Worker serves everything: assets from `dist-spa/`, Worker code first for the
+paths that need logic.
+
+### Plan tier: Workers Paid ($5/mo) from day one
+
+Netlify's edge function survives bot floods via *declaration-level* UA/pattern
+matchers — requests that don't match never bill. `run_worker_first` has no UA
+filter: **every** `/api/*` and `/shared/*` request invokes the Worker. The Aug
+2026 bot flood ran ~772K invocations in three weeks (~37K/day average, spikier at
+peak). Stacked on normal API traffic, the Workers **Free tier's 100K requests/day
+cap is plausibly reachable — and Free-cap overrun drops requests rather than
+billing them.** A dropped `/api/sync/push` is data-loss-adjacent; $5/mo
+(10M included requests) is the correct insurance and still $14/mo under Netlify
+Pro. `public/robots.txt` (exists; disallows most of the app host) remains the
+first line of defense against crawl volume.
+
+---
+
+## Repo changes
+
+### 1. `wrangler.jsonc` (new, repo root)
+
+```jsonc
+{
+  "name": "harvous-app",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "./dist-spa",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*",
+      "/shared/note/*",
+      "/shared/thread/*",
+      "/assets/*"
+    ]
+  },
+  "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
+  "routes": [
+    { "pattern": "app.harvous.com", "custom_domain": true }
+  ],
+  "env": {
+    "staging": {
+      "name": "harvous-app-staging",
+      "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
+      "routes": [
+        { "pattern": "new.harvous.com", "custom_domain": true }
+      ]
+    }
+  }
+}
+```
+
+Notes:
+- Staging (`new.harvous.com`) mirrors Netlify's `[context.staging]`: **dev Clerk
+  publishable key, production DB.** The Clerk split happens at build time
+  (`VITE_CLERK_PUBLISHABLE_KEY`), so staging is a *separate build* of `dist-spa`,
+  not just a separate env var — the deploy workflow below builds per-target.
+- `status.harvous.com` is currently a Netlify domain alias (see
+  `docs/STATUS_PAGE_SETUP.md`) — carry it as an additional route or leave it on
+  Netlify until the status page is revisited; decide during execution and note it
+  in the status log.
+
+### 2. `cloudflare/worker.ts` (new)
+
+Skeleton — the real file ports the constants verbatim from
+`netlify/edge-functions/shared-og.ts` (26 UA snippets, listed below) and keeps
+the comments explaining each rule:
+
+```ts
+interface Env {
+  ASSETS: Fetcher;
+  API_ORIGIN: string; // https://harvous.fly.dev
+}
+
+// Verbatim from netlify/edge-functions/shared-og.ts — keep in sync until that
+// file is deleted in cleanup. Case-insensitive substring match.
+const CRAWLER_UA_SNIPPETS = [
+  'facebookexternalhit', 'Facebot', 'Twitterbot', 'LinkedInBot', 'Slackbot',
+  'Slack-ImgProxy', 'Discordbot', 'TelegramBot', 'WhatsApp', 'Applebot',
+  'facebookcatalog', 'meta-externalagent', 'Pinterestbot', 'Embedly',
+  'Quora Link Preview', 'outbrain', 'vkShare', 'W3C_Validator', 'redditbot',
+  'SkypeUriPreview', 'Iframely', 'Googlebot', 'bingbot', 'Baiduspider',
+  'DuckDuckBot', 'YandexBot', 'ia_archiver',
+];
+
+const SHARE_PATH = /^\/shared\/(note|thread)\/([A-Za-z0-9]{12})\/?$/;
+
+// Legacy 301s from netlify.toml. /prototype strip is host-agnostic here because
+// this Worker only ever serves app.harvous.com / new.harvous.com.
+function legacyRedirect(url: URL): Response | null {
+  const p = url.pathname;
+  if (p.startsWith('/prototype/')) {
+    return Response.redirect(new URL(p.slice('/prototype'.length) + url.search, url), 302);
+  }
+  for (const [prefix, target] of [
+    ['/thread_', '/thread/'], ['/note_', '/note/'], ['/space_', '/space/'],
+  ] as const) {
+    if (p.startsWith(prefix)) {
+      return Response.redirect(new URL(target + p.slice(prefix.length) + url.search, url), 301);
+    }
+  }
+  return null;
+}
+
+function isCrawler(ua: string | null): boolean {
+  if (!ua) return false;
+  const lower = ua.toLowerCase();
+  return CRAWLER_UA_SNIPPETS.some((s) => lower.includes(s.toLowerCase()));
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    // ── /api/* → Fly, streamed both directions. No Netlify-style timeout;
+    // no header duplication. Both the old /api/og/image/* rule and the /api/*
+    // rule in public/_redirects pointed at the same origin, so one rule here.
+    if (url.pathname.startsWith('/api/')) {
+      const upstream = new URL(url.pathname + url.search, env.API_ORIGIN);
+      return fetch(upstream, request);
+    }
+
+    // ── Crawlers on share URLs get server-rendered OG meta HTML from Fly;
+    // humans fall through to the SPA shell.
+    const share = url.pathname.match(SHARE_PATH);
+    if (share && isCrawler(request.headers.get('user-agent'))) {
+      const [, kind, token] = share;
+      return fetch(new URL(`/api/og/share/${kind}/${token}`, env.API_ORIGIN), request);
+    }
+
+    // ── Hashed build assets must NEVER fall through to the SPA shell. A stale
+    // /assets/*-<hash>.js answered with index.html gets cached by the service
+    // worker under the .js URL, permanently. 404 is the honest answer.
+    // (Same reasoning as the load-bearing rule in public/_redirects.)
+    if (url.pathname.startsWith('/assets/')) {
+      const res = await env.ASSETS.fetch(request);
+      const isHtmlFallback = res.ok &&
+        (res.headers.get('content-type') ?? '').includes('text/html');
+      if (isHtmlFallback) return new Response('Not found', { status: 404 });
+      return res;
+    }
+
+    // ── Legacy redirects, then assets (with SPA fallback).
+    return legacyRedirect(url) ?? env.ASSETS.fetch(request);
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+Implementation notes for the executing session:
+- **Verify the `/assets/*` guard empirically.** With
+  `not_found_handling: "single-page-application"`, confirm what `ASSETS.fetch`
+  returns for a missing asset (it may serve `index.html` at 200). The
+  content-type check above handles that shape; if the binding instead honors
+  404s for non-navigation requests, simplify the guard. Either way the gate is
+  the curl test below, not the assumption.
+- The `/.well-known/web-app-origin-association` → `/well-known/...` 200 rewrite
+  (Chrome fetches the dotted path; the file lives at the undotted one) can go in
+  a `_redirects` file (it's same-site, which Cloudflare supports) or as two
+  lines in the Worker. Prefer `_redirects` to keep the Worker minimal.
+
+### 3. `public/_headers` (new — ships into `dist-spa/` via Vite's public dir)
+
+Transcribed from `netlify.toml` (verified 2026-08-27). Cloudflare `_headers` has
+its own specificity semantics, **not** Netlify's "later rule wins" ordering —
+which is exactly the trap that once made `/assets/*` lose its `immutable` and
+re-download the full bundle every visit. The gate below (curl matrix) is
+mandatory before DNS changes; if Cloudflare's semantics can't reproduce the
+tiering exactly, move headers into Worker code where order is explicit.
+
+```
+/*
+  Cache-Control: no-cache, must-revalidate
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.com https://clerk.harvous.com https://*.js.stripe.com https://js.stripe.com https://*.posthog.com https://*.us.posthog.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.clerk.com https://clerk.harvous.com https://*.clerk.accounts.dev https://api.stripe.com https://*.posthog.com https://*.us.posthog.com https://api.bible.org; frame-src 'self' https://*.clerk.com https://clerk.harvous.com https://challenges.cloudflare.com https://*.js.stripe.com https://js.stripe.com https://hooks.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  X-XSS-Protection: 1; mode=block
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+/assets/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+/fonts/*
+  ! Cache-Control
+  Cache-Control: public, max-age=2592000
+
+/images/*
+  ! Cache-Control
+  Cache-Control: public, max-age=2592000
+
+/icons/*
+  ! Cache-Control
+  Cache-Control: public, max-age=2592000
+```
+
+- The CSP already allowlists `challenges.cloudflare.com` (Clerk's Turnstile), so
+  no CSP change is required by the move.
+- `/api/*` headers (`no-store, no-cache, must-revalidate`; `/api/og/*` public
+  1-day) are **not** in `_headers` — API responses come from the Worker's proxy
+  branch, so Fly's response headers pass through. Verify Fly actually sets them
+  (it does — `server/app.ts` sets Cache-Control defaults; the OG routes set
+  their own); add explicit overrides in the proxy branch only if the curl matrix
+  shows a gap.
+- The `! Cache-Control` detach lines are the Cloudflare mechanism for "this rule
+  replaces, not appends"; confirm exact syntax against current docs when
+  executing.
+
+### 4. `public/_redirects` (modified)
+
+The Fly proxy lines are Worker code now. What remains (all same-site, supported
+by Cloudflare):
+
+```
+/.well-known/web-app-origin-association  /well-known/web-app-origin-association  200
+```
+
+The `/assets/* 404` and SPA-catch-all rules are handled by the Worker/assets
+config. **Keep a Netlify-compatible copy of the current file until cleanup** —
+Netlify keeps deploying `main` as the rollback during the soak week, so the
+executing session should stage the Cloudflare variants without breaking the
+Netlify build (e.g. keep `public/_redirects` as-is for Netlify and generate the
+Cloudflare `_redirects` in the deploy workflow, or cut over the file in the same
+commit that changes DNS — decide at execution, note in the status log).
+
+### 5. `.github/workflows/cloudflare-deploy.yml` (new)
+
+```yaml
+name: Deploy to Cloudflare
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'spa/**'
+      - 'src/**'
+      - 'shared/**'
+      - 'public/**'
+      - 'cloudflare/**'
+      - 'wrangler.jsonc'
+      - 'package*.json'
+      - 'vite.config.ts'
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --prefer-offline --no-audit
+      - run: node scripts/inject-sw-cache-version.js
+      - run: npm run build:spa
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
+          # …plus the VITE_POLAR_* / PUBLIC_POSTHOG_* vars currently set in the
+          # Netlify build environment (see netlify.toml SECRETS_SCAN_OMIT_KEYS
+          # for the full VITE_ list — they are public identifiers, not secrets).
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy ${{ github.ref_name == 'staging' && '--env staging' || '' }}
+```
+
+- `build:api` (the Netlify Functions bundle) is **not** part of this build — it
+  exists only for the Netlify rollback path and dies in cleanup.
+- The `paths:` filter replaces `scripts/netlify-skip-build.sh` (docs-only pushes
+  don't deploy).
+- `NODE_VERSION=22` and `NPM_FLAGS` from `netlify.toml` are reproduced by
+  `setup-node` and the `npm ci` flags.
+- Wrangler's non-interactive auth needs a `CLOUDFLARE_API_TOKEN` with
+  Workers Scripts:Edit on the account — create it during execution.
+
+---
+
+## Full netlify.toml → Cloudflare mapping (verified against source 2026-08-27)
+
+| Netlify | Cloudflare home |
+|---|---|
+| `[build]` command (`npm ci && inject-sw-cache-version && build:api && build:spa`) | GH Actions workflow above (minus `build:api`) |
+| `ignore = netlify-skip-build.sh` | workflow `paths:` filter |
+| `[functions]` api.cjs / og-image.cjs (bypassed since Fly) | dead — cleanup deletes |
+| Scheduled fns `purge-shared-spaces`, `audienceful-activity-sync` `@daily` | already duplicated by Fly's in-process `server/scheduler.ts` (00:00 UTC) — Netlify copies die in cleanup, nothing to port |
+| `[build.environment]` NODE_VERSION / NPM_FLAGS / SECRETS_SCAN_OMIT_KEYS | workflow env; secrets-scan allowance is Netlify-only, drops |
+| 302 host-scoped `/prototype/*` strips (app + new) | Worker `legacyRedirect` |
+| 301 `/thread_*`, `/note_*`, `/space_*` | Worker `legacyRedirect` |
+| 200 `/.well-known/web-app-origin-association` rewrite | `_redirects` |
+| 200 `/api/og/image/*` → og-image function (dead; `_redirects` sends it to Fly first) | folded into the `/api/*` proxy branch |
+| `/api/*` + `/api/og/*` header blocks | pass-through from Fly via proxy branch |
+| `/*` security/CSP block + cache tiers | `public/_headers` above |
+| `[context.staging]` → new.harvous.com, dev Clerk | wrangler `env.staging` + per-branch build env |
+| Edge function `shared-og.ts` (UA + pattern matchers as billing gate) | Worker crawler branch; billing gate replaced by Workers Paid tier |
+| `public/_redirects` Fly proxy + `/assets/*` 404 + SPA catch-all | Worker proxy branch + assets guard + `single-page-application` fallback |
+
+---
+
+## Cutover runbook (five phases, matching the Six Sites artifact)
+
+### 1. Build it on Cloudflare, change no DNS
+
+Deploy the Worker (production env) and hit the `*.workers.dev` URL. Run the
+**parity matrix** (script it — it re-runs in phases 2, 4, and 5):
+
+```bash
+BASE=https://harvous-app.<account>.workers.dev   # then https://app.harvous.com post-cutover
+# Headers per path class
+curl -sI $BASE/ | grep -iE 'cache-control|content-security|strict-transport'
+curl -sI $BASE/assets/$(curl -s $BASE/ | grep -o 'assets/index-[^"]*\.js' | head -1 | cut -d/ -f2)
+#   → MUST be: cache-control: public, max-age=31536000, immutable
+curl -sI $BASE/fonts/anything.woff2 ; curl -sI $BASE/images/x.webp ; curl -sI $BASE/icons/x.png
+curl -sI $BASE/api/health            # → no-store from Fly, 200, ~100ms from iad-adjacent
+# Redirect statuses
+curl -sI $BASE/prototype/dashboard   # → 302 /dashboard
+curl -sI $BASE/thread_abc123         # → 301 /thread/abc123
+curl -sI $BASE/.well-known/web-app-origin-association  # → 200, JSON body
+# Stale-asset honesty
+curl -sI $BASE/assets/index-DOESNOTEXIST.js   # → 404, NOT 200 text/html
+# Crawler vs human on share URLs (use a real 12-char token)
+curl -s -A "Twitterbot/1.0" $BASE/shared/note/AAAAAAAAAAAA | grep og:title   # → meta HTML
+curl -s -A "Mozilla/5.0"    $BASE/shared/note/AAAAAAAAAAAA | grep -c '<div id="root"'  # → SPA shell
+```
+
+The `/assets/*` immutable line is the single most important check in this
+document. Regression cost is quantified: ~703.7 KB gzipped `index.js`
+re-downloaded on every visit (see `docs/performance/PERF_BASELINE.md`; the
+identical mistake shipped once before on Netlify and is documented in
+`netlify.toml`'s header-order comment).
+
+### 2. Port config + staging
+
+`_headers`/`_redirects` verified by the matrix; deploy `--env staging` and
+confirm the staging build carries the **dev** Clerk key (view-source for
+`pk_test_`), then sign in on the staging workers.dev URL.
+
+### 3. Move harvous.com DNS to Cloudflare
+
+The zone carries more than this app: the marketing site (separate repo, staying
+on Netlify), possibly `status.harvous.com`, and any mail records.
+
+1. `dig MX harvous.com`, `dig TXT harvous.com`, `dig +nostats ANY harvous.com` —
+   save the output. Email breaks silently; check first.
+2. Cloudflare → Add a site → harvous.com → Free plan. Diff the imported records
+   against the dig output; add anything missing **before** touching nameservers.
+3. Records pointing at Netlify (apex/`www` for the marketing site, `status`)
+   stay **DNS-only** (grey cloud) so Netlify's TLS keeps working.
+4. At Hover: replace nameservers with Cloudflare's pair. Propagation is minutes.
+5. Nothing about app.harvous.com changes yet — its record still points at
+   Netlify. This phase is pure DNS hosting.
+
+### 4. Attach custom domains
+
+Add `app.harvous.com` to the production Worker and `new.harvous.com` to staging
+(Workers custom domains create the records and certs). Then the gates, in order:
+
+1. Parity matrix against `https://app.harvous.com` (all lines).
+2. **Authenticated Clerk smoke test** — sign in on the real domain and exercise a
+   protected endpoint (e.g. load the dashboard, create + delete a note). All
+   three Fly cutovers failed on exactly this class of error; a 200 from
+   `/api/health` proves nothing about auth.
+3. Webhooks through the new path: Clerk dashboard → send test event →
+   `/api/webhooks/clerk` 2xx; Polar sandbox event → `/api/webhooks/polar` 2xx.
+   Watch for the Svix header workaround (first-comma-value split) behaving with
+   *clean* headers — it should, since first-of-one is the value itself.
+4. PWA: `https://app.harvous.com/.well-known/web-app-origin-association`
+   resolves; installed-PWA launch still routes.
+5. Offline round-trip: airplane-mode a note edit, reconnect, confirm the queue
+   drains (`/api/sync/push`) and no 4xx in the network log.
+6. Native: a Debug-Prod build (`HARVOUS_API_BASE_URL = https://app.harvous.com`)
+   syncs — the native app never knew about Netlify or Cloudflare, so this is
+   pure proxy-fidelity verification.
+7. Latency matrix: n=6 curl `time_total` on `GET /api/health` warm. Baseline
+   through Netlify: 250–280 ms (2026-08-21, `.claude/agents/engineer.context.md`);
+   Fly direct ~100 ms. Cloudflare must be ≤ Netlify; record both sides in
+   `engineer.context.md`.
+
+### 5. Soak, then retire
+
+One week minimum with Netlify untouched (it keeps building `main`; rollback is
+re-pointing the `app`/`new` DNS records — minutes, since the zone is on
+Cloudflare either way now). Watch:
+
+- Workers request count/day (dashboard) — record the daily average in the status
+  log; sanity-check the Paid-tier decision.
+- Error rate on the Worker; Fly logs for anything new.
+- Service-worker update behavior for returning clients (the SW cache-version
+  inject step still ran, so returning clients should update normally; a spike in
+  "Failed to fetch dynamically imported module" means the `/assets/*` 404 guard
+  is wrong — fix before proceeding).
+- The nightly backup workflow — the historical 504 canary.
+
+Then cleanup, each its own commit:
+
+1. **Re-enable CSRF**: uncomment `csrfProtection` in `server/app.ts` (line ~70)
+   — the duplicated-header cause of the false 403s left with Netlify. Verify
+   sign-in, note save, and both webhooks after enabling. This is its own
+   verified change, not a drive-by.
+2. Point `backup-user-exports.yml` back at `app.harvous.com` (the ~28s proxy
+   timeout is gone) — or leave it direct-to-Fly and delete the comment; either
+   is fine, pick one and say so.
+3. Delete: `netlify.toml`, `netlify/` (edge function + functions),
+   `server/netlify.ts`, `server/netlify-purge-shared-spaces.ts` +
+   `server/netlify-audienceful-activity-sync.ts` *wrappers only if Fly's
+   scheduler imports the underlying logic directly — check imports first*,
+   `scripts/netlify-skip-build.sh`, `npm run build:api`, and the `@netlify/*` +
+   `@sparticuz/chromium` + `puppeteer-core` dependencies **only after confirming
+   the Fly OG path uses the Debian chromium binary, not @sparticuz** (it does —
+   `CHROME_EXECUTABLE_PATH=/usr/bin/chromium` in the Dockerfile — but verify the
+   import graph before removing the package).
+4. Delete the Netlify site; cancel Netlify Pro once the six sibling sites have
+   also migrated (their runbook is the "Six Sites to Cloudflare" artifact).
+
+## Measurement summary (what this phase must hold)
+
+| Number | Baseline | Gate |
+|---|---|---|
+| `/assets/*` cache header | `public, max-age=31536000, immutable` | identical, pre- and post-DNS |
+| `GET /api/health` warm, n=6 | 250–280 ms via Netlify; ~100 ms direct | ≤ Netlify; record in engineer context |
+| Worker requests/day | unknown (est. <100K) | record during soak; validates tier |
+| `npm run perf:check` | 1078.4 KB gzip initial payload | stays green (no frontend change expected) |
+
+## How to execute
+
+One session per numbered cutover phase is comfortable; 1–2 can share. Bring this
+doc, `netlify.toml`, `public/_redirects`, and `netlify/edge-functions/shared-og.ts`
+into context. Update the **status log** below and
+`.claude/agents/engineer.context.md` (latency + the stale "Netlify free plan"
+section — the account has been on Pro since the Aug 2026 pause) as you go.
+
+## Status log
+
+- 2026-08-27 — Doc drafted; nothing executed. All Netlify/repo facts verified
+  against source this date; Cloudflare platform behaviors (`_headers` detach
+  syntax, assets-binding 404 shape) flagged inline for empirical verification at
+  execution time.

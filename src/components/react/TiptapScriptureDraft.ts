@@ -29,8 +29,18 @@ import { isMobileDevice } from '@/utils/pwa-prompt';
  * draft or a pill.
  */
 
-/** Custom DOM event fired on the editor view after a draft commits to a pill. */
-export const SCRIPTURE_DRAFT_CONFIRMED_EVENT = 'scriptureDraftConfirmed';
+/**
+ * Custom DOM event fired on the editor view after a draft commits to a pill.
+ *
+ * Defined in `@/utils/scripture-draft-events` and re-exported here, so a listener outside
+ * the editor can name it without pulling ProseMirror in behind the constant.
+ */
+import {
+  SCRIPTURE_DRAFT_CONFIRMED_EVENT,
+  type ScriptureDraftConfirmedDetail,
+} from '@/utils/scripture-draft-events';
+
+export { SCRIPTURE_DRAFT_CONFIRMED_EVENT, type ScriptureDraftConfirmedDetail };
 
 export interface ScriptureDraftOptions {
   HTMLAttributes: Record<string, any>;
@@ -1136,8 +1146,17 @@ export function confirmScriptureDraftView(
   }
 
   try {
+    // `isNew` separates "typed a reference and it became a pill" from re-confirming a pill
+    // that was backspaced into and edited. Both are confirmations; only the first is someone
+    // doing the thing for the first time, which is what the getting-started checklist is
+    // asking about. An edit-draft carries the reference it came from (see
+    // `editScripturePillAsDraft`); a from-scratch draft carries nothing.
+    const detail: ScriptureDraftConfirmedDetail = {
+      reference,
+      isNew: carried?.attrs?.originalReference == null,
+    };
     view.dom.dispatchEvent(
-      new CustomEvent(SCRIPTURE_DRAFT_CONFIRMED_EVENT, { detail: { reference }, bubbles: true }),
+      new CustomEvent(SCRIPTURE_DRAFT_CONFIRMED_EVENT, { detail, bubbles: true }),
     );
   } catch {
     /* ignore */

@@ -1,23 +1,38 @@
-/** Shared vocabulary for the reading-event log (client + server). */
+/**
+ * Shared vocabulary for the reading-event log (client + server).
+ *
+ * The bucket math itself lives in `dwell-buckets.ts`, shared with the note-visit log; this
+ * file is the reading-specific binding of it. Every export below keeps the name, signature
+ * and value it has always had, so nothing that imports from here needs to know the seam
+ * moved — `reading-event-kinds.test.ts` and `reading-dwell-report.test.ts` are the check on
+ * that, and neither should ever need editing because of this file.
+ */
+
+import {
+  DWELL_BUCKETS,
+  dwellBucketFor,
+  dwellCountsAsSubstantive,
+  dwellIsRecordable,
+  dwellStrength,
+  isDwellBucket,
+  nextDwellReport,
+  type DwellBucket,
+  type DwellThresholds,
+} from './dwell-buckets';
 
 /**
- * How long a chapter was held open, bucketed rather than stored raw.
- *
- * A raw millisecond dwell is both more than resurfacing needs and more than a reading
- * log should keep about someone: the questions it answers are "did they actually read
- * this" and "did they stay with it", and three buckets answer both. Bucketing on the
- * client also means the server never has to trust or re-derive a duration.
+ * How long a chapter was held open.
  *
  *   glance — opened and moved on; a wrong tap or a quick lookup
  *   read   — a chapter's worth of attention
  *   study  — stayed well past reading it once
  */
-export const READING_DWELL_BUCKETS = ['glance', 'read', 'study'] as const;
+export const READING_DWELL_BUCKETS = DWELL_BUCKETS;
 
-export type ReadingDwellBucket = (typeof READING_DWELL_BUCKETS)[number];
+export type ReadingDwellBucket = DwellBucket;
 
 export function isReadingDwellBucket(value: string): value is ReadingDwellBucket {
-  return (READING_DWELL_BUCKETS as readonly string[]).includes(value);
+  return isDwellBucket(value);
 }
 
 /**
@@ -31,15 +46,26 @@ export function isReadingDwellBucket(value: string): value is ReadingDwellBucket
 export const READING_DWELL_READ_MS = 20_000;
 export const READING_DWELL_STUDY_MS = 240_000;
 
+/**
+ * Below this, nothing is recorded at all: a passage passed through in a second or two was
+ * a mis-tap or a bounce, and logging it would put chapters nobody looked at into the record
+ * of what they read.
+ */
+export const READING_DWELL_MIN_MS = 3_000;
+
+const READING_DWELL: DwellThresholds = {
+  minMs: READING_DWELL_MIN_MS,
+  readMs: READING_DWELL_READ_MS,
+  studyMs: READING_DWELL_STUDY_MS,
+};
+
 export function readingDwellBucket(elapsedMs: number): ReadingDwellBucket {
-  if (!Number.isFinite(elapsedMs) || elapsedMs < READING_DWELL_READ_MS) return 'glance';
-  if (elapsedMs < READING_DWELL_STUDY_MS) return 'read';
-  return 'study';
+  return dwellBucketFor(elapsedMs, READING_DWELL);
 }
 
 /** Buckets that count as having actually read the chapter, for resurfacing purposes. */
 export function readingDwellCountsAsRead(bucket: ReadingDwellBucket): boolean {
-  return bucket !== 'glance';
+  return dwellCountsAsSubstantive(bucket);
 }
 
 /**
@@ -49,21 +75,12 @@ export function readingDwellCountsAsRead(bucket: ReadingDwellBucket): boolean {
  * once the bucket has strengthened, and the server keeps the strongest bucket per chapter
  * when collapsing. Together they make a duplicate row harmless.
  */
-const DWELL_STRENGTH: Record<ReadingDwellBucket, number> = { glance: 0, read: 1, study: 2 };
-
 export function readingDwellStrength(bucket: ReadingDwellBucket): number {
-  return DWELL_STRENGTH[bucket];
+  return dwellStrength(bucket);
 }
 
-/**
- * Below this, nothing is recorded at all: a passage passed through in a second or two was
- * a mis-tap or a bounce, and logging it would put chapters nobody looked at into the record
- * of what they read.
- */
-export const READING_DWELL_MIN_MS = 3_000;
-
 export function readingDwellIsRecordable(elapsedMs: number): boolean {
-  return Number.isFinite(elapsedMs) && elapsedMs >= READING_DWELL_MIN_MS;
+  return dwellIsRecordable(elapsedMs, READING_DWELL);
 }
 
 /**
@@ -79,10 +96,5 @@ export function nextReadingDwellReport(
   elapsedMs: number,
   alreadyReported: ReadingDwellBucket | null,
 ): ReadingDwellBucket | null {
-  if (!readingDwellIsRecordable(elapsedMs)) return null;
-  const bucket = readingDwellBucket(elapsedMs);
-  if (alreadyReported && readingDwellStrength(bucket) <= readingDwellStrength(alreadyReported)) {
-    return null;
-  }
-  return bucket;
+  return nextDwellReport(elapsedMs, alreadyReported, READING_DWELL);
 }

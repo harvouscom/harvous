@@ -295,6 +295,30 @@
     var(--pds-canvas-bg, var(--pds-canvas-default)) 94%,
     transparent
   );
+  /*
+   * The drawer sidebar, which is the one floating surface big enough for near-opacity to
+   * read as a white sheet rather than as glass. It sits between the docked shell (52%,
+   * tuned so the wallpaper reads) and the rest of the floating chrome (94%, tuned so a
+   * thin bar can occlude scrolling text under it) — nearer the latter, because a note
+   * title is large enough to survive the 40px blur as a legible shape, and at 80% one
+   * ghosted through the drawer's own header.
+   *
+   * Its own token rather than a lower `--pds-glass-shell-floating`, because the format
+   * bar and the inspector share that one and are the cases the high alpha exists for —
+   * a strip a few rows tall over live note text has no margin for the canvas showing
+   * through. Size is the whole difference, so it gets its own number.
+   */
+  --pds-glass-shell-drawer: color-mix(
+    in oklch,
+    var(--pds-canvas-bg, var(--pds-canvas-default)) 86%,
+    transparent
+  );
+  /* The drawer's foot — see the gradient note in prototype-shell.css. */
+  --pds-glass-shell-drawer-foot: color-mix(
+    in oklch,
+    var(--pds-canvas-bg, var(--pds-canvas-default)) 66%,
+    transparent
+  );
   --pds-glass-shell: color-mix(
     in oklch,
     var(--pds-canvas-bg, var(--pds-canvas-default)) 52%,
@@ -428,6 +452,17 @@
   /* Motion — keep in lockstep with spa/src/layouts/proto-motion.ts */
   --pds-duration-press: 120ms;
   --pds-duration-popover: 120ms;
+  /*
+   * The selected thumb sliding between halves of a segmented control.
+   *
+   * Short on purpose. Picking a tab is a core action and the thing it selects has
+   * already changed by the time the thumb moves — the slide exists to say *which one
+   * you left*, not to be waited on. Longer and the control is narrating a decision the
+   * user already made; instant and the selection appears to teleport, which is the
+   * orientation the movement is there to give. No `proto-motion.ts` twin: nothing is
+   * held mounted for this, so there is no JS timeout to keep in lockstep.
+   */
+  --pds-duration-segment: 160ms;
   --pds-duration-sheet: 220ms;
   --pds-duration-panel: 260ms;
   /* The expanded sidebar unfurls faster than the panels that slide. It covers
@@ -571,6 +606,30 @@
 
   /* Chrome dimensions */
   --pds-toolbar-orb-size: 30px;
+  /*
+   * Segmented switches are sized *outward* from an orb, not inward from the row height.
+   *
+   * The selected half has to be an orb — same 30px, same 10px radius — because it sits
+   * inches from real orbs and any difference reads as one control being slightly wrong.
+   * So the shell is the orb plus its inset on each side (34px), and its radius is the
+   * orb's plus the same inset (12px), which is what makes the two corners concentric.
+   *
+   * Sizing the shell to the orb instead put 25px halves next to 30px buttons and left the
+   * labelled halves cramped — the tab was smaller than the thing it sits beside.
+   */
+  --proto-seg-pad: 2px;
+  /*
+   * The channel between the halves. Deliberately wider than the inset, and by this much:
+   * the gap is *shared*, so each half sees half of it on the side it meets its neighbour.
+   * At 5 that is 2.5px against the 2px of inset on its outer side — near-even trough all
+   * the way round a tab, while still reading as two things rather than one divided one.
+   * At the inset's own 2px the halves nearly touched.
+   */
+  --proto-seg-gap: 5px;
+  /* `+ 1px` is the shell's own hairline border, top and bottom: the shell is border-box,
+     so without it the halves land a pixel short of the orbs they are meant to match. */
+  --proto-seg-h: calc(var(--pds-toolbar-orb-size) + var(--proto-seg-pad) * 2 + 1px);
+  --proto-seg-radius: calc(var(--pds-radius-row) + var(--proto-seg-pad));
   --pds-toolbar-h: 46px;
   --pds-footer-h:  36px;
   --pds-sidebar-w: 304px;
@@ -685,6 +744,10 @@ html.harvous-proto-wallpaper-image {
   /* See :root — a floating panel occludes content, so it does not follow the
      wallpaper's low alpha. */
   --pds-glass-shell-floating: oklch(var(--pds-lch-bg-page) / 0.94);
+  /* Higher than the canvas-wallpaper drawer: a photo underneath is higher-contrast
+     than a gradient, so the same alpha lets more of it through the rows. */
+  --pds-glass-shell-drawer: oklch(var(--pds-lch-bg-page) / 0.9);
+  --pds-glass-shell-drawer-foot: oklch(var(--pds-lch-bg-page) / 0.7);
   --pds-glass-chrome: var(--pds-glass-shell);
   --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.06);
   --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.18);
@@ -787,6 +850,17 @@ html.harvous-proto-wallpaper-image {
       var(--pds-canvas-bg, var(--pds-canvas-default)) 92%,
       transparent
     );
+    /* See :root — the drawer is the one floating surface large enough to read as a sheet. */
+    --pds-glass-shell-drawer: color-mix(
+      in oklch,
+      var(--pds-canvas-bg, var(--pds-canvas-default)) 86%,
+      transparent
+    );
+    --pds-glass-shell-drawer-foot: color-mix(
+      in oklch,
+      var(--pds-canvas-bg, var(--pds-canvas-default)) 66%,
+      transparent
+    );
     --pds-glass-shell: color-mix(
       in oklch,
       var(--pds-canvas-bg, var(--pds-canvas-default)) 56%,
@@ -883,6 +957,8 @@ html.harvous-proto-wallpaper-image {
     );
     --pds-glass-shell: oklch(var(--pds-lch-bg-page) / 0.28);
     --pds-glass-shell-floating: oklch(var(--pds-lch-bg-page) / 0.9);
+    --pds-glass-shell-drawer: oklch(var(--pds-lch-bg-page) / 0.88);
+    --pds-glass-shell-drawer-foot: oklch(var(--pds-lch-bg-page) / 0.68);
     --pds-glass-chrome: var(--pds-glass-shell);
     --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.08);
     --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.22);
@@ -973,6 +1049,18 @@ html.harvous-proto-wallpaper-image {
   --pds-glass-shell-floating: color-mix(
     in oklch,
     var(--pds-canvas-bg, var(--pds-canvas-default)) 92%,
+    transparent
+  );
+  /* See :root — the drawer is the one floating surface large enough to read as a sheet. */
+  --pds-glass-shell-drawer: color-mix(
+    in oklch,
+    var(--pds-canvas-bg, var(--pds-canvas-default)) 86%,
+    transparent
+  );
+  /* The drawer's foot — see the gradient note in prototype-shell.css. */
+  --pds-glass-shell-drawer-foot: color-mix(
+    in oklch,
+    var(--pds-canvas-bg, var(--pds-canvas-default)) 66%,
     transparent
   );
   --pds-glass-shell: color-mix(

@@ -13,6 +13,7 @@ import {
 } from '../../layouts/proto-shell-context';
 import {
   PROTO_TOOLBAR_ICON_SIZE,
+  PROTO_SEG_GLYPH_SIZE,
   PROTO_TOOLBAR_ORB_ICON_SIZE,
   PROTO_TOOLBAR_POPOVER_OFFSET,
 } from './proto-toolbar-tokens';
@@ -77,7 +78,12 @@ export default function ListViewMenu({
   variant = 'icon-only',
 }: {
   disabled?: boolean;
-  variant?: 'icon-only' | 'full';
+  /**
+   * `icon-only` is the standalone orb, `segment` its half of the sidebar's layer switch —
+   * both are the list half of the layer toggle and portal the same popover. `full` is the
+   * plain in-list dropdown, which toggles no layer.
+   */
+  variant?: 'icon-only' | 'segment' | 'full';
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -109,10 +115,13 @@ export default function ListViewMenu({
   };
 
   const title = listModeTitle(sidebarListMode);
-  const iconSize = variant === 'icon-only' ? PROTO_TOOLBAR_ORB_ICON_SIZE : 14;
-  const isPortaled = variant === 'icon-only';
-  /** Toolbar orb doubles as the list half of the layer toggle; the full variant stays a plain dropdown. */
-  const isLayerToggle = variant === 'icon-only';
+  const isSegment = variant === 'segment';
+  /* A bare glyph, so it sits two below the block the tile fills — see PROTO_SEG_GLYPH_SIZE. */
+  const iconSize =
+    variant === 'full' ? 14 : variant === 'segment' ? PROTO_SEG_GLYPH_SIZE : PROTO_TOOLBAR_ORB_ICON_SIZE;
+  const isPortaled = variant !== 'full';
+  /** Orb and segment both double as the list half of the layer toggle; `full` stays a plain dropdown. */
+  const isLayerToggle = variant !== 'full';
   /** Also the visible readout — `data-active` below marks the current layer. */
   const isActiveLayer = sidebarLayer === 'list';
 
@@ -293,6 +302,7 @@ export default function ListViewMenu({
       className={[
         'proto-menu',
         isPortaled ? 'proto-sidebar-toolbar__mode-menu' : 'proto-sidebar-list-view__menu',
+        isSegment ? 'proto-sidebar-seg__slot' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -303,7 +313,7 @@ export default function ListViewMenu({
           <button
             ref={triggerRef}
             type="button"
-            className="proto-toolbar-icon-btn"
+            className={isSegment ? 'proto-sidebar-seg__btn' : 'proto-toolbar-icon-btn'}
             data-active={isActiveLayer}
             aria-expanded={open}
             aria-haspopup="menu"
@@ -312,7 +322,25 @@ export default function ListViewMenu({
             disabled={disabled}
             onClick={onTriggerClick}
           >
-            <ListModeTriggerIcon mode={sidebarListMode} size={iconSize} />
+            {isSegment ? (
+              <>
+                <span className="proto-sidebar-seg__icon" aria-hidden>
+                  <ListModeTriggerIcon mode={sidebarListMode} size={iconSize} />
+                </span>
+                {/* The active half names the list you are actually looking at — "Folders"
+                    rather than a static word for the layer, which the icon already says. */}
+                <span className="proto-sidebar-seg__label">
+                  {listModeShortLabel(sidebarListMode)}
+                </span>
+                {isActiveLayer ? (
+                  <span className="proto-sidebar-seg__chevron" aria-hidden>
+                    <Icon name="caret-down" size={11} />
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <ListModeTriggerIcon mode={sidebarListMode} size={iconSize} />
+            )}
           </button>
         </PrototypeToolbarShortcutItem>
       ) : (

@@ -16,20 +16,23 @@
  * thing — a screen reader needs the second one to tell two rows apart.
  */
 
-import { RECALL_COOLDOWN_DAYS } from './proto-recall-cooldown';
-
-const WEEKS = Math.round(RECALL_COOLDOWN_DAYS / 7);
-
 /**
- * "Not now" — rests the suggestion and lets it come back.
+ * Deferral — rests the suggestion and lets it come back.
  *
- * The tooltip states the window rather than leaving it to be discovered, because the whole
- * point of having two answers is that the reader can tell them apart before choosing.
+ * One answer, and the app picks how long. Two named lengths were tried ("in a week", "in a
+ * month") and asked the wrong question: nobody knows on a Tuesday whether they want a
+ * passage back in seven days or thirty. What a reader can say is *later*, and how often they
+ * say it about the same card is the better signal — so the window comes from
+ * `nextSnoozeWindowDays`, backing off each time this one is put off again.
+ *
+ * No hint stating the window, deliberately, because there is no single number to state and a
+ * tooltip promising one would be the label/effect drift this file exists to prevent. "Later"
+ * is honest about being vague; "rest this for three weeks" was precise and, once the ladder
+ * existed, wrong.
  */
 export const RECALL_SNOOZE_COPY = {
-  label: 'Not now',
-  hint: `Rest this for ${WEEKS} weeks`,
-  ariaFor: (title: string) => `Not now — remind me later about ${title}`,
+  label: 'Remind me later',
+  ariaFor: (title: string) => `Remind me later about ${title}`,
 } as const;
 
 /**

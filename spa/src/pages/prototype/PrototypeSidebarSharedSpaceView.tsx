@@ -62,6 +62,7 @@ import {
   formatSharedSpaceActivityWho,
   type SharedSpaceNoteCardSlot,
 } from './shared-space-dashboard';
+import { deletedNoteIds, subscribeDeletedNotes } from './proto-deleted-notes';
 import SharedSpaceSocialGreeting from './SharedSpaceSocialGreeting';
 import SharedSpaceAboutSheet from './SharedSpaceAboutSheet';
 import {
@@ -466,6 +467,11 @@ function PrototypeSidebarSharedSpaceViewLive() {
     [notesQuery.data?.pages, recentNotes],
   );
 
+  // Same reason as Home's: the activity preview holds its answer for a few seconds and this
+  // view can paint from it before the delete's refetch lands.
+  const [, setDeletedTick] = useState(0);
+  useEffect(() => subscribeDeletedNotes(() => setDeletedTick((t) => t + 1)), []);
+  const deletedNoteKey = deletedNoteIds().join(',');
   const noteCardSlots = useMemo(
     () =>
       buildSharedSpaceNoteCardSlots({
@@ -473,8 +479,9 @@ function PrototypeSidebarSharedSpaceViewLive() {
         notesForContinue,
         unseenSince,
         authUserId,
+        deletedNoteIds: deletedNoteKey ? deletedNoteKey.split(',') : [],
       }),
-    [recentNotes, notesForContinue, unseenSince, authUserId],
+    [recentNotes, notesForContinue, unseenSince, authUserId, deletedNoteKey],
   );
 
   const noteCardGroups = useMemo(() => groupSharedSpaceNoteCardSlots(noteCardSlots), [noteCardSlots]);

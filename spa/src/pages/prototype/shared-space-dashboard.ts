@@ -190,9 +190,18 @@ export function buildSharedSpaceNoteCardSlots(input: {
   unseenSince: string | null;
   authUserId: string | null | undefined;
   activeNoteId?: string;
+  /**
+   * Notes deleted in this session. Passed in rather than read from the store so this stays
+   * a pure function; the caller owns the store.
+   */
+  deletedNoteIds?: Iterable<string>;
 }): SharedSpaceNoteCardSlot[] {
   const { recentNotes, notesForContinue, unseenSince, authUserId, activeNoteId } = input;
-  const used = new Set<string>();
+  /*
+   * Seeded with the deleted ids, because `used` already means "must not be slotted" and all
+   * three loops below consult it — one line covers every card this function can emit.
+   */
+  const used = new Set<string>(input.deletedNoteIds ?? []);
   const slots: SharedSpaceNoteCardSlot[] = [];
 
   const isUnseenFromOther = (note: SpaceNoteRow) =>

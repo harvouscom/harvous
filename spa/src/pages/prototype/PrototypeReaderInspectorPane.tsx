@@ -6,7 +6,7 @@
  * the contents differ, because what you want to adjust about a chapter (how it reads) is
  * not what you want to know about a note (where it lives).
  */
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore, type CSSProperties } from 'react';
 import Icon from '@/components/react/Icon';
 import { PrototypeSectionHeader } from './design-system';
 import ProtoSelectMenu from './ProtoSelectMenu';
@@ -173,7 +173,20 @@ export default function PrototypeReaderInspectorPane({
         <PrototypeSectionHeader>Text size</PrototypeSectionHeader>
         {/* Same segmented control as appearance settings — one control for "pick one of a
             few", rather than a second style of chooser in a second panel. */}
-        <div className="proto-appearance-segmented" role="group" aria-label="Text size">
+        <div
+          className="proto-appearance-segmented proto-seg-track"
+          role="group"
+          aria-label="Text size"
+          style={
+            {
+              '--proto-seg-count': READER_TEXT_SIZES.length,
+              '--proto-seg-index': Math.max(
+                0,
+                READER_TEXT_SIZES.findIndex((step) => step.id === prefs.textSize),
+              ),
+            } as CSSProperties
+          }
+        >
           {READER_TEXT_SIZES.map((step) => (
             <button
               key={step.id}
@@ -211,9 +224,10 @@ export default function PrototypeReaderInspectorPane({
         <div className="proto-reader-inspector__setting">
           <span className="proto-reader-inspector__setting-label">Verse breaks</span>
           <div
-            className="proto-appearance-segmented proto-reader-inspector__switch"
+            className="proto-appearance-segmented proto-reader-inspector__switch proto-seg-track"
             role="group"
             aria-label="Start each verse on a new line"
+            style={{ '--proto-seg-index': prefs.verseLayout === 'lines' ? 0 : 1 } as CSSProperties}
           >
             <button
               type="button"
@@ -239,9 +253,10 @@ export default function PrototypeReaderInspectorPane({
         <div className="proto-reader-inspector__setting">
           <span className="proto-reader-inspector__setting-label">Verse numbers</span>
           <div
-            className="proto-appearance-segmented proto-reader-inspector__switch"
+            className="proto-appearance-segmented proto-reader-inspector__switch proto-seg-track"
             role="group"
             aria-label="Verse numbers"
+            style={{ '--proto-seg-index': prefs.showVerseNumbers ? 0 : 1 } as CSSProperties}
           >
             <button
               type="button"
@@ -270,9 +285,10 @@ export default function PrototypeReaderInspectorPane({
         <div className="proto-reader-inspector__setting">
           <span className="proto-reader-inspector__setting-label">My notes</span>
           <div
-            className="proto-appearance-segmented proto-reader-inspector__switch"
+            className="proto-appearance-segmented proto-reader-inspector__switch proto-seg-track"
             role="group"
             aria-label="Marks in the margin where your notes cite this chapter"
+            style={{ '--proto-seg-index': prefs.showMarginNotes ? 0 : 1 } as CSSProperties}
           >
             <button
               type="button"

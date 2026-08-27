@@ -13,6 +13,7 @@ import {
   SpaceNotes,
   NoteFingerprints,
   RecallEvents,
+  NoteVisitEvents,
   ChurchServicePublishedNotes,
   ChurchSeriesPublishedNotes,
   and,
@@ -56,6 +57,7 @@ export const NOTE_DELETE_CASCADE_TABLES = [
   'NoteVersions',
   'NoteFingerprints',
   'RecallEvents',
+  'NoteVisitEvents',
   'ChurchServicePublishedNotes',
   'ChurchSeriesPublishedNotes',
   'Notes',
@@ -140,6 +142,9 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
       // RecallEvents.noteId is nullable, so this leaves generative rows alone.
       await tx.delete(NoteFingerprints).where(inArray(NoteFingerprints.noteId, chunk));
       await tx.delete(RecallEvents).where(inArray(RecallEvents.noteId, chunk));
+      // The visit log too — it is what tells resurfacing which notes are returned to, so a
+      // deleted note left in it would keep weighting a library it is no longer part of.
+      await tx.delete(NoteVisitEvents).where(inArray(NoteVisitEvents.noteId, chunk));
       // A published step's claim on the week it accompanies. Left behind, the
       // week would still read as published and a republish would skip it —
       // the series would be permanently missing a step no one could restore.

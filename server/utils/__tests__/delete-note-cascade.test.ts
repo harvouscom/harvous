@@ -16,6 +16,9 @@ describe('hard note delete cascade', () => {
     // greeting's canon-section line, and RecallEvents decide what gets resurfaced.
     expect(NOTE_DELETE_CASCADE_TABLES).toContain('NoteFingerprints');
     expect(NOTE_DELETE_CASCADE_TABLES).toContain('RecallEvents');
+    // And the visit log — it is what tells resurfacing which notes are returned to, so a
+    // deleted note left in it would keep weighting a library it is no longer part of.
+    expect(NOTE_DELETE_CASCADE_TABLES).toContain('NoteVisitEvents');
   });
 
   it('deletes every child table before the note row itself', () => {

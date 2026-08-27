@@ -749,11 +749,18 @@ let appearanceAccountSyncInit = false;
 /**
  * Fetch `appearanceSettings` from the profile endpoint and hydrate/seed.
  * Used both on init and when a `userMetadata:updated` realtime event arrives.
+ *
+ * Accepts an already-fetched profile so a caller that needs several fields off the same
+ * endpoint (the prototype layout wants appearance *and* the onboarding checklist) can make
+ * one request instead of one per consumer.
  */
-export async function fetchAndHydrateAppearanceFromProfile(): Promise<void> {
+export async function fetchAndHydrateAppearanceFromProfile(
+  profile?: { appearanceSettings?: string | null } | null,
+): Promise<void> {
   try {
-    const profile = await api.get<{ appearanceSettings?: string | null }>('/api/user/get-profile');
-    handleAppearanceAccountSync(profile.appearanceSettings ?? null);
+    const data =
+      profile ?? (await api.get<{ appearanceSettings?: string | null }>('/api/user/get-profile'));
+    handleAppearanceAccountSync(data.appearanceSettings ?? null);
   } catch {
     /* offline or not signed in — local cache is fine */
   }

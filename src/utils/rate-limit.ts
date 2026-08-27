@@ -142,6 +142,21 @@ export const RATE_LIMITS = {
     windowMs: 60 * 1000 // 1 minute
   },
   /**
+   * Note-visit logging (POST /api/notes/visit-event). Separate from generic WRITE for the
+   * same reason NOTE_SAVE is: it is driven by navigation rather than by a click, so the
+   * user is not aware of spending anything.
+   *
+   * A single note session sends at most two rows — the never-downgrade rule in
+   * `nextNoteVisitDwellReport` caps it — so WRITE's 20/min is exactly ten notes opened and
+   * left in a minute, which is ordinary browsing. And the failure is invisible: the poster
+   * is fire-and-forget and swallows a 429 silently, so hitting the cap does not warn
+   * anyone, it just quietly loses the data the feature is made of.
+   */
+  NOTE_VISIT: {
+    maxRequests: 60,
+    windowMs: 60 * 1000 // 1 minute
+  },
+  /**
    * Note creation (POST /api/notes/create + note creates inside /api/sync/push).
    * Stricter than generic WRITE to limit scripted / batched note spam.
    */
@@ -291,10 +306,11 @@ export function tryConsumeImportNoteCreates(
 }
 
 /**
- * Which budget a route draws from. `'note-save'` is `'write'` with its own, larger bucket —
- * see RATE_LIMITS.NOTE_SAVE for why the editor's timer-driven writes cannot share WRITE.
+ * Which budget a route draws from. `'note-save'` and `'note-visit'` are `'write'` with
+ * their own, larger buckets — see RATE_LIMITS.NOTE_SAVE and RATE_LIMITS.NOTE_VISIT for why
+ * writes the user did not explicitly ask for cannot share WRITE.
  */
-export type RateLimitType = 'read' | 'write' | 'note-save';
+export type RateLimitType = 'read' | 'write' | 'note-save' | 'note-visit';
 
 /**
  * Middleware function for rate limiting API endpoints
@@ -312,7 +328,9 @@ export function rateLimitMiddleware(
       ? RATE_LIMITS.READ
       : type === 'note-save'
         ? RATE_LIMITS.NOTE_SAVE
-        : RATE_LIMITS.WRITE;
+        : type === 'note-visit'
+          ? RATE_LIMITS.NOTE_VISIT
+          : RATE_LIMITS.WRITE;
   const result = checkRateLimit(userId, endpoint, config, ip);
 
   if (!result.allowed) {

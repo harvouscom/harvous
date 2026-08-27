@@ -1,5 +1,15 @@
 # Moving the API to Fly.io
 
+> **2026-08-27 — successor planned:** Netlify's remaining roles (SPA hosting, the
+> `/api/*` proxy, headers, the crawler edge function, DNS) are slated to move to
+> Cloudflare — see [INFRA_ENDGAME.md](INFRA_ENDGAME.md) and
+> [CLOUDFLARE_MIGRATION.md](CLOUDFLARE_MIGRATION.md). That migration resolves
+> this doc's proxy-timeout caveat, executes its "Phase 5 cleanup" backlog, and
+> makes the deferred `api.harvous.com` split trivial (zone-controlled DNS) —
+> though the Worker proxy also makes it unnecessary. Note also: the "Retracted 1"
+> plan facts below describe the legacy Free plan; the account has been on
+> **Netlify Pro since the Aug 2026 bandwidth pause**.
+
 The Hono API leaves Netlify Functions and runs as one always-on process on Fly.
 Netlify keeps everything else — the SPA, redirects, headers, and the `shared-og`
 edge function — and rewrites `/api/*` to Fly. Clients never learn about it: the

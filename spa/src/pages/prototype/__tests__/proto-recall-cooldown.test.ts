@@ -11,6 +11,8 @@ import {
   RECALL_COOLDOWN_DAYS,
   RECALL_COMPLETED_COOLDOWN_DAYS,
   RECALL_OPENED_COOLDOWN_DAYS,
+  RECALL_SNOOZE_LADDER_DAYS,
+  recallSnoozeCount,
 } from '../proto-recall-cooldown';
 
 const SPACE = 'space_home';
@@ -37,6 +39,91 @@ describe('proto-recall-cooldown', () => {
     const raw = localStorage.getItem(`harvous.prototype.recallCooldown.${SPACE}`)!;
     const map = JSON.parse(raw);
     expect(Object.keys(map)).toEqual(['fresh']);
+  });
+
+  /*
+   * "Remind me later" is one answer; how long it lasts is inferred from how often the reader
+   * has already said it about this card. Saying it repeatedly is a soft "not interested" they
+   * never have to spell out, so each repeat backs off further.
+   */
+  it('lengthens the rest each time the same card is deferred', () => {
+    const [first, second, third] = RECALL_SNOOZE_LADDER_DAYS;
+
+    expect(recordRecallSnoozed(SPACE, 'note_a', 100)).toBe(first);
+    // Deferred again the day it comes back.
+    expect(recordRecallSnoozed(SPACE, 'note_a', 100 + first)).toBe(second);
+    expect(recordRecallSnoozed(SPACE, 'note_a', 100 + first + second)).toBe(third);
+    // And it stops there — only an explicit dismissal is allowed to mean never.
+    expect(recordRecallSnoozed(SPACE, 'note_a', 400)).toBe(third);
+  });
+
+  it('climbs the ladder per card, not across the shelf', () => {
+    const [first] = RECALL_SNOOZE_LADDER_DAYS;
+    recordRecallSnoozed(SPACE, 'note_a', 100);
+    recordRecallSnoozed(SPACE, 'note_a', 120);
+
+    expect(recordRecallSnoozed(SPACE, 'note_b', 120)).toBe(first);
+  });
+
+  it('rests each entry for the window it climbed to', () => {
+    const [first, second] = RECALL_SNOOZE_LADDER_DAYS;
+    recordRecallSnoozed(SPACE, 'once', 100);
+    recordRecallSnoozed(SPACE, 'twice', 100);
+    recordRecallSnoozed(SPACE, 'twice', 100);
+
+    expect(activeCooldownIds(SPACE, 100 + first).has('once')).toBe(false);
+    // The longer rest is untouched by the shorter one having expired.
+    expect(activeCooldownIds(SPACE, 100 + first).has('twice')).toBe(true);
+    expect(activeCooldownIds(SPACE, 100 + second).has('twice')).toBe(false);
+  });
+
+  /* A short rest recorded later used to prune longer ones that still had time to run. */
+  it('does not let a short rest evict a longer one still running', () => {
+    recordRecallSnoozed(SPACE, 'rested', 100);
+    recordRecallSnoozed(SPACE, 'rested', 100);
+    recordRecallOpened(SPACE, 'opened', 110, RECALL_OPENED_COOLDOWN_DAYS);
+
+    expect(activeCooldownIds(SPACE, 110).has('rested')).toBe(true);
+  });
+
+  /* Undoing a deferral means it did not happen — the ladder must not keep the credit. */
+  it('resets the ladder when a deferral is undone', () => {
+    const [first] = RECALL_SNOOZE_LADDER_DAYS;
+    recordRecallSnoozed(SPACE, 'note_a', 100);
+    restoreRecallOpportunity(SPACE, 'note_a');
+
+    expect(recordRecallSnoozed(SPACE, 'note_a', 101)).toBe(first);
+  });
+
+  /* A card put off long ago and unseen since is the reader having changed, not persisting. */
+  it('forgets the count after a year of silence', () => {
+    const [first] = RECALL_SNOOZE_LADDER_DAYS;
+    recordRecallSnoozed(SPACE, 'note_a', 100);
+
+    expect(recallSnoozeCount(SPACE, 'note_a', 100 + 364)).toBe(1);
+    expect(recallSnoozeCount(SPACE, 'note_a', 100 + 365)).toBe(0);
+    expect(recordRecallSnoozed(SPACE, 'note_a', 100 + 365)).toBe(first);
+  });
+
+  /* Entries written before rests carried a window are bare day numbers; they read as the default. */
+  it('reads pre-existing entries as the default window', () => {
+    localStorage.setItem(
+      `harvous.prototype.recallCooldown.${SPACE}`,
+      JSON.stringify({ legacy: 100 }),
+    );
+
+    expect(activeCooldownIds(SPACE, 100 + RECALL_COOLDOWN_DAYS - 1).has('legacy')).toBe(true);
+    expect(activeCooldownIds(SPACE, 100 + RECALL_COOLDOWN_DAYS).has('legacy')).toBe(false);
+  });
+
+  /* And a default-window rest is still written as a bare number, so an older tab can read it. */
+  it('keeps the compact shape for default-window rests', () => {
+    recordRecallOpened(SPACE, 'plain', 100);
+    recordRecallOpened(SPACE, 'custom', 100, 7);
+
+    const map = JSON.parse(localStorage.getItem(`harvous.prototype.recallCooldown.${SPACE}`)!);
+    expect(map.plain).toBe(100);
+    expect(map.custom).toEqual([100, 7]);
   });
 
   it('refreshes the day on re-open', () => {

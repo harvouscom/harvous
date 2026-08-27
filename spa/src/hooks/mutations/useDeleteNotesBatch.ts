@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { markNotesDeleted, unmarkNotesDeleted } from '../../pages/prototype/proto-deleted-notes';
 
 interface DeleteNotesBatchResponse {
   success?: boolean;
@@ -20,6 +21,12 @@ export function useDeleteNotesBatch() {
   return useMutation({
     mutationFn: (noteIds: string[]) =>
       api.post<DeleteNotesBatchResponse>('/api/notes/delete-batch', { noteIds }),
+    onMutate: (noteIds) => {
+      markNotesDeleted(noteIds);
+    },
+    onError: (_err, noteIds) => {
+      unmarkNotesDeleted(noteIds);
+    },
     onSuccess: () => {
       // Broad rather than surgical: a bulk delete can touch folders, threads, highlights
       // and counts across several lists at once, and the selection is already gone from
@@ -29,6 +36,12 @@ export function useDeleteNotesBatch() {
       // `['space', id, 'notes', …]` (useSpace.ts), not a top-level `spaceNotes` key.
       void queryClient.invalidateQueries({ queryKey: ['space'] });
       void queryClient.invalidateQueries({ queryKey: ['navigation'] });
+      // Three that the `['space', …]` prefix cannot reach, because none of them is keyed
+      // by space. All three name notes — the first supplies Home's meaning weights, the
+      // other two supply Suggested rows whose titles are note titles.
+      void queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] });
+      void queryClient.invalidateQueries({ queryKey: ['note-connect-suggestions'] });
+      void queryClient.invalidateQueries({ queryKey: ['note-crossref-gaps'] });
     },
   });
 }

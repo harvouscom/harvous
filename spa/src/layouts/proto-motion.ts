@@ -88,6 +88,25 @@ export const PROTO_PAPER_STACK_MS = 260;
  */
 export const PROTO_PAPER_STACK_EXIT_MS = 200;
 
+/**
+ * How long a completed checklist row is left on screen wearing its check before it starts
+ * to collapse — MUST stay in lockstep with the `animation-delay` on
+ * `.proto-onboarding-dock__row--done` in prototype-components.css.
+ *
+ * The dwell is the entire point of the row's last moment. Completion usually happens
+ * somewhere else in the app (you highlighted a verse; the row for it is in the sidebar), so
+ * this is often the only chance to see the thing tick over. Collapse immediately and a row
+ * has silently disappeared from a list nobody was looking at.
+ */
+export const PROTO_ONBOARDING_ROW_DWELL_MS = 900;
+
+/**
+ * The collapse itself — MUST stay in lockstep with `proto-onboarding-row-out` in
+ * prototype-components.css. The dock keeps the row mounted for dwell + exit, so both
+ * constants have to agree with the CSS or the row is cut off mid-collapse.
+ */
+export const PROTO_ONBOARDING_ROW_EXIT_MS = 320;
+
 /** Founder letter paper leaf fan — MUST stay in lockstep with `.proto-paper-leaf` transition in prototype-components.css. */
 export const PROTO_FOUNDER_LETTER_PAPER_MS = 900;
 

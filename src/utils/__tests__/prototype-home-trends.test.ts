@@ -33,6 +33,9 @@ import {
   librarySectionCountsFromById,
   recallSectionDiversityBoost,
   revisitTouchTimeMs,
+  revisitReturnsBoost,
+  REVISIT_RETURNS_MAX_BOOST,
+  REVISIT_RETURNS_SATURATION,
   forgettingAwarePriority,
   deriveStudyArcs,
   deriveSectionArcs,
@@ -125,6 +128,47 @@ describe('pickContinueNote', () => {
     expect(pickContinueNote([visitOnly, editedLater])).toBe(editedLater);
   });
 
+  it('counts a measured read as where you left off', () => {
+    const readLately = { id: 'a', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' };
+    const editedEarlier = { id: 'b', createdAt: '2026-05-01T00:00:00Z', updatedAt: '2026-06-01T00:00:00Z' };
+    expect(
+      pickContinueNote([readLately, editedEarlier], {
+        lastSubstantiveVisitAtById: { a: Date.parse('2026-06-10T00:00:00Z') },
+      }),
+    ).toBe(readLately);
+  });
+
+  /*
+   * The distinction the docblock rests on. Both notes carry a recent `lastVisited`; only one
+   * has a measured read. If this ever fails, the column and the map have been conflated and
+   * the June 2026 fix has been undone from the other side.
+   */
+  it('still ignores lastVisited when the note has no measured read', () => {
+    const bumpedOnly = {
+      id: 'a',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-02T00:00:00Z',
+      lastVisited: '2026-06-20T00:00:00Z',
+    };
+    const editedEarlier = {
+      id: 'b',
+      createdAt: '2026-05-01T00:00:00Z',
+      updatedAt: '2026-06-01T00:00:00Z',
+      lastVisited: '2026-06-19T00:00:00Z',
+    };
+    expect(
+      pickContinueNote([bumpedOnly, editedEarlier], { lastSubstantiveVisitAtById: {} }),
+    ).toBe(editedEarlier);
+  });
+
+  it('leaves the answer alone when an empty visit map is passed', () => {
+    const older = { id: 'a', updatedAt: '2026-06-01T00:00:00Z' };
+    const newer = { id: 'b', updatedAt: '2026-06-09T00:00:00Z' };
+    expect(pickContinueNote([older, newer], { lastSubstantiveVisitAtById: {} })).toBe(
+      pickContinueNote([older, newer]),
+    );
+  });
+
   it('keeps the first note on exact timestamp ties', () => {
     const first = { id: 'a', updatedAt: '2026-06-10T10:00:00Z' };
     const second = { id: 'b', updatedAt: '2026-06-10T10:00:00Z' };
@@ -174,6 +218,29 @@ describe('pickRevisitNote', () => {
     const next = { id: 'b', updatedAt: '2026-02-01T00:00:00Z' };
     const third = { id: 'c', updatedAt: '2026-03-01T00:00:00Z' };
     expect(pickRevisitNote([oldest, next, third], { ...opts, excludeIds: ['a', 'b'] })?.id).toBe('c');
+  });
+
+  it('breaks a tie toward the note that keeps being returned to', () => {
+    // Same age, same meaning weight — the returns count is the only thing separating them.
+    const returnedTo = { id: 'a', updatedAt: '2026-01-01T00:00:00Z' };
+    const readOnce = { id: 'b', updatedAt: '2026-01-01T00:00:00Z' };
+    const picked = pickRevisitNote([readOnce, returnedTo], {
+      ...opts,
+      meaningWeightById: { a: 0.5, b: 0.5 },
+      visitCountById: { a: 6, b: 1 },
+    });
+    expect(picked?.id).toBe('a');
+  });
+
+  it('cannot let returns overrule a note that is both more meaningful and more faded', () => {
+    const oftenReturnedTo = { id: 'a', updatedAt: '2026-05-01T00:00:00Z' };
+    const farMoreFaded = { id: 'b', updatedAt: '2026-01-01T00:00:00Z' };
+    const picked = pickRevisitNote([oftenReturnedTo, farMoreFaded], {
+      ...opts,
+      meaningWeightById: { a: 0.4, b: 0.9 },
+      visitCountById: { a: 20, b: 0 },
+    });
+    expect(picked?.id).toBe('b');
   });
 
   it('rotates daily among the stalest candidates', () => {
@@ -1455,6 +1522,65 @@ describe('revisitTouchTimeMs', () => {
   it('falls back to last edit when recall time is absent', () => {
     const note = { id: 'a', updatedAt: '2026-06-01T00:00:00Z' };
     expect(revisitTouchTimeMs(note)).toBe(Date.parse('2026-06-01T00:00:00Z'));
+  });
+
+  it('counts a substantive visit as engagement, beating an older edit', () => {
+    const note = { id: 'a', updatedAt: '2026-06-01T00:00:00Z' };
+    const visitMs = Date.parse('2026-06-20T00:00:00Z');
+    expect(revisitTouchTimeMs(note, undefined, { a: visitMs })).toBe(visitMs);
+  });
+
+  it('takes the later of a recall open and a visit', () => {
+    const note = { id: 'a', updatedAt: '2026-01-01T00:00:00Z' };
+    const recallMs = Date.parse('2026-05-01T00:00:00Z');
+    const visitMs = Date.parse('2026-06-01T00:00:00Z');
+    expect(revisitTouchTimeMs(note, { a: recallMs }, { a: visitMs })).toBe(visitMs);
+    expect(revisitTouchTimeMs(note, { a: visitMs }, { a: recallMs })).toBe(visitMs);
+  });
+
+  // The rule the whole function exists for: `updatedAt` is bumped by writes that are not
+  // engagement, so an edit after an engagement must not push the clock forward.
+  it('still ignores an edit that came after an engagement', () => {
+    const note = { id: 'a', updatedAt: '2026-06-30T00:00:00Z' };
+    const visitMs = Date.parse('2026-06-01T00:00:00Z');
+    expect(revisitTouchTimeMs(note, undefined, { a: visitMs })).toBe(visitMs);
+  });
+
+  it('is unchanged when no visit map is passed at all', () => {
+    const note = { id: 'a', updatedAt: '2026-06-01T00:00:00Z' };
+    expect(revisitTouchTimeMs(note, {}, {})).toBe(Date.parse('2026-06-01T00:00:00Z'));
+  });
+});
+
+describe('revisitReturnsBoost', () => {
+  it('is zero for a note read once or never', () => {
+    expect(revisitReturnsBoost(undefined)).toBe(0);
+    expect(revisitReturnsBoost(0)).toBe(0);
+    expect(revisitReturnsBoost(1)).toBe(0);
+  });
+
+  it('grows with returns and never exceeds the cap', () => {
+    const two = revisitReturnsBoost(2);
+    const four = revisitReturnsBoost(4);
+    expect(two).toBeGreaterThan(0);
+    expect(four).toBeGreaterThan(two);
+    expect(revisitReturnsBoost(1000)).toBeLessThanOrEqual(REVISIT_RETURNS_MAX_BOOST);
+  });
+
+  it('flattens past saturation, so a heavily opened note cannot run away', () => {
+    const atSaturation = revisitReturnsBoost(REVISIT_RETURNS_SATURATION + 1);
+    expect(revisitReturnsBoost(50)).toBe(atSaturation);
+    expect(atSaturation).toBeCloseTo(REVISIT_RETURNS_MAX_BOOST, 10);
+  });
+
+  it('rises fastest at the start — the second return says more than the ninth', () => {
+    const first = revisitReturnsBoost(2) - revisitReturnsBoost(1);
+    const later = revisitReturnsBoost(5) - revisitReturnsBoost(4);
+    expect(first).toBeGreaterThan(later);
+  });
+
+  it('ignores a nonsense count', () => {
+    expect(revisitReturnsBoost(Number.NaN)).toBe(0);
   });
 });
 

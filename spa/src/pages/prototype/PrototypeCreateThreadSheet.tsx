@@ -13,6 +13,7 @@ import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPositi
 import { PrototypeAddNotesPicker } from './PrototypeAddNotesSheet';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { trackThreadCreated } from '@/utils/analytics';
+import { markOnboardingStepDone } from './useOnboardingState';
 
 const MIN_THREAD_NOTES = 2;
 
@@ -93,6 +94,9 @@ export default function PrototypeCreateThreadSheet({
       });
       onOpenChange(false);
       onCreated(first);
+      // The checklist's "connect two notes" step. Reported from here rather than derived on
+      // Home, which would need a thread query it does not otherwise run.
+      markOnboardingStepDone('thread');
       trackThreadCreated({
         threadId: first,
         spaceId,

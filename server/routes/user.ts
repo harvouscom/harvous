@@ -80,6 +80,11 @@ import {
 
 // Pure @/utils (no astro:db)
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
+import {
+  mergeOnboardingStates,
+  parseOnboardingState,
+  serializeOnboardingState,
+} from '@/utils/onboarding-state';
 import { handleAPIError } from '@/utils/error-handling';
 import {
   rateLimit,
@@ -973,6 +978,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     let defaultTranslation = 'NET';
     let appearanceSettings: string | null = null;
     let lastReadPosition: string | null = null;
+    let onboardingState: string | null = null;
     let sharedSpaceSwitcherOrder: string[] | null = null;
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
@@ -990,6 +996,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
         defaultTranslation = um.defaultTranslation ?? 'NET';
         appearanceSettings = um.appearanceSettings ?? null;
         lastReadPosition = um.lastReadPosition ?? null;
+        onboardingState = um.onboardingState ?? null;
         sharedSpaceSwitcherOrder = parseSharedSpaceSwitcherOrder(um.sharedSpaceSwitcherOrder);
 
         // Reconcile: user picked HMC before the church was registered on Harvous.
@@ -1055,6 +1062,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       defaultTranslation,
       appearanceSettings,
       lastReadPosition,
+      onboardingState,
       sharedSpaceSwitcherOrder,
       hasLockPinSet
     // Overrides app.ts's blanket `private, max-age=30, stale-while-revalidate=60` default.
@@ -1275,6 +1283,63 @@ app.post('/api/user/update-appearance', requireAuth, rateLimit('write'), async (
     return c.json({ success: true, appearanceSettings });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-appearance', action: 'update_appearance' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * Store the getting-started checklist, merging rather than replacing.
+ *
+ * The merge is the endpoint's whole job. Every other single-purpose writer here overwrites
+ * its column, which is right for a preference — the newest edit is the truest one. This
+ * column records events, and a device that has been offline since Tuesday still holds a true
+ * fact about Tuesday. Overwriting on push would let its flush erase Wednesday's progress
+ * from every other device.
+ *
+ * `mergeOnboardingStates` is the same function the client runs, imported rather than
+ * reimplemented — two monotonic merges that disagree would converge on nothing.
+ */
+const ONBOARDING_STATE_MAX_BYTES = 2048;
+
+app.post('/api/user/update-onboarding', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const raw = body?.onboardingState;
+
+    if (typeof raw !== 'string' || raw.length > ONBOARDING_STATE_MAX_BYTES) {
+      return c.json({ error: 'Invalid onboarding state', code: 'ONBOARDING_INVALID' }, 400);
+    }
+    const incoming = parseOnboardingState(raw);
+    if (!incoming) {
+      return c.json({ error: 'Invalid onboarding state', code: 'ONBOARDING_INVALID' }, 400);
+    }
+
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    const stored = parseOnboardingState(existing?.onboardingState ?? null);
+    const merged = stored ? mergeOnboardingStates(stored, incoming) : incoming;
+    const onboardingState = serializeOnboardingState(merged);
+
+    if (existing) {
+      await db.update(UserMetadata)
+        .set({ onboardingState, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        onboardingState,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      });
+    }
+
+    broadcastInvalidation(auth.userId, { type: 'userMetadata:updated' });
+
+    // Echo the merged copy: it is how the pushing device learns what the others have done.
+    return c.json({ success: true, onboardingState });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/update-onboarding', action: 'update_onboarding' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

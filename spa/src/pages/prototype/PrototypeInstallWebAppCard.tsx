@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { isPWA } from '@/utils/content-list-helpers';
 import { getInstallPlatform } from '@/utils/platform-detect';
@@ -7,47 +7,23 @@ import {
   PROTO_INSTALL_WEB_APP_PREVIEW_KEY,
 } from '../../layouts/proto-session-keys';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useDismissibleFlag } from './useDismissibleFlag';
 import PrototypeInstallWebAppSheet from './PrototypeInstallWebAppSheet';
-
-function readFlag(key: string): boolean {
-  try {
-    return localStorage.getItem(key) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeFlag(key: string): void {
-  try {
-    localStorage.setItem(key, '1');
-  } catch {
-    /* ignore */
-  }
-}
 
 /** One-time mobile home card — Add to Home Screen until the user dismisses it. */
 export default function PrototypeInstallWebAppCard() {
   const { isMobileSidebar } = useProtoShell();
-  const [visible, setVisible] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [platform] = useState(() => getInstallPlatform());
-
-  useEffect(() => {
-    if (isPWA()) return;
-    if (!isMobileSidebar) return;
-    if (import.meta.env.DEV && readFlag(PROTO_INSTALL_WEB_APP_PREVIEW_KEY)) {
-      setVisible(true);
-      return;
-    }
-    if (readFlag(PROTO_INSTALL_WEB_APP_DISMISSED_KEY)) return;
-    setVisible(true);
-  }, [isMobileSidebar]);
+  const [visible, dismissFlag] = useDismissibleFlag(PROTO_INSTALL_WEB_APP_DISMISSED_KEY, {
+    previewKey: PROTO_INSTALL_WEB_APP_PREVIEW_KEY,
+    eligible: isMobileSidebar && !isPWA(),
+  });
 
   const dismiss = useCallback(() => {
-    writeFlag(PROTO_INSTALL_WEB_APP_DISMISSED_KEY);
     setSheetOpen(false);
-    setVisible(false);
-  }, []);
+    dismissFlag();
+  }, [dismissFlag]);
 
   if (!visible) return null;
 

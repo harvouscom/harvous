@@ -142,6 +142,7 @@ import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 /** Force Home to present even if an auxiliary query never settles. */
 const HOME_PRESENTATION_DEADLINE_MS = 2500;
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
+import { deletedNoteIds, isNoteDeleted, subscribeDeletedNotes } from './proto-deleted-notes';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
 import type { CrossRefGap } from '../../hooks/queries/useCrossRefGaps';
@@ -150,6 +151,15 @@ import { useChurchSermons } from '../../hooks/queries/useChurchSermons';
 import { useChurchFeed } from '../../hooks/queries/useChurchFeed';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
+import PrototypeOnboardingDock from './PrototypeOnboardingDock';
+import { spotlightNow } from './useSpotlightOnArrival';
+import {
+  markOnboardingStepDone,
+  requestSpotlight,
+  seedOnboardingFromSignals,
+  useOnboardingState,
+} from './useOnboardingState';
+import type { OnboardingStepId } from '@/utils/onboarding-state';
 import PrototypeHomeChurchFeed, { HOME_FEED_LIMIT } from './PrototypeHomeChurchFeed';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
@@ -649,6 +659,8 @@ export default function PrototypeSidebarHomeView({
     canonSectionById,
     recallStabilityById,
     lastRecallEngagedAtById,
+    visitCountById,
+    lastSubstantiveVisitAtById,
   } = fingerprintsQuery;
 
   const navigate = useNavigate();
@@ -809,15 +821,47 @@ export default function PrototypeSidebarHomeView({
   const recallDayIndex = useMemo(() => localDayIndex(new Date()), []);
   const [recallTick, setRecallTick] = useState(0);
 
-  const continueCandidate = useMemo(() => pickContinueNote(notes), [notes]);
+  /*
+   * Notes deleted in this session, as a memo key.
+   *
+   * The store is module state, so nothing here would re-run when it changes. In practice a
+   * delete also rewrites the notes cache, which moves every memo below — but that is the
+   * mutation's behaviour, not this file's, and it is exactly the kind of implicit link that
+   * put a deleted note back on the shelf in the first place. Reading the ids each render is
+   * a handful of strings; depending on them is the part that matters.
+   */
+  const [, setDeletedTick] = useState(0);
+  useEffect(() => subscribeDeletedNotes(() => setDeletedTick((t) => t + 1)), []);
+  const deletedNoteKey = deletedNoteIds().join(',');
+  const deletedIdList = useMemo(
+    () => (deletedNoteKey ? deletedNoteKey.split(',') : []),
+    [deletedNoteKey],
+  );
+
+  const continueCandidate = useMemo(
+    () => pickContinueNote(notes, { excludeIds: deletedIdList, lastSubstantiveVisitAtById }),
+    [notes, deletedIdList, lastSubstantiveVisitAtById],
+  );
   const continueIsActive = Boolean(
     continueCandidate && activeNoteId && continueCandidate.id === activeNoteId,
   );
   const continueNote = useMemo(() => {
     if (continueIsActive) return continueCandidate;
     if (!activeNoteId) return continueCandidate;
-    return pickContinueNote(notes, { excludeIds: [activeNoteId] }) ?? continueCandidate;
-  }, [notes, activeNoteId, continueIsActive, continueCandidate]);
+    return (
+      pickContinueNote(notes, {
+        excludeIds: [activeNoteId, ...deletedIdList],
+        lastSubstantiveVisitAtById,
+      }) ?? continueCandidate
+    );
+  }, [
+    notes,
+    activeNoteId,
+    continueIsActive,
+    continueCandidate,
+    deletedIdList,
+    lastSubstantiveVisitAtById,
+  ]);
   const spotlightHighlight = useMemo(() => pickSpotlightHighlight(highlights, homeSpaceId), [highlights, homeSpaceId]);
   const recallSnoozedIds = useMemo(
     () =>
@@ -852,12 +896,16 @@ export default function PrototypeSidebarHomeView({
         continueNote?.id,
         spotlightHighlight?.parentNoteId,
         ...recallSnoozedIds,
+        ...deletedIdList,
       ].filter((id): id is string => Boolean(id)),
-    [activeNoteId, continueNote, spotlightHighlight, recallSnoozedIds],
+    [activeNoteId, continueNote, spotlightHighlight, recallSnoozedIds, deletedIdList],
   );
   const activeContinueExcludeIds = useMemo(
-    () => [activeNoteId, ...recallSnoozedIds].filter((id): id is string => Boolean(id)),
-    [activeNoteId, recallSnoozedIds],
+    () =>
+      [activeNoteId, ...recallSnoozedIds, ...deletedIdList].filter((id): id is string =>
+        Boolean(id),
+      ),
+    [activeNoteId, recallSnoozedIds, deletedIdList],
   );
   const canPickRevisitStandard = countForLogic >= REVISIT_MIN_NOTES && !hasMoreNotes;
   const canPickRevisitActiveContinue = continueIsActive && notes.length >= 2;
@@ -878,6 +926,8 @@ export default function PrototypeSidebarHomeView({
       meaningWeightById,
       stabilityById: recallStability,
       lastRecallEngagedAtById,
+      lastSubstantiveVisitAtById,
+      visitCountById,
       canonSectionById,
       librarySectionCounts,
       recentRecallSectionCounts: recallSectionCounts,
@@ -887,6 +937,8 @@ export default function PrototypeSidebarHomeView({
       meaningWeightById,
       recallStability,
       lastRecallEngagedAtById,
+      lastSubstantiveVisitAtById,
+      visitCountById,
       canonSectionById,
       librarySectionCounts,
       recallSectionCounts,
@@ -1326,8 +1378,19 @@ export default function PrototypeSidebarHomeView({
   // ── Generative recall Phase 2 (backend queries) ──
   // The queries themselves are declared above the presentation gate, which reads their settled
   // state; only the derived values live here, next to what consumes them.
-  const topCrossRefGap = crossRefGapsQuery.data?.[0];
-  const topConnectSuggestion = connectSuggestionsQuery.data?.[0];
+  /*
+   * The first suggestion that does not name a note deleted in this session.
+   *
+   * Both queries hold their answer for ten minutes and both answer with note titles, so
+   * invalidating them on delete leaves a window — Home's readiness gate settles on cached
+   * data, and paints from it before the refetch lands. Skipping to the next candidate is
+   * what closes it. The connect card is checked on *both* ids: it names two notes and
+   * threads them together, so either one being gone makes the whole suggestion wrong.
+   */
+  const topCrossRefGap = crossRefGapsQuery.data?.find((gap) => !isNoteDeleted(gap.fromNoteId));
+  const topConnectSuggestion = connectSuggestionsQuery.data?.find(
+    (s) => !isNoteDeleted(s.noteAId) && !isNoteDeleted(s.noteBId),
+  );
 
   // ── Recall carousel (Home resurfacing) ──
   // Fold the per-kind recall/trend memos above into one varied, ranked, snoozable carousel. Each
@@ -1598,8 +1661,19 @@ export default function PrototypeSidebarHomeView({
       });
     }
 
-    return out;
+    /*
+     * Backstop. Every source above is filtered at its own seam, which is where the fix
+     * belongs — but there are a dozen push sites and this memo also feeds the *frozen*
+     * shelf below, where a row that has already been shown keeps its place for the whole
+     * visit as long as it is still a live candidate. A deleted note reaching that map would
+     * stay on screen until the page was reloaded, so it is cheaper to be sure here.
+     *
+     * Highlight kinds put a highlight row's id in `noteId` rather than a note's; ids do not
+     * collide across the two, so checking it is harmless there and correct everywhere else.
+     */
+    return out.filter((op) => !isNoteDeleted(op.noteId) && !isNoteDeleted(op.prefetchNoteId));
   }, [
+    deletedNoteKey,
     continueNote,
     revisitNote,
     revisitOnHome,
@@ -1774,6 +1848,7 @@ export default function PrototypeSidebarHomeView({
     openReferenceWordConnection,
   ]);
 
+  /** The window comes from this card's own deferral history — see `nextSnoozeWindowDays`. */
   const handleRecallSnooze = useCallback(
     (id: string) => {
       recordRecallSnoozed(homeSpaceId, id, recallDayIndex);
@@ -1804,6 +1879,9 @@ export default function PrototypeSidebarHomeView({
       // so they didn't even get the server-side stability bump.
       recordRecallOpened(homeSpaceId, id, recallDayIndex, RECALL_OPENED_COOLDOWN_DAYS);
       setRecallTick((t) => t + 1);
+      // The checklist's "revisit something" step, reported from the one place that knows a
+      // resurfaced card was actually followed. There is no query that could tell Home this.
+      markOnboardingStepDone('recall');
     },
     [homeSpaceId, recallDayIndex],
   );
@@ -1841,6 +1919,96 @@ export default function PrototypeSidebarHomeView({
     beginPrototypeComposeSession({ targetSpaceId: homeSpaceId });
     navigate({ to: prototypeHomeRouteTo() });
   }, [beginPrototypeComposeSession, closeDrawer, homeSpaceId, isMobileSidebar, navigate]);
+
+  const openFirstRunPassage = useCallback(
+    (spotlight?: string) => {
+      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+      if (spotlight) requestSpotlight(spotlight);
+      void navigate({
+        to: prototypeReadRouteTo(),
+        params: {
+          book: bookSlug(firstRunPassage.book),
+          chapter: String(firstRunPassage.chapter),
+        },
+        search: {
+          v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
+          t: undefined,
+          req: String(Date.now()),
+        },
+      });
+    },
+    [closeDrawer, firstRunPassage, isMobileSidebar, navigate],
+  );
+
+  // ─── Getting-started checklist ─────────────────────────────────────────────
+
+  const { hydrated: onboardingHydrated } = useOnboardingState();
+
+  /*
+   * Tell the checklist what this account's own data already answers.
+   *
+   * Gated on both `contentReady` and `onboardingHydrated`, and each gate stops a different
+   * wrong answer. Running before the queries settle would read "no notes, no highlights" off
+   * a Home that is merely still loading, and pre-check nothing for someone who has done
+   * everything. Running before the account answers would let a device that has simply never
+   * synced look identical to a brand-new account — and the auto-complete decision inside is
+   * only ever made once.
+   *
+   * Four of the six steps live here. The other two — connecting notes, following a recall
+   * card — are reported by the surfaces that own them, because no query Home already runs
+   * could tell it either one happened.
+   */
+  useEffect(() => {
+    if (!contentReady || !onboardingHydrated) return;
+    seedOnboardingFromSignals({
+      hasReadPosition: (readingHistoryQuery.data?.lastRead ?? null) != null,
+      hasNote: countForLogic > 0,
+      hasScripturePill: scriptureBooks.length > 0,
+      hasHighlight: highlights.length > 0,
+    });
+  }, [
+    contentReady,
+    onboardingHydrated,
+    readingHistoryQuery.data?.lastRead,
+    countForLogic,
+    scriptureBooks.length,
+    highlights.length,
+  ]);
+
+  const handleOnboardingStep = useCallback(
+    (id: OnboardingStepId) => {
+      switch (id) {
+        case 'read':
+          openFirstRunPassage();
+          return;
+        case 'note':
+        case 'pill':
+          // Both end at a page you can type on. 'pill' does not get its own destination
+          // because there is nowhere else to mention a verse — the note *is* the feature.
+          onCreateFirstNote();
+          return;
+        case 'highlight':
+          openFirstRunPassage('reader-verses');
+          return;
+        case 'thread':
+          setSidebarListMode('threads');
+          setSidebarThreadDrilldownId(undefined);
+          ensureSidebarExpanded();
+          return;
+        case 'recall':
+          // Already on this page — no navigation, just point at the shelf.
+          spotlightNow('home-suggested');
+          return;
+      }
+    },
+    [
+      ensureSidebarExpanded,
+      onCreateFirstNote,
+      openFirstRunPassage,
+      setSidebarListMode,
+      setSidebarThreadDrilldownId,
+    ],
+  );
 
   if (!contentReady) {
     return <ProtoSpaceLoading label="Loading home" />;
@@ -1924,7 +2092,7 @@ export default function PrototypeSidebarHomeView({
         <PrototypeFounderLetterPill />
       </HomeSection>
 
-      <HomeSection title="Suggested">
+      <HomeSection title="Suggested" spotlight="home-suggested">
         {votd ? (
           <PrototypeDailyPassagePill
             homeSpaceId={homeSpaceId}
@@ -1960,44 +2128,19 @@ export default function PrototypeSidebarHomeView({
       </HomeSection>
 
       {/*
-        First run leads with reading, not writing.
-        A blank account used to open on "Create your first note", which asks someone to
-        produce something before they have been given anything. Harvous has the whole Bible
-        in it now, so the first move offered is to open it — today's passage when there is
-        one, John 1 otherwise. Writing is still one tap away, underneath, where it belongs
-        once there is something to write about.
+        The getting-started checklist, which absorbed the old first-run block.
+
+        That block was two rows — "Start reading" and "Write a note" — shown only while the
+        account had no notes at all, and gone the moment one existed. It led with reading for
+        a good reason (a blank account asked to "create your first note" is being asked to
+        produce something before it has been given anything), and the dock keeps that order.
+
+        What it did not do was survive the first note. Everything past writing — mentioning a
+        verse, highlighting, connecting two notes, coming back to something — a new reader
+        found by accident or not at all. The dock stays until those are done or put away, and
+        every row still leaves on the first tap of its ×.
       */}
-      {notesListPhase === 'empty' ? (
-        <div className="proto-home-section">
-          <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
-            <PrototypeHomeRow
-              icon="book-open"
-              title="Start reading"
-              meta={[`${firstRunPassage.reference} — highlight a verse to begin a note from it.`]}
-              onClick={() => {
-                void navigate({
-                  to: prototypeReadRouteTo(),
-                  params: {
-                    book: bookSlug(firstRunPassage.book),
-                    chapter: String(firstRunPassage.chapter),
-                  },
-                  search: {
-                    v: firstRunPassage.verse ? String(firstRunPassage.verse) : undefined,
-                    t: undefined,
-                    req: String(Date.now()),
-                  },
-                });
-              }}
-            />
-            <PrototypeHomeRow
-              icon="note-sticky"
-              title="Write a note"
-              meta={['Start from a blank page instead.']}
-              onClick={onCreateFirstNote}
-            />
-          </div>
-        </div>
-      ) : null}
+      <PrototypeOnboardingDock onStepAction={handleOnboardingStep} />
 
     </div>
   );

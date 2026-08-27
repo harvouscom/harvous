@@ -61,7 +61,7 @@ import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useWarmDefaultTranslationPack } from '../hooks/useWarmDefaultTranslationPack';
-import { useSmartJumpDestination } from '../hooks/useSmartJumpDestination';
+import { useReaderToggle } from '../hooks/useReaderToggle';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
 import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
@@ -93,6 +93,10 @@ import {
   readColorSchemePreference,
   subscribeColorScheme,
 } from '../lib/prototype-background';
+import {
+  fetchAndHydrateOnboardingFromProfile,
+  initOnboardingAccountSync,
+} from '../lib/proto-onboarding-sync';
 import {
   isPrototypeHomePath,
   isPrototypeNotePath,
@@ -174,6 +178,7 @@ export default function SimplifiedPrototypeLayout() {
     el.classList.add(PROTO_ROUTE_CLASS);
     void applyBackgroundWithImageTint(readActiveBackground());
     initAppearanceAccountSync();
+    initOnboardingAccountSync();
     return () => {
       el.classList.remove(PROTO_ROUTE_CLASS);
       clearBackgroundVars();
@@ -184,7 +189,20 @@ export default function SimplifiedPrototypeLayout() {
   // Profile appearance / attendance need a session JWT — wait for useAuthReady (Bearer via api).
   useEffect(() => {
     if (!authReady) return;
-    void fetchAndHydrateAppearanceFromProfile();
+    // One request, two consumers. Both read different fields off the same profile — letting
+    // each fetch its own would double an authenticated round trip on every cold start.
+    void (async () => {
+      try {
+        const profile = await api.get<{
+          appearanceSettings?: string | null;
+          onboardingState?: string | null;
+        }>('/api/user/get-profile');
+        void fetchAndHydrateAppearanceFromProfile(profile);
+        void fetchAndHydrateOnboardingFromProfile(profile);
+      } catch {
+        /* offline or mid-auth — both sides keep their local caches */
+      }
+    })();
   }, [authReady]);
 
   useEffect(() => {
@@ -1124,7 +1142,7 @@ function PrototypeShortcutBridge() {
     sidebarListSpaceScope,
   } = useProtoShell();
 
-  const smartJump = useSmartJumpDestination();
+  const readerToggle = useReaderToggle();
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const isDraftNoteRoute =
@@ -1141,15 +1159,15 @@ function PrototypeShortcutBridge() {
     toolbarContextSpaceId,
   );
   /*
-   * `|| isPrototypeReadPath` to match the toolbar's own test.
+   * `|| isOnReadPage` to match the toolbar's own test.
    *
-   * NativeToolbar shows the details orb on a chapter (`|| isOnReadPage`), because the reader
-   * has an inspector too. This copy — the one the keyboard shortcut goes through — did not,
-   * so ⌘-toggling the inspector was silently a no-op everywhere in the reader while the
-   * button beside it worked.
+   * NativeToolbar shows the details orb on a chapter, because the reader has an inspector
+   * too. This copy — the one the keyboard shortcut goes through — did not, so ⌘-toggling
+   * the inspector was silently a no-op everywhere in the reader while the button beside it
+   * worked. Both now read the flag off the same hook rather than re-deriving it.
    */
   const showNoteDetailsOrb =
-    isPrototypeReadPath(pathname) ||
+    readerToggle.isOnReadPage ||
     prototypeToolbarNoteDetailsAvailable({
       isOnNotePage:
         isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),
@@ -1233,19 +1251,16 @@ function PrototypeShortcutBridge() {
     ensureSidebarExpanded();
   }, [ensureSidebarExpanded, setSidebarLayer]);
 
-  /** Same destination the toolbar's reader control resolves — one priority, two ways to reach it. */
-  const openReader = useCallback(() => {
+  /*
+   * The toolbar's Notes/Bible switch, driven from the keyboard — the same hook, so R and the
+   * control cannot mean different things. It used to be a second copy of the smart-jump
+   * navigation here, and the copies had already drifted once over what counts as the reader.
+   */
+  const toggleReader = useCallback(() => {
     if (!homeSpaceId) return;
-    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    navigate.navigate({
-      to: prototypeReadRouteTo(),
-      params: { book: bookSlug(smartJump.book), chapter: String(smartJump.chapter) },
-      search: {
-        v: smartJump.verse ? String(smartJump.verse) : undefined,
-        t: smartJump.translation || undefined,
-      },
-    });
-  }, [homeSpaceId, isMobileSidebar, closeDrawer, navigate, smartJump]);
+    if (readerToggle.isOnReadPage) readerToggle.backToNotes();
+    else readerToggle.openReader();
+  }, [homeSpaceId, readerToggle]);
 
   useEffect(() => {
     const onNewNote = () => createPrototypeNote();
@@ -1263,7 +1278,7 @@ function PrototypeShortcutBridge() {
     };
     const onShowHome = () => showHomeLayer();
     const onShowList = () => showListLayer();
-    const onOpenReader = () => openReader();
+    const onOpenReader = () => toggleReader();
 
     window.addEventListener('prototypeShortcutOpenReader', onOpenReader);
     window.addEventListener('prototypeShortcutNewNote', onNewNote);
@@ -1291,7 +1306,7 @@ function PrototypeShortcutBridge() {
     cycleListMode,
     focusPrototypeNoteList,
     focusPrototypeSidebarSearch,
-    openReader,
+    toggleReader,
     pathname,
     showNoteDetailsOrb,
     showHomeLayer,

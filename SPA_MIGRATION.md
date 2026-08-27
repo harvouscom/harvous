@@ -1,5 +1,13 @@
 # Harvous SPA Migration
 
+> **Superseded / historical (annotated 2026-08-27).** This doc describes the
+> transition period when Astro and the SPA coexisted. Astro is fully removed:
+> production is the React SPA (`spa/` → `dist-spa/`) plus the Hono API on Fly
+> (see `docs/CLEAR_SPLIT_MIGRATION.md` and `docs/FLY_MIGRATION.md`). Read this
+> as history, not as a description of the current architecture — it has
+> misled at least one infra assessment already. For where hosting goes next,
+> see `docs/INFRA_ENDGAME.md`.
+
 ## What This Is
 
 The Harvous app originally runs on **Astro** — a server-side rendered (SSR) framework hosted on Netlify. This works well for web, but Astro can't be bundled into a native iOS/Android app. To ship on mobile, we built a **pure React SPA** (Single Page Application) using Vite + TanStack Router that shares all the same React components and API endpoints as the Astro version.

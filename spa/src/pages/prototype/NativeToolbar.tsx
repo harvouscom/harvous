@@ -1,15 +1,15 @@
 /**
  * Detail-column toolbar — mirrors macOS Harvous detail toolbar.
  *
- * Desktop detail:  [show sidebar when collapsed] [space orb when collapsed] [compose] · folder chip · find/share/more · inspector · account
- * Mobile unified: [sidebar toggle] [space orb] [compose] · … (list mode stays in drawer header)
+ * Desktop detail:  [show sidebar when collapsed] [Note|Bible] · folder chip · find/share/more · inspector · account
+ * Mobile unified: [sidebar toggle] [Note|Bible] · … (space + list mode live in the sidebar header)
  */
 import { useCallback, useEffect, useRef } from 'react';
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import SpaceSwitcherMenu from './SpaceSwitcherMenu';
+import NotesBibleSegmented from './NotesBibleSegmented';
 import { useNote } from '../../hooks/queries/useNote';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
@@ -36,13 +36,10 @@ import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import {
   isPrototypeHomePath,
   isPrototypeNotePath,
-  isPrototypeReadPath,
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
-  prototypeReadRouteTo,
 } from '@/lib/prototype-path';
-import { bookSlug } from '@/utils/bible-book-chapters';
-import { useSmartJumpDestination } from '../../hooks/useSmartJumpDestination';
+import { useReaderToggle } from '../../hooks/useReaderToggle';
 import { prototypeToolbarNoteDetailsAvailable } from './prototype-toolbar-note-details';
 import {
   canOrganizeSharedSpaceNote,
@@ -156,7 +153,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const folderPopover = useToolbarAnchoredPopover();
   const findPopover = useToolbarAnchoredPopover();
   const sharePopover = useToolbarAnchoredPopover();
-  const { homeSpaceId, authReady } = usePrototypeHomeSpaceId();
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
 
   const prototypeFolderChip = usePrototypeFolderChip();
   const {
@@ -290,19 +287,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
    * exists once you have read, a scripture index built from notes you have not written — so
    * someone with an empty account could not reach it at all except by typing the URL.
    */
-  const smartJump = useSmartJumpDestination();
-
-  const onOpenReader = useCallback(() => {
-    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    void navigate({
-      to: prototypeReadRouteTo(),
-      params: { book: bookSlug(smartJump.book), chapter: String(smartJump.chapter) },
-      search: {
-        v: smartJump.verse ? String(smartJump.verse) : undefined,
-        t: smartJump.translation || undefined,
-      },
-    });
-  }, [smartJump, isMobileSidebar, closeDrawer, navigate]);
+  const { isOnReadPage, openReader, backToNotes } = useReaderToggle();
 
   const onSidebarButton = () => {
     if (isMobileSidebar) toggleDrawer();
@@ -319,10 +304,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
    * The reader is a document too, so it gets the same details orb in the same slot —
    * a second, differently-placed control for "show me this document's panel" would be
    * two vocabularies for one idea. Its availability is simpler than a note's: a chapter
-   * is always loadable, so there is nothing to wait on.
+   * is always loadable, so there is nothing to wait on. `isOnReadPage` comes from the
+   * same hook that drives the Notes/Bible switch, so the two cannot disagree.
    */
-  const isOnReadPage = isPrototypeReadPath(pathname);
-
   const showNoteDetailsOrb =
     prototypeToolbarNoteDetailsAvailable({
       isOnNotePage,
@@ -367,10 +351,6 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const showCollapsedSidebarControls =
     !isUnified && (desktopSidebarCollapsed || sidebarExiting);
-  /** Mobile drawer header owns the space orb while open — avoid twin home orbs. */
-  const showToolbarSpaceSwitcher =
-    (isUnified || showCollapsedSidebarControls) &&
-    !(isMobileSidebar && drawerOpen && !sidebarExiting);
 
   return (
     <div className="proto-toolbar-inner">
@@ -405,39 +385,17 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
             </button>
           </PrototypeToolbarShortcutItem>
         ) : null}
-        {showToolbarSpaceSwitcher ? (
-          <SpaceSwitcherMenu homeSpaceId={homeSpaceId} authReady={authReady} iconOnly />
-        ) : null}
-        <PrototypeToolbarShortcutItem shortcut="N" showShortcut={showShiftHints}>
-          <button
-            type="button"
-            className="proto-toolbar-icon-btn"
-            title={
-              canComposeInContext
-                ? composeDestinationLabel
-                : 'Composing is not available in this channel yet'
-            }
-            aria-label={canComposeInContext ? composeDestinationLabel : 'New note unavailable'}
-            disabled={!homeSpaceId || !canComposeInContext}
-            onClick={onCompose}
-          >
-            <Icon name="pen-to-square" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
-          </button>
-        </PrototypeToolbarShortcutItem>
-        {/* Beside compose, because reading and writing are the two things you start here.
-            Unlike compose it needs no space permission — a chapter is not written to. */}
-        <PrototypeToolbarShortcutItem shortcut="R" showShortcut={showShiftHints}>
-          <button
-            type="button"
-            className="proto-toolbar-icon-btn"
-            title="Read the Bible"
-            aria-label="Read the Bible"
-            disabled={!homeSpaceId}
-            onClick={onOpenReader}
-          >
-            <Icon name="book-open" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
-          </button>
-        </PrototypeToolbarShortcutItem>
+        {/* Writing and reading are the two things you start here, so they are one control. */}
+        <NotesBibleSegmented
+          isOnReadPage={isOnReadPage}
+          onBackToNotes={backToNotes}
+          onCompose={onCompose}
+          onOpenReader={openReader}
+          canCompose={canComposeInContext}
+          disabled={!homeSpaceId}
+          showShortcuts={showShiftHints}
+          composeLabel={composeDestinationLabel}
+        />
       </div>
 
       <div className="proto-toolbar-center">

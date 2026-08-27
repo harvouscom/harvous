@@ -124,6 +124,25 @@ describe('shared-space-dashboard', () => {
     expect(slots.map((s) => s.note.id)).toEqual(['other-new', 'continue', 'mine-recent']);
   });
 
+  it('buildSharedSpaceNoteCardSlots offers no card for a note deleted this session', () => {
+    const slots = buildSharedSpaceNoteCardSlots({
+      recentNotes: [
+        note('gone', { authorUserId: 'u1', isOwnNote: true, updatedAt: '2026-07-05T14:00:00.000Z' }),
+        note('kept', { authorUserId: 'u1', isOwnNote: true, updatedAt: '2026-07-05T12:00:00.000Z' }),
+      ],
+      notesForContinue: [
+        note('gone', { authorUserId: 'u1', isOwnNote: true, updatedAt: '2026-07-05T14:00:00.000Z' }),
+        note('kept', { authorUserId: 'u1', isOwnNote: true, updatedAt: '2026-07-05T12:00:00.000Z' }),
+      ],
+      unseenSince: null,
+      authUserId: 'u1',
+      deletedNoteIds: ['gone'],
+    });
+
+    // 'gone' would otherwise be both the continue card and the first recent one.
+    expect(slots.map((s) => s.note.id)).toEqual(['kept']);
+  });
+
   it('groupSharedSpaceNoteCardSlots merges consecutive matching eyebrows', () => {
     const slots = [
       { note: note('a'), eyebrow: 'Recently updated', kind: 'recent' as const },

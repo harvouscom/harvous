@@ -107,6 +107,14 @@ export interface OfflineUserMetadata extends BaseOfflineEntity {
   appearanceSettings: string | null;
   /** Account-synced last reading position (JSON string) or null if nothing read yet. */
   lastReadPosition: string | null;
+  /**
+   * Account-synced getting-started checklist (JSON string), or null if never stored.
+   *
+   * Optional rather than required: the mirror is written from several places that build a
+   * fresh metadata row (bootstrap, local-first creation), and none of them can know a
+   * checklist that only the account has seen.
+   */
+  onboardingState?: string | null;
 }
 
 // Sync operation for mutation queue

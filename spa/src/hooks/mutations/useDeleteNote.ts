@@ -13,6 +13,7 @@ import {
   spaceNotesQueryKey,
 } from '../../lib/space-notes-cache';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
+import { markNotesDeleted, unmarkNotesDeleted } from '../../pages/prototype/proto-deleted-notes';
 
 function purgeDeletedNoteClientCaches(queryClient: QueryClient, noteId: string) {
   queryClient.removeQueries({ queryKey: ['note', noteId] });
@@ -50,6 +51,9 @@ export function useDeleteNote() {
       });
     },
     onMutate: async (variables) => {
+      // Marked before the spaceId guard below: a suggestion can name this note whether or
+      // not we can resolve which space's note list to patch.
+      markNotesDeleted([variables.noteId]);
       const sid = normalizeSpaceIdForCache(variables.spaceId);
       if (!sid) return { previous: undefined, sid: '' };
       await queryClient.cancelQueries({ queryKey: spaceNotesQueryKey(sid) });
@@ -57,10 +61,17 @@ export function useDeleteNote() {
       removeSpaceNoteFromCache(queryClient, sid, variables.noteId);
       return { previous, sid };
     },
-    onError: (_err, _variables, context) => {
+    onError: (_err, variables, context) => {
       restoreSpaceNotesCaches(queryClient, context?.previous);
+      unmarkNotesDeleted([variables.noteId]);
     },
     onSettled: (_data, _err, variables) => {
+      // Neither of these is space-scoped, so they are refreshed before the spaceId guard
+      // below. Both answer with note *titles* and both hold their answer for ten minutes,
+      // which is how a note deleted a moment ago kept being named on the Suggested shelf.
+      queryClient.invalidateQueries({ queryKey: ['note-connect-suggestions'] });
+      queryClient.invalidateQueries({ queryKey: ['note-crossref-gaps'] });
+
       const sid = normalizeSpaceIdForCache(variables.spaceId);
       if (!sid) return;
       // The notes list was never invalidated here, so a deleted note lingered in the
@@ -69,6 +80,10 @@ export function useDeleteNote() {
       // Prefix-matches every unseenSince variant. In onSettled so a failed delete
       // resyncs too.
       queryClient.invalidateQueries({ queryKey: ['space', sid, 'notes'] });
+      // A sibling of that list rather than a child of it: the shared-space dashboard's
+      // "recently updated" cards come from ['space', sid, 'activity-preview'], which the
+      // more specific key above does not reach.
+      queryClient.invalidateQueries({ queryKey: ['space', sid, 'activity-preview'] });
     },
     onSuccess: (_data, variables) => {
       const sid = normalizeSpaceIdForCache(variables.spaceId);

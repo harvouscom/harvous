@@ -33,12 +33,30 @@ export const RECALL_OPENED_COOLDOWN_DAYS = 7;
  */
 export const RECALL_COMPLETED_COOLDOWN_DAYS = 30;
 
-type CooldownMap = Record<string, number>;
+/**
+ * A rest, and how long it was meant to last.
+ *
+ * The window used to be a single number applied to the whole store at read time, which was
+ * fine while every rest was the same length. It stopped being fine twice over: the reader can
+ * now choose how long to defer a suggestion for, and even before that, pruning with the
+ * *caller's* window deleted entries rested under a longer one — record a 7-day open and it
+ * would drop 8-day-old snoozes that had a fortnight left to run.
+ */
+type CooldownEntry = { day: number; window: number };
+type CooldownMap = Record<string, CooldownEntry>;
 
 function key(spaceId: string): string {
   return `${KEY_PREFIX}${spaceId}`;
 }
 
+/**
+ * Stored as a bare day when the window is the default, `[day, window]` when it isn't.
+ *
+ * Two-way compatible on purpose. Entries written before this existed are bare numbers and
+ * still read correctly; a version of the app without this change reads a bare number back and
+ * drops the pairs, which fails in the safe direction — a suggestion returns early rather than
+ * being suppressed for a window nothing recorded.
+ */
 function safeRead(spaceId: string): CooldownMap {
   if (typeof window === 'undefined') return {};
   try {
@@ -47,8 +65,16 @@ function safeRead(spaceId: string): CooldownMap {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
     const out: CooldownMap = {};
-    for (const [id, day] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof day === 'number' && Number.isFinite(day)) out[id] = day;
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        out[id] = { day: value, window: RECALL_COOLDOWN_DAYS };
+        continue;
+      }
+      if (!Array.isArray(value) || value.length !== 2) continue;
+      const [day, days] = value;
+      if (typeof day !== 'number' || !Number.isFinite(day)) continue;
+      if (typeof days !== 'number' || !Number.isFinite(days) || days <= 0) continue;
+      out[id] = { day, window: days };
     }
     return out;
   } catch {
@@ -59,7 +85,12 @@ function safeRead(spaceId: string): CooldownMap {
 function safeWrite(spaceId: string, map: CooldownMap): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(key(spaceId), JSON.stringify(map));
+    const serialized: Record<string, number | [number, number]> = {};
+    for (const [id, entry] of Object.entries(map)) {
+      serialized[id] =
+        entry.window === RECALL_COOLDOWN_DAYS ? entry.day : [entry.day, entry.window];
+    }
+    window.localStorage.setItem(key(spaceId), JSON.stringify(serialized));
   } catch {
     // quota / storage disabled — ignore
   }
@@ -77,24 +108,130 @@ export function recordRecallOpened(
 ): void {
   if (!spaceId || !id) return;
   const map = safeRead(spaceId);
-  map[id] = todayDayIndex;
-  for (const [existingId, day] of Object.entries(map)) {
-    if (todayDayIndex - day >= windowDays) delete map[existingId];
+  map[id] = { day: todayDayIndex, window: windowDays };
+  /* Each entry is pruned against the window it was rested under, not the one this call
+     happens to carry. Using the caller's meant a short rest evicted long ones. */
+  for (const [existingId, entry] of Object.entries(map)) {
+    if (todayDayIndex - entry.day >= entry.window) delete map[existingId];
   }
   safeWrite(spaceId, map);
 }
 
 /**
- * Snooze a recall opportunity ("not now") so it rests before resurfacing.
- * Alias of {@link recordRecallOpened} for call-site clarity in the carousel.
+ * How long each successive "Remind me later" rests the same suggestion for.
+ *
+ * The reader says one thing — later — and the length is inferred from how many times they
+ * have already said it about this one. Asking them to pick a number was tried and it was the
+ * wrong question: nobody knows on Tuesday whether they want a passage back in seven days or
+ * thirty, and the answer they can actually give is "not now", repeatedly, which is data.
+ *
+ * Deferring the same card three times is a soft version of "not interested" that the reader
+ * never has to say, so each repeat backs off further. It stops at a season rather than
+ * running to forever: only `recordRecallDismissed` is allowed to mean never, because that is
+ * a promise the reader made rather than one inferred from their patience.
+ */
+export const RECALL_SNOOZE_LADDER_DAYS = [7, 21, 60] as const;
+
+/** The window a snooze gets, given how many times this suggestion has been rested before. */
+export function nextSnoozeWindowDays(priorSnoozes: number): number {
+  const step = Math.min(Math.max(priorSnoozes, 0), RECALL_SNOOZE_LADDER_DAYS.length - 1);
+  return RECALL_SNOOZE_LADDER_DAYS[step];
+}
+
+/**
+ * How many times each suggestion has been deferred, and when it last was.
+ *
+ * Its own store because the cooldown map cannot hold it: that map is pruned the moment an
+ * entry's window passes, which is precisely when the suggestion returns to be deferred
+ * again — the count would reset on exactly the event it exists to remember, and the ladder
+ * would never leave its first rung.
+ *
+ * Aged out rather than kept forever. A card you put off twice last spring and have not seen
+ * since should not come back already on its longest window; a year of silence is the reader
+ * changing, not persisting.
+ */
+const SNOOZE_COUNT_PREFIX = 'harvous.prototype.recallSnoozeCount.';
+const SNOOZE_COUNT_TTL_DAYS = 365;
+const SNOOZE_COUNT_MAX_LOCAL = 500;
+
+type SnoozeCountEntry = { count: number; day: number };
+
+function safeReadSnoozeCounts(spaceId: string): Record<string, SnoozeCountEntry> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(`${SNOOZE_COUNT_PREFIX}${spaceId}`);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, SnoozeCountEntry> = {};
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!Array.isArray(value) || value.length !== 2) continue;
+      const [count, day] = value;
+      if (typeof count !== 'number' || !Number.isFinite(count) || count <= 0) continue;
+      if (typeof day !== 'number' || !Number.isFinite(day)) continue;
+      out[id] = { count, day };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function safeWriteSnoozeCounts(spaceId: string, map: Record<string, SnoozeCountEntry>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const serialized: Record<string, [number, number]> = {};
+    for (const [id, entry] of Object.entries(map)) serialized[id] = [entry.count, entry.day];
+    window.localStorage.setItem(`${SNOOZE_COUNT_PREFIX}${spaceId}`, JSON.stringify(serialized));
+  } catch {
+    // quota / storage disabled — ignore
+  }
+}
+
+/** Times this suggestion has already been deferred, for {@link nextSnoozeWindowDays}. */
+export function recallSnoozeCount(
+  spaceId: string | undefined | null,
+  id: string,
+  todayDayIndex: number,
+): number {
+  if (!spaceId || !id) return 0;
+  const entry = safeReadSnoozeCounts(spaceId)[id];
+  if (!entry) return 0;
+  if (todayDayIndex - entry.day >= SNOOZE_COUNT_TTL_DAYS) return 0;
+  return entry.count;
+}
+
+/**
+ * Snooze a recall opportunity so it rests before resurfacing.
+ *
+ * The window is chosen here rather than passed in, because it is a function of the reader's
+ * history with this card and the caller has no business knowing the ladder. Returns the
+ * window it used so a caller can say so if it wants to.
  */
 export function recordRecallSnoozed(
   spaceId: string | undefined | null,
   id: string,
   todayDayIndex: number,
-  windowDays: number = RECALL_COOLDOWN_DAYS,
-): void {
+): number {
+  const prior = recallSnoozeCount(spaceId, id, todayDayIndex);
+  const windowDays = nextSnoozeWindowDays(prior);
   recordRecallOpened(spaceId, id, todayDayIndex, windowDays);
+  if (!spaceId || !id) return windowDays;
+
+  const counts = safeReadSnoozeCounts(spaceId);
+  counts[id] = { count: prior + 1, day: todayDayIndex };
+  for (const [existingId, entry] of Object.entries(counts)) {
+    if (todayDayIndex - entry.day >= SNOOZE_COUNT_TTL_DAYS) delete counts[existingId];
+  }
+  const entries = Object.entries(counts);
+  if (entries.length > SNOOZE_COUNT_MAX_LOCAL) {
+    // Newest kept. Losing an old count costs a shorter next rest, never a suppressed card.
+    entries.sort((a, b) => b[1].day - a[1].day);
+    safeWriteSnoozeCounts(spaceId, Object.fromEntries(entries.slice(0, SNOOZE_COUNT_MAX_LOCAL)));
+    return windowDays;
+  }
+  safeWriteSnoozeCounts(spaceId, counts);
+  return windowDays;
 }
 
 /**
@@ -123,6 +260,14 @@ export function restoreRecallOpportunity(
   if (id in map) {
     delete map[id];
     safeWrite(spaceId, map);
+  }
+  /* The ladder resets too. Undoing a deferral means it did not happen, and leaving the count
+     behind would rest the card longer next time on the strength of a rest the reader took
+     back. */
+  const counts = safeReadSnoozeCounts(spaceId);
+  if (id in counts) {
+    delete counts[id];
+    safeWriteSnoozeCounts(spaceId, counts);
   }
   // A permanent dismissal is the one this most has to reach: a snooze heals itself in three
   // weeks, so an undo that missed it would still come right. This one never would.
@@ -411,13 +556,15 @@ export function mergeServerRecallHistoryIntoCooldowns(
 export function activeCooldownIds(
   spaceId: string | undefined | null,
   todayDayIndex: number,
+  /** Fallback for entries stored before rests carried their own window. */
   windowDays: number = RECALL_COOLDOWN_DAYS,
 ): Set<string> {
   const active = new Set<string>();
   if (!spaceId) return active;
   const map = safeRead(spaceId);
-  for (const [id, day] of Object.entries(map)) {
-    if (todayDayIndex - day < windowDays) active.add(id);
+  for (const [id, entry] of Object.entries(map)) {
+    const span = entry.window || windowDays;
+    if (todayDayIndex - entry.day < span) active.add(id);
   }
   return active;
 }

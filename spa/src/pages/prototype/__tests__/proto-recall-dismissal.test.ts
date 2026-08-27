@@ -139,8 +139,18 @@ describe('server history, merged', () => {
 describe('what the controls promise', () => {
   it('offers two answers that do not describe the same thing', () => {
     expect(RECALL_SNOOZE_COPY.label).not.toBe(RECALL_DISMISS_COPY.label);
-    expect(RECALL_SNOOZE_COPY.hint).toMatch(new RegExp(`${RECALL_COOLDOWN_DAYS / 7}\\s*weeks`));
     expect(RECALL_DISMISS_COPY.hint).toMatch(/never/i);
+  });
+
+  /*
+   * Deferral promises no window, because it no longer has one to promise — the length comes
+   * from the ladder. A hint stating a number here would be the label/effect drift this file
+   * exists to prevent, rebuilt.
+   */
+  it('does not put a window on the deferral it cannot keep', () => {
+    expect(RECALL_SNOOZE_COPY.label).toMatch(/later/i);
+    expect(RECALL_SNOOZE_COPY).not.toHaveProperty('hint');
+    expect(RECALL_SNOOZE_COPY.label).not.toMatch(/\d|week|month|day/i);
   });
 
   it('names the row in every aria label, so two suggestions are told apart', () => {

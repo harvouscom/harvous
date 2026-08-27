@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore, type CSSProperties } from 'react';
 import Icon from '@/components/react/Icon';
 import {
   BG_PRESETS,
@@ -215,8 +215,20 @@ type SegmentedControlProps<T extends string> = {
 };
 
 function SegmentedControl<T extends string>({ options, value, onChange }: SegmentedControlProps<T>) {
+  /* -1 while `value` matches nothing yet (a preference still loading) would park the
+     thumb one step left of the track, so an unmatched value holds it at the first slot. */
+  const activeIndex = Math.max(0, options.findIndex((opt) => opt.value === value));
   return (
-    <div className="proto-appearance-segmented" role="radiogroup">
+    <div
+      className="proto-appearance-segmented proto-seg-track"
+      role="radiogroup"
+      style={
+        {
+          '--proto-seg-count': options.length,
+          '--proto-seg-index': activeIndex,
+        } as CSSProperties
+      }
+    >
       {options.map((opt) => (
         <button
           key={opt.value}

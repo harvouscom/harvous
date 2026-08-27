@@ -67,6 +67,10 @@ export function isReadingEventsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'ReadingEvents');
 }
 
+export function isNoteVisitEventsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'NoteVisitEvents');
+}
+
 export function isSupportTicketsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SupportTickets');
 }

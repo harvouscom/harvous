@@ -28,17 +28,22 @@ import { buildRecallCardStackOrigin } from './paper-stack-origins';
  * suggestions shelf is for. Selection and ordering are still done upstream by
  * selectRecallOpportunities; this is presentational.
  *
- * Every row records an impression once it is on screen (they all are, now), and each keeps
- * its own "Not now" — snoozing is how the deck gets trained, so it must never be more than
- * one tap away.
+ * Every row records an impression once it is on screen (they all are, now).
  *
- * The permanent answer sits behind the overflow beside it, and the asymmetry is the design.
- * Deferral is the common answer and stays one tap; "not interested" never expires, so it
- * should cost a moment's deliberation. It also means neither mis-tap is expensive: hitting the
- * ✕ costs three weeks, and hitting the overflow costs a menu you can close.
+ * Both answers live behind one overflow. They were split — a bare ✕ for "Not now" beside the
+ * menu that held "Not interested" — on the reasoning that deferral is the common answer and
+ * should cost one tap, while a permanent dismissal should cost a moment's deliberation. What
+ * that traded away was legibility: a bare ✕ on a suggestion does not say which of the two it
+ * means, and the two differ by *forever*. A reader who assumed the ✕ was the permanent one
+ * had no way to find out except by choosing it.
  *
- * Both answers live here rather than only on the breadcrumb edge, which is where the permanent
- * one used to live. That edge is not built for four of the kinds (`arc`, `subject`, `crossref`,
+ * The menu names every answer, so the choice is read rather than guessed, and it runs
+ * shortest-first — a week, a month, never — so the one answer that does not heal itself is
+ * furthest from where muscle memory lands. Deferring costs a tap more than the ✕ did; it is
+ * still two, and it is now the answer you meant for the length you meant it.
+ *
+ * Both live here rather than only on the breadcrumb edge, which is where the permanent one
+ * used to live. That edge is not built for four of the kinds (`arc`, `subject`, `crossref`,
  * `connectNotes` resolve in the sidebar and stack nothing), and it disappears the moment you
  * navigate — so for those kinds the answer was unreachable, and for the rest it was available
  * only in the seconds after opening the card.
@@ -82,6 +87,8 @@ export default function PrototypeRecallCarousel({
   homeSpaceId,
 }: {
   opportunities: RecallOpportunity[];
+  /** Deferral. The window is chosen by the store from this card's history — see
+   *  `nextSnoozeWindowDays`; nothing up here picks a number. */
   onSnooze: (id: string) => void;
   /** "Not interested" — suppress with no expiry. See proto-recall-copy.ts. */
   onDismiss: (id: string) => void;
@@ -165,6 +172,16 @@ export default function PrototypeRecallCarousel({
     if (origin) stackNote(origin);
   };
 
+  /*
+   * The server event stays a plain `snooze` and carries no window.
+   *
+   * It is what suppresses the card on your other devices, and there the default window is
+   * applied — so a card on its third deferral rests longer here than on a laptop, where the
+   * ladder's position is not known. Recording the length would mean a column on RecallEvents,
+   * and the analytics that count `action = 'snooze'` all assume one kind of snooze. Erring
+   * toward the shorter window elsewhere brings a suggestion back early, which is the
+   * recoverable direction.
+   */
   const snoozeOpportunity = (op: RecallOpportunity) => {
     recordRecallOpportunityEvent({
       opportunityId: op.id,
@@ -202,11 +219,17 @@ export default function PrototypeRecallCarousel({
 }
 
 /**
- * One shelf row and its two answers.
+ * One shelf row and its answers.
  *
  * A component of its own because the overflow has state — which row's menu is open — and the
  * outside-click hook needs a ref per row. Hoisting either into the carousel would mean one
  * `openMenuId` compared against every row on every render, for no gain.
+ *
+ * The menu is written out here rather than behind a generic row-menu component. It was
+ * extracted into one while the founder letter and today's passage were also going to use it;
+ * both kept their own buttons in the end — a suggestion needs words because its answers
+ * differ by forever, a one-exit row does not — which left the abstraction with a single
+ * caller and this file paying indirection for a shape nothing else shares.
  */
 function RecallRow({
   op,
@@ -225,6 +248,14 @@ function RecallRow({
   const menuRef = useRef<HTMLSpanElement>(null);
   useDismissOnOutside(menuRef, () => setMenuOpen(false), menuOpen);
 
+  /* Closed before the answer runs: both of these take the row off the shelf, and a menu
+     asked to close on an element that is already gone leaves the popover painted over
+     whichever row moved up into its place. */
+  const answer = (act: () => void) => () => {
+    setMenuOpen(false);
+    act();
+  };
+
   return (
     <PrototypeHomeRow
       icon={op.iconName}
@@ -234,52 +265,53 @@ function RecallRow({
       onMouseEnter={onPrefetch}
       onFocus={onPrefetch}
       trailing={
-        <>
+        <span className="proto-recall-row__more" ref={menuRef}>
           <button
             type="button"
             className="proto-side-panel__action-btn"
-            aria-label={RECALL_SNOOZE_COPY.ariaFor(op.title)}
-            title={RECALL_SNOOZE_COPY.label}
-            onClick={onSnooze}
+            aria-label={RECALL_MORE_COPY.ariaFor(op.title)}
+            title={RECALL_MORE_COPY.hint}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((wasOpen) => !wasOpen)}
           >
-            <Icon name="xmark" size={12} aria-hidden />
+            <Icon name="ellipsis-vertical" size={12} aria-hidden />
           </button>
-          <span className="proto-recall-row__more" ref={menuRef}>
-            <button
-              type="button"
-              className="proto-side-panel__action-btn"
+          {menuOpen ? (
+            <div
+              className="proto-menu__popover proto-menu__popover--right proto-menu__popover--list-view proto-recall-row__menu"
+              role="menu"
               aria-label={RECALL_MORE_COPY.ariaFor(op.title)}
-              title={RECALL_MORE_COPY.hint}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
             >
-              <Icon name="ellipsis-vertical" size={12} aria-hidden />
-            </button>
-            {menuOpen ? (
-              <div
-                className="proto-menu__popover proto-menu__popover--right proto-menu__popover--list-view proto-recall-row__menu"
-                role="menu"
-                aria-label={RECALL_MORE_COPY.ariaFor(op.title)}
+              {/* Deferral above the permanent answer: the one that does not heal itself sits
+                  furthest from where muscle memory lands. */}
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                aria-label={RECALL_SNOOZE_COPY.ariaFor(op.title)}
+                onClick={answer(onSnooze)}
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="proto-menu-item"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDismiss();
-                  }}
-                >
-                  <span className="proto-menu-item__icon" aria-hidden>
-                    <Icon name="eye-slash" size={14} />
-                  </span>
-                  <span className="proto-menu-item__label">{RECALL_DISMISS_COPY.label}</span>
-                </button>
-              </div>
-            ) : null}
-          </span>
-        </>
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="clock" size={14} />
+                </span>
+                <span className="proto-menu-item__label">{RECALL_SNOOZE_COPY.label}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                aria-label={RECALL_DISMISS_COPY.ariaFor(op.title)}
+                onClick={answer(onDismiss)}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="eye-slash" size={14} />
+                </span>
+                <span className="proto-menu-item__label">{RECALL_DISMISS_COPY.label}</span>
+              </button>
+            </div>
+          ) : null}
+        </span>
       }
     />
   );

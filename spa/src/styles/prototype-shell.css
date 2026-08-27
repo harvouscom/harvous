@@ -793,8 +793,30 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
       pane, not over the wallpaper — at the shell's alpha (0.22 under an image
       wallpaper) the editor's own text and its blue New note button read
       straight through the sidebar and collide with the rows.
+
+      Its own step below the rest of the floating chrome, though: this is the
+      largest floating surface in the app, and at the bar's alpha a panel this
+      size stops reading as glass and reads as a white sheet laid on the window.
+      The 40px blur is what makes the lower number safe — content underneath is
+      already unreadable mush before opacity does any work.
+
+      And it thins on the way down. The top holds the opaque value because that
+      is where the header and the first rows sit and where contrast has to be
+      reliable; by the foot the panel is mostly listing, has usually run out of
+      content, and a hard edge of flat white against the wallpaper there is the
+      most sheet-like part of the whole thing. Held flat for the first third so
+      the fade starts below the header rather than across it.
+
+      One gradient, no background-color underneath it: a colour behind a
+      translucent gradient composites with it, and the foot would come out more
+      opaque than the value that names it.
     */
-    background: var(--pds-glass-shell-floating);
+    background: linear-gradient(
+      to bottom,
+      var(--pds-glass-shell-drawer) 0%,
+      var(--pds-glass-shell-drawer) 32%,
+      var(--pds-glass-shell-drawer-foot) 100%
+    );
     -webkit-backdrop-filter: var(--pds-glass-blur);
     backdrop-filter: var(--pds-glass-blur);
   }

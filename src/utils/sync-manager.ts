@@ -22,6 +22,7 @@ import { safeFetch } from './safe-fetch';
 import { extractIdFromPath, idToUrl } from './url-helpers';
 import { dispatchRemoteSyncCompleted } from './harvous-remote-sync-event';
 import { dispatchAppearanceAccountSync } from './harvous-appearance-account-event';
+import { dispatchOnboardingAccountSync } from './harvous-onboarding-account-event';
 import { isPrototypeShellPath } from '@/lib/prototype-path';
 import { MAX_NOTE_CREATES_PER_SYNC_PUSH } from '@/utils/rate-limit';
 
@@ -329,6 +330,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         churchAddedAt: um.churchAddedAt ? new Date(um.churchAddedAt) : null,
         appearanceSettings: um.appearanceSettings ?? null,
         lastReadPosition: um.lastReadPosition ?? null,
+        onboardingState: um.onboardingState ?? null,
         syncStatus: 'synced',
         lastModified: new Date(um.updatedAt || um.createdAt).getTime(),
         serverVersion: new Date(um.updatedAt || um.createdAt).getTime(),
@@ -337,6 +339,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
       }, userId);
       await offlineDB.userMetadata.put(userMetadata);
       dispatchAppearanceAccountSync(um.appearanceSettings ?? null);
+      dispatchOnboardingAccountSync(um.onboardingState ?? null);
 
       // Cache highestSimpleNoteId in localStorage for instant offline access
       if (um.highestSimpleNoteId !== undefined) {
@@ -594,6 +597,7 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
           churchAddedAt: um.churchAddedAt ? new Date(um.churchAddedAt) : null,
           appearanceSettings: um.appearanceSettings ?? null,
           lastReadPosition: um.lastReadPosition ?? null,
+          onboardingState: um.onboardingState ?? null,
           syncStatus: 'synced',
           lastModified,
           serverVersion: lastModified,
@@ -602,6 +606,7 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
         }, userId);
         await offlineDB.userMetadata.put(userMetadata);
         dispatchAppearanceAccountSync(um.appearanceSettings ?? null);
+        dispatchOnboardingAccountSync(um.onboardingState ?? null);
 
         // Cache highestSimpleNoteId in localStorage for instant offline access
         if (um.highestSimpleNoteId !== undefined) {

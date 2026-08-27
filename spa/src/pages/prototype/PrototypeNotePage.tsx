@@ -72,6 +72,7 @@ import { useChurchStaffStatus } from '../../hooks/queries/useChurchStaffStatus';
 import { useChurchPlannerAccess } from '../../hooks/useChurchPlannerAccess';
 import { useNotePlannedService } from '../../hooks/queries/useNotePlannedService';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
+import { useNoteSession } from '../../hooks/useNoteSession';
 import { useNoteEditLease } from '@/hooks/useNoteEditLease';
 import { resolveProfileFirstName } from '@/utils/nav-avatar-initials';
 import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
@@ -984,6 +985,20 @@ export default function PrototypeNotePage() {
     });
     recordAudiencefulMilestoneOnce('note_opened');
   }, [isDraft, isLoading, isError, note, noteId, contextSpaceId]);
+
+  /*
+   * How long the note was actually read for, which is a different question from the open
+   * above and answered by a different mechanism. That effect fires once and is content to
+   * re-fire — `note` is in its deps and changes identity on every background refetch. A
+   * dwell clock cannot be: see the deps note in `useNoteSession`. So the gate is collapsed
+   * to a boolean here and the hook is given nothing but primitives.
+   *
+   * Foreign shared notes are excluded because the server refuses to log a visit to a note
+   * you do not own, so measuring one only buys a request that is certain to be declined.
+   */
+  const noteSessionEnabled =
+    !isDraft && !isLoading && !isError && Boolean(note) && !isForeignSharedNote;
+  useNoteSession({ noteId, enabled: noteSessionEnabled });
 
   const resolvedSpaceFromNote =
     typeof note?.spaceId === 'string' && note.spaceId.trim().length > 0 ? note.spaceId : null;

@@ -62,7 +62,7 @@ import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
-import { PROTO_MENU_CHECK_ICON_SIZE, PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
+import { PROTO_MENU_CHECK_ICON_SIZE, PROTO_SEG_GLYPH_SIZE, PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
 
 type SpaceSwitcherDragController = ReturnType<typeof useSharedSpaceSwitcherDragReorder>;
@@ -175,12 +175,17 @@ function normalizeSpaceId(id: string): string {
 export default function SpaceSwitcherMenu({
   homeSpaceId,
   authReady,
-  iconOnly = false,
+  trigger = 'orb',
 }: {
   homeSpaceId: string | null;
   authReady: boolean;
-  /** Icon-only orb (detail toolbar when sidebar is collapsed). */
-  iconOnly?: boolean;
+  /**
+   * `orb` is the standalone control — a circle, or a titled pill once a space is chosen.
+   * `segment` is the same control as the Spaces half of the sidebar's layer switch: a
+   * flat, full-width half of a joined pill. Only the trigger changes; the menu below is
+   * one menu, because there is only one set of spaces to pick from.
+   */
+  trigger?: 'orb' | 'segment';
 }) {
   const navigate = useNavigate();
   const {
@@ -459,27 +464,42 @@ export default function SpaceSwitcherMenu({
     myChurchMode: inMyChurchMode,
     myChurchName: myChurch?.churchName ?? null,
   });
+  const isSegment = trigger === 'segment';
   /** Pill when a space/channel is selected (title); My Home / My Church hubs stay circular orbs.
-   * `iconOnly` (mobile unified toolbar) forces the plain orb — the name is still reachable
-   * from the sidebar/drawer space list, so the toolbar doesn't need to repeat it.
    *
    * A title is required, not incidental: the pill's padding is asymmetric because it is
    * sized for icon + label, so rendering it with no label (nav hasn't resolved the space
    * title yet, or the space has none) left dead space to the right of the icon. Without a
-   * label the plain orb is the correct shape — and it is the same one `iconOnly` already
-   * renders, tile icon included. */
-  const useSpaceSwitcherPill = showSharedSpaceToolbar && !iconOnly && Boolean(sharedSpaceLabel);
+   * label the plain orb is the correct shape, tile icon included.
+   *
+   * The segment has neither problem — it is a fixed half of a two-up control, so it keeps
+   * its own width whether or not a title has arrived, and falls back to "Spaces". */
+  const useSpaceSwitcherPill =
+    !isSegment && showSharedSpaceToolbar && Boolean(sharedSpaceLabel);
+  /**
+   * The segment names the place you are, the way its other half names the list you are
+   * looking at. Not `triggerTitle` itself: that carries the "finish setup in the classic
+   * app" sentence, which is a tooltip's length, not a segment's.
+   */
+  const segmentLabel = sharedSpaceLabel || (inMyChurchMode ? 'My Church' : 'My Home');
   // Pill: color tile + title. Hub modes: plain orb glyphs.
+  /*
+   * A hub's bare glyph is drawn to the tile's block inside a segment, so My Home does not
+   * come out a size smaller than the shared space that replaces it in the very same half.
+   * The orb keeps the standard glyph size — there it sits among other orbs, not beside a
+   * tile. See PROTO_SEG_GLYPH_SIZE.
+   */
+  const hubGlyphSize = isSegment ? PROTO_SEG_GLYPH_SIZE : PROTO_TOOLBAR_ORB_ICON_SIZE;
   const triggerIcon = activeIsMinistry ? (
     <ProtoSpaceMenuIcon color={space?.color || 'paper'} iconName="rss" />
   ) : showSharedSpaceToolbar ? (
     <ProtoSpaceMenuIcon color={space?.color || 'paper'} />
   ) : inMyChurchMode ? (
-    <Icon name="church" size={PROTO_TOOLBAR_ORB_ICON_SIZE} aria-hidden />
+    <Icon name="church" size={hubGlyphSize} aria-hidden />
   ) : hasHome ? (
-    <ProtoHouseIcon size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
+    <ProtoHouseIcon size={hubGlyphSize} />
   ) : (
-    <Icon name="table-cells" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />
+    <Icon name="table-cells" size={hubGlyphSize} />
   );
 
   // Every selection closes the menu. The parent chips that used to stay open
@@ -723,13 +743,27 @@ export default function SpaceSwitcherMenu({
     : null;
 
   return (
-    <div className="proto-menu proto-sidebar-toolbar__mode-menu">
+    <div
+      className={[
+        'proto-menu',
+        'proto-sidebar-toolbar__mode-menu',
+        isSegment ? 'proto-sidebar-seg__slot' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <PrototypeToolbarShortcutItem shortcut="H" showShortcut={showShiftHints}>
         <button
           ref={triggerRef}
           type="button"
-          className={useSpaceSwitcherPill ? 'proto-toolbar-space-switcher' : 'proto-toolbar-icon-btn'}
-          data-active={iconOnly ? undefined : sidebarLayer === 'space'}
+          className={
+            isSegment
+              ? 'proto-sidebar-seg__btn'
+              : useSpaceSwitcherPill
+                ? 'proto-toolbar-space-switcher'
+                : 'proto-toolbar-icon-btn'
+          }
+          data-active={sidebarLayer === 'space'}
           title={triggerTitle}
           /* The dot is `aria-hidden`, so what it means has to reach the label — otherwise the
              only people told there is something new are the ones who can see 7px of colour. */
@@ -754,7 +788,23 @@ export default function SpaceSwitcherMenu({
             setOpen((x) => !x);
           }}
         >
-          {useSpaceSwitcherPill ? (
+          {isSegment ? (
+            <>
+              <span className="proto-sidebar-seg__icon" aria-hidden>
+                {triggerIcon}
+              </span>
+              {/* Plain ellipsis for the same reason the pill below uses one — `proto-marquee`
+                  would measure zero inside a shrink-to-fit box. */}
+              <span className="proto-sidebar-seg__label" title={segmentLabel}>
+                {segmentLabel}
+              </span>
+              {sidebarLayer === 'space' ? (
+                <span className="proto-sidebar-seg__chevron" aria-hidden>
+                  <Icon name="caret-down" size={11} />
+                </span>
+              ) : null}
+            </>
+          ) : useSpaceSwitcherPill ? (
             <>
               <span className="proto-toolbar-space-switcher__icon" aria-hidden>
                 {triggerIcon}

@@ -182,7 +182,13 @@ export default function PrototypeDailyPassagePill({
     <>
       {/* A row of the Suggested group. Tapping the row opens the passage; the trailing
           controls are the one action worth a button — add it to notes, or open the notes
-          it already has — and the dismiss. Same shape as every other row on Home. */}
+          it already has — and the dismiss. Same shape as every other row on Home.
+
+          Buttons rather than the overflow the suggestion rows use. The write action is why
+          you would come to this row at all, and putting the day's one invitation to study
+          behind a menu is a tap charged for the thing the row exists to offer. The
+          suggestion rows earn their menu because their answers differ by forever and need
+          words; these two are a plus and a cross, and mean what they look like. */}
       <PrototypeHomeRow
         icon="scroll"
         title={votd.reference}
@@ -196,6 +202,7 @@ export default function PrototypeDailyPassagePill({
                 type="button"
                 className="proto-side-panel__action-btn"
                 aria-label="View notes on this passage"
+                title="View notes on this passage"
                 onClick={openScripturePassageNotes}
               >
                 <Icon name="list" size={12} aria-hidden />
@@ -205,6 +212,7 @@ export default function PrototypeDailyPassagePill({
                 type="button"
                 className="proto-side-panel__action-btn"
                 aria-label="Add passage to notes"
+                title="Add passage to notes"
                 onClick={() => studyNow(votd)}
               >
                 <Icon name="plus" size={12} aria-hidden />
@@ -214,6 +222,7 @@ export default function PrototypeDailyPassagePill({
               type="button"
               className="proto-side-panel__action-btn"
               aria-label="Dismiss today's passage"
+              title="Not today"
               onClick={handleDismiss}
             >
               <Icon name="xmark" size={12} aria-hidden />

@@ -1242,6 +1242,18 @@ export const UserMetadata = pgTable('UserMetadata', {
   /** Last applied onboarding markdown pack version (see ONBOARDING_PACK_VERSION). */
   onboardingPackVersionApplied: integer('onboardingPackVersionApplied').notNull().default(0),
   /**
+   * Getting-started checklist state. JSON string — see src/utils/onboarding-state.ts for
+   * the shape and, more importantly, the merge rules.
+   *
+   * Unlike `appearanceSettings`, this is never overwritten on write: the endpoint merges
+   * monotonically, because this records things that happened rather than a preference.
+   * `null` = never stored; Home seeds it once from the account's own data.
+   *
+   * Unrelated to `onboardingPackVersionApplied` above, which belongs to the removed
+   * seeded-content feature and is dead. Do not repurpose it for this.
+   */
+  onboardingState: text('onboardingState'),
+  /**
    * Legacy notes-tier label (`free` | `unlimited`) — retired for gating; kept for
    * admin support/usage stats until those surfaces move off it. Paid features
    * live in `Entitlements`.
@@ -1491,6 +1503,33 @@ export const ReadingEvents = pgTable('ReadingEvents', {
 }, (table) => [
   index('ReadingEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('ReadingEvents_userId_bookOrder_chapterIndex').on(table.userId, table.bookOrder, table.chapter),
+]);
+
+// ─── NoteVisitEvents (append-only log of notes opened and read) ────────────────
+// The note-side twin of ReadingEvents: that one records reading Scripture, this one records
+// reading your own notes. Everything Home knew about a note came from having *written* it,
+// so a note returned to every morning and never edited faded exactly like an abandoned one.
+//
+// Deliberately not Notes.lastVisited. server/routes/sync.ts uses gt(Notes.lastVisited,
+// since) as a delta-pull trigger, so stamping the row on every open would push a sync delta
+// per note open — the mirror image of the updatedAt double-duty problem. A row per visit
+// also records frequency, which one mutable column cannot, and keeps two people reading a
+// shared note from overwriting each other's timestamp. Same reasoning that keeps
+// NoteFingerprints off the Notes row.
+
+export const NoteVisitEvents = pgTable('NoteVisitEvents', {
+  id: text('id').primaryKey(),
+  /** The *visitor*, not the note's owner — a shared note read by two people is two rows. */
+  userId: text('userId').notNull(),
+  noteId: text('noteId').notNull(),
+  /** glance | read | study — see src/utils/note-visit-kinds.ts. */
+  dwellBucket: text('dwellBucket').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('NoteVisitEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  // For the delete cascade, which filters on noteId alone. RecallEvents is deleted the same
+  // way and has no such index; that is a gap, not a precedent.
+  index('NoteVisitEvents_noteIdIndex').on(table.noteId),
 ]);
 
 // ─── SupportTickets (user feedback from settings support form) ─────────────────

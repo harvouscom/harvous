@@ -113,20 +113,36 @@ function lastEditedTime(note: HomeContinueNoteInput): number {
 }
 
 /**
- * Most recently edited note regardless of pin state — the sidebar's
- * `sortNotesByLastVisited` floats pinned notes first, so `notes[0]` is the
- * wrong answer for "pick up where you left off". Visit-only opens are ignored.
+ * The note most recently *worked with*, regardless of pin state — the sidebar's
+ * `sortNotesByLastVisited` floats pinned notes first, so `notes[0]` is the wrong answer for
+ * "pick up where you left off".
+ *
+ * Worked with means edited, or read. Visit-only `lastVisited` bumps are still ignored, and
+ * that exclusion is still right: the column is stamped by any open at all and cannot tell a
+ * mis-tap from a sitting. What counts instead is `lastSubstantiveVisitAtById` — a note held
+ * open for a measured stretch of attention, glances already dropped. That is the same kind
+ * of fact an edit is, and for someone who reads more than they type it is the only kind
+ * they leave.
+ *
+ * The distinction matters historically: excluding visits here came out of the June 2026 fix
+ * for opening a note bumping its `updatedAt`, which is a problem about an accidental write,
+ * not about reading.
  */
 export function pickContinueNote<T extends HomeContinueNoteInput>(
   notes: T[],
-  opts: { excludeIds?: Iterable<string> } = {},
+  opts: {
+    excludeIds?: Iterable<string>;
+    /** noteId → ms of the last read/study visit. Glances are excluded upstream. */
+    lastSubstantiveVisitAtById?: Record<string, number>;
+  } = {},
 ): T | undefined {
   const exclude = new Set(opts.excludeIds ?? []);
   let best: T | undefined;
   let bestTime = -1;
   for (const note of notes) {
     if (note.id != null && exclude.has(note.id)) continue;
-    const t = lastEditedTime(note);
+    const visitMs = note.id != null ? opts.lastSubstantiveVisitAtById?.[note.id] : undefined;
+    const t = Math.max(lastEditedTime(note), visitMs != null && visitMs > 0 ? visitMs : 0);
     if (t > bestTime) {
       best = note;
       bestTime = t;
@@ -215,16 +231,30 @@ function fallbackMeaningWeight(note: RevisitNoteInput): number {
 }
 
 /**
- * Touch time for Workstream B resurfacing: prefer last recall re-engagement over last edit so
- * editing a note without opening it via recall does not reset its fading priority.
+ * Touch time for Workstream B resurfacing.
+ *
+ * Measured engagement wins outright; edit time is only the fallback for a note that has
+ * none yet. Two things count as measured — opening the note from a recall card, and holding
+ * it open for a read or study stretch — and the later of the two is the answer.
+ *
+ * `updatedAt` deliberately does not count, and cannot: it is bumped by writes that are not
+ * engagement at all. The link cleanup in `server/utils/delete-note-cascade.ts` re-stamps
+ * every note that mentioned a deleted one, which is nobody reading anything. That is the
+ * whole reason this function exists rather than the ranking using `lastEditedTime` directly.
  */
 export function revisitTouchTimeMs(
   note: RevisitNoteInput,
   lastRecallEngagedAtById?: Record<string, number>,
+  lastSubstantiveVisitAtById?: Record<string, number>,
 ): number {
   const id = note.id;
   const recallMs = id != null ? lastRecallEngagedAtById?.[id] : undefined;
-  if (recallMs != null && recallMs > 0) return recallMs;
+  const visitMs = id != null ? lastSubstantiveVisitAtById?.[id] : undefined;
+  const engaged = Math.max(
+    recallMs != null && recallMs > 0 ? recallMs : 0,
+    visitMs != null && visitMs > 0 ? visitMs : 0,
+  );
+  if (engaged > 0) return engaged;
   return lastEditedTime(note);
 }
 
@@ -252,6 +282,10 @@ type PickRevisitNoteOptions = {
   meaningWeightById?: Record<string, number>;
   stabilityById?: Record<string, number>;
   lastRecallEngagedAtById?: Record<string, number>;
+  /** noteId → ms of the last read/study visit. Glances are excluded upstream. */
+  lastSubstantiveVisitAtById?: Record<string, number>;
+  /** noteId → count of read/study visits in the trailing window. */
+  visitCountById?: Record<string, number>;
   baseStabilityDays?: number;
   canonSectionById?: Record<string, string>;
   /** User's overall section distribution from fingerprints. */
@@ -283,6 +317,41 @@ export function recallSectionDiversityBoost(
   return Math.min(RECALL_SECTION_DIVERSITY_MAX_BOOST, gap * 0.5);
 }
 
+/**
+ * Cap for the returns boost. Deliberately under RECALL_SECTION_DIVERSITY_MAX_BOOST: diversity
+ * corrects a systemic blind spot — a whole canon section going unseen — while this is a nudge
+ * about one note. Between them they now spend 0.18 of additive headroom on a priority that
+ * realistically peaks near 0.56, which is about as much as this scoring can absorb; a third
+ * additive boost would start drowning the term it is supposed to be adjusting.
+ */
+export const REVISIT_RETURNS_MAX_BOOST = 0.08;
+
+/** Returns past this add nothing — the fifth return is evidence, the twelfth is noise. */
+export const REVISIT_RETURNS_SATURATION = 5;
+
+/**
+ * Small priority boost for notes you keep coming back to. Pure; 0 for a note read once or
+ * never, so a cold library ranks exactly as it did before.
+ *
+ * Counts *returns*, not visits — the first read is not a return, it is just reading it.
+ *
+ * This raises priority while a recent visit lowers it, and the two are not in conflict: they
+ * are different terms of the same model, which is how spaced repetition has always worked.
+ * `forgettingAwarePriority` asks two separate questions — how much is this worth bringing
+ * back (meaning), and how faded is it right now (retrievability). The most recent visit
+ * answers the second and suppresses the note for a few days. How often you return answers
+ * the first, and is evidence about the note that does not expire when you read it. So a note
+ * you come back to weekly goes quiet for a day or two after each reading and then returns
+ * *higher* than an equally faded note you never go back to. That is the intent.
+ */
+export function revisitReturnsBoost(visitCount: number | undefined): number {
+  if (visitCount == null || !Number.isFinite(visitCount) || visitCount <= 1) return 0;
+  const returns = Math.min(REVISIT_RETURNS_SATURATION, visitCount - 1);
+  return (
+    REVISIT_RETURNS_MAX_BOOST * (Math.log1p(returns) / Math.log1p(REVISIT_RETURNS_SATURATION))
+  );
+}
+
 /** Build section counts from a noteId → sectionId map (one count per note). */
 export function librarySectionCountsFromById(canonSectionById: Record<string, string>): Record<string, number> {
   const out: Record<string, number> = {};
@@ -298,13 +367,20 @@ function pickRevisitNoteWithMinAge<T extends RevisitNoteInput>(
   minAgeMs: number,
   options: PickRevisitNoteOptions & { excluded: Set<string> },
 ): T | undefined {
-  const { nowMs, rotationDayIndex, rotationSalt, meaningWeightById, lastRecallEngagedAtById, excluded } =
-    options;
+  const {
+    nowMs,
+    rotationDayIndex,
+    rotationSalt,
+    meaningWeightById,
+    lastRecallEngagedAtById,
+    lastSubstantiveVisitAtById,
+    excluded,
+  } = options;
 
   const candidates: Array<{ note: T; t: number }> = [];
   for (const note of notes) {
     if (note.id && excluded.has(note.id)) continue;
-    const t = revisitTouchTimeMs(note, lastRecallEngagedAtById);
+    const t = revisitTouchTimeMs(note, lastRecallEngagedAtById, lastSubstantiveVisitAtById);
     if (t <= 0) continue;
     if (nowMs - t < minAgeMs) continue;
     candidates.push({ note, t });
@@ -325,10 +401,11 @@ function pickRevisitNoteWithMinAge<T extends RevisitNoteInput>(
         options.librarySectionCounts,
         options.recentRecallSectionCounts,
       );
+      const returns = revisitReturnsBoost(id != null ? options.visitCountById?.[id] : undefined);
       return {
         note,
         t,
-        priority: forgettingAwarePriority(mw, daysSinceTouch, stability) + diversity,
+        priority: forgettingAwarePriority(mw, daysSinceTouch, stability) + diversity + returns,
       };
     });
     scored.sort(

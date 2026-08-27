@@ -632,6 +632,223 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   flex-shrink: 0;
 }
 
+/* ─── Segmented-switch thumb (shared) ─────────────────────────────────────── */
+/*
+ * The selected fill as one element that MOVES, rather than a fill switching off in one
+ * half and on in the other. Two fills cross-fading is a cut; a thumb that travels tells
+ * you which half you came from, which is the whole orienting job this motion has.
+ *
+ * Driven by `--proto-seg-index` (0-based) rather than `:has()` on the active child. The
+ * index comes from the same state that decides which half is active, so the two cannot
+ * disagree — and it generalises past two segments for free, where a `:has()` rule would
+ * need a selector per position.
+ *
+ * `.proto-seg-track` is opt-in and applied only once a container is rendering all of its
+ * halves. A switch mid-auth can be one half wide, and a thumb sized to a fraction of a
+ * container that currently holds one child is a raised pill floating over nothing. Without
+ * the class the halves keep their own `[data-active]` fill, so that state still looks right,
+ * it just doesn't slide.
+ */
+.proto-seg-track {
+  position: relative;
+}
+
+.proto-seg-track::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  /* Offsets resolve against the padding box, so the inset here lands the thumb exactly
+     on the content box — where the halves themselves sit. */
+  top: var(--proto-seg-pad);
+  bottom: var(--proto-seg-pad);
+  left: var(--proto-seg-pad);
+  width: calc(
+    (100% - var(--proto-seg-pad) * 2 - var(--proto-seg-gap) * (var(--proto-seg-count, 2) - 1)) /
+      var(--proto-seg-count, 2)
+  );
+  border-radius: var(--proto-seg-thumb-radius, var(--pds-radius-row));
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-chip-selected);
+  /* Percentages in `translate` resolve against the thumb's own width — one half-step
+     plus the channel it crosses, whatever the halves happen to measure. */
+  transform: translateX(calc((100% + var(--proto-seg-gap)) * var(--proto-seg-index, 0)));
+  transition: transform var(--pds-duration-segment) var(--pds-ease-emphasized);
+  pointer-events: none;
+}
+
+/*
+ * Every segmented control in the app, by button class. Each one supplies its own
+ * `--proto-seg-pad` / `--proto-seg-gap` / `--proto-seg-thumb-radius`, so the thumb
+ * lands on that control's geometry rather than on one house style; joining this list
+ * is a class plus an index, not a restyle.
+ */
+.proto-seg-track
+  :is(.proto-toolbar-seg__btn, .proto-sidebar-seg__btn, .proto-appearance-segmented__btn) {
+  /* Labels and glyphs ride above the thumb they sit on. */
+  position: relative;
+  z-index: 1;
+}
+
+/* The thumb owns the raised fill now — a second one on the button would double the
+   shadow and, worse, would not move. Both state conventions, because the appearance
+   control shipped with a modifier class and gained `data-active` later. */
+.proto-seg-track
+  :is(.proto-toolbar-seg__btn, .proto-sidebar-seg__btn, .proto-appearance-segmented__btn):is(
+    [data-active='true'],
+    .proto-appearance-segmented__btn--active
+  ) {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The selection still lands; it just stops being a journey. */
+@media (prefers-reduced-motion: reduce) {
+  .proto-seg-track::before {
+    transition: none;
+  }
+}
+
+/* ─── Sidebar layer switch (Spaces | list view) ───────────────────────────── */
+/*
+ * The two orbs, joined. They were always one choice — which layer the sidebar shows —
+ * and reading as two separate buttons is what made the header feel like a row of options
+ * rather than a switch. Each half keeps both of its jobs unchanged: inactive, one click
+ * moves the layer; active, the same click opens that half's menu.
+ *
+ * The cluster stops hugging the right edge when this is present — a switch that shows
+ * which half you are on wants the full width, and the drawer has it to give.
+ */
+.proto-sidebar-toolbar__cluster:has(.proto-sidebar-seg) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Recessed fill and concentric corners for the same reasons `.proto-toolbar-seg` uses
+   them — see the notes there. The two switches sit in one toolbar row and must match. */
+.proto-sidebar-seg {
+  display: flex;
+  /*
+   * `stretch`, not `center`. Each half is three boxes deep — menu root, shortcut-hint
+   * wrapper, button — and the button's `height: 100%` resolves against whatever that
+   * chain hands it. Centred, nothing in the chain stretched, so it measured the label's
+   * line box: 18px tabs inside a 30px shell, an active tab floating in the middle of its
+   * own trough rather than filling it.
+   */
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  height: var(--proto-seg-h);
+  padding: var(--proto-seg-pad);
+  gap: var(--proto-seg-gap);
+  border-radius: var(--proto-seg-radius);
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-control);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
+}
+
+/* Each half is a whole menu component, so its own root and the shortcut-hint wrapper
+   both have to pass width *and* height through, or the button sizes to its own text. */
+.proto-sidebar-seg__slot,
+.proto-sidebar-seg__slot > .proto-toolbar-item {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+}
+
+.proto-sidebar-seg__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  padding: 0 9px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--pds-radius-row);
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+  font-family: var(--pds-font-body) !important;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+
+.proto-sidebar-seg__btn:hover:not([data-active='true']) {
+  background: var(--pds-bg-control);
+}
+
+.proto-sidebar-seg__btn:focus-visible {
+  outline: none;
+}
+
+.proto-sidebar-seg__btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* Same raised-pill selected state the appearance segmented control uses, so "the one
+   that is on" looks the same wherever the app asks you to pick one of a few. */
+.proto-sidebar-seg__btn[data-active='true'] {
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-chip-selected);
+}
+
+/* Kept in step with `PROTO_SEG_ICON_SIZE` (18) by hand — a literal rather than the old
+   `calc(orb - 12px)`, which happened to equal 18 and would have silently drifted the box
+   away from the glyphs the moment the orb size moved. */
+.proto-sidebar-seg__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  line-height: 0;
+}
+
+/* Plain ellipsis, never `proto-marquee` — its `container-type: inline-size` zeroes an
+   element's own width contribution, and these halves are content-sized. */
+.proto-sidebar-seg__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+  font-size: var(--pds-toolbar-folder-chip-font-size);
+  /*
+   * One weight for both halves. The raised fill and its shadow already say which half
+   * you are on; lightening the other one says it a second time, and what it actually
+   * reads as is the unselected tab being *dimmer* — less available rather than merely
+   * not current. Both are equally clickable, so both are 600.
+   *
+   * (Worth knowing before reaching for `font-variation-settings` here: the chip token
+   * carries a `wght` axis, but only `ROND` survives to the computed value on this
+   * element, so weight is genuinely being set by `font-weight` and not by the axis.)
+   */
+  font-weight: 600;
+  font-variation-settings: var(--pds-font-body-variation-toolbar-chip);
+}
+
+.proto-sidebar-seg__chevron {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+  opacity: 0.5;
+}
+
+/* The unseen-suggestions dot is placed against the orb; inside a flat segment it needs
+   this box as its positioning context or it escapes to the toolbar. */
+.proto-sidebar-seg__btn .proto-toolbar-icon-btn__unseen-dot {
+  position: static;
+  flex-shrink: 0;
+  margin-left: 1px;
+}
+
 .proto-sidebar-toolbar--drawer {
   flex-shrink: 0;
   padding: 8px 10px;
@@ -874,6 +1091,90 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   font-family: inherit !important;
 }
 
+/* ─── Notes | Bible switch (toolbar) ─────────────────────────────────────── */
+/*
+ * Two orbs became one control. Joined, the pair says "you are in one of these" instead of
+ * "here are two more things to press" — and the reader gains the visible state it never
+ * had as a plain button.
+ */
+/*
+ * A trough, not a pane. `--pds-bg-control` rather than the orbs' `--pds-bg-glass-medium`:
+ * glass-medium is white at 65% and the raised segment is white at 100%, so the two read as
+ * one continuous surface and nothing looks selected. The same recessed fill the appearance
+ * segmented control uses is what makes the raised half legible — the blur still runs, so
+ * this sits in the toolbar's glass language rather than beside it.
+ */
+/*
+ * Rounded squares, not a pill. Every other control in this row is a 30px square at
+ * `--pds-radius-row`, and a lozenge among them reads as a borrowed component. The inner
+ * radius is the outer minus the padding, which is what keeps two nested corners
+ * concentric — an inner corner cut to the same 10px as the shell bulges against it.
+ */
+.proto-toolbar-seg {
+  display: inline-flex;
+  /* `stretch` for the reason spelled out on `.proto-sidebar-seg` — the halves are nested
+     inside their hint wrappers and must be handed a height to fill. */
+  align-items: stretch;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: var(--proto-seg-h);
+  padding: var(--proto-seg-pad);
+  gap: var(--proto-seg-gap);
+  border-radius: var(--proto-seg-radius);
+  border: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-control);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
+}
+
+/* Each half wraps in a shortcut-hint item, so the keycap sits under the half it drives. */
+.proto-toolbar-seg > .proto-toolbar-item {
+  height: 100%;
+}
+
+/* An orb exactly — same size, same radius as the buttons beside it. The shell is the
+   inset drawn around it, which is why the shell is the orb *plus* the padding rather
+   than the orb's own height with the halves squeezed inside it. */
+.proto-toolbar-seg__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: var(--pds-toolbar-orb-size);
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--pds-radius-row);
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+  font-family: var(--pds-font-body) !important;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+
+.proto-toolbar-seg__btn:hover:not([data-active='true']) {
+  background: var(--pds-bg-control);
+}
+
+.proto-toolbar-seg__btn:focus-visible {
+  outline: none;
+}
+
+.proto-toolbar-seg__btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.proto-toolbar-seg__btn[data-active='true'] {
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-chip-selected);
+  cursor: default;
+}
+
+.proto-toolbar-seg__btn svg {
+  flex-shrink: 0;
+  display: block;
+}
+
 /* Shared space switcher — user-group icon + title pill (toolbar layer toggle). */
 .proto-toolbar-space-switcher {
   display: inline-flex;
@@ -983,6 +1284,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
     /* The row's own gap now does this work; without it the chip sits tight against the orbs. */
     margin: 0 4px;
   }
+
 }
 
 /*
@@ -8299,18 +8601,23 @@ button.proto-appearance-hero__card {
 /* ─── Segmented control (appearance settings) ─────────────────────────── */
 
 .proto-appearance-segmented {
+  /* Its own geometry, published for the shared thumb. Literals here and in `__btn`
+     below would have to agree by hand; as vars the thumb simply reads them. */
+  --proto-seg-pad: 3px;
+  --proto-seg-gap: 2px;
+  --proto-seg-thumb-radius: 7px;
   display: flex;
   border-radius: 9px;
   background: var(--pds-bg-control);
-  padding: 3px;
-  gap: 2px;
+  padding: var(--proto-seg-pad);
+  gap: var(--proto-seg-gap);
 }
 
 .proto-appearance-segmented__btn {
   flex: 1;
   border: none;
   background: transparent;
-  border-radius: 7px;
+  border-radius: var(--proto-seg-thumb-radius);
   padding: 5px 12px;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -12104,8 +12411,8 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   z-index: 3;
 }
 
-/* Wide enough for one item and no wider. The shared `--list-view` modifier drops the
-   checkmark column but keeps a min-width sized for a translation list. */
+/* Sized for its own labels, not inherited: the shared `--list-view` modifier drops the
+   checkmark column but keeps a min-width meant for a translation list. */
 .proto-recall-row__menu {
   top: calc(100% + 4px);
   left: auto;
@@ -12120,8 +12427,8 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    
    The overflow trigger is named separately because it is a grandchild: it sits inside
    `.proto-recall-row__more`, which exists to anchor the popover, and a `>` combinator does not
-   reach through it. So the ✕ dimmed and the ⋮ beside it stayed at full strength — same colour,
-   different weight, on two glyphs that are meant to read as one pair.
+   reach through it. Without this arm the ⋮ stays at full strength while every other row's
+   trailing mark dims — one glyph in the column shouting while the rest are punctuation.
    
    Deliberately not a descendant selector. The popover lives inside `.proto-recall-row__more`
    too, and `trailing button` would dim every item in the open menu along with the trigger. */
@@ -20267,4 +20574,183 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ─── Getting-started dock (Home onboarding checklist) ──────────────────────
+   A group of Home rows with a counted heading. Nothing here is chrome the user
+   has to get past: no overlay, no scrim, no arrow pointing at anything. The one
+   piece of theatre is the completion — a row ticks over and folds away — because
+   that is usually the only feedback for something the user did elsewhere in the
+   app entirely. */
+
+.proto-onboarding-dock__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 0 2px 0 4px;
+}
+
+.proto-onboarding-dock__eyebrow {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0;
+  min-width: 0;
+}
+
+/* The count is the progress bar. A real bar was tried and read as a task the app was
+   setting, which is the opposite of ambient; two numbers state the same fact without
+   asking to be finished. */
+.proto-onboarding-dock__count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.62;
+}
+
+.proto-onboarding-dock__dismiss {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+/*
+ * Collapse without measuring.
+ *
+ * `grid-template-rows: 1fr → 0fr` animates a row's height without JS ever reading one,
+ * which matters here because the row's height depends on the marquee text inside it.
+ * `min-height: 0` on the inner element is load-bearing — without it the grid item refuses
+ * to shrink below its content and the row snaps out instead of folding.
+ */
+.proto-onboarding-dock__row {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.proto-onboarding-dock__row-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@keyframes proto-onboarding-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Only on Home's own entrance, so re-rendering the sidebar does not replay the list. */
+.proto-home-view--enter .proto-onboarding-dock__row {
+  opacity: 0;
+  animation: proto-onboarding-row-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--proto-onboarding-index, 0) * 45ms);
+}
+
+@keyframes proto-onboarding-row-out {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+/* Dwell, then fold. The delay is PROTO_ONBOARDING_ROW_DWELL_MS and the duration is
+   PROTO_ONBOARDING_ROW_EXIT_MS in spa/src/layouts/proto-motion.ts — the dock keeps the row
+   mounted for exactly their sum, so all three MUST stay in lockstep. */
+.proto-onboarding-dock__row--done {
+  animation: proto-onboarding-row-out 0.32s cubic-bezier(0.4, 0, 1, 1) 0.9s both;
+}
+
+@keyframes proto-onboarding-check-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.proto-onboarding-dock__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0 3px;
+  border-radius: 999px;
+  background: var(--pds-accent);
+  color: #fff;
+  animation: proto-onboarding-check-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* A completed row is a receipt, not a destination — it stops looking tappable while it
+   plays out. */
+.proto-onboarding-dock__row--done .proto-list-panel__row-main {
+  cursor: default;
+  opacity: 0.72;
+}
+
+/* ─── Spotlight ─────────────────────────────────────────────────────────────
+   One pulse on the thing a checklist row sent you to. Outline rather than a box-shadow
+   spread so it traces the affordance instead of bleeding into whatever is behind it, and
+   `outline` does not participate in layout, so nothing moves when it fires. */
+
+@keyframes proto-spotlight-pulse {
+  0% {
+    outline-color: oklch(var(--pds-lch-accent) / 0);
+  }
+  22% {
+    outline-color: oklch(var(--pds-lch-accent) / 0.85);
+  }
+  70% {
+    outline-color: oklch(var(--pds-lch-accent) / 0.55);
+  }
+  100% {
+    outline-color: oklch(var(--pds-lch-accent) / 0);
+  }
+}
+
+.proto-spotlight-glow {
+  outline: 2px solid transparent;
+  outline-offset: 3px;
+  border-radius: 8px;
+  animation: proto-spotlight-pulse 1.6s ease-in-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-home-view--enter .proto-onboarding-dock__row {
+    opacity: 1;
+    animation: none;
+    transform: none;
+  }
+
+  /* The row still has to leave — it just leaves at once rather than folding. Keeping the
+     dwell would strand a finished row on screen with no motion to explain why. */
+  .proto-onboarding-dock__row--done {
+    animation: none;
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+
+  .proto-onboarding-dock__check,
+  .proto-spotlight-glow {
+    animation: none;
+  }
+
+  .proto-spotlight-glow {
+    outline-color: transparent;
+  }
 }

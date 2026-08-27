@@ -14,12 +14,18 @@ import type { ReactNode } from 'react';
 export default function PrototypeHomeSection({
   title,
   children,
+  spotlight,
 }: {
   title: string;
   children: ReactNode;
+  /** Name this section as a spotlight target, so a checklist row can point at it. */
+  spotlight?: string;
 }) {
   return (
-    <section className="proto-home-section proto-home-section--group">
+    <section
+      className="proto-home-section proto-home-section--group"
+      data-proto-spotlight={spotlight}
+    >
       <p className="proto-caption proto-home-section__eyebrow">{title}</p>
       <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-section__list">
         {children}
