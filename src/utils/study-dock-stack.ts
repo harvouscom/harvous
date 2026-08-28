@@ -410,6 +410,15 @@ export function isHighlightDockReadOnly(session: HighlightDockSession): boolean 
   return session.readOnly === true || session.isOwnHighlight === false;
 }
 
+/**
+ * Whether a deep-linked highlight can open now, or has to wait for its mark in the note.
+ *
+ * `scriptureLink` is here because that kind has no mark to wait for: it is painted inline in
+ * the scripture dock, not in the note body (see {@link HighlightDockSession.scriptureReference}).
+ * Polling for one could only ever run out its full ~2s budget and then open from metadata
+ * anyway — which is a delay nobody was paying much for until "Add a thought" started routing
+ * these rows to the highlight dock, where the wait sits between the tap and the caret.
+ */
 export function shouldOpenHighlightRequestImmediately(request: {
   range?: { from: number; to: number } | null;
   metadata?: HighlightDockOpenMetadata;
@@ -418,6 +427,7 @@ export function shouldOpenHighlightRequestImmediately(request: {
   return (
     request.sharedAnnotationOverlayMode === true ||
     request.metadata?.detached === true ||
+    request.metadata?.entryKind === 'scriptureLink' ||
     request.range != null ||
     (request.metadata?.anchorLocation != null && (request.metadata.anchorLength ?? 0) > 0)
   );

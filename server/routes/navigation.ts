@@ -15,10 +15,6 @@ import { attachMinistryCadenceToSpaces } from '../utils/channel-publish-cadence'
 import { getNewNoteCountsForUser } from '../utils/shared-space-visit';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
-import {
-  isSpaceMembershipsLastVisitedColumnMissing,
-  isSpaceMembershipsTableMissing,
-} from '../utils/pg-undefined-relation';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
 import { purgeOnboardingContentForUser } from '../utils/purge-onboarding-content';
@@ -57,13 +53,25 @@ route.get('/api/navigation/data', async (c) => {
     try {
       newNoteCounts = await getNewNoteCountsForUser(userId);
     } catch (badgeError) {
-      if (
-        !isSpaceMembershipsTableMissing(badgeError) &&
-        !isSpaceMembershipsLastVisitedColumnMissing(badgeError)
-      ) {
-        throw badgeError;
-      }
-      /* Schema not pushed yet — return nav without new-since badges. */
+      /*
+       * Never fail navigation over a decorative count — the rule
+       * `getSharedSpaceCountsForNotesBatch` already states for the notes list.
+       *
+       * This used to rethrow anything that was not one of two specific "schema not pushed yet"
+       * errors, which made every *other* failure of a per-space badge fatal to the whole
+       * payload. The blast radius is the entire sidebar: threads, spaces and the inbox count
+       * all go with it, and the client is handed a 500 naming a `count(*)` it never asked for.
+       *
+       * Seen for real when the database connection pool was briefly exhausted. Nothing was
+       * wrong with this query; it was simply the one in flight when connections ran out, and
+       * it took navigation down with it. A "new since you were here" badge is worth strictly
+       * less than the navigation it decorates.
+       *
+       * Logged rather than swallowed in silence, which is where this parts company with the
+       * notes-list sibling: a badge that has quietly stopped counting should still be findable
+       * in the server log.
+       */
+      console.warn('[api/navigation/data] new-note badge counts unavailable:', badgeError);
     }
 
     // Ensure threads and spaces have backgroundGradient property

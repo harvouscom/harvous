@@ -46,6 +46,17 @@ export interface HighlightDockWebProps {
   interactionActive?: boolean;
   /** Card enter animation — off in carousel (item handles enter). */
   animateEnter?: boolean;
+  /**
+   * Put the caret in the note field, once.
+   *
+   * Set when a Home "Add a thought" suggestion opened this card. The card is what that
+   * suggestion asked for; the field is what it asked you to do, so arriving with the field on
+   * screen but unfocused left the reader to go find the one part of the card the suggestion
+   * was about.
+   */
+  autoFocusMiniNote?: boolean;
+  /** Fired once the focus above has been honoured (or declined) — the opener disarms it. */
+  onMiniNoteFocused?: () => void;
 }
 
 function patchStudyThread(
@@ -84,6 +95,8 @@ export default function HighlightDockWeb({
   contextSpaceId = null,
   interactionActive = true,
   animateEnter = true,
+  autoFocusMiniNote = false,
+  onMiniNoteFocused,
 }: HighlightDockWebProps) {
   const resolvedInitialTitle = focusTitleProp.trim() || deriveHighlightFocusTitle(excerpt);
   const [focusTitle, setFocusTitle] = useState(resolvedInitialTitle);
@@ -307,6 +320,67 @@ export default function HighlightDockWeb({
     else setIsExpandedInternal((prev) => !prev);
   }, [isControlledExpanded, isExpanded, onExpandedChange]);
 
+  const miniNoteRef = useRef<HTMLTextAreaElement>(null);
+  const autoFocusedMiniNoteRef = useRef(false);
+  /* Held in a ref because the opener passes a fresh closure on every render: as a dependency it
+     would re-run the effect below on each one, which is exactly what a focus that fires once
+     must not be at the mercy of. */
+  const onMiniNoteFocusedRef = useRef(onMiniNoteFocused);
+  onMiniNoteFocusedRef.current = onMiniNoteFocused;
+  /** The two kinds that render a note field at all — see the body below. */
+  const showsMiniNote = entryKind === 'miniNote' || entryKind === 'scriptureLink';
+
+  /*
+   * Honour `autoFocusMiniNote` once per arming, then tell the opener so it can disarm.
+   *
+   * Two passes when the card arrives collapsed: a collapsed card has no textarea in the tree,
+   * so the first pass only opens it and the expand re-runs this. Reported as focused even when
+   * there is nothing to focus (read-only, or a kind with no field), because the alternative is
+   * leaving the request armed against a card that will never answer it.
+   *
+   * `userTouchedMiniNoteRef` is deliberately not set: focusing is not editing, and flipping it
+   * would have an untouched card start writing itself back to the server.
+   */
+  useEffect(() => {
+    if (!autoFocusMiniNote) {
+      autoFocusedMiniNoteRef.current = false;
+      return;
+    }
+    if (autoFocusedMiniNoteRef.current) return;
+    if (readOnly || !showsMiniNote) {
+      autoFocusedMiniNoteRef.current = true;
+      onMiniNoteFocusedRef.current?.();
+      return;
+    }
+    if (!isExpanded) {
+      if (isControlledExpanded) onExpandedChange!(true);
+      else setIsExpandedInternal(true);
+      return;
+    }
+    const el = miniNoteRef.current;
+    if (!el) return;
+    /*
+     * Synchronously, not on the next frame.
+     *
+     * The first version scheduled the focus in a `requestAnimationFrame` so the caret would
+     * land after whatever else the open had moved focus to, and cancelled it on cleanup. The
+     * note page re-renders several times while a dock is opening, so cleanup cancelled the
+     * frame before it ever ran — and the guard above meant the re-run declined to schedule
+     * another. The focus was queued and thrown away, over and over, and the caret never
+     * arrived. Nothing was competing for focus anyway.
+     */
+    autoFocusedMiniNoteRef.current = true;
+    el.focus({ preventScroll: true });
+    // Caret at the end, so an existing thought is added to rather than typed over.
+    const end = el.value.length;
+    try {
+      el.setSelectionRange(end, end);
+    } catch {
+      /* a missed caret is not worth breaking the card over */
+    }
+    onMiniNoteFocusedRef.current?.();
+  }, [autoFocusMiniNote, isExpanded, isControlledExpanded, onExpandedChange, readOnly, showsMiniNote]);
+
   const titlePlaceholder = 'Highlight';
   const headerTitleText = focusTitle.trim() || deriveHighlightFocusTitle(excerpt);
   const showAuthorAttribution = Boolean(authorDisplayName && isOwnHighlight === false);
@@ -365,8 +439,9 @@ export default function HighlightDockWeb({
         {showAuthorAttribution ? (
           <p className="highlight-dock-web__author pds-caption">{authorDisplayName}</p>
         ) : null}
-        {entryKind === 'miniNote' || entryKind === 'scriptureLink' ? (
+        {showsMiniNote ? (
           <textarea
+            ref={miniNoteRef}
             className="highlight-dock-web__mini-note"
             value={miniNoteBody}
             placeholder="Note (optional)…"

@@ -357,6 +357,8 @@ interface TiptapEditorProps {
     requestKey?: string;
     metadata?: HighlightDockOpenMetadata;
     range?: { from: number; to: number } | null;
+    /** Opened by an "Add a thought" suggestion — land the caret in the dock's note field. */
+    focusMiniNote?: boolean;
   } | null;
   onPrototypeHighlightOpenRequestConsumed?: () => void;
   onPrototypeActiveHighlightEntryChange?: (entryId: string | null) => void;
@@ -4295,6 +4297,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
    *  listener-registration effect (and its `editor.on`/`document` listeners) to tear down and rewire. */
   const runSelectionEvalRef = useRef<() => void>(() => {});
   const [studyDockStack, setStudyDockStack] = useState<StudyDockStack>(emptyStudyDockStack);
+  /**
+   * The highlight whose note field should take the caret, or null.
+   *
+   * Deliberately component state rather than a field on `HighlightDockSession`: the stack is
+   * serialized to localStorage, so a flag stored there would steal focus again on every
+   * reload of the note. Keyed by study-thread id and not by dock entry id, because
+   * `openOrFocusHighlight` mints the entry id internally and the opener never sees it.
+   */
+  const [focusMiniNoteThreadId, setFocusMiniNoteThreadId] = useState<string | null>(null);
   const studyDockStackRef = useRef(studyDockStack);
   studyDockStackRef.current = studyDockStack;
   const dockContextKey = studyDockContextKey(sourceNoteId, contextSpaceId);
@@ -6816,6 +6827,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     let rafId = 0;
     const MAX_ATTEMPTS = 120; // ~2s at 60fps — allow prototype body hydrate to finish
     const openFromDeepLink = (range: { from: number; to: number } | null, markEl: HTMLElement | null) => {
+      /* Set on every path, including the mark path: whichever way the dock ends up open, an
+         "Add a thought" card asked for the note field, not merely for the card. */
+      if (req.focusMiniNote) setFocusMiniNoteThreadId(req.studyThreadEntryId);
       if (markEl && !sharedAnnotationOverlayMode) {
         openStudyDockForHighlightMark(markEl);
         return;
@@ -10289,6 +10303,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       sourceNoteId={sourceNoteId ?? null}
                       interactionActive={isActive}
                       animateEnter={false}
+                      autoFocusMiniNote={
+                        focusMiniNoteThreadId != null &&
+                        entry.session.studyThreadEntryId === focusMiniNoteThreadId
+                      }
+                      onMiniNoteFocused={() => setFocusMiniNoteThreadId(null)}
                       expanded={cardExpanded}
                       onExpandedChange={(next) => {
                         setStudyDockStack((s) =>

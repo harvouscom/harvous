@@ -300,6 +300,8 @@ interface CardFullEditableProps {
     requestKey?: string;
     /** Study-thread snapshot for opening the dock when the note mark is not ready yet. */
     metadata?: HighlightDockOpenMetadata;
+    /** Opened by an "Add a thought" suggestion — land the caret in the dock's note field. */
+    focusMiniNote?: boolean;
   } | null;
   /**
    * Prototype-only: open highlight dock at runtime (e.g. tapping a shared overlay mark).
@@ -310,6 +312,8 @@ interface CardFullEditableProps {
     requestKey?: string;
     metadata?: HighlightDockOpenMetadata;
     range?: { from: number; to: number } | null;
+    /** Opened by an "Add a thought" suggestion — land the caret in the dock's note field. */
+    focusMiniNote?: boolean;
   } | null;
   /** Prototype-only: called after a highlight deep-link dock handoff completes (strip URL search keys). */
   onHighlightDeepLinkHandoff?: () => void;
@@ -682,6 +686,8 @@ export default function CardFullEditable({
     requestKey?: string;
     metadata?: HighlightDockOpenMetadata;
     range?: { from: number; to: number } | null;
+    /** Opened by an "Add a thought" suggestion — land the caret in the dock's note field. */
+    focusMiniNote?: boolean;
   } | null>(null);
   const onPrototypeChromeModeChangeRef = useRef(onPrototypeChromeModeChange);
   useEffect(() => {
@@ -812,6 +818,7 @@ export default function CardFullEditable({
       studyThreadEntryId: initialHighlightDock.studyThreadEntryId,
       requestKey: key,
       metadata: initialHighlightDock.metadata,
+      focusMiniNote: initialHighlightDock.focusMiniNote,
     });
   }, [editorChromeMode, initialHighlightDock, noteId]);
 
@@ -827,10 +834,25 @@ export default function CardFullEditable({
       requestKey: key,
       metadata: highlightOpenRequest.metadata,
       range: highlightOpenRequest.range ?? null,
+      focusMiniNote: highlightOpenRequest.focusMiniNote,
     });
   }, [editorChromeMode, highlightOpenRequest, noteId]);
 
+  /*
+   * Drop a pending highlight-dock request when the *space context* changes, because a request
+   * minted for one context does not belong to another.
+   *
+   * Guarded on an actual change for the same reason as the note-switch reset above: this effect
+   * also runs on mount, and it is declared after the open-on-load effect. A deep link whose note
+   * details were already cached built its request during that very first flush — and this then
+   * nulled it in the same batch, so the state React settled on was `null` and the editor's
+   * consumer never re-ran. The request was set and unset before anything could read it.
+   */
+  const prevContextSpaceIdForDockResetRef = useRef(contextSpaceId);
   useEffect(() => {
+    const prev = prevContextSpaceIdForDockResetRef.current;
+    prevContextSpaceIdForDockResetRef.current = contextSpaceId;
+    if (prev === contextSpaceId) return;
     setPrototypeHighlightOpenRequest(null);
     initialHighlightDockFiredRef.current = null;
   }, [contextSpaceId]);
@@ -839,8 +861,25 @@ export default function CardFullEditable({
   useEffect(() => {
     const prev = prevNoteIdForProtoResetRef.current;
     prevNoteIdForProtoResetRef.current = noteId;
-    setPrototypeHighlightOpenRequest(null);
-    initialHighlightDockFiredRef.current = null;
+    /*
+     * Only on an actual note switch, which is what this reset is for.
+     *
+     * These two lines used to run on every pass of this effect, and `content` is one of its
+     * deps — so they fired the moment a note's full body replaced its list preview. That is
+     * exactly the render on which `studyThreads` arrives, which is what lets the open-on-load
+     * effect above build a highlight-dock request at all: it set the request, this cleared it
+     * in the same commit, and because it also cleared the fired ref while the memoized
+     * `initialHighlightDock` stayed identical, the effect had no reason to run again. A
+     * highlight deep-link (`?highlight=…`, the Home revisit and "Add a thought" cards) opened
+     * the note and no dock, every time.
+     *
+     * The scripture deep-link beside it was never affected only because this reset does not
+     * touch its request — which is the tell that clearing here was never about content.
+     */
+    if (prev !== noteId) {
+      setPrototypeHighlightOpenRequest(null);
+      initialHighlightDockFiredRef.current = null;
+    }
     const isDraftPersistSwap =
       editorChromeMode === 'prototypeNative' &&
       alwaysEditing &&

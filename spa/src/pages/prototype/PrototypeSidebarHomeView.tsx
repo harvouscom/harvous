@@ -164,6 +164,8 @@ import PrototypeHomeChurchFeed, { HOME_FEED_LIMIT } from './PrototypeHomeChurchF
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
 import { noteParamSlug } from './proto-route-slugs';
+import { markPendingNoteFocus } from '../../lib/pending-note-focus';
+import { PROTOTYPE_DRAFT_NOTE_ID } from '@/utils/prototype-draft-compose-session';
 import { bibleBookChapterCounts, bookSlug } from '@/utils/bible-book-chapters';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { useProtoShell } from '../../layouts/proto-shell-context';
@@ -186,10 +188,22 @@ const CROSSREF_CONNECTION_MIN = 2;
 // A passage must be cited by at least this many distinct notes to resurface on Home.
 const PASSAGE_CONNECTION_MIN = 2;
 
+/**
+ * How Home opens a highlight.
+ *
+ * `annotate` marks the "Add a thought" ask, which routes to the highlight dock and lands the
+ * caret in its note field, rather than to wherever the row would ordinarily be shown. See the
+ * short-circuit in `onHighlightRow`.
+ */
+type OpenHighlight = (
+  row: PrototypeHighlightStudyThreadRow,
+  opts?: { annotate?: boolean },
+) => boolean | void;
+
 function pushAnnotateHighlightRecallCard(
   out: RecallOpportunity[],
   highlight: PrototypeHighlightStudyThreadRow,
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void,
+  onOpenHighlight: OpenHighlight,
   usedHighlightIds: Set<string>,
 ) {
   if (usedHighlightIds.has(highlight.id)) return;
@@ -203,14 +217,14 @@ function pushAnnotateHighlightRecallCard(
     title: prototypeHighlightListTitle(highlight),
     meta: 'Worth a quick reflection',
     iconName: RECALL_KIND_ICONS.annotateHighlight,
-    onOpen: () => onOpenHighlight(highlight),
+    onOpen: () => onOpenHighlight(highlight, { annotate: true }),
   });
 }
 
 function pushRevisitHighlightRecallCard(
   out: RecallOpportunity[],
   highlight: PrototypeHighlightStudyThreadRow,
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void,
+  onOpenHighlight: OpenHighlight,
   usedHighlightIds: Set<string>,
   meta: string,
 ) {
@@ -243,7 +257,7 @@ type Props = {
   prefetchNote: (row: SpaceNoteRow) => void;
   onOpenScriptureBook: (bookOrder: number) => void;
   onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
-  onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void;
+  onOpenHighlight: OpenHighlight;
   onOpenCreateThreadPrefill: (prefill: {
     noteIds: [string, string];
     threadName: string;
@@ -1209,6 +1223,19 @@ export default function PrototypeSidebarHomeView({
     (opts: { title?: string; contentHtml?: string }): boolean => {
       if (!homeSpaceId) return false;
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+      /*
+       * Land the caret in the body, because every card that reaches here asked you to write
+       * something — keep going in a book, someone you keep meeting, a prayer to write. The
+       * title is already seeded, so arriving with no cursor at all meant the reader had to go
+       * find the one part of the page the suggestion was about.
+       *
+       * A one-shot flag rather than a direct focus call: the editor mounts asynchronously,
+       * after the navigation below. The reader half already exists in `PrototypeNotePage`'s
+       * `onEditorInstanceReady`, keyed on the note id — which for an unsaved compose draft is
+       * `PROTOTYPE_DRAFT_NOTE_ID`. `focus('end')` lands past the trailing NBSP of a seeded
+       * scripture pill, and on the empty first line when the seed is a title only.
+       */
+      markPendingNoteFocus(PROTOTYPE_DRAFT_NOTE_ID);
       beginPrototypeComposeSession({
         targetSpaceId: homeSpaceId,
         seed: { title: opts.title, contentHtml: opts.contentHtml },

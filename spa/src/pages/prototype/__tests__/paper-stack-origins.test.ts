@@ -48,6 +48,26 @@ describe('buildRecallCardStackOrigin', () => {
     expect(buildRecallCardStackOrigin(card('highlight'))?.suggestion).toBeUndefined();
   });
 
+  it('gives an annotate card an edge that names the ask, not the category', () => {
+    // The edge over the note is the only thing on screen saying why the caret is sitting in a
+    // highlight's note field. It reads the eyebrow, so the eyebrow has to be the ask.
+    const origin = buildRecallCardStackOrigin(
+      card('annotateHighlight', {
+        id: 'annotate:st_1',
+        eyebrow: 'Add a thought',
+        meta: 'Worth a quick reflection',
+        iconName: 'pen-to-square',
+      }),
+    );
+    expect(origin?.suggestion).toEqual({ id: 'annotate:st_1', kind: 'annotateHighlight' });
+    expect(origin?.label).toBe('Add a thought');
+    expect(origin?.base).toMatchObject({
+      eyebrow: 'Add a thought',
+      title: 'Grace upon grace',
+      meta: 'Worth a quick reflection',
+    });
+  });
+
   it('does not stack sidebar-layer kinds — nothing is put over anything', () => {
     for (const kind of ['arc', 'subject', 'crossref', 'connectNotes']) {
       expect(buildRecallCardStackOrigin(card(kind)), kind).toBeNull();

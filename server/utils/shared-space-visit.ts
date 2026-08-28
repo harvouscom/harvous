@@ -2,7 +2,7 @@
  * Per-membership "new since you were here" helpers for shared/public spaces.
  * Counts exclude the viewer’s own notes — badges mean others’ activity, not your edits.
  */
-import { db, first, Notes, SpaceNotes, SpaceMemberships, Spaces, eq, and, count, gt, ne, isNull } from '../db';
+import { db, first, Notes, SpaceNotes, SpaceMemberships, Spaces, eq, and, count, gt, ne, isNull, sql } from '../db';
 import { nowISO } from '../db/dates';
 import { requireSpaceAccess } from './space-access';
 import { getNotesForSharedSpace } from './dashboard-data';
@@ -140,31 +140,60 @@ export async function getSharedSpaceActivityPreview(spaceId: string, userId: str
   };
 }
 
-/** Batch new-note counts for navigation switcher badges (shared/public memberships only). */
+/**
+ * Every space's badge count in one query.
+ *
+ * This used to read the membership list and then fire `countNewNotesInSpaceSince` once per
+ * space, all at once through `Promise.all`. The width of that fan-out is the number of shared
+ * spaces you belong to, and the pool it draws from is ten connections wide (`server/db/client.ts`)
+ * — so a member of a dozen rooms could exhaust it on their own, on every navigation load, and
+ * take the sidebar down with a `count(*)` error naming whichever query lost the race. Unbounded
+ * concurrency against a fixed pool is not parallelism, it is a queue with a failure mode.
+ *
+ * The per-space watermark is what made it look like N queries were necessary, and it is not:
+ * `lastVisitedAt ?? joinedAt` is `visitWatermark`, and both columns live on the membership row
+ * being joined anyway. Expressed as `coalesce(...)` in the join, one grouped query answers for
+ * every space at once.
+ *
+ * `SpaceMemberships_space_user_unique` guarantees one membership row per (space, user), so the
+ * join cannot multiply a note into several counted rows.
+ *
+ * Spaces with no new notes are absent rather than present-and-zero, which the old code was
+ * already inconsistent about (it set 0 for a missing watermark and omitted a genuine 0). Both
+ * read the same downstream: every caller does `newNoteCounts.get(id) ?? 0`.
+ */
 export async function getNewNoteCountsForUser(userId: string): Promise<Map<string, number>> {
-  const memberships = await db
-    .select({
-      spaceId: SpaceMemberships.spaceId,
-      lastVisitedAt: SpaceMemberships.lastVisitedAt,
-      joinedAt: SpaceMemberships.joinedAt,
-      type: Spaces.type,
-    })
-    .from(SpaceMemberships)
-    .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
-    .where(and(eq(SpaceMemberships.userId, userId), ne(Spaces.type, 'personal'), isNull(Spaces.deletedAt)));
+  const rows = await db
+    .select({ spaceId: SpaceNotes.spaceId, value: count() })
+    .from(SpaceNotes)
+    .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+    .innerJoin(
+      SpaceMemberships,
+      and(eq(SpaceMemberships.spaceId, SpaceNotes.spaceId), eq(SpaceMemberships.userId, userId)),
+    )
+    .innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId))
+    .where(
+      and(
+        isNull(SpaceNotes.removedAt),
+        eq(Notes.contentEncrypted, false),
+        ne(Notes.userId, userId),
+        ne(Spaces.type, 'personal'),
+        isNull(Spaces.deletedAt),
+        /* `visitWatermark`, in SQL. `joinedAt` is NOT NULL, so this never falls through to a
+           null comparison — a member who has never opened the room catches up from their join. */
+        gt(
+          Notes.updatedAt,
+          sql`coalesce(${SpaceMemberships.lastVisitedAt}, ${SpaceMemberships.joinedAt})`,
+        ),
+      ),
+    )
+    .groupBy(SpaceNotes.spaceId);
 
   const result = new Map<string, number>();
-  await Promise.all(
-    memberships.map(async (m) => {
-      const watermark = visitWatermark(m);
-      if (!watermark) {
-        result.set(m.spaceId, 0);
-        return;
-      }
-      const cnt = await countNewNotesInSpaceSince(m.spaceId, watermark, userId);
-      if (cnt > 0) result.set(m.spaceId, cnt);
-    }),
-  );
+  for (const row of rows) {
+    const value = Number(row.value ?? 0);
+    if (value > 0) result.set(row.spaceId, value);
+  }
   return result;
 }
 

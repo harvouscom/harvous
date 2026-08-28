@@ -389,6 +389,22 @@ describe('highlight dock deep-link helpers', () => {
     ).toBe(false);
   });
 
+  it('opens a scriptureLink highlight immediately — it has no note mark to poll for', () => {
+    expect(
+      shouldOpenHighlightRequestImmediately({
+        metadata: { entryKind: 'scriptureLink', accent: 'warmAmber', excerpt: 'the world' },
+        range: null,
+      }),
+    ).toBe(true);
+    // A miniNote with neither a range nor an anchor still waits for its mark.
+    expect(
+      shouldOpenHighlightRequestImmediately({
+        metadata: { entryKind: 'miniNote', accent: 'warmAmber', excerpt: 'the world' },
+        range: null,
+      }),
+    ).toBe(false);
+  });
+
   it('buildHighlightDockSessionFromStudyThread copies scripture passage context for scriptureLink rows', () => {
     const row = {
       id: 'st_scripture_1',

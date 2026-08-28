@@ -83,6 +83,12 @@ export type PrototypeNoteSearch = {
   scriptureRef?: string;
   scriptureTranslation?: string;
   highlight?: string;
+  /**
+   * `'1'` when the highlight was opened by an "Add a thought" suggestion rather than a
+   * "revisit" one — the dock opens with its note field focused. Two different asks that
+   * would otherwise issue byte-identical navigations.
+   */
+  annotate?: string;
   /** Resource Library item id — opens a collapsed-only resource chip in the study dock. */
   libItem?: string;
   dockReq?: string;
@@ -287,6 +293,7 @@ function buildPrototypeRouteBranch() {
     scriptureTranslation:
       typeof search.scriptureTranslation === 'string' ? search.scriptureTranslation : undefined,
     highlight: typeof search.highlight === 'string' ? search.highlight : undefined,
+    annotate: typeof search.annotate === 'string' ? search.annotate : undefined,
     libItem: typeof search.libItem === 'string' ? search.libItem : undefined,
     dockReq: typeof search.dockReq === 'string' ? search.dockReq : undefined,
     crossRefTarget: typeof search.crossRefTarget === 'string' ? search.crossRefTarget : undefined,

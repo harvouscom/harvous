@@ -3325,12 +3325,17 @@ export default function PrototypeSidebar({
   };
 
   /**
+   * @param opts.annotate the row was opened by an "Add a thought" suggestion rather than a
+   * "revisit" one. See the short-circuit below for what that changes.
    * @returns whether this landed on a document in the main pane. The recall shelf stacks a
    * breadcrumb edge over whatever a suggestion opened, and it can only do that once it knows
    * something opened — a highlight with no source note and no space leaves you where you
    * were, and an edge there would name a way back to the page you are still on.
    */
-  const onHighlightRow = (r: PrototypeHighlightStudyThreadRow): boolean => {
+  const onHighlightRow = (
+    r: PrototypeHighlightStudyThreadRow,
+    opts?: { annotate?: boolean },
+  ): boolean => {
     if (!homeSpaceId) return false;
     // Deliberately no `if (!r.parentNoteId) return;` here. That guard used to sit at the top and
     // made a highlight with no source note do nothing at all on tap — no navigation, no
@@ -3346,6 +3351,31 @@ export default function PrototypeSidebar({
     });
     if (r.parentNoteId) {
       void queryClient.prefetchQuery(getNoteQueryOptions(r.parentNoteId, navSearch.space)).catch(() => {});
+    }
+    /*
+     * An "Add a thought" card always opens the highlight dock, whatever kind the row is.
+     *
+     * A revisit card shows you where a highlight lives; an annotate card opens the field the
+     * thought goes in. Those were byte-identical navigations until now, and for one class of
+     * row that made the ask unanswerable: a `scriptureLink` highlight falls into the branch
+     * below and opens the *scripture passage* dock, which has no note field on it at all.
+     *
+     * Safe to force, because only `miniNote` and `scriptureLink` rows can produce an annotate
+     * card (`isAnnotatableHighlight`), and `HighlightDockWeb` renders its mini-note textarea
+     * for exactly those two kinds — so there is always a field at the end of this route.
+     *
+     * `parentNoteId` is still required: the highlight dock lives inside a note, and returning
+     * false is what stops the shelf stacking an edge over a page you never left.
+     */
+    if (opts?.annotate) {
+      if (!r.parentNoteId) return false;
+      navigate({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(r.parentNoteId) },
+        search: { ...navSearch, highlight: r.id, annotate: '1', dockReq: String(Date.now()) },
+      });
+      afterNav();
+      return true;
     }
     if (isScripturePassageHighlightRow(r)) {
       const canon = (r.scriptureReference ?? '').trim();

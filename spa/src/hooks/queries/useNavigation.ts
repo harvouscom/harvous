@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { useAuthReady } from '../useAuthReady';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
@@ -233,8 +234,22 @@ export function useNavigation(options?: { enabled?: boolean }) {
   const sessionHint = hasClerkSessionCookieHint();
   const effectiveUserId =
     userId ?? (sessionHint ? readClerkUserIdForProfileCache() : undefined);
-  const cachedForSession =
-    effectiveUserId && sessionHint ? getCachedNav() : undefined;
+  /*
+   * Memoized for reference stability, the same reason `useProfile` memoizes its own snapshot.
+   *
+   * `getCachedNav` re-parses the sessionStorage payload on every call, so calling it inline
+   * handed the placeholder slot below a brand-new object on every render — and React Query
+   * only reuses a placeholder it can compare by reference. Every render therefore re-registered
+   * the observer *and* published a new result, which re-rendered every consumer, which parsed
+   * the snapshot again. Measured on one note-page load: 446 `observerOptionsUpdated` and 156
+   * `observerResultsUpdated` on this one query key, and ~40 renders of the note page in which
+   * nothing it reads had actually changed. It damps out rather than spinning forever, which is
+   * why it read as slow rather than as broken.
+   */
+  const cachedForSession = useMemo(
+    () => (effectiveUserId && sessionHint ? getCachedNav() : undefined),
+    [effectiveUserId, sessionHint],
+  );
 
   const query = useQuery({
     queryKey: userId ? getNavigationQueryKey(userId) : ['navigation', effectiveUserId ?? ''],
