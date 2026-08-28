@@ -1,15 +1,53 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pkg = require('./package.json');
 
+/**
+ * Dev only: hook modules are invisible to React Fast Refresh, so hot-patch them and the
+ * page keeps rendering with a hook list it did not mount with.
+ *
+ * `@vitejs/plugin-react` stamps `$RefreshSig$` into files it compiles as components — in
+ * practice `.tsx`. A custom hook that lives in a plain `.ts` file gets none, and
+ * react-refresh skips unsignatured hooks when it decides whether a consumer's hook layout
+ * changed. So editing a `.ts` hook to add or remove a hook call — a `useMemo` for
+ * reference stability, say — leaves every consuming component's signature looking
+ * unchanged. Refresh patches those components in place instead of remounting them, and
+ * their live fibers then run a hook list one slot longer than the one they mounted with.
+ * React reports "a change in the order of Hooks" and "Should have a queue. You are likely
+ * calling Hooks conditionally" against a component that has no conditional hook in it,
+ * naming whichever hook happens to sit at the shifted index. The component falls into its
+ * error boundary and remounts on every render until the page is reloaded.
+ *
+ * A full reload on a hook edit costs the page's in-memory state. That is cheaper than a
+ * hook-order error that points at the wrong file, and it is what Fast Refresh would do on
+ * its own if it could see these modules.
+ */
+function fullReloadOnHookModuleEdit(): Plugin {
+  const isHookModule = (file: string) => {
+    if (!file.endsWith('.ts') || file.endsWith('.d.ts')) return false;
+    const base = file.slice(file.lastIndexOf('/') + 1);
+    return file.includes('/hooks/') || /^use[A-Z]/.test(base);
+  };
+
+  return {
+    name: 'harvous:full-reload-on-hook-module-edit',
+    apply: 'serve',
+    handleHotUpdate({ file, server }) {
+      if (!isHookModule(file)) return;
+      server.ws.send({ type: 'full-reload' });
+      return [];
+    },
+  };
+}
+
 // Vite config for the SPA build (Capacitor + web client)
 // The Hono server (server/dev.ts on port 3001) handles all API routes.
 // This builds spa/ → dist-spa/ which Capacitor bundles into the native app.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), fullReloadOnHookModuleEdit()],
   root: 'spa',
   // Serve public assets (fonts, icons, manifest, sw.js) from the project root's public/
   publicDir: path.resolve(__dirname, 'public'),
