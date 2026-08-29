@@ -37,7 +37,7 @@ import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
-import { summarizeStudyFeedDay } from './study-feed-presentation';
+import { studyFeedEmptyDayCopy, summarizeStudyFeedDay } from './study-feed-presentation';
 import { canonicalBookOrderMap } from '@/utils/scripture-passage-drill';
 import type { LibraryTab } from './library-panel/library-panel-view';
 import PrototypeHomeGreeting from './PrototypeHomeGreeting';
@@ -569,7 +569,9 @@ export default function PrototypeStudyFeedPage() {
             {onboardingLeads ? null : onboardingDock}
 
             {day.isEmpty ? (
-              <p className="proto-feed-sheet__rest">Nothing recorded on this day.</p>
+              <p className="proto-feed-sheet__rest">
+                {studyFeedEmptyDayCopy(safeIndex === 0)}
+              </p>
             ) : (
               day.parts.map((group) => (
                 <PrototypeStudyFeedPart key={group.part} group={group} onOpen={openMoment} />

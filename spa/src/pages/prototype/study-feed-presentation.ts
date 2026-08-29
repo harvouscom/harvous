@@ -138,6 +138,32 @@ export function studyFeedRowCopy(item: StudyFeedItem): StudyFeedRowCopy {
   }
 }
 
+/**
+ * What an empty day says, which depends on whether the day is over.
+ *
+ * One string used to cover both, and it read as a verdict either way: "Nothing recorded on
+ * this day." Two problems with that, and the second is the one that matters.
+ *
+ * The first is voice. It opens on a negation, "recorded" is a log file's word for something
+ * a person did, and the passive leaves nobody in the sentence. BRAND_VOICE's first rule is
+ * that negativity creates anxiety and study should feel like invitation rather than
+ * obligation.
+ *
+ * The second is that today and last Tuesday are not the same claim. Today is still open —
+ * saying nothing happened is a verdict on a day in progress, when the honest thing is that
+ * the next thing you do lands here. A past day is settled, and the only respectful reading
+ * of a settled empty day is that it was a quiet one. `StudyFeedDay.isEmpty`'s own comment
+ * already says so: "The day still exists; it was simply a rest day." The UI just never
+ * repeated it back.
+ *
+ * No em dashes, per the prototype's copy convention.
+ */
+export function studyFeedEmptyDayCopy(isToday: boolean): string {
+  return isToday
+    ? 'Today is still open. Whatever you read or write shows up here.'
+    : 'A quiet day. Rest counts too.';
+}
+
 /** Clock time on the right edge of a moment — 9:14 PM, in the reader's locale. */
 export function studyFeedClockTime(iso: string): string {
   const date = new Date(iso);
