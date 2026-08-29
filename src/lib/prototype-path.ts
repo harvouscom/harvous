@@ -262,6 +262,22 @@ export function isPrototypeReadPath(pathname: string): boolean {
   return /^\/read\/[^/]+\/[^/]+\/?$/.test(prototypeLogicalPath(pathname));
 }
 
+/**
+ * The book/chapter a reader path names, for callers that need the subject rather than
+ * just the shape — the toolbar chip labelling itself "Romans", and the Library panel
+ * deciding which book to open to.
+ *
+ * Returns the raw slug; resolving it to a book title is `bookFromSlug`'s job, and lives
+ * in the caller so this module stays free of canon data.
+ */
+export function matchPrototypeReadParams(
+  pathname: string,
+): { bookSlug: string; chapter: string } | null {
+  const match = /^\/read\/([^/]+)\/([^/]+)\/?$/.exec(prototypeLogicalPath(pathname));
+  if (!match) return null;
+  return { bookSlug: decodeURIComponent(match[1]!), chapter: decodeURIComponent(match[2]!) };
+}
+
 export function prototypeSettingsRouteTo(): '/prototype/settings' {
   return (isDedicatedPrototypeHost() ? '/settings' : '/prototype/settings') as '/prototype/settings';
 }

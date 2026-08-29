@@ -16,7 +16,7 @@
  * Portaled and fixed-positioned like its siblings, so an ancestor with
  * `overflow: hidden` — every sheet and rail in this app — cannot clip it.
  */
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -41,7 +41,21 @@ export type ProtoSelectOption<T extends string | number> = {
    * question. Omit it and the menu is a flat list exactly as before.
    */
   group?: string;
+  /**
+   * A mark shown before the label — a space's colour tile, a house, a glyph.
+   *
+   * For menus whose rows are *places* rather than settings: the note destination picker
+   * proved that a coloured tile is how someone finds their own space in a list, well before
+   * they have read its name. Omit it and rows are label-only exactly as before.
+   */
+  icon?: ReactNode;
 };
+
+/**
+ * Past this many rows, scanning beats reading — the note destination picker's threshold,
+ * shared so two menus of the same spaces do not disagree about when a list got long.
+ */
+export const PROTO_SELECT_FILTER_THRESHOLD = 5;
 
 export default function ProtoSelectMenu<T extends string | number>({
   value,
@@ -53,6 +67,7 @@ export default function ProtoSelectMenu<T extends string | number>({
   menuWidth,
   menuClassName,
   groupsAsTabs = false,
+  filterPlaceholder,
 }: {
   value: T;
   options: ProtoSelectOption<T>[];
@@ -71,8 +86,16 @@ export default function ProtoSelectMenu<T extends string | number>({
    * which half you want — the testaments — two taps beat scrolling past the other thirty.
    */
   groupsAsTabs?: boolean;
+  /**
+   * Offer a filter field once the list passes `PROTO_SELECT_FILTER_THRESHOLD`.
+   *
+   * Placeholder doubles as the opt-in: a menu of five settings does not want a search box,
+   * and a menu of twenty spaces is unusable without one.
+   */
+  filterPlaceholder?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
@@ -82,7 +105,18 @@ export default function ProtoSelectMenu<T extends string | number>({
   const selected = options.find((option) => option.value === value) ?? options[0];
   const width = menuWidth ?? FALLBACK_WIDTH;
 
-  const sections = useMemo(() => groupOptions(options), [options]);
+  /*
+   * Filtering happens before grouping, so a heading whose rows all filtered out goes with
+   * them rather than sitting over an empty run.
+   */
+  const showFilter = Boolean(filterPlaceholder) && options.length > PROTO_SELECT_FILTER_THRESHOLD;
+  const filtered = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!showFilter || !q) return options;
+    return options.filter((option) => option.label.toLowerCase().includes(q));
+  }, [filter, options, showFilter]);
+
+  const sections = useMemo(() => groupOptions(filtered), [filtered]);
   /*
    * Opens on the tab holding the current value, so the book you are in is on screen rather
    * than one tap away. Re-keyed on that value, not held in state across opens: reopening the
@@ -103,6 +137,7 @@ export default function ProtoSelectMenu<T extends string | number>({
     if (!open) {
       setPos(null);
       setActiveTab(null);
+      setFilter('');
       return undefined;
     }
     const update = () => {
@@ -242,6 +277,23 @@ export default function ProtoSelectMenu<T extends string | number>({
                 zIndex: 6000,
               }}
             >
+              {showFilter ? (
+                <div className="proto-note-destination__filter">
+                  <input
+                    type="search"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    placeholder={filterPlaceholder}
+                    aria-label={filterPlaceholder}
+                    /* The menu is already focused for keyboard nav; typing should reach the
+                       field without a tab, the way the destination picker's does. */
+                    autoFocus
+                  />
+                </div>
+              ) : null}
+              {showFilter && filtered.length === 0 ? (
+                <p className="proto-note-destination__hint">No spaces match your search.</p>
+              ) : null}
               {groupsAsTabs && sections.length > 1 ? (
                 <div className="proto-menu-tabs" role="tablist" aria-label={`${label} sections`}>
                   {sections.map((section) => (
@@ -286,6 +338,11 @@ export default function ProtoSelectMenu<T extends string | number>({
                           triggerRef.current?.focus();
                         }}
                       >
+                        {option.icon ? (
+                          <span className="proto-menu-item__icon" aria-hidden>
+                            {option.icon}
+                          </span>
+                        ) : null}
                         <span className="proto-menu-item__label">{option.label}</span>
                         <span className="proto-menu-item__check" aria-hidden>
                           {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}

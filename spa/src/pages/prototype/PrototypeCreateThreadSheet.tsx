@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { THREAD_NAME_MAX_LENGTH } from '@/utils/collection-name-limits';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { useConnectNote } from '../../hooks/mutations/useConnectNote';
@@ -144,6 +145,7 @@ export default function PrototypeCreateThreadSheet({
             setThreadName(e.target.value);
             setActionError(null);
           }}
+          maxLength={THREAD_NAME_MAX_LENGTH}
           placeholder="e.g. Letters to the church"
           autoFocus={open}
         />

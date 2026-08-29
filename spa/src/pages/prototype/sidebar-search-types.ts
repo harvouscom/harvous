@@ -8,7 +8,13 @@ export type SidebarSearchResultKind =
   | 'scriptureBook'
   | 'scripturePassage'
   /** A passage the query itself names, whether or not any note cites it. */
-  | 'scriptureReference';
+  | 'scriptureReference'
+  /**
+   * A curated library item. Only the Library panel produces these — the sidebar's own
+   * search has no Resources scope — but the kind lives here so one row component can
+   * render every result the app knows how to show.
+   */
+  | 'resource';
 
 export type SidebarElsewhereTypeFilter =
   | 'all'
@@ -81,6 +87,8 @@ export function sidebarSearchResultIcon(
     case 'scripturePassage':
     case 'scriptureReference':
       return 'book-open';
+    case 'resource':
+      return 'newspaper';
     default:
       return 'note-sticky';
   }
@@ -103,6 +111,8 @@ export function sidebarSearchResultAriaLabel(
       return 'Scripture passage';
     case 'scriptureReference':
       return 'Read passage';
+    case 'resource':
+      return 'Resource';
     case 'highlight':
       switch (highlightEntryKind) {
         case 'linkedNote':
@@ -140,4 +150,35 @@ export function elsewhereTypeFilterMatches(
     default:
       return true;
   }
+}
+
+/**
+ * The Library panel's tabs.
+ *
+ * Derived from the search filter rather than listed again, which is the whole mechanism
+ * keeping browse and search honest with each other: a kind that becomes searchable becomes
+ * browsable in the same edit, and neither list can quietly grow a member the other lacks.
+ *
+ * Resources are the one addition. The sidebar's search has no Resources scope, so the
+ * filter above does not carry one — but the panel browses them, so the tab table does.
+ */
+export type LibraryTab = SidebarElsewhereTypeFilter | 'resources';
+
+export const LIBRARY_TAB_OPTIONS: {
+  id: LibraryTab;
+  label: string;
+  iconName?: string;
+}[] = [
+  ...SIDEBAR_ELSEWHERE_TYPE_OPTIONS,
+  /* Matches the sidebar's Resources list mode, so the same shelf wears one glyph. */
+  { id: 'resources', label: 'Resources', iconName: 'newspaper' },
+];
+
+/** Whether a result belongs under a tab. Delegates to the search filter for the shared six. */
+export function libraryTabMatches(tab: LibraryTab, kind: SidebarSearchResultKind): boolean {
+  if (tab === 'resources') return kind === 'resource';
+  /* `all` includes resources here even though the search filter has never seen the kind —
+     "all" means all, and the panel is the only surface that can produce one. */
+  if (tab === 'all') return true;
+  return elsewhereTypeFilterMatches(tab, kind);
 }

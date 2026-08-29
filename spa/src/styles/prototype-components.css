@@ -1183,6 +1183,22 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   cursor: default;
 }
 
+/*
+ * The active half that still has a job.
+ *
+ * Keyed on `aria-haspopup` rather than a bespoke `data-*`, so the pointer appears exactly
+ * when there is a menu to open — the cursor and the accessibility contract cannot end up
+ * disagreeing about whether this button does anything.
+ */
+.proto-toolbar-seg__btn[data-active='true'][aria-haspopup='menu'] {
+  cursor: pointer;
+}
+
+/* The space tile is a span, not an svg, so it needs saying. */
+.proto-toolbar-seg__btn .proto-space-menu-icon {
+  flex-shrink: 0;
+}
+
 .proto-toolbar-seg__btn svg {
   flex-shrink: 0;
   display: block;
@@ -1686,6 +1702,13 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   padding-top: 4px;
 }
 
+/*
+ * Two jobs share this class, and only one of them is a heading.
+ *
+ * The bulk-share and library menus use it for a *sentence* — "Share 3 notes to" — so the
+ * base stays sentence case. `--sticky` is the one that names a group of rows, and that is
+ * the variant the heading treatment belongs to.
+ */
 .proto-menu-section-label {
   /* Aligns to .proto-menu-item text — popover side-pad (5px) + item side-pad (8px) = 13px from edge. */
   padding: 4px 8px 2px;
@@ -7822,13 +7845,21 @@ button.proto-home-card--tappable:focus-visible {
 .proto-home-greeting__chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 9px;
+  gap: 0.33em;
+  /* `em` against the pill's own size, so the padding tracks the type rather than
+     tightening as the words grow. */
+  padding: 0.167em 0.75em;
   border: 0.5px solid var(--pds-border-control);
   border-radius: 999px;
   color: var(--pds-text-primary);
   font-family: var(--pds-font-body);
-  font-size: 12px;
+  /*
+   * Relative, so the pill grows with the sentence it sits inside. It was 12px flat, which
+   * held while the greeting was only ever the sidebar's 15px — on the sheet's larger type
+   * the pills stayed put and the line looked like it had shrunk words in it. `em` resolves
+   * against the paragraph, so one rule covers both sizes and any future one.
+   */
+  font-size: 0.8em;
   font-weight: 600;
   line-height: 1.5;
   white-space: nowrap;
@@ -20561,11 +20592,24 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * I looking at") is asked while moving. The popover is the scroll container, so the label
  * needs its own background or the rows would read straight through it.
  */
+/*
+ * A group heading over menu rows, in the treatment the app already uses for exactly that
+ * (`.proto-sidebar-search-section__header`): 11px/600 uppercase at `--pds-text-secondary`.
+ *
+ * Sentence case at `--pds-text-tertiary` — 32% alpha — read as a dimmed, undersized row
+ * beside the 14px items rather than as a heading, because nothing about it said "different
+ * kind of thing". Uppercase is what does that work at this size. Scoped to the modifier
+ * because the base class also carries whole sentences elsewhere, and those must not shout.
+ */
 .proto-menu-section-label--sticky {
   position: sticky;
   top: 0;
   z-index: 1;
+  padding-top: 6px;
   background: var(--pds-bg-popover-solid);
+  color: var(--pds-text-secondary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 /* ── A menu whose groups are tabs rather than headings ───────────────────────── */
@@ -20854,156 +20898,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   }
 }
 
-/* ── Command palette (⇧K) ───────────────────────────────────────────────────
- *
- * The one overlay in the prototype that is not anchored to the control that
- * opened it. Everything else here is a popover hanging off a toolbar orb or a
- * row; this is summoned by a key from anywhere, so it centres on the window and
- * takes a backdrop, the way a spotlight does.
- *
- * It borrows the popover surface — same solid background, same hairline, same
- * shadow — because it is still a menu, just one that arrived by keyboard. What
- * it does not borrow is the pop-in transform-origin: with no anchor to grow
- * from, a corner-origin scale reads as though it came from the wrong place.
- */
-.proto-command-palette__backdrop {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  justify-content: center;
-  /* Not centred vertically — a dialog that sits on the optical centre reads as
-     lower than it is, and the list grows downward from here anyway. */
-  align-items: flex-start;
-  padding: 12vh 16px 16px;
-  /* Same scrim as every other portaled dialog — see `.proto-dialog-backdrop`. */
-  background: var(--pds-overlay-heavy);
-}
-
-.proto-command-palette {
-  width: min(560px, 100%);
-  max-height: min(60vh, 520px);
-  max-height: min(60dvh, 520px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--pds-bg-popover-solid);
-  border: 0.5px solid var(--pds-border-control-strong);
-  border-radius: var(--pds-radius-menu);
-  box-shadow: var(--pds-shadow-popover);
-  font-family: var(--pds-font-body);
-}
-
-.proto-command-palette * {
-  font-family: var(--pds-font-body) !important;
-}
-
-.proto-command-palette__field {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  border-bottom: 0.5px solid var(--pds-border-control);
-  color: var(--pds-text-secondary);
-}
-
-.proto-command-palette__input {
-  flex: 1;
-  min-width: 0;
-  appearance: none;
-  border: 0;
-  background: none;
-  outline: none;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-}
-
-.proto-command-palette__input::placeholder {
-  color: var(--pds-text-tertiary, var(--pds-text-secondary));
-  font-weight: 400;
-}
-
-.proto-command-palette__list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 5px;
-}
-
-.proto-command-palette__group [cmdk-group-heading] {
-  padding: 8px 11px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--pds-text-tertiary, var(--pds-text-secondary));
-}
-
-/* Same 38px row and inset hover pill as `.proto-menu-item` — a palette row and a
-   menu row are the same gesture reached two ways, so they should not differ. */
-.proto-command-palette__item {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 10px 11px;
-  border-radius: var(--pds-radius-menu-item);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-}
-
-.proto-command-palette__item[data-selected='true'] {
-  background: var(--pds-bg-subtle);
-}
-
-.proto-command-palette__icon {
-  display: flex;
-  color: var(--pds-text-secondary);
-}
-
-.proto-command-palette__label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-command-palette__empty {
-  padding: 18px 11px;
-  font-size: 13px;
-  color: var(--pds-text-secondary);
-  text-align: center;
-}
-
-/* The chord legend, same idea as Spotlight's strip: the palette is where the
-   keyboard model gets taught, so it says how to drive itself. */
-.proto-command-palette__footer {
-  flex-shrink: 0;
-  display: flex;
-  gap: 14px;
-  padding: 8px 16px;
-  border-top: 0.5px solid var(--pds-border-control);
-  font-size: 11px;
-  color: var(--pds-text-secondary);
-}
-
-.proto-command-palette__footer span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .proto-command-palette {
-    animation: proto-menu-pop-in 120ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
-    transform-origin: center top;
-  }
-}
-
 /*
  * Chord badge on a bulk-bar button.
  *
@@ -21023,4 +20917,736 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   right: 0;
   transform: translate(35%, -35%);
   pointer-events: none;
+}
+
+/* ─── Study feed (the Activity surface) ───────────────────────────────────────
+ *
+ * A stack of days. Each day is a sheet; the days behind peek above as edges, the
+ * same language the note-over-reader stack speaks, and flipping is the same
+ * gesture. Inside a sheet, parts of the day are Home's section anatomy — a quiet
+ * eyebrow over a glass panel of rows.
+ *
+ * A scrolling feed was built first and removed: it says "here is everything, keep
+ * going" where a day says "here is what this one was", and every entry the same
+ * height claimed every entry mattered the same. The sheet frame is what lets two
+ * days be compared by shape before a word is read.
+ */
+
+.proto-feed {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: var(--pds-space-5) var(--pds-space-5) var(--pds-space-6);
+}
+
+.proto-feed-stack {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  /*
+   * The step has to clear the label, not just suggest depth. At 15px the exposed band was
+   * shorter than the text sitting in it, so each edge's name was half-covered by the sheet
+   * in front of it — depth that hid the only thing the edge is for.
+   */
+  --proto-feed-edge-step: 26px;
+  /*
+   * Room for the whole pile, not just the gaps between it.
+   *
+   * The reserve has to cover the deepest edge's own height as well as the steps below it —
+   * `steps × depth` alone leaves the topmost edge's label hanging above the container and
+   * clipped by the toolbar, which is exactly what the first cut did.
+   */
+  --proto-feed-edge-band: calc(var(--proto-feed-edge-step) * 2);
+  padding-top: var(--proto-feed-edge-band);
+}
+
+/*
+ * The days behind, as paper — not as drawn rectangles.
+ *
+ * The first cut painted a grey inset bar per layer, which is the one thing the app's own
+ * stack deliberately does not do: `.pds-paper-stack` says depth by *scaling the sheet
+ * behind* and letting its own top strip show, and its edge button "paints nothing — the
+ * peeking paper is the visual, and the label is its title line". Grey bars read as chrome
+ * stacked under a card; scaled paper reads as paper.
+ *
+ * So each layer here is the same surface as the front sheet, narrowed a step per depth and
+ * lifted so its head shows, with the label sitting in that strip as its title.
+ */
+/*
+ * The edge that asks for more, at the bottom of what has been loaded.
+ *
+ * The other edges are days you already have — this one is a page that does not exist yet,
+ * so it says so in words rather than a date. It is otherwise the same paper: the reach-back
+ * gesture should not change shape at the point where it starts costing a fetch.
+ */
+.proto-feed-stack__edge--fetch .proto-feed-stack__edge-label {
+  color: var(--pds-text-muted);
+}
+
+.proto-feed-stack__edge--fetch:disabled {
+  cursor: default;
+}
+
+.proto-feed-stack__edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(
+    var(--proto-feed-edge-band) - var(--edge-depth) * var(--proto-feed-edge-step)
+  );
+  height: 60px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  /*
+   * Square, and unbordered — paper.
+   *
+   * `.pds-reader__column` says it in its own comment: the sheet is "the same centred paper
+   * as `.proto-editor-paper`, same fill, same shadow, same square corners". A radius here
+   * is card language, and a rounded tab above a rounded card reads as browser chrome
+   * rather than as a page behind a page. This is the third time this surface reached for
+   * `--pds-radius-card` where the material is paper.
+   */
+  border: 0;
+  border-radius: 0;
+  /*
+   * Opaque canvas *under* the translucent paper fill — the stack's own trick.
+   *
+   * `--pds-paper-sheet` is white at 78%, so paper laid straight on paper shows the page
+   * behind it: `.pds-paper-stack` hit this exactly once ("the chapter read through the
+   * note's title") and fixed it by laying the same translucent fill over the opaque canvas
+   * colour. The look is unchanged; it just stops being see-through. Setting
+   * `background-color: var(--pds-paper-sheet)` alone — which is what squaring the corners
+   * left behind — is how the edges came back through the front sheet.
+   */
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  box-shadow: var(--pds-paper-shadow-subtle);
+  /* The sheet behind is the smaller one — the stack's own way of saying depth, on the GPU
+     and costing no chrome. Same origin as `.pds-paper-stack__base`. */
+  transform-origin: top center;
+  transform: scale(calc(1 - var(--edge-depth) * 0.028));
+  cursor: pointer;
+  font: inherit;
+  color: var(--pds-text-secondary);
+  transition:
+    transform var(--pds-duration-press) var(--pds-ease-standard),
+    top var(--pds-duration-press) var(--pds-ease-standard),
+    color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+@media (hover: hover) {
+  .proto-feed-stack__edge:hover {
+    top: calc(
+      var(--proto-feed-edge-band) - var(--edge-depth) * var(--proto-feed-edge-step) - 4px
+    );
+    color: var(--pds-text-primary);
+  }
+}
+
+.proto-feed-stack__edge:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: -2px;
+}
+
+/* The sheet: today's page, or whichever day is in front. */
+.proto-feed-sheet {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  /*
+   * No bottom padding. The body scrolls, so a gap under it is not breathing room — it is a
+   * strip of blank paper the last row stops short of, with more content still above the
+   * fold. Content runs to the sheet's edge and the fade below says there is more.
+   */
+  padding: var(--pds-space-5) var(--pds-space-5) 0;
+  /* The same paper as the editor and reader columns: square corners, no border, its own
+     fill and subtle shadow. */
+  border: 0;
+  border-radius: 0;
+  /*
+   * Opaque canvas *under* the translucent paper fill — the stack's own trick.
+   *
+   * `--pds-paper-sheet` is white at 78%, so paper laid straight on paper shows the page
+   * behind it: `.pds-paper-stack` hit this exactly once ("the chapter read through the
+   * note's title") and fixed it by laying the same translucent fill over the opaque canvas
+   * colour. The look is unchanged; it just stops being see-through. Setting
+   * `background-color: var(--pds-paper-sheet)` alone — which is what squaring the corners
+   * left behind — is how the edges came back through the front sheet.
+   */
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  box-shadow: var(--pds-paper-shadow-subtle);
+}
+
+.proto-feed-sheet__head {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+  padding-bottom: var(--pds-space-4);
+}
+
+/*
+ * The way back out of the stack, borrowed whole from the sidebar's drilldowns.
+ *
+ * It replaced a text button reading "Today" — the same job every other drilldown in the app
+ * does with a tile, which is why this takes `.proto-sidebar-back-tile` rather than restyling
+ * a second thing to look like it. Only the placement is local: the sheet's title sits beside
+ * it, so the title takes the middle and the controls stay pinned right.
+ */
+.proto-feed-sheet__back {
+  flex: 0 0 auto;
+}
+
+/* The date gives way before the controls do — a scope trigger pushed off the sheet's edge
+   is unreachable, where a shortened date is merely shorter. */
+.proto-feed-sheet__title {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--pds-space-3);
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.proto-feed-sheet__title .proto-feed-sheet__date {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-feed-sheet__day {
+  margin: 0;
+  color: var(--pds-text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.proto-feed-sheet__date {
+  color: var(--pds-text-muted);
+  font-size: 13px;
+}
+
+/* The page's own scroll, so the sheet keeps its frame however long the day was. */
+/*
+ * The day's own scroll, so the sheet keeps its frame however long the day was.
+ *
+ * Masked at both ends rather than clipped. A scroll container cuts its content on a hard
+ * line, and on paper that line reads as damage — a sentence sliced mid-x-height directly
+ * under the header, with nothing to say why. The same fade the marquee uses, turned
+ * vertical: content dissolves into the page instead of ending at an edge.
+ *
+ * The bottom fade is what lets the sheet drop its bottom padding. Blank space under the
+ * last row was standing in for "the list ends here", which was a lie whenever it did not —
+ * a fade says "there is more" and costs no height.
+ */
+.proto-feed-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-5);
+  /* Padding inside the scroller, so the first and last rows travel through the fade
+     rather than starting and ending inside it. */
+  padding-bottom: var(--pds-space-5);
+  --proto-feed-fade: 14px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--proto-feed-fade),
+    #000 calc(100% - var(--proto-feed-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--proto-feed-fade),
+    #000 calc(100% - var(--proto-feed-fade)),
+    transparent 100%
+  );
+}
+
+/*
+ * A mask paints nothing, so a masked scroller cannot show a focus ring that leaves its
+ * box. Reduced-transparency readers lose the fade and get the honest hard edge back rather
+ * than a surface whose top row is permanently dimmed.
+ */
+@media (prefers-reduced-transparency: reduce) {
+  .proto-feed-sheet__body {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+/*
+ * Home's panels, on paper.
+ *
+ * `.proto-glass-surface--panel` is glass: a 22%-white fill over a 40px blur, which reads
+ * because in the sidebar it sits on the canvas and there is a wallpaper behind it to blur.
+ * The sheet is opaque paper, so the blur has nothing to work with and the fill is white on
+ * white — the panel loses its edges and the rows inside it read as running off the page
+ * rather than sitting in a container.
+ *
+ * Same anatomy, a material that belongs to paper: a faint tint and a hairline, so the
+ * panel is a shape you can see the bounds of. Scoped to the sheet, because the sidebar's
+ * copy is still over canvas and still correct there.
+ */
+.proto-feed-sheet__body .proto-glass-surface--panel {
+  /*
+   * Translucent again, but over paper rather than wallpaper.
+   *
+   * Fully opaque, these read as flat white rectangles whose only edge was a hairline the
+   * paper behind it nearly matched — so the sides looked cut off rather than contained.
+   * A near-white gradient plus a soft shadow gives the panel a top and a bottom, which is
+   * what makes it read as a card lying *on* the page instead of a hole cut in it. The
+   * blur stays off: there is opaque paper behind this, so there is nothing to blur, and
+   * a backdrop-filter that resolves to nothing is a compositing layer for no picture.
+   */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-image: linear-gradient(
+    to bottom,
+    var(--pds-paper-panel-top),
+    var(--pds-paper-panel-bottom)
+  );
+  border: 0.5px solid var(--pds-border-control);
+  box-shadow: var(--pds-shadow-paper-panel);
+}
+
+/*
+ * The opening sentence, scaled up on the sheet.
+ *
+ * The greeting was sized for the sidebar, where 15px is already large against a 304px rail.
+ * On a 640px sheet it is the first thing read and the only prose on the page, so it can
+ * carry more weight — but only where there is room for it. Below the shell's mobile
+ * breakpoint it keeps the sidebar's size, because the sheet is the full width of a phone
+ * and a larger line would cost lines rather than presence.
+ */
+@media (min-width: 900px) {
+  .proto-feed-sheet__body .proto-home-greeting,
+  .proto-feed-sheet__summary {
+    font-size: 17px;
+    line-height: 1.7;
+  }
+}
+
+/*
+ * The day, said in a sentence — Home's greeting, for one page.
+ *
+ * A count inside a sentence is a fact about a person; the same count in a stat block is a
+ * metric. Recognising the day is what the sheet is for, and a sentence hands that over
+ * where a list of rows makes you reconstruct it.
+ */
+.proto-feed-sheet__summary {
+  margin: 0 0 var(--pds-space-5);
+  padding: 0 var(--pds-space-1);
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--pds-text-primary);
+}
+
+/* The same glass pill the greeting's stats use, so a number reads the same wherever the
+   app says one inside a sentence. */
+/*
+ * The day's counts are destinations, so they wear the greeting's chip behaviour.
+ *
+ * They were inert spans sitting in the same sentence as the greeting's buttons — two pills
+ * that looked identical and behaved differently, with nothing to tell them apart short of
+ * trying one. Sharing the hover and the cursor is the cheap half of fixing that; the other
+ * half was making them buttons at all.
+ */
+button.proto-feed-sheet__stat {
+  margin: 0;
+  border: 0.5px solid var(--pds-border-control);
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+button.proto-feed-sheet__stat:hover {
+  background: var(--pds-bg-control-strong);
+  box-shadow:
+    0 2px 4px rgba(60, 64, 67, 0.08),
+    0 8px 18px -10px rgba(60, 64, 67, 0.12),
+    var(--pds-glass-rim);
+}
+
+.proto-feed-sheet__stat {
+  display: inline-flex;
+  align-items: center;
+  /* Same relative sizing as the greeting's chips — the two sit in one sentence now. */
+  padding: 0.167em 0.75em;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-pill);
+  color: var(--pds-text-primary);
+  font-size: 0.8em;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: middle;
+  transform: translateY(-1px);
+}
+
+/*
+ * Prompts — the only forward-looking thing on a sheet.
+ *
+ * Dashed, because everything else on the page is a record of something that happened and
+ * this is an offer. The paper-stack deck uses the same reasoning for its ghost layers: a
+ * dashed edge reads as "not yet", where a filled panel reads as "here is what is".
+ */
+/* Today's ambient band: Home's sections, on a day sheet. */
+.proto-feed-today {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-5);
+  margin-bottom: var(--pds-space-5);
+}
+
+/* The band borrows Home's section anatomy, which brings Home's own left inset with it —
+   pull it back so eyebrows line up with the day's parts below. */
+.proto-feed-today .proto-home-section__eyebrow {
+  padding-left: var(--pds-space-1);
+}
+
+.proto-feed-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+  margin-bottom: var(--pds-space-5);
+}
+
+.proto-feed-prompt {
+  appearance: none;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--pds-space-3);
+  border: 1px dashed var(--pds-border-control);
+  border-radius: var(--pds-radius-card);
+  background: transparent;
+  transition:
+    background var(--pds-duration-press) var(--pds-ease-standard),
+    border-color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-feed-prompt:hover {
+  background: var(--pds-bg-row-hover);
+  border-color: var(--pds-border-on-paper);
+}
+
+.proto-feed-prompt__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  opacity: 0.75;
+  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
+}
+
+.proto-feed-prompt__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.proto-feed-prompt__eyebrow {
+  color: var(--pds-text-muted-strong);
+}
+
+.proto-feed-prompt__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pds-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.proto-feed-prompt__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pds-text-muted);
+  font-size: 12px;
+}
+
+.proto-feed-prompt__go {
+  flex: 0 0 auto;
+  color: var(--pds-text-muted-soft);
+}
+
+.proto-feed-sheet__rest {
+  margin: auto;
+  padding: var(--pds-space-10) 0;
+  color: var(--pds-text-muted);
+  font-size: 14px;
+}
+
+/* The day's own controls, at the head of its page. */
+.proto-feed-sheet__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  flex: 0 0 auto;
+}
+
+/*
+ * `ProtoSelectMenu`'s trigger is `width: 100%` — right for the settings rows it was built
+ * for, wrong beside another control. Left at 100% it claimed the whole controls group and
+ * pushed itself past the sheet's right edge, where it could not be clicked at all. In a
+ * toolbar the trigger sizes to its own label.
+ */
+.proto-feed-sheet__scope.proto-select-menu__trigger {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* ── A part of the day: Home's section anatomy ── */
+
+.proto-feed-part__eyebrow {
+  margin: 0 0 var(--pds-space-2);
+  padding-left: var(--pds-space-1);
+  color: var(--pds-text-muted-strong);
+}
+
+.proto-feed-part__more {
+  appearance: none;
+  border: 0;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pds-space-2);
+  width: 100%;
+  padding: var(--pds-space-2);
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+}
+
+.proto-feed-part__more:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-feed-part__said + .proto-feed-part__said,
+.proto-feed-part__row + .proto-feed-part__said,
+.proto-feed-part__said + .proto-feed-part__row {
+  border-top: 0.5px solid var(--pds-border-control);
+}
+
+/* ── Something made: the words stay on the sheet ── */
+
+.proto-feed-said {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  padding: var(--pds-space-3);
+  transition: background var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-feed-said:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-feed-said__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+}
+
+.proto-feed-said__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pds-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.proto-feed-said__body {
+  color: var(--pds-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/*
+ * A highlight is the text's own words, so it is set in the reading face and underlined in
+ * the accent it was kept in — the reader's treatment, at sheet scale. This is the most
+ * visually alive thing a day can hold, which is right: it is the thing someone chose.
+ */
+.proto-feed-said__quote {
+  align-self: flex-start;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.55;
+  color: var(--pds-text-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--proto-feed-accent, var(--pds-highlight-warm-amber));
+}
+
+.proto-feed-said[data-feed-accent='neutral'] { --proto-feed-accent: var(--pds-highlight-neutral); }
+.proto-feed-said[data-feed-accent='warmAmber'] { --proto-feed-accent: var(--pds-highlight-warm-amber); }
+.proto-feed-said[data-feed-accent='skyBlue'] { --proto-feed-accent: var(--pds-highlight-sky-blue); }
+.proto-feed-said[data-feed-accent='violet'] { --proto-feed-accent: var(--pds-highlight-violet); }
+.proto-feed-said[data-feed-accent='mintGreen'] { --proto-feed-accent: var(--pds-highlight-mint-green); }
+.proto-feed-said[data-feed-accent='coralRose'] { --proto-feed-accent: var(--pds-highlight-coral-rose); }
+
+.proto-feed-said__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--pds-space-2);
+  color: var(--pds-text-muted);
+  font-size: 12px;
+}
+
+/* Whose note this is, on the ones that are not yours. */
+.proto-feed-said__by {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  margin-top: 2px;
+  color: var(--pds-text-muted);
+  font-size: 12px;
+}
+
+.proto-feed-said__author {
+  color: var(--pds-text-secondary);
+  font-weight: 500;
+}
+
+.proto-feed-said__new {
+  padding: 1px 7px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-accent-subtle-bg);
+  border: 1px solid var(--pds-accent-subtle-border);
+  color: var(--pds-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/*
+ * The scope row. Sits above the sheet's own header because it says which stack you are
+ * looking at, and the header names a day inside that stack.
+ */
+.proto-feed-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+  margin-bottom: var(--pds-space-4);
+}
+
+.proto-feed-scope__chip {
+  appearance: none;
+  border: 1px solid transparent;
+  background: var(--pds-bg-chip);
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  max-width: 220px;
+  padding: 3px var(--pds-space-3);
+  border-radius: var(--pds-radius-pill);
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+  transition: background var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.proto-feed-scope__chip:hover {
+  background: var(--pds-bg-chip-hover);
+}
+
+/* Selected by fill and weight, not colour: `prototype-route-overrides.css` pins every
+   descendant of a prototype button to text-primary, so a colour arm here would do nothing.
+   Same reason the segmented controls distinguish their halves this way. */
+.proto-feed-scope__chip[data-active='true'] {
+  background: var(--pds-bg-control-strong);
+  border-color: var(--pds-border-on-paper);
+  font-weight: 600;
+}
+
+.proto-feed-scope__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-feed-scope__count {
+  flex: 0 0 auto;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: var(--pds-radius-pill);
+  background: var(--pds-accent);
+  color: var(--pds-on-accent);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-feed-said__time {
+  flex: 0 0 auto;
+  color: var(--pds-text-muted-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-feed__empty {
+  margin: auto;
+  max-width: 380px;
+  text-align: center;
+  color: var(--pds-text-muted-strong);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* An empty trail has no stack to draw; it centres instead. */
+.proto-feed--empty {
+  justify-content: center;
 }

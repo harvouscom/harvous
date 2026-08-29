@@ -592,6 +592,14 @@
   /* The base paper of a stack: one step lighter than the sheet's --pds-shadow-card,
      so the sheet reads as the nearer of the two papers. */
   --pds-shadow-paper-stack-base: 0 1px 2px oklch(var(--pds-lch-shadow-card-b));
+  /*
+   * A panel resting on paper.
+   *
+   * Lighter than --pds-shadow-card, which is tuned for a card over the canvas. Here the
+   * ground is a sheet a few pixels away, so the same shadow reads as the panel floating
+   * off the page rather than lying on it.
+   */
+  --pds-shadow-paper-panel: 0 1px 2px oklch(var(--pds-lch-shadow-card-b));
   --pds-shadow-shell:
     0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),
     0 1px 3px oklch(var(--pds-lch-shadow-shell-b));
@@ -710,6 +718,29 @@
   --pds-highlight-violet: var(--study-dock-accent-violet);
   --pds-highlight-mint-green: var(--study-dock-accent-mintGreen);
   --pds-highlight-coral-rose: var(--study-dock-accent-coralRose);
+
+  /*
+   * A panel lying on the sheet, as a gradient rather than a flat fill.
+   *
+   * White at the top falling to a barely-there warm grey at the bottom — light from above,
+   * which is the only reason a flat shape reads as a raised one. An earlier pass varied the
+   * *alpha* of white instead, which over warm paper is still white on white: the panel had a
+   * gradient on paper and none to the eye. The tonal step is small (2.5% lightness) but it
+   * is a step, and that is the difference between a surface and a boundary.
+   */
+  /*
+   * The search panel's own body, as a gradient rather than a flat fill.
+   *
+   * Lighter at the top, a touch cooler at the bottom — the same read the rail gets for free
+   * from the frame's blur, arrived at with a gradient because a second blur layer is not
+   * available here. Wider than the inner panels' 2.5% step: this is the surface those sit
+   * on, so it has to be distinguishable from them as well as from the page.
+   */
+  --pds-panel-glass-top: oklch(1 0 0 / 0.86);
+  --pds-panel-glass-bottom: oklch(0.968 0.004 265 / 0.86);
+
+  --pds-paper-panel-top: oklch(1 0 0 / 0.95);
+  --pds-paper-panel-bottom: oklch(0.975 0.003 106 / 0.95);
 
   /* Site paper editor — mirrors /site/src/styles/global.css (founder letter card) */
   --pds-paper-desk: #f7f6f3;

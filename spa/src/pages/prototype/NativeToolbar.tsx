@@ -1,34 +1,44 @@
 /**
  * Detail-column toolbar — mirrors macOS Harvous detail toolbar.
  *
- * Desktop detail:  [show sidebar when collapsed] [Note|Bible] · folder chip · find/share/more · inspector · account
- * Mobile unified: [sidebar toggle] [Note|Bible] · … (space + list mode live in the sidebar header)
+ * Desktop detail:  [show sidebar when collapsed] [Activity|Note|Read] · library chip · find/share/more · inspector · account
+ * Mobile unified: [sidebar toggle] [Activity|Note|Read] · library chip · …
+ *
+ * The center used to hold a folder chip that appeared only on notes you could organize.
+ * It now holds the Library chip, which renders on every mode and opens the browse panel —
+ * the surface that took over from the sidebar. See `PrototypeLibraryChip`.
  */
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import NotesBibleSegmented from './NotesBibleSegmented';
+import ShellModeSegmented from './ShellModeSegmented';
 import { useNote } from '../../hooks/queries/useNote';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import {
   resolveVisibleComposeTarget,
   useProtoShell,
-  usePrototypeFolderChip,
 } from '../../layouts/proto-shell-context';
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
-import {
-  effectiveNoteFolderLabel,
-  noteFolderChipAdditionalCount,
-  noteFolderMembershipLabels,
-} from '@/utils/note-folder-display';
 import AccountMenu from './AccountMenu';
-import { PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
+import {
+  PROTO_SEG_GLYPH_SIZE,
+  PROTO_SEG_ICON_SIZE,
+  PROTO_TOOLBAR_ORB_ICON_SIZE,
+} from './proto-toolbar-tokens';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
-import PrototypeFolderPopover from './PrototypeFolderPopover';
+import PrototypeLibraryChip from './PrototypeLibraryChip';
+import { LIBRARY_CHIP_OPENING_VIEW } from './library-panel/library-panel-view';
+import {
+  clearLibraryChipRect,
+  publishLibraryChipRect,
+} from './library-panel/library-chip-rect';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
+import SpaceSwitcherMenu from './SpaceSwitcherMenu';
+import { SpaceSwitcherTriggerIcon } from './SpaceSwitcherTriggerIcon';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import PrototypeNoteMoreMenu from './PrototypeNoteMoreMenu';
 import SplitColumnToggleIcon from './SplitColumnToggleIcon';
@@ -39,11 +49,12 @@ import {
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
 } from '@/lib/prototype-path';
-import { useReaderToggle } from '../../hooks/useReaderToggle';
+import { useShellModeNav } from '../../hooks/useShellModeNav';
 import { prototypeToolbarNoteDetailsAvailable } from './prototype-toolbar-note-details';
 import {
   canOrganizeSharedSpaceNote,
   canPinSharedSpaceItem,
+  isMinistryBroadcastSpace,
 } from '../../lib/shared-space-capabilities';
 import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
 import { canComposeInSpace } from '../../lib/shared-space-capabilities';
@@ -149,13 +160,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const findButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const shareButtonRef = useRef<HTMLButtonElement | null>(null);
-  const folderChipRef = useRef<HTMLButtonElement | null>(null);
-  const folderPopover = useToolbarAnchoredPopover();
   const findPopover = useToolbarAnchoredPopover();
   const sharePopover = useToolbarAnchoredPopover();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
 
-  const prototypeFolderChip = usePrototypeFolderChip();
   const {
     composePersistedNoteId,
     composeDraftActive,
@@ -175,6 +183,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     activeSpaceId,
     sidebarLayer,
     sidebarListSpaceScope,
+    activeChurchOrgId,
+    libraryPanelView,
+    libraryPanelExiting,
+    openLibraryPanel,
   } = useProtoShell();
 
   const isUnified = variant === 'unified';
@@ -239,40 +251,34 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     isSpaceOwner: isContextSpaceOwner,
   });
 
-  const useShellFolderChip =
-    isOnNotePage &&
-    !!toolbarNoteId &&
-    prototypeFolderChip != null &&
-    prototypeFolderChip.noteId === toolbarNoteId;
+  const { spaceTitle: activeSpaceTitleForChip, space: activeSpaceRow } = useActiveSpace();
+  const activeSpaceColor = activeSpaceRow?.color ?? null;
 
-  const toolbarFolderSource = toolbarNote
-    ? {
-        primaryCollection: toolbarNote.primaryCollection ?? null,
-        secondaryCollections: toolbarNote.secondaryCollections ?? [],
-      }
-    : null;
-
-  const toolbarFolderLabel = useShellFolderChip
-    ? prototypeFolderChip.label
-    : toolbarFolderSource
-      ? effectiveNoteFolderLabel(toolbarFolderSource)
-      : null;
-
-  const toolbarFolderExtraCount = useShellFolderChip
-    ? prototypeFolderChip.extraCount
-    : toolbarFolderSource
-      ? noteFolderChipAdditionalCount(toolbarFolderSource)
-      : 0;
-
-  const toolbarFolderAriaLabel = (() => {
-    const labels = useShellFolderChip
-      ? prototypeFolderChip.membershipLabels
-      : toolbarFolderSource
-        ? noteFolderMembershipLabels(toolbarFolderSource)
-        : [];
-    if (labels.length === 0) return 'Folder — none set';
-    return `Folders: ${labels.join(', ')}`;
-  })();
+  /*
+   * The space lives on the Activity segment now, not on the centre chip.
+   *
+   * One tile, one home: the chip names the folder or book you are looking at, and the
+   * segment names the space you are in. Both showing the space put the same colour tile
+   * and the same word twice in a 46px row.
+   */
+  const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
+  const activitySegmentRef = useRef<HTMLButtonElement | null>(null);
+  /*
+   * The same glyph the sidebar's switcher shows, from the same component — so My Home is a
+   * house and My Church is a church, not the generic Activity mark. Only a space with no
+   * identity of its own falls back to `layer-group`.
+   */
+  const spaceGlyph = homeSpaceId ? (
+    <SpaceSwitcherTriggerIcon
+      space={activeSpaceRow}
+      isMinistry={Boolean(activeSpaceRow && isMinistryBroadcastSpace(activeSpaceRow))}
+      inSharedSpace={Boolean(activeSpaceTitleForChip)}
+      inMyChurchMode={Boolean(activeChurchOrgId)}
+      hasHome={Boolean(homeSpaceId)}
+      glyphSize={PROTO_SEG_GLYPH_SIZE}
+      tileSize={PROTO_SEG_ICON_SIZE}
+    />
+  ) : undefined;
 
   const onCompose = () => {
     if (!visibleComposeTarget || !canComposeInContext) return;
@@ -287,15 +293,24 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
    * exists once you have read, a scripture index built from notes you have not written — so
    * someone with an empty account could not reach it at all except by typing the URL.
    */
-  const { isOnReadPage, openReader, backToNotes } = useReaderToggle();
+  const { mode, isOnReadPage, hasNoteToResume, openActivity, openNote, openReader } =
+    useShellModeNav();
 
   const onSidebarButton = () => {
     if (isMobileSidebar) toggleDrawer();
     else toggleDesktopSidebar();
   };
 
+  /*
+   * Reaching for the "show sidebar" orb is the reader stating a preference, so it goes
+   * through the toggle rather than through `ensureSidebarExpanded` — that one exists for the
+   * app opening the rail on someone's behalf (a chip, a drilldown), which must not be
+   * mistaken for them asking. On mobile there is no preference to record; the drawer is
+   * transient by nature.
+   */
   const onShowSidebar = () => {
-    ensureSidebarExpanded();
+    if (isMobileSidebar) ensureSidebarExpanded();
+    else toggleDesktopSidebar();
   };
 
   const showShiftHints = usePrototypeShiftHints();
@@ -385,53 +400,48 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
             </button>
           </PrototypeToolbarShortcutItem>
         ) : null}
-        {/* Writing and reading are the two things you start here, so they are one control. */}
-        <NotesBibleSegmented
-          isOnReadPage={isOnReadPage}
-          onBackToNotes={backToNotes}
-          onCompose={onCompose}
+        {/* The three things you can be doing here, as one control. */}
+        <ShellModeSegmented
+          mode={mode}
+          hasNoteToResume={hasNoteToResume}
+          onOpenActivity={openActivity}
+          onOpenNote={() => openNote(onCompose)}
           onOpenReader={openReader}
           canCompose={canComposeInContext}
           disabled={!homeSpaceId}
           showShortcuts={showShiftHints}
           composeLabel={composeDestinationLabel}
+          spaceGlyph={spaceGlyph}
+          spaceLabel={activeSpaceTitleForChip ?? (activeChurchOrgId ? 'My Church' : 'My Home')}
+          spaceMenuOpen={spaceMenuOpen}
+          onOpenSpaceMenu={() => setSpaceMenuOpen((open) => !open)}
+          spaceMenuTriggerRef={activitySegmentRef}
+        />
+        {/* Renders no trigger of its own — the Activity segment above is the button, and
+            the seg-track it sits in expects exactly three children. */}
+        <SpaceSwitcherMenu
+          homeSpaceId={homeSpaceId}
+          authReady={!!homeSpaceId}
+          trigger="external"
+          open={spaceMenuOpen}
+          onOpenChange={setSpaceMenuOpen}
+          anchorRef={activitySegmentRef}
         />
       </div>
 
       <div className="proto-toolbar-center">
-        {isOnNotePage && !toolbarNoteLoading && toolbarNote && contextualCapabilities.canOrganize ? (
-          <>
-            <button
-              ref={folderChipRef}
-              type="button"
-              className="proto-toolbar-folder-chip"
-              title="Folder — edit folders"
-              aria-label={toolbarFolderAriaLabel}
-              aria-haspopup="dialog"
-              aria-expanded={folderPopover.isOpen && !folderPopover.exiting}
-              onClick={() => folderPopover.toggleFrom(folderChipRef.current)}
-            >
-              <Icon name="folder" size={PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE} className="proto-toolbar-folder-chip__icon" aria-hidden />
-              {toolbarFolderLabel?.trim() ? (
-                <span className="proto-toolbar-folder-chip__labels">
-                  <span className="proto-toolbar-folder-chip__label">{toolbarFolderLabel}</span>
-                  {toolbarFolderExtraCount > 0 ? (
-                    <span className="proto-toolbar-folder-chip__extra">+{toolbarFolderExtraCount}</span>
-                  ) : null}
-                </span>
-              ) : null}
-            </button>
-            {folderPopover.isOpen && toolbarNoteId ? (
-              <PrototypeFolderPopover
-                note={toolbarNote}
-                contextSpaceId={contextSpaceId}
-                anchorRect={folderPopover.anchorRect}
-                exiting={folderPopover.exiting}
-                onDismiss={folderPopover.dismiss}
-              />
-            ) : null}
-          </>
-        ) : null}
+        <PrototypeLibraryChip
+          mode={mode}
+          panelOpen={Boolean(libraryPanelView) || libraryPanelExiting}
+          onOpen={(rect) => {
+            /* Clearing on a failed measure matters as much as publishing on a good one:
+               a stale rect from an earlier click would morph this open out of a box the
+               chip no longer occupies. */
+            if (rect) publishLibraryChipRect(rect);
+            else clearLibraryChipRect();
+            openLibraryPanel(LIBRARY_CHIP_OPENING_VIEW);
+          }}
+        />
       </div>
 
       <div className="proto-toolbar-right">

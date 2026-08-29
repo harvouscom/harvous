@@ -66,6 +66,20 @@ export const PROTO_ROUTE_PENDING_MIN_MS = 300;
 export const PROTO_RESOURCE_MORPH_MS = 190;
 
 /**
+ * The Library panel morphing out of (and back into) the toolbar's center chip — MUST
+ * stay in lockstep with `--pds-duration-morph` in `prototype-tokens.css`.
+ *
+ * Shares the resource-add morph's duration because it is the same gesture at a larger
+ * scale: a control growing into the surface it opens. Kept as its own constant anyway —
+ * the two are the same length by agreement, not by dependency, and a future retune of
+ * one should not silently move the other.
+ *
+ * The mobile sheet is a different animation with different timing; it holds for
+ * `PROTO_VOTD_SHEET_MOTION_MS` instead.
+ */
+export const PROTO_LIBRARY_PANEL_MS = 190;
+
+/**
  * Note sheet stacking over / off the Bible reader paper — MUST stay in lockstep with
  * `--pds-duration-paper-stack` and `.pds-reader-stack__sheet` in prototype-components.css.
  *

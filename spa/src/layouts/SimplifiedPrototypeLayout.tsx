@@ -36,11 +36,23 @@ import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
  * Lazy: most sessions never press ⇧K, and the palette pulls in `cmdk`. The shell owns the
  * open flag because something has to hear the shortcut while this module is unfetched.
  */
-const PrototypeCommandPalette = lazy(() => import('../pages/prototype/PrototypeCommandPalette'));
+/*
+ * The Library panel and everything it browses — off the critical path.
+ *
+ * It only exists once someone opens it, and its body pulls in the list views for all
+ * five sections, so shipping it in the initial payload charges every route (sign-in
+ * included) for a surface most sessions open second, not first.
+ */
+const PrototypeLibraryPanelHost = lazy(
+  () => import('../pages/prototype/library-panel/PrototypeLibraryPanelHost'),
+);
 import PrototypeSidebarSharedSpaceView from '../pages/prototype/PrototypeSidebarSharedSpaceView';
 import PrototypeSidebarChurchHubView from '../pages/prototype/PrototypeSidebarChurchHubView';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSidebarHost';
+
+import { cycleLibraryTab } from '../pages/prototype/library-panel/library-panel-view';
+import { clearLibraryChipRect } from '../pages/prototype/library-panel/library-chip-rect';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
@@ -69,7 +81,7 @@ import '../styles/prototype-route-overrides.css';
 import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useWarmDefaultTranslationPack } from '../hooks/useWarmDefaultTranslationPack';
-import { useReaderToggle } from '../hooks/useReaderToggle';
+import { useShellModeNav } from '../hooks/useShellModeNav';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
 import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
@@ -324,10 +336,16 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     beginPrototypeComposeSession,
     expandedSidebarTool,
     expandedSidebarExiting,
+    libraryPanelView,
+    libraryPanelExiting,
     closeExpandedSidebar,
   } = useProtoShell();
   /* Mounted through the exit animation, like every other prototype panel. */
   const expandedSidebarMounted = !hideSidebar && (Boolean(expandedSidebarTool) || expandedSidebarExiting);
+  /* Not gated on `hideSidebar`: the panel is not the sidebar. It hangs off the toolbar,
+     and the surfaces that hide the rail (share views, focused reads) still want a way
+     to browse. */
+  const libraryPanelMounted = Boolean(libraryPanelView) || libraryPanelExiting;
   // Stamp visit for dashboard and notes-list alike (survives layer toggles).
   useSharedSpaceVisitStamp(isSharedSpace ? (shellActiveSpaceId ?? resolvedActiveSpaceId) : null);
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -1096,6 +1114,16 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           />
         ) : null}
 
+        {/* The browse surface the sidebar used to be, summoned from the toolbar chip.
+            Mounted through the exit morph, which is what `libraryPanelExiting` buys.
+            No Suspense fallback: the chunk lands in a few ms, and a placeholder box
+            would play the opening morph on chrome that is about to be replaced. */}
+        {libraryPanelMounted ? (
+          <Suspense fallback={null}>
+            <PrototypeLibraryPanelHost />
+          </Suspense>
+        ) : null}
+
         {/* The bottom chrome is the shell's, not the editor's — a note fills it with the
             format toolbar, the reader fills it with verse actions. Both go through
             `editorChromeMode`, which stays 'hidden' (bar collapsed to zero height) until a
@@ -1149,9 +1177,13 @@ function PrototypeShortcutBridge() {
     composeDraftActive,
     activeSpaceId,
     sidebarListSpaceScope,
+    desktopSidebarCollapsed,
+    libraryPanelView,
+    openLibraryPanel,
+    setLibraryPanelView,
   } = useProtoShell();
 
-  const readerToggle = useReaderToggle();
+  const shellModeNav = useShellModeNav();
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const isDraftNoteRoute =
@@ -1176,7 +1208,7 @@ function PrototypeShortcutBridge() {
    * worked. Both now read the flag off the same hook rather than re-deriving it.
    */
   const showNoteDetailsOrb =
-    readerToggle.isOnReadPage ||
+    shellModeNav.isOnReadPage ||
     prototypeToolbarNoteDetailsAvailable({
       isOnNotePage:
         isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),
@@ -1214,6 +1246,12 @@ function PrototypeShortcutBridge() {
   }, [isMobileSidebar, toggleDesktopSidebar, toggleDrawer]);
 
   const focusPrototypeNoteList = useCallback(() => {
+    /*
+     * The panel answers this chord itself when it is open — it is the list on screen, and
+     * its own handler focuses its first row. Falling through would flip the rail's layer
+     * underneath it and then steal the focus back on the next frame.
+     */
+    if (libraryPanelView) return;
     // List-layer target — flip out of Home first so the list exists when the rAF queries it.
     setSidebarLayer('list');
     ensureSidebarExpanded();
@@ -1223,18 +1261,43 @@ function PrototypeShortcutBridge() {
       );
       target?.focus();
     });
-  }, [ensureSidebarExpanded, setSidebarLayer]);
+  }, [ensureSidebarExpanded, libraryPanelView, setSidebarLayer]);
 
+  /*
+   * ⇧/ opens the Library panel's search rather than the sidebar's.
+   *
+   * The panel is the browse surface now, and its search field is the same universal
+   * search the sidebar ran — so pointing the chord at the rail would summon a fallback
+   * to do what the primary surface does. The sidebar keeps its own field for anyone who
+   * opens it with ⇧S.
+   */
   const focusPrototypeSidebarSearch = useCallback(() => {
-    setSidebarLayer('list');
-    ensureSidebarExpanded();
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLInputElement>('#proto-sidebar-search-input')?.focus();
-    });
-  }, [ensureSidebarExpanded, setSidebarLayer]);
+    /* Opened by a chord, so there is no chip box to grow from — clearing the last one
+       makes the panel fade in rather than morph out of a control nobody touched.
+       Focus is the field's own `autoFocus`; a `querySelector` after a frame raced the
+       panel's lazy chunk and found nothing on the first open of a session. */
+    clearLibraryChipRect();
+    openLibraryPanel({ tab: 'all', drill: null });
+  }, [openLibraryPanel]);
 
+  /*
+   * ⇧[ / ⇧] walks sections of whichever browse surface is actually up.
+   *
+   * Three cases rather than two, because during the transition both surfaces exist: the
+   * panel wins when it is open, the sidebar keeps its own cycle when someone has it
+   * expanded, and from neither the keys open the panel — which is the answer that
+   * matches where browsing lives now.
+   */
   const cycleListMode = useCallback(
     (step: number) => {
+      if (libraryPanelView) {
+        setLibraryPanelView(cycleLibraryTab(libraryPanelView, step >= 0 ? 1 : -1));
+        return;
+      }
+      if (desktopSidebarCollapsed && !isMobileSidebar) {
+        openLibraryPanel({ tab: 'all', drill: null });
+        return;
+      }
       // From Home, the first cycle returns to the last-used list view instead of advancing past it.
       if (sidebarLayer === 'space') {
         setSidebarListMode(sidebarListMode);
@@ -1247,29 +1310,50 @@ function PrototypeShortcutBridge() {
       setSidebarListMode(order[nextIndex]);
       ensureSidebarExpanded();
     },
-    [ensureSidebarExpanded, setSidebarListMode, sidebarLayer, sidebarListMode],
+    [
+      desktopSidebarCollapsed,
+      ensureSidebarExpanded,
+      isMobileSidebar,
+      libraryPanelView,
+      openLibraryPanel,
+      setLibraryPanelView,
+      setSidebarListMode,
+      sidebarLayer,
+      sidebarListMode,
+    ],
   );
 
-  const showHomeLayer = useCallback(() => {
-    setSidebarLayer('space');
-    ensureSidebarExpanded();
-  }, [ensureSidebarExpanded, setSidebarLayer]);
+  /*
+   * ⇧H used to open the sidebar's Home layer, back when Home lived in the sidebar. Home is
+   * the main pane now, so the chord goes where the word does: to Activity, the same half of
+   * the shell switch it sits under.
+   */
+  const showActivity = useCallback(() => {
+    if (!homeSpaceId) return;
+    shellModeNav.openActivity();
+  }, [homeSpaceId, shellModeNav]);
 
+  /* ⇧L opens the Library, which is where lists live now. */
   const showListLayer = useCallback(() => {
-    setSidebarLayer('list');
-    ensureSidebarExpanded();
-  }, [ensureSidebarExpanded, setSidebarLayer]);
+    clearLibraryChipRect();
+    openLibraryPanel({ tab: 'all', drill: null });
+  }, [openLibraryPanel]);
 
   /*
-   * The toolbar's Notes/Bible switch, driven from the keyboard — the same hook, so R and the
-   * control cannot mean different things. It used to be a second copy of the smart-jump
-   * navigation here, and the copies had already drifted once over what counts as the reader.
+   * The toolbar's shell switch, driven from the keyboard — the same hook, so the chords and
+   * the control cannot mean different things. This used to be a second copy of the
+   * smart-jump navigation here, and the copies had already drifted once over what counts as
+   * the reader.
+   *
+   * R still toggles rather than only opening: leaving the reader is the other half of what
+   * the key is for, and it returns to the last non-reader path rather than to Activity,
+   * which is what "back" means to someone who was in a note when they pressed it.
    */
   const toggleReader = useCallback(() => {
     if (!homeSpaceId) return;
-    if (readerToggle.isOnReadPage) readerToggle.backToNotes();
-    else readerToggle.openReader();
-  }, [homeSpaceId, readerToggle]);
+    if (shellModeNav.mode === 'reader') shellModeNav.leaveReader();
+    else shellModeNav.openReader();
+  }, [homeSpaceId, shellModeNav]);
 
   useEffect(() => {
     const onNewNote = () => createPrototypeNote();
@@ -1285,7 +1369,7 @@ function PrototypeShortcutBridge() {
       const step = custom.detail?.step === -1 ? -1 : 1;
       cycleListMode(step);
     };
-    const onShowHome = () => showHomeLayer();
+    const onShowHome = () => showActivity();
     const onShowList = () => showListLayer();
     const onOpenReader = () => toggleReader();
 
@@ -1318,59 +1402,26 @@ function PrototypeShortcutBridge() {
     toggleReader,
     pathname,
     showNoteDetailsOrb,
-    showHomeLayer,
+    showActivity,
     showListLayer,
     toggleInspector,
     togglePrototypeSidebar,
   ]);
 
   /**
-   * Where the palette goes to answer ⇧K.
+   * ⇧K opens the Library panel's search, the same surface ⇧/ and ⇧L reach.
    *
-   * Mounted here rather than in the sidebar so it still opens with the sidebar collapsed,
-   * hidden, or swapped for the admin and church views — the moments you are most likely to
-   * reach for it. The list it acts on publishes itself; see
-   * `prototype-command-context-store`.
+   * The palette used to live here as its own overlay — mounted at the shell rather than in
+   * the sidebar so it still opened with the rail collapsed. That reasoning now belongs to
+   * the panel, which is mounted the same way and does the same two jobs in one place:
+   * browse by tab, retrieve by query. The list a command acts on still publishes itself;
+   * see `prototype-command-context-store`.
    */
-  const [paletteOpen, setPaletteOpen] = useState(false);
   useEffect(() => {
-    const onOpen = () => setPaletteOpen(true);
+    const onOpen = () => focusPrototypeSidebarSearch();
     window.addEventListener('prototypeShortcutOpenCommandPalette', onOpen);
     return () => window.removeEventListener('prototypeShortcutOpenCommandPalette', onOpen);
-  }, []);
+  }, [focusPrototypeSidebarSearch]);
 
-  const paletteNavigation = useMemo(
-    () => [
-      { id: 'home', label: 'Show Home', icon: 'house', keys: '⇧H', run: showHomeLayer },
-      { id: 'list', label: 'Show list', icon: 'note-sticky', keys: '⇧L', run: showListLayer },
-      { id: 'reader', label: 'Read the Bible', icon: 'scroll', keys: '⇧R', run: toggleReader },
-      { id: 'new-note', label: 'New note', icon: 'plus', keys: '⇧N', run: createPrototypeNote },
-      {
-        id: 'settings',
-        label: 'Settings',
-        icon: 'gear',
-        keys: '⇧,',
-        run: () => navigate.navigate({ to: prototypeSettingsRouteTo() }),
-      },
-    ],
-    [showHomeLayer, showListLayer, toggleReader, createPrototypeNote, navigate],
-  );
-
-  /* No Suspense fallback: the chunk lands in a few ms and a flash of chrome under the
-     scrim would read as the palette opening twice. */
-  return paletteOpen ? (
-    <Suspense fallback={null}>
-      <PrototypeCommandPalette
-        homeSpaceId={homeSpaceId}
-        navigationItems={paletteNavigation}
-        onClose={() => setPaletteOpen(false)}
-        onOpenNote={(noteId) => {
-          navigate.navigate({
-            to: prototypeNoteRouteTo(),
-            params: { noteId: noteParamSlug(noteId) },
-          });
-        }}
-      />
-    </Suspense>
-  ) : null;
+  return null;
 }

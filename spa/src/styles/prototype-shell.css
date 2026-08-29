@@ -1533,3 +1533,496 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   background-color: var(--pds-glass-shell-floating);
   background-image: none;
 }
+
+/*
+ * ============================================================================
+ * Library panel — the browse surface that took over from the sidebar.
+ * ============================================================================
+ *
+ * It morphs out of the toolbar's centre chip, which is the whole point: the chip
+ * names your context, and expanding it shows that context's contents.
+ *
+ * FLIP, on transform and opacity only. The panel lays out at its final size and is
+ * transformed onto the chip's box for one frame, then released — so the browser
+ * interpolates two composited states and never lays anything out. The first version
+ * animated `width` and `grid-template-rows`, which cost a layout pass per frame and,
+ * because keyframes restart from their `from` value, replayed from the chip's width when
+ * you reopened mid-close. Transitions retarget from wherever the property is, so
+ * open → close → open is one continuous move. See `use-library-panel-morph.ts`.
+ *
+ * The mobile sheet below was already transform-only and is unchanged.
+ */
+.proto-library-panel {
+  position: fixed;
+  top: calc(var(--pds-toolbar-h) + 8px);
+  /*
+   * Centred by margin, not by `translateX(-50%)`.
+   *
+   * The transform belongs entirely to the morph. Spending it on centring is what forced
+   * the old version to animate `width` in the first place — a centring translate inside a
+   * keyframe fights whatever else the keyframe is interpolating.
+   */
+  left: 0;
+  right: 0;
+  /*
+   * 880px was wider than the content wanted. These rows are one line of title over one of
+   * meta, so past ~700px the eye has to travel a long way from the title to the timestamp
+   * that belongs to it, and the panel starts reading as a page rather than a surface you
+   * dipped into.
+   */
+  width: min(calc(100% - 32px), 680px);
+  margin-inline: auto;
+  /*
+   * Percentages, not viewport units.
+   *
+   * The shell frame carries a backdrop-filter, which makes it the containing block for
+   * `position: fixed` descendants — so this panel measures from the frame (inset on every
+   * side), not the window. `100vh` overshot by exactly that inset and ran the panel's
+   * bottom edge past the frame it lives in.
+   */
+  max-height: calc(100% - var(--pds-toolbar-h) - 24px);
+  z-index: 30;
+  box-sizing: border-box;
+  display: grid;
+  /* Header, tab row, then the scrolling body. */
+  grid-template-rows: auto auto 1fr;
+  border-radius: var(--pds-shell-frame-radius);
+  border: 0.5px solid var(--pds-border);
+  /*
+   * The sidebar's material, without a second blur.
+   *
+   * The rail reads as frosted because it is transparent and the *frame* carries the blur —
+   * a trick this panel cannot copy, because it floats over the main pane rather than beside
+   * it, so translucency here would show the day sheet's own text rather than a wallpaper.
+   * And a `backdrop-filter` of its own is the one thing this stack must not have
+   * (PROTOTYPE_AW_SNAP_ERROR_5 — stacking them crashed the GPU).
+   *
+   * So: glass character built from the parts that are safe. A vertical gradient for the
+   * body, the shell's own rim highlight along the top edge, and the drawer shadow it
+   * already had. It is opaque, and it reads as the same family.
+   */
+  background-image: linear-gradient(
+    to bottom,
+    var(--pds-panel-glass-top),
+    var(--pds-panel-glass-bottom)
+  );
+  background-color: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-drawer), var(--pds-glass-rim);
+  overflow: hidden;
+
+  /*
+   * No focus ring on the panel itself.
+   *
+   * It is `tabIndex={-1}` and takes focus programmatically on open, purely so the keyboard
+   * lands inside rather than back at the top of the page — it is not a tab stop and never
+   * something you focus deliberately, so a ring around the whole surface is announcing a
+   * state nobody chose. The controls inside keep their own rings.
+   */
+  outline: none;
+
+  /* The chip's line, not the panel's middle. */
+  transform-origin: top center;
+  transition:
+    transform var(--pds-duration-morph) var(--pds-ease-emphasized),
+    opacity var(--pds-duration-morph) var(--pds-ease-emphasized);
+}
+
+/*
+ * Exit on `--pds-ease-standard`, which starts fast and settles.
+ *
+ * Not `--pds-ease-morph-exit`: that curve eases in, and on a dismissal the start is
+ * precisely the moment being watched — you just asked for this to go away. (That token
+ * stays as it is for the resource-add morph, which is a different gesture.)
+ */
+.proto-library-panel--exiting {
+  opacity: 0;
+  transition:
+    transform var(--pds-duration-morph) var(--pds-ease-standard),
+    opacity var(--pds-duration-morph) var(--pds-ease-standard);
+}
+
+/*
+ * Contents arrive a beat after the box does.
+ *
+ * The container's scale would otherwise stretch every row inside it. Rather than
+ * counter-scaling each one — which costs a second transform per child and leaves text
+ * briefly soft on some GPUs — the content fades in over the back half of the move, so the
+ * frames where the scale is most extreme are the frames nobody is reading.
+ */
+.proto-library-panel .proto-library-panel__header,
+.proto-library-panel .proto-library-panel__body {
+  opacity: 0;
+}
+
+.proto-library-panel--settled .proto-library-panel__header,
+.proto-library-panel--settled .proto-library-panel__body {
+  opacity: 1;
+  transition: opacity var(--pds-duration-morph) var(--pds-ease-emphasized) 40ms;
+}
+
+/*
+ * The first rows arrive in sequence rather than as a block — 40ms apart, inside the
+ * 30–80ms band where a stagger is felt rather than counted.
+ */
+/*
+ * Rows, named as rows.
+ *
+ * This was `body > * > *`, which is any grandchild — and it caught the search results'
+ * structural wrapper. `animation-fill-mode: both` then left that wrapper holding a
+ * transform forever, a transform makes an element the containing block, and a containing
+ * block between a `position: sticky` heading and its scrollport is exactly what stops the
+ * heading sticking. A stagger meant for five rows had quietly disabled sticky headings.
+ */
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(-n + 5) {
+  animation: proto-library-row-in var(--pds-duration-morph) var(--pds-ease-emphasized) both;
+}
+
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(2) {
+  animation-delay: 40ms;
+}
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(3) {
+  animation-delay: 80ms;
+}
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(4) {
+  animation-delay: 120ms;
+}
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(5) {
+  animation-delay: 160ms;
+}
+
+@keyframes proto-library-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The chip crossfades with the panel rather than blinking out.
+   Both are anchored at the same point, so one dissolving into the other reads as one
+   object — and it means `border-radius` never has to animate from pill to frame. */
+.proto-library-chip--hidden {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--pds-duration-morph) var(--pds-ease-emphasized);
+}
+
+/*
+ * `min-width` is gone with the width animation that needed it.
+ *
+ * It pinned children to the panel's final width so each frame of a width interpolation was
+ * a clip rather than a reflow. Nothing animates layout now, so keeping it would be a
+ * technique described by a comment for a problem that no longer exists.
+ */
+.proto-library-panel__header,
+.proto-library-panel__body {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+}
+
+.proto-library-panel__header {
+  display: grid;
+  /* Three columns so the search field is the panel's centre whatever the sides
+     hold. Always rendered, even when a cell is empty — a conditional cell
+     collapses the track and slides the centre across. */
+  /*
+   * The field takes the room, because it is now the surface's identity — there is no
+   * title, and after the space switcher moved to the toolbar there is nothing in the
+   * trailing cell either. The old 1 / 1.2 / 1 split left the field at roughly a third of
+   * an 880px panel with ~290px of dead space on each side. The side cells keep a minimum
+   * so the back tile has somewhere to sit, and stay symmetric so the field is centred.
+   */
+  grid-template-columns: minmax(44px, 1fr) minmax(0, 3fr) minmax(44px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 0.5px solid var(--pds-border-control);
+}
+
+.proto-library-panel__header-lead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.proto-library-panel__title {
+  /* Not `proto-marquee` — that sets `container-type: inline-size`, and inline-size
+     containment zeroes an element's own intrinsic width. The title's width comes
+     from its own text, so it would render at 0px. Ellipsis via max-width instead. */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-library-panel__search {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.proto-library-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.proto-library-panel__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* So the row may collapse below its content during the height morph, and what
+     is clipped does not spill past the rounded corner. */
+  min-height: 0;
+  /* A variable, not a literal, because the sticky footer below has to cancel exactly
+     this to reach the panel's edge — and two numbers that must agree should be one. */
+  --proto-library-body-pad: 10px;
+  padding: var(--proto-library-body-pad);
+}
+
+/*
+ * A sticky action bar belongs to the panel's edge, not to the list's gutter.
+ *
+ * The resource shelf ends in one ("Add resource"), and inside the body's padding it sat
+ * as an inset slab with a strip of panel visible under and beside it — which reads as the
+ * list having a footer rather than the panel having an action. Negative margins cancel the
+ * padding on three sides so it spans the full width and lands flush, and the bottom corners
+ * pick up the panel's own radius so it ends where the panel ends.
+ */
+.proto-library-panel__body .proto-resource-footer {
+  margin-inline: calc(-1 * var(--proto-library-body-pad));
+  margin-bottom: calc(-1 * var(--proto-library-body-pad));
+  bottom: calc(-1 * var(--proto-library-body-pad));
+  border-bottom-left-radius: var(--pds-shell-frame-radius);
+  border-bottom-right-radius: var(--pds-shell-frame-radius);
+}
+
+/*
+ * The contents leave before the box closes — rows legible while being clipped
+ * read as a scroll rather than a morph. Exit only; arrival rides the panel's own
+ * fade-in.
+ */
+
+
+/* The chip holds its box while the panel is out — the toolbar must not reflow
+   under a panel that is animating out of that exact spot. */
+.proto-library-chip--hidden {
+  visibility: hidden;
+}
+
+/*
+ * Mobile — a full-height sheet instead of a centred panel.
+ *
+ * Keyed on the shell's one mobile breakpoint (899px), not the 600px the toolbar
+ * uses for its own reflow: the panel is a shell surface, and `MOBILE_MQ` in
+ * proto-shell-context is what decides which presentation the JS mounts. The two
+ * must agree or the shell and the component in it disagree about which layout
+ * they are in.
+ */
+.proto-library-sheet {
+  /* Same programmatic-focus target as the panel — see the note there. */
+  outline: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /*
+   * Below the toolbar, not under it.
+   *
+   * The sheet is a region rather than a modal — the toolbar above stays live, and the
+   * chip that summoned it lives there. Starting at the frame's top edge slid the sheet's
+   * own header (its back tile and title) beneath the toolbar orbs, so the surface opened
+   * with its controls invisible.
+   */
+  top: calc(var(--pds-toolbar-h) + 8px);
+  z-index: 30;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  border-radius: var(--pds-shell-frame-radius) var(--pds-shell-frame-radius) 0 0;
+  border-top: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-drawer);
+  overflow: hidden;
+  /* Duration MUST match PROTO_VOTD_SHEET_MOTION_MS in proto-motion.ts — the shell
+     keeps the sheet mounted for exactly this long after dismissal. */
+  animation: proto-library-sheet-in 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+.proto-library-sheet--exiting {
+  animation: proto-library-sheet-out 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+@keyframes proto-library-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes proto-library-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* The sheet's own header/body share the panel's classes, so give them the sheet's
+   scroll behaviour without the width pinning a morph needs. */
+/* The sheet does not morph, so its children take no counter-scale. */
+.proto-library-sheet .proto-library-panel__header,
+.proto-library-sheet .proto-library-sheet .proto-library-panel__body {
+  transform: none;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Fewer and gentler, not none.
+   *
+   * The previous version set `animation: none` and then `display: none` on the exiting
+   * panel, which made a dismissal a hard cut — the surface was simply gone between frames.
+   * A short opacity fade still says "this is leaving" without moving anything.
+   */
+  .proto-library-panel,
+  .proto-library-sheet {
+    transform: none;
+    transition: opacity 120ms linear;
+  }
+
+  .proto-library-panel__header,
+    .proto-library-panel__body {
+    transform: none;
+    opacity: 1;
+    transition: none;
+    animation: none;
+  }
+
+  .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li {
+    animation: none;
+  }
+
+  .proto-library-chip--hidden {
+    transition: none;
+  }
+}
+
+/*
+ * The kind picker, in the header row beside the field.
+ *
+ * `ProtoSelectMenu`'s trigger is `width: 100%` — right for the settings rows it was built
+ * for, wrong beside another control, where it claims the whole cell and pushes itself past
+ * the edge. The study feed's scope picker hit this exact thing; same fix.
+ */
+.proto-library-kind.proto-select-menu__trigger {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/*
+ * A result group's heading.
+ *
+ * Three things make it a break rather than a line of text:
+ *
+ * 1. It is sticky. Results can run past a screen, and a label that scrolls away leaves you
+ *    reading rows with no idea which group they are in — which is the one question having
+ *    two groups exists to answer. It needs an opaque backing to do that, hence the fill.
+ * 2. The rule runs from the label to the edge, so the heading sits *in* the break instead
+ *    of floating above the list. A pseudo-element rather than a border, because the label
+ *    has to interrupt it.
+ * 3. Sentence case at caption weight, which is the voice the rest of this app speaks in.
+ *    Uppercase and letter-spaced was inherited from a class the sidebar no longer renders,
+ *    and it shouted over the rows it was labelling.
+ */
+.proto-library-results__heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 2px 8px;
+  background: var(--pds-bg-page);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--pds-text-secondary);
+}
+
+.proto-library-results__heading-text {
+  flex: 0 0 auto;
+}
+
+.proto-library-results__heading::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 0.5px;
+  background: var(--pds-border-control);
+}
+
+/* The first group opens the list, so it has nothing to be broken away from. */
+.proto-library-results__group:first-child .proto-library-results__heading {
+  padding-top: 2px;
+}
+
+.proto-library-results__group:first-child .proto-library-results__heading::after {
+  display: none;
+}
+
+.proto-library-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/*
+ * "Load more" — a continuation, not a call to action.
+ *
+ * The sidebar's footer button is a gradient primary because it *starts* something (a new
+ * folder). Pagination at the end of a list you are already reading should not be the
+ * loudest thing in the panel, so this is a quiet centred pill instead.
+ */
+.proto-library-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+}
+
+.proto-library-more__btn {
+  padding: 6px 14px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-pill);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.proto-library-more__btn:hover:not(:disabled) {
+  background: var(--pds-bg-hover, transparent);
+  color: var(--pds-text-primary);
+}
+
+.proto-library-more__btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+

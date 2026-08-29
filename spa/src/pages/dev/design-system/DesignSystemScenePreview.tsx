@@ -17,6 +17,8 @@ import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
 import PrototypePaperStack from '../../prototype/PrototypePaperStack';
 import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
+import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
+import { buildStudyFeedDays, type StudyFeedItem } from '@/utils/study-feed-items';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
   BG_PRESETS,
@@ -1258,6 +1260,120 @@ type MeasuredSpan = { key: string; top: number; height: number; lane: number; la
  */
 const MARK_SAMPLE = 'the light shines in the darkness';
 
+/*
+ * Activity — one day, as a sheet on a stack.
+ *
+ * Fixture rather than live data on purpose: what is being judged is whether a day reads as a
+ * page — the parts of it as sections, something written carrying more of the sheet than
+ * somewhere merely visited — and that needs a day holding both. A real account's day is
+ * whatever happened, which on most mornings is a chapter and nothing else.
+ */
+function StudyFeedScene() {
+  const dayStart = new Date(2026, 7, 25, 8, 0, 0);
+  const at = (minutes: number) => new Date(dayStart.getTime() + minutes * 60_000).toISOString();
+
+  const items: StudyFeedItem[] = [
+    {
+      id: 'fixture-reading',
+      kind: 'passage-read',
+      at: at(20),
+      startAt: at(2),
+      book: 'Romans',
+      bookOrder: 44,
+      chapters: [7, 8],
+      translation: 'ESV',
+      dwellBucket: 'study',
+    },
+    {
+      id: 'fixture-highlight',
+      kind: 'highlight-scripture',
+      at: at(24),
+      entryId: 'entry-fixture-1',
+      accent: 'warmAmber',
+      excerpt: 'There is now no condemnation',
+      reference: 'Romans 8:1',
+      translation: 'ESV',
+    },
+    {
+      id: 'fixture-note',
+      kind: 'note-created',
+      at: at(38),
+      noteId: 'note-fixture-1',
+      title: 'No condemnation',
+      snippet:
+        'I keep reading this as a verdict I have to earn. Paul writes it as one already given — the trial is over, and I am still arguing the case.',
+      scriptureRefs: ['Romans 8:1'],
+    },
+    {
+      id: 'fixture-revisit',
+      kind: 'note-revisited',
+      at: at(400),
+      noteId: 'note-fixture-2',
+      title: 'What grace costs',
+      folder: 'Romans',
+      visitCount: 1,
+    },
+    {
+      id: 'fixture-evening-read',
+      kind: 'passage-read',
+      at: at(700),
+      book: 'Psalms',
+      bookOrder: 18,
+      chapters: [103],
+      translation: 'ESV',
+      dwellBucket: 'read',
+    },
+  ];
+
+  const day = buildStudyFeedDays(items, new Date(2026, 7, 25, 21, 0, 0))[0];
+
+  return (
+    <div className="proto-theme">
+      <div className="proto-feed" style={{ padding: 0 }}>
+        <div className="proto-feed-stack">
+          <div className="proto-feed-stack__edges">
+            {[2, 1].map((depth) => (
+              <button
+                key={depth}
+                type="button"
+                className="proto-feed-stack__edge"
+                style={{ '--edge-depth': depth } as CSSProperties}
+              >
+                <span className="proto-feed-stack__edge-label">
+                  {depth === 1 ? 'Yesterday' : 'Sunday, August 23'}
+                </span>
+              </button>
+            ))}
+          </div>
+          <article className="proto-feed-sheet">
+            <header className="proto-feed-sheet__head">
+              <div className="proto-feed-sheet__title">
+                <h2 className="proto-feed-sheet__day">{day.label}</h2>
+                <span className="proto-feed-sheet__date">{day.dateLabel}</span>
+              </div>
+            </header>
+            <div className="proto-feed-sheet__body">
+              {day.parts.map((group) => (
+                <PrototypeStudyFeedPart key={group.part} group={group} onOpen={() => {}} />
+              ))}
+            </div>
+            <footer className="proto-feed-sheet__foot">
+              <button type="button" className="proto-feed-sheet__flip" disabled>
+                <Icon name="caret-up" size={11} />
+                <span>Newer</span>
+              </button>
+              <button type="button" className="proto-feed-sheet__flip">
+                <span>Earlier</span>
+                <Icon name="caret-down" size={11} />
+              </button>
+            </footer>
+          </article>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1298,6 +1414,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <TranslationRowScene />;
     case 'ds-19-note-audience-bar':
       return <NoteAudienceBarScene />;
+    case 'ds-20-study-feed':
+      return <StudyFeedScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

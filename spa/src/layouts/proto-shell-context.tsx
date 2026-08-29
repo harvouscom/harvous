@@ -1,4 +1,8 @@
 import { clearComposeRestoreStash } from '../lib/compose-session-restore';
+import {
+  readSidebarOpenPreference,
+  writeSidebarOpenPreference,
+} from '../pages/prototype/proto-sidebar-nav-store';
 import { clearNoteDraft } from '@/utils/note-draft-store';
 import {
   PROTOTYPE_DRAFT_NOTE_ID,
@@ -6,7 +10,16 @@ import {
   shouldClearStaleComposeDraftOnSessionStart,
 } from '@/utils/prototype-draft-compose-session';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { PROTO_EXPANDED_SIDEBAR_EXIT_MS, PROTO_PANEL_EXIT_MS } from './proto-motion';
+import {
+  PROTO_EXPANDED_SIDEBAR_EXIT_MS,
+  PROTO_LIBRARY_PANEL_MS,
+  PROTO_PANEL_EXIT_MS,
+  PROTO_VOTD_SHEET_MOTION_MS,
+} from './proto-motion';
+import {
+  isSameLibraryPanelView,
+  type LibraryPanelView,
+} from '../pages/prototype/library-panel/library-panel-view';
 import {
   clearPersistedDrilldowns,
   readPersistedSidebarNav,
@@ -383,11 +396,21 @@ type ProtoShellContextValue = {
    * non-reader path visited. Null until something records one; callers fall back to home.
    *
    * The provider is deliberately router-free (its test renders it with no router), so the
-   * recording happens in `useReaderToggle`, which has the location. Writes of an unchanged
+   * recording happens in `useShellModeNav`, which has the location. Writes of an unchanged
    * path bail out, so the several callers of that hook cannot fight each other.
    */
   lastNotesPath: string | null;
   recordNotesPath: (path: string) => void;
+  /**
+   * The last *note editor* path — a note route only, never Activity.
+   *
+   * Distinct from `lastNotesPath`, which is "the last thing that wasn't the reader" and so
+   * includes Activity itself. The Note half of the shell switch needs the narrower one: from
+   * Activity it should return to the note you had open, and `lastNotesPath` at that moment
+   * is Activity, which would make the half a no-op.
+   */
+  lastNoteEditorPath: string | null;
+  recordNoteEditorPath: (path: string) => void;
   /**
    * Where the user is — parent (My Home / a church) plus the space inside it.
    * The single source of truth; everything below is derived. Persisted across refresh.
@@ -485,6 +508,21 @@ type ProtoShellContextValue = {
   expandedSidebarExiting: boolean;
   openExpandedSidebar: (tool: string) => void;
   closeExpandedSidebar: (options?: { preserveHistory?: boolean }) => void;
+  /**
+   * Library panel — the browse surface that morphs out of the toolbar's center chip.
+   *
+   * `null` is closed. Deliberately NOT sharing the sidebar's list mode or drilldowns:
+   * the sidebar survives behind ⇧S this phase and the two must not move each other.
+   * See `library-panel-view.ts` for the full reasoning, and why none of this persists.
+   */
+  libraryPanelView: LibraryPanelView | null;
+  /** True during the exit morph — keep the panel mounted while this is true. */
+  libraryPanelExiting: boolean;
+  /** Open (or re-target) the panel. Pushes one history entry; Back closes it. */
+  openLibraryPanel: (view: LibraryPanelView) => void;
+  /** Drill within an open panel. No history entry — Back closes the panel, not the drill. */
+  setLibraryPanelView: (view: LibraryPanelView) => void;
+  closeLibraryPanel: (options?: { preserveHistory?: boolean }) => void;
   setPrototypeFolderChip: (value: PrototypeFolderChip | null) => void;
   /** Backend note id after first autosave during compose-on-home — before URL replace. */
   composePersistedNoteId: string | null;
@@ -554,7 +592,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return true;
     return !window.matchMedia(MOBILE_MQ).matches;
   });
-  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
+  /*
+   * Collapsed unless the reader has said otherwise.
+   *
+   * Activity is the canvas — the sheet is the work, and a browse rail beside it is a second
+   * thing competing for the same attention. The sidebar stays one keystroke away (⇧S) and
+   * remembers the moment anyone disagrees, so this is a default rather than a decision made
+   * on someone's behalf.
+   */
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(
+    () => readSidebarOpenPreference() !== true,
+  );
   const [sidebarWidth, setSidebarWidthState] = useState(readStoredSidebarWidth);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorExiting, setInspectorExiting] = useState(false);
@@ -582,6 +630,21 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const EXPANDED_SIDEBAR_HISTORY_FLAG = 'protoExpandedSidebarTool';
   const expandedSidebarToolRef = useRef(expandedSidebarTool);
   expandedSidebarToolRef.current = expandedSidebarTool;
+  const [libraryPanelView, setLibraryPanelViewState] = useState<LibraryPanelView | null>(null);
+  const [libraryPanelExiting, setLibraryPanelExiting] = useState(false);
+  const libraryPanelExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Skips the next popstate close when we called history.back() from an explicit close. */
+  const libraryPanelHistorySkipRef = useRef(false);
+  const LIBRARY_PANEL_HISTORY_FLAG = 'protoLibraryPanel';
+  const libraryPanelViewRef = useRef(libraryPanelView);
+  libraryPanelViewRef.current = libraryPanelView;
+  /**
+   * Read-side mirror, so the panel's exit timer can pick its duration without the
+   * breakpoint becoming a dependency of the close callback — which the popstate effect
+   * depends on in turn, and which must not be torn down and re-registered on a resize.
+   */
+  const isMobileSidebarRef = useRef(isMobileSidebar);
+  isMobileSidebarRef.current = isMobileSidebar;
   const [sidebarExiting, setSidebarExiting] = useState(false);
   const sidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sidebarListMode, setSidebarListModeState] = useState<SidebarListMode>(readStoredSidebarListMode);
@@ -590,6 +653,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   const [lastNotesPath, setLastNotesPath] = useState<string | null>(null);
   const recordNotesPath = useCallback((path: string) => {
     setLastNotesPath((prev) => (prev === path ? prev : path));
+  }, []);
+  const [lastNoteEditorPath, setLastNoteEditorPath] = useState<string | null>(null);
+  const recordNoteEditorPath = useCallback((path: string) => {
+    setLastNoteEditorPath((prev) => (prev === path ? prev : path));
   }, []);
   /**
    * Single source of truth for "where am I". `activeSpaceId` and
@@ -675,11 +742,27 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setExpandedSidebarTool(null);
       setExpandedSidebarExiting(false);
     };
+    /* Same reasoning as the tool above, and more literally true here: desktop is a panel
+       morphing from a toolbar chip, mobile is a bottom sheet. Carrying one across the flip
+       lands it mid-animation in geometry that does not exist on the other side. */
+    const clearLibraryPanel = () => {
+      const state = window.history.state as Record<string, unknown> | null;
+      if (state?.[LIBRARY_PANEL_HISTORY_FLAG]) {
+        const next = { ...state };
+        delete next[LIBRARY_PANEL_HISTORY_FLAG];
+        window.history.replaceState(next, '');
+      }
+      if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
+      libraryPanelExitTimerRef.current = null;
+      setLibraryPanelViewState(null);
+      setLibraryPanelExiting(false);
+    };
     const mq = window.matchMedia(MOBILE_MQ);
     const sync = () => {
       const mobile = mq.matches;
       setIsMobileSidebar(mobile);
       clearExpandedSidebar();
+      clearLibraryPanel();
       if (mobile) {
         clearMobileDrawerHistoryFlag();
         setDrawerOpen(false);
@@ -769,6 +852,76 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     [beginExpandedSidebarClose, popExpandedSidebarHistory],
   );
 
+  /**
+   * The Library panel answers Back on both breakpoints, same bargain as the expanded
+   * tool: it covers the main pane, so Back reading as "close this" is what a reader
+   * expects. One entry per open, not per drill — drilling inside the panel uses the
+   * header's "Library" tile, and a Back that unwound six folder taps one at a time
+   * would make the button useless for leaving.
+   */
+  const pushLibraryPanelHistory = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const state = window.history.state as Record<string, unknown> | null;
+    if (state?.[LIBRARY_PANEL_HISTORY_FLAG]) return;
+    window.history.pushState({ ...(state ?? {}), [LIBRARY_PANEL_HISTORY_FLAG]: true }, '');
+  }, []);
+
+  const popLibraryPanelHistory = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const state = window.history.state as Record<string, unknown> | null;
+    if (!state?.[LIBRARY_PANEL_HISTORY_FLAG]) return;
+    libraryPanelHistorySkipRef.current = true;
+    window.history.back();
+  }, []);
+
+  const beginLibraryPanelClose = useCallback(() => {
+    if (!libraryPanelViewRef.current) return;
+    if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
+    setLibraryPanelExiting(true);
+    /* Two geometries, two durations: the desktop panel morphs back into the chip,
+       the mobile sheet slides down. Holding the wrong one either cuts the animation
+       off or leaves a dead surface on screen after it finishes. */
+    const exitMs = isMobileSidebarRef.current ? PROTO_VOTD_SHEET_MOTION_MS : PROTO_LIBRARY_PANEL_MS;
+    libraryPanelExitTimerRef.current = setTimeout(() => {
+      setLibraryPanelViewState(null);
+      setLibraryPanelExiting(false);
+      libraryPanelExitTimerRef.current = null;
+    }, exitMs);
+  }, []);
+
+  const openLibraryPanel = useCallback(
+    (view: LibraryPanelView) => {
+      if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
+      libraryPanelExitTimerRef.current = null;
+      setLibraryPanelExiting(false);
+      setLibraryPanelViewState((prev) =>
+        prev && isSameLibraryPanelView(prev, view) ? prev : view,
+      );
+      /* The expanded tool and the panel are both main-pane overlays; two at once is
+         two Backs to get out of and one surface hidden under another. */
+      closeExpandedSidebar();
+      pushLibraryPanelHistory();
+    },
+    [closeExpandedSidebar, pushLibraryPanelHistory],
+  );
+
+  /** In-panel drill. Opens the panel if it is somehow closed, but never adds history. */
+  const setLibraryPanelView = useCallback((view: LibraryPanelView) => {
+    if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
+    libraryPanelExitTimerRef.current = null;
+    setLibraryPanelExiting(false);
+    setLibraryPanelViewState((prev) => (prev && isSameLibraryPanelView(prev, view) ? prev : view));
+  }, []);
+
+  const closeLibraryPanel = useCallback(
+    (options?: { preserveHistory?: boolean }) => {
+      if (!libraryPanelViewRef.current) return;
+      if (!options?.preserveHistory) popLibraryPanelHistory();
+      beginLibraryPanelClose();
+    },
+    [beginLibraryPanelClose, popLibraryPanelHistory],
+  );
+
   const pushMobileDrawerHistory = useCallback(() => {
     if (typeof window === 'undefined' || !isMobileSidebar) return;
     const state = window.history.state as Record<string, unknown> | null;
@@ -805,12 +958,22 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setDesktopSidebarCollapsed(true);
     beginSidebarClose(() => undefined);
   }, [beginSidebarClose, closeExpandedSidebar, desktopSidebarCollapsed, sidebarExiting]);
+  /*
+   * Only an explicit toggle records a preference.
+   *
+   * `ensureSidebarExpanded` opens the rail as a side effect of going somewhere — tapping a
+   * greeting chip, drilling into a folder — and that is the app answering a question, not
+   * the reader stating what they want the sidebar to do. Recording those would turn the
+   * first chip anyone taps into a permanent decision.
+   */
   const toggleDesktopSidebar = useCallback(() => {
     if (desktopSidebarCollapsed) {
       cancelSidebarExit();
       setDesktopSidebarCollapsed(false);
+      writeSidebarOpenPreference(true);
       return;
     }
+    writeSidebarOpenPreference(false);
     collapseDesktopSidebar();
   }, [cancelSidebarExit, collapseDesktopSidebar, desktopSidebarCollapsed]);
   const setSidebarWidth = useCallback((width: number) => {
@@ -877,6 +1040,19 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     const movedContext = !isSameLocation(locationRef.current, next);
     setLocationState((prev) => (isSameLocation(prev, next) ? prev : next));
     if (movedContext) closeExpandedSidebar();
+    /*
+      The Library panel re-scopes where the expanded tool closes, and the difference is
+      deliberate: the panel's own header holds the space switcher, so a move is usually
+      the reader saying "show me this space's library", not "I am done browsing". Closing
+      would dismiss the surface they are steering. Root, rather than the current view,
+      because a folder or thread from the space you just left does not exist in this one.
+    */
+    /* Keep the tab, clear the drill. A folder or thread from the space you just left does
+       not exist in this one — but a tab exists in every space, and resetting it discarded
+       a choice the reader had only just made. */
+    if (movedContext && libraryPanelViewRef.current) {
+      setLibraryPanelViewState((prev) => (prev ? { tab: prev.tab, drill: null } : prev));
+    }
 
     const { activeSpaceId: nextSpaceId, activeChurchOrgId: nextOrgId } =
       storedPairFromLocation(next);
@@ -1178,12 +1354,23 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
         expandedSidebarHistorySkipRef.current = false;
         return;
       }
+      if (libraryPanelHistorySkipRef.current) {
+        libraryPanelHistorySkipRef.current = false;
+        return;
+      }
       const state = window.history.state as Record<string, unknown> | null;
       /* Back out of the tool before the drawer branch below runs: on mobile both
          flags are on the stack, and popping the tool's must not read as the
          drawer's dismissal too. */
       if (expandedSidebarToolRef.current && !state?.[EXPANDED_SIDEBAR_HISTORY_FLAG]) {
         beginExpandedSidebarClose();
+        return;
+      }
+      /* Same ordering rule, same reason: on mobile the sheet's flag sits above the
+         drawer's, and letting this fall through would dismiss the drawer underneath
+         the sheet the reader was actually closing. */
+      if (libraryPanelViewRef.current && !state?.[LIBRARY_PANEL_HISTORY_FLAG]) {
+        beginLibraryPanelClose();
         return;
       }
       if (state?.[MOBILE_DRAWER_HISTORY_FLAG]) {
@@ -1205,7 +1392,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [backFromThreadPanelToInspector, beginExpandedSidebarClose, beginSidebarClose, cancelSidebarExit]);
+  }, [
+    backFromThreadPanelToInspector,
+    beginExpandedSidebarClose,
+    beginLibraryPanelClose,
+    beginSidebarClose,
+    cancelSidebarExit,
+  ]);
 
   const toggleInspector = useCallback(() => {
     setInspectorOpen((prev) => {
@@ -1363,6 +1556,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarLayer,
       lastNotesPath,
       recordNotesPath,
+      lastNoteEditorPath,
+      recordNoteEditorPath,
       location,
       setLocation,
       activeSpaceId,
@@ -1409,6 +1604,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       expandedSidebarExiting,
       openExpandedSidebar,
       closeExpandedSidebar,
+      libraryPanelView,
+      libraryPanelExiting,
+      openLibraryPanel,
+      setLibraryPanelView,
+      closeLibraryPanel,
       setPrototypeFolderChip,
       composePersistedNoteId,
       setComposePersistedNoteId,
@@ -1452,6 +1652,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setSidebarLayer,
       lastNotesPath,
       recordNotesPath,
+      lastNoteEditorPath,
+      recordNoteEditorPath,
       location,
       setLocation,
       activeSpaceId,
@@ -1497,6 +1699,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       expandedSidebarExiting,
       openExpandedSidebar,
       closeExpandedSidebar,
+      libraryPanelView,
+      libraryPanelExiting,
+      openLibraryPanel,
+      setLibraryPanelView,
+      closeLibraryPanel,
       setPrototypeFolderChip,
       composePersistedNoteId,
       setComposePersistedNoteId,

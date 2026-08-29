@@ -234,6 +234,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-19-note-audience-bar',
     // Interactive: the destination sheet retargets a fixture draft.
   },
+  {
+    id: 'ds-20-study-feed',
+    title: 'Study feed',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeStudyFeedMoment.tsx',
+      'spa/src/pages/prototype/study-feed-presentation.ts',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-20-study-feed',
+    visualBaseline: true,
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

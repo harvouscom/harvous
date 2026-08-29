@@ -67,6 +67,9 @@ export default function PrototypeSidebarSearchResultItem({
     case 'threadCluster':
     case 'scriptureBook':
     case 'scriptureReference':
+    /* Only the Library panel's All tab produces one — the sidebar's search has no
+       Resources scope — but it renders as the same titled, glyphed row as the rest. */
+    case 'resource':
       return (
         <InlineKindSearchResultItem result={result} active={active} onActivate={onActivate} />
       );
@@ -226,6 +229,9 @@ function collectionIconName(kind: SidebarSearchResult['kind']): string {
       return 'book';
     case 'scriptureReference':
       return 'book-open';
+    case 'resource':
+      /* Matches the sidebar's Resources list mode, so the same shelf wears one glyph. */
+      return 'newspaper';
     default:
       return 'folder';
   }
