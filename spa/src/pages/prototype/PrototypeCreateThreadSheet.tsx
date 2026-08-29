@@ -119,7 +119,7 @@ export default function PrototypeCreateThreadSheet({
     <>
       <div className="proto-study-thread-popover__header">
         <div className="proto-study-thread-popover__title-row">
-          <span className="proto-study-thread-popover__title">New thread</span>
+          <span className="proto-study-thread-popover__title">New Thread</span>
         </div>
         <button
           type="button"
@@ -202,7 +202,7 @@ export default function PrototypeCreateThreadSheet({
         <ProtoPopoverShell
           ref={cardRef}
           role="dialog"
-          aria-label="New thread"
+          aria-label="New Thread"
           className={portaledDialogShellClassName(
             'proto-connect-note-popover proto-create-thread-popover',
             exiting,

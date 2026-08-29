@@ -21,7 +21,12 @@ vi.mock('../../../../layouts/proto-shell-context', () => ({
   useProtoShell: () => shell,
 }));
 vi.mock('../../../../lib/prototype-organize-runner-store', () => ({
-  useOrganizeApi: () => ({ run: vi.fn(), openCreateFolder: vi.fn(), openCreateThread: vi.fn() }),
+  useOrganizeApi: () => ({
+    run: vi.fn(),
+    canCreateCollections: true,
+    openCreateFolder: vi.fn(),
+    openCreateThread: vi.fn(),
+  }),
 }));
 vi.mock('../../../../lib/prototype-command-context-store', () => ({
   publishPrototypeCommandContext: () => () => {},

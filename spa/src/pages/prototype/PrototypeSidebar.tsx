@@ -2981,7 +2981,7 @@ export default function PrototypeSidebar({
                         className="proto-list-create-empty__btn"
                         onClick={() => openCreateThreadSheet()}
                       >
-                        New thread
+                        New Thread
                       </button>
                     ) : null}
                   </div>
@@ -3001,7 +3001,7 @@ export default function PrototypeSidebar({
                           className="proto-list-create-empty__btn"
                           onClick={() => openCreateThreadSheet()}
                         >
-                          New thread
+                          New Thread
                         </button>
                       ) : null}
                     </div>
@@ -3038,7 +3038,7 @@ export default function PrototypeSidebar({
                           className="proto-collection-grid-actions__btn"
                           onClick={() => openCreateThreadSheet()}
                         >
-                          New thread
+                          New Thread
                         </button>
                       </div>
                     ) : null}
@@ -3073,7 +3073,7 @@ export default function PrototypeSidebar({
                         className="proto-list-create-empty__btn"
                         onClick={() => openCreateThreadSheet()}
                       >
-                        New thread
+                        New Thread
                       </button>
                     ) : null}
                   </div>
@@ -3093,7 +3093,7 @@ export default function PrototypeSidebar({
                           className="proto-list-create-empty__btn"
                           onClick={() => openCreateThreadSheet()}
                         >
-                          New thread
+                          New Thread
                         </button>
                       ) : null}
                     </div>
@@ -3135,7 +3135,7 @@ export default function PrototypeSidebar({
                         className="proto-collection-grid-actions__btn"
                         onClick={() => openCreateThreadSheet()}
                       >
-                        New thread
+                        New Thread
                       </button>
                     </div>
                   ) : null}

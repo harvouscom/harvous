@@ -402,8 +402,13 @@ export default function PrototypeOrganizeCommandHost({
 
   /* Named to stay clear of the HTTP `api` client this file also uses. */
   const organizeApi = useMemo(
-    () => ({ run, openCreateFolder, openCreateThread: openCreateThreadSheet }),
-    [run, openCreateFolder, openCreateThreadSheet],
+    () => ({
+      run,
+      canCreateCollections,
+      openCreateFolder,
+      openCreateThread: openCreateThreadSheet,
+    }),
+    [run, canCreateCollections, openCreateFolder, openCreateThreadSheet],
   );
   useEffect(() => publishOrganizeApi(organizeApi), [organizeApi]);
 

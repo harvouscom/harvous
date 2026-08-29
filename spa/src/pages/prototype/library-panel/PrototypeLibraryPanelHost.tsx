@@ -23,6 +23,7 @@ import { useLibraryPanelData } from './library-panel-data';
 import { useLibrarySelection } from './use-library-selection';
 import { useLibraryTabRows } from './use-library-tab-rows';
 import PrototypeLibraryBulkBar from './PrototypeLibraryBulkBar';
+import PrototypeLibraryCreateFooter from './PrototypeLibraryCreateFooter';
 import PrototypeLibrarySelectToggle from './PrototypeLibrarySelectToggle';
 
 export default function PrototypeLibraryPanelHost({
@@ -121,7 +122,15 @@ export default function PrototypeLibraryPanelHost({
           />
         </>
       }
-      bulkBar={<PrototypeLibraryBulkBar selection={selection} />}
+      /* One corner, two jobs, never both: while a selection stands it says what can be done
+         with it, and otherwise it offers to start another one of whatever the tab lists. */
+      bulkBar={
+        selection.active && selection.selectedIds.length > 0 ? (
+          <PrototypeLibraryBulkBar selection={selection} />
+        ) : view.drill ? null : (
+          <PrototypeLibraryCreateFooter tab={view.tab} searching={Boolean(query.trim())} />
+        )
+      }
     >
       {query.trim() ? (
         <PrototypeLibrarySearchResults

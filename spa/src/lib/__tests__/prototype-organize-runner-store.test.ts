@@ -15,7 +15,7 @@ import {
 } from '../prototype-organize-runner-store';
 
 function api(): OrganizeApi {
-  return { run: vi.fn(), openCreateFolder: vi.fn(), openCreateThread: vi.fn() };
+  return { run: vi.fn(), canCreateCollections: true, openCreateFolder: vi.fn(), openCreateThread: vi.fn() };
 }
 
 /** Everything published during a test, torn down so the module never leaks between them. */

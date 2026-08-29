@@ -48,6 +48,15 @@ export type CreateThreadPrefill = {
  */
 export type OrganizeApi = {
   run: OrganizeRunner;
+  /**
+   * Whether this viewer may make a folder or a Thread here.
+   *
+   * Published rather than re-derived by each caller: the answer depends on the space's type,
+   * the viewer's role and which list scope is showing, and the host already had to work it
+   * out to decide whether to mount the sheets at all. A footer offering "New folder" where
+   * the sheet would refuse is worse than no footer.
+   */
+  canCreateCollections: boolean;
   openCreateFolder: (noteIds?: string[]) => void;
   openCreateThread: (prefill?: CreateThreadPrefill) => void;
 };
