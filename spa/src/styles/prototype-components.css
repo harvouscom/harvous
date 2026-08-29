@@ -14385,13 +14385,17 @@ html.harvous-prototype-route
 }
 
 .proto-note-destination__filter {
+  /* Positioned so the clear button can sit inside the field's right edge rather than
+     stealing width from the text, which at 13px in a menu this narrow is worth keeping. */
+  position: relative;
   padding: 4px 10px 6px;
 }
 
 .proto-note-destination__filter input {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 8px;
+  /* Right padding leaves room for the clear button; it is inset rather than in flow. */
+  padding: 6px 30px 6px 8px;
   border-radius: 8px;
   border: 1px solid var(--pds-border);
   font: inherit;
@@ -14400,6 +14404,27 @@ html.harvous-prototype-route
      this input in the old ⋯ submenu had been quietly transparent. */
   background: transparent;
   color: var(--pds-text-primary);
+}
+
+/*
+ * The platform's cancel button, off — the same reset `.proto-sidebar-search__field` applies,
+ * and for the same reason. WebKit draws its own blue glyph inside a `type="search"`, which
+ * is the one control on this surface the app did not draw: wrong colour, wrong size, and a
+ * shape that belongs to the browser rather than to the menu it appears in.
+ */
+.proto-note-destination__filter input::-webkit-search-decoration,
+.proto-note-destination__filter input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* The house clear, inset over the field's right edge. Shares
+   `.proto-sidebar-search__clear`'s own styling, so there is one clear button in the app. */
+.proto-note-destination__filter .proto-sidebar-search__clear {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  transform: translateY(-50%);
 }
 
 .proto-note-destination__hint {

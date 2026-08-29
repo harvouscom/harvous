@@ -96,6 +96,7 @@ export default function ProtoSelectMenu<T extends string | number>({
 }) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
+  const filterInputRef = useRef<HTMLInputElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
@@ -280,6 +281,7 @@ export default function ProtoSelectMenu<T extends string | number>({
               {showFilter ? (
                 <div className="proto-note-destination__filter">
                   <input
+                    ref={filterInputRef}
                     type="search"
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
@@ -289,6 +291,27 @@ export default function ProtoSelectMenu<T extends string | number>({
                        field without a tab, the way the destination picker's does. */
                     autoFocus
                   />
+                  {/*
+                    The app's own clear, not the platform's. A bare `type="search"` renders
+                    WebKit's cancel button, which is a blue glyph of its own size and shape
+                    sitting inside a surface that draws every other control itself — see the
+                    `::-webkit-search-cancel-button` reset this field now shares with the
+                    sidebar's field. Focus goes back to the input, because clearing a filter
+                    is something you do in order to type again.
+                  */}
+                  {filter ? (
+                    <button
+                      type="button"
+                      className="proto-sidebar-search__clear"
+                      aria-label="Clear filter"
+                      onClick={() => {
+                        setFilter('');
+                        filterInputRef.current?.focus();
+                      }}
+                    >
+                      <Icon name="circle-xmark" size={15} aria-hidden />
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {showFilter && filtered.length === 0 ? (
