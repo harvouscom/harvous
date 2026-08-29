@@ -73,6 +73,12 @@ import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateShare
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { PROTO_MENU_CHECK_ICON_SIZE, PROTO_SEG_GLYPH_SIZE, PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
+import {
+  anySpaceHasUnseenActivity,
+  normalizeSwitcherSpaceId as normalizeSpaceId,
+  spaceHasUnseenActivity,
+  unseenDotLabelSuffix,
+} from './space-switcher-unseen';
 
 type SpaceSwitcherDragController = ReturnType<typeof useSharedSpaceSwitcherDragReorder>;
 
@@ -111,8 +117,7 @@ function SpaceSwitcherRow({
     transform,
     transition,
   } = useSortable({ id: spaceId });
-  // Active space: no new affordance (you're already there). Inactive: subtle dot only.
-  const hasUnseen = !checked && Boolean(row.newNoteCount && row.newNoteCount > 0);
+  const hasUnseen = spaceHasUnseenActivity(row, checked);
   const ministry = isMinistryBroadcastSpace(row);
 
   return (
@@ -193,10 +198,6 @@ const REVEALS_SIDEBAR: Record<'orb' | 'segment' | 'panel-header' | 'external', b
   'panel-header': false,
   external: false,
 };
-
-function normalizeSpaceId(id: string): string {
-  return id.startsWith('space_') ? id : `space_${id}`;
-}
 
 export default function SpaceSwitcherMenu({
   homeSpaceId,
@@ -300,6 +301,24 @@ export default function SpaceSwitcherMenu({
     // `seenTick` is the subscription; the day is read fresh each time it fires.
     [awayFromShelf, homeSpaceId, seenTick],
   );
+
+  /*
+   * The trigger's other source of news. It used to raise the dot for unseen *suggestions*
+   * alone, so the toolbar could sit undotted above a list where two spaces each carried one.
+   * Same rule as the rows, asked of all of them at once.
+   */
+  const spacesHaveUnseen = useMemo(
+    () =>
+      anySpaceHasUnseenActivity(
+        [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
+        (row) => activeSpaceId === normalizeSpaceId(row.id),
+      ),
+    [nav?.spaces, nav?.memberOfSpaces, activeSpaceId],
+  );
+  const unseenSuffix = unseenDotLabelSuffix({
+    suggestions: hasUnseenSuggestions,
+    spaces: spacesHaveUnseen,
+  });
 
   const normalizedActive = useMemo(
     () => (homeSpaceId == null ? null : normalizeSpaceId(homeSpaceId)),
@@ -872,9 +891,7 @@ export default function SpaceSwitcherMenu({
           title={triggerTitle}
           /* The dot is `aria-hidden`, so what it means has to reach the label — otherwise the
              only people told there is something new are the ones who can see 7px of colour. */
-          aria-label={
-            hasUnseenSuggestions ? `${triggerTitle} — new suggestions` : triggerTitle
-          }
+          aria-label={unseenSuffix ? `${triggerTitle} — ${unseenSuffix}` : triggerTitle}
           aria-haspopup="menu"
           aria-expanded={open}
           disabled={!hasHome}
@@ -931,7 +948,7 @@ export default function SpaceSwitcherMenu({
           ) : (
             triggerIcon
           )}
-          {hasUnseenSuggestions ? (
+          {unseenSuffix ? (
             <span className="proto-toolbar-icon-btn__unseen-dot" aria-hidden />
           ) : null}
         </button>

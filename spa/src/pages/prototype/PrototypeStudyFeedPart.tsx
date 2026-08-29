@@ -42,10 +42,15 @@ function Substance({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void }
         onClick={onOpen}
         data-feed-accent={item.accent}
       >
-        <span className="proto-feed-said__quote">“{item.excerpt}”</span>
-        <span className="proto-feed-said__foot">
-          {source ? <span>{source}</span> : <span />}
-          <span className="proto-feed-said__time">{studyFeedClockTime(item.at)}</span>
+        <span className="proto-list-panel__row-icon" aria-hidden>
+          <Icon name={studyFeedItemIcon(item)} size={13} />
+        </span>
+        <span className="proto-feed-said__col">
+          <span className="proto-feed-said__quote">“{item.excerpt}”</span>
+          <span className="proto-feed-said__foot">
+            {source ? <span>{source}</span> : <span />}
+            <span className="proto-feed-said__time">{studyFeedClockTime(item.at)}</span>
+          </span>
         </span>
       </button>
     );
@@ -59,21 +64,35 @@ function Substance({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void }
    */
   const shared = item.kind === 'space-note' || item.kind === 'church-note' ? item : null;
 
+  /*
+   * The same anatomy as the row beneath it — icon tile, then a text column — because the
+   * varying thing is meant to be weight, not layout. Without the tile this block started its
+   * text 37px to the left of every neighbour, so the panel's left edge zigzagged and a note
+   * you wrote read as a different species of thing rather than a heavier one. The weight is
+   * the snippet: this row keeps its words, the movement rows do not.
+   */
   return (
     <button type="button" className="proto-feed-said proto-feed-said--wrote" onClick={onOpen}>
-      <span className="proto-feed-said__head">
-        <span className="proto-feed-said__title">{studyFeedCardTitle(item)}</span>
-        <span className="proto-feed-said__time">{studyFeedClockTime(item.at)}</span>
+      <span className="proto-list-panel__row-icon" aria-hidden>
+        <Icon name={studyFeedItemIcon(item)} size={13} />
       </span>
-      {snippet ? <span className="proto-feed-said__body">{snippet}</span> : null}
-      {shared ? (
-        <span className="proto-feed-said__by">
-          <span className="proto-feed-said__author">{shared.actor.displayName}</span>
-          <span aria-hidden>·</span>
-          <span>{shared.space.title}</span>
-          {shared.isNewSinceVisit ? <span className="proto-feed-said__new">New</span> : null}
+      <span className="proto-feed-said__col">
+        <span className="proto-feed-said__head">
+          <span className="pds-list-title proto-feed-said__title">
+            {studyFeedCardTitle(item)}
+          </span>
+          <span className="proto-feed-said__time">{studyFeedClockTime(item.at)}</span>
         </span>
-      ) : null}
+        {snippet ? <span className="proto-feed-said__body">{snippet}</span> : null}
+        {shared ? (
+          <span className="proto-feed-said__by">
+            <span className="proto-feed-said__author">{shared.actor.displayName}</span>
+            <span aria-hidden>·</span>
+            <span>{shared.space.title}</span>
+            {shared.isNewSinceVisit ? <span className="proto-feed-said__new">New</span> : null}
+          </span>
+        ) : null}
+      </span>
     </button>
   );
 }

@@ -1154,6 +1154,10 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   justify-content: center;
   height: 100%;
   width: var(--pds-toolbar-orb-size);
+  /* Anchors the unseen dot on the Activity half. Absolute rather than in flow — the
+     seg-track sizes its thumb `track / count` and offsets it by whole thumb-widths, so any
+     segment that grew by 7px would slide the thumb under the wrong half. */
+  position: relative;
   box-sizing: border-box;
   border: none;
   border-radius: var(--pds-radius-row);
@@ -15448,6 +15452,13 @@ html.harvous-prototype-route
   background: var(--pds-bg-control-hover);
 }
 
+/*
+ * The same dot the toolbar wears, because it is the same news one level down: the trigger
+ * says something is new, this says which. It was `--pds-text-tertiary` while the trigger used
+ * the accent, so the roll-up and the answer to it did not look related — grey read as part of
+ * the tile rather than as a mark on it. The ring is what keeps it legible over a coloured
+ * space tile; the toolbar's sits on a plain button and needs none.
+ */
 .proto-space-switcher-dot {
   position: absolute;
   top: -1px;
@@ -15455,7 +15466,7 @@ html.harvous-prototype-route
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--pds-text-tertiary);
+  background: var(--pds-accent-indicator);
   box-shadow: 0 0 0 1.5px var(--pds-bg-surface, #fff);
 }
 
@@ -21485,6 +21496,16 @@ button.proto-feed-sheet__stat:hover {
 
 /* ── Something made: the words stay on the sheet ── */
 
+/*
+ * A moment that kept its words — written or highlighted.
+ *
+ * Laid out as a row, because it sits among rows: the icon tile and 11px gap are
+ * `.proto-list-panel__row-icon`'s own, and the padding matches
+ * `.proto-list-panel__row-main`'s left inset, so every text column down the panel starts at
+ * the same x. These blocks had neither, so they began 37px to the left of their neighbours
+ * and the panel's left edge zigzagged down the day. What still varies is weight — these keep
+ * their words, a movement row does not — which is the difference the section is built on.
+ */
 .proto-feed-said {
   appearance: none;
   border: 0;
@@ -21492,12 +21513,27 @@ button.proto-feed-sheet__stat:hover {
   font: inherit;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 11px;
   width: 100%;
   text-align: left;
-  padding: var(--pds-space-3);
+  padding: 11px 13px;
   transition: background var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+/* The tile centres a 26px block on a 13px glyph; the first line's cap-height sits a touch
+   below that, so nudging the tile down is what actually aligns the two optically. */
+.proto-feed-said .proto-list-panel__row-icon {
+  margin-top: 1px;
+}
+
+.proto-feed-said__col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .proto-feed-said:hover {
@@ -21516,9 +21552,6 @@ button.proto-feed-sheet__stat:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--pds-text-primary);
-  font-size: 15px;
-  font-weight: 600;
 }
 
 .proto-feed-said__body {

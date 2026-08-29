@@ -239,7 +239,7 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     title: 'Study feed',
     phase: 'Patterns',
     editFiles: [
-      'spa/src/pages/prototype/PrototypeStudyFeedMoment.tsx',
+      'spa/src/pages/prototype/PrototypeStudyFeedPart.tsx',
       'spa/src/pages/prototype/study-feed-presentation.ts',
       'spa/src/styles/prototype-components.css',
     ],

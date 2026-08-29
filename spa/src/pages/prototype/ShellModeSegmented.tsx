@@ -38,6 +38,7 @@ export default function ShellModeSegmented({
   spaceMenuOpen = false,
   onOpenSpaceMenu = () => {},
   spaceMenuTriggerRef,
+  unseenLabel = null,
 }: {
   mode: ShellMode;
   /** Decides whether the Note half offers to resume or to start. */
@@ -58,14 +59,23 @@ export default function ShellModeSegmented({
   spaceMenuOpen?: boolean;
   onOpenSpaceMenu?: () => void;
   spaceMenuTriggerRef?: Ref<HTMLButtonElement>;
+  /**
+   * What is new, if anything — "new suggestions", "new activity", or both.
+   *
+   * A string rather than a boolean because the dot is `aria-hidden`, so the only way its
+   * meaning reaches anyone is through this half's label. Null means no dot.
+   */
+  unseenLabel?: string | null;
 }) {
   /*
    * The Activity half says what it will do, which changes with where you are. On Activity
    * the click opens the spaces menu, and a button still labelled "Activity" would be
    * describing the job it no longer has.
    */
-  const activityLabel =
+  const activityBase =
     mode === 'activity' ? `${spaceLabel ?? 'My Home'} — switch space` : 'Activity';
+  /* Comma, not a third dash — the base label already spends two on naming its two jobs. */
+  const activityLabel = unseenLabel ? `${activityBase}, ${unseenLabel}` : activityBase;
   const noteLabel = hasNoteToResume
     ? 'Back to your note'
     : canCompose
@@ -123,6 +133,11 @@ export default function ShellModeSegmented({
             the thumb under the wrong half of the control.
           */}
           {spaceGlyph ?? <Icon name="layer-group" size={PROTO_TOOLBAR_ORB_ICON_SIZE} />}
+          {/* Absolutely positioned, so it adds no width — the seg-track's thumb is sized
+              `track / count` and assumes three equal segments. */}
+          {unseenLabel ? (
+            <span className="proto-toolbar-icon-btn__unseen-dot" aria-hidden />
+          ) : null}
         </button>
       </PrototypeToolbarShortcutItem>
 

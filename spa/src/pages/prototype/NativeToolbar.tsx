@@ -57,6 +57,7 @@ import {
   isMinistryBroadcastSpace,
 } from '../../lib/shared-space-capabilities';
 import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
+import { useSpaceSwitcherUnseen } from './use-space-switcher-unseen';
 import { canComposeInSpace } from '../../lib/shared-space-capabilities';
 
 export type NativeToolbarVariant = 'detail' | 'unified';
@@ -238,6 +239,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     type: contextualSpaceAccess?.space.type,
     orgId: contextualSpaceAccess?.space.orgId,
   });
+  /* The Activity half is the space switcher's trigger here, so the dot that used to live on
+     the switcher's own button belongs on it. */
+  const unseen = useSpaceSwitcherUnseen({ homeSpaceId, activeSpaceId });
+
   // Name the destination up front — "New note" never said where it would land.
   const activeSpaceTitle = contextualSpaceAccess?.space.title?.trim();
   const composeDestinationLabel =
@@ -403,6 +408,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
         {/* The three things you can be doing here, as one control. */}
         <ShellModeSegmented
           mode={mode}
+          unseenLabel={unseen.label}
           hasNoteToResume={hasNoteToResume}
           onOpenActivity={openActivity}
           onOpenNote={() => openNote(onCompose)}
