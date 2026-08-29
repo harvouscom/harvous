@@ -189,31 +189,59 @@ export async function getConnectSuggestions(
   const usedPairs = new Set<string>();
   const candidates = noteIds.slice(0, candidateLimit);
 
-  for (const noteId of candidates) {
-    if (out.length >= limit) break;
-    const passages = await getNotePassages(noteId);
-    if (!passages.length) continue;
+  /*
+   * A chunk at a time, in parallel — this loop used to be the slowest request the app makes.
+   *
+   * Each candidate costs at least three sequential round trips (`getNotePassages` is two on
+   * its own, then the related-notes lookup), and twenty candidates ran one after another:
+   * around sixty serial hops to Supabase, measured at 4.5s against a warm server. Nothing on
+   * the first screen was slower by a factor of three, and because Home's presentation gate
+   * waits on this query, that single endpoint was what held the whole page on loading dots
+   * until the 2.5s deadline gave up on it.
+   *
+   * The per-candidate work is independent, so it parallelises exactly. What is *not*
+   * independent is the fold: `usedPairs` and the `limit` are order-sensitive, and running
+   * them inside the parallel step would make the result depend on which query returned
+   * first. So the I/O fans out and the fold stays sequential, in candidate order, which
+   * leaves the output identical to the serial version.
+   *
+   * Chunked rather than one big `Promise.all`, because the pool is small (see `DB_POOL_MAX`)
+   * and twenty concurrent candidates would simply queue at the pooler instead of the loop —
+   * the same wait, moved. Chunking also keeps the early stop meaningful: with suggestions
+   * usually found among the first few notes, this typically costs one chunk rather than all
+   * twenty candidates' worth of work.
+   */
+  const CHUNK = 4;
+  for (let i = 0; i < candidates.length && out.length < limit; i += CHUNK) {
+    const chunk = candidates.slice(i, i + CHUNK);
 
-    const related = await getRelatedNotesForPassages(userId, passages, {
-      excludeNoteId: noteId,
-      limit: 10,
-    });
+    const found = await Promise.all(
+      chunk.map(async (noteId) => {
+        const passages = await getNotePassages(noteId);
+        if (!passages.length) return null;
 
-    const linkedIds = linkedByNote.get(noteId) ?? new Set();
-    const best = pickBestUnlinkedPair(
-      noteId,
-      titleById.get(noteId) ?? 'Untitled note',
-      related,
-      linkedIds,
-      titleById,
+        const related = await getRelatedNotesForPassages(userId, passages, {
+          excludeNoteId: noteId,
+          limit: 10,
+        });
+
+        return pickBestUnlinkedPair(
+          noteId,
+          titleById.get(noteId) ?? 'Untitled note',
+          related,
+          linkedByNote.get(noteId) ?? new Set(),
+          titleById,
+        );
+      }),
     );
 
-    if (best) {
+    for (const best of found) {
+      if (out.length >= limit) break;
+      if (!best) continue;
       const pairKey = [best.noteAId, best.noteBId].sort().join('|');
-      if (!usedPairs.has(pairKey)) {
-        usedPairs.add(pairKey);
-        out.push(best);
-      }
+      if (usedPairs.has(pairKey)) continue;
+      usedPairs.add(pairKey);
+      out.push(best);
     }
   }
 
