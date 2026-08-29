@@ -10,12 +10,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { HIGHLIGHT_KIND_OPTIONS } from '../../sidebar-search-types';
-import PrototypeLibraryHighlightKinds from '../PrototypeLibraryHighlightKinds';
+import PrototypeLibrarySegmented from '../PrototypeLibrarySegmented';
 
 function renderSwitch(value: string) {
   const onChange = vi.fn();
   const { container } = render(
-    <PrototypeLibraryHighlightKinds value={value as never} onChange={onChange} />,
+    <PrototypeLibrarySegmented
+      options={HIGHLIGHT_KIND_OPTIONS}
+      value={value as never}
+      onChange={onChange}
+      label="Highlight kind"
+    />,
   );
   const track = container.querySelector('.proto-library-kinds') as HTMLElement;
   return { track, onChange, container };

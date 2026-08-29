@@ -7,7 +7,7 @@
  * panel's drill into `LibraryPanelView` is that every level is addressable from outside
  * — Activity's "3 notes in Romans" chip has to be able to name where it lands.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
@@ -18,6 +18,12 @@ import { usePrototypeSpaceScriptureIndex } from '../../../hooks/queries/useProto
 import type { ScriptureIndexBook } from '../../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
+import PrototypeLibrarySegmented from './PrototypeLibrarySegmented';
+import {
+  SCRIPTURE_TESTAMENT_OPTIONS,
+  scriptureTestamentMatches,
+  type ScriptureTestamentFilter,
+} from './library-panel-filters';
 import type { ScriptureDrillState } from '../sidebar-universal-search';
 import { LibraryNoteList } from './library-panel-lists';
 import { useLibraryPanelData } from './library-panel-data';
@@ -53,7 +59,14 @@ export default function PrototypeLibraryScriptureView({ drill }: { drill: Script
   const { setLibraryPanelView, closeLibraryPanel } = useProtoShell();
   const navigate = useNavigate();
   const scriptureQuery = usePrototypeSpaceScriptureIndex(data.spaceId ?? undefined);
-  const books = useMemo(() => scriptureQuery.data ?? [], [scriptureQuery.data]);
+  const allBooks = useMemo(() => scriptureQuery.data ?? [], [scriptureQuery.data]);
+  /* Book level only. Inside a book the testament is already decided, so the switch would be
+     a control with one possible answer. */
+  const [testament, setTestament] = useState<ScriptureTestamentFilter>('all');
+  const books = useMemo(
+    () => allBooks.filter((b) => scriptureTestamentMatches(testament, b.bookOrder)),
+    [allBooks, testament],
+  );
 
   const book =
     drill.level === 'books' ? null : books.find((b) => b.bookOrder === drill.bookOrder) ?? null;
@@ -76,7 +89,7 @@ export default function PrototypeLibraryScriptureView({ drill }: { drill: Script
   }
 
   if (drill.level === 'books') {
-    if (books.length === 0) {
+    if (allBooks.length === 0) {
       return (
         <PrototypeListEmptyState
           iconName="book-open"
@@ -86,6 +99,22 @@ export default function PrototypeLibraryScriptureView({ drill }: { drill: Script
       );
     }
     return (
+      <>
+        <PrototypeLibrarySegmented
+          options={SCRIPTURE_TESTAMENT_OPTIONS}
+          value={testament}
+          onChange={setTestament}
+          label="Testament"
+        />
+        {books.length === 0 ? (
+          /* The switch stays above this, so the way out of an over-narrow filter is on
+             screen with the nothing it found. */
+          <PrototypeListEmptyState
+            iconName="book-open"
+            title="No books here"
+            description="Nothing from this testament yet."
+          />
+        ) : (
       <ul className="proto-collection-grid">
         {books.map((b) => (
           <LibraryScriptureBookCard
@@ -105,6 +134,8 @@ export default function PrototypeLibraryScriptureView({ drill }: { drill: Script
           />
         ))}
       </ul>
+        )}
+      </>
     );
   }
 

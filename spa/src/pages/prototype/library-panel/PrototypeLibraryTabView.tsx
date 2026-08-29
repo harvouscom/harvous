@@ -9,10 +9,10 @@
  */
 import { useMemo, useState } from 'react';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
-import PrototypeLibraryHighlightKinds from './PrototypeLibraryHighlightKinds';
+import PrototypeLibrarySegmented from './PrototypeLibrarySegmented';
 import { SIDEBAR_NO_MATCH_COPY } from '../sidebar-no-match-copy';
 import { highlightKindMatches } from '../sidebar-universal-search';
-import type { HighlightKindFilter } from '../sidebar-search-types';
+import { HIGHLIGHT_KIND_OPTIONS, type HighlightKindFilter } from '../sidebar-search-types';
 import PrototypeResourceLibraryList from '../PrototypeResourceLibraryList';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import { ProtoNotesListLoading } from '../sidebar-rows';
@@ -175,7 +175,12 @@ function HighlightsSection({ selection }: { selection: LibrarySelection }) {
   }
   return (
     <>
-      <PrototypeLibraryHighlightKinds value={kind} onChange={setKind} />
+      <PrototypeLibrarySegmented
+        options={HIGHLIGHT_KIND_OPTIONS}
+        value={kind}
+        onChange={setKind}
+        label="Highlight kind"
+      />
       {rows.length === 0 ? (
         <PrototypeListEmptyState
           iconName="highlighter"
@@ -200,6 +205,8 @@ function ResourcesSection() {
       /* Inside a shared space, "this space" means that room's shelf; on My Home the
          personal and church shelves are what the list already sections for itself. */
       spaceId={data.isScopedSharedSpace ? data.spaceId : null}
+      /* The panel has the width for the switch its other tabs wear. */
+      shelfFilterAs="switch"
     />
   );
 }
