@@ -16,8 +16,26 @@ function createDb() {
   const url = process.env.SUPABASE_DATABASE_URL ?? process.env.SUPABASE_DIRECT_URL;
   if (!url) throw new Error('Missing SUPABASE_DIRECT_URL or SUPABASE_DATABASE_URL environment variable');
 
+  /*
+   * `DB_POOL_MAX` exists for the case where more than one API is pointed at the same
+   * database — two worktrees running `dev:all` side by side, most often. Supabase's session
+   * pooler caps the *project* at 15 clients, so two servers each asking for 10 exhaust it
+   * between them and every query starts failing with EMAXCONNSESSION.
+   *
+   * The failure does not look like a connection problem from the browser. The app renders
+   * signed in and completely empty: `/api/navigation/data` is among the first requests to
+   * lose its turn, and a browser with no cached space id has nothing to fall back on — so
+   * the space tile drops to its layers fallback, the greeting has no counts, and Activity
+   * says "nothing recorded on this day" while the network tab shows a 500 that a retry
+   * quietly turns into a 200. Two people on the same localhost can disagree about whether
+   * it works, depending on which of them has a warm cache.
+   *
+   * Default unchanged at 10, so a single server behaves exactly as before.
+   */
+  const poolMax = Number(process.env.DB_POOL_MAX) || 10;
+
   const client = postgres(url, {
-    max: 10,
+    max: poolMax,
     idle_timeout: 300,
     connect_timeout: 30,
   });
