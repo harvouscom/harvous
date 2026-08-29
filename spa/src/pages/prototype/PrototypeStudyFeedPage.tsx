@@ -331,7 +331,20 @@ export default function PrototypeStudyFeedPage() {
     if (safeIndex === 0 && onboardingLeads) markOnboardingLedToday();
   }, [safeIndex, onboardingLeads]);
 
-  if (isPending) return <ProtoSpaceLoading label="Loading your study" />;
+  /*
+   * One presentation, not a trickle. `home.contentReady` is the sidebar's own gate — every
+   * query the greeting, Continue and Suggested draw from has settled, or the 2.5s deadline
+   * inside the hook has called it. Without it this page painted the moment the feed landed
+   * and then grew a row at a time as fingerprints, threads and highlights each arrived —
+   * the exact jumping the gate's comment describes curing on Home, reproduced here because
+   * Activity gated on the feed alone.
+   *
+   * The feed snapshot keeps its value: the feed fetch no longer sits anywhere on this
+   * gate's critical path, so the wait is only ever the aux queries, bounded by the deadline.
+   */
+  if (isPending || !home.contentReady) {
+    return <ProtoSpaceLoading label="Loading your study" />;
+  }
 
   if (!day) {
     return (
