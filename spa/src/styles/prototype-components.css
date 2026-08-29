@@ -1654,6 +1654,48 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 /* List view — compact width, no checkmark column (Mac-style selection pill only). */
+/*
+ * The account menu, narrower than the shared 260px.
+ *
+ * That base width belongs to the menus that need it — a space switcher listing "New Hope
+ * Assembly of God Church", a note-destination picker naming folders — and eight components
+ * share it, so the number stays where it is and this opts out instead.
+ *
+ * 200px is measured rather than picked: the widest thing here is the name or the email at
+ * around 100px, and the rows come to about 101px with their icon, gap and padding. 260px
+ * left roughly half the popover empty beside two one-word verbs.
+ *
+ * Capped as well as floored, because the email is the one item whose length belongs to the
+ * reader rather than to us — a long address would otherwise stretch the menu to fit itself.
+ * Past the cap it ellipsises, which is the right trade for a line that is shown to confirm
+ * which account you are in rather than to be read in full.
+ */
+.proto-menu__popover--account {
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.proto-account-menu__identity {
+  padding: 8px 10px 10px;
+  border-bottom: 0.5px solid var(--pds-border);
+  margin-bottom: 4px;
+}
+
+.proto-account-menu__name {
+  color: var(--pds-text-primary);
+}
+
+.proto-account-menu__name,
+.proto-account-menu__email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-account-menu__email {
+  margin-top: 2px;
+}
+
 .proto-menu__popover--list-view {
   min-width: 0;
   width: max-content;

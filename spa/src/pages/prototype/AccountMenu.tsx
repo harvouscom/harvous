@@ -84,13 +84,15 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
       </button>
 
       {open ? (
-        <ProtoPopoverShell className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Account">
+        <ProtoPopoverShell
+          className="proto-menu__popover proto-menu__popover--right proto-menu__popover--account"
+          role="menu"
+          aria-label="Account"
+        >
           {/* Name + email header (mirrors native Mac account screen). */}
-          <div style={{ padding: '8px 10px 10px', borderBottom: '0.5px solid var(--pds-border)', marginBottom: 4 }}>
-            <div className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>{name}</div>
-            {email ? (
-              <div className="pds-list-preview" style={{ marginTop: 2 }}>{email}</div>
-            ) : null}
+          <div className="proto-account-menu__identity">
+            <div className="pds-list-title proto-account-menu__name">{name}</div>
+            {email ? <div className="pds-list-preview proto-account-menu__email">{email}</div> : null}
           </div>
 
           <div className="proto-menu-section" role="group">
