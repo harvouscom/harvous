@@ -93,7 +93,7 @@ export function libraryDrillKind(view: LibraryPanelView): string | null {
 
 /** Tab names, for the back tile that says which one it returns to. */
 export const LIBRARY_TAB_LABELS: Record<LibraryTab, string> = {
-  all: 'All',
+  all: 'Everything',
   notes: 'Notes',
   folders: 'Folders',
   threads: 'Threads',

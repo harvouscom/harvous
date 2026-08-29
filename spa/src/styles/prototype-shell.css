@@ -1736,7 +1736,15 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
    * an 880px panel with ~290px of dead space on each side. The side cells keep a minimum
    * so the back tile has somewhere to sit, and stay symmetric so the field is centred.
    */
-  grid-template-columns: minmax(44px, 1fr) minmax(0, 3fr) minmax(44px, 1fr);
+  /*
+   * Lead sized to its one button, field takes the middle, kind picker gets a real share.
+   *
+   * The three cells used to be 1fr / 3fr / 1fr with the outer two empty, to keep the field
+   * optically centred. Both ends hold something now — a collapse control and the kind
+   * picker — and they are different widths, so centring was already a fiction. Sizing each
+   * cell to its job gives the field more room than the symmetry ever did.
+   */
+  grid-template-columns: auto minmax(0, 1fr) minmax(124px, auto);
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -1928,9 +1936,18 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
  * for, wrong beside another control, where it claims the whole cell and pushes itself past
  * the edge. The study feed's scope picker hit this exact thing; same fix.
  */
+/*
+ * The kind picker fills its cell.
+ *
+ * `ProtoSelectMenu`'s trigger is `width: 100%` by default — which was wrong when this cell
+ * also held the space switcher and the trigger pushed itself past the edge. The switcher
+ * moved to the toolbar, so the cell is the picker's alone and the default is right again.
+ * Stated rather than left implicit, because the override that used to live here is the
+ * thing a reader would go looking for.
+ */
 .proto-library-kind.proto-select-menu__trigger {
-  width: auto;
-  flex: 0 0 auto;
+  width: 100%;
+  justify-content: space-between;
 }
 
 /*

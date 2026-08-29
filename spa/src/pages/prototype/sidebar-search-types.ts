@@ -169,7 +169,25 @@ export const LIBRARY_TAB_OPTIONS: {
   label: string;
   iconName?: string;
 }[] = [
-  ...SIDEBAR_ELSEWHERE_TYPE_OPTIONS,
+  ...SIDEBAR_ELSEWHERE_TYPE_OPTIONS.map((option) =>
+    /*
+     * "Everything", with a glyph — two departures from the shared filter, both about this
+     * being a menu rather than a chip row.
+     *
+     * The word: the field beside it already says "Search everything…", so the kind saying
+     * "Everything" makes one sentence out of the two controls. The sidebar's chip stays
+     * "All" because a chip row is short on width and long on context.
+     *
+     * The glyph: every other row here has one, and a single iconless row starts its label
+     * at a different x than its neighbours — the ragged edge reads as a rendering fault
+     * rather than a category. `table-cells` is the least-claimed mark that means "all of
+     * it"; `layer-group` would have been apter but it is the Activity segment's, and a row
+     * wearing the shell's navigation mark reads as a way out of this menu.
+     */
+    option.id === 'all'
+      ? { ...option, label: 'Everything', iconName: 'table-cells' }
+      : option,
+  ),
   /* Matches the sidebar's Resources list mode, so the same shelf wears one glyph. */
   { id: 'resources', label: 'Resources', iconName: 'newspaper' },
 ];
