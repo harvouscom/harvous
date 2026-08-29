@@ -10107,6 +10107,27 @@ button.proto-appearance-hero__card {
   border-top: 1px solid var(--pds-border-soft);
 }
 
+/*
+ * The same review, in a day sheet rather than a rail.
+ *
+ * Two of the rules above are rail assumptions and only make sense there. `min-height: 100%`
+ * lets the review own the whole list body, which in a feed would stretch one block over the
+ * record beneath it; and actions stuck to `bottom: 0` pin to the *sheet's* scroll port here,
+ * so they hovered in the middle of the notes with the rest of the proposal continuing below.
+ * In flow the block simply ends with its own buttons.
+ */
+.proto-thread-review--inline {
+  min-height: 0;
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+}
+
+.proto-thread-review--inline .proto-thread-review__actions {
+  position: static;
+  margin-top: 0;
+  background: transparent;
+}
+
 .proto-thread-review__btn {
   display: inline-flex;
   align-items: center;

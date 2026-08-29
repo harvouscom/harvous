@@ -47,6 +47,8 @@ import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import PrototypeStudyFeedToday from './PrototypeStudyFeedToday';
 import PrototypeOnboardingDock from './PrototypeOnboardingDock';
+import PrototypeThreadProposalReview from './PrototypeThreadProposalReview';
+import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { markOnboardingLedToday, onboardingHasLedToday } from './onboarding-day-marker';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
@@ -97,7 +99,7 @@ export default function PrototypeStudyFeedPage() {
    * make the row look like it filters by place when it filters by whose study.
    */
   const libraryNav = useLibraryPanelNav();
-  const { openLibraryPanel } = useProtoShell();
+  const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
   const greeting = useHomeNotes();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const scriptureQuery = usePrototypeSpaceScriptureIndex(homeSpaceId ?? undefined);
@@ -151,12 +153,25 @@ export default function PrototypeStudyFeedPage() {
     onOpenNote: openNoteRow,
     onOpenHighlight: openHighlightRow,
     destinations: {
-      proposeThread: null,
+      /* The review is the shell's now, not the sidebar's, so a grouping proposed here has
+         somewhere to land — it renders above the day. */
+      proposeThread: setSidebarThreadProposal,
       createThread: null,
       openThread: (threadId?: string) =>
         threadId ? libraryNav.openThread(threadId) : libraryNav.openList('threads'),
     },
   });
+
+  /* A proposal carries ids and titles; the day sheet already has the rows they name. */
+  const notesById = useMemo(
+    () => new Map(greeting.notes.map((n) => [n.id, n])),
+    [greeting.notes],
+  );
+  const resolveProposalRow = useCallback(
+    (brief: { id: string; title: string | null }): SpaceNoteRow =>
+      notesById.get(brief.id) ?? ({ id: brief.id, title: brief.title } as SpaceNoteRow),
+    [notesById],
+  );
   const navigation = useNavigation();
   const sharedSpaces = useMemo(
     () =>
@@ -509,6 +524,22 @@ export default function PrototypeStudyFeedPage() {
                  alone — the same sentence, just carrying the paragraph by itself. */
               summarySentence ? <p className="proto-feed-sheet__summary">{summarySentence}</p> : null
             )}
+
+            {/* Above everything when it is up: it is a question waiting on an answer, and
+                the day's record can wait behind it. */}
+            <PrototypeThreadProposalReview
+              variant="inline"
+              homeSpaceId={homeSpaceId}
+              canCreate
+              resolveNoteRow={resolveProposalRow}
+              prefetchNote={() => {}}
+              onOpenNote={openNoteRow}
+              onDismiss={() => setSidebarThreadProposal(undefined)}
+              onCreated={(repNoteId) => {
+                setSidebarThreadProposal(undefined);
+                libraryNav.openThread(threadClusterDrillSlug(repNoteId));
+              }}
+            />
 
             {onboardingLeads ? onboardingDock : null}
 

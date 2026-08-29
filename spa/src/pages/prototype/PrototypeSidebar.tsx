@@ -22,15 +22,23 @@ import { useRemoveFolder } from '../../hooks/mutations/useRemoveFolder';
 import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadCluster';
 import { useDeleteSharedThread } from '../../hooks/mutations/useDeleteSharedThread';
 import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
-import { useConnectNote } from '../../hooks/mutations/useConnectNote';
-import { useUpdateStudyThreadTitle } from '../../hooks/mutations/useUpdateStudyThreadTitle';
+
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
-import { useSpaceNotes, useSpaceMembers, type SpaceMemberRow, type SpaceNoteRow } from '../../hooks/queries/useSpace';
+import {
+  useSpaceNotes,
+  useSpaceMembers,
+  type SpaceMemberRow,
+  type SpaceNoteRow,
+} from '../../hooks/queries/useSpace';
 import {
   useSpaceGroupThreads,
   type SpaceGroupStudyThread,
 } from '../../hooks/queries/useSpaceGroupThreads';
-import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../../hooks/queries/useNote';
+import {
+  getNoteQueryOptions,
+  seedNoteFromList,
+  type ListNoteForSeed,
+} from '../../hooks/queries/useNote';
 import { beginComposeInGroupThread } from '../../lib/compose-group-thread';
 import {
   filterSharedSpaceThreads,
@@ -43,16 +51,25 @@ import {
   ProtoThreadTrailSortableList,
   ProtoThreadTrailSortableRow,
 } from './ProtoThreadTrailSortable';
-import { countNotesInFolderBucket, noteBelongsToFolderBucket, noteFolderMembershipLabels } from '@/utils/note-folder-display';
+import {
+  countNotesInFolderBucket,
+  noteBelongsToFolderBucket,
+  noteFolderMembershipLabels,
+} from '@/utils/note-folder-display';
 import { sortDrillNoteBriefsByLastUpdated, sortNotesByLastUpdated } from '@/utils/sorting';
-import { orderStudyThreadNodesByIds, resolveStudyThreadMemberOrder } from '@/utils/study-thread-trail';
+import {
+  orderStudyThreadNodesByIds,
+  resolveStudyThreadMemberOrder,
+} from '@/utils/study-thread-trail';
 import { useStudyThreadMemberDragReorder } from '../../hooks/useStudyThreadMemberDragReorder';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import { computePrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase';
 import { readerRouteForReference } from '../../utils/reader-nav';
-import { useProtoShell, type SidebarTagSearchIntent, type ThreadProposal } from '../../layouts/proto-shell-context';
+import { useProtoShell, type SidebarTagSearchIntent } from '../../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import { usePrototypeStudyThreadListSyncListener } from '../../hooks/usePrototypeStudyThreadListSyncListener';
+import {
+  usePrototypeStudyThreadListSyncListener,
+} from '../../hooks/usePrototypeStudyThreadListSyncListener';
 import { useIntersectionFetchNextPage } from '../../hooks/useIntersectionFetchNextPage';
 import { focusedListRow, moveListRowFocus } from '../../hooks/useListKeyboardNavigation';
 import {
@@ -62,22 +79,32 @@ import {
   prototypeNoteRouteTo,
   prototypeReadRouteTo,
 } from '@/lib/prototype-path';
-import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
+
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { bookSlug } from '@/utils/bible-book-chapters';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
-import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
-import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
-import { usePrototypeStudyThreads, type StudyThreadCluster } from '../../hooks/queries/usePrototypeStudyThreads';
+import type {
+  PrototypeHighlightStudyThreadRow,
+} from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
+import {
+  usePrototypeSpaceStudyThreadHighlights,
+} from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
+import {
+  usePrototypeStudyThreads,
+  type StudyThreadCluster,
+} from '../../hooks/queries/usePrototypeStudyThreads';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
+import PrototypeThreadProposalReview from './PrototypeThreadProposalReview';
 import {
   usePrototypeStudyThread,
   studyThreadQueryKey,
   type StudyThreadResponse,
 } from '../../hooks/queries/usePrototypeStudyThread';
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
-import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
+import {
+  usePrototypeSpaceScriptureIndex,
+} from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useTagNoteIds } from '../../hooks/queries/useTagNoteIds';
 import {
   isScripturePassageHighlightRow,
@@ -143,15 +170,14 @@ import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
 import { resolveSpaceOwnerMember } from '../../lib/shared-space-about';
 import SharedSpaceOwnerCollectionEmptyDescription from './SharedSpaceOwnerCollectionEmptyDescription';
 
-
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
-import { noteParamSlug, normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import {
-  PROTOTYPE_NOTE_LIST_NAV_SEARCH,
-  prototypeNoteListNavigationSearch,
-} from '@/utils/prototype-sidebar-highlight-active';
+  noteParamSlug,
+  normalizeNoteIdFromParam,
+  isPrototypeDraftNoteSlug,
+} from './proto-route-slugs';
+import { prototypeNoteListNavigationSearch } from '@/utils/prototype-sidebar-highlight-active';
 
-import { ProtoThreadTrailRecencyLine as ProtoListRecencyLine } from './proto-thread-trail-row';
 import { toastError } from '../../lib/error-copy';
 import { HighlightRow } from './sidebar-rows/HighlightRow';
 import { ProtoNotesListLoading } from './sidebar-rows/ProtoNotesListLoading';
@@ -265,18 +291,6 @@ function ProtoNotesPaginationFooter({
       ) : null}
     </div>
   );
-}
-
-function threadProposalSubtitle(proposal: ThreadProposal): string {
-  const n = proposal.notes.length;
-  switch (proposal.variant) {
-    case 'arc':
-      return `${n} ${n === 1 ? 'note' : 'notes'} · on your mind`;
-    case 'crossref':
-      return `${n} ${n === 1 ? 'note connects' : 'notes connect'} these passages`;
-    default:
-      return `${n} ${n === 1 ? 'note shares' : 'notes share'} this theme`;
-  }
 }
 
 export default function PrototypeSidebar({
@@ -718,54 +732,12 @@ export default function PrototypeSidebar({
   );
 
   // --- Proposed-thread review layer (from a Home theme card) ---
-  const connectNoteMutation = useConnectNote();
-  const updateThreadTitleMutation = useUpdateStudyThreadTitle();
-  const [isAcceptingProposal, setIsAcceptingProposal] = useState(false);
 
   const closeThreadProposal = useCallback(() => {
     setSidebarThreadProposal(undefined);
     setSidebarLayer('space'); // return to Home (where the proposal was launched)
     setQ('');
   }, [setSidebarThreadProposal, setSidebarLayer]);
-
-  const handleAcceptThreadProposal = useCallback(async () => {
-    if (!canCreateSidebarCollections || !homeSpaceId || !sidebarThreadProposal) return;
-    const [first, ...rest] = sidebarThreadProposal.notes.map((n) => n.id);
-    if (!first) return;
-    setIsAcceptingProposal(true);
-    try {
-      // Star-connect: each other note becomes a child of `first`, forming one
-      // connected component. `first` ends as highest-degree (representative) node.
-      for (const linkedNoteId of rest) {
-        await connectNoteMutation.mutateAsync({ parentNoteId: first, linkedNoteId, spaceId: homeSpaceId });
-      }
-      // Name the cluster after the theme (the rep note carries the title).
-      await updateThreadTitleMutation.mutateAsync({
-        repNoteId: first,
-        spaceId: homeSpaceId,
-        title: sidebarThreadProposal.subject,
-        userOverride: true,
-      });
-      try { window.toast?.success('Thread created'); } catch { /* ignore */ }
-      setSidebarThreadProposal(undefined);
-      setSidebarListMode('threads'); // flips to the list layer
-      setSidebarThreadDrilldownId(threadClusterDrillSlug(first));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not create Thread';
-      try { window.toast?.error(msg); } catch { /* ignore */ }
-    } finally {
-      setIsAcceptingProposal(false);
-    }
-  }, [
-    canCreateSidebarCollections,
-    homeSpaceId,
-    sidebarThreadProposal,
-    connectNoteMutation,
-    updateThreadTitleMutation,
-    setSidebarThreadProposal,
-    setSidebarListMode,
-    setSidebarThreadDrilldownId,
-  ]);
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const isDraftNoteRoute = noteSlugFromPath != null && isPrototypeDraftNoteSlug(noteSlugFromPath);
@@ -1816,7 +1788,6 @@ export default function PrototypeSidebar({
     ],
   );
 
-
   const prefetchNote = useCallback(
     (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => {
       if (!homeSpaceId) return;
@@ -2687,59 +2658,20 @@ export default function PrototypeSidebar({
             }}
           />
         ) : sidebarThreadProposal ? (
-          <div className="proto-thread-review">
-            <div className="proto-thread-review__header">
-              <span className="proto-home-card__icon-orb" aria-hidden>
-                <Icon name="arrow-right-arrow-left" size={13} />
-              </span>
-              <div>
-                <div className="proto-thread-review__title-row">
-                  <p className="proto-thread-review__title">{sidebarThreadProposal.subject}</p>
-                  <span className="proto-thread-review__badge">Suggested</span>
-                </div>
-                <p className="proto-thread-review__subtitle">{threadProposalSubtitle(sidebarThreadProposal)}</p>
-              </div>
-            </div>
-            <ul className="proto-note-list proto-thread-review__list">
-              {sidebarThreadProposal.notes.map((note) => {
-                const row = resolveDrillNoteRow({ id: note.id, title: note.title });
-                return (
-                  <PrototypeSidebarNoteRow
-                    key={note.id}
-                    row={row}
-                    active={!!(activeNoteFullId && note.id === activeNoteFullId)}
-                    homeSpaceId={homeSpaceId}
-                    activeNoteFullId={activeNoteFullId}
-                    prefetchNote={prefetchProposalNote}
-                    hideMenu
-                    onOpenNote={(r) => {
-                      onNoteRow(r);
-                    }}
-                  />
-                );
-              })}
-            </ul>
-            <div className="proto-thread-review__actions">
-              <button
-                type="button"
-                className="proto-thread-review__dismiss"
-                onClick={closeThreadProposal}
-                disabled={isAcceptingProposal}
-              >
-                Not now
-              </button>
-              {canCreateSidebarCollections ? (
-                <button
-                  type="button"
-                  className="proto-thread-review__btn proto-thread-review__btn--primary"
-                  onClick={handleAcceptThreadProposal}
-                  disabled={isAcceptingProposal}
-                >
-                  {isAcceptingProposal ? 'Creating…' : 'Create Thread'}
-                </button>
-              ) : null}
-            </div>
-          </div>
+          <PrototypeThreadProposalReview
+            homeSpaceId={homeSpaceId}
+            canCreate={canCreateSidebarCollections}
+            activeNoteFullId={activeNoteFullId}
+            resolveNoteRow={resolveDrillNoteRow}
+            prefetchNote={prefetchProposalNote}
+            onOpenNote={onNoteRow}
+            onDismiss={closeThreadProposal}
+            onCreated={(repNoteId) => {
+              setSidebarThreadProposal(undefined);
+              setSidebarListMode('threads');
+              setSidebarThreadDrilldownId(threadClusterDrillSlug(repNoteId));
+            }}
+          />
         ) : searchActive ? (
           <>
           <PrototypeSidebarSearchResults
