@@ -16,6 +16,7 @@ import { usePrototypeSpaceStudyThreadHighlights } from '../../../hooks/queries/u
 import { usePrototypeStudyThreads } from '../../../hooks/queries/usePrototypeStudyThreads';
 import { useSpaceGroupThreads } from '../../../hooks/queries/useSpaceGroupThreads';
 import type { LibraryTab } from './library-panel-view';
+import type { LibrarySelection } from './use-library-selection';
 import PrototypeLibraryAllView from './PrototypeLibraryAllView';
 import PrototypeLibraryFoldersView from './PrototypeLibraryFoldersView';
 import PrototypeLibraryScriptureView from './PrototypeLibraryScriptureView';
@@ -28,12 +29,18 @@ import {
 } from './library-panel-lists';
 import { useLibraryPanelData } from './library-panel-data';
 
-export default function PrototypeLibraryTabView({ tab }: { tab: LibraryTab }) {
+export default function PrototypeLibraryTabView({
+  tab,
+  selection,
+}: {
+  tab: LibraryTab;
+  selection: LibrarySelection;
+}) {
   switch (tab) {
     case 'all':
       return <PrototypeLibraryAllView />;
     case 'notes':
-      return <NotesSection />;
+      return <NotesSection selection={selection} />;
     case 'folders':
       return <PrototypeLibraryFoldersView />;
     case 'threads':
@@ -50,7 +57,7 @@ export default function PrototypeLibraryTabView({ tab }: { tab: LibraryTab }) {
   }
 }
 
-function NotesSection() {
+function NotesSection({ selection }: { selection: LibrarySelection }) {
   const data = useLibraryPanelData();
   if (data.notesPhase === 'error') {
     return (
@@ -73,7 +80,7 @@ function NotesSection() {
   }
   return (
     <>
-      <LibraryNoteList rows={data.notes} data={data} />
+      <LibraryNoteList rows={data.notes} data={data} selection={selection} />
       <LibraryLoadMore data={data} />
     </>
   );

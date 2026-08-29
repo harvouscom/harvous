@@ -5,10 +5,11 @@
  * each kind's row props are decided once here rather than twice — the root and the
  * section differ only in how many items they are handed.
  *
- * The panel's rows are navigation-first. No multi-select (`selectMode={false}`, no
- * `selectable`), and no row menu where the component lets us drop one: a ⋯ per row would
- * put five mutation paths behind a surface whose whole job is finding things, and the
- * sidebar still owns those actions behind ⇧S.
+ * The panel's rows are navigation-first until you ask otherwise. No row menu — a ⋯ per row
+ * would put five mutation paths behind a surface whose whole job is finding things — but the
+ * Notes tab does offer multi-select, because filing what you just found is the other half of
+ * finding it. `selection` arriving undefined is the navigation-only case, which is every
+ * list here except that one.
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -32,18 +33,22 @@ import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
 import type { PrototypeHighlightStudyThreadRow } from '../../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import type { StudyThreadCluster } from '../../../hooks/queries/usePrototypeStudyThreads';
 import type { SpaceGroupStudyThread } from '../../../hooks/queries/useSpaceGroupThreads';
+import type { LibrarySelection } from './use-library-selection';
 import type { LibraryPanelData } from './library-panel-data';
 
 export function LibraryNoteList({
   rows,
   data,
   folderRemoval,
+  selection,
   className = 'proto-note-list',
 }: {
   rows: SpaceNoteRow[];
   data: LibraryPanelData;
   /** Named folder view only — the one container action a row here offers. */
   folderRemoval?: { folderName: string };
+  /** Omitted on lists that are navigation-only. */
+  selection?: LibrarySelection;
   className?: string;
 }) {
   /* Row actions are space-scoped; with no space there is nothing to act on. The list
@@ -62,7 +67,10 @@ export function LibraryNoteList({
           isScopedSharedSpace={data.isScopedSharedSpace}
           sharedSpaceMemberByUserId={data.sharedSpaceMemberByUserId}
           viewerIsSpaceOwner={data.viewerIsSpaceOwner}
-          selectMode={false}
+          selectMode={selection?.active ?? false}
+          selectable={selection?.active ?? false}
+          selected={selection?.isSelected(row.id) ?? false}
+          onToggleSelected={selection?.toggle}
           hideMenu={!folderRemoval}
           folderRemoval={folderRemoval}
           prefetchNote={data.prefetchNote}

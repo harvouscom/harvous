@@ -12,12 +12,21 @@
  * only gets to draw when nothing is stacked above it.
  */
 import type { LibraryPanelView } from './library-panel-view';
+import type { LibrarySelection } from './use-library-selection';
 import PrototypeLibraryFolderView from './PrototypeLibraryFolderView';
 import PrototypeLibraryScriptureView from './PrototypeLibraryScriptureView';
 import PrototypeLibraryTabView from './PrototypeLibraryTabView';
 import PrototypeLibraryThreadView from './PrototypeLibraryThreadView';
 
-export default function PrototypeLibraryBody({ view }: { view: LibraryPanelView }) {
+export default function PrototypeLibraryBody({
+  view,
+  selection,
+}: {
+  view: LibraryPanelView;
+  /* Threaded rather than re-derived in the list that needs it: two instances of the hook
+     would each publish their own command context, and only one of them can be the answer. */
+  selection: LibrarySelection;
+}) {
   const { drill } = view;
   if (drill) {
     switch (drill.kind) {
@@ -29,5 +38,5 @@ export default function PrototypeLibraryBody({ view }: { view: LibraryPanelView 
         return <PrototypeLibraryScriptureView drill={drill.drill} />;
     }
   }
-  return <PrototypeLibraryTabView tab={view.tab} />;
+  return <PrototypeLibraryTabView tab={view.tab} selection={selection} />;
 }

@@ -19,6 +19,10 @@ import PrototypeLibrarySearchResults, {
   type LibraryNavigationItem,
 } from './PrototypeLibrarySearchResults';
 import { useLibraryPanelSearch } from './use-library-panel-search';
+import { useLibraryPanelData } from './library-panel-data';
+import { useLibrarySelection } from './use-library-selection';
+import PrototypeLibraryBulkBar from './PrototypeLibraryBulkBar';
+import PrototypeLibrarySelectToggle from './PrototypeLibrarySelectToggle';
 
 export default function PrototypeLibraryPanelHost({
   /** "Go to" destinations for the results. Optional: the panel is useful without them. */
@@ -47,6 +51,19 @@ export default function PrototypeLibraryPanelHost({
    * skips the wait entirely — nobody typed it, so there is nothing to settle.
    */
   const query = search.debounced;
+
+  /*
+   * Selection lives here rather than in the list that draws the checkboxes, because three
+   * things need the same answer — the rows, the bar under them, and the header's toggle —
+   * and a second instance of the hook would publish a second command context.
+   */
+  const data = useLibraryPanelData();
+  const selection = useLibrarySelection({
+    tab: view.tab,
+    rows: data.notes,
+    isScopedSharedSpace: data.isScopedSharedSpace,
+    viewerIsSpaceOwner: data.viewerIsSpaceOwner,
+  });
 
   return (
     <PrototypeLibraryPanel
@@ -92,13 +109,17 @@ export default function PrototypeLibraryPanelHost({
         />
       }
       tabs={
-        <PrototypeLibraryTabs
-          tab={view.tab}
-          /* Switching tab clears the drill: the row you tapped names a kind, not a place
-             inside the one you were already in. */
-          onSelect={(tab) => setLibraryPanelView({ tab, drill: null })}
-        />
+        <>
+          <PrototypeLibrarySelectToggle selection={selection} />
+          <PrototypeLibraryTabs
+            tab={view.tab}
+            /* Switching tab clears the drill: the row you tapped names a kind, not a place
+               inside the one you were already in. */
+            onSelect={(tab) => setLibraryPanelView({ tab, drill: null })}
+          />
+        </>
       }
+      bulkBar={<PrototypeLibraryBulkBar selection={selection} />}
     >
       {query.trim() ? (
         <PrototypeLibrarySearchResults
@@ -107,7 +128,7 @@ export default function PrototypeLibraryPanelHost({
           navigationItems={navigationItems}
         />
       ) : (
-        <PrototypeLibraryBody view={view} />
+        <PrototypeLibraryBody view={view} selection={selection} />
       )}
     </PrototypeLibraryPanel>
   );

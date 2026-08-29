@@ -41,6 +41,7 @@ export default function PrototypeLibraryPanel({
   subject,
   search,
   tabs,
+  bulkBar,
   spaceSwitcher,
   children,
 }: {
@@ -53,6 +54,14 @@ export default function PrototypeLibraryPanel({
   search?: ReactNode;
   /** The tab row. Rendered between the header and the scrolling body. */
   tabs?: ReactNode;
+  /**
+   * Actions for a standing selection, pinned under the body.
+   *
+   * Outside the scrolling body on purpose: what you can do with fifty selected notes must
+   * not scroll away while you look at the fiftieth. That is the same place the sidebar's
+   * bar holds, so the two surfaces put the answer in the same corner.
+   */
+  bulkBar?: ReactNode;
   spaceSwitcher?: ReactNode;
   children: ReactNode;
 }) {
@@ -207,6 +216,7 @@ export default function PrototypeLibraryPanel({
       <div ref={bodyRef} className="proto-library-panel__body">
         {children}
       </div>
+      {bulkBar}
     </div>
   );
 }

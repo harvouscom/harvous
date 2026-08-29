@@ -54,6 +54,7 @@ import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useOrganizeApi } from '../../lib/prototype-organize-runner-store';
 
 /**
  * Edges drawn above the current sheet — the days immediately behind it.
@@ -100,6 +101,7 @@ export default function PrototypeStudyFeedPage() {
    */
   const libraryNav = useLibraryPanelNav();
   const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
+  const organize = useOrganizeApi();
   const greeting = useHomeNotes();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const scriptureQuery = usePrototypeSpaceScriptureIndex(homeSpaceId ?? undefined);
@@ -156,7 +158,9 @@ export default function PrototypeStudyFeedPage() {
       /* The review is the shell's now, not the sidebar's, so a grouping proposed here has
          somewhere to land — it renders above the day. */
       proposeThread: setSidebarThreadProposal,
-      createThread: null,
+      /* And the create-Thread sheet is the host's, so the connect-suggestion card — the
+         thirteenth kind, withheld while this was null — can finally be offered here. */
+      createThread: organize?.openCreateThread ?? null,
       openThread: (threadId?: string) =>
         threadId ? libraryNav.openThread(threadId) : libraryNav.openList('threads'),
     },
