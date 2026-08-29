@@ -1676,9 +1676,44 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 .proto-account-menu__identity {
-  padding: 8px 10px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
   border-bottom: 0.5px solid var(--pds-border);
   margin-bottom: 4px;
+}
+
+/*
+ * The same face as the orb that opened this menu, at a size that can carry a photo rather
+ * than merely indicate one. 34px is the largest circle the 200px popover can spend without
+ * pushing the name into an ellipsis — the name is 100px and the padding and gap take 30.
+ */
+.proto-account-menu__avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pds-bg-control-strong);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  /* Initials sit optically centred; the cap-height of two letters rides slightly high. */
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+/* `min-width: 0` so the two lines can ellipsise inside a flex row rather than widening it —
+   without it the email would push the avatar off the popover's left edge. */
+.proto-account-menu__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .proto-account-menu__name {
