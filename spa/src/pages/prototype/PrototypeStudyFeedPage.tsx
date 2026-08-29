@@ -95,7 +95,7 @@ export default function PrototypeStudyFeedPage() {
 
   /*
    * Only the spaces someone actually shares with other people. A personal space is not a
-   * scope — narrowing to it is what "My study" already means, and listing it twice would
+   * scope — narrowing to it is what "My home" already means, and listing it twice would
    * make the row look like it filters by place when it filters by whose study.
    */
   const libraryNav = useLibraryPanelNav();
@@ -184,7 +184,7 @@ export default function PrototypeStudyFeedPage() {
   );
 
   /*
-   * "All" first because it is the default and the widest; "My study" next because it is the
+   * "All" first because it is the default and the widest; "My home" next because it is the
    * only other scope that is about a person rather than a place. Spaces group under a
    * heading so a long list stays readable — the menu's own grouping, not a second idea.
    */
@@ -194,8 +194,8 @@ export default function PrototypeStudyFeedPage() {
       { value: 'all', label: 'All activity', triggerLabel: 'All', icon: <ProtoLayersMark /> },
       {
         value: 'home',
-        label: 'My study only',
-        triggerLabel: 'My study',
+        label: 'My home only',
+        triggerLabel: 'My home',
         icon: <ProtoHouseIcon size={13} />,
       },
       ...sharedSpaces.map((space) => ({

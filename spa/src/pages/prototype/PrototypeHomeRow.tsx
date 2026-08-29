@@ -18,8 +18,9 @@
  * separator the church rows use — so nothing is lost, and the title stays the specific
  * thing the row is about, as it is in the church hub's Following list.
  */
-import type { CSSProperties, MouseEventHandler, ReactNode } from 'react';
+import type { CSSProperties, MouseEventHandler, PointerEvent, ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
+import { handleMarqueeHover } from './marquee-overflow';
 
 export type HomeRowProps = {
   icon: IconName;
@@ -43,6 +44,11 @@ export type HomeRowProps = {
   'aria-label'?: string;
   title_attr?: string;
 };
+
+/* Correct the fade estimate against a real measurement, once per hover. */
+function onRowPointerEnter(event: PointerEvent<HTMLElement>) {
+  handleMarqueeHover(event);
+}
 
 export function homeRowMetaItems(items: HomeRowProps['meta']): ReactNode[] {
   return (items ?? []).filter((m): m is ReactNode => Boolean(m));
@@ -182,6 +188,7 @@ export default function PrototypeHomeRow({
           className="proto-list-panel__row-main"
           onClick={onClick}
           onMouseEnter={onMouseEnter}
+          onPointerEnter={onRowPointerEnter}
           onFocus={onFocus}
           disabled={disabled}
           aria-label={ariaLabel}
@@ -200,6 +207,7 @@ export default function PrototypeHomeRow({
       className="proto-list-panel__row"
       onClick={onClick}
       onMouseEnter={onMouseEnter}
+      onPointerEnter={onRowPointerEnter}
       onFocus={onFocus}
       disabled={disabled}
       aria-label={ariaLabel}

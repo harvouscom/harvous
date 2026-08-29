@@ -21269,8 +21269,14 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * and a larger line would cost lines rather than presence.
  */
 @media (min-width: 900px) {
+  /*
+   * Both scoped to the body, and the summary's scoping is load-bearing rather than tidiness:
+   * `.proto-feed-sheet__summary` alone matches the base rule below at equal specificity, and
+   * the base rule comes later in the file, so it won — the greeting grew on a wide sheet and
+   * the sentence on every other day quietly stayed at the sidebar's 15px.
+   */
   .proto-feed-sheet__body .proto-home-greeting,
-  .proto-feed-sheet__summary {
+  .proto-feed-sheet__body .proto-feed-sheet__summary {
     font-size: 17px;
     line-height: 1.7;
   }
