@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v2-93-1';
+const CACHE_NAME = 'harvous-cache-v2-93-2';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 const CRITICAL_ASSETS = [
