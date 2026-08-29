@@ -7,23 +7,13 @@ import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useSmartJumpDestination } from '../../hooks/useSmartJumpDestination';
-import { useDeleteNotesBatch } from '../../hooks/mutations/useDeleteNotesBatch';
-import { useNavigation } from '../../hooks/queries/useNavigation';
-import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
-import { isPersonalSharedSpace } from '../../lib/church-settings';
-import { api } from '../../lib/api';
-import {
-  DELETE_NOTE_EVERYWHERE_CONFIRMATION,
-  REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
-} from './proto-destructive-copy';
-import { useRemoveNotesFromSpaceBatch } from '../../hooks/mutations/useSpaceNoteAssociation';
+
 import { useDeleteHighlight } from '../../hooks/mutations/useDeleteHighlight';
 import { useRemoveFolder } from '../../hooks/mutations/useRemoveFolder';
 import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadCluster';
 import { useDeleteSharedThread } from '../../hooks/mutations/useDeleteSharedThread';
 import { useSetCurrentSpaceThread } from '../../hooks/mutations/useSetCurrentSpaceThread';
 
-import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import {
   useSpaceNotes,
   useSpaceMembers,
@@ -45,7 +35,7 @@ import {
   isSharedSpaceThreadDrillId,
   sharedSpaceThreadsEmptyDescription,
 } from './shared-space-thread-list';
-import PrototypeCreateSharedThreadSheet from './PrototypeCreateSharedThreadSheet';
+
 import PrototypeSharedThreadDrilldown from './PrototypeSharedThreadDrilldown';
 import {
   ProtoThreadTrailSortableList,
@@ -154,7 +144,10 @@ import {
 } from '../../lib/shared-space-capabilities';
 import { everyRowAllows } from '../../lib/note-row-capabilities';
 import {
-  availablePrototypeCommands,
+  useOrganizeApi,
+  type CreateThreadPrefill,
+} from '../../lib/prototype-organize-runner-store';
+import {
   FOLDER_FANOUT_CAP,
   MIN_BULK_THREAD_NOTES,
   SHARED_FOLDER_FANOUT_CAP,
@@ -166,7 +159,7 @@ import { publishPrototypeCommandContext } from '../../lib/prototype-command-cont
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
 import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
-import PrototypeCreateThreadSheet from './PrototypeCreateThreadSheet';
+
 import { resolveSpaceOwnerMember } from '../../lib/shared-space-about';
 import SharedSpaceOwnerCollectionEmptyDescription from './SharedSpaceOwnerCollectionEmptyDescription';
 
@@ -473,21 +466,25 @@ export default function PrototypeSidebar({
   const [q, setQ] = useState('');
   const [tagFilter, setTagFilter] = useState<SidebarTagSearchIntent | null>(null);
   const [addNotesSheetOpen, setAddNotesSheetOpen] = useState(false);
+  /*
+   * The six verbs are the host's now — it owns the sheets, the confirms and the mutations,
+   * mounted by the shell so they exist when this sidebar does not. What stays here is the
+   * bar: which rows are selected, and what may be done to them.
+   */
+  const organize = useOrganizeApi();
+
   const [createFolderSheetOpen, setCreateFolderSheetOpen] = useState(false);
-  const [createThreadSheetOpen, setCreateThreadSheetOpen] = useState(false);
-  const [createThreadPrefill, setCreateThreadPrefill] = useState<{
-    noteIds: string[];
-    threadName?: string;
-    /** Set when the sheet was opened by a suggestion that wants to know it was carried out. */
-    onCreated?: () => void;
-  } | null>(null);
+  /*
+   * One create-Thread sheet in the app, and it is the host's. This used to be a second copy
+   * living here, which meant the suggestion that proposes a Thread only worked on surfaces
+   * where this sidebar happened to be mounted.
+   */
   const openCreateThreadSheet = useCallback(
-    (prefill?: { noteIds: string[]; threadName?: string; onCreated?: () => void } | null) => {
+    (prefill?: CreateThreadPrefill | null) => {
       if (!canCreateSidebarCollections) return;
-      setCreateThreadPrefill(prefill ?? null);
-      setCreateThreadSheetOpen(true);
+      organize?.openCreateThread(prefill ?? undefined);
     },
-    [canCreateSidebarCollections],
+    [canCreateSidebarCollections, organize],
   );
   const openCreateFolderSheet = useCallback(() => {
     if (!canCreateSidebarCollections) return;
@@ -784,121 +781,6 @@ export default function PrototypeSidebar({
     });
   }, [notes, q, activeFolderKey, tagFilter, tagNoteIdsQuery.data, tagNoteIdSet]);
 
-  const deleteNotesBatch = useDeleteNotesBatch();
-  const removeNotesFromSpace = useRemoveNotesFromSpaceBatch();
-
-  const [bulkFolderSheetOpen, setBulkFolderSheetOpen] = useState(false);
-  const [bulkShareSheetOpen, setBulkShareSheetOpen] = useState(false);
-  /*
-    The confirm anchors to the button that raised it, like every other delete in
-    this file. `main-column-top-right` put it in the opposite corner of the
-    window from a bar pinned to the bottom of the sidebar — far enough that it
-    read as an unrelated alert rather than an answer to the tap.
-  */
-  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState<DOMRect | null>(null);
-  const [bulkRemoveConfirmOpen, setBulkRemoveConfirmOpen] = useState<DOMRect | null>(null);
-
-  const normalizeSpaceIdForCompare = (id: string | null | undefined) =>
-    !id ? '' : id.startsWith('space_') ? id : `space_${id}`;
-  const { data: bulkNav } = useNavigation();
-  /**
-   * Where a selection can be shared. Own spaces only — associating into a space you
-   * merely belong to is a different act (and `add-items` checks membership anyway), and
-   * ministry channels are read-only targets.
-   */
-  const bulkShareTargets = useMemo(
-    () =>
-      (bulkNav?.spaces ?? []).filter(
-        (sp) => isPersonalSharedSpace(sp) && normalizeSpaceIdForCompare(sp.id) !== normalizeSpaceIdForCompare(homeSpaceId),
-      ),
-    [bulkNav?.spaces, homeSpaceId],
-  );
-
-  const [bulkSharePending, setBulkSharePending] = useState(false);
-  /**
-   * `add-items` is the batch twin of `add-note` — it takes the whole id list, carries no
-   * write rate limit, and reports per-item problems in `errors` rather than failing the
-   * request. The SPA had never called it.
-   */
-  const onBulkShareToSpace = useCallback(
-    async (targetSpaceId: string) => {
-      const ids = [...sidebarSelectedIds];
-      setBulkSharePending(true);
-      try {
-        const res = await api.post<{ updatedNotes?: number; errors?: string[] }>(
-          `/api/spaces/${encodeURIComponent(targetSpaceId)}/add-items`,
-          { noteIds: ids, threadIds: [] },
-        );
-        const went = res.updatedNotes ?? 0;
-        toast.success(
-          went === ids.length
-            ? `Shared ${went} note${went === 1 ? '' : 's'}`
-            : `Shared ${went} of ${ids.length} notes`,
-        );
-        setBulkShareSheetOpen(false);
-        setSidebarSelectMode(false);
-        // `['space', id, 'notes', …]` is the sidebar list's key (useSpace.ts).
-        void queryClient.invalidateQueries({ queryKey: ['space'] });
-        void queryClient.invalidateQueries({ queryKey: ['navigation'] });
-      } catch (err) {
-        toastError(err, 'Could not share these notes');
-      } finally {
-        setBulkSharePending(false);
-      }
-    },
-    [sidebarSelectedIds, queryClient, setSidebarSelectMode],
-  );
-
-  /**
-   * Both bulk destructives report what actually went, not what was asked for. A batch can
-   * partially succeed — a note someone else already moved, a stale id — and one flat
-   * "Deleted" would be a lie.
-   */
-  const onConfirmBulkDelete = useCallback(() => {
-    const ids = [...sidebarSelectedIds];
-    deleteNotesBatch.mutate(ids, {
-      onSuccess: (res) => {
-        setBulkDeleteConfirmOpen(null);
-        setSidebarSelectMode(false);
-        const went = res.deletedNoteIds?.length ?? 0;
-        toast.success(
-          went === ids.length
-            ? `Deleted ${went} note${went === 1 ? '' : 's'}`
-            : `Deleted ${went} of ${ids.length} notes`,
-        );
-      },
-      onError: (err) => {
-        setBulkDeleteConfirmOpen(null);
-        toastError(err, 'Could not delete these notes');
-      },
-    });
-  }, [sidebarSelectedIds, deleteNotesBatch, setSidebarSelectMode]);
-
-  const onConfirmBulkRemoveFromSpace = useCallback(() => {
-    const ids = [...sidebarSelectedIds];
-    // `homeSpaceId` is the scoped space while a shared space is in scope.
-    if (!isScopedSharedSpace || !homeSpaceId) return;
-    removeNotesFromSpace.mutate(
-      { spaceId: homeSpaceId, noteIds: ids },
-      {
-        onSuccess: (res) => {
-          setBulkRemoveConfirmOpen(null);
-          setSidebarSelectMode(false);
-          const went = res.removedNotes ?? 0;
-          toast.success(
-            went === ids.length
-              ? `Removed ${went} note${went === 1 ? '' : 's'}`
-              : `Removed ${went} of ${ids.length} notes`,
-          );
-        },
-        onError: (err) => {
-          setBulkRemoveConfirmOpen(null);
-          toastError(err, 'Could not remove these notes');
-        },
-      },
-    );
-  }, [sidebarSelectedIds, isScopedSharedSpace, homeSpaceId, removeNotesFromSpace, setSidebarSelectMode]);
-
   /** Ceiling matched to `copy-notes`' server-side `.slice(0, 50)`. */
   const SELECTION_CAP = NOTE_SELECTION_CAP;
   /*
@@ -1081,6 +963,35 @@ export default function PrototypeSidebar({
    * for everyone inside a shared-space list and `mayShareToSpace` is false in any shared
    * context, so a fixed bar would sit two-thirds dead there.
    */
+  /*
+   * The bar's half of a verb: name the selection, and say which control raised it so a
+   * confirm can point back at the button rather than at the far corner of the window.
+   */
+  const runBulkCommand = useCallback(
+    (commandId: PrototypeCommandId, control: HTMLElement) => {
+      if (!organize || sidebarSelectionKind !== 'note') return;
+      const idSet = new Set(sidebarSelectedIds);
+      const rows = selectedRows.filter((n) => idSet.has(n.id));
+      if (rows.length !== sidebarSelectedIds.length) return;
+      organize.run(
+        commandId,
+        {
+          kind: 'note',
+          ids: sidebarSelectedIds,
+          rows: rows.map((n) => ({
+            isOwnNote: n.isOwnNote,
+            isScopedSharedSpace,
+            viewerIsSpaceOwner,
+          })),
+          fromSelection: true,
+          isScopedSharedSpace,
+        },
+        { anchorRect: control.getBoundingClientRect() },
+      );
+    },
+    [organize, sidebarSelectedIds, sidebarSelectionKind, selectedRows, isScopedSharedSpace, viewerIsSpaceOwner],
+  );
+
   const bulkBar = (
     <div className="proto-collection-grid-actions proto-bulk-bar">
       <button
@@ -1092,7 +1003,7 @@ export default function PrototypeSidebar({
             ? `A folder can take up to ${folderCap} notes at a time`
             : 'Put these notes in a folder'
         }
-        onClick={() => setBulkFolderSheetOpen(true)}
+        onClick={(e) => runBulkCommand('organize.folder', e.currentTarget)}
       >
         {/* "Folder", not "File" — this app has literal files on its shelves now,
             and the verb would read as the noun. The icon carries the doing. */}
@@ -1111,7 +1022,7 @@ export default function PrototypeSidebar({
           type="button"
           className="proto-bulk-bar__btn"
           title="Start a Thread from these notes"
-          onClick={() => openCreateThreadSheet({ noteIds: sidebarSelectedIds })}
+          onClick={(e) => runBulkCommand('organize.thread', e.currentTarget)}
         >
           <Icon name="arrow-right-arrow-left" size={15} aria-hidden />
           <span className="proto-bulk-bar__label">Thread</span>
@@ -1128,7 +1039,7 @@ export default function PrototypeSidebar({
           className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
           disabled={!bulkActions.canRemoveFromSpace}
           title="Take these notes out of this space"
-          onClick={(e) => setBulkRemoveConfirmOpen(e.currentTarget.getBoundingClientRect())}
+          onClick={(e) => runBulkCommand('organize.removeFromSpace', e.currentTarget)}
         >
           <Icon name="circle-minus" size={15} aria-hidden />
           <span className="proto-bulk-bar__label">Remove</span>
@@ -1140,7 +1051,7 @@ export default function PrototypeSidebar({
             className="proto-bulk-bar__btn"
             disabled={!bulkActions.canShare}
             title="Share these notes to a space"
-            onClick={() => setBulkShareSheetOpen(true)}
+            onClick={(e) => runBulkCommand('organize.share', e.currentTarget)}
           >
             <Icon name="share" size={15} aria-hidden />
             <span className="proto-bulk-bar__label">Share</span>
@@ -1150,7 +1061,7 @@ export default function PrototypeSidebar({
             className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
             disabled={!bulkActions.canDelete}
             title="Delete these notes"
-            onClick={(e) => setBulkDeleteConfirmOpen(e.currentTarget.getBoundingClientRect())}
+            onClick={(e) => runBulkCommand('organize.delete', e.currentTarget)}
           >
             <Icon name="trash-can" size={15} aria-hidden />
             <span className="proto-bulk-bar__label">Delete</span>
@@ -1380,7 +1291,6 @@ export default function PrototypeSidebar({
    * wherever it goes, which today means notes and highlights; the folder, Thread and
    * resource lists still enter selection from the list menu and act from their own bars.
    */
-  const pinFocusedNote = usePinSpaceNote();
 
   /**
    * The target a verb points at, read fresh each time.
@@ -1438,69 +1348,18 @@ export default function PrototypeSidebar({
    */
   const runCommand = useCallback(
     (commandId: PrototypeCommandId, ctx: CommandContext) => {
-      if (!availablePrototypeCommands(ctx).some((c) => c.id === commandId)) return;
-
       /* Confirms anchor to what you are acting on — the focused row, or the list itself
-         when a whole set is in play and no single row is the subject. */
+         when a whole set is in play and no single row is the subject. Enablement is
+         re-checked by the host, which is also where a chord arrives. */
       const anchorRect =
         (document.activeElement instanceof HTMLElement
           ? document.activeElement.getBoundingClientRect()
           : null) ??
         scrollRootRef.current?.getBoundingClientRect() ??
         null;
-
-      /* Acting on a focused row promotes it to the selection first, so the sheets — which
-         all read `sidebarSelectedIds` — see the same thing the verb named. */
-      const commit = () => {
-        if (!ctx.fromSelection) setSidebarSelection('note', ctx.ids);
-      };
-
-      switch (commandId) {
-        case 'organize.folder':
-          commit();
-          setBulkFolderSheetOpen(true);
-          return;
-        case 'organize.thread':
-          openCreateThreadSheet({ noteIds: ctx.ids });
-          return;
-        case 'organize.share':
-          commit();
-          setBulkShareSheetOpen(true);
-          return;
-        case 'organize.removeFromSpace':
-          commit();
-          if (anchorRect) setBulkRemoveConfirmOpen(anchorRect);
-          return;
-        case 'organize.delete':
-          commit();
-          if (anchorRect) setBulkDeleteConfirmOpen(anchorRect);
-          return;
-        case 'organize.pin': {
-          const row = notesForMode.find((n) => n.id === ctx.ids[0]);
-          if (!row || !homeSpaceId) return;
-          pinFocusedNote.mutate(
-            {
-              spaceId: homeSpaceId,
-              noteId: row.id,
-              isPinned: row.isPinned !== true,
-              spaceKind: isScopedSharedSpace ? 'shared' : 'personal',
-            },
-            { onError: (err) => toastError(err, 'Could not update pin') },
-          );
-          return;
-        }
-        default:
-          return;
-      }
+      organize?.run(commandId, ctx, { anchorRect });
     },
-    [
-      notesForMode,
-      homeSpaceId,
-      isScopedSharedSpace,
-      openCreateThreadSheet,
-      pinFocusedNote,
-      setSidebarSelection,
-    ],
+    [organize],
   );
 
   /**
@@ -3456,76 +3315,6 @@ export default function PrototypeSidebar({
         )}
       </div>
 
-      {bulkShareSheetOpen ? (
-        <>
-          {/* Scrim: the picker is a menu, and a menu that only closes by choosing is a trap. */}
-          <div
-            className="proto-bulk-share__scrim"
-            role="presentation"
-            onClick={() => {
-              if (!bulkSharePending) setBulkShareSheetOpen(false);
-            }}
-          />
-          <div className="proto-menu__popover proto-bulk-share__popover" role="menu" aria-label="Share to a space">
-            <div className="proto-menu-section" role="group">
-              <p className="proto-menu-section-label">
-                {`Share ${sidebarSelectedIds.length} note${sidebarSelectedIds.length === 1 ? '' : 's'} to`}
-              </p>
-              {bulkShareTargets.length === 0 ? (
-                <p className="proto-caption" style={{ padding: '6px 10px' }}>
-                  No shared spaces yet.
-                </p>
-              ) : (
-                bulkShareTargets.map((sp) => (
-                  <button
-                    key={sp.id}
-                    type="button"
-                    role="menuitem"
-                    className="proto-menu-item"
-                    disabled={bulkSharePending}
-                    onClick={() => void onBulkShareToSpace(sp.id)}
-                  >
-                    <span className="proto-menu-item__icon proto-menu-item__icon--space" aria-hidden>
-                      <ProtoSpaceMenuIcon color={sp.color || 'paper'} />
-                    </span>
-                    <span className="proto-menu-item__label">{sp.title}</span>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </>
-      ) : null}
-      {bulkDeleteConfirmOpen ? (
-        <ProtoConfirmDialog
-          anchorRect={bulkDeleteConfirmOpen}
-          preferAbove
-          alignRight
-          title={`Delete ${sidebarSelectedIds.length} note${sidebarSelectedIds.length === 1 ? '' : 's'} everywhere?`}
-          description={DELETE_NOTE_EVERYWHERE_CONFIRMATION.description}
-          confirmLabel="Delete"
-          busy={deleteNotesBatch.isPending}
-          onConfirm={onConfirmBulkDelete}
-          onCancel={() => {
-            if (!deleteNotesBatch.isPending) setBulkDeleteConfirmOpen(null);
-          }}
-        />
-      ) : null}
-      {bulkRemoveConfirmOpen ? (
-        <ProtoConfirmDialog
-          anchorRect={bulkRemoveConfirmOpen}
-          preferAbove
-          alignRight
-          title={`Remove ${sidebarSelectedIds.length} note${sidebarSelectedIds.length === 1 ? '' : 's'} from this space?`}
-          description={REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description}
-          confirmLabel="Remove"
-          busy={removeNotesFromSpace.isPending}
-          onConfirm={onConfirmBulkRemoveFromSpace}
-          onCancel={() => {
-            if (!removeNotesFromSpace.isPending) setBulkRemoveConfirmOpen(null);
-          }}
-        />
-      ) : null}
       {bulkHighlightDeleteAnchor ? (
         <ProtoConfirmDialog
           anchorRect={bulkHighlightDeleteAnchor}
@@ -3642,60 +3431,20 @@ export default function PrototypeSidebar({
             viewerIsSpaceOwner={viewerIsSpaceOwner}
           />
           {canCreateSidebarCollections ? (
+            /* This sheet is the list's own "New folder", which starts from nothing. A folder
+               made *from a selection* goes through the host instead, so there is one bulk
+               path whether the verb came from this bar, a chord, or the search panel. */
             <PrototypeCreateFolderSheet
-              open={createFolderSheetOpen || bulkFolderSheetOpen}
-              onOpenChange={(next) => {
-                setCreateFolderSheetOpen(next);
-                if (!next) setBulkFolderSheetOpen(false);
-              }}
-              initialSelectedNoteIds={bulkFolderSheetOpen ? sidebarSelectedIds : undefined}
+              open={createFolderSheetOpen}
+              onOpenChange={setCreateFolderSheetOpen}
               spaceId={homeSpaceId}
               spaceKind={isScopedSharedSpace ? 'shared' : 'personal'}
               spaceNotes={notes}
               notesById={notesById}
               onCreated={(folderName) => {
-                setBulkFolderSheetOpen(false);
                 // setSidebarListMode clears any live selection on its way through.
                 setSidebarListMode('folders');
                 setActiveFolderKey(folderName);
-              }}
-            />
-          ) : null}
-          {canCreateSidebarCollections && isScopedSharedSpace ? (
-            <PrototypeCreateSharedThreadSheet
-              open={createThreadSheetOpen}
-              onOpenChange={(open) => {
-                setCreateThreadSheetOpen(open);
-                if (!open) setCreateThreadPrefill(null);
-              }}
-              spaceId={homeSpaceId}
-              spaceColor={activeSharedSpace?.color}
-              isOwner={viewerIsSpaceOwner}
-              initialNoteIds={createThreadPrefill?.noteIds}
-              onPinFailure={() => groupThreadsQuery.refetch()}
-              onCreated={(thread) => {
-                setSidebarListMode('threads');
-                setSidebarThreadDrilldownId(thread.id);
-              }}
-            />
-          ) : null}
-          {canCreateSidebarCollections && !isScopedSharedSpace ? (
-            <PrototypeCreateThreadSheet
-              open={createThreadSheetOpen}
-              onOpenChange={(open) => {
-                setCreateThreadSheetOpen(open);
-                if (!open) setCreateThreadPrefill(null);
-              }}
-              spaceId={homeSpaceId}
-              spaceNotes={notes}
-              initialSelectedNoteIds={createThreadPrefill?.noteIds}
-              initialThreadName={createThreadPrefill?.threadName}
-              onCreated={(repNoteId) => {
-                // Tell whoever opened the sheet that it went through, before the prefill is
-                // cleared by the close that follows.
-                createThreadPrefill?.onCreated?.();
-                setSidebarListMode('threads');
-                setSidebarThreadDrilldownId(threadClusterDrillSlug(repNoteId));
               }}
             />
           ) : null}

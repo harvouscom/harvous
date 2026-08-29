@@ -43,6 +43,9 @@ import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
  * five sections, so shipping it in the initial payload charges every route (sign-in
  * included) for a surface most sessions open second, not first.
  */
+const PrototypeOrganizeCommandHost = lazy(
+  () => import('../pages/prototype/PrototypeOrganizeCommandHost'),
+);
 const PrototypeLibraryPanelHost = lazy(
   () => import('../pages/prototype/library-panel/PrototypeLibraryPanelHost'),
 );
@@ -1113,6 +1116,17 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             onClose={closeExpandedSidebar}
           />
         ) : null}
+
+        {/* Where the six organize verbs are carried out. Mounted by the shell rather than by
+            a list, because the sidebar that used to own these sheets boots collapsed — and
+            collapsed means unmounted, so a verb invoked from the panel or a chord had
+            nowhere to open. Renders only portalled sheets and confirms until one is raised. */}
+        <Suspense fallback={null}>
+          <PrototypeOrganizeCommandHost
+            scopedSpaceId={sidebarVariant === 'shared-list' ? listScopeSpaceId : null}
+            shellIsSharedSpace={sidebarVariant === 'shared-list'}
+          />
+        </Suspense>
 
         {/* The browse surface the sidebar used to be, summoned from the toolbar chip.
             Mounted through the exit morph, which is what `libraryPanelExiting` buys.

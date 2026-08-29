@@ -23,6 +23,8 @@ import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 
 export interface HomeNotes {
   notes: SpaceNoteRow[];
+  /** The same list keyed by id — every caller was building this map itself. */
+  notesById: Map<string, SpaceNoteRow>;
   /** The server's count, or null while the list is short enough not to need one. */
   noteTotal: number | null;
   hasMoreNotes: boolean;
@@ -30,8 +32,14 @@ export interface HomeNotes {
   ready: boolean;
 }
 
-export function useHomeNotes(): HomeNotes {
-  const { homeSpaceId } = usePrototypeHomeSpaceId();
+/**
+ * @param overrideSpaceId a space to read instead of personal Home — a shared space in scope.
+ *   The flatten and de-duplication are the same job whatever the space, and this was the
+ *   third copy of them.
+ */
+export function useHomeNotes(overrideSpaceId?: string | null): HomeNotes {
+  const { homeSpaceId: personalSpaceId } = usePrototypeHomeSpaceId();
+  const homeSpaceId = overrideSpaceId ?? personalSpaceId;
   /* Every query here is space-scoped and gated on having one — the hooks handle a null id by
      staying idle, so the greeting simply has nothing to say until Home resolves. */
   const spaceId = homeSpaceId ?? undefined;
@@ -66,8 +74,11 @@ export function useHomeNotes(): HomeNotes {
      day sheet cannot disagree about how many notes a library holds. */
   const hasMoreNotes = notesQuery.hasNextPage ?? false;
 
+  const notesById = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes]);
+
   return {
     notes,
+    notesById,
     noteTotal: total,
     hasMoreNotes,
     ready: Boolean(homeSpaceId) && !notesQuery.isPending,
