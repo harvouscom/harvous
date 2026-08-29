@@ -7,7 +7,12 @@
  * own files; the remaining four are small enough to stay here beside the switch that picks
  * them.
  */
+import { useMemo, useState } from 'react';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
+import PrototypeLibraryHighlightKinds from './PrototypeLibraryHighlightKinds';
+import { SIDEBAR_NO_MATCH_COPY } from '../sidebar-no-match-copy';
+import { highlightKindMatches } from '../sidebar-universal-search';
+import type { HighlightKindFilter } from '../sidebar-search-types';
 import PrototypeResourceLibraryList from '../PrototypeResourceLibraryList';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
 import { ProtoNotesListLoading } from '../sidebar-rows';
@@ -138,7 +143,12 @@ function NoThreads() {
 function HighlightsSection({ selection }: { selection: LibrarySelection }) {
   const data = useLibraryPanelData();
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(data.spaceId ?? undefined);
-  const rows = highlightsQuery.data ?? [];
+  const [kind, setKind] = useState<HighlightKindFilter>('all');
+  const all = highlightsQuery.data ?? [];
+  const rows = useMemo(
+    () => all.filter((row) => highlightKindMatches(kind, row.entryKind)),
+    [all, kind],
+  );
 
   if (highlightsQuery.isLoading) return <ProtoSpaceLoading label="Loading highlights" />;
   if (highlightsQuery.isError) {
@@ -150,7 +160,7 @@ function HighlightsSection({ selection }: { selection: LibrarySelection }) {
       />
     );
   }
-  if (rows.length === 0) {
+  if (all.length === 0) {
     return (
       <PrototypeListEmptyState
         iconName="highlighter"
@@ -163,7 +173,20 @@ function HighlightsSection({ selection }: { selection: LibrarySelection }) {
       />
     );
   }
-  return <LibraryHighlightList rows={rows} data={data} selection={selection} />;
+  return (
+    <>
+      <PrototypeLibraryHighlightKinds value={kind} onChange={setKind} />
+      {rows.length === 0 ? (
+        <PrototypeListEmptyState
+          iconName="highlighter"
+          title={SIDEBAR_NO_MATCH_COPY.noHighlightsMatch}
+          description="Try another kind."
+        />
+      ) : (
+        <LibraryHighlightList rows={rows} data={data} selection={selection} />
+      )}
+    </>
+  );
 }
 
 function ResourcesSection() {

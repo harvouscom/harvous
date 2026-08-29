@@ -26,6 +26,25 @@ export type SidebarElsewhereTypeFilter =
 
 export type HighlightKindFilter = 'all' | 'notes' | 'connected' | 'scripture' | 'references';
 
+/**
+ * The five, in the order they are offered.
+ *
+ * One table, because there were two identical ones — the sidebar's list and its search
+ * results each kept a copy — and the search panel was about to make a third. They are the
+ * same five kinds wherever highlights are filtered, so a kind added in one place has to
+ * appear in the others or the surfaces quietly disagree about what a highlight can be.
+ *
+ * "All" is a member rather than the absence of one: exactly one of these is on at any time.
+ */
+export const HIGHLIGHT_KIND_OPTIONS: { id: HighlightKindFilter; label: string; iconName?: string }[] =
+  [
+    { id: 'all', label: 'All' },
+    { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
+    { id: 'connected', label: 'Connected', iconName: 'arrow-right-arrow-left' },
+    { id: 'scripture', label: 'Scripture', iconName: 'scroll' },
+    { id: 'references', label: 'References', iconName: 'lines-leaning' },
+  ];
+
 export type SidebarSearchScope = 'active' | 'elsewhere' | 'my-home';
 
 export const SIDEBAR_ELSEWHERE_TYPE_OPTIONS: {

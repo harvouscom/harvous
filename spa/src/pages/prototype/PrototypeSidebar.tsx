@@ -130,9 +130,10 @@ import {
 } from './proto-pinned-stores';
 import PrototypeSidebarSearchResults from './PrototypeSidebarSearchResults';
 import PrototypeSearchInput from './components/PrototypeSearchInput';
-import type { SidebarSearchResult } from './sidebar-search-types';
+import { HIGHLIGHT_KIND_OPTIONS, type SidebarSearchResult } from './sidebar-search-types';
 import {
   buildFoldersFromNotes,
+  highlightKindMatches,
   mergeFoldersWithRegistry,
   type ActiveSearchContext,
   type FolderBucket,
@@ -223,31 +224,6 @@ const SCRIPTURE_BOOK_VIEW_OPTIONS: readonly ProtoChipOption<ScriptureBookView>[]
 ];
 
 type HighlightKindFilter = 'all' | 'notes' | 'connected' | 'scripture' | 'references';
-
-const HIGHLIGHT_KIND_OPTIONS: { id: HighlightKindFilter; label: string; iconName?: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
-  { id: 'connected', label: 'Connected', iconName: 'arrow-right-arrow-left' },
-  { id: 'scripture', label: 'Scripture', iconName: 'scroll' },
-  { id: 'references', label: 'References', iconName: 'lines-leaning' },
-];
-
-function highlightKindMatches(filter: HighlightKindFilter, entryKind: string | null | undefined): boolean {
-  switch (filter) {
-    case 'all':
-      return true;
-    case 'notes':
-      return entryKind === 'workspace' || entryKind === 'miniNote';
-    case 'connected':
-      return entryKind === 'linkedNote';
-    case 'scripture':
-      return entryKind === 'scriptureLink';
-    case 'references':
-      return entryKind === 'reference';
-    default:
-      return true;
-  }
-}
 
 function ProtoNotesPaginationFooter({
   hasNextPage,

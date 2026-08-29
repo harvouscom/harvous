@@ -692,7 +692,12 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
  * is a class plus an index, not a restyle.
  */
 .proto-seg-track
-  :is(.proto-toolbar-seg__btn, .proto-sidebar-seg__btn, .proto-appearance-segmented__btn) {
+  :is(
+    .proto-toolbar-seg__btn,
+    .proto-sidebar-seg__btn,
+    .proto-appearance-segmented__btn,
+    .proto-library-kinds__btn
+  ) {
   /* Labels and glyphs ride above the thumb they sit on. */
   position: relative;
   z-index: 1;
@@ -702,10 +707,12 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
    shadow and, worse, would not move. Both state conventions, because the appearance
    control shipped with a modifier class and gained `data-active` later. */
 .proto-seg-track
-  :is(.proto-toolbar-seg__btn, .proto-sidebar-seg__btn, .proto-appearance-segmented__btn):is(
-    [data-active='true'],
-    .proto-appearance-segmented__btn--active
-  ) {
+  :is(
+    .proto-toolbar-seg__btn,
+    .proto-sidebar-seg__btn,
+    .proto-appearance-segmented__btn,
+    .proto-library-kinds__btn
+  ):is([data-active='true'], .proto-appearance-segmented__btn--active) {
   background: transparent;
   box-shadow: none;
 }
@@ -21709,4 +21716,72 @@ button.proto-feed-sheet__stat:hover {
 /* An empty trail has no stack to draw; it centres instead. */
 .proto-feed--empty {
   justify-content: center;
+}
+
+
+/* ─── Highlight kinds, in the search panel ────────────────────────────────────
+ *
+ * The sidebar filters highlights with a chip row. The panel uses the switch instead —
+ * the same one its layer control wears — because these five are a partition rather
+ * than a set of filters: exactly one is on, always, and "All" is a member of the list
+ * rather than the absence of a choice. Chips say "none, some or all of these"; a
+ * switch says "one of these", which is the true shape here.
+ *
+ * Geometry is published for the shared thumb rather than hard-coded, so joining the
+ * roster in `.proto-seg-track` above was a class and an index, as its note asks.
+ */
+.proto-library-kinds {
+  --proto-seg-pad: 3px;
+  --proto-seg-gap: 2px;
+  --proto-seg-thumb-radius: var(--pds-radius-row);
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  padding: var(--proto-seg-pad);
+  gap: var(--proto-seg-gap);
+  border-radius: var(--pds-radius-control, 10px);
+  background: var(--pds-bg-control);
+  /* Full width of the body it sits above: five equal segments is the arithmetic the
+     thumb does, and anything shrink-to-fit would put it under the wrong one. */
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.proto-library-kinds__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  /* `1 1 0`, not `1 1 auto` — equal segments regardless of label, which is what the
+     thumb's `track / count` assumes. "References" is twice "All" and neither may
+     claim more of the track than the other. */
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--proto-seg-thumb-radius);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s;
+}
+
+.proto-library-kinds__btn[data-active='true'] {
+  color: var(--pds-text-primary);
+}
+
+.proto-library-kinds__btn:hover:not([data-active='true']) {
+  color: var(--pds-text-primary);
+}
+
+.proto-library-kinds__btn:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: -2px;
 }
