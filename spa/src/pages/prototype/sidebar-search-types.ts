@@ -180,12 +180,18 @@ export const LIBRARY_TAB_OPTIONS: {
      *
      * The glyph: every other row here has one, and a single iconless row starts its label
      * at a different x than its neighbours — the ragged edge reads as a rendering fault
-     * rather than a category. `table-cells` is the least-claimed mark that means "all of
-     * it"; `layer-group` would have been apter but it is the Activity segment's, and a row
-     * wearing the shell's navigation mark reads as a way out of this menu.
+     * rather than a category.
+     *
+     * `layer-group`, the same mark the study feed's scope picker already wears for "All
+     * activity". This was `table-cells` for a while on the theory that the layers belonged
+     * to the Activity segment and a row wearing the shell's navigation mark would read as a
+     * way out of the menu. That was wrong twice over: the segment shows the *space tile* and
+     * only falls back to layers when there is none, and the scope picker had already
+     * established the mark as meaning "all of it" rather than "go here". One idea, one
+     * glyph, wherever the app offers to stop narrowing.
      */
     option.id === 'all'
-      ? { ...option, label: 'Everything', iconName: 'table-cells' }
+      ? { ...option, label: 'Everything', iconName: 'layer-group' }
       : option,
   ),
   /* Matches the sidebar's Resources list mode, so the same shelf wears one glyph. */
