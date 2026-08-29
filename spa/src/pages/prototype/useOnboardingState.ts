@@ -18,8 +18,10 @@ import {
 } from '../../lib/proto-onboarding-sync';
 import { PROTO_SPOTLIGHT_KEY } from '../../layouts/proto-session-keys';
 import {
+  canRestoreOnboarding,
   dismissOnboarding as dismissAll,
   dismissStep as dismissOne,
+  restoreOnboarding as restoreCluster,
   emptyOnboardingState,
   markStep,
   markSteps,
@@ -133,6 +135,10 @@ export interface UseOnboardingResult {
   markDone: (id: OnboardingStepId) => void;
   dismissStep: (id: OnboardingStepId) => void;
   dismissAll: () => void;
+  /** Undo a dismissal — the settings path back in. */
+  restoreAll: () => void;
+  /** Whether `restoreAll` has anything to undo, so settings can say so. */
+  canRestore: boolean;
 }
 
 export function useOnboardingState(): UseOnboardingResult {
@@ -149,6 +155,9 @@ export function useOnboardingState(): UseOnboardingResult {
   const dismissCluster = useCallback(() => {
     updateOnboardingState((state) => dismissAll(state));
   }, []);
+  const restoreAll = useCallback(() => {
+    updateOnboardingState((state) => restoreCluster(state));
+  }, []);
 
   const state = snapshot.state ?? emptyOnboardingState();
 
@@ -163,5 +172,7 @@ export function useOnboardingState(): UseOnboardingResult {
     markDone,
     dismissStep,
     dismissAll: dismissCluster,
+    restoreAll,
+    canRestore: canRestoreOnboarding(snapshot.state),
   };
 }

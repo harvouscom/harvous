@@ -42,10 +42,7 @@ import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
 
 import { useProtoShell, type ThreadProposal } from '../../layouts/proto-shell-context';
-import { useHomeSurfaceData } from './use-home-surface-data';
-
-/** Don't nag about loose notes until a few have piled up. */
-const LOOSE_MIN = 3;
+import { LOOSE_MIN, useHomeSurfaceData } from './use-home-surface-data';
 
 type Props = {
   homeSpaceId: string;
@@ -218,8 +215,7 @@ export default function PrototypeSidebarHomeView({
     activeNoteId,
     onOpenNote,
     onOpenHighlight,
-    onOpenCreateThreadPrefill,
-    destinations: { proposeThread, openThread },
+    destinations: { proposeThread, openThread, createThread: onOpenCreateThreadPrefill },
   });
 
   if (!contentReady) {

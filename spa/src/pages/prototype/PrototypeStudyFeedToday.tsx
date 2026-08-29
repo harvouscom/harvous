@@ -11,26 +11,10 @@
  *
  * The sections are Home's, in Home's order (Continue, then Following), because this is the
  * content the sidebar's Home layer used to carry and someone moving between the two should
- * not have to relearn it.
+ * not have to relearn it. Since the derivation became `useHomeSurfaceData` this band shows
+ * the same three Continue slots and the same recall rows rather than a subset — it takes the
+ * whole thing as one prop so a value added there cannot go unnoticed here.
  */
-import { useCallback, useMemo } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { prototypeReadRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
-import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
-import {
-  continueReadingEyebrow,
-  continueReadingMeta,
-  deriveContinueReading,
-  pickContinueNote,
-} from '@/utils/prototype-home-trends';
-import { bibleBookChapterCounts, bookSlug } from '@/utils/bible-book-chapters';
-import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
-import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
-import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
-import { useVotdToday } from '../../hooks/queries/useVotdToday';
-import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
-import { useProtoShell } from '../../layouts/proto-shell-context';
-import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
@@ -38,112 +22,114 @@ import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
 import PrototypeHomeChurchFeed from './PrototypeHomeChurchFeed';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
-import { noteParamSlug } from './proto-route-slugs';
+import PrototypeRecallCarousel from './PrototypeRecallCarousel';
+import { continueReadingEyebrow, continueReadingMeta } from '@/utils/prototype-home-trends';
+import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { protoRelativeCaptionAbbrev } from './proto-time';
-import PrototypeStudyFeedActionCard from './PrototypeStudyFeedActionCard';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
-import type { RecallOpportunity } from './PrototypeRecallCarousel';
+import { LOOSE_MIN, type useHomeSurfaceData } from './use-home-surface-data';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
+
+/** A note as a Continue row — the sidebar's `HomeNoteCard`, in this surface's row shape. */
+function ContinueNoteRow({
+  icon,
+  note,
+  onOpen,
+}: {
+  icon: 'pen-to-square' | 'arrow-rotate-left';
+  note: SpaceNoteRow;
+  onOpen: (note: SpaceNoteRow) => void;
+}) {
+  return (
+    <PrototypeHomeRow
+      icon={icon}
+      title={stripServerAutoUntitledNoteTitleForDisplay(note.title?.trim() ?? '') || 'New Note'}
+      meta={[
+        icon === 'pen-to-square' ? 'Pick up where you left off' : 'Worth another look',
+        protoRelativeCaptionAbbrev(note.updatedAt ?? note.createdAt ?? null),
+      ]}
+      onClick={() => onOpen(note)}
+    />
+  );
+}
 
 export default function PrototypeStudyFeedToday({
   notes,
-  prompts,
+  home,
 }: {
   notes: SpaceNoteRow[];
-  /** Recall prompts, shown under Suggested — the shelf they live on in the sidebar. */
-  prompts: RecallOpportunity[];
+  home: ReturnType<typeof useHomeSurfaceData>;
 }) {
-  const navigate = useNavigate();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
-  const readingHistory = useReadingHistory();
-  const { lastSubstantiveVisitAtById } = useNoteFingerprints();
-  const votdQuery = useVotdToday({ enabled: Boolean(homeSpaceId) });
   const scriptureQuery = usePrototypeSpaceScriptureIndex(homeSpaceId ?? undefined);
   const libraryNav = useLibraryPanelNav();
 
+  const {
+    continueNote,
+    continueIsActive,
+    revisitOnHome,
+    handleOpenRevisitNote,
+    continueReadingSuggestion,
+    openContinueReading,
+    spotlightThread,
+    openThread,
+    recallOpportunities,
+    handleRecallSnooze,
+    handleRecallDismiss,
+    handleRecallOpened,
+    handleRecallSynced,
+    looseCount,
+    votd,
+  } = home;
+
   /*
-   * The note you were actually working in, by the visit signal rather than by `updatedAt` —
-   * opening a note bumps neither, and "continue" has to mean the thing you were reading, not
-   * the thing most recently touched by a sync.
+   * The sidebar's three slots, in its order and on its terms: the note you were in — or, when
+   * that note is already open, one worth returning to instead — then the chapter you were
+   * reading, then the Thread you have been building. Activity used to show the first two only,
+   * which made the same shelf look shorter here for no reason a reader could name.
    */
-  const continueNote = useMemo(
-    () => pickContinueNote(notes, { lastSubstantiveVisitAtById }),
-    [notes, lastSubstantiveVisitAtById],
+  const continueRow = continueNote && !continueIsActive ? continueNote : null;
+  const revisitRow = !continueRow && revisitOnHome ? revisitOnHome : null;
+  const hasContinue = Boolean(
+    continueRow || revisitRow || continueReadingSuggestion || spotlightThread,
   );
-
-  /* A glance is not a read — the dwell bucket decides, the same way it does on Home. */
-  const readChapters = useMemo(
-    () =>
-      (readingHistory.data?.chapters ?? []).map((c) => ({
-        book: c.book,
-        chapter: c.chapter,
-        countsAsRead: readingDwellCountsAsRead(c.dwellBucket),
-      })),
-    [readingHistory.data],
-  );
-
-  const continueReading = useMemo(
-    () =>
-      deriveContinueReading(
-        { lastRead: readingHistory.data?.lastRead ?? null, readChapters },
-        bibleBookChapterCounts(),
-      ),
-    [readingHistory.data?.lastRead, readChapters],
-  );
-
-  const openNote = useCallback(
-    (noteId: string) => {
-      navigate({
-        to: prototypeNoteRouteTo(),
-        params: { noteId: noteParamSlug(noteId) },
-        search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH },
-      });
-    },
-    [navigate],
-  );
-
-  /* Carries the translation the chapter was last read in, so continuing does not silently
-     switch translations partway through a book. */
-  const openContinueReading = useCallback(() => {
-    if (!continueReading) return;
-    void navigate({
-      to: prototypeReadRouteTo(),
-      params: {
-        book: bookSlug(continueReading.book),
-        chapter: String(continueReading.chapter),
-      },
-      search: { t: continueReading.translation || undefined },
-    });
-  }, [continueReading, navigate]);
-
-  const hasContinue = Boolean(continueNote || continueReading);
 
   return (
     <div className="proto-feed-today">
       {hasContinue ? (
         <PrototypeHomeSection title="Continue">
-          {continueNote ? (
-            <PrototypeHomeRow
-              icon="pen-to-square"
-              title={continueNote.title?.trim() || 'Untitled note'}
-              meta={[
-                'Pick up where you left off',
-                protoRelativeCaptionAbbrev(
-                  continueNote.updatedAt ?? continueNote.createdAt ?? null,
-                ),
-              ]}
-              onClick={() => openNote(continueNote.id)}
+          {continueRow ? (
+            <ContinueNoteRow icon="pen-to-square" note={continueRow} onOpen={home.onOpenNote} />
+          ) : revisitRow ? (
+            <ContinueNoteRow
+              icon="arrow-rotate-left"
+              note={revisitRow}
+              onOpen={handleOpenRevisitNote}
             />
           ) : null}
-          {continueReading ? (
+
+          {continueReadingSuggestion ? (
             <PrototypeHomeRow
               icon="book-open"
-              title={`${continueReading.book} ${continueReading.chapter}`}
+              title={`${continueReadingSuggestion.book} ${continueReadingSuggestion.chapter}`}
               meta={[
-                continueReadingEyebrow(continueReading),
-                continueReadingMeta(continueReading),
+                continueReadingEyebrow(continueReadingSuggestion),
+                continueReadingMeta(continueReadingSuggestion),
               ]}
               onClick={openContinueReading}
+            />
+          ) : null}
+
+          {spotlightThread ? (
+            <PrototypeHomeRow
+              icon="arrow-right-arrow-left"
+              title={spotlightThread.title}
+              meta={[
+                `${spotlightThread.noteCount} ${spotlightThread.noteCount === 1 ? 'note' : 'notes'}`,
+              ]}
+              onClick={() => openThread(spotlightThread.id)}
             />
           ) : null}
         </PrototypeHomeSection>
@@ -166,22 +152,45 @@ export default function PrototypeStudyFeedToday({
         * own div below the section, which gave the sheet two unlabelled piles of suggestion
         * and gave the prompts a dashed frame nothing else on the page wore.
         */}
-      {votdQuery.data || prompts.length > 0 ? (
+      {votd || looseCount >= LOOSE_MIN || recallOpportunities.length > 0 ? (
         <PrototypeHomeSection title="Suggested">
-          {votdQuery.data ? (
+          {votd ? (
             <PrototypeDailyPassagePill
               homeSpaceId={homeSpaceId ?? ''}
               notes={notes}
-              votd={votdQuery.data}
+              votd={votd}
               scriptureBooks={scriptureQuery.data ?? []}
               /* The panel's Scripture tab. This used to summon the sidebar, which is the
                  last of that coupling on this surface — see `useLibraryPanelNav`. */
               onOpenScripturePassage={() => libraryNav.openList('scripture')}
             />
           ) : null}
-          {prompts.map((opportunity) => (
-            <PrototypeStudyFeedActionCard key={opportunity.id} opportunity={opportunity} />
-          ))}
+          {/* Filing is a suggestion like any other, and it was the sidebar's alone. Its
+              destination here is the panel's Folders tab rather than a drilled rail. */}
+          {looseCount >= LOOSE_MIN ? (
+            <PrototypeHomeRow
+              icon="folder"
+              title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a folder`}
+              onClick={() => libraryNav.openList('folders')}
+            />
+          ) : null}
+          {/*
+            * The shelf's own rows, not a copy of them.
+            *
+            * Activity used to render a plain row per prompt, which meant a suggestion here had
+            * no way to be put off or turned down — the overflow with snooze and dismiss is the
+            * carousel's, and rebuilding a second one beside it is how two menus start
+            * disagreeing about what "not now" means. It returns a bare fragment, so it drops
+            * into this section as rows rather than arriving with a frame of its own.
+            */}
+          <PrototypeRecallCarousel
+            opportunities={recallOpportunities}
+            onSnooze={handleRecallSnooze}
+            onDismiss={handleRecallDismiss}
+            onOpened={handleRecallOpened}
+            onRecallSynced={handleRecallSynced}
+            homeSpaceId={homeSpaceId}
+          />
         </PrototypeHomeSection>
       ) : null}
     </div>

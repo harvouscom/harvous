@@ -161,6 +161,9 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import type { ThreadProposal } from '../../layouts/proto-shell-context';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Don't nag about loose notes until a few have piled up. */
+export const LOOSE_MIN = 3;
+
 /** Resurface a note only after it's gone quiet for two weeks. */
 const REVISIT_MIN_AGE_MS = 14 * DAY_MS;
 /** Don't nudge "revisit" until there's a real backlog. */
@@ -194,10 +197,30 @@ function pickSpotlightHighlight(
 export type HomeSurfaceDestinations = {
   /**
    * Raise the review for a grouping Home is suggesting — a subject, a cross-reference pair,
-   * or a study arc. The sidebar shows it in place of its list; Activity raises the shell's
-   * host over the feed. Same proposal, same wording, two frames.
+   * or a study arc.
+   *
+   * `null` where a surface has no frame to review one in. The state is the shell's, but the
+   * panel that renders it still lives inside `PrototypeSidebar`, so Activity cannot yet show
+   * a proposal it sets. As with `createThread`, the hook reads this and withholds the three
+   * kinds that would land nowhere rather than offering cards that do nothing.
    */
-  proposeThread: (proposal: ThreadProposal) => void;
+  proposeThread: ((proposal: ThreadProposal) => void) | null;
+  /**
+   * Start a Thread from two notes the recall engine paired up, with the sheet prefilled.
+   *
+   * `null` where a surface has no sheet to raise — Activity, until the organize sheets come
+   * out of `PrototypeSidebar`. Null rather than a no-op on purpose: the hook reads it and
+   * withholds the connect-suggestion card entirely, because a card whose whole promise is
+   * "connect these two" and which does nothing when pressed is worse than no card at all.
+   */
+  createThread:
+    | ((prefill: {
+        noteIds: [string, string];
+        threadName: string;
+        /** Fired once the thread actually exists — see `handleRecallCompleted`. */
+        onCreated?: () => void;
+      }) => void)
+    | null;
   /**
    * Open a Thread that already exists — or, with no id, the list of them. The getting-
    * started step for Threads has no particular one in mind, and both surfaces can say
@@ -218,12 +241,6 @@ export type HomeSurfaceInput = {
   activeNoteId?: string;
   onOpenNote: (row: SpaceNoteRow) => void;
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void;
-  onOpenCreateThreadPrefill: (prefill: {
-    noteIds: [string, string];
-    threadName: string;
-    /** Fired once the thread actually exists — see `handleRecallCompleted`. */
-    onCreated?: () => void;
-  }) => void;
   destinations: HomeSurfaceDestinations;
 };
 
@@ -238,8 +255,7 @@ export function useHomeSurfaceData({
   activeNoteId,
   onOpenNote,
   onOpenHighlight,
-  onOpenCreateThreadPrefill,
-  destinations: { proposeThread, openThread },
+  destinations: { proposeThread, openThread, createThread },
 }: HomeSurfaceInput) {
   const tagsQuery = useTagsList();
   const threadsQuery = usePrototypeStudyThreads(homeSpaceId);
@@ -655,7 +671,7 @@ export function useHomeSurfaceData({
     if (!subjectConnection) return;
     const proposalNotes = subjectConnection.notes.filter((n) => loadedNoteIds.has(n.id));
     if (proposalNotes.length < SUBJECT_CONNECTION_MIN) return;
-    proposeThread({
+    proposeThread?.({
       subject: subjectConnection.subject,
       notes: proposalNotes,
     });
@@ -665,7 +681,7 @@ export function useHomeSurfaceData({
     if (!crossRefConnection) return;
     const proposalNotes = crossRefConnection.notes.filter((n) => loadedNoteIds.has(n.id));
     if (proposalNotes.length < CROSSREF_CONNECTION_MIN) return;
-    proposeThread({
+    proposeThread?.({
       subject: `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`,
       notes: proposalNotes,
       variant: 'crossref',
@@ -756,7 +772,7 @@ export function useHomeSurfaceData({
       .filter((n): n is SpaceNoteRow => Boolean(n))
       .map((n) => ({ id: n.id, title: n.title ?? null }));
     if (proposalNotes.length === 0) return;
-    proposeThread({
+    proposeThread?.({
       subject,
       notes: proposalNotes,
       variant: 'arc',
@@ -959,9 +975,12 @@ export function useHomeSurfaceData({
    * threads them together, so either one being gone makes the whole suggestion wrong.
    */
   const topCrossRefGap = crossRefGapsQuery.data?.find((gap) => !isNoteDeleted(gap.fromNoteId));
-  const topConnectSuggestion = connectSuggestionsQuery.data?.find(
-    (s) => !isNoteDeleted(s.noteAId) && !isNoteDeleted(s.noteBId),
-  );
+  /* Withheld where there is no sheet to prefill — see `destinations.createThread`. */
+  const topConnectSuggestion = !createThread
+    ? undefined
+    : connectSuggestionsQuery.data?.find(
+        (s) => !isNoteDeleted(s.noteAId) && !isNoteDeleted(s.noteBId),
+      );
 
   // ── Recall carousel (Home resurfacing) ──
   // Fold the per-kind recall/trend memos above into one varied, ranked, snoozable carousel. Each
@@ -991,13 +1010,15 @@ export function useHomeSurfaceData({
         revisitNote,
         revisitOnHome,
         spotlightHighlight,
-        studyArc,
-        sectionArc,
-        activeArc,
-        activeArcIsSection,
-        studyArcCopy,
-        subjectConnection,
-        crossRefConnection,
+        /* All five go quiet together where a proposal has nowhere to land — the arc kinds
+           and the two connection kinds exist only to open one. */
+        studyArc: proposeThread ? studyArc : undefined,
+        sectionArc: proposeThread ? sectionArc : undefined,
+        activeArc: proposeThread ? activeArc : undefined,
+        activeArcIsSection: proposeThread ? activeArcIsSection : undefined,
+        studyArcCopy: proposeThread ? studyArcCopy : undefined,
+        subjectConnection: proposeThread ? subjectConnection : undefined,
+        crossRefConnection: proposeThread ? crossRefConnection : undefined,
         passageConnection,
         referenceWordConnection,
         fingerprintsById,
@@ -1017,7 +1038,7 @@ export function useHomeSurfaceData({
         topCrossRefGap,
         topConnectSuggestion,
         homeSpaceId,
-        onOpenCreateThreadPrefill,
+        onOpenCreateThreadPrefill: createThread ?? (() => undefined),
         startDraftNote,
         openCrossRefGap,
         handleRecallCompleted,
@@ -1035,6 +1056,7 @@ export function useHomeSurfaceData({
       studyArcCopy,
       subjectConnection,
       crossRefConnection,
+      proposeThread,
       passageConnection,
       referenceWordConnection,
       fingerprintsById,
@@ -1054,7 +1076,7 @@ export function useHomeSurfaceData({
       topCrossRefGap,
       topConnectSuggestion,
       homeSpaceId,
-      onOpenCreateThreadPrefill,
+      createThread,
       startDraftNote,
       openCrossRefGap,
       handleRecallCompleted,
@@ -1357,6 +1379,9 @@ export function useHomeSurfaceData({
     /* Continue: what you were doing, what you were reading, what you were building. */
     continueNote,
     continueIsActive,
+    /* Handed back so a surface can take the whole bag as one prop rather than threading the
+       opener separately alongside it. */
+    onOpenNote,
     revisitOnHome,
     handleOpenRevisitNote,
     continueReadingSuggestion,

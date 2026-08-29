@@ -64,6 +64,16 @@ export interface OnboardingState {
   version: number;
   /** Version at which the whole cluster was put away; 0 = never. */
   dismissedVersion: number;
+  /**
+   * Version at which the reader asked for it back from settings; 0 = never.
+   *
+   * A second counter rather than resetting `dismissedVersion`, because every field here is
+   * monotonic and merges by taking the larger — clearing the dismissal would simply lose to
+   * whichever device still remembered it, and the checklist would vanish again on the next
+   * sync. Two climbing numbers survive that: the cluster is hidden only while the dismissal
+   * is ahead of the restore, and either action can be taken any number of times.
+   */
+  restoredVersion: number;
   /** When every step was first satisfied. Informational — visibility derives from the steps. */
   completedAt: string | null;
   steps: Record<OnboardingStepId, OnboardingStepState>;
@@ -86,6 +96,7 @@ export function emptyOnboardingState(): OnboardingState {
   return {
     version: ONBOARDING_VERSION,
     dismissedVersion: 0,
+    restoredVersion: 0,
     completedAt: null,
     steps: emptySteps(),
   };
@@ -126,6 +137,10 @@ export function parseOnboardingState(raw: string | null | undefined): Onboarding
     typeof obj.dismissedVersion === 'number' && obj.dismissedVersion > 0
       ? Math.floor(obj.dismissedVersion)
       : 0;
+  const restoredVersion =
+    typeof obj.restoredVersion === 'number' && obj.restoredVersion > 0
+      ? Math.floor(obj.restoredVersion)
+      : 0;
   const completedAt = typeof obj.completedAt === 'string' && obj.completedAt ? obj.completedAt : null;
 
   const steps = emptySteps();
@@ -136,7 +151,7 @@ export function parseOnboardingState(raw: string | null | undefined): Onboarding
     }
   }
 
-  return { version, dismissedVersion, completedAt, steps };
+  return { version, dismissedVersion, restoredVersion, completedAt, steps };
 }
 
 export function serializeOnboardingState(state: OnboardingState): string {
@@ -173,6 +188,7 @@ export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): O
   return {
     version: Math.max(a.version, b.version),
     dismissedVersion: Math.max(a.dismissedVersion, b.dismissedVersion),
+    restoredVersion: Math.max(a.restoredVersion, b.restoredVersion),
     completedAt: earliestIso(a.completedAt, b.completedAt),
     steps,
   };
@@ -233,8 +249,32 @@ export function dismissStep(state: OnboardingState, id: OnboardingStepId): Onboa
 
 /** Put the whole cluster away for this version. */
 export function dismissOnboarding(state: OnboardingState): OnboardingState {
-  if (state.dismissedVersion >= ONBOARDING_VERSION) return state;
-  return { ...state, dismissedVersion: ONBOARDING_VERSION };
+  /* Has to clear the restore as well as the current version, or putting the checklist away
+     after asking for it back would leave the two counters level and change nothing. */
+  const next = Math.max(ONBOARDING_VERSION, state.restoredVersion + 1);
+  if (state.dismissedVersion >= next) return state;
+  return { ...state, dismissedVersion: next };
+}
+
+/**
+ * Bring the checklist back after it was dismissed — the way back in, from settings.
+ *
+ * Only the cluster. A step put away on its own stays away: that was a separate answer about
+ * that step, and sweeping it up in a general "show me this again" would re-ask a question
+ * already answered. `canRestoreOnboarding` is what a settings row should offer itself on, so
+ * it does not present an action with nothing to undo.
+ */
+export function restoreOnboarding(state: OnboardingState): OnboardingState {
+  if (state.restoredVersion >= state.dismissedVersion) return state;
+  return { ...state, restoredVersion: state.dismissedVersion };
+}
+
+/** Whether there is a dismissal for `restoreOnboarding` to lift. */
+export function canRestoreOnboarding(state: OnboardingState | null): boolean {
+  if (!state) return false;
+  if (state.dismissedVersion <= state.restoredVersion) return false;
+  /* Nothing to come back to if every step is done or was individually put away. */
+  return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
 }
 
 /** A step is settled when it has been done or individually put away. */
@@ -271,6 +311,7 @@ export function onboardingProgress(state: OnboardingState): OnboardingProgress {
  */
 export function shouldShowOnboarding(state: OnboardingState | null): boolean {
   if (!state) return true;
-  if (state.dismissedVersion >= ONBOARDING_VERSION) return false;
+  if (state.dismissedVersion >= ONBOARDING_VERSION && state.dismissedVersion > state.restoredVersion)
+    return false;
   return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
 }

@@ -1,10 +1,14 @@
 /**
- * The facts a greeting is built from, for a surface that is not the sidebar.
+ * The note list Home is about, for a surface that is not the sidebar.
  *
- * `PrototypeSidebarHomeView` derives these inline among fifty other things, which was fine
- * while it was the only surface that opened with a sentence. Activity opens with one too, and
- * copying the derivation into the day sheet would leave two definitions of "the book you keep
- * coming back to" free to disagree.
+ * The sidebar receives its notes as props from `PrototypeSidebar`, which owns the paging.
+ * Activity has no such parent, so this hook does that job: fetch, de-duplicate across page
+ * boundaries, drop the empties, and report whether there is more.
+ *
+ * It used to derive the greeting's lead theme and counts as well — hence its old name — which
+ * put a second definition of "the book you keep coming back to" beside the sidebar's. Both are
+ * now `useHomeSurfaceData`'s, computed once from what this returns. What is left here is only
+ * the fetching, which genuinely differs between the two surfaces.
  *
  * The queries are the same ones the sidebar already runs, so the extra cost is a cache read
  * rather than a round trip — React Query dedupes them by key.
@@ -12,39 +16,26 @@
 import { useMemo } from 'react';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useSpaceNotes } from '../../hooks/queries/useSpace';
-import { useTagsList } from '../../hooks/queries/useTagsList';
-import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
-import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
-import {
-  deriveTopBooks,
-  deriveTopFolders,
-  deriveTopTags,
-  deriveTopThread,
-  selectHomeLeadTheme,
-  type HomeLeadTheme,
-} from '@/utils/prototype-home-trends';
+
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { sortNotesByLastUpdated } from '@/utils/sorting';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 
-export interface HomeGreetingData {
+export interface HomeNotes {
   notes: SpaceNoteRow[];
-  countForLogic: number;
-  hasMoreForLogic: boolean;
-  lead: HomeLeadTheme;
+  /** The server's count, or null while the list is short enough not to need one. */
+  noteTotal: number | null;
+  hasMoreNotes: boolean;
   /** False until the notes that decide the sentence have landed. */
   ready: boolean;
 }
 
-export function useHomeGreetingData(): HomeGreetingData {
+export function useHomeNotes(): HomeNotes {
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   /* Every query here is space-scoped and gated on having one — the hooks handle a null id by
      staying idle, so the greeting simply has nothing to say until Home resolves. */
   const spaceId = homeSpaceId ?? undefined;
   const notesQuery = useSpaceNotes(spaceId ?? '', 20);
-  const tagsQuery = useTagsList();
-  const threadsQuery = usePrototypeStudyThreads(spaceId);
-  const scriptureQuery = usePrototypeSpaceScriptureIndex(spaceId);
 
   /*
    * De-duplicated and stripped of blanks, exactly as `PrototypeSidebar` does before handing
@@ -71,40 +62,14 @@ export function useHomeGreetingData(): HomeGreetingData {
   }, [notesQuery.data]);
   const total = notesQuery.data?.pages[0]?.total ?? null;
 
-  /*
-   * The same arithmetic the sidebar does, because the two now say the same sentence and a
-   * library cannot be 27 notes on one surface and 30 on the other.
-   *
-   * When everything is loaded the loaded count *is* the count; only a truncated list needs
-   * the server's total, and only an unknown total leaves "27+" on the chip.
-   */
+  /* The count arithmetic these two feed is `useHomeSurfaceData`'s, so the sidebar and the
+     day sheet cannot disagree about how many notes a library holds. */
   const hasMoreNotes = notesQuery.hasNextPage ?? false;
-  const countForLogic = !hasMoreNotes ? notes.length : (total ?? notes.length);
-  const hasMoreForLogic = hasMoreNotes && total == null;
-
-  const threads = threadsQuery.data ?? [];
-  const scriptureBooks = scriptureQuery.data ?? [];
-  const tags = tagsQuery.data?.tags ?? [];
-
-  const lead = useMemo(
-    () =>
-      selectHomeLeadTheme({
-        thread: deriveTopThread(threads, 1)[0],
-        book: deriveTopBooks(scriptureBooks, 1)[0],
-        folder: deriveTopFolders(notes, 1)[0],
-        tag: deriveTopTags(tags, 1)[0],
-        noteCount: countForLogic,
-        hasMoreNotes: hasMoreForLogic,
-        today: new Date(),
-      }),
-    [threads, scriptureBooks, notes, tags, countForLogic, hasMoreForLogic],
-  );
 
   return {
     notes,
-    countForLogic,
-    hasMoreForLogic,
-    lead,
+    noteTotal: total,
+    hasMoreNotes,
     ready: Boolean(homeSpaceId) && !notesQuery.isPending,
   };
 }

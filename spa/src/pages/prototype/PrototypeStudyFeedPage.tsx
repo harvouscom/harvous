@@ -41,9 +41,15 @@ import { summarizeStudyFeedDay } from './study-feed-presentation';
 import { canonicalBookOrderMap } from '@/utils/scripture-passage-drill';
 import type { LibraryTab } from './library-panel/library-panel-view';
 import PrototypeHomeGreeting from './PrototypeHomeGreeting';
-import { useHomeGreetingData } from './useHomeGreetingData';
-import { useStudyFeedRecall } from './useStudyFeedRecall';
+import { useHomeNotes } from './useHomeNotes';
+import { useHomeSurfaceData } from './use-home-surface-data';
+import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import PrototypeStudyFeedToday from './PrototypeStudyFeedToday';
+import PrototypeOnboardingDock from './PrototypeOnboardingDock';
+import { markOnboardingLedToday, onboardingHasLedToday } from './onboarding-day-marker';
+import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
+import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 
@@ -92,8 +98,65 @@ export default function PrototypeStudyFeedPage() {
    */
   const libraryNav = useLibraryPanelNav();
   const { openLibraryPanel } = useProtoShell();
-  const greeting = useHomeGreetingData();
-  const prompts = useStudyFeedRecall(greeting.notes);
+  const greeting = useHomeNotes();
+  const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const scriptureQuery = usePrototypeSpaceScriptureIndex(homeSpaceId ?? undefined);
+
+  /* One destination vocabulary for the whole surface: a prompt opens the thing it is about,
+     the same way the row beneath it does. */
+  const openNoteRow = useCallback(
+    (row: SpaceNoteRow) => {
+      navigate({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(row.id) },
+        search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH },
+      });
+    },
+    [navigate],
+  );
+
+  const openHighlightRow = useCallback(
+    (row: PrototypeHighlightStudyThreadRow) => {
+      const noteId = row.parentNoteId ?? null;
+      if (!noteId) return false;
+      navigate({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(noteId) },
+        search: { ...PROTOTYPE_NOTE_LIST_NAV_SEARCH, highlight: row.id },
+      });
+      return true;
+    },
+    [navigate],
+  );
+
+  /*
+   * Home's whole derivation, the same one the sidebar shows — greeting trend, all three
+   * Continue slots, and the full recall deck rather than the four kinds this surface could
+   * previously re-derive on its own.
+   *
+   * Two destinations are null, and the hook reads that and withholds the cards that would
+   * land nowhere: reviewing a proposed grouping and prefilling a new Thread both need sheets
+   * that still live inside `PrototypeSidebar`. They turn on when those come out.
+   */
+  const home = useHomeSurfaceData({
+    homeSpaceId: homeSpaceId ?? '',
+    notes: greeting.notes,
+    notesListPhase: !greeting.ready ? 'loading' : greeting.notes.length > 0 ? 'list' : 'empty',
+    hasMoreNotes: greeting.hasMoreNotes,
+    noteTotal: greeting.noteTotal ?? undefined,
+    scriptureBooks: scriptureQuery.data ?? [],
+    scriptureSettled: !scriptureQuery.isPending,
+    /* No note is open behind this surface, so nothing to suppress as redundant. */
+    activeNoteId: undefined,
+    onOpenNote: openNoteRow,
+    onOpenHighlight: openHighlightRow,
+    destinations: {
+      proposeThread: null,
+      createThread: null,
+      openThread: (threadId?: string) =>
+        threadId ? libraryNav.openThread(threadId) : libraryNav.openList('threads'),
+    },
+  });
   const navigation = useNavigation();
   const sharedSpaces = useMemo(
     () =>
@@ -236,6 +299,19 @@ export default function PrototypeStudyFeedPage() {
 
   // The shell's own waiting vocabulary. A skeleton here would be a second one for the same
   // wait, and the dots already answer it everywhere else a pane loads.
+  /*
+   * Getting started leads the day, once a day.
+   *
+   * The checklist stays until it is dismissed or finished, so what "each day" buys is where
+   * it sits: first thing on a day you have not seen it, and below the day's offers after
+   * that. Decided once per mount rather than watched, so the position cannot change under
+   * someone mid-read — a fresh visit is what moves it, which is also when a new day starts.
+   */
+  const [onboardingLeads] = useState(() => !onboardingHasLedToday());
+  useEffect(() => {
+    if (safeIndex === 0 && onboardingLeads) markOnboardingLedToday();
+  }, [safeIndex, onboardingLeads]);
+
   if (isPending) return <ProtoSpaceLoading label="Loading your study" />;
 
   if (!day) {
@@ -253,7 +329,13 @@ export default function PrototypeStudyFeedPage() {
     isToday: safeIndex === 0,
     partsCount: day.parts.length,
   });
-  const showGreeting = safeIndex === 0 && greeting.ready && greeting.countForLogic > 0;
+  const showGreeting = safeIndex === 0 && greeting.ready && home.countForLogic > 0;
+
+
+  /* Only on today's sheet: a checklist is about now, and a day you flipped back to has no
+     business asking you to go and read something. */
+  const onboardingDock =
+    safeIndex === 0 ? <PrototypeOnboardingDock onStepAction={home.handleOnboardingStep} /> : null;
 
   /*
    * The day's tally as a sentence fragment rather than a paragraph, so it can either join
@@ -410,9 +492,12 @@ export default function PrototypeStudyFeedPage() {
             {showGreeting ? (
               <PrototypeHomeGreeting
                 notes={greeting.notes}
-                countForLogic={greeting.countForLogic}
-                hasMoreForLogic={greeting.hasMoreForLogic}
-                lead={greeting.lead}
+                countForLogic={home.countForLogic}
+                hasMoreForLogic={home.hasMoreForLogic}
+                lead={home.lead}
+                /* The clause that closes the sentence — "lately returning to Romans". It was
+                   the sidebar's alone while this surface re-derived only the lead. */
+                trend={home.recallTrendGreeting}
                 /* A chip on a day sheet opens the Library panel at the thing it names.
                    This used to summon the sidebar instead, and the scripture chip could
                    only reach the list rather than the book — see `useLibraryPanelNav`. */
@@ -425,11 +510,15 @@ export default function PrototypeStudyFeedPage() {
               summarySentence ? <p className="proto-feed-sheet__summary">{summarySentence}</p> : null
             )}
 
+            {onboardingLeads ? onboardingDock : null}
+
             {/* Home's own order: what you were doing, then what is coming, then what is
                 offered, and only then the record of the day itself. */}
             {safeIndex === 0 && greeting.ready ? (
-              <PrototypeStudyFeedToday notes={greeting.notes} prompts={prompts} />
+              <PrototypeStudyFeedToday notes={greeting.notes} home={home} />
             ) : null}
+
+            {onboardingLeads ? null : onboardingDock}
 
             {day.isEmpty ? (
               <p className="proto-feed-sheet__rest">Nothing recorded on this day.</p>
