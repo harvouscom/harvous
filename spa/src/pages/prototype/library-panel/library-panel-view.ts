@@ -38,6 +38,19 @@ export type LibraryPanelView = {
    * Activity. An opening condition, not live state: the query itself is panel-local.
    */
   querySeed?: string;
+  /**
+   * Whether the search field takes focus on open.
+   *
+   * Set by the chords that mean "search" and left off everywhere else. Reaching for ⇧K is
+   * already the first keystroke of a query, so a caret is what you asked for; clicking the
+   * chip is a pointer gesture that means "show me", and stealing focus there commits you to
+   * typing before you have looked. It also swallows the keyboard: with the caret in the
+   * field, the arrow keys move a text cursor rather than the list.
+   *
+   * An opening condition like `querySeed`, so `isSameLibraryPanelView` ignores it — two
+   * openings of the same place are the same place however focus was handled.
+   */
+  autoFocusSearch?: boolean;
 };
 
 /** Tab order for the chip row and for ⇧[ / ⇧] cycling. */

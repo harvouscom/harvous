@@ -1291,7 +1291,8 @@ function PrototypeShortcutBridge() {
        Focus is the field's own `autoFocus`; a `querySelector` after a frame raced the
        panel's lazy chunk and found nothing on the first open of a session. */
     clearLibraryChipRect();
-    openLibraryPanel({ tab: 'all', drill: null });
+    /* This chord *is* a search, so the caret goes where the query will. */
+    openLibraryPanel({ tab: 'all', drill: null, autoFocusSearch: true });
   }, [openLibraryPanel]);
 
   /*
@@ -1347,7 +1348,8 @@ function PrototypeShortcutBridge() {
     shellModeNav.openActivity();
   }, [homeSpaceId, shellModeNav]);
 
-  /* ⇧L opens the Library, which is where lists live now. */
+  /* ⇧L opens the Library, which is where lists live now. Browsing, so no caret — the
+     arrow keys belong to the list here, not to a text cursor. */
   const showListLayer = useCallback(() => {
     clearLibraryChipRect();
     openLibraryPanel({ tab: 'all', drill: null });

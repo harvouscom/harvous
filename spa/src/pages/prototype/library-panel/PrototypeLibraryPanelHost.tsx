@@ -90,7 +90,9 @@ export default function PrototypeLibraryPanelHost({
            * Desktop only. On a phone this is a bottom sheet, and stealing focus there
            * raises the keyboard over the very list you opened it to browse.
            */
-          autoFocus={!isMobileSidebar}
+          /* Only when the opener asked — see `autoFocusSearch`. Mobile never takes it:
+             a caret there raises the on-screen keyboard over the results. */
+          autoFocus={!isMobileSidebar && Boolean(view.autoFocusSearch)}
           value={search.input}
           onChange={search.setInput}
           onClear={search.clear}

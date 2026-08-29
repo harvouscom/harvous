@@ -137,3 +137,29 @@ describe('isSameLibraryPanelView', () => {
     ).toBe(false);
   });
 });
+
+/**
+ * Whether the search field takes focus is an opening *condition*, not part of where the
+ * panel is — so two openings of the same place must still count as the same place. Without
+ * that, `openLibraryPanel` would treat a chord-open and a chip-open of Everything as a move
+ * and push a second history entry for a panel that never went anywhere.
+ */
+describe('autoFocusSearch', () => {
+  it('does not make two openings of the same place look different', () => {
+    expect(
+      isSameLibraryPanelView(
+        { tab: 'all', drill: null, autoFocusSearch: true },
+        { tab: 'all', drill: null },
+      ),
+    ).toBe(true);
+  });
+
+  it('still distinguishes places, whatever focus was asked for', () => {
+    expect(
+      isSameLibraryPanelView(
+        { tab: 'all', drill: null, autoFocusSearch: true },
+        { tab: 'notes', drill: null, autoFocusSearch: true },
+      ),
+    ).toBe(false);
+  });
+});
