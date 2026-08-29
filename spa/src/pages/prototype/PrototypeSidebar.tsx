@@ -123,6 +123,7 @@ import {
   loadPinnedThreadClusterIds,
   removePinnedFolderId,
   removePinnedThreadClusterId,
+  subscribePinnedStores,
   togglePinnedFolderId,
   togglePinnedHighlightId,
   togglePinnedThreadClusterId,
@@ -614,9 +615,16 @@ export default function PrototypeSidebar({
   } | null>(null);
 
   useEffect(() => {
-    setPinnedHighlightIds(loadPinnedHighlightIds(homeSpaceId ?? undefined));
-    setPinnedFolderIds(loadPinnedFolderIds(homeSpaceId ?? undefined));
-    setPinnedThreadClusterIds(loadPinnedThreadClusterIds(homeSpaceId ?? undefined));
+    const reread = () => {
+      setPinnedHighlightIds(loadPinnedHighlightIds(homeSpaceId ?? undefined));
+      setPinnedFolderIds(loadPinnedFolderIds(homeSpaceId ?? undefined));
+      setPinnedThreadClusterIds(loadPinnedThreadClusterIds(homeSpaceId ?? undefined));
+    };
+    reread();
+    /* The organize host pins on this list's behalf now, so the write no longer passes
+       through here — without the subscription a pin from the bulk bar would not show
+       until something unrelated re-rendered. */
+    return subscribePinnedStores(reread);
   }, [homeSpaceId]);
 
   const togglePinnedHighlight = useCallback(
@@ -826,7 +834,6 @@ export default function PrototypeSidebar({
   /** Anchor for shift-click, so a range means "from the last one you touched". */
   const selectionAnchorRef = useRef<string | null>(null);
   /* Anchored to the button that raised it, like every other delete here. */
-  const [bulkHighlightDeleteAnchor, setBulkHighlightDeleteAnchor] = useState<DOMRect | null>(null);
 
   /**
    * Every selection made in this file's note lists is a selection *of notes*.
@@ -990,6 +997,36 @@ export default function PrototypeSidebar({
       );
     },
     [organize, sidebarSelectedIds, sidebarSelectionKind, selectedRows, isScopedSharedSpace, viewerIsSpaceOwner],
+  );
+
+  /**
+   * The same delegation for folders, Threads and highlights.
+   *
+   * Their capability rows are permissive, and that is not a shortcut: these three bars never
+   * gated at all — the buttons were always live — so anything stricter here would take away
+   * an action that works today. What they are is *yours*, in your own space, which is what
+   * `isOwnNote: true` says to `everyRowAllows`.
+   */
+  const runCollectionCommand = useCallback(
+    (kind: 'folder' | 'thread' | 'highlight', commandId: PrototypeCommandId, control: HTMLElement) => {
+      if (!organize || sidebarSelectedIds.length === 0) return;
+      organize.run(
+        commandId,
+        {
+          kind,
+          ids: sidebarSelectedIds,
+          rows: sidebarSelectedIds.map(() => ({
+            isOwnNote: true,
+            isScopedSharedSpace,
+            viewerIsSpaceOwner,
+          })),
+          fromSelection: true,
+          isScopedSharedSpace,
+        },
+        { anchorRect: control.getBoundingClientRect() },
+      );
+    },
+    [organize, sidebarSelectedIds, isScopedSharedSpace, viewerIsSpaceOwner],
   );
 
   const bulkBar = (
@@ -1246,10 +1283,7 @@ export default function PrototypeSidebar({
         type="button"
         className="proto-bulk-bar__btn"
         title="Pin these highlights"
-        onClick={() => {
-          for (const id of sidebarSelectedIds) togglePinnedHighlight(id);
-          setSidebarSelection('highlight', []);
-        }}
+        onClick={(e) => runCollectionCommand('highlight', 'organize.pin', e.currentTarget)}
       >
         <Icon name="thumbtack" size={15} aria-hidden />
         <span className="proto-bulk-bar__label">Pin</span>
@@ -1258,7 +1292,7 @@ export default function PrototypeSidebar({
         type="button"
         className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
         title="Delete these highlights"
-        onClick={(e) => setBulkHighlightDeleteAnchor(e.currentTarget.getBoundingClientRect())}
+        onClick={(e) => runCollectionCommand('highlight', 'organize.delete', e.currentTarget)}
       >
         <Icon name="trash-can" size={15} aria-hidden />
         <span className="proto-bulk-bar__label">Delete</span>
@@ -1784,26 +1818,12 @@ export default function PrototypeSidebar({
     },
     [sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection],
   );
-  const [bulkFolderDeleteAnchor, setBulkFolderDeleteAnchor] = useState<DOMRect | null>(null);
 
   /**
    * Deleting folders in bulk strips the label from their notes — the notes
    * themselves are never touched, which is what `useRemoveFolder` already means
    * and why the confirm says so.
    */
-  const onConfirmBulkDeleteFolders = async () => {
-    if (!homeSpaceId) return;
-    try {
-      for (const name of sidebarSelectedIds) {
-        await removeFolder.mutateAsync({ spaceId: homeSpaceId, folderName: name });
-      }
-    } catch (err) {
-      toastError(err, 'Could not remove every folder');
-    } finally {
-      setBulkFolderDeleteAnchor(null);
-      setSidebarSelection('folder', []);
-    }
-  };
 
   const folderBulkBar = (
     <div className="proto-collection-grid-actions proto-bulk-bar">
@@ -1811,10 +1831,7 @@ export default function PrototypeSidebar({
         type="button"
         className="proto-bulk-bar__btn"
         title="Pin these folders"
-        onClick={() => {
-          for (const name of sidebarSelectedIds) togglePinnedFolder(folderRowId(name));
-          setSidebarSelection('folder', []);
-        }}
+        onClick={(e) => runCollectionCommand('folder', 'organize.pin', e.currentTarget)}
       >
         <Icon name="thumbtack" size={15} aria-hidden />
         <span className="proto-bulk-bar__label">Pin</span>
@@ -1823,7 +1840,7 @@ export default function PrototypeSidebar({
         type="button"
         className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
         title="Remove these folders — the notes in them stay"
-        onClick={(e) => setBulkFolderDeleteAnchor(e.currentTarget.getBoundingClientRect())}
+        onClick={(e) => runCollectionCommand('folder', 'organize.delete', e.currentTarget)}
       >
         <Icon name="trash-can" size={15} aria-hidden />
         <span className="proto-bulk-bar__label">Delete</span>
@@ -1850,26 +1867,7 @@ export default function PrototypeSidebar({
     },
     [sidebarSelectionKind, sidebarSelectedIds, setSidebarSelection],
   );
-  const [bulkThreadDeleteAnchor, setBulkThreadDeleteAnchor] = useState<DOMRect | null>(null);
 
-  const onConfirmBulkRemoveThreads = async () => {
-    if (!homeSpaceId) return;
-    const chosen = filteredThreads.filter((c) => threadSelectedIdSet.has(c.id));
-    try {
-      for (const cluster of chosen) {
-        await removeThreadCluster.mutateAsync({
-          spaceId: homeSpaceId,
-          memberIds: cluster.memberIds,
-        });
-        setPinnedThreadClusterIds(removePinnedThreadClusterId(homeSpaceId, cluster.id));
-      }
-    } catch (err) {
-      toastError(err, 'Could not remove every Thread');
-    } finally {
-      setBulkThreadDeleteAnchor(null);
-      setSidebarSelection('thread', []);
-    }
-  };
 
   const threadBulkBar = (
     <div className="proto-collection-grid-actions proto-bulk-bar">
@@ -1877,10 +1875,7 @@ export default function PrototypeSidebar({
         type="button"
         className="proto-bulk-bar__btn"
         title="Pin these Threads"
-        onClick={() => {
-          for (const id of sidebarSelectedIds) togglePinnedThreadCluster(id);
-          setSidebarSelection('thread', []);
-        }}
+        onClick={(e) => runCollectionCommand('thread', 'organize.pin', e.currentTarget)}
       >
         <Icon name="thumbtack" size={15} aria-hidden />
         <span className="proto-bulk-bar__label">Pin</span>
@@ -1889,7 +1884,7 @@ export default function PrototypeSidebar({
         type="button"
         className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
         title="Break these Threads apart — the notes stay"
-        onClick={(e) => setBulkThreadDeleteAnchor(e.currentTarget.getBoundingClientRect())}
+        onClick={(e) => runCollectionCommand('thread', 'organize.delete', e.currentTarget)}
       >
         <Icon name="trash-can" size={15} aria-hidden />
         <span className="proto-bulk-bar__label">Remove</span>
@@ -2012,24 +2007,6 @@ export default function PrototypeSidebar({
    * and a partial failure has to leave the ones that did delete deleted — so
    * the selection is cleared regardless and the error names what stalled.
    */
-  const onConfirmBulkDeleteHighlights = async () => {
-    if (!homeSpaceId) return;
-    const rows = filteredHighlights.filter((r) => selectedHighlightIdSet.has(r.id));
-    try {
-      for (const row of rows) {
-        await deleteHighlight.mutateAsync({
-          id: row.id,
-          spaceId: homeSpaceId,
-          parentNoteId: row.parentNoteId,
-        });
-      }
-    } catch (err) {
-      toastError(err, 'Could not delete every highlight');
-    } finally {
-      setBulkHighlightDeleteAnchor(null);
-      setSidebarSelection('highlight', []);
-    }
-  };
 
   /**
    * @returns whether this landed on a document in the main pane. The recall shelf stacks a
@@ -3315,22 +3292,6 @@ export default function PrototypeSidebar({
         )}
       </div>
 
-      {bulkHighlightDeleteAnchor ? (
-        <ProtoConfirmDialog
-          anchorRect={bulkHighlightDeleteAnchor}
-          preferAbove
-          alignRight
-          title={`Delete ${sidebarSelectedIds.length} highlight${
-            sidebarSelectedIds.length === 1 ? '' : 's'
-          }?`}
-          confirmLabel="Delete"
-          busy={deleteHighlight.isPending}
-          onConfirm={() => void onConfirmBulkDeleteHighlights()}
-          onCancel={() => {
-            if (!deleteHighlight.isPending) setBulkHighlightDeleteAnchor(null);
-          }}
-        />
-      ) : null}
       {highlightDeleteTarget ? (
         <ProtoConfirmDialog
           anchorRect={highlightDeleteTarget.anchorRect}
@@ -3342,23 +3303,6 @@ export default function PrototypeSidebar({
           }}
         />
       ) : null}
-      {bulkFolderDeleteAnchor ? (
-        <ProtoConfirmDialog
-          anchorRect={bulkFolderDeleteAnchor}
-          preferAbove
-          alignRight
-          title={`Remove ${sidebarSelectedIds.length} folder${
-            sidebarSelectedIds.length === 1 ? '' : 's'
-          }?`}
-          description="The notes in them stay — only the folder goes."
-          confirmLabel="Remove"
-          busy={removeFolder.isPending}
-          onConfirm={() => void onConfirmBulkDeleteFolders()}
-          onCancel={() => {
-            if (!removeFolder.isPending) setBulkFolderDeleteAnchor(null);
-          }}
-        />
-      ) : null}
       {folderDeleteTarget ? (
         <ProtoConfirmDialog
           anchorRect={folderDeleteTarget.anchorRect}
@@ -3367,23 +3311,6 @@ export default function PrototypeSidebar({
           onConfirm={onConfirmDeleteFolder}
           onCancel={() => {
             if (!removeFolder.isPending) setFolderDeleteTarget(null);
-          }}
-        />
-      ) : null}
-      {bulkThreadDeleteAnchor ? (
-        <ProtoConfirmDialog
-          anchorRect={bulkThreadDeleteAnchor}
-          preferAbove
-          alignRight
-          title={`Remove ${sidebarSelectedIds.length} Thread${
-            sidebarSelectedIds.length === 1 ? '' : 's'
-          }?`}
-          description="The notes in them stay — only the connections go."
-          confirmLabel="Remove"
-          busy={removeThreadCluster.isPending}
-          onConfirm={() => void onConfirmBulkRemoveThreads()}
-          onCancel={() => {
-            if (!removeThreadCluster.isPending) setBulkThreadDeleteAnchor(null);
           }}
         />
       ) : null}

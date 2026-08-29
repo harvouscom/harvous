@@ -42,11 +42,11 @@ export default function PrototypeLibraryTabView({
     case 'notes':
       return <NotesSection selection={selection} />;
     case 'folders':
-      return <PrototypeLibraryFoldersView />;
+      return <PrototypeLibraryFoldersView selection={selection} />;
     case 'threads':
-      return <ThreadsSection />;
+      return <ThreadsSection selection={selection} />;
     case 'highlights':
-      return <HighlightsSection />;
+      return <HighlightsSection selection={selection} />;
     /* The scripture tab *is* the book level of the scripture drill, so it renders the
        same view rather than a parallel list that would then have to be kept in step
        with it. */
@@ -86,7 +86,7 @@ function NotesSection({ selection }: { selection: LibrarySelection }) {
   );
 }
 
-function ThreadsSection() {
+function ThreadsSection({ selection }: { selection: LibrarySelection }) {
   const data = useLibraryPanelData();
   const { setLibraryPanelView } = useProtoShell();
   /* Personal Threads are graph clusters, a shared space's are records — one query
@@ -122,7 +122,7 @@ function ThreadsSection() {
   }
   const clusters = clustersQuery.data ?? [];
   if (clusters.length === 0) return <NoThreads />;
-  return <LibraryThreadCards clusters={clusters} onOpen={open} />;
+  return <LibraryThreadCards clusters={clusters} onOpen={open} selection={selection} />;
 }
 
 function NoThreads() {
@@ -135,7 +135,7 @@ function NoThreads() {
   );
 }
 
-function HighlightsSection() {
+function HighlightsSection({ selection }: { selection: LibrarySelection }) {
   const data = useLibraryPanelData();
   const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(data.spaceId ?? undefined);
   const rows = highlightsQuery.data ?? [];
@@ -163,7 +163,7 @@ function HighlightsSection() {
       />
     );
   }
-  return <LibraryHighlightList rows={rows} data={data} />;
+  return <LibraryHighlightList rows={rows} data={data} selection={selection} />;
 }
 
 function ResourcesSection() {

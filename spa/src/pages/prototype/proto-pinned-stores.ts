@@ -1,6 +1,14 @@
 /**
- * localStorage-backed pin store for prototype sidebar highlight and folder lists.
+ * localStorage-backed pin store for prototype highlight, folder and Thread lists.
  * Mirrors native UserDefaults behavior — space-scoped.
+ *
+ * **Writes announce themselves.** Every surface that shows pins used to read once into its
+ * own React state, which was fine while the sidebar was the only one — pinning there and
+ * re-reading there agreed with itself. It stopped being fine the moment the search panel
+ * showed the same folders and the organize host started doing the pinning on behalf of
+ * both: a write from one had no way to reach the other, so a pinned folder stayed unpinned
+ * on screen until something unrelated re-rendered. `subscribePinnedStores` is the fix, and
+ * it is the same shape `proto-recall-seen` already uses for the same reason.
  */
 
 const HIGHLIGHT_KEY_PREFIX = 'harvous.prototype.pinnedHighlightThreadIds.';
@@ -21,6 +29,14 @@ function safeRead(key: string): string[] {
   }
 }
 
+const listeners = new Set<() => void>();
+
+/** Notified after any pin write, so every list showing pins can re-read. */
+export function subscribePinnedStores(callback: () => void): () => void {
+  listeners.add(callback);
+  return () => listeners.delete(callback);
+}
+
 function safeWrite(key: string, ids: string[]): void {
   if (typeof window === 'undefined') return;
   try {
@@ -28,6 +44,10 @@ function safeWrite(key: string, ids: string[]): void {
   } catch {
     // quota / storage disabled — ignore
   }
+  /* Announced even when the write itself failed: the in-memory answer a reader would
+     compute is unchanged either way, and staying silent would leave the one surface that
+     did update out of step with the rest. */
+  listeners.forEach((listener) => listener());
 }
 
 // ── Highlights (space-scoped) ────────────────────────────────────────────

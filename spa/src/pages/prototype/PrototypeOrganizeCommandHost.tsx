@@ -25,9 +25,16 @@ import { api } from '../../lib/api';
 import { toastError } from '../../lib/error-copy';
 import { isPersonalSharedSpace } from '../../lib/church-settings';
 import {
-  DELETE_NOTE_EVERYWHERE_CONFIRMATION,
+  bulkDestructiveCopy,
   REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
 } from './proto-destructive-copy';
+import {
+  folderRowId,
+  removePinnedThreadClusterId,
+  togglePinnedFolderId,
+  togglePinnedHighlightId,
+  togglePinnedThreadClusterId,
+} from './proto-pinned-stores';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import {
   availablePrototypeCommands,
@@ -40,6 +47,11 @@ import {
   type OrganizeRunOptions,
 } from '../../lib/prototype-organize-runner-store';
 import { useDeleteNotesBatch } from '../../hooks/mutations/useDeleteNotesBatch';
+import { useDeleteHighlight } from '../../hooks/mutations/useDeleteHighlight';
+import { useRemoveFolder } from '../../hooks/mutations/useRemoveFolder';
+import { useRemoveThreadCluster } from '../../hooks/mutations/useRemoveThreadCluster';
+import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
+import { usePrototypeSpaceStudyThreadHighlights } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { useRemoveNotesFromSpaceBatch } from '../../hooks/mutations/useSpaceNoteAssociation';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useNavigation } from '../../hooks/queries/useNavigation';
@@ -102,6 +114,24 @@ export default function PrototypeOrganizeCommandHost({
   const deleteNotesBatch = useDeleteNotesBatch();
   const removeNotesFromSpace = useRemoveNotesFromSpaceBatch();
   const pinNote = usePinSpaceNote();
+  const deleteHighlight = useDeleteHighlight();
+  const removeFolder = useRemoveFolder();
+  const removeThreadCluster = useRemoveThreadCluster();
+
+  /*
+   * Two lookups the destructives need and an id alone cannot give: a Thread is removed by
+   * its member notes, and a highlight by its id *and* its parent note. Folders need neither
+   * — the id is the folder name, which is what `useRemoveFolder` takes.
+   */
+  const threadsQuery = usePrototypeStudyThreads(
+    isScopedSharedSpace ? undefined : homeSpaceId ?? undefined,
+  );
+  const highlightsQuery = usePrototypeSpaceStudyThreadHighlights(homeSpaceId ?? undefined);
+
+  const [collectionConfirm, setCollectionConfirm] = useState<{
+    kind: 'highlight' | 'folder' | 'thread';
+    anchorRect: DOMRect | null;
+  } | null>(null);
 
   const [folderSheetOpen, setFolderSheetOpen] = useState(false);
   const [threadSheetOpen, setThreadSheetOpen] = useState(false);
@@ -220,6 +250,68 @@ export default function PrototypeOrganizeCommandHost({
     setSidebarSelectMode,
   ]);
 
+  /**
+   * The three collection destructives, which are one shape: walk the selection, call the
+   * mutation for the kind, and clear regardless.
+   *
+   * Sequential rather than `Promise.all` — each is a separate write and firing fifty at
+   * once is how a batch trips the rate limit the notes path already works around. The
+   * `finally` clears the selection even on a partial failure: some of them went, so leaving
+   * the old set checked would invite a second run over rows that no longer exist.
+   */
+  const confirmCollectionDelete = useCallback(async () => {
+    const kind = collectionConfirm?.kind;
+    if (!kind || !homeSpaceId) return;
+    const ids = [...sidebarSelectedIds];
+    try {
+      for (const id of ids) {
+        if (kind === 'folder') {
+          await removeFolder.mutateAsync({ spaceId: homeSpaceId, folderName: id });
+        } else if (kind === 'thread') {
+          const cluster = (threadsQuery.data ?? []).find((c) => c.id === id);
+          if (!cluster) continue;
+          await removeThreadCluster.mutateAsync({
+            spaceId: homeSpaceId,
+            memberIds: cluster.memberIds,
+          });
+          removePinnedThreadClusterId(homeSpaceId, cluster.id);
+        } else {
+          const row = (highlightsQuery.data ?? []).find((h) => h.id === id);
+          if (!row) continue;
+          await deleteHighlight.mutateAsync({
+            id: row.id,
+            spaceId: homeSpaceId,
+            parentNoteId: row.parentNoteId,
+          });
+        }
+      }
+    } catch (err) {
+      toastError(
+        err,
+        kind === 'folder'
+          ? 'Could not remove every folder'
+          : kind === 'thread'
+            ? 'Could not remove every Thread'
+            : 'Could not delete every highlight',
+      );
+    } finally {
+      setCollectionConfirm(null);
+      setSidebarSelection(kind, []);
+      setSidebarSelectMode(false);
+    }
+  }, [
+    collectionConfirm?.kind,
+    homeSpaceId,
+    sidebarSelectedIds,
+    removeFolder,
+    removeThreadCluster,
+    deleteHighlight,
+    threadsQuery.data,
+    highlightsQuery.data,
+    setSidebarSelection,
+    setSidebarSelectMode,
+  ]);
+
   const run = useCallback(
     (commandId: PrototypeCommandId, ctx: CommandContext, options?: OrganizeRunOptions) => {
       if (!availablePrototypeCommands(ctx).some((c) => c.id === commandId)) return;
@@ -249,20 +341,41 @@ export default function PrototypeOrganizeCommandHost({
           return;
         case 'organize.delete':
           commit();
-          setDeleteConfirmAt(anchorRect);
+          /* Notes delete everywhere and say so; the other three take away a label, a
+             connection or an annotation, and their confirms have to promise only that. */
+          if (ctx.kind === 'note') setDeleteConfirmAt(anchorRect);
+          else if (ctx.kind === 'highlight' || ctx.kind === 'folder' || ctx.kind === 'thread')
+            setCollectionConfirm({ kind: ctx.kind, anchorRect });
           return;
         case 'organize.pin': {
-          const row = notesById.get(ctx.ids[0] ?? '');
-          if (!row || !homeSpaceId) return;
-          pinNote.mutate(
-            {
-              spaceId: homeSpaceId,
-              noteId: row.id,
-              isPinned: row.isPinned !== true,
-              spaceKind: isScopedSharedSpace ? 'shared' : 'personal',
-            },
-            { onError: (err) => toastError(err, 'Could not update pin') },
-          );
+          if (!homeSpaceId) return;
+          /*
+           * Notes pin through the server, one at a time — `usePinSpaceNote` is single-id and
+           * a bulk fan-out would meet the write limit that already caps folder assignment.
+           * The other three pin locally, so a selection of fifty is fifty cheap writes and
+           * the command's own gate lets them take one.
+           */
+          if (ctx.kind === 'note') {
+            const row = notesById.get(ctx.ids[0] ?? '');
+            if (!row) return;
+            pinNote.mutate(
+              {
+                spaceId: homeSpaceId,
+                noteId: row.id,
+                isPinned: row.isPinned !== true,
+                spaceKind: isScopedSharedSpace ? 'shared' : 'personal',
+              },
+              { onError: (err) => toastError(err, 'Could not update pin') },
+            );
+            return;
+          }
+          for (const id of ctx.ids) {
+            if (ctx.kind === 'highlight') togglePinnedHighlightId(homeSpaceId, id);
+            /* Folders select by name; the pin store keys on `folderRowId(name)`. */
+            else if (ctx.kind === 'folder') togglePinnedFolderId(homeSpaceId, folderRowId(id));
+            else if (ctx.kind === 'thread') togglePinnedThreadClusterId(homeSpaceId, id);
+          }
+          setSidebarSelection(ctx.kind, []);
           return;
         }
         default:
@@ -408,15 +521,37 @@ export default function PrototypeOrganizeCommandHost({
           anchorRect={deleteConfirmAt}
           preferAbove
           alignRight
-          title={`Delete ${sidebarSelectedIds.length} note${
-            sidebarSelectedIds.length === 1 ? '' : 's'
-          } everywhere?`}
-          description={DELETE_NOTE_EVERYWHERE_CONFIRMATION.description}
-          confirmLabel="Delete"
+          title={bulkDestructiveCopy('note', sidebarSelectedIds.length).title}
+          description={bulkDestructiveCopy('note', sidebarSelectedIds.length).description}
+          confirmLabel={bulkDestructiveCopy('note', sidebarSelectedIds.length).confirmLabel}
           busy={deleteNotesBatch.isPending}
           onConfirm={confirmDelete}
           onCancel={() => {
             if (!deleteNotesBatch.isPending) setDeleteConfirmAt(null);
+          }}
+        />
+      ) : null}
+
+      {collectionConfirm ? (
+        <ProtoConfirmDialog
+          anchorRect={collectionConfirm.anchorRect}
+          preferAbove
+          alignRight
+          title={bulkDestructiveCopy(collectionConfirm.kind, sidebarSelectedIds.length).title}
+          description={
+            bulkDestructiveCopy(collectionConfirm.kind, sidebarSelectedIds.length).description
+          }
+          confirmLabel={
+            bulkDestructiveCopy(collectionConfirm.kind, sidebarSelectedIds.length).confirmLabel
+          }
+          busy={
+            removeFolder.isPending || removeThreadCluster.isPending || deleteHighlight.isPending
+          }
+          onConfirm={() => void confirmCollectionDelete()}
+          onCancel={() => {
+            if (removeFolder.isPending || removeThreadCluster.isPending || deleteHighlight.isPending)
+              return;
+            setCollectionConfirm(null);
           }}
         />
       ) : null}

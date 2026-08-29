@@ -9,8 +9,6 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import type { SpaceNoteRow } from '../../../../hooks/queries/useSpace';
-
 const shell = {
   sidebarSelectMode: true,
   setSidebarSelectMode: vi.fn(),
@@ -31,11 +29,11 @@ vi.mock('../../../../lib/prototype-command-context-store', () => ({
 
 const { useLibrarySelection, librarySelectionKindForTab } = await import('../use-library-selection');
 
-function note(id: string): SpaceNoteRow {
-  return { id, title: id, isOwnNote: true } as unknown as SpaceNoteRow;
+function note(id: string) {
+  return { id, isOwnNote: true };
 }
 
-function selection(tab: string, rows: SpaceNoteRow[]) {
+function selection(tab: string, rows: Array<{ id: string; isOwnNote: boolean }>) {
   return renderHook(() =>
     useLibrarySelection({
       tab: tab as never,
@@ -54,8 +52,11 @@ beforeEach(() => {
 });
 
 describe('which tabs can be selected in', () => {
-  it('is Notes, and only Notes', () => {
+  it('maps each list tab to what a selection there is made of', () => {
     expect(librarySelectionKindForTab('notes' as never)).toBe('note');
+    expect(librarySelectionKindForTab('folders' as never)).toBe('folder');
+    expect(librarySelectionKindForTab('threads' as never)).toBe('thread');
+    expect(librarySelectionKindForTab('highlights' as never)).toBe('highlight');
   });
 
   it('is not Everything, where a checkbox would appear on some rows and not others', () => {
@@ -90,6 +91,12 @@ describe('what a verb is pointed at', () => {
   it('is nothing on a tab that cannot be selected in', () => {
     shell.sidebarSelectedIds = ['a'];
     expect(selection('all', [note('a')]).context).toBeNull();
+  });
+
+  it('carries the tab own kind, so the bar offers that kind own verbs', () => {
+    shell.sidebarSelectedIds = ['Sermons'];
+    shell.sidebarSelectionKind = 'folder';
+    expect(selection('folders', [{ id: 'Sermons', isOwnNote: true }]).context?.kind).toBe('folder');
   });
 });
 

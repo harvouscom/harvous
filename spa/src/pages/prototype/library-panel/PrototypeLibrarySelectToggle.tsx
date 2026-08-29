@@ -9,6 +9,7 @@
  * a second button for it would be two controls for one row of chrome that is already tight.
  */
 import Icon from '@/components/react/Icon';
+import { commandNoun } from '../../../lib/prototype-commands';
 import type { LibrarySelection } from './use-library-selection';
 
 export default function PrototypeLibrarySelectToggle({
@@ -16,15 +17,18 @@ export default function PrototypeLibrarySelectToggle({
 }: {
   selection: LibrarySelection;
 }) {
-  if (!selection.available) return null;
+  if (!selection.available || !selection.kind) return null;
+  /* Names what this tab selects. `commandNoun` is the same table the verbs' own labels read,
+     so the button and the bar under it cannot end up calling one thing two names. */
+  const noun = commandNoun(selection.kind, 2);
 
   if (!selection.active) {
     return (
       <button
         type="button"
         className="proto-side-panel__action-btn"
-        title="Select notes"
-        aria-label="Select notes"
+        title={`Select ${noun}`}
+        aria-label={`Select ${noun}`}
         onClick={() => selection.setActive(true)}
       >
         <Icon name="check" size={14} aria-hidden />

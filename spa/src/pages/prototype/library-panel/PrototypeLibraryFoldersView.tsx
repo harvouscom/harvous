@@ -12,8 +12,13 @@ import { buildFoldersFromNotes, mergeFoldersWithRegistry } from '../sidebar-univ
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { usePrototypeFolderRegistry } from '../../../hooks/mutations/usePrototypeFolderRegistry';
 import { useLibraryPanelData } from './library-panel-data';
+import type { LibrarySelection } from './use-library-selection';
 
-export default function PrototypeLibraryFoldersView() {
+export default function PrototypeLibraryFoldersView({
+  selection,
+}: {
+  selection?: LibrarySelection;
+}) {
   const data = useLibraryPanelData();
   const { setLibraryPanelView } = useProtoShell();
   const folderRegistryQuery = usePrototypeFolderRegistry(data.spaceId ?? undefined);
@@ -45,10 +50,15 @@ export default function PrototypeLibraryFoldersView() {
           <PrototypeSidebarFolderCard
             key={folder.name ?? '__unsorted__'}
             folder={folder}
-            /* Pins and folder deletion are the sidebar's; here a card only opens. */
+            /* A card's own pin and delete are the sidebar's; here it opens, or it is
+               selected and the bar acts on it. */
             isPinned={false}
             showMenu={false}
-            selectable={false}
+            selectMode={selection?.active ?? false}
+            /* Named folders only — "Unsorted" is a bucket, not a thing you can act on. */
+            selectable={Boolean(selection?.active && folder.name)}
+            selected={folder.name ? (selection?.isSelected(folder.name) ?? false) : false}
+            onToggleSelected={folder.name ? () => selection?.toggle(folder.name as string) : undefined}
             onOpen={() =>
               setLibraryPanelView({
                 tab: 'folders',

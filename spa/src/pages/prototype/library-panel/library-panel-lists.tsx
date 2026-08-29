@@ -123,10 +123,12 @@ export function LibraryLoadMore({ data }: { data: LibraryPanelData }) {
 export function LibraryHighlightList({
   rows,
   data,
+  selection,
   className = 'proto-note-list',
 }: {
   rows: PrototypeHighlightStudyThreadRow[];
   data: LibraryPanelData;
+  selection?: LibrarySelection;
   className?: string;
 }) {
   const deleteHighlight = useDeleteHighlight();
@@ -181,7 +183,10 @@ export function LibraryHighlightList({
             authorColor={row.authorColor}
             authorUserId={row.userId}
             isOwnHighlight={row.isOwnHighlight !== false}
-            selectMode={false}
+            selectMode={selection?.active ?? false}
+            selectable={selection?.active ?? false}
+            selected={selection?.isSelected(row.id) ?? false}
+            onToggleSelected={() => selection?.toggle(row.id)}
             onOpen={() => data.openHighlight(row)}
             onTogglePin={() => togglePin(row.id)}
             onDelete={(anchorRect) => setDeleteTarget({ row, anchorRect })}
@@ -212,10 +217,12 @@ function libraryThreadClusterTitle(cluster: StudyThreadCluster): string {
 export function LibraryThreadCards({
   clusters,
   onOpen,
+  selection,
   className = 'proto-collection-grid',
 }: {
   clusters: StudyThreadCluster[];
   onOpen: (threadId: string) => void;
+  selection?: LibrarySelection;
   className?: string;
 }) {
   return (
@@ -227,6 +234,10 @@ export function LibraryThreadCards({
           title={libraryThreadClusterTitle(cluster)}
           isPinned={cluster.studyThreadPinned === true}
           showMenu={false}
+          selectMode={selection?.active ?? false}
+          selectable={selection?.active ?? false}
+          selected={selection?.isSelected(cluster.id) ?? false}
+          onToggleSelected={() => selection?.toggle(cluster.id)}
           onOpen={() => onOpen(threadClusterDrillSlug(cluster.id))}
           /* Never reached with `showMenu={false}`; the card's props are required. */
           onTogglePin={() => {}}

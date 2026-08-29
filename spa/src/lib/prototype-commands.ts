@@ -105,6 +105,16 @@ function phrase(ctx: CommandContext, verb: string, tail = ''): string {
   return `${verb} ${ctx.ids.length} ${commandNoun(ctx.kind, ctx.ids.length)}${suffix}`;
 }
 
+/**
+ * The word the destructive uses, by kind. Kinds not listed here genuinely delete.
+ *
+ * Exported because the confirm dialog has to say the same word as the button that raised it
+ * — see `bulkDestructiveCopy`. Two tables agreeing today is two tables disagreeing later.
+ */
+export function destructiveVerbFor(kind: SidebarSelectionKind): 'Remove' | 'Delete' {
+  return kind === 'folder' || kind === 'thread' || kind === 'sharedThread' ? 'Remove' : 'Delete';
+}
+
 /** Nothing acts on an empty target — the gate below returns false for every verb. */
 function hasTarget(ctx: CommandContext): boolean {
   return ctx.ids.length > 0 && ctx.rows.length === ctx.ids.length;
@@ -186,7 +196,14 @@ export const PROTOTYPE_COMMANDS: readonly PrototypeCommand[] = [
     referenceLabel: 'Delete',
     group: 'Organize',
     icon: 'trash-can',
-    label: (ctx) => phrase(ctx, 'Delete'),
+    /*
+     * The verb changes with the kind, and getting it right is the whole job of this label.
+     * Folders and Threads are *labels and connections* — removing one leaves every note
+     * where it was, and `useRemoveFolder` / `useRemoveThreadCluster` do exactly that. Saying
+     * "Delete" over them would promise something worse than what happens, on the one control
+     * where an overstatement cannot be taken back.
+     */
+    label: (ctx) => phrase(ctx, destructiveVerbFor(ctx.kind)),
     enabled: (ctx) => hasTarget(ctx) && everyRowAllows(ctx.rows, 'mayDelete'),
   },
 ];

@@ -10,9 +10,11 @@
  * That also means opening the panel over a standing sidebar selection keeps it, which is the
  * behaviour the panel's Actions group already relied on.
  *
- * **Notes only, for now.** The six verbs are note verbs; the sidebar's folder, Thread and
- * highlight lists have their own bars with their own (mostly delete-only) actions, and those
- * have not moved yet.
+ * Four kinds, and the verbs each offers differ. Notes take all six; folders, Threads and
+ * highlights take pin and their own destructive, which is what their bars have always had —
+ * the command registry already knew this (`organize.delete` never restricted itself to
+ * notes, and pin's own comment names these three lists), so the bar asks it rather than
+ * carrying a second opinion.
  */
 import { useCallback, useEffect, useMemo } from 'react';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
@@ -25,23 +27,39 @@ import {
 } from '../../../lib/prototype-organize-runner-store';
 import type { CommandContext, PrototypeCommandId } from '../../../lib/prototype-commands';
 import type { LibraryTab } from '../sidebar-search-types';
-import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
+import type { SelectableRow } from './use-library-tab-rows';
 
 /**
  * Which tabs can be selected in, and what a selection there means.
  *
  * `all` is deliberately absent. It lists notes beside folders, Threads and passages, so
  * "select these" has no single answer — and a checkbox that appears on some rows of a list
- * and not others reads as a bug rather than as a rule. Scripture has never been selectable
- * anywhere, for the same reason the sidebar gives: its rows are cards, not list rows.
+ * and not others reads as a bug rather than as a rule. Scripture is absent for the reason
+ * the sidebar gives: its rows are cards, not list rows, and it has never been selectable
+ * anywhere. Resources have no bulk actions to offer yet.
  */
-export function librarySelectionKindForTab(tab: LibraryTab): 'note' | null {
-  return tab === 'notes' ? 'note' : null;
+export function librarySelectionKindForTab(tab: LibraryTab): LibrarySelectionKind | null {
+  switch (tab) {
+    case 'notes':
+      return 'note';
+    case 'folders':
+      return 'folder';
+    case 'threads':
+      return 'thread';
+    case 'highlights':
+      return 'highlight';
+    default:
+      return null;
+  }
 }
+
+export type LibrarySelectionKind = 'note' | 'folder' | 'thread' | 'highlight';
 
 export type LibrarySelection = {
   /** Whether this tab offers selection at all — gates the header's toggle. */
   available: boolean;
+  /** What a selection here is made of, so the bar knows which verbs to offer. */
+  kind: LibrarySelectionKind | null;
   active: boolean;
   selectedIds: string[];
   isSelected: (id: string) => boolean;
@@ -57,7 +75,7 @@ export type LibrarySelection = {
 
 export function useLibrarySelection(input: {
   tab: LibraryTab;
-  rows: SpaceNoteRow[];
+  rows: SelectableRow[];
   isScopedSharedSpace: boolean;
   viewerIsSpaceOwner: boolean;
 }): LibrarySelection {
@@ -119,11 +137,11 @@ export function useLibrarySelection(input: {
    * sidebar's builder refuses for exactly the same reason.
    */
   const context = useMemo<CommandContext | null>(() => {
-    if (!active || selectedIds.length === 0) return null;
+    if (!kind || !active || selectedIds.length === 0) return null;
     const rows = input.rows.filter((r) => selectedSet.has(r.id));
     if (rows.length !== selectedIds.length) return null;
     return {
-      kind: 'note',
+      kind,
       ids: selectedIds,
       rows: rows.map((r) => ({
         isOwnNote: r.isOwnNote,
@@ -133,7 +151,15 @@ export function useLibrarySelection(input: {
       fromSelection: true,
       isScopedSharedSpace: input.isScopedSharedSpace,
     };
-  }, [active, selectedIds, selectedSet, input.rows, input.isScopedSharedSpace, input.viewerIsSpaceOwner]);
+  }, [
+    kind,
+    active,
+    selectedIds,
+    selectedSet,
+    input.rows,
+    input.isScopedSharedSpace,
+    input.viewerIsSpaceOwner,
+  ]);
 
   /*
    * Publish while a selection stands, so ⇧K's Actions group and the chords act on the
@@ -156,6 +182,7 @@ export function useLibrarySelection(input: {
 
   return {
     available,
+    kind,
     active,
     selectedIds,
     isSelected: (id: string) => selectedSet.has(id),

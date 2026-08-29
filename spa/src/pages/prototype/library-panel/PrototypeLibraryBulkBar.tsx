@@ -17,6 +17,7 @@ import {
   prototypeCommandById,
   type PrototypeCommandId,
 } from '../../../lib/prototype-commands';
+import { bulkDestructiveCopy } from '../proto-destructive-copy';
 import type { LibrarySelection } from './use-library-selection';
 
 /**
@@ -66,6 +67,10 @@ export default function PrototypeLibraryBulkBar({
      the count and the way out stay put, but nothing in it can fire. */
   const enabled = new Set(ctx ? availablePrototypeCommands(ctx).map((c) => c.id) : []);
   const offered = ORDER.filter((id) => {
+    /* Folders, Threads and highlights have two verbs and have never had more: you pin one or
+       you take it away. The other four are things you do to a *note*, and offering them
+       permanently greyed would be four dead controls under every folder selection. */
+    if (selection.kind !== 'note') return id === 'organize.pin' || id === 'organize.delete';
     /* Remove-from-space and share are opposites of one another: you can only take a note out
        of a space you are in, and only send one from a space you are not. Offering both would
        leave one permanently dark. */
@@ -92,7 +97,11 @@ export default function PrototypeLibraryBulkBar({
             }
           >
             <Icon name={chrome.icon as never} size={15} aria-hidden />
-            <span className="proto-bulk-bar__label">{chrome.label}</span>
+            <span className="proto-bulk-bar__label">
+              {id === 'organize.delete' && selection.kind
+                ? bulkDestructiveCopy(selection.kind, selection.selectedIds.length).confirmLabel
+                : chrome.label}
+            </span>
             {/* Hold Shift and the bar says how to reach it without the mouse — the same
                 teaching the toolbar orbs do, at the moment you are acting. */}
             {showShiftHints && chrome.hint ? (
