@@ -21785,3 +21785,96 @@ button.proto-feed-sheet__stat:hover {
   outline: 2px solid var(--pds-accent);
   outline-offset: -2px;
 }
+
+
+/* ─── The day arriving ────────────────────────────────────────────────────────
+ *
+ * A sheet presents all at once — `home.contentReady` sees to that — and then its blocks
+ * rise the last few pixels in sequence. The gate and the stagger are two halves of one
+ * idea: nothing may appear *late*, but what appears together can still arrive with a
+ * rhythm, and the rhythm is what makes a full page read as one arrival rather than as a
+ * screenshot that was already there.
+ *
+ * Blocks, not rows. The units are the greeting, each section and each part of the day —
+ * five or six things. Staggering every row instead would queue nine or more at 45ms and
+ * turn a flourish into a wait you can count; the house rule is that a stagger should be
+ * felt, not counted.
+ *
+ * `translateY(8px)`: far enough to read as coming from below, near enough that nothing
+ * travels. Transform and opacity only, so every frame composites. The end state is
+ * `transform: none`, so no block is left holding a transform once it lands — a lingering
+ * one would silently become the containing block for anything positioned inside it, which
+ * is exactly how a row-stagger broke the search panel's sticky headings once already.
+ */
+.proto-feed-sheet__body > .proto-home-greeting,
+.proto-feed-sheet__body > .proto-feed-sheet__rest,
+.proto-feed-sheet__body > .proto-feed-today > .proto-home-section,
+.proto-feed-sheet__body > .proto-feed-part {
+  animation: proto-feed-block-in var(--pds-duration-sheet) var(--pds-ease-standard) both;
+}
+
+/*
+ * One counter across the whole sheet, so the sections do not restart the count that the
+ * greeting began. `--feed-stagger-index` is set per block below rather than by nth-child
+ * on a single parent, because these live at two different depths.
+ */
+.proto-feed-sheet__body > .proto-home-greeting {
+  animation-delay: 0ms;
+}
+
+.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(1) {
+  animation-delay: 45ms;
+}
+
+.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(2) {
+  animation-delay: 90ms;
+}
+
+/* Everything past the third holds at the same beat — a long day should not have its last
+   part arrive half a second after its first. */
+.proto-feed-sheet__body > .proto-feed-today > .proto-home-section:nth-child(n + 3) {
+  animation-delay: 135ms;
+}
+
+.proto-feed-sheet__body > .proto-feed-part:nth-child(n + 1) {
+  animation-delay: 180ms;
+}
+
+.proto-feed-sheet__body > .proto-feed-sheet__rest {
+  animation-delay: 135ms;
+}
+
+@keyframes proto-feed-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Fewer and gentler, not zero. The blocks still resolve in sequence so the page reads as
+ * assembling rather than cutting, but nothing moves — the objection to motion here is the
+ * movement, not the sequencing.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .proto-feed-sheet__body > .proto-home-greeting,
+  .proto-feed-sheet__body > .proto-feed-sheet__rest,
+  .proto-feed-sheet__body > .proto-feed-today > .proto-home-section,
+  .proto-feed-sheet__body > .proto-feed-part {
+    animation-duration: 120ms;
+    animation-name: proto-feed-block-in-reduced;
+  }
+
+  @keyframes proto-feed-block-in-reduced {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
