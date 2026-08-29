@@ -193,9 +193,9 @@ export const LIBRARY_TAB_OPTIONS: {
      * "Everything", with a glyph — two departures from the shared filter, both about this
      * being a menu rather than a chip row.
      *
-     * The word: the field beside it already says "Search everything…", so the kind saying
-     * "Everything" makes one sentence out of the two controls. The sidebar's chip stays
-     * "All" because a chip row is short on width and long on context.
+     * The word: "Everything" against a field that says "Search my Harvous…" — the field
+     * names the haystack, the picker names how much of it. The sidebar's chip stays "All"
+     * because a chip row is short on width and long on context.
      *
      * The glyph: every other row here has one, and a single iconless row starts its label
      * at a different x than its neighbours — the ragged edge reads as a rendering fault

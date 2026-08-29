@@ -94,8 +94,8 @@ export default function PrototypeLibraryPanelHost({
           value={search.input}
           onChange={search.setInput}
           onClear={search.clear}
-          placeholder="Search everything…"
-          ariaLabel="Search everything"
+          placeholder="Search my Harvous…"
+          ariaLabel="Search my Harvous"
           /*
            * Escape empties the field before it closes the panel — one key, two steps, in
            * the order that loses the least. The panel's own document listener bails on
