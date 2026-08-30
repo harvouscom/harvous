@@ -18751,7 +18751,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * base, every gallery fixture — keeps the flush top the comment argued for.
  */
 .pds-reader-stack {
-  padding-top: var(--pds-space-5);
+  padding-block: var(--pds-space-5);
 }
 
 .pds-reader-stack__edges {
@@ -18769,18 +18769,62 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
    * twice — `MAX_EDGES` in TS and `calc(step * 2)` in CSS — and they can drift silently, which
    * shows up as the deepest label clipped by the toolbar above it.
    */
-  height: calc(var(--edge-count, 2) * var(--pds-reader-stack-step));
+  height: calc(var(--edge-count, 1) * var(--pds-reader-stack-step));
+}
+
+/*
+ * Which way the pile leans.
+ *
+ * One rule for both directions, because they are one shape reflected: the pile above scales from
+ * its top edge and steps down toward the sheet, the pile below scales from its bottom edge and
+ * steps up toward it. Naming the two variables rather than writing the rule twice is what keeps
+ * a change to the step or the scale true on both sides.
+ */
+.pds-reader-stack__edges--behind {
+  --edge-origin: top center;
+  /* Lifts toward the reader on hover — away from the sheet, which is where it would go if you
+     pulled it out of the pile. */
+  --edge-lift: -4px;
+  /*
+   * The label sits on the strip that shows. Most of an edge is under the page; only the band
+   * on the far side of the sheet is visible, and a name centred in the whole 72px would be
+   * hidden by the paper on one side or the other. Above the sheet that band is the top.
+   */
+  --edge-label-align: flex-start;
+  --edge-label-pad: 5px 0 0;
+}
+
+.pds-reader-stack__edges--ahead {
+  --edge-origin: bottom center;
+  --edge-lift: 4px;
+  /* Below the sheet the visible band is the bottom, so the name goes there. */
+  --edge-label-align: flex-end;
+  --edge-label-pad: 0 0 5px;
+}
+
+/*
+ * The offset itself, per side. `top` and `bottom` are different properties and cannot be chosen
+ * by a variable, so this is the one part of the shape written twice — deliberately two lines
+ * rather than a second copy of the whole rule.
+ */
+.pds-reader-stack__edges--behind .pds-reader-stack__edge {
+  top: calc((var(--edge-count, 1) - var(--edge-depth, 1)) * var(--pds-reader-stack-step));
+}
+
+.pds-reader-stack__edges--ahead .pds-reader-stack__edge {
+  bottom: calc((var(--edge-count, 1) - var(--edge-depth, 1)) * var(--pds-reader-stack-step));
 }
 
 .pds-reader-stack__edge {
   position: absolute;
   left: 50%;
-  top: calc((var(--edge-count, 2) - var(--edge-depth, 1)) * var(--pds-reader-stack-step));
+  inset-block-start: auto;
+  inset-block-end: auto;
   /* Same expression as `.pds-reader__column`, so the pile is one width at every pane size. */
   width: min(var(--pds-paper-column), 100% - 2 * var(--pds-paper-column-gutter-narrow));
   /* Tall enough that the strip under the front sheet is paper, not a line. */
   height: 72px;
-  padding-top: 5px;
+  padding: var(--edge-label-pad, 5px 0 0);
   border: 0;
   /* Square, because this is paper. A radius here is card language, and a rounded tab above a
      square page reads as browser chrome rather than as a page behind a page. */
@@ -18795,10 +18839,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   box-shadow: var(--pds-paper-shadow-subtle);
   /* Depth the way a stack of paper says it: the sheet behind is the smaller one. A transform,
      so it costs no chrome and does not change layout width. */
-  transform-origin: top center;
+  transform-origin: var(--edge-origin, top center);
   transform: translateX(-50%) scale(calc(1 - var(--edge-depth, 1) * 0.028));
   display: flex;
   justify-content: center;
+  align-items: var(--edge-label-align, flex-start);
   cursor: pointer;
   color: var(--pds-text-secondary);
   transition:
@@ -18817,7 +18862,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   .pds-reader-stack__edge:hover {
     color: var(--pds-text-primary);
     transform: translateX(-50%) scale(calc(1 - var(--edge-depth, 1) * 0.028))
-      translateY(-4px);
+      translateY(var(--edge-lift, -4px));
   }
 }
 
@@ -18837,6 +18882,19 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 .pds-reader-stack .pds-reader__column {
   background-color: var(--pds-canvas-default);
   background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  /*
+   * And it paints *over* the paper on both sides of it.
+   *
+   * An edge is 72px of sheet showing a 26px band, which only works because the page covers the
+   * rest. Above, DOM order did that for free — the pile comes first. Below, it does the
+   * opposite: the pile comes after and painted across the chapter's last lines, a sheet in
+   * front of the page rather than behind it. One `z-index` says the thing that is actually
+   * true of both piles, instead of one side depending on source order and the other fighting it.
+   *
+   * Safe as a stacking context: everything the reader floats — pickers, the verse bar, note
+   * cards over the paper — portals to the body, above this subtree entirely.
+   */
+  z-index: 1;
 }
 
 /*
@@ -18848,7 +18906,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   .pds-reader-stack__edge,
   .pds-reader-stack__edge:hover {
     transition: none;
-    transform: translateX(-50%) scale(calc(1 - var(--edge-depth, 1) * 0.028));
+    /* The lift is cancelled rather than the rule restated, so colour stays the hover answer. */
+    --edge-lift: 0px;
   }
 }
 
@@ -20395,61 +20454,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   .pds-reader__verse,
   .pds-reader__verse-text,
   .pds-reader__bar-line {
-    transition: none;
-  }
-}
-
-/*
- * Reading on — one control, floating over the paper's corner.
- *
- * The pair that used to close the chapter went with the pile arriving above it. Back was being
- * stated twice: as an edge naming the chapter behind, and as a button at the foot naming the
- * same one. Two controls for one move is how a reading surface stops being one.
- *
- * Sticky rather than fixed or in flow. In flow at the end of the text it could only be reached
- * by scrolling the whole chapter — right for a page you finished, wrong for one you are three
- * verses into and done with. Sticky keeps it over the paper the whole way down, and still lets
- * it come to rest at the end, where a page's last control belongs.
- */
-.pds-reader__next-float {
-  position: sticky;
-  bottom: var(--pds-space-5);
-  align-self: flex-end;
-  margin: var(--pds-space-4) var(--pds-space-5) var(--pds-space-5);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pds-space-2);
-  padding: var(--pds-space-2) var(--pds-space-3);
-  border: 0.5px solid var(--pds-border);
-  border-radius: var(--pds-radius-button);
-  /* Opaque over the text it floats above — the same composite the stack's sheets use, for the
-     same reason: a translucent fill would have verses reading through the control. */
-  background-color: var(--pds-canvas-default);
-  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
-  box-shadow: var(--pds-paper-shadow-subtle);
-  cursor: pointer;
-  color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  transition:
-    background-color var(--pds-duration-press) var(--pds-ease-standard),
-    color var(--pds-duration-press) var(--pds-ease-standard);
-}
-
-@media (hover: hover) {
-  .pds-reader__next-float:hover {
-    color: var(--pds-text-primary);
-  }
-}
-
-.pds-reader__next-float:focus-visible {
-  outline: 2px solid var(--pds-accent);
-  outline-offset: 1px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pds-reader__next-float {
     transition: none;
   }
 }

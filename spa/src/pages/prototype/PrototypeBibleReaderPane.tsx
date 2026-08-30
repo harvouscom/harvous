@@ -2018,33 +2018,28 @@ export default function PrototypeBibleReaderPane({
         </div>
 
         {/*
-          Where reading continues, and the only direction left that needs a control.
+          The page ahead, as paper — the same pile as above, mirrored under the sheet.
 
-          The pair at the foot of the page went with the pile arriving above it: back was stated
-          twice, once as an edge naming the chapter behind and once as a button at the bottom
-          naming the same one, and two controls for one move is how a surface stops being
-          readable. The pile keeps back; this keeps on.
+          This was a floating pill, which worked and said the wrong thing: one direction drawn as
+          paper and the other as a button made turning forward a different kind of act from
+          turning back. They are the same act. Under the sheet the chapter ahead peeks the way
+          the one behind does, and the page sits between them where a page in a book is.
 
-          Floating rather than in flow, because it belongs to the reading rather than to the end
-          of the text. In flow at the foot it could only be reached by scrolling the whole
-          chapter — right for a page you finished, wrong for one you are three verses into and
-          done with. Over the paper's bottom corner it is reachable the whole way down.
+          It costs the thing the pill was for — reaching it means scrolling the chapter — and
+          that is the honest trade rather than an oversight. The pile above costs the same to
+          reach, and a book does too.
 
-          Absent at the end of Revelation, where `adjacentChapter` returns null. The canon runs
-          out, and a disabled control would be chrome asserting there is somewhere else to go.
+          Absent at Revelation 22, where `adjacentChapter` returns null: the canon runs out, and
+          an edge there would be paper asserting there is another page.
         */}
-        {onNavigateTo && nextChapter ? (
-          <button
-            type="button"
-            className="pds-reader__next-float"
-            onClick={() => onNavigateTo(nextChapter.book, nextChapter.chapter)}
-            aria-label={`Read on to ${nextChapter.book} ${nextChapter.chapter}`}
-          >
-            <span className="pds-reader__next-float-label">
-              {nextChapter.book} {nextChapter.chapter}
-            </span>
-            <Icon name="caret-right" size={12} aria-hidden />
-          </button>
+        {onNavigateTo && data && !paperStack ? (
+          <PrototypeReaderChapterStack
+            book={data.book}
+            chapter={data.chapter}
+            translation={data.translation}
+            direction="ahead"
+            onSelect={onNavigateTo}
+          />
         ) : null}
       </div>
 

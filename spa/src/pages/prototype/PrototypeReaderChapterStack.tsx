@@ -12,13 +12,21 @@
  * So the pile is the canon and the reader is somewhere in it. Translations kept the heading chip,
  * which reaches all eleven, and a two-column comparison sheet is its own piece of work.
  *
- * ## Why the chapters behind and not the ones ahead
+ * ## Why both directions
  *
- * Both directions are defensible; consistency decides it. Activity puts yesterday above today and
- * flipping an edge goes *back*, so edges pointing forward here would make one gesture mean two
- * things across two surfaces. It also matches a book — the pages you have turned past are the
- * ones under your thumb. Going on is the floating control over the paper's corner, which is the
- * only other direction and the only other control.
+ * This shipped as the chapters *behind* only, on Activity's precedent: yesterday sits above
+ * today, so a forward-pointing edge would make one gesture mean two things across two surfaces.
+ * Going on was a floating pill over the paper's corner instead.
+ *
+ * That was the wrong reading of the metaphor. Activity's stack is a pile of days and there is no
+ * paper for tomorrow; a book has pages on both sides of the one you are on, and turning forward
+ * and turning back are the same act. So the pile is mirrored — the same component, the same
+ * gesture, `direction` deciding which way it leans — and the page sits between the chapter behind
+ * and the chapter ahead, where a page in a book is. The floating pill is gone; it was a control
+ * doing what the paper could say by being there.
+ *
+ * The trade is honest rather than hidden: reaching the sheet below means scrolling the chapter.
+ * The pile above costs the same, and so does a book.
  */
 import { useEffect, useMemo, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,40 +46,60 @@ import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleC
  */
 export const READER_CHAPTER_EDGES = 1;
 
-/** The chapters immediately behind this one, nearest first. Empty at Genesis 1. */
-export function chaptersBehind(
+/**
+ * The chapters either side of this one, nearest first. Empty at the canon's two ends.
+ *
+ * One function for both directions because they are one walk: `adjacentChapter` already crosses
+ * book boundaries in either, and `null` from it is the real edge of Scripture rather than an
+ * error — Genesis 1 has nothing behind it and Revelation 22 nothing ahead, and both should show
+ * no paper rather than an edge that cannot be opened.
+ */
+export function chaptersFrom(
   book: string,
   chapter: number,
   count: number,
+  direction: 1 | -1,
 ): { book: string; chapter: number }[] {
   const out: { book: string; chapter: number }[] = [];
   let cursor: { book: string; chapter: number } | null = { book, chapter };
   for (let i = 0; i < count; i += 1) {
-    cursor = cursor ? adjacentChapter(cursor.book, cursor.chapter, -1) : null;
-    /* `null` is the real start of the canon, not an error — Genesis 1 has nothing behind it and
-       should show no pile rather than an edge that cannot be opened. */
+    cursor = cursor ? adjacentChapter(cursor.book, cursor.chapter, direction) : null;
     if (!cursor) break;
     out.push(cursor);
   }
   return out;
 }
 
+/** The chapters immediately behind this one, nearest first. Empty at Genesis 1. */
+export function chaptersBehind(book: string, chapter: number, count: number) {
+  return chaptersFrom(book, chapter, count, -1);
+}
+
 export default function PrototypeReaderChapterStack({
   book,
   chapter,
   translation,
+  direction = 'behind',
   onSelect,
 }: {
   book: string;
   chapter: number;
   translation: string;
+  /**
+   * Which side of the page this pile is.
+   *
+   * `behind` sits above the sheet and holds the chapter you turned past; `ahead` sits below it
+   * and holds the one you are reading toward. The same paper, the same gesture, mirrored — which
+   * is what makes turning a page in either direction one idea rather than two controls.
+   */
+  direction?: 'behind' | 'ahead';
   onSelect: (book: string, chapter: number) => void;
 }) {
   const queryClient = useQueryClient();
 
   const edges = useMemo(
-    () => chaptersBehind(book, chapter, READER_CHAPTER_EDGES),
-    [book, chapter],
+    () => chaptersFrom(book, chapter, READER_CHAPTER_EDGES, direction === 'ahead' ? 1 : -1),
+    [book, chapter, direction],
   );
 
   /*
@@ -93,7 +121,7 @@ export default function PrototypeReaderChapterStack({
 
   return (
     <div
-      className="pds-reader-stack__edges"
+      className={`pds-reader-stack__edges pds-reader-stack__edges--${direction}`}
       style={{ '--edge-count': edges.length } as CSSProperties}
     >
       {/*
@@ -110,7 +138,7 @@ export default function PrototypeReaderChapterStack({
             className="pds-reader-stack__edge"
             style={{ '--edge-depth': depth } as CSSProperties}
             onClick={() => onSelect(e.book, e.chapter)}
-            aria-label={`Back to ${label}`}
+            aria-label={direction === 'ahead' ? `Read on to ${label}` : `Back to ${label}`}
           >
             {/* The whole name, not a bare number: an edge above Leviticus 1 says "Exodus 40",
                 and a "40" there would be the wrong book's chapter with no way to tell. */}
