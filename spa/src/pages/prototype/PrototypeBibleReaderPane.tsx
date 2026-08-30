@@ -1665,7 +1665,7 @@ export default function PrototypeBibleReaderPane({
               it: "a ninth hand-rolled variant is how those four drifted apart". The inspector's
               picker is the same component on the same options, and now the same handler.
             */}
-            <p className="pds-reader__chapter-meta">
+            <div className="pds-reader__chapter-controls">
               {onChangeTranslation ? (
                 <ProtoSelectMenu
                   value={data.translation}
@@ -1684,7 +1684,7 @@ export default function PrototypeBibleReaderPane({
                   {getTranslationAbbreviationDisplay(data.translation)}
                 </span>
               )}
-            </p>
+            </div>
           </div>
 
           {/*

@@ -18896,9 +18896,58 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 /* Heading clears the gutter so it starts on the same edge as the reading text — and ends
    on the same edge too, or the title's line would run wider than the Scripture under it. */
+/*
+ * The heading, in the day sheet's shape.
+ *
+ * Activity's header is one row: what you are looking at on the left, the control that changes
+ * something about it on the right — `Today · August 30 … All ▾`. This was a title with the
+ * translation parked on a second line under it, which spent a line of the page on a chip and
+ * left the row's right half empty. Same three facts, same arrangement, so the two document
+ * surfaces open the same way.
+ *
+ * `align-items: center` rather than `baseline`: the chip is a box with its own padding, and
+ * sitting it on the title's baseline hangs it below the line it belongs to. Activity's head
+ * makes the same choice for the same reason, and keeps `baseline` for the title's own parts.
+ */
 .pds-reader__chapter-heading {
   margin: 0 0 var(--pds-space-5);
   padding-inline: var(--pds-reader-text-inset);
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+}
+
+/* The title takes the room, the control takes what it needs — `.proto-feed-sheet__title` and
+   `__controls`, which is the pair this is copying. `min-width: 0` so a long book name
+   ellipses inside the marquee rather than pushing the chip off the paper. */
+.pds-reader__chapter-heading > .pds-reader-chapter-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pds-reader__chapter-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  flex: 0 0 auto;
+}
+
+/*
+ * The row goes back to being two lines when the title needs two of its own.
+ *
+ * Activity's header can sit on one row because its title is "Today" — three syllables, always.
+ * A book name is not always short, and "Song of Solomon 2" wraps on a phone, which left the
+ * chip vertically centred against a two-line title: floating in the white space beside the
+ * first line, attached to neither. Stacked, it goes back under the title where it reads as
+ * belonging to it. The one-row arrangement is the better shape where there is room for it,
+ * which is what a container query is for.
+ */
+@container pds-reader-scroll (max-width: 640px) {
+  .pds-reader__chapter-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--pds-space-2);
+  }
 }
 
 /*
@@ -19006,9 +19055,9 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 }
 
+/* Kept for the design-system fixture, which still states the translation's full name as a
+   caption under the title. The live reader states it in the chip beside the title instead. */
 .pds-reader__chapter-meta {
-  /* A little more air than a caption needed: the chip has its own box, so the gap is
-     measured from its edge rather than from a line of text's baseline. */
   margin: var(--pds-space-2) 0 0;
   display: flex;
 }
