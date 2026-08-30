@@ -2,6 +2,23 @@
  * My Church hub — two lanes: church Shared Spaces + ministry channels.
  * Not a space dashboard; picking a row opens that space.
  * Catalog scope: docs/future/MY_CHURCH_SIDEBAR.md (Layer 1–2).
+ *
+ * ## Why this takes a variant rather than being copied
+ *
+ * The hub is moving off the rail and into the main pane, where Activity already lives, and for
+ * a while it has to be both: the rail survives behind ⇧S this phase, and `proto-shell-context`
+ * is explicit that "the two must not move each other". A second copy for the sheet is exactly
+ * the mistake `use-home-surface-data` was written to undo — Home's derivation lived inside the
+ * sidebar, so Activity could only offer what it could cheaply re-derive, and the two drifted
+ * where a reader could see it.
+ *
+ * So: one component, one set of lanes and gates, and `variant` decides only the chrome around
+ * them. Everything between the header and the create sheet is identical on both, which is the
+ * property that makes the eventual deletion of the rail a deletion rather than a migration.
+ *
+ * The body needs no translation because it was already written in Home's vocabulary — sections
+ * are `.proto-home-section` with a `__eyebrow`, the same anatomy `PrototypeHomeSection` renders
+ * on the day sheet. That is why this is a hosting change and not a rewrite.
  */
 import { useMemo, useState } from 'react';
 import Icon from '@/components/react/Icon';
@@ -148,7 +165,17 @@ function ChurchHubBrowseRow({
   );
 }
 
-export default function PrototypeSidebarChurchHubView() {
+export type ChurchHubVariant = 'rail' | 'sheet';
+
+export default function PrototypeChurchHub({
+  variant = 'rail',
+}: {
+  /**
+   * Which chrome to wear. `rail` is the sidebar this grew up in; `sheet` is the main pane,
+   * where it wears `.proto-feed-sheet` so a church reads as the same kind of surface as a day.
+   */
+  variant?: ChurchHubVariant;
+} = {}) {
   const { isMobileSidebar, activeChurchOrgId, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   const switchToSpace = useSwitchToSpace();
   const navQuery = useNavigation();
@@ -432,10 +459,7 @@ export default function PrototypeSidebarChurchHubView() {
     followChannel.mutate({ spaceId, follow });
   };
 
-  return (
-    <div className="proto-sidebar-root proto-church-hub">
-      {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
-      <div className="proto-shared-space-header">
+  const header = (
         <div className="proto-shared-space-header__row">
           {toolsView === 'catalog' ? (
             <span className="proto-shared-space-header__church-icon" aria-hidden>
@@ -486,20 +510,17 @@ export default function PrototypeSidebarChurchHubView() {
             </button>
           ) : null}
         </div>
-      </div>
+  );
 
-      {/*
-        Hold the sections back until every query has landed, the way My Home
-        does. Rendering them first and only *then* adding `--enter` painted a
-        half-built catalog and animated it a beat later — one load state read as
-        two.
-      */}
-      {!contentReady ? (
-        <div className="proto-sidebar-scroll">
-          <ProtoSpaceLoading label="Loading church" />
-        </div>
-      ) : (
-      <div className="proto-sidebar-scroll">
+  /*
+    Hold the sections back until every query has landed, the way My Home
+    does. Rendering them first and only *then* adding `--enter` painted a
+    half-built catalog and animated it a beat later — one load state read as
+    two.
+  */
+  const content = !contentReady ? (
+    <ProtoSpaceLoading label="Loading church" />
+  ) : (
         <div className={homeViewClassName}>
           {toolsView === 'teaching-plan' ? (
             /*
@@ -722,18 +743,40 @@ export default function PrototypeSidebarChurchHubView() {
           </>
           )}
         </div>
-      </div>
-      )}
+  );
 
-      {orgId && canCreateChurchContent ? (
-        <CreateSharedSpaceSheet
-          open={createSheetOpen}
-          onOpenChange={setCreateSheetOpen}
-          orgId={orgId}
-          kind={createKind}
-          onCreated={(spaceId) => openSpace(spaceId)}
-        />
-      ) : null}
+  const createSheet =
+    orgId && canCreateChurchContent ? (
+      <CreateSharedSpaceSheet
+        open={createSheetOpen}
+        onOpenChange={setCreateSheetOpen}
+        orgId={orgId}
+        kind={createKind}
+        onCreated={(spaceId) => openSpace(spaceId)}
+      />
+    ) : null;
+
+  /*
+    The sheet wears the day sheet's own frame so a church and a day read as the same kind of
+    thing in the same place — the point of moving the hub here at all. `.proto-church-hub`
+    stays on both so the lane and row rules that key off it are untouched by the move.
+  */
+  if (variant === 'sheet') {
+    return (
+      <article className="proto-feed-sheet proto-church-hub proto-church-hub--sheet">
+        <header className="proto-feed-sheet__head proto-shared-space-header">{header}</header>
+        <div className="proto-feed-sheet__body">{content}</div>
+        {createSheet}
+      </article>
+    );
+  }
+
+  return (
+    <div className="proto-sidebar-root proto-church-hub">
+      {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
+      <div className="proto-shared-space-header">{header}</div>
+      <div className="proto-sidebar-scroll">{content}</div>
+      {createSheet}
     </div>
   );
 }

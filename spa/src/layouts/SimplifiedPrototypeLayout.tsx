@@ -50,7 +50,7 @@ const PrototypeLibraryPanelHost = lazy(
   () => import('../pages/prototype/library-panel/PrototypeLibraryPanelHost'),
 );
 import PrototypeSidebarSharedSpaceView from '../pages/prototype/PrototypeSidebarSharedSpaceView';
-import PrototypeSidebarChurchHubView from '../pages/prototype/PrototypeSidebarChurchHubView';
+import PrototypeChurchHub from '../pages/prototype/PrototypeChurchHub';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSidebarHost';
 
@@ -1027,7 +1027,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             {sidebarVariant === 'admin' ? (
               <PrototypeAdminSidebar />
             ) : sidebarVariant === 'church-hub' ? (
-              <PrototypeSidebarChurchHubView />
+              <PrototypeChurchHub variant="rail" />
             ) : sidebarVariant === 'shared-space' ? (
               <PrototypeSidebarSharedSpaceView />
             ) : sidebarVariant === 'shared-list' ? (

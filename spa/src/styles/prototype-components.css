@@ -21101,6 +21101,43 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   padding: var(--pds-space-5) var(--pds-space-5) 0;
 }
 
+/*
+ * The canvas around a hub sheet — the day sheet's frame, minus the day stack.
+ *
+ * A church hub is a sheet in the main pane like a day is, so it wants the same column width
+ * and the same reach to the bottom edge. What it does not want is `.proto-feed-stack`, whose
+ * whole job is the pile of previous days behind the front one: the edge band reserves room for
+ * labels a hub has none of, and would open the surface with a strip of empty paper above it.
+ * Same measure, no stack.
+ */
+.proto-hub-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: var(--pds-space-5) var(--pds-space-5) 0;
+}
+
+.proto-hub-frame > .proto-feed-sheet {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/*
+ * The hub's header row, given the width its own layout assumes.
+ *
+ * On the rail `.proto-shared-space-header` is a block, so the row inside it is full width for
+ * free and `__meta`'s `flex: 1` has something to divide. `.proto-feed-sheet__head` is a flex
+ * container, so the same row became `flex: 0 0 auto` and shrank to its icon — 40px wide, with
+ * the church's name and location measured at zero and clipped away by `__meta`'s own
+ * `min-width: 0`. The markup was right and the container changed under it.
+ */
+.proto-feed-sheet__head > .proto-shared-space-header__row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .proto-feed-stack {
   position: relative;
   width: 100%;

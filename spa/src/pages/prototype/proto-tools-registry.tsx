@@ -1,7 +1,7 @@
 /**
  * The Tools card — one row shape, shared by the church hub and Shared Spaces.
  *
- * The rows were six near-identical JSX blocks in PrototypeSidebarChurchHubView,
+ * The rows were six near-identical JSX blocks in PrototypeChurchHub,
  * which meant a second surface wanting the same card had to copy the chrome and
  * then drift from it. Rows are data now; the markup lives here once.
  *
