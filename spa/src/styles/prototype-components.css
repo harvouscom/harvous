@@ -19214,17 +19214,21 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  */
 @container pds-reader-scroll (max-width: 900px) {
   /*
-   * `+` goes: starting a comparison is a wide-pane act, and this width inherits whatever `?c=`
-   * already says. Everything else stays, and the compared version's chip especially — with one
-   * version on screen the row has to say which two versions are in play and which one you are
-   * reading, or the swap control is offering a destination with no stated origin. `×` stays
-   * too, because a comparison you cannot close is one you are stuck in, which is what this
-   * width used to be.
+   * Every control stays at this width.
+   *
+   * `+` used to go, on the reasoning that starting a comparison is a wide-pane act and this
+   * width would inherit whatever `?c=` already said. That was true for exactly as long as this
+   * width had nothing to offer a comparison — it degraded to the single column it could fit.
+   * It does not any more: one version shows, a swipe or the swap control reaches the other,
+   * and that is a whole way of comparing rather than a fallback. Hiding the way in left a
+   * reader on a medium window unable to start the thing their window fully supports, with
+   * nothing on screen to suggest a wider one would offer it.
+   *
+   * The compared version's chip stays for its own reason — with one version on screen the row
+   * has to say which two are in play and which you are reading, or the swap control offers a
+   * destination with no stated origin. And `×` stays, because a comparison you cannot close is
+   * one you are stuck in, which is what this width used to be.
    */
-  .pds-reader__compare-add {
-    display: none;
-  }
-
   .pds-reader__compare-swap {
     display: inline-flex;
   }
