@@ -139,6 +139,7 @@ import { shouldRedirectPrototypeToSignIn } from '@/utils/prototype-shell-auth';
 import { useHarvousIdentity } from '../hooks/useHarvousIdentity';
 import PrototypeGuestModeRow from '../pages/prototype/PrototypeGuestModeRow';
 import { useGuestAdoption } from '../hooks/useGuestAdoption';
+import { useGuestExitPrompt } from '../hooks/useGuestExitPrompt';
 
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -305,6 +306,8 @@ export default function SimplifiedPrototypeLayout() {
 }
 
 function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: string; isGuest?: boolean }) {
+  // Speaks once, on the way out, and only for a guest who has made something.
+  useGuestExitPrompt(isGuest);
   const queryClient = useQueryClient();
   const chromeRouter = useRouter();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
