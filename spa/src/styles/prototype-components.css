@@ -21668,14 +21668,18 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   gap: 0;
   /*
    * The header's own side inset moves onto the row below, so the only padding between the
-   * cover and the paper's edge is the sheet's own. Written as one named number used once
-   * rather than added into the cover's negative margin, where it would be a second copy of a
-   * value declared somewhere else — the cover would then show a hairline of paper down each
-   * side the moment either changed. 14px because that is what the row has always had, and
-   * what `.proto-home-view` gives the greeting below it: the title and the sentence under it
-   * start on the same line, and they have to keep doing that.
+   * cover and the paper's edge is the sheet's own. Named rather than added into the cover's
+   * negative margin, where it would be a second copy of a value declared somewhere else — the
+   * cover would then show a hairline of paper down each side the moment either changed.
+   *
+   * Zero now, and the rule below takes the same 14px off the body. It was the retired rail's
+   * gutter: a 304px sidebar has to hold its content off the edge, and the hub carried that
+   * inset onto a 640px sheet where Activity's body has none — so the room's sentence started
+   * 14px further in than the same sentence on the surface beside it. The header follows the
+   * body rather than leading it: the title and the greeting under it have to start on the
+   * same line, which is the whole reason this is one number and not two.
    */
-  --hub-header-inset-x: 14px;
+  --hub-header-inset-x: 0px;
   padding: 0 0 var(--pds-space-5);
   /* Anchor for the two controls, which sit on the cover rather than under it. */
   position: relative;
@@ -21699,6 +21703,17 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   text-align: center;
   gap: 10px;
   padding: 0 var(--hub-header-inset-x);
+}
+
+/*
+ * The hub's body sits on the sheet's own content edge, like Activity's does.
+ *
+ * `.proto-home-view` is the rail's Home view and its `14px` was the rail's gutter. On the
+ * canvas the sheet already holds its content off the paper by `--pds-space-5`, so the two
+ * stacked and the hub read as a narrower column than the surface beside it.
+ */
+.proto-shared-space-dashboard--sheet .proto-home-view {
+  padding-inline: 0;
 }
 
 .proto-shared-space-header__cover {
