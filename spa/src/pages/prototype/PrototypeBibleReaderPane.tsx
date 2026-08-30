@@ -30,6 +30,7 @@ import {
   type ReaderColumn,
   type VerseSelection,
 } from './reader-verse-selection';
+import { swipeDirection } from './reader-version-swipe';
 // For `.scripture-pill-chrome__trans-chip` — the reader states the translation in the
 // same chip the dock does, so it borrows the chip rather than growing a second one.
 import '@/styles/scripture-pill-chrome.css';
@@ -883,6 +884,21 @@ export default function PrototypeBibleReaderPane({
    * rather than refused. See docs/future/READER_PARTIAL_VERSE_HIGHLIGHTS.md.
    */
   const [dragText, setDragText] = useState<string | null>(null);
+
+  /**
+   * Which of the two versions is on screen, for the width where only one can be.
+   *
+   * Below the pane width two columns can be read at, the comparison stops being side by side
+   * and becomes one column you swap between — comparing by alternation instead of by glance,
+   * which is what a phone has room for. This says which one; the CSS at that width hides the
+   * other, and above it the value has no effect because both are shown.
+   *
+   * Presentation, deliberately: a swipe is a look, not a decision. It does not touch `?t=`,
+   * `?c=`, or the account default, because holding two readings against each other means going
+   * back and forth several times and every one of those must be free. Which version the *next*
+   * chapter opens in is a question the chips answer, and they still do.
+   */
+  const [visibleColumn, setVisibleColumn] = useState<ReaderColumn>('primary');
   /** Where the roving tab stop is, and in which column — the keyboard's own cursor. */
   const [focusedVerse, setFocusedVerse] = useState<{ column: ReaderColumn; number: number } | null>(
     null,
@@ -904,6 +920,9 @@ export default function PrototypeBibleReaderPane({
     setSelection(null);
     setLanding(null);
     setFocusedVerse(null);
+    // Back to the version the page is in. A chapter opens in its own translation whatever you
+    // had swapped to in the last one — the swap is about this passage, not a setting.
+    setVisibleColumn('primary');
     scrollRef.current?.scrollTo({ top: 0 });
     // The compared version counts: a selection in the second column is of text that is gone
     // the moment that column changes translation, and acting on it would quote the old one.
@@ -1326,6 +1345,65 @@ export default function PrototypeBibleReaderPane({
    * Tapping a second verse extends the passage rather than replacing it — see
    * `nextVerseSelection` for the rule and why shift-only was not enough.
    */
+  /**
+   * Show the other version.
+   *
+   * Clears the selection and the roving focus rather than carrying them across, and both for
+   * the same reason: they belong to a piece of text that is no longer on screen. Carried over,
+   * the action bar would hang under a verse that is now `display: none` — `place()` measures an
+   * element with no client rects and leaves the bar where it last was, floating over words it
+   * is not about. A swap is a page turn; a page turn puts the passage down.
+   */
+  const swapVisibleColumn = useCallback(() => {
+    setVisibleColumn((c) => (c === 'primary' ? 'compare' : 'primary'));
+    setSelection(null);
+    setDragText(null);
+    setFocusedVerse(null);
+  }, []);
+
+  /*
+   * A drag across the chapter, on a touchscreen, where only one version fits.
+   *
+   * Three gates, each closing off something this must not become.
+   *
+   * Touch only. On a pointer, dragging across words is how a phrase is marked — the gesture
+   * this would be stealing is the one the sub-verse highlight feature is made of.
+   *
+   * Only where the columns have actually stacked, asked of the layout rather than restated as
+   * a number: `grid-template-columns` resolving to a single track *is* the CSS deciding there
+   * is one column, so the breakpoint lives in one place and this cannot drift from it.
+   *
+   * And `swipeDirection` for the rest — see it for why horizontal distance alone is not enough.
+   */
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+
+  const handleVersesPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.pointerType === 'mouse' || !compare) return;
+      swipeStart.current = { x: e.clientX, y: e.clientY };
+    },
+    [compare],
+  );
+
+  const handleVersesPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const start = swipeStart.current;
+      swipeStart.current = null;
+      if (!start || !compare) return;
+      if (!swipeDirection(e.clientX - start.x, e.clientY - start.y)) return;
+      const row = e.currentTarget.querySelector<HTMLElement>('.pds-reader__compare-row');
+      if (!row) return;
+      const stacked =
+        getComputedStyle(row).gridTemplateColumns.trim().split(/\s+/).length === 1;
+      if (!stacked) return;
+      /* Either direction swaps, because there are two versions and no third: a swipe means
+         "the other one", and making left and right mean different things would invent an
+         order the pair does not have. */
+      swapVisibleColumn();
+    },
+    [compare, swapVisibleColumn],
+  );
+
   const selectVerse = useCallback((num: number, extend: boolean, column: ReaderColumn) => {
     setSelection((current) => nextVerseSelection(current, num, extend, column));
   }, []);
@@ -1973,7 +2051,11 @@ export default function PrototypeBibleReaderPane({
                   options={translationOptions}
                   onChange={onChangeTranslation}
                   label="Translation"
-                  className="pds-reader__trans-trigger scripture-pill-chrome__trans-chip"
+                  /* Marked as the one on screen where only one is — see the narrow block in
+                     prototype-components.css. Inert above that width, where both are. */
+                  className={`pds-reader__trans-trigger scripture-pill-chrome__trans-chip${
+                    visibleColumn === 'primary' ? ' pds-reader__trans-trigger--showing' : ''
+                  }`}
                   menuClassName="pds-reader__trans-menu"
                   menuWidth={168}
                 />
@@ -2011,10 +2093,36 @@ export default function PrototypeBibleReaderPane({
                       options={translationOptions}
                       onChange={(next) => onChangeCompare(next)}
                       label="Compared translation"
-                      className="pds-reader__trans-trigger pds-reader__trans-trigger--compare scripture-pill-chrome__trans-chip"
+                      className={`pds-reader__trans-trigger pds-reader__trans-trigger--compare scripture-pill-chrome__trans-chip${
+                        visibleColumn === 'compare' ? ' pds-reader__trans-trigger--showing' : ''
+                      }`}
                       menuClassName="pds-reader__trans-menu"
                       menuWidth={168}
                     />
+                    {/*
+                      The swipe, as a button.
+
+                      A gesture nobody can see is a gesture only its author knows about, and a
+                      swipe has no keyboard at all. Sitting between the two chips with one of
+                      them marked, the glyph reads as "switch between these", which is why it
+                      carries no text of its own — the versions are already named twice beside
+                      it. Its label names the one it goes to, since that is what a screen reader
+                      cannot get from the marking.
+
+                      Only where one column shows, in CSS, beside the rule that stacks them.
+                      Above that width both versions are already on screen and there is nothing
+                      to swap to.
+                    */}
+                    <button
+                      type="button"
+                      className="pds-reader__compare-swap"
+                      aria-label={`Read this chapter in ${getTranslationAbbreviationDisplay(
+                        visibleColumn === 'primary' ? compare.translation : data.translation,
+                      )}`}
+                      onClick={swapVisibleColumn}
+                    >
+                      <Icon name="arrow-right-arrow-left" size={11} aria-hidden />
+                    </button>
                     <button
                       type="button"
                       className="pds-reader__compare-close"
@@ -2165,6 +2273,15 @@ export default function PrototypeBibleReaderPane({
                that ask which column a verse is in have an answer either way, rather than one
                path scoped by column and another falling back to the first match on the page. */
             data-reader-column={compare ? undefined : 'primary'}
+            /* Which version is on screen where only one fits. Read by the narrow block in
+               prototype-components.css, which is the only thing this attribute means — at a
+               width that shows both columns it is inert. */
+            data-compare-visible={compare ? visibleColumn : undefined}
+            onPointerDown={compare ? handleVersesPointerDown : undefined}
+            onPointerUp={compare ? handleVersesPointerUp : undefined}
+            /* A drag that leaves the element is not a swipe, and leaving `swipeStart` set would
+               make the next unrelated pointer-up measure from wherever this one began. */
+            onPointerCancel={() => { swipeStart.current = null; }}
             role="listbox"
             aria-label={`${data.book} ${data.chapter} verses`}
           >

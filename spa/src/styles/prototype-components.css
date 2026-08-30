@@ -19111,6 +19111,26 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   color: var(--pds-text-secondary);
 }
 
+/*
+ * The swipe, as a control.
+ *
+ * `display: none` here and turned on in the narrow block below, so "only where one version is
+ * on screen" is stated once, beside the rule that puts it there. Above that width both are
+ * already visible and there is nothing to swap to.
+ */
+.pds-reader__compare-swap {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  min-height: var(--pds-reader-chip-height);
+  border: 0;
+  background: none;
+  border-radius: var(--pds-radius-row);
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
 .pds-reader__compare-close {
   display: inline-flex;
   align-items: center;
@@ -19125,13 +19145,16 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 @media (hover: hover) {
   .pds-reader__compare-add:hover,
-  .pds-reader__compare-close:hover {
+  .pds-reader__compare-close:hover,
+  .pds-reader__compare-swap:hover {
     color: var(--pds-text-primary);
+    background: var(--pds-bg-control);
   }
 }
 
 .pds-reader__compare-add:focus-visible,
-.pds-reader__compare-close:focus-visible {
+.pds-reader__compare-close:focus-visible,
+.pds-reader__compare-swap:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: 1px;
 }
@@ -19148,18 +19171,66 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * 700, and below that the columns start breaking lines mid-phrase.
  */
 @container pds-reader-scroll (max-width: 900px) {
-  .pds-reader__compare-add,
-  .pds-reader__compare-close,
-  .pds-reader__trans-trigger--compare {
+  /*
+   * `+` goes: starting a comparison is a wide-pane act, and this width inherits whatever `?c=`
+   * already says. Everything else stays, and the compared version's chip especially — with one
+   * version on screen the row has to say which two versions are in play and which one you are
+   * reading, or the swap control is offering a destination with no stated origin. `×` stays
+   * too, because a comparison you cannot close is one you are stuck in, which is what this
+   * width used to be.
+   */
+  .pds-reader__compare-add {
     display: none;
+  }
+
+  .pds-reader__compare-swap {
+    display: inline-flex;
+  }
+
+  /*
+   * Which chip is the text you are looking at.
+   *
+   * The same treatment the chapter menu gives its checked row, because it is the same
+   * statement — this one, of the ones offered. Only at this width: above it both versions are
+   * on screen and marking one would claim a precedence the layout does not have.
+   */
+  .pds-reader__trans-trigger--showing {
+    background: var(--pds-bg-row-selected);
+    font-weight: 600;
   }
 
   .pds-reader__compare-row {
     grid-template-columns: 1fr;
   }
 
-  .pds-reader__compare-cell--second {
+  /*
+   * One version at a time, and a swipe across the text asks for the other.
+   *
+   * The second column used to be hidden outright here, which read as the comparison degrading
+   * to the single column the width could show. It was worse than that: `?c=` stayed in the URL
+   * with no way to reach the version it named and, until the swap control above, no way to
+   * close it either. Alternating is a real way to compare — it is what turning between two
+   * printed Bibles is — and it is the one this width has room for.
+   *
+   * Which one shows is `data-compare-visible`, and it means nothing anywhere but here.
+   */
+  .pds-reader__verses[data-compare-visible='primary'] .pds-reader__compare-cell--second,
+  .pds-reader__verses[data-compare-visible='compare']
+    .pds-reader__compare-cell:not(.pds-reader__compare-cell--second) {
     display: none;
+  }
+
+  /*
+   * Vertical panning stays the browser's; sideways comes to us.
+   *
+   * Without this the browser claims the gesture as soon as it decides the touch is a scroll and
+   * sends `pointercancel`, so a swipe that starts with any downward drift never arrives. Scoped
+   * to a comparison — with one version there is nothing to swipe to, and a reader should not
+   * give up a scrolling optimisation for a gesture that does not exist. `pinch-zoom` is kept
+   * explicitly: `pan-y` alone would take zooming away from the one surface that is all text.
+   */
+  .pds-reader__verses[data-compare-visible] {
+    touch-action: pan-y pinch-zoom;
   }
 }
 
