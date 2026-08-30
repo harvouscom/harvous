@@ -35,6 +35,41 @@
     return;
   }
 
+  /*
+   * A `?try=1` arrival is someone trying Harvous without an account.
+   *
+   * The marker has to be written here, before the bundle, because the shell's gate runs on the
+   * very first React render: a marker written later would let that render resolve `signed-out`
+   * and paint the empty frame for a beat on the way in — on the one screen whose whole job is
+   * to look like an uninterrupted continuation of the marketing page.
+   *
+   * Keep the key in sync with PROTO_GUEST_SESSION_KEY in spa/src/layouts/proto-session-keys.ts.
+   */
+  var PROTO_GUEST_SESSION_KEY = 'harvous-proto-guest';
+  try {
+    if (window.location.search.indexOf('try=1') !== -1 &&
+        new URLSearchParams(window.location.search).get('try') === '1' &&
+        !localStorage.getItem(PROTO_GUEST_SESSION_KEY)) {
+      localStorage.setItem(PROTO_GUEST_SESSION_KEY, new Date().toISOString());
+    }
+  } catch (e) { /* ignore — a guest who cannot write localStorage still gets the reader */ }
+
+  /*
+   * Reserve the guest row's height before first paint.
+   *
+   * The class means "the row is taking up space", not "this is a guest" — a guest who has put
+   * the row away gets the full frame back, so the dismissed flag has to be read here too or the
+   * shell would sit 34px short with nothing in the gap. React re-asserts both from
+   * `PrototypeGuestModeRow`; this is only about the first frame.
+   * Keep in sync with PROTO_GUEST_ROW_DISMISSED_KEY in spa/src/layouts/proto-session-keys.ts.
+   */
+  try {
+    if (localStorage.getItem(PROTO_GUEST_SESSION_KEY) &&
+        localStorage.getItem('harvous-proto-guest-row-dismissed') !== '1') {
+      root.classList.add('harvous-proto-guest');
+    }
+  } catch (e) { /* ignore */ }
+
   /** iOS standalone PWA: skip image wallpapers at first paint (WebKit compositor OOM). */
   function isIosStandalonePwa() {
     var ua = navigator.userAgent || '';

@@ -400,6 +400,19 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadPage')),
   });
 
+  /**
+   * `/read/today` — the reader on today's passage.
+   *
+   * Two segments, so it cannot collide with the three-segment `read/$book/$chapter` above or be
+   * swallowed by the single-segment `$noteId` catch-all below. This is the URL harvous.com's
+   * "Try it free" points at, because a static marketing build cannot know today's reference.
+   */
+  const prototypeReadTodayRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'read/today',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadTodayPage')),
+  });
+
   const prototypeLegacySpaceRedirectRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'space/$spaceId',
@@ -568,6 +581,7 @@ function buildPrototypeRouteBranch() {
     prototypeAdminChurchesRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
     // Before the catch-all `$noteId`, which would otherwise swallow `/read`.
+    prototypeReadTodayRoute,
     prototypeReadRoute,
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([

@@ -38,3 +38,29 @@ export const PROTO_ONBOARDING_PREVIEW_KEY = 'harvous-proto-onboarding-preview';
  * not be waiting in a tab you open tomorrow.
  */
 export const PROTO_SPOTLIGHT_KEY = 'harvous-proto-spotlight';
+
+/**
+ * This browser is trying Harvous without an account. Holds the ISO time the visit started.
+ *
+ * A timestamp rather than `'1'` because it is the one dismissible-adjacent marker that is not a
+ * yes-or-no: the exit prompt and the guest row both want to say how long this has been going on,
+ * and a boolean would have meant a second key to answer that.
+ *
+ * Also written by `public/scripts/prototype-route-boot.js` before React loads, so the shell never
+ * paints the signed-out frame on the way in. Keep the literal in sync there.
+ */
+export const PROTO_GUEST_SESSION_KEY = 'harvous-proto-guest';
+
+/** Client flag: guest put away the "notes are saved on this device" row. */
+export const PROTO_GUEST_ROW_DISMISSED_KEY = 'harvous-proto-guest-row-dismissed';
+
+/** Dev-only: force the guest row for UI testing (`import.meta.env.DEV` only). */
+export const PROTO_GUEST_ROW_PREVIEW_KEY = 'harvous-proto-guest-row-preview';
+
+/**
+ * The exit prompt has already had its one turn this visit.
+ *
+ * sessionStorage, for the same reason as the spotlight above: "I already asked" is about this
+ * trip. A guest who comes back tomorrow has not been asked today.
+ */
+export const PROTO_GUEST_EXIT_PROMPT_KEY = 'harvous-proto-guest-exit-prompt-shown';

@@ -2343,3 +2343,107 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   opacity: 0.6;
 }
 
+
+/* ─── Guest mode ─────────────────────────────────────────────────────────── */
+
+/*
+  The standing "you are trying Harvous" row, above the shell frame.
+
+  Above rather than inside because the shell's grid already carries four row templates
+  (`--note-chrome`, `--no-footer`, and their combinations) and a fifth variant for a notice that
+  is not about the note would have to be spelled out against each of them. Reserving the height
+  on the frame instead is one subtraction that every variant inherits for free.
+
+  `html.harvous-proto-guest` is set by `public/scripts/prototype-route-boot.js` before the bundle
+  loads, so the space is claimed in the first paint — an arriving guest never sees the shell jump
+  down by 34px a moment after landing, which on this one screen would undo the whole handoff.
+*/
+:root {
+  --proto-guest-row-h: 34px;
+}
+
+html.harvous-proto-guest .proto-shell-frame {
+  height: calc(100vh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+  height: calc(100dvh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+}
+
+.proto-guest-row {
+  box-sizing: border-box;
+  display: flex;
+  /* `#root` is a flex column, so without this the row is squeezed by the frame below it and
+     renders shorter than the height the frame just subtracted for it — a few px of the shell
+     falling off the bottom of the window. */
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: var(--proto-guest-row-h);
+  padding: 0 calc(var(--pds-shell-frame-inset) + 4px);
+  color: var(--pds-text-secondary);
+}
+
+.proto-guest-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/*
+  The sentence is the first thing to give way, not the button. On a narrow phone the label
+  truncates to "You're trying Harvous —" and the way to keep the notes stays whole and tappable;
+  the reverse would leave a full explanation of a problem next to no way to solve it.
+*/
+.proto-guest-row__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.proto-guest-row__icon {
+  flex-shrink: 0;
+}
+
+.proto-guest-row__trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.proto-guest-row__action {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 22px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-button);
+  padding: 0 10px;
+  background: var(--pds-bg-glass-medium);
+  color: var(--pds-text-primary);
+  font: 600 11px/1 var(--pds-font-body);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.proto-guest-row__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+}
+
+.proto-guest-row__dismiss:hover {
+  background: var(--pds-bg-glass-medium);
+}

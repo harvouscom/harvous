@@ -77,7 +77,6 @@ import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
 import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
-import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useWarmDefaultTranslationPack } from '../hooks/useWarmDefaultTranslationPack';
 import { useShellModeNav } from '../hooks/useShellModeNav';
@@ -136,13 +135,13 @@ import {
   freezeMainInnerIntoLayer,
   FREEZE_MAIN_FOR_SETTINGS_EVENT,
 } from '../lib/prototype-settings-main-keepalive';
-import {
-  computePrototypeShouldShowShell,
-  shouldRedirectPrototypeToSignIn,
-} from '@/utils/prototype-shell-auth';
+import { shouldRedirectPrototypeToSignIn } from '@/utils/prototype-shell-auth';
+import { useHarvousIdentity } from '../hooks/useHarvousIdentity';
+import PrototypeGuestModeRow from '../pages/prototype/PrototypeGuestModeRow';
 
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn } = useAuth();
+  const identity = useHarvousIdentity();
   const authReady = useAuthReady();
   const { user } = useUser();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -173,7 +172,6 @@ export default function SimplifiedPrototypeLayout() {
       replace: true,
     });
   }, [isSignedIn, pathname, layoutRouter]);
-  const hasSessionCookie = hasClerkSessionCookieHint();
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -236,6 +234,10 @@ export default function SimplifiedPrototypeLayout() {
   // Cookie hint is only for the pre-load window. Once Clerk has spoken, trust isSignedIn —
   // a stale __session / __client_uat must not trap the shell without redirecting to sign-in.
   useEffect(() => {
+    // A guest is signed out on purpose. Bouncing them to /sign-in is the exact friction this
+    // mode exists to remove, so the marker outranks the redirect — but only the redirect. Every
+    // read and write below still treats them as having no account, because they have none.
+    if (identity.isGuest) return;
     if (!shouldRedirectPrototypeToSignIn(isLoaded, isSignedIn)) return;
     const path =
       typeof window !== 'undefined'
@@ -243,7 +245,7 @@ export default function SimplifiedPrototypeLayout() {
         : prototypeHomePath();
     const redirectUrl = `/sign-in?redirect_url=${encodeURIComponent(path)}`;
     window.location.replace(redirectUrl);
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, identity.isGuest]);
 
   const lastServiceWorkerNavCheckRef = useRef(0);
   const SW_UPDATE_CHECK_THROTTLE_MS = 90_000;
@@ -281,23 +283,25 @@ export default function SimplifiedPrototypeLayout() {
   useWarmDefaultTranslationPack();
 
   // Optimistic shell only while Clerk is still loading (cookie hint avoids boot-canvas flash).
-  // After isLoaded, require a real signed-in session — ignore stale cookie hints.
-  const shouldShowShell = computePrototypeShouldShowShell(isLoaded, isSignedIn, hasSessionCookie);
-
-  if (!shouldShowShell) {
+  // After isLoaded, require a real signed-in session — ignore stale cookie hints. A guest is the
+  // third answer: no session, but a shell all the same.
+  if (identity.mode === 'signed-out') {
     return <div className="proto-shell-frame simplified-prototype-root" aria-hidden="true" />;
   }
 
   return (
     <ProtoMigrationProvider>
       <ProtoShellProvider>
-        <PrototypeAuthenticatedChrome userId={user?.id} />
+        <PrototypeAuthenticatedChrome
+          userId={identity.isGuest ? identity.userId : user?.id}
+          isGuest={identity.isGuest}
+        />
       </ProtoShellProvider>
     </ProtoMigrationProvider>
   );
 }
 
-function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
+function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: string; isGuest?: boolean }) {
   const queryClient = useQueryClient();
   const chromeRouter = useRouter();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
@@ -987,13 +991,16 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
   return (
     <>
+      <PrototypeGuestModeRow enabled={isGuest} />
       <div className="proto-shell-frame simplified-prototype-root">
         <div ref={shellRef} className={shellMods} style={shellStyle}>
         <DevModeBadge />
-        {userId ? (
+        {/* Never for a guest: 'guest' is a truthy userId, and mounting this would start a
+            push loop against a server that 401s every op, in a timer nobody is watching. */}
+        {userId && !isGuest ? (
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}
-        <PrototypeSyncChip userId={userId} />
+        {isGuest ? null : <PrototypeSyncChip userId={userId} />}
         <PrototypeAppUpdateToast />
         <PrototypeFeedbackToast />
         <PrototypeShortcutBridge />
