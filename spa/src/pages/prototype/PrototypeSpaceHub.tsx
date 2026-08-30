@@ -45,6 +45,7 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
+import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
 import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import { companionToolRow } from '../../lib/space-companion';
 import { spaceLibraryMeta, useSpaceLibrary } from '../../hooks/queries/useSpaceLibrary';
@@ -788,9 +789,37 @@ function PrototypeSpaceHubLive() {
     );
   }
 
+  /*
+   * The room's own cover, as the invite letter shows it.
+   *
+   * Same three fields `SharedSpaceAboutSheet` maps for its hero, because it is the same cover:
+   * the image someone chose for this space, or the accent gradient standing in for one. Kept
+   * beside the header it feeds rather than hoisted, so the mapping is read where it is used.
+   */
+  const heroSpace = space
+    ? {
+        color: space.color ?? undefined,
+        backgroundGradient: space.backgroundGradient,
+        cover: { light: space.coverBgLight ?? null, dark: space.coverBgDark ?? null },
+      }
+    : null;
+
   return frame(
     <>
-      <div className="proto-shared-space-header">
+      <div className="proto-shared-space-header proto-shared-space-header--cover">
+        {/*
+          The same hero the invite and the About sheet show, at the top of the room itself.
+
+          A shared space had one visual anywhere — the cover on the letter that invited you —
+          and then you walked in and the room was a 30px tile and a line of text. Being in a
+          place should look like the place. `PublicJoinSpaceHero` rather than a second band of
+          our own: it already resolves image-or-gradient per colour scheme and holds the
+          placeholder until the image has decoded, and a copy would be the thing that drifts
+          from the letter it is supposed to match.
+        */}
+        <div className="proto-shared-space-header__cover">
+          <PublicJoinSpaceHero space={heroSpace} />
+        </div>
         <div className="proto-shared-space-header__row">
           <ProtoSpaceMenuIcon
             color={space?.color || 'paper'}

@@ -21649,6 +21649,84 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   min-width: 0;
 }
 
+/*
+ * ─── A room that looks like the place it is ──────────────────────────────────────────
+ *
+ * The cover runs to the paper's own edges. The sheet pads itself by `--pds-space-5` on the
+ * top and both sides, so the band unpicks exactly that much and nothing else — a number
+ * derived from the padding rather than typed beside it, or the two drift and the cover shows
+ * a hairline of paper down one side.
+ *
+ * Height is the About sheet's 140px scaled back: this is a header someone reads past a dozen
+ * times a day, not a letter they read once, and a cover deep enough to be a page of its own
+ * would push the room's actual contents under the fold.
+ */
+.proto-shared-space-dashboard--sheet > .proto-shared-space-header--cover {
+  /* Column, not the row its uncovered sibling is: the band sits above the identity line. */
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  /*
+   * The header's own side inset moves onto the row below, so the only padding between the
+   * cover and the paper's edge is the sheet's own. Written as one named number used once
+   * rather than added into the cover's negative margin, where it would be a second copy of a
+   * value declared somewhere else — the cover would then show a hairline of paper down each
+   * side the moment either changed. 14px because that is what the row has always had, and
+   * what `.proto-home-view` gives the greeting below it: the title and the sentence under it
+   * start on the same line, and they have to keep doing that.
+   */
+  --hub-header-inset-x: 14px;
+  padding: 0 0 var(--pds-space-4);
+}
+
+.proto-shared-space-header--cover > .proto-shared-space-header__row {
+  padding: var(--pds-space-3) var(--hub-header-inset-x) 0;
+}
+
+.proto-shared-space-header__cover {
+  position: relative;
+  height: 104px;
+  /* Only the sheet's padding left to unpick, per the rule above. */
+  margin: calc(-1 * var(--pds-space-5)) calc(-1 * var(--pds-space-5)) 0;
+  overflow: hidden;
+  flex-shrink: 0;
+  /* Under the identity line, which lifts its tile onto the band below. */
+  z-index: 0;
+}
+
+/* The hero paints itself into whatever box it is given — the same override the About sheet's
+   hero takes, for the same reason: its own sizing is written for a tall sticky page hero. */
+.proto-shared-space-header__cover .upgrade-hero-section {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  flex: none;
+  border-radius: 0;
+  pointer-events: none;
+}
+
+/*
+ * The identity line, tucked up under the cover's edge.
+ *
+ * The tile straddles the band the way the letter's does, which is what makes the two read as
+ * one header rather than a picture with a row beneath it. Only the tile is lifted — the title,
+ * the people line and the two controls stay on the paper, where they are legible against a
+ * cover of any colour. Lifting the whole row would have put a dark gear on a dark photograph.
+ */
+.proto-shared-space-header--cover > .proto-shared-space-header__row {
+  position: relative;
+  z-index: 1;
+}
+
+.proto-shared-space-header--cover > .proto-shared-space-header__row > .space-icon-tile {
+  align-self: flex-start;
+  margin-top: -30px;
+  /* A rim of paper, so the tile sits *on* the cover rather than being a hole cut in it. */
+  box-shadow: 0 0 0 3px var(--pds-canvas-default);
+}
+
 .proto-shared-space-dashboard--sheet > .proto-sidebar-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -22006,7 +22084,14 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    * the base rule comes later in the file, so it won — the greeting grew on a wide sheet and
    * the sentence on every other day quietly stayed at the sidebar's 15px.
    */
-  .proto-feed-sheet__body .proto-home-greeting,
+  /*
+   * `.proto-feed-sheet` for the greeting rather than `__body`, because a shared space hub is
+   * a sheet too and its greeting is the same sentence doing the same job — it just hangs
+   * under `.proto-sidebar-scroll` instead, which is the frame swap that put the hub on the
+   * canvas without rewriting its four exit points. Scoped to `__body` it was Activity's
+   * greeting only, and the hub's quietly kept the retired sidebar's 15px.
+   */
+  .proto-feed-sheet .proto-home-greeting,
   .proto-feed-sheet__body .proto-feed-sheet__summary {
     font-size: 17px;
     line-height: 1.7;
