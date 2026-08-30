@@ -21777,7 +21777,20 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  */
 .proto-shared-space-header--cover .proto-shared-space-header__title {
   font-size: 30px;
-  line-height: 1.15;
+  /*
+   * The row's typography does not survive being made twice its size.
+   *
+   * `.pds-list-title` pins the variable face's axes for the size it was written at —
+   * `"opsz" 15, "wght" 500` — so at 30px the letterforms were still drawn for a 15px list
+   * row: too heavy for their size, and set at the tracking a small label needs rather than
+   * the tighter one display text does. Releasing `font-variation-settings` lets the optical
+   * size follow the rendered size again, and the weight and tracking are the join letter's
+   * own — 600 at -0.02em — which is the title this is now a version of.
+   */
+  font-variation-settings: normal;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
