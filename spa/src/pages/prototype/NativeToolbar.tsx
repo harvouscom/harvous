@@ -667,6 +667,14 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
               aria-expanded={onboardingPopover.isOpen && !onboardingPopover.exiting}
               onClick={() => onboardingPopover.toggleFrom(onboardingButtonRef.current)}
             >
+              <Icon name="list-check" size={12} aria-hidden />
+              {/*
+                The word, where there is room for it. "2/4" alone is a fraction of nothing in
+                particular — it counts something, and the toolbar gives no clue what. The label
+                is what makes the control legible on sight rather than on hover, and it drops
+                out below the shell's mobile breakpoint where the count and the glyph carry it.
+              */}
+              <span className="proto-onboarding-chip__label">Getting started</span>
               <span className="proto-onboarding-chip__count" aria-hidden>
                 {onboardingProgress.done}/{onboardingProgress.total}
               </span>

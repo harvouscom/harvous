@@ -22963,27 +22963,74 @@ button.proto-feed-sheet__stat:hover {
 /* ─── Getting started, from the toolbar ──────────────────────────────────── */
 
 /*
-  A count, not a glyph.
+  A named control, not a bare number.
 
-  Every other control in this group is an icon that names a thing you can do. This one names
-  progress, and "2/6" says in two characters what a checklist icon plus a badge would need a
-  tooltip to say. It also stays legible at the toolbar's size, where a ring at 24px reads as a
-  smudge.
+  It started as just "2/4", on the reasoning that two characters say what an icon plus a badge
+  would need a tooltip to say. They do not: a fraction in a toolbar counts *something*, and
+  nothing on screen said what. The checklist glyph and the word are what make it legible on
+  sight; the count is the part that changes.
+
+  A progress ring was the other option and is worse here — at 24px it reads as a smudge, and it
+  cannot say "getting started" at any size.
 */
-.proto-onboarding-chip {
+/* Both classes, because `.proto-toolbar-icon-btn` pins width and height to the orb size at the
+   same specificity as a bare `.proto-onboarding-chip` — this control is the one member of that
+   group that is wider than it is tall. */
+.proto-toolbar-icon-btn.proto-onboarding-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   width: auto;
-  min-width: 30px;
-  padding: 0 8px;
-}
-
-.proto-onboarding-chip__count {
-  font: 600 11px/1 var(--pds-font-body);
-  font-variant-numeric: tabular-nums;
+  /*
+   * `max-content`, not a pixel floor. As a flex item in the orb group this box would not grow
+   * to its own contents — `width: auto` still resolved to the orb size and the label spilled
+   * out across the account avatar. This states the actual rule: never narrower than the words
+   * inside it, which on mobile is the glyph and the count once the label is hidden.
+   */
+  min-width: max-content;
+  padding: 0 10px;
   color: var(--pds-text-secondary);
 }
 
-.proto-onboarding-chip[aria-expanded='true'] .proto-onboarding-chip__count {
+.proto-onboarding-chip__label {
+  font: 500 12px/1 var(--pds-font-body);
+  white-space: nowrap;
+}
+
+.proto-onboarding-chip__count {
+  font: 600 12px/1 var(--pds-font-body);
+  /* Tabular, so the pill does not resize by a hair each time a step is ticked off. */
+  font-variant-numeric: tabular-nums;
   color: var(--pds-text-primary);
+}
+
+.proto-toolbar-icon-btn.proto-onboarding-chip[aria-expanded='true'] {
+  color: var(--pds-text-primary);
+}
+
+/*
+  The shell's own mobile breakpoint. Below it the toolbar is fighting for every pixel with the
+  search field and the account orb, and the glyph plus the count still say enough — this is the
+  one place the label is worth losing rather than wrapping or squeezing its neighbours.
+*/
+@media (max-width: 899px) {
+  /* Prefixed for the same reason the accent button is: a global
+     `html.harvous-prototype-route button[class*="proto-"] span` rule sets display on every span
+     inside a prototype button, and at (0,2,2) it outranks a bare class — so `display: none`
+     here did nothing and the label stayed on a toolbar that had no room for it. */
+  html.harvous-prototype-route button[class*='proto-'] .proto-onboarding-chip__label,
+  html.harvous-prototype-route button[class*='proto-'] .proto-onboarding-chip__count {
+    display: none;
+  }
+
+  /* Icon-only here, matching its neighbours in the orb group. Keeping the count cost 30px the
+     toolbar does not have — with it, the search field truncated to "Sear…". The number is a
+     nicety; the way in is not, and `aria-label` still carries "2 of 4 done". */
+  html.harvous-prototype-route .proto-toolbar-icon-btn.proto-onboarding-chip {
+    width: var(--pds-toolbar-orb-size);
+    min-width: var(--pds-toolbar-orb-size);
+    padding: 0;
+  }
 }
 
 /*

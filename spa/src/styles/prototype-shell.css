@@ -2390,7 +2390,11 @@ html.harvous-proto-guest .proto-shell-frame {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* The whole flex chain needs this, not just the label: one ancestor at its default
+     `min-width: auto` refuses to shrink below its content, and the sentence ran off both edges
+     of a phone instead of truncating. */
   min-width: 0;
+  flex-shrink: 1;
   font-weight: 500;
   line-height: 1;
 }
@@ -2404,6 +2408,13 @@ html.harvous-proto-guest .proto-shell-frame {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /*
+   * Shrinkable in its own right, not just allowed to be narrow. `min-width: 0` lets a flex item
+   * go below its content; it does not make it *give way*, and with `flex-shrink: 0` the label
+   * stayed at its full 315px inside a 197px parent and ran under the button. Both halves are
+   * needed for an ellipsis to ever appear.
+   */
+  flex: 1 1 auto;
   min-width: 0;
 }
 
