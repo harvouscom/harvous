@@ -2354,8 +2354,10 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   comes off the frame rather than out of the grid, which already carries four row templates that
   a fifth variant would have to be spelled out against.
 
-  It needed a surface of its own to work there. Transparent, it was a line of text stranded on
-  the canvas above a white card, which is what read as a gap — a bar has to look like a bar.
+  It has no surface of its own on purpose: it belongs to the background layer, so the wallpaper
+  or canvas runs straight through it and the app shell below is exactly the shell, unchanged.
+  Painting it `--pds-bg-page` made it a second white bar stacked on the app instead of a notice
+  written on the ground the app sits on.
 
   `html.harvous-proto-guest` is set by `public/scripts/prototype-route-boot.js` before the bundle
   loads, so the space is claimed in the first paint: an arriving guest never sees the shell jump
@@ -2382,7 +2384,8 @@ html.harvous-proto-guest .proto-shell-frame {
   flex-shrink: 0;
   height: var(--proto-guest-row-h);
   padding: 0 12px;
-  background: var(--pds-bg-page);
+  /* No fill and no rule beneath it — the canvas (or the wallpaper) is the background here. */
+  background: transparent;
   color: var(--pds-text-secondary);
 }
 
