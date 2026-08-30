@@ -95,6 +95,8 @@ import {
   type StudyDockStack,
 } from '@/utils/study-dock-stack';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
+import PrototypeReaderTranslationStack from './PrototypeReaderTranslationStack';
+import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
 
 /**
  * Patch one highlight card's session in place, found by the key it was filed under.
@@ -303,6 +305,13 @@ export interface PrototypeBibleReaderPaneProps {
    */
   onNavigateTo?: (book: string, chapter: number) => void;
   /**
+   * Choose the translation to read in — from the stack's edges or the heading chip.
+   *
+   * Optional for the same reason `onNavigateTo` is: the paper-stack base renders this pane as
+   * scenery, and a surface that is scenery should not offer to change what it is.
+   */
+  onChangeTranslation?: (translation: string) => void;
+  /**
    * Start a note from the selected verses. Omitted when the reader is the base of a
    * paper stack — a note is already open above it, so offering to start another there
    * would stack a sheet on a sheet.
@@ -416,6 +425,7 @@ export default function PrototypeBibleReaderPane({
   focusVerse,
   focusVerseEnd,
   onNavigateTo,
+  onChangeTranslation,
   onStartNote,
   onOpenDock,
   fontOverride,
@@ -453,7 +463,7 @@ export default function PrototypeBibleReaderPane({
    * leaves nothing for the modes worth putting there (review, challenges). Actions belong
    * where the thing they act on is.
    */
-  const { studyDockCarouselHostEl } = useProtoShell();
+  const { studyDockCarouselHostEl, paperStack } = useProtoShell();
 
 
   /* Warm the neighbours so paging never shows a loading line — across books, too. */
@@ -492,6 +502,22 @@ export default function PrototypeBibleReaderPane({
     const count = bookChapterCount(book) ?? data?.chapterCount ?? 1;
     return Array.from({ length: count }, (_, i) => ({ value: i + 1, label: String(i + 1) }));
   }, [book, data?.chapterCount]);
+  /*
+    All eleven, in canon order — the reader's whole set, not the two the stack peeks. Labels go
+    through `getTranslationAbbreviationDisplay` because one of them is not its own id: NASB
+    shows as "NASB 1995", and a menu that said "NASB" beside a chip that said "NASB 1995" would
+    be two names for one translation.
+  */
+  const translationOptions = useMemo(
+    () =>
+      TRANSLATION_ORDER.map((id) => ({
+        value: id,
+        label: getTranslationAbbreviationDisplay(id),
+        triggerLabel: getTranslationAbbreviationDisplay(id),
+      })),
+    [],
+  );
+
   const prevChapter = useMemo(() => adjacentChapter(book, chapter, -1), [book, chapter]);
   const nextChapter = useMemo(() => adjacentChapter(book, chapter, 1), [book, chapter]);
 
@@ -1564,7 +1590,26 @@ export default function PrototypeBibleReaderPane({
       // reads, so nothing else in the app shifts face.
       style={fontOverride ? ({ '--pds-font-reading': FONT_STACKS[fontOverride] } as CSSProperties) : undefined}
     >
-      <div className="pds-reader__scroll" ref={scrollRef}>
+      <div className={`pds-reader__scroll${onChangeTranslation ? ' pds-reader-stack' : ''}`} ref={scrollRef}>
+        {/*
+          The pile, above the page it belongs to.
+
+          Gated on `paperStack`, not on `onChangeTranslation`. The handler looks like the right
+          signal and is not: a *parked* stack passes the live route as its base slot, handlers and
+          all, so the pickers' `onNavigateTo` test covers one of the two stacked states and misses
+          the other. What matters is being on a stack layer at all — sheet up, this pane is scenery
+          at 96% with pointer events off; sheet parked, the stack's own edge row is pinned at the
+          top of the pane and is the way back to the note. Either way a second pile in the same
+          48px band is two stacks claiming one gesture.
+        */}
+        {onChangeTranslation && data && !paperStack ? (
+          <PrototypeReaderTranslationStack
+            translation={data.translation}
+            book={data.book}
+            chapter={data.chapter}
+            onSelect={onChangeTranslation}
+          />
+        ) : null}
         <div className="pds-reader__column" ref={columnRef}>
           {/*
             The title IS the navigator.
@@ -1606,16 +1651,39 @@ export default function PrototypeBibleReaderPane({
                 `${data.book} ${data.chapter}`
               )}
             </h1>
-            {/* The same chip the scripture dock puts the translation in — one fact, one
-                shape, wherever it is stated. It was a bare caption here, which read as a
-                stray line of grey text under the title rather than as the label it is. */}
+            {/*
+              The chip states the translation, and now changes it.
+
+              It was a bare `<span>` — the one fact this heading named that it could not act on,
+              which is the observation the date jump made about Activity's header: "a label that
+              names exactly the thing you would want to change". The stack behind reaches the two
+              you last read in; this reaches all eleven, the same division the day sheet draws
+              between flipping an edge and jumping from the date.
+
+              `ProtoSelectMenu`, not a hand-rolled popover, because this app has a settled answer
+              for choosing one of a list and the study feed already recorded what happens without
+              it: "a ninth hand-rolled variant is how those four drifted apart". The inspector's
+              picker is the same component on the same options, and now the same handler.
+            */}
             <p className="pds-reader__chapter-meta">
-              <span
-                className="scripture-pill-chrome__trans-chip"
-                aria-label={`Translation ${data.translation}`}
-              >
-                {data.translation}
-              </span>
+              {onChangeTranslation ? (
+                <ProtoSelectMenu
+                  value={data.translation}
+                  options={translationOptions}
+                  onChange={onChangeTranslation}
+                  label="Translation"
+                  className="pds-reader__trans-trigger scripture-pill-chrome__trans-chip"
+                  menuClassName="pds-reader__trans-menu"
+                  menuWidth={168}
+                />
+              ) : (
+                <span
+                  className="scripture-pill-chrome__trans-chip"
+                  aria-label={`Translation ${data.translation}`}
+                >
+                  {getTranslationAbbreviationDisplay(data.translation)}
+                </span>
+              )}
             </p>
           </div>
 

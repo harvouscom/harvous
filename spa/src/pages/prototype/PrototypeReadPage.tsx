@@ -46,6 +46,8 @@ import {
   chapterReferenceLookupKey,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
 import type { SavedReference } from '../../hooks/queries/usePrototypeChapterHighlights';
+import { useUpdateTranslation } from '../../hooks/mutations/useUpdateTranslation';
+import { recordTranslationUse } from '@/utils/recent-translations';
 
 /**
  * Verse numbers a stored reference covers: "Exodus 5:3" → [3], "Exodus 5:3-5" → [3,4,5].
@@ -533,16 +535,47 @@ export default function PrototypeReadPage() {
     },
   });
 
+  /**
+   * Choosing a translation — from the stack's edges, the heading chip, or the inspector.
+   *
+   * One function for all three, because they are one decision and had started to be two: the
+   * inspector pinned `?t=` for the session while Settings wrote the account default, so the
+   * reader could disagree with the reader depending on which control you reached for.
+   *
+   * Three things happen, and the order of the reasoning matters more than the order of the
+   * calls:
+   *
+   * 1. **It sticks.** `useUpdateTranslation` writes `UserMetadata.defaultTranslation`, so the
+   *    next chapter and tomorrow both open in what you just chose. Choosing is the whole
+   *    gesture; a version you have to re-choose every chapter is a preview, not a switch.
+   * 2. **The URL still carries it**, so a reload and a copied link both read in it — the rule
+   *    `translation` above is written against, unchanged.
+   * 3. **Recency is recorded**, which is what the stack's edges are drawn from.
+   *
+   * Deliberately NOT called for `search.t` on arrival. Following a shared ESV link would
+   * otherwise rewrite what the reader reads in, silently, on someone else's say-so. Persisting
+   * belongs to the act of choosing, not to the act of arriving.
+   */
+  const updateTranslation = useUpdateTranslation();
+
   const handleChangeTranslation = useCallback(
     (next: string) => {
+      const id = next.trim().toUpperCase();
+      if (!id || id === translation) return;
+
+      recordTranslationUse(id);
+      /* Fire-and-forget: the read must not wait on, or fail with, a preference write. The
+         mutation is optimistic, so the profile cache already reads as `id` regardless. */
+      updateTranslation.mutate(id);
+
       void navigate({
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(book), chapter: String(chapter) },
         // Pin it in the URL so the choice survives a reload and travels in a shared link.
-        search: { v: search.v, t: next },
+        search: { v: search.v, t: id },
       });
     },
-    [navigate, book, chapter, search.v],
+    [navigate, book, chapter, search.v, translation, updateTranslation],
   );
 
   const readerInspector = (
@@ -654,6 +687,7 @@ export default function PrototypeReadPage() {
           focusVerse={Number.isFinite(focusVerse) ? focusVerse : undefined}
           focusVerseEnd={Number.isFinite(focusVerseEnd) ? focusVerseEnd : undefined}
           onNavigateTo={handleNavigateTo}
+          onChangeTranslation={handleChangeTranslation}
           onStartNote={handleStartNote}
           // A cross-reference tapped inside the scripture dock is a place to go, not another
           // card to stack — it moves the reader, and the dock re-describes where you landed.

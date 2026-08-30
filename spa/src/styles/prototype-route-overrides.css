@@ -227,6 +227,29 @@ html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismi
   color: var(--pds-text-primary) !important;
 }
 
+/* Translation edge — the label and its paper are one muted strip, and it has to answer hover.
+   Same trap the paper-stack edge above hit, one surface along: the blanket rule paints every
+   proto button descendant primary, and the `.pds-caption` carve-out pins it to secondary hard
+   enough that the hover tint never lands. `.pds-reader` in the prefix buys the specificity to
+   take both, order-independently.
+
+   This matters more here than it looks. Under reduced motion the lift is cancelled, so colour
+   is the only feedback left — and Activity's edge, which has no such carve-out, currently
+   answers hover with nothing at all when motion is off. */
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge .pds-caption,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge span,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge * {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover .pds-caption,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover span,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover * {
+  color: var(--pds-text-primary) !important;
+}
+
 /* A row's trailing controls read as punctuation, like the chevron they stand in for — the
    blanket rule above paints every proto button's glyph at full strength, which made each
    dismissable row look like it was asking to be dismissed. The weight comes from opacity in

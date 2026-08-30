@@ -18716,6 +18716,125 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /*
+ * ─── The translations behind the page ───────────────────────────────────────────────────
+ *
+ * Activity's day stack cannot be reused here, and the reason is worth stating because the
+ * markup looks identical: `.proto-feed-stack` is `max-width: 640px` and declares no query
+ * container, so its sheet would come out *narrower than the 656px measure inside it*. The
+ * reader is on the shared paper column and has to stay there — the whole point of
+ * `--pds-paper-measure` is that no line ever rewraps.
+ *
+ * So these edges width-match `.pds-reader__column` by restating its `max-width` expression,
+ * including the narrow `100% - 2 * gutter` form. Not the bare token: at phone widths the
+ * column is bounded by the pane, and an edge on the token alone would hang past the paper it
+ * belongs to.
+ *
+ * They live inside `.pds-reader__scroll` and therefore inside `container-name:
+ * pds-reader-scroll`, which is what lets `--pds-paper-column` resolve to the widened value.
+ * Read outside that container it silently falls back to the 720px floor.
+ *
+ * In flow rather than pinned, unlike Activity's. There the sheet's *body* scrolls under a
+ * fixed header; here the whole paper scrolls, and a band that stayed put while the page moved
+ * under it would be chrome rather than the top of a pile. Reading down leaves the stack
+ * behind, which is what reading down does to the top of a pile.
+ */
+.pds-reader-stack__edges {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  /*
+   * The step is what a peeking sheet shows of itself, and it has to clear the label rather
+   * than merely suggest depth — the mistake Activity's stack records having made at 15px,
+   * where the name sitting in the band was half-covered by the sheet in front of it.
+   */
+  --pds-reader-stack-step: 26px;
+  /*
+   * Derived from the count the component passes, never restated. Activity keeps this number
+   * twice — `MAX_EDGES` in TS and `calc(step * 2)` in CSS — and they can drift silently, which
+   * shows up as the deepest label clipped by the toolbar above it.
+   */
+  height: calc(var(--edge-count, 2) * var(--pds-reader-stack-step));
+}
+
+.pds-reader-stack__edge {
+  position: absolute;
+  left: 50%;
+  top: calc((var(--edge-count, 2) - var(--edge-depth, 1)) * var(--pds-reader-stack-step));
+  /* Same expression as `.pds-reader__column`, so the pile is one width at every pane size. */
+  width: min(var(--pds-paper-column), 100% - 2 * var(--pds-paper-column-gutter-narrow));
+  /* Tall enough that the strip under the front sheet is paper, not a line. */
+  height: 72px;
+  padding-top: 5px;
+  border: 0;
+  /* Square, because this is paper. A radius here is card language, and a rounded tab above a
+     square page reads as browser chrome rather than as a page behind a page. */
+  border-radius: 0;
+  /*
+   * Opaque canvas under the translucent paper fill. `--pds-paper-sheet` is white at 78%, so
+   * paper laid straight on paper shows through — the house rule both other stacks state, and
+   * the one `.pds-reader__column` below now follows for the same reason.
+   */
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  box-shadow: var(--pds-paper-shadow-subtle);
+  /* Depth the way a stack of paper says it: the sheet behind is the smaller one. A transform,
+     so it costs no chrome and does not change layout width. */
+  transform-origin: top center;
+  transform: translateX(-50%) scale(calc(1 - var(--edge-depth, 1) * 0.028));
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+  transition:
+    transform var(--pds-duration-press) var(--pds-ease-standard),
+    color var(--pds-duration-press) var(--pds-ease-standard);
+}
+
+.pds-reader-stack__edge-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@media (hover: hover) {
+  .pds-reader-stack__edge:hover {
+    color: var(--pds-text-primary);
+    transform: translateX(-50%) scale(calc(1 - var(--edge-depth, 1) * 0.028))
+      translateY(-4px);
+  }
+}
+
+.pds-reader-stack__edge:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: -2px;
+}
+
+/*
+ * The front sheet stops being see-through once there is something behind it.
+ *
+ * `.pds-reader__column` sets `background-color: var(--pds-paper-sheet)` alone, which was right
+ * while nothing was under it. At 78% white it is not right now: this is the exact failure the
+ * paper stack hit once and wrote down — "the chapter read through the note's title" — and it
+ * would show here as the edge labels bleeding up through the first lines of Scripture.
+ */
+.pds-reader-stack .pds-reader__column {
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+}
+
+/*
+ * Following `.pds-paper-stack`'s rule rather than Activity's: this stack does not animate at
+ * all when motion is unwelcome. Activity's edge hover-lift is uncovered by its own reduced-
+ * motion block, which is a gap there rather than a precedent to copy.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .pds-reader-stack__edge,
+  .pds-reader-stack__edge:hover {
+    transition: none;
+    transform: translateX(-50%) scale(calc(1 - var(--edge-depth, 1) * 0.028));
+  }
+}
+
+/*
  * The reader's half of the wide-screen growth (see prototype-editor.css for the reasoning
  * and the gallery-fixture trap this gating avoids).
  *
@@ -18726,7 +18845,18 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * `--pds-reader-paper-padding-x` above, which is the entire reason that variable exists.
  */
 @container pds-reader-scroll (min-width: 832px) {
-  .pds-reader__column {
+  /*
+   * `> *` rather than `.pds-reader__column` by name, and for the reason `.pds-paper-stack > *`
+   * gives: the paper is no longer the only thing measured against this column. The translation
+   * edges are *siblings* of it, not descendants, so naming the paper alone left them on the
+   * 720px floor while it grew to 784 — 32px of overhang per side, which is exactly the
+   * "width mismatch reads as the depth scale being broken" failure the paper stack records.
+   *
+   * A custom property is substituted where it is declared and the resolved value inherits, so
+   * this has to land on every element that reads it, not on an ancestor. The derived padding
+   * still reaches the paper, which is still a `> *`.
+   */
+  .pds-reader__scroll > * {
     --pds-paper-column: clamp(
       var(--pds-paper-column-min),
       100cqi - 2 * var(--pds-paper-column-gutter),
@@ -18879,6 +19009,43 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      measured from its edge rather than from a line of text's baseline. */
   margin: var(--pds-space-2) 0 0;
   display: flex;
+}
+
+/*
+ * The chip, once it became a control.
+ *
+ * `ProtoSelectMenu`'s trigger is a full-width flex row by default — right for the book and
+ * chapter pickers, which are the title, and wrong for this, which is a chip: it stretched
+ * across the measure as a bar and stopped reading as the small stated fact it is.
+ *
+ * So the chip's own box wins and the trigger's layout is undone: `width: auto` against the
+ * stretch, and the caret shrunk to punctuation. Everything visual — border, radius, 10px
+ * uppercase — still comes from `.scripture-pill-chrome__trans-chip`, which is on the same
+ * element, so the chip is one description in one place whether or not it can be pressed.
+ */
+.pds-reader__trans-trigger.proto-select-menu__trigger {
+  width: auto;
+  align-self: flex-start;
+  gap: 4px;
+  /* The chip supplies its own; the trigger's would double it. */
+  padding: 2px 6px;
+  min-height: 0;
+  cursor: pointer;
+}
+
+/* Only the caret carries the standing "this can change" affordance, the same way the book and
+   chapter triggers do — the surface appears under the pointer, which is where that belongs. */
+.pds-reader__trans-trigger .proto-select-menu__value {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+@media (hover: hover) {
+  .pds-reader__trans-trigger.proto-select-menu__trigger:hover {
+    border-color: var(--pds-border-control);
+    background: var(--pds-bg-subtle, var(--pds-bg-faint));
+  }
 }
 
 /* One block per paragraph of Scripture, each its own gutter+text grid so a
