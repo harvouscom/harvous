@@ -137,10 +137,16 @@ describe('buildStudyFeedDays', () => {
 describe('studyFeedDayLabel', () => {
   const now = new Date(2026, 7, 27, 12, 0, 0); // Thursday
 
-  it('names this week by weekday and older days by date', () => {
+  it('names every past day by its weekday, however far back', () => {
+    /*
+     * The label used to append the date past a week, so a header read "Thursday, August 13"
+     * beside a `dateLabel` of "August 13" — the same date twice. The date is the neighbour's
+     * job, and it carries the year whenever the year is not this one (see `studyFeedFullDate`),
+     * so the pair stays unambiguous without the label helping.
+     */
     expect(studyFeedDayLabel(new Date(2026, 7, 25, 9, 0), now)).toBe('Tuesday');
-    expect(studyFeedDayLabel(new Date(2026, 7, 13, 9, 0), now)).toBe('Thursday, August 13');
-    expect(studyFeedDayLabel(new Date(2025, 10, 4, 9, 0), now)).toBe('November 4, 2025');
+    expect(studyFeedDayLabel(new Date(2026, 7, 13, 9, 0), now)).toBe('Thursday');
+    expect(studyFeedDayLabel(new Date(2025, 10, 4, 9, 0), now)).toBe('Tuesday');
   });
 });
 

@@ -247,6 +247,14 @@ export default function PrototypeSidebarHomeView({
               setSidebarFolderDrilldown(folderName);
               ensureSidebarExpanded();
             },
+            /* The rail's own way to the same place: `null` is the Unsorted drill, which is
+               the notes without a folder rather than the folders they lack. The sidebar has
+               no select-on-arrival, so it lands there in browse mode. */
+            openUnfiledNotes: () => {
+              setSidebarListMode('folders');
+              setSidebarFolderDrilldown(null);
+              ensureSidebarExpanded();
+            },
             openTag: (tagId, tagName) => openSidebarTagSearch({ tagId, tagName }),
             openScriptureBook: onOpenScriptureBook,
           }}

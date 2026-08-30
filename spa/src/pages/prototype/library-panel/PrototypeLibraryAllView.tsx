@@ -13,10 +13,22 @@
  * The merge itself is `buildLibraryAllItems`, kept pure and structural next door. This file
  * is the adaptation layer on both sides of it: query rows in, `SidebarSearchResult` out.
  */
+import { packMixedId, type LibrarySelection } from './use-library-selection';
 import { useMemo, useState } from 'react';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
+import Icon, { type IconName } from '@/components/react/Icon';
+import { buildFoldersFromNotes, mergeFoldersWithRegistry } from '../sidebar-universal-search';
+import { noteFolderMembershipLabels, normalizeFolderKey } from '@/utils/note-folder-display';
+import { usePrototypeFolderRegistry } from '../../../hooks/mutations/usePrototypeFolderRegistry';
+import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
 import PrototypeSidebarSearchResultItem from '../PrototypeSidebarSearchResultItem';
+import {
+  PrototypeSidebarFolderCard,
+  PrototypeSidebarSharedThreadCard,
+  PrototypeSidebarThreadCard,
+} from '../sidebar-rows';
+import { LibraryScriptureBookCard } from './PrototypeLibraryScriptureView';
 import { ProtoNotesListLoading } from '../sidebar-rows';
 import {
   prototypeHighlightListTitle,
@@ -31,7 +43,7 @@ import type { PrototypeHighlightStudyThreadRow } from '../../../hooks/queries/us
 import { usePrototypeStudyThreads } from '../../../hooks/queries/usePrototypeStudyThreads';
 import { useSpaceGroupThreads } from '../../../hooks/queries/useSpaceGroupThreads';
 import { useLibrary } from '../../../hooks/queries/useLibrary';
-import { buildLibraryAllItems, type LibraryAllItem } from './library-all-items';
+import { buildLibraryAllItems, type LibraryAllItem, type LibraryAllItemKind } from './library-all-items';
 import { useLibraryPanelData } from './library-panel-data';
 
 /** How many merged rows the tab shows before "Load more", and how far each press widens it. */
@@ -56,6 +68,10 @@ const NONE: never[] = [];
  * `item.id` is already `${kind}:${sourceId}` — the same shape `sidebarSearchResultStableId`
  * produces — so it carries straight through as the result id.
  */
+/**
+ * Rows only. Folders, Threads and Scripture are drawn by their own components below, so this
+ * no longer has a case for them — a `SidebarSearchResult` cannot express a card.
+ */
 function allItemAsSearchResult(item: LibraryAllItem): SidebarSearchResult {
   switch (item.kind) {
     case 'note':
@@ -69,28 +85,29 @@ function allItemAsSearchResult(item: LibraryAllItem): SidebarSearchResult {
         highlightId: item.sourceId,
         highlightEntryKind: item.highlightEntryKind,
       };
-    case 'thread':
-      return {
-        id: item.id,
-        kind: 'threadCluster',
-        title: item.title,
-        subtitle: item.subtitle,
-        threadClusterId: item.sourceId,
-      };
-    case 'scriptureBook':
-      return {
-        id: item.id,
-        kind: 'scriptureBook',
-        title: item.title,
-        subtitle: item.subtitle,
-        scriptureBookOrder: item.scriptureBookOrder,
-      };
     case 'resource':
       return { id: item.id, kind: 'resource', title: item.title, subtitle: item.subtitle };
+    default:
+      return { id: item.id, kind: 'note', title: item.title, subtitle: item.subtitle };
   }
 }
 
-export default function PrototypeLibraryAllView() {
+/**
+ * The glyph each kind leads with, matching the tab it comes from.
+ *
+ * Notes carry one too. On their own tab they need none — everything there is a note — but a
+ * mixed list has to say so, and leaving the commonest kind unmarked would make "no glyph"
+ * mean note, which is a thing the reader has to learn rather than read.
+ */
+const ALL_KIND_ICONS: Partial<Record<LibraryAllItemKind, IconName>> = {
+  note: 'note-sticky',
+  thread: 'arrow-right-arrow-left',
+  highlight: 'highlighter',
+  scriptureBook: 'book',
+  resource: 'newspaper',
+};
+
+export default function PrototypeLibraryAllView({ selection }: { selection?: LibrarySelection }) {
   const data = useLibraryPanelData();
   const { setLibraryPanelView } = useProtoShell();
 
@@ -119,16 +136,84 @@ export default function PrototypeLibraryAllView() {
    */
   const resources = data.isScopedSharedSpace ? NONE : libraryQuery.data?.items ?? NONE;
 
+  /*
+   * Folders, and when each was last touched.
+   *
+   * A folder has no timestamp of its own — it is a label some notes carry — so its recency is
+   * the newest note wearing it. Same shape as a scripture book inheriting its passages'
+   * newest note, and the reason both are resolved here rather than in the merger: knowing
+   * which notes claim a folder means knowing how membership is declared, which is search's
+   * business rather than the merger's.
+   */
+  const folderRegistryQuery = usePrototypeFolderRegistry(data.spaceId ?? undefined);
+  const folders = useMemo(() => {
+    const buckets = mergeFoldersWithRegistry(
+      buildFoldersFromNotes(data.notes),
+      folderRegistryQuery.data ?? [],
+    );
+    const newest = new Map<string, number>();
+    for (const note of data.notes) {
+      const row = note as SpaceNoteRow & {
+        primaryCollection?: string | null;
+        secondaryCollections?: string[];
+      };
+      const stamp = Math.max(
+        new Date(row.updatedAt ?? 0).getTime() || 0,
+        new Date(row.createdAt ?? 0).getTime() || 0,
+      );
+      if (!stamp) continue;
+      for (const label of noteFolderMembershipLabels({
+        primaryCollection: row.primaryCollection ?? null,
+        secondaryCollections: row.secondaryCollections ?? [],
+      })) {
+        const key = normalizeFolderKey(label);
+        if (stamp > (newest.get(key) ?? 0)) newest.set(key, stamp);
+      }
+    }
+    return buckets.map((bucket) => ({
+      name: bucket.name,
+      count: bucket.count,
+      recencyIso: bucket.name
+        ? new Date(newest.get(normalizeFolderKey(bucket.name)) ?? 0).toISOString()
+        : undefined,
+    }));
+  }, [data.notes, folderRegistryQuery.data]);
+
   const highlightsById = useMemo(() => {
     const map = new Map<string, PrototypeHighlightStudyThreadRow>();
     for (const row of highlights) map.set(row.id, row);
     return map;
   }, [highlights]);
 
+  /*
+   * The row components ask for selection per row, by their own id. Here that id has to be the
+   * composite one — a bare note id and a bare folder name could collide, and the selection
+   * would not know which it was holding.
+   */
+  const rowSelection = useMemo(() => {
+    if (!selection?.available) return undefined;
+    return {
+      for: (kind: 'note' | 'highlight', sourceId: string, label: string) => {
+        const id = packMixedId(kind, sourceId);
+        const selected = selection.isSelected(id);
+        return {
+          selectMode: selection.active,
+          selected,
+          checkbox: {
+            selected,
+            label,
+            onToggle: () => (selection.active ? selection.toggle(id) : selection.beginWith(id)),
+          },
+        };
+      },
+    };
+  }, [selection]);
+
   const items = useMemo(
     () =>
       buildLibraryAllItems({
         notes: data.notes,
+        folders,
         highlights: highlights.map((row) => ({
           id: row.id,
           title: prototypeHighlightListTitle(row),
@@ -241,7 +326,8 @@ export default function PrototypeLibraryAllView() {
           if (windowReachedEnd && data.hasMoreNotes) data.fetchMoreNotes();
         }}
       >
-        {waitingOnNotes ? 'Loading…' : 'Load more'}
+        <span>{waitingOnNotes ? 'Loading…' : 'Load more'}</span>
+        {waitingOnNotes ? null : <Icon name="caret-down" size={10} aria-hidden />}
       </button>
     </div>
   ) : null;
@@ -270,16 +356,113 @@ export default function PrototypeLibraryAllView() {
 
   return (
     <div className="proto-library-root">
-      <ul className="proto-note-list" role="list">
-        {visible.map((item) => (
-          <PrototypeSidebarSearchResultItem
-            key={item.id}
-            result={allItemAsSearchResult(item)}
-            onActivate={() => activate(item)}
-            notesById={data.notesById}
-            highlightsById={highlightsById}
-          />
-        ))}
+      {/* One list holding two furnitures. Cards style themselves off
+          `.proto-collection-grid-item`, rows off `.proto-note-row-item`, and neither needs
+          anything from the container beyond a column with a gap. */}
+      <ul className="proto-note-list proto-library-all-list" role="list">
+        {visible.map((item) => {
+          /*
+           * Each kind wears what it wears on its own tab.
+           *
+           * Folders, Threads and Scripture are cards there, so they are cards here — the same
+           * components, not a flattened imitation of them. Notes, highlights and resources are
+           * rows on their own tabs too, and they lead with their kind's glyph because in a
+           * list that interleaves everything, what a row *is* has to be legible before what it
+           * says.
+           */
+          if (item.kind === 'folder') {
+            const bucket = folders.find((f) => f.name === item.sourceId);
+            return (
+              <PrototypeSidebarFolderCard
+                key={item.id}
+                folder={{ name: item.sourceId, count: bucket?.count ?? 0 }}
+                isPinned={false}
+                showMenu={false}
+                selectMode={selection?.active ?? false}
+                selectable={Boolean(selection)}
+                selected={selection?.isSelected(packMixedId('folder', item.sourceId)) ?? false}
+                onToggleSelected={() => {
+                  const id = packMixedId('folder', item.sourceId);
+                  if (selection?.active) selection.toggle(id);
+                  else selection?.beginWith(id);
+                }}
+                onOpen={() => activate(item)}
+                onTogglePin={() => {}}
+                onDelete={() => {}}
+                isDeleting={false}
+              />
+            );
+          }
+          if (item.kind === 'thread') {
+            /*
+             * A shared space's Threads are records rather than graph clusters, so they come
+             * from a different query and wear a different card. Without this they fell through
+             * to the row renderer and were the one kind in the list not wearing its own
+             * chrome — visible only inside a shared space, which is exactly where it would
+             * have gone unnoticed.
+             */
+            const shared = data.isScopedSharedSpace
+              ? sharedThreads.find((t) => t.id === item.sourceId)
+              : undefined;
+            if (shared) {
+              return (
+                <PrototypeSidebarSharedThreadCard
+                  key={item.id}
+                  thread={shared}
+                  showMenu={false}
+                  onOpen={() => activate(item)}
+                  onSetCurrent={() => {}}
+                  onDelete={() => {}}
+                  isDeleting={false}
+                  setCurrentPending={false}
+                />
+              );
+            }
+            const cluster = clusters.find((c) => threadClusterDrillSlug(c.id) === item.sourceId);
+            if (cluster) {
+              return (
+                <PrototypeSidebarThreadCard
+                  key={item.id}
+                  cluster={cluster}
+                  title={item.title}
+                  isPinned={cluster.studyThreadPinned === true}
+                  showMenu={false}
+                  selectMode={selection?.active ?? false}
+                  selectable={Boolean(selection)}
+                  selected={selection?.isSelected(packMixedId('thread', cluster.id)) ?? false}
+                  onToggleSelected={() => {
+                    const id = packMixedId('thread', cluster.id);
+                    if (selection?.active) selection.toggle(id);
+                    else selection?.beginWith(id);
+                  }}
+                  onOpen={() => activate(item)}
+                  onTogglePin={() => {}}
+                  onDelete={() => {}}
+                  isDeleting={false}
+                />
+              );
+            }
+          }
+          if (item.kind === 'scriptureBook') {
+            const book = books.find((b) => b.bookOrder === item.scriptureBookOrder);
+            if (book) {
+              return (
+                <LibraryScriptureBookCard key={item.id} book={book} onOpen={() => activate(item)} />
+              );
+            }
+          }
+          return (
+            <PrototypeSidebarSearchResultItem
+              key={item.id}
+              result={allItemAsSearchResult(item)}
+              onActivate={() => activate(item)}
+              notesById={data.notesById}
+              highlightsById={highlightsById}
+              leadIcon={ALL_KIND_ICONS[item.kind]}
+              selection={rowSelection}
+            />
+          );
+        })}
       </ul>
       {loadMore}
     </div>

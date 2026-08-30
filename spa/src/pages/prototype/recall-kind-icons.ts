@@ -22,6 +22,7 @@ export const RECALL_KIND_ICONS: Record<RecallOpportunityKind, IconName> = {
    */
   arc: 'arrow-right-arrow-left',
   subject: 'arrow-right-arrow-left',
+  searchGap: 'magnifying-glass',
   connectNotes: 'arrow-right-arrow-left',
 
   /*

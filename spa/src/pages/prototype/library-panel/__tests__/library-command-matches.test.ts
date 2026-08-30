@@ -15,6 +15,8 @@ import { availablePrototypeCommands, type CommandContext } from '../../../../lib
  */
 const CTX: CommandContext = {
   kind: 'note',
+  kinds: ['note'],
+  items: [{ kind: 'note', id: 'n1' }],
   ids: ['n1', 'n2'],
   rows: [
     { isOwnNote: true, isScopedSharedSpace: false, viewerIsSpaceOwner: true },

@@ -10,6 +10,12 @@ export const PROTO_FOUNDER_LETTER_DISMISSED_KEY = 'harvous-prototype-founder-let
 /** Dev-only: force the founder letter pill for UI testing (`import.meta.env.DEV` only). */
 export const PROTO_FOUNDER_LETTER_PREVIEW_KEY = 'harvous-prototype-founder-letter-preview';
 
+/** The release whose notes the reader has put away. Not a boolean — see `useDismissibleRelease`. */
+export const PROTO_WHATS_NEW_DISMISSED_KEY = 'harvous-prototype-whats-new-dismissed';
+
+/** Dev-only: force the what's-new row for UI testing (`import.meta.env.DEV` only). */
+export const PROTO_WHATS_NEW_PREVIEW_KEY = 'harvous-prototype-whats-new-preview';
+
 /** Client flag: user dismissed the install web app card on prototype home. */
 export const PROTO_INSTALL_WEB_APP_DISMISSED_KEY = 'harvous-prototype-install-web-app-dismissed';
 

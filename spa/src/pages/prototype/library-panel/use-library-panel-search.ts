@@ -26,6 +26,14 @@ export type LibraryPanelSearch = {
   /** Settled value, for the corpora and the FTS query. */
   debounced: string;
   clear: () => void;
+  /**
+   * Set both values at once, skipping the debounce.
+   *
+   * For a term the reader chose rather than typed — a recent-search chip. There is nothing
+   * to wait 300ms for when the whole string arrived in one gesture, and the wait would read
+   * as the panel hesitating over its own suggestion.
+   */
+  applyImmediate: (term: string) => void;
 };
 
 /**
@@ -63,5 +71,5 @@ export function useLibraryPanelSearch(querySeed?: string): LibraryPanelSearch {
     applyImmediate(querySeed ?? '');
   }, [querySeed, applyImmediate]);
 
-  return { input, setInput, debounced, clear };
+  return { input, setInput, debounced, clear, applyImmediate };
 }

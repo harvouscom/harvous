@@ -55,10 +55,19 @@ export default function PrototypeLibraryFoldersView({
             isPinned={false}
             showMenu={false}
             selectMode={selection?.active ?? false}
-            /* Named folders only — "Unsorted" is a bucket, not a thing you can act on. */
-            selectable={Boolean(selection?.active && folder.name)}
+            /* Named folders only — "Unsorted" is a bucket, not a thing you can act on.
+               Selectable before selecting has started too, so the tick is in the DOM for
+               hover to reveal; `selectMode` is what makes it permanently visible. */
+            selectable={Boolean(selection && folder.name)}
             selected={folder.name ? (selection?.isSelected(folder.name) ?? false) : false}
-            onToggleSelected={folder.name ? () => selection?.toggle(folder.name as string) : undefined}
+            onToggleSelected={
+              folder.name
+                ? () =>
+                    selection?.active
+                      ? selection.toggle(folder.name as string)
+                      : selection?.beginWith(folder.name as string)
+                : undefined
+            }
             onOpen={() =>
               setLibraryPanelView({
                 tab: 'folders',

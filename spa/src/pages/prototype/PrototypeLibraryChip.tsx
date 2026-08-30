@@ -16,8 +16,10 @@
  *     came and went would make the toolbar twitch on every note load; `resolveLibraryChipDisplay`
  *     always returns a label for exactly this reason.
  *
- * While the panel is open the chip is hidden rather than removed — the morph animates
- * the panel out of the chip's box, and the toolbar must not reflow underneath it.
+ * While the panel is open the chip is hidden rather than removed — the morph animates the
+ * panel out of the chip's box, and the toolbar must not reflow underneath it. It comes back
+ * as the panel *starts* leaving rather than after, so the closing panel has something to
+ * dissolve into; see `panelOpen`.
  */
 import { useRef } from 'react';
 import Icon from '@/components/react/Icon';
@@ -45,7 +47,12 @@ export default function PrototypeLibraryChip({
   onOpen,
 }: {
   mode: LibraryChipMode;
-  /** True while the panel is open or morphing out — the chip holds its box, hidden. */
+  /**
+   * True only while the panel is *up*. It goes false as the exit begins, not when the exit
+   * ends: the chip fades back in over the closing panel, and the two crossfade. It keeps its
+   * box either way — `visibility` holds the layout, so the toolbar cannot reflow underneath
+   * a panel that is animating out of that exact spot.
+   */
   panelOpen: boolean;
   onOpen: (rect: LibraryChipRect | null) => void;
 }) {

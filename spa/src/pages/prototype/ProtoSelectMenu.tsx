@@ -66,6 +66,7 @@ export default function ProtoSelectMenu<T extends string | number>({
   className,
   menuWidth,
   menuClassName,
+  footer,
   groupsAsTabs = false,
   filterPlaceholder,
 }: {
@@ -80,6 +81,20 @@ export default function ProtoSelectMenu<T extends string | number>({
   menuWidth?: number;
   /** Extra class on the popover, for callers whose options are not a list of labels. */
   menuClassName?: string;
+  /**
+   * Rendered as its own section under the options.
+   *
+   * For a verb that belongs *with* a picker without being one of its answers — the library
+   * panel's "Select multiple folders" sits under the kind list the way the sidebar's
+   * `ListViewMenu` puts "Select Threads" under its view modes. Its own section rather than an
+   * extra option, because an option would read as a seventh kind rather than as a mode you
+   * enter, and picking it would leave the trigger claiming it as the current value.
+   *
+   * Takes the close handle rather than a plain node: a footer action is still a choice made
+   * in this menu, and leaving it open afterwards would be the one row here that does not
+   * behave like the rest.
+   */
+  footer?: (close: () => void) => ReactNode;
   /**
    * Render the groups as a segmented control showing one at a time, rather than as headings
    * down a single scroll. For a list where the groups partition it evenly and you always know
@@ -375,6 +390,7 @@ export default function ProtoSelectMenu<T extends string | number>({
                   })}
                 </div>
               ))}
+              {footer?.(() => setOpen(false))}
             </ProtoPopoverShell>,
             document.body,
           )

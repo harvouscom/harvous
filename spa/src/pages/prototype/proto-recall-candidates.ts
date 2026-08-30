@@ -91,6 +91,7 @@ export interface RecallCandidateInput {
   startDraftNote: any;
   openCrossRefGap: any;
   handleRecallCompleted: any;
+  searchGap: { query: string } | null | undefined;
 }
 
 function pushAnnotateHighlightRecallCard(
@@ -138,6 +139,7 @@ function pushRevisitHighlightRecallCard(
 
 export function buildRecallCandidates(input: RecallCandidateInput): RecallOpportunity[] {
   const {
+    searchGap,
     deletedNoteKey,
     continueNote,
     revisitNote,
@@ -335,7 +337,17 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
           title: ref,
           meta: continueBookRecallMeta(continueBookSuggestion.book, continueBookSuggestion.nextChapter),
           iconName: RECALL_KIND_ICONS.continueBook,
-          onOpen: () => startDraftNote({ title: ref, contentHtml: buildVotdScripturePillHtml(ref, 'NET') }),
+          onOpen: () =>
+            startDraftNote({
+              title: ref,
+              contentHtml: buildVotdScripturePillHtml(ref, 'NET'),
+              /* The id has to match this card's own, or the completion rests a suggestion
+                 that was never shown. */
+              recall: {
+                opportunityId: `book:${continueBookSuggestion.book}:${continueBookSuggestion.nextChapter}`,
+                kind: 'continueBook',
+              },
+            }),
         });
       }
     }
@@ -351,7 +363,11 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
       title: recurringPerson.name,
       meta: recurringPersonRecallMeta(recurringPerson.noteCount),
       iconName: RECALL_KIND_ICONS.studyPerson,
-      onOpen: () => startDraftNote({ title: recurringPerson.name }),
+      onOpen: () =>
+        startDraftNote({
+          title: recurringPerson.name,
+          recall: { opportunityId: `person:${recurringPerson.name.toLowerCase()}`, kind: 'studyPerson' },
+        }),
     });
   }
 
@@ -370,7 +386,44 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
       title: reflectionPrompt.title,
       meta: isSeason ? 'Start a reflection for the season' : 'Bring this stretch of study to prayer',
       iconName: isSeason ? 'calendar' : RECALL_KIND_ICONS.reflection,
-      onOpen: () => startDraftNote({ title: reflectionPrompt.title }),
+      onOpen: () =>
+        startDraftNote({
+          title: reflectionPrompt.title,
+          recall: {
+            opportunityId: `reflection:${reflectionPrompt.source}:${reflectionPrompt.label.toLowerCase()}`,
+            kind: 'reflection',
+          },
+        }),
+    });
+  }
+
+  if (searchGap?.query) {
+    /*
+     * The one card built from something the reader wanted and did not find.
+     *
+     * The eyebrow names its own source in four words, which is the whole anti-creepiness
+     * design: nobody has to wonder how the app knows, and it is never told back how many
+     * times or on which days — "you searched this 4 times, on Tuesday and Friday" is
+     * surveillance, where "something you searched for" is a helpful memory.
+     *
+     * Score is capped low. `selectRecallOpportunities` pins the head slot, and a brand-new
+     * kind on a brand-new signal type does not get promoted on hope.
+     */
+    const searchGapId = `searchgap:${searchGap.query}`;
+    out.push({
+      id: searchGapId,
+      kind: 'searchGap',
+      isGenerative: true,
+      score: 0.45,
+      eyebrow: 'From something you searched for',
+      title: searchGap.query,
+      meta: 'Nothing in your notes yet. Want to start one?',
+      iconName: RECALL_KIND_ICONS.searchGap,
+      onOpen: () =>
+        startDraftNote({
+          title: searchGap.query,
+          recall: { opportunityId: searchGapId, kind: 'searchGap' },
+        }),
     });
   }
 

@@ -1485,6 +1485,7 @@ export const RECALL_GENERATIVE_KINDS: readonly RecallOpportunityKind[] = [
   'reflection',
   'crossrefGap',
   'connectNotes',
+  'searchGap',
 ];
 
 export function isRecallTrendKind(kind: RecallOpportunityKind): boolean {
@@ -1495,21 +1496,60 @@ export function isRecallGenerativeKind(kind: RecallOpportunityKind): boolean {
   return RECALL_GENERATIVE_KINDS.includes(kind);
 }
 
-/** Lower number = more useful in the recall carousel (memory first, prompts last). */
+/**
+ * Lower number = shown higher in the recall shelf.
+ *
+ * These used to encode a belief — memory first, prompts last — and sixty days of
+ * `RecallEvents` say the belief was close to backwards. Open rates, from
+ * `npm run recall:kind-rates` and written up in `docs/future/RICHER_HOME_RECOMMENDATIONS.md`:
+ *
+ *   continueBook 31.3% (39 users) · studyPerson 20.0% (3) · crossrefGap 17.9% (23)
+ *   subject 17.6% (5) · reflection 16.7% (3) · passage 12.0% (9) · annotateHighlight 10.8% (17)
+ *   highlight 9.4% (8) · connectNotes 7.1% (12) · arc 5.6% (3) · revisitNote 5.5% (9)
+ *
+ * **The confound is what makes this safe to act on, not what makes it unusable.** Tier-0
+ * kinds get pinned to the head slot, so their rates are *flattered*. That asymmetry cuts one
+ * way: a tier-0 kind with a bad rate is genuinely bad (it had the advantage and still lost),
+ * while a tier-1 kind with a good rate may be even better than it looks. So demotions out of
+ * tier 0 are well evidenced, and `continueBook`'s 31% is a floor rather than an estimate.
+ *
+ * Three deliberate restraints:
+ * - `revisitNote` moves to 1, not 2. Its number predates visits becoming a ranking signal
+ *   (`NoteVisitEvents`, `revisitReturnsBoost`), which is exactly the blind spot that work
+ *   closed, so it is owed a re-measurement. Dropping it two tiers would starve it of the
+ *   impressions that re-measurement needs — the demotion has to remove the flattery without
+ *   removing the kind.
+ * - `studyPerson` and `reflection` come up one step, not two. 20% of five impressions is one
+ *   open; it is evidence against "worst tier", not evidence for "best".
+ * - `referenceWord` does not move. 0% of a single impression says nothing at all, and
+ *   demoting an unmeasured kind is how it stays unmeasured forever.
+ *
+ * Tier 3 is now empty, which is fine: `orderRecallWithSoftVariety` only ever asks whether one
+ * tier differs from the last, and `recallKindTier` still falls back to 3 for a kind missing
+ * from this table.
+ *
+ * **Rates measured after this change are not comparable to the table above** — the head slot
+ * now goes to a different kind, so the positional confound points somewhere else. Adding a
+ * `position` column to `RecallEvents` is what would make any of this decomposable.
+ */
 export const RECALL_KIND_TIER: Record<RecallOpportunityKind, number> = {
-  revisitNote: 0,
-  highlight: 0,
-  annotateHighlight: 0,
-  connectNotes: 1,
-  continueBook: 1,
-  crossrefGap: 1,
+  continueBook: 0,
+  crossrefGap: 0,
+  revisitNote: 1,
+  highlight: 1,
+  annotateHighlight: 1,
   arc: 2,
   passage: 2,
   subject: 2,
   crossref: 2,
   referenceWord: 2,
-  studyPerson: 3,
-  reflection: 3,
+  connectNotes: 2,
+  studyPerson: 2,
+  reflection: 2,
+  /* New kind on a new signal type, so it starts where it cannot take the head slot. It is
+     also the only kind that reflects the reader's own words back at them, which is worth
+     being quiet about until there is evidence it lands. */
+  searchGap: 2,
 };
 
 export function recallKindTier(kind: RecallOpportunityKind): number {

@@ -1,3 +1,4 @@
+import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { clearComposeRestoreStash } from '../lib/compose-session-restore';
 import {
   readSidebarOpenPreference,
@@ -91,7 +92,18 @@ export type SidebarSelectionKind =
   | 'resource'
   | 'folder'
   | 'thread'
-  | 'sharedThread';
+  | 'sharedThread'
+  /**
+   * Several kinds at once — the library panel's "Everything", where a note and a folder can
+   * be held together.
+   *
+   * A real member rather than a marker smuggled in as `'note'`, because the state would
+   * otherwise be lying about what it holds and every reader would have to know not to
+   * believe it. It also makes the compiler name every switch that has to decide what a mixed
+   * selection means, which is the point: the ids for this kind are composite
+   * (`${kind}:${id}`), so anything treating them as bare ids is a bug waiting to happen.
+   */
+  | 'mixed';
 
 /**
  * What entering select mode in a given list selects — and `null` for lists that cannot be
@@ -251,6 +263,16 @@ export type PrototypeComposeSeed = {
   primaryCollection?: string;
   /** Chosen by a human (a series name), so the auto-folder pass must not overwrite it. */
   collectionUserOverride?: boolean;
+  /**
+   * The recall suggestion that asked for this note, so finishing it can be reported.
+   *
+   * Rides the same channel as the provenance fields above, and for the same reason: the
+   * moment worth recording is a save that happens long after the tap, on a page that would
+   * otherwise have no idea a suggestion was involved. The seed is epoch-gated, so it belongs
+   * to exactly one compose session and cannot leak into the next note.
+   */
+  startedFromRecallOpportunityId?: string;
+  startedFromRecallKind?: RecallOpportunityKind;
 };
 
 /**

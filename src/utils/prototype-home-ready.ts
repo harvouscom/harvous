@@ -39,6 +39,8 @@ export interface PrototypeHomePresentationReadyInput {
   /** Daily passage pill — settle even when the day has no VOTD. */
   votdSettled: boolean;
   /** Cross-ref gaps — feeds the `crossrefGap` recall card. */
+  /** The search log behind the unanswered-question card. */
+  searchEventsSettled: boolean;
   crossRefGapsSettled: boolean;
   /** Connect suggestions — feeds the `connectNotes` recall card. */
   connectSuggestionsSettled: boolean;
@@ -81,6 +83,7 @@ export function isPrototypeHomePresentationReady(input: PrototypeHomePresentatio
     input.connectionsSettled &&
     input.highlightsSettled &&
     input.votdSettled &&
+    input.searchEventsSettled &&
     input.crossRefGapsSettled &&
     input.connectSuggestionsSettled &&
     input.recallHistorySettled &&

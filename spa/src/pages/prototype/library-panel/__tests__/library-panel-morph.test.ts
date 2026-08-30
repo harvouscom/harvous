@@ -115,3 +115,52 @@ describe('the row stagger stays inside the perceptible band', () => {
     }
   });
 });
+
+describe('the close is the open, run backwards', () => {
+  /*
+   * All three of these were broken together, and they all made the same complaint: the
+   * panel vanished where it stood and the chip appeared afterwards, so a close that was
+   * meant to read as the panel *becoming* the pill read as the pill popping in.
+   */
+
+  it('fades the chip from the base rule, so the fade plays in both directions', () => {
+    /*
+     * The regression itself. The transition used to be declared only on
+     * `.proto-library-chip--hidden`, and a transition is read from the *destination's*
+     * computed style — so un-hiding had no rule to read and the chip snapped back. The
+     * exit is the half of a dismissal you actually watch, and it was the half with no
+     * animation at all.
+     */
+    const start = bare.indexOf('.proto-library-chip {');
+    expect(start).toBeGreaterThan(-1);
+    const rule = bare.slice(start, bare.indexOf('}', start));
+    expect(rule).toMatch(/transition:[^;]*opacity/);
+  });
+
+  it('empties the panel before it retracts', () => {
+    /*
+     * This one had a comment and no rule for a while — the prose promised that contents
+     * leave before the box closes, and nothing implemented it, so every row was still
+     * fully opaque while the box scaled down onto the chip. Text being squashed is the
+     * exact thing the counter-scale discussion elsewhere in this file exists to avoid.
+     */
+    const start = bare.indexOf('.proto-library-panel--exiting.proto-library-panel > *');
+    expect(start).toBeGreaterThan(-1);
+    const rule = bare.slice(start, bare.indexOf('}', start));
+    expect(rule).toMatch(/opacity:\s*0/);
+    expect(rule).toMatch(/transition:[^;]*opacity/);
+  });
+
+  it('gives the exit a transform to travel on, not just a transition for one', () => {
+    /*
+     * `--exiting` declares a `transform` transition. For a long time nothing ever set a
+     * transform value, so the declaration was inert and the panel faded at full size. The
+     * value now comes from the hook (it is measured, so it cannot live in CSS) — this
+     * asserts the CSS half is still asking for it.
+     */
+    const start = bare.indexOf('.proto-library-panel--exiting {');
+    expect(start).toBeGreaterThan(-1);
+    const rule = bare.slice(start, bare.indexOf('}', start));
+    expect(rule).toMatch(/transition:[^;]*transform/);
+  });
+});

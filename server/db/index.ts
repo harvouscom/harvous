@@ -46,6 +46,7 @@ export {
   NoteScriptureReferences,
   NoteFingerprints,
   RecallEvents,
+  SearchEvents,
   ReadingEvents,
   NoteVisitEvents,
   SupportTickets,

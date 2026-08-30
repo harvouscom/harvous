@@ -27,7 +27,8 @@
  * because the next person to read the two rules together deserves to find the answer
  * rather than re-derive it.
  */
-import { useMemo, type ReactNode } from 'react';
+import { recordSearchEvent } from '../proto-search-events';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
@@ -132,6 +133,15 @@ export type PrototypeLibrarySearchResultsProps = {
   /** The active tab — the type filter, in place of the sidebar's chips. */
   tab: LibraryTab;
   navigationItems?: readonly LibraryNavigationItem[];
+  /**
+   * Fired once a query has fully resolved, with what it found.
+   *
+   * The count travels up rather than the live input travelling down: the caller needs both
+   * to decide whether a search is finished enough to remember, and a live value passed into
+   * this tree would re-render every row once per keystroke — the cost the panel's debounce
+   * exists to avoid. See `use-library-search-history.ts`.
+   */
+  onResultsSettled?: (settled: { query: string; count: number }) => void;
 };
 
 /**
@@ -189,6 +199,7 @@ export default function PrototypeLibrarySearchResults({
   query,
   tab,
   navigationItems,
+  onResultsSettled,
 }: PrototypeLibrarySearchResultsProps) {
   const trimmed = query.trim();
   const data = useLibraryPanelData();
@@ -406,7 +417,35 @@ export default function PrototypeLibrarySearchResults({
 
   const ftsLoading = ftsSearch.isLoading && Boolean(ftsQuery);
 
+  /*
+   * Report what this query found, once it has actually finished finding it.
+   *
+   * Gated on `ftsLoading` because the count is the point: firing while the request is in
+   * flight would report the local matches alone and stamp a term with a number it never
+   * showed. Both lists are counted — a query whose only hits are in the "everywhere else"
+   * group still found something.
+   */
+  const settledCount = visibleResults.length + elsewhereRest.length;
+  useEffect(() => {
+    if (!trimmed || ftsLoading) return;
+    onResultsSettled?.({ query: trimmed, count: settledCount });
+  }, [trimmed, ftsLoading, settledCount, onResultsSettled]);
+
   const activate = (result: SidebarSearchResult) => {
+    /*
+     * The second half of the signal: this query led somewhere.
+     *
+     * A term with many `query` rows and no `resultOpen` is one the app kept failing to
+     * answer, which is the only thing in the log that points at a gap rather than a habit.
+     * Recorded before the navigation below, because activating closes the panel.
+     *
+     * Personal space only, matching the write in `use-library-search-history` — a search made
+     * inside somebody else's room is not a fact about your own study.
+     */
+    if (!data.isScopedSharedSpace && trimmed) {
+      recordSearchEvent({ query: trimmed, action: 'resultOpen', surface: 'library' });
+    }
+
     switch (result.kind) {
       case 'note': {
         if (!result.noteId) return;

@@ -10,6 +10,8 @@
  * rather than inside the panel is what lets the field live in the header and the results
  * in the body without those two components knowing about each other.
  */
+import { useEffect, useRef, useState } from 'react';
+import PrototypeLibrarySearchEmpty from './PrototypeLibrarySearchEmpty';
 import PrototypeSearchInput from '../components/PrototypeSearchInput';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import PrototypeLibraryPanel from './PrototypeLibraryPanel';
@@ -20,6 +22,7 @@ import PrototypeLibrarySearchResults, {
 } from './PrototypeLibrarySearchResults';
 import { useLibraryPanelSearch } from './use-library-panel-search';
 import { useLibraryPanelData } from './library-panel-data';
+import { useLibrarySearchHistory } from './use-library-search-history';
 import { useLibrarySelection } from './use-library-selection';
 import { useLibraryTabRows } from './use-library-tab-rows';
 import PrototypeLibraryBulkBar from './PrototypeLibraryBulkBar';
@@ -60,13 +63,67 @@ export default function PrototypeLibraryPanelHost({
    * and a second instance of the hook would publish a second command context.
    */
   const data = useLibraryPanelData();
+
+  /*
+   * Remembering what was searched for.
+   *
+   * Scoped to the space when one is open, so a question asked inside somebody else's room
+   * does not surface in your own list later. The scope type already carried a `space`
+   * member for exactly this — see `RecentSearchStorageScope`.
+   */
+  const recentSearchScope = data.isScopedSharedSpace && data.spaceId
+    ? ({ type: 'space', id: data.spaceId } as const)
+    : null;
+  const searchHistory = useLibrarySearchHistory({
+    scope: recentSearchScope,
+    live: search.input,
+    settled: query,
+  });
+
+  /*
+   * Whether an empty field should offer history rather than the browse body.
+   *
+   * True when a search chord opened the panel — that gesture means "I am about to type" —
+   * and from the moment the field takes focus, which is the same intent expressed with a
+   * mouse. Latched rather than tracking focus live: the chips are things you click, and
+   * hiding them on blur would remove them in the instant between mousedown and click.
+   *
+   * Stored as *which tab* it was engaged for, so choosing a tab drops it with no effect and
+   * no reset condition to keep in sync — a tab is a request to browse, and that is a
+   * different question from the one the field answers.
+   */
+  const [searchEngagedTab, setSearchEngagedTab] = useState<string | null>(
+    view.autoFocusSearch ? view.tab : null,
+  );
+  const showSearchHistory = !view.drill && searchEngagedTab === view.tab;
+
   const tabRows = useLibraryTabRows(view.tab);
   const selection = useLibrarySelection({
     tab: view.tab,
+    /* Drilled or not changes what the rows are — a folder opened lists notes, not folders. */
+    drill: view.drill,
     rows: tabRows,
     isScopedSharedSpace: data.isScopedSharedSpace,
     viewerIsSpaceOwner: data.viewerIsSpaceOwner,
   });
+
+  /*
+   * Honour a view that asked to arrive selecting.
+   *
+   * Once per view rather than on every render: the reader must be able to press Done and stay
+   * put, and a plain effect on `selectOnOpen` would put them straight back into select mode on
+   * the next render. Keyed on the drill so re-opening the same destination later starts fresh.
+   */
+  const selectArmedFor = useRef<string | null>(null);
+  const selectOnOpenKey = view.selectOnOpen
+    ? `${view.tab}:${view.drill ? JSON.stringify(view.drill) : ''}`
+    : null;
+  useEffect(() => {
+    if (!selectOnOpenKey || !selection.available) return;
+    if (selectArmedFor.current === selectOnOpenKey) return;
+    selectArmedFor.current = selectOnOpenKey;
+    selection.setActive(true);
+  }, [selectOnOpenKey, selection]);
 
   return (
     <PrototypeLibraryPanel
@@ -93,6 +150,7 @@ export default function PrototypeLibraryPanelHost({
           /* Only when the opener asked — see `autoFocusSearch`. Mobile never takes it:
              a caret there raises the on-screen keyboard over the results. */
           autoFocus={!isMobileSidebar && Boolean(view.autoFocusSearch)}
+          onFocus={() => setSearchEngagedTab(view.tab)}
           value={search.input}
           onChange={search.setInput}
           onClear={search.clear}
@@ -115,15 +173,16 @@ export default function PrototypeLibraryPanelHost({
       }
       tabs={
         <>
-          <PrototypeLibrarySelectToggle selection={selection} />
           <PrototypeLibraryTabs
             tab={view.tab}
             /* Switching tab clears the drill: the row you tapped names a kind, not a place
                inside the one you were already in. */
             onSelect={(tab) => setLibraryPanelView({ tab, drill: null })}
+            selection={selection}
           />
         </>
       }
+      selectBar={<PrototypeLibrarySelectToggle selection={selection} />}
       /* One corner, two jobs, never both: while a selection stands it says what can be done
          with it, and otherwise it offers to start another one of whatever the tab lists. */
       bulkBar={
@@ -139,10 +198,17 @@ export default function PrototypeLibraryPanelHost({
           query={query}
           tab={view.tab}
           navigationItems={navigationItems}
+          onResultsSettled={searchHistory.onResultsSettled}
         />
+      ) : showSearchHistory ? (
+        /* Renders nothing when there is no history yet, and the browse body shows through —
+           a new account gets the library rather than an empty promise about its own past. */
+        <PrototypeLibrarySearchEmpty onPickRecent={search.applyImmediate} />
       ) : (
         <PrototypeLibraryBody view={view} selection={selection} />
       )}
     </PrototypeLibraryPanel>
   );
+
+
 }

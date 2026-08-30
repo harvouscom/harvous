@@ -27,6 +27,7 @@
  * card renders only when it qualifies.
  * Copy follows docs/BRAND_VOICE.md — friend-over-coffee, no hype, no em dashes.
  */
+import { reportRecallCompleted } from './proto-recall-completion';
 import { useUser } from '@clerk/clerk-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -138,6 +139,8 @@ const HOME_PRESENTATION_DEADLINE_MS = 2500;
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
 import { deletedNoteIds, isNoteDeleted, subscribeDeletedNotes } from './proto-deleted-notes';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
+import { useSearchEvents } from '../../hooks/queries/useSearchEvents';
+import { deriveSearchGap, hasNoteAnsweringGap } from '@/utils/search-gap';
 import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
 import type { CrossRefGap } from '../../hooks/queries/useCrossRefGaps';
 import { useConnectSuggestions } from '../../hooks/queries/useConnectSuggestions';
@@ -274,6 +277,7 @@ export function useHomeSurfaceData({
   // out of the gate's reach — so each one landed after Home had already painted and inserted a
   // card into a deck the reader was looking at.
   const crossRefGapsQuery = useCrossRefGaps();
+  const searchEventsQuery = useSearchEvents();
   const connectSuggestionsQuery = useConnectSuggestions();
   const churchSermonsQuery = useChurchSermons();
   const churchFeedQuery = useChurchFeed({ limit: HOME_FEED_LIMIT });
@@ -307,6 +311,10 @@ export function useHomeSurfaceData({
       referenceWordConnectionsQuery.isPending,
       referenceWordConnectionsQuery.data != null,
     );
+  const searchEventsSettled = isQuerySettled(
+    searchEventsQuery.isPending,
+    searchEventsQuery.data != null,
+  );
   const crossRefGapsSettled = isQuerySettled(
     crossRefGapsQuery.isPending,
     crossRefGapsQuery.data != null,
@@ -350,6 +358,7 @@ export function useHomeSurfaceData({
     connectionsSettled,
     highlightsSettled,
     votdSettled,
+    searchEventsSettled,
     crossRefGapsSettled,
     connectSuggestionsSettled,
     recallHistorySettled,
@@ -793,12 +802,23 @@ export function useHomeSurfaceData({
    */
   /** @returns whether a draft actually opened — see `RecallOpportunity.onOpen`. */
   const startDraftNote = useCallback(
-    (opts: { title?: string; contentHtml?: string }): boolean => {
+    (opts: {
+      title?: string;
+      contentHtml?: string;
+      /* Which card asked for this note. Carried on the seed so the save that finishes it can
+         say so — see `proto-recall-completion.ts`. */
+      recall?: { opportunityId: string; kind: RecallOpportunityKind };
+    }): boolean => {
       if (!homeSpaceId) return false;
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
       beginPrototypeComposeSession({
         targetSpaceId: homeSpaceId,
-        seed: { title: opts.title, contentHtml: opts.contentHtml },
+        seed: {
+          title: opts.title,
+          contentHtml: opts.contentHtml,
+          startedFromRecallOpportunityId: opts.recall?.opportunityId,
+          startedFromRecallKind: opts.recall?.kind,
+        },
       });
       navigate({ to: prototypeHomeRouteTo() });
       return true;
@@ -823,6 +843,7 @@ export function useHomeSurfaceData({
         return startDraftNote({
           title: gap.to.displayRef,
           contentHtml: buildVotdScripturePillHtml(gap.to.displayRef, gap.fromTranslation || 'NET'),
+          recall: { opportunityId: `crossrefgap:${gap.from.displayRef}:${gap.to.displayRef}`, kind: 'crossrefGap' },
         });
       }
       navigate({
@@ -995,16 +1016,43 @@ export function useHomeSurfaceData({
    */
   const handleRecallCompleted = useCallback(
     (id: string, kind: RecallOpportunityKind, noteId?: string) => {
-      recordRecallOpened(homeSpaceId, id, recallDayIndex, RECALL_COMPLETED_COOLDOWN_DAYS);
-      recordRecallOpportunityEvent({ opportunityId: id, kind, action: 'complete', noteId });
+      /* The rest and the event both live in `reportRecallCompleted` now, because the other
+         caller is the note page — where a seeded draft is actually finished, and where none
+         of this hook's state exists. The tick is the only part that is Home's alone. */
+      reportRecallCompleted({ spaceId: homeSpaceId, opportunityId: id, kind, noteId });
       setRecallTick((t) => t + 1);
     },
-    [homeSpaceId, recallDayIndex],
+    [homeSpaceId],
   );
+
+  /*
+   * A question asked more than once and never answered.
+   *
+   * Derived on the client because the gating counts *distinct local days*, and the server does
+   * not know the reader's timezone — the same split `study-feed` makes. Notes are checked by
+   * title only: a passing mention is not an answer, but a note named for the term is, and
+   * offering to start one you already have is the fastest way to make this card feel dumb.
+   */
+  const searchGap = useMemo(() => {
+    const events = searchEventsQuery.data;
+    if (!events || events.length === 0) return null;
+    const gap = deriveSearchGap(
+      events.map((event) => ({
+        query: event.query,
+        action: event.action,
+        resultCount: event.resultCount,
+        dayIndex: localDayIndex(new Date(event.createdAt)),
+      })),
+      { todayDayIndex: recallDayIndex },
+    );
+    if (!gap) return null;
+    return hasNoteAnsweringGap(gap, notes.map((row) => row.title)) ? null : gap;
+  }, [searchEventsQuery.data, recallDayIndex, notes]);
 
   const recallCandidates = useMemo<RecallOpportunity[]>(
     () =>
       buildRecallCandidates({
+        searchGap,
         deletedNoteKey,
         continueNote,
         revisitNote,

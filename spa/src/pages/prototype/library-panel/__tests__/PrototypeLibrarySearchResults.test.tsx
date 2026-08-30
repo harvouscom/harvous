@@ -29,6 +29,11 @@ import { SIDEBAR_NO_MATCH_COPY } from '../../sidebar-no-match-copy';
  */
 const CTX: CommandContext = {
   kind: 'note',
+  kinds: ['note'],
+  items: [
+    { kind: 'note', id: 'n1' },
+    { kind: 'note', id: 'n2' },
+  ],
   ids: ['n1', 'n2'],
   rows: [
     { isOwnNote: true, isScopedSharedSpace: false, viewerIsSpaceOwner: true },

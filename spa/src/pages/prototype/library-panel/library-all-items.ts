@@ -12,7 +12,13 @@
  * tab shows.
  */
 
-export type LibraryAllItemKind = 'note' | 'highlight' | 'thread' | 'scriptureBook' | 'resource';
+export type LibraryAllItemKind =
+  | 'note'
+  | 'folder'
+  | 'highlight'
+  | 'thread'
+  | 'scriptureBook'
+  | 'resource';
 
 export type LibraryAllItem = {
   /**
@@ -38,6 +44,7 @@ export type LibraryAllItem = {
 /** Fixed order for the tie-break, so equal timestamps never reshuffle between renders. */
 const KIND_ORDER: LibraryAllItemKind[] = [
   'note',
+  'folder',
   'highlight',
   'thread',
   'scriptureBook',
@@ -68,6 +75,19 @@ export type LibraryAllInput = {
     title?: string | null;
     updatedAt?: Timestamped;
     createdAt?: Timestamped;
+  }[];
+  /**
+   * Folders, which like books have no timestamp of their own.
+   *
+   * A folder is derived from the notes that claim it, so its recency is theirs — the newest
+   * note in it. The caller resolves that, because working it out means knowing how a note
+   * declares its folder membership and that is search's business, not this merger's.
+   */
+  folders: readonly {
+    /** The folder's label, which is also its id. `null` is Unsorted and is not listed. */
+    name: string | null;
+    count: number;
+    recencyIso?: Timestamped;
   }[];
   highlights: readonly {
     id: string;
@@ -109,6 +129,22 @@ export function buildLibraryAllItems(input: LibraryAllInput): LibraryAllItem[] {
   const push = (item: LibraryAllItem | null) => {
     if (item) items.push(item);
   };
+
+  for (const folder of input.folders) {
+    /* Unsorted is a bucket rather than a thing: it has no name to open, nothing to act on,
+       and it would sit in a recency list claiming to be as real as the folders around it. */
+    if (!folder.name) continue;
+    const recencyMs = newestMs(folder.recencyIso);
+    if (recencyMs === null) continue;
+    push({
+      id: `folder:${folder.name}`,
+      kind: 'folder',
+      sourceId: folder.name,
+      recencyMs,
+      title: folder.name,
+      subtitle: `${folder.count} ${folder.count === 1 ? 'note' : 'notes'}`,
+    });
+  }
 
   for (const note of input.notes) {
     /*

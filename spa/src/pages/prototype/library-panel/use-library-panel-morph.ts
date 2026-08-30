@@ -25,17 +25,51 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { readLibraryChipRect } from './library-chip-rect';
 
-export function useLibraryPanelMorph(enabled: boolean): {
+/**
+ * Whether the reader has asked for less movement.
+ *
+ * Checked in JS as well as in CSS because this hook writes `transform` *inline*, and an
+ * inline value outranks the stylesheet — the reduced-motion block's `transform: none` had
+ * no say over the one property it was written to stop. Bailing here is what actually makes
+ * the panel a plain fade; the CSS rule then only has to describe the resting state.
+ */
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+export function useLibraryPanelMorph(
+  enabled: boolean,
+  exiting: boolean,
+): {
   ref: React.RefObject<HTMLDivElement | null>;
   /** True once the opening frame has been released — gates the content's delayed fade. */
   settled: boolean;
 } {
   const ref = useRef<HTMLDivElement | null>(null);
   const [settled, setSettled] = useState(!enabled);
+  /** The transform that maps the panel onto the chip, computed on the way in. */
+  const collapsedRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     const panel = ref.current;
-    if (!enabled || !panel) {
+    if (!enabled || !panel || prefersReducedMotion()) {
+      setSettled(true);
+      return undefined;
+    }
+
+    /*
+     * Interrupting a close, rather than starting an open.
+     *
+     * The exit leaves its transform inline, so a panel carrying one is somewhere between
+     * its own box and the chip's. Releasing that value lets the transition retarget from
+     * wherever it actually is; re-running the FLIP would write the collapsed frame again
+     * and replay the open from the chip — a visible snap backwards, and precisely the
+     * restart that moving off keyframes was meant to end. Nothing else here needs to run:
+     * the measurement it would take is the one already stored in `collapsedRef`.
+     */
+    if (panel.style.transform) {
+      panel.style.transform = '';
       setSettled(true);
       return undefined;
     }
@@ -57,11 +91,23 @@ export function useLibraryPanelMorph(enabled: boolean): {
     const dy = Math.round(chip.top - panelRect.top);
     const sx = chip.width / panelRect.width;
     const sy = chip.height / panelRect.height;
+    const collapsed = `translateY(${dy}px) scale(${sx}, ${sy})`;
+
+    /*
+     * Kept for the exit, rather than measured again on the way out.
+     *
+     * `getBoundingClientRect()` reports the *visual* box, so re-measuring while a close
+     * interrupts an open would read a half-grown panel and compute a transform to
+     * somewhere it never was. This value was taken with the panel at its layout box, which
+     * is the only frame where the arithmetic is meaningful — and reusing it makes the two
+     * directions exact mirrors by construction rather than by two calculations agreeing.
+     */
+    collapsedRef.current = collapsed;
 
     /* Suppress the transition for the collapsed frame, or the panel would animate *into*
        the chip's box on the way to animating out of it. */
     panel.style.transition = 'none';
-    panel.style.transform = `translateY(${dy}px) scale(${sx}, ${sy})`;
+    panel.style.transform = collapsed;
     /*
      * Fully transparent at the chip, not partly.
      *
@@ -82,13 +128,35 @@ export function useLibraryPanelMorph(enabled: boolean): {
     setSettled(true);
 
     return () => {
-      /* Leave nothing inline behind — the exiting class owns the outbound move, and a
-         stale inline transform would win over it. */
+      /* Leave nothing inline behind — the exiting class owns the outbound move, and the
+         resting inline values would otherwise be what it transitions from. */
       panel.style.transition = '';
       panel.style.transform = '';
       panel.style.opacity = '';
     };
   }, [enabled]);
+
+  /*
+   * The way out: the same transform, applied rather than removed.
+   *
+   * The exit used to be opacity alone. It declared a `transform` transition and never gave
+   * it a value, so a panel that had *grown* out of the chip simply faded where it stood —
+   * the open was a morph and the close was a dissolve, and the chip reappearing after it
+   * finished read as the pill popping into place rather than the panel becoming it.
+   *
+   * No `offsetWidth` flush here, unlike the entrance. The transition is declared by the
+   * same `--exiting` class that changes the values, which is the ordinary way a class
+   * toggle animates; the entrance needs the flush only because it writes and then clears
+   * the same property, and those two writes would otherwise collapse into one recalc.
+   *
+   * A panel with no stored transform was opened by a chord with no chip to grow from. It
+   * faded in and it fades out — leaving `transform` alone is what keeps that symmetric.
+   */
+  useLayoutEffect(() => {
+    const panel = ref.current;
+    if (!exiting || !panel || !collapsedRef.current || prefersReducedMotion()) return;
+    panel.style.transform = collapsedRef.current;
+  }, [exiting]);
 
   return { ref, settled };
 }

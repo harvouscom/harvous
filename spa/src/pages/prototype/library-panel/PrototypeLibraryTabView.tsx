@@ -43,7 +43,7 @@ export default function PrototypeLibraryTabView({
 }) {
   switch (tab) {
     case 'all':
-      return <PrototypeLibraryAllView />;
+      return <PrototypeLibraryAllView selection={selection} />;
     case 'notes':
       return <NotesSection selection={selection} />;
     case 'folders':

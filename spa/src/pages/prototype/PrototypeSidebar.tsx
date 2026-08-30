@@ -155,7 +155,7 @@ import {
   SHARED_FOLDER_FANOUT_CAP,
   PROTOTYPE_COMMAND_BY_VERB,
   type CommandContext,
-  type PrototypeCommandId,
+  type PrototypeCommandId, singleKindCommandParts,
 } from '../../lib/prototype-commands';
 import { publishPrototypeCommandContext } from '../../lib/prototype-command-context-store';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
@@ -960,6 +960,7 @@ export default function PrototypeSidebar({
         commandId,
         {
           kind: 'note',
+          ...singleKindCommandParts('note', sidebarSelectedIds),
           ids: sidebarSelectedIds,
           rows: rows.map((n) => ({
             isOwnNote: n.isOwnNote,
@@ -990,6 +991,7 @@ export default function PrototypeSidebar({
         commandId,
         {
           kind,
+          ...singleKindCommandParts(kind, sidebarSelectedIds),
           ids: sidebarSelectedIds,
           rows: sidebarSelectedIds.map(() => ({
             isOwnNote: true,
@@ -1332,6 +1334,7 @@ export default function PrototypeSidebar({
 
     return {
       kind: 'note',
+      ...singleKindCommandParts('note', ids),
       ids,
       rows: rows.map((n) => ({
         isOwnNote: n.isOwnNote,

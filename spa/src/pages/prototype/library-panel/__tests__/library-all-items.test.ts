@@ -10,6 +10,7 @@ import { buildLibraryAllItems, type LibraryAllInput } from '../library-all-items
 
 const EMPTY: LibraryAllInput = {
   notes: [],
+  folders: [],
   highlights: [],
   threads: [],
   scriptureBooks: [],
@@ -182,5 +183,56 @@ describe('limit', () => {
       })),
     });
     expect(items).toHaveLength(5);
+  });
+});
+
+describe('folders in the merged list', () => {
+  /*
+   * Folders were missing from Everything entirely — the kind did not exist in the union, so
+   * a tab called "Everything" quietly meant "everything except your folders".
+   */
+  const base = {
+    notes: [],
+    folders: [],
+    highlights: [],
+    threads: [],
+    scriptureBooks: [],
+    resources: [],
+  } as const;
+
+  it('includes a named folder, keyed apart from a note of the same name', () => {
+    const items = buildLibraryAllItems({
+      ...base,
+      notes: [{ id: 'Assurance', title: 'Assurance', updatedAt: '2026-08-01T00:00:00Z' }],
+      folders: [{ name: 'Assurance', count: 3, recencyIso: '2026-08-02T00:00:00Z' }],
+    });
+    expect(items.map((i) => i.id)).toEqual(['folder:Assurance', 'note:Assurance']);
+  });
+
+  it('drops Unsorted, which is a bucket rather than a thing to open', () => {
+    const items = buildLibraryAllItems({
+      ...base,
+      folders: [{ name: null, count: 9, recencyIso: '2026-08-02T00:00:00Z' }],
+    });
+    expect(items).toEqual([]);
+  });
+
+  it('drops a folder with no resolvable recency rather than flooring it', () => {
+    /* Same rule the other kinds follow: a dateless row at the bottom of a recency list is
+       noise, not a result. */
+    const items = buildLibraryAllItems({
+      ...base,
+      folders: [{ name: 'Orphan', count: 1 }],
+    });
+    expect(items).toEqual([]);
+  });
+
+  it('orders folders against everything else by recency alone', () => {
+    const items = buildLibraryAllItems({
+      ...base,
+      notes: [{ id: 'n1', title: 'Older note', updatedAt: '2026-08-01T00:00:00Z' }],
+      folders: [{ name: 'Newer folder', count: 1, recencyIso: '2026-08-05T00:00:00Z' }],
+    });
+    expect(items.map((i) => i.title)).toEqual(['Newer folder', 'Older note']);
   });
 });

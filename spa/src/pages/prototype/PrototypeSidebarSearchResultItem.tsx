@@ -1,4 +1,4 @@
-import Icon from '@/components/react/Icon';
+import Icon, { type IconName } from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from './ProtoRowSelectCheckbox';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { PrototypeHighlightStudyThreadRow } from '../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
@@ -32,6 +32,16 @@ export type PrototypeSidebarSearchResultItemProps = {
   /* Only notes and highlights answer this. A folder or a book result is a
      place you go, not a thing you act on in bulk from here. */
   selection?: SearchResultSelection;
+  /**
+   * A glyph in a column of its own, left of the text.
+   *
+   * Off by default, which keeps the sidebar's search results exactly as they were. The
+   * library panel's "Everything" tab turns it on: that list interleaves every kind by
+   * recency, so a reader needs to know *what* each row is before reading it, and the tabs it
+   * mixes together each lead with this glyph on their own screen. A folder that looks like a
+   * folder on the Folders tab should not become an unmarked line here.
+   */
+  leadIcon?: IconName;
 };
 
 export default function PrototypeSidebarSearchResultItem({
@@ -41,6 +51,7 @@ export default function PrototypeSidebarSearchResultItem({
   notesById,
   highlightsById,
   selection,
+  leadIcon,
 }: PrototypeSidebarSearchResultItemProps) {
   switch (result.kind) {
     case 'note':
@@ -51,6 +62,7 @@ export default function PrototypeSidebarSearchResultItem({
           onActivate={onActivate}
           notesById={notesById}
           selection={selection}
+          leadIcon={leadIcon}
         />
       );
     case 'highlight':
@@ -61,6 +73,7 @@ export default function PrototypeSidebarSearchResultItem({
           onActivate={onActivate}
           highlightsById={highlightsById}
           selection={selection}
+          leadIcon={leadIcon}
         />
       );
     case 'folder':
@@ -71,7 +84,12 @@ export default function PrototypeSidebarSearchResultItem({
        Resources scope — but it renders as the same titled, glyphed row as the rest. */
     case 'resource':
       return (
-        <InlineKindSearchResultItem result={result} active={active} onActivate={onActivate} />
+        <InlineKindSearchResultItem
+          result={result}
+          active={active}
+          onActivate={onActivate}
+          leadIcon={leadIcon}
+        />
       );
     case 'scripturePassage':
       return <ScripturePassageSearchResultItem result={result} active={active} onActivate={onActivate} />;
@@ -86,12 +104,14 @@ function NoteSearchResultItem({
   onActivate,
   notesById,
   selection,
+  leadIcon,
 }: {
   result: SidebarSearchResult;
   active: boolean;
   onActivate: () => void;
   notesById: Map<string, SpaceNoteRow>;
   selection?: SearchResultSelection;
+  leadIcon?: IconName;
 }) {
   const loaded = result.noteId ? notesById.get(result.noteId) : undefined;
   const title =
@@ -120,13 +140,18 @@ function NoteSearchResultItem({
       {pick ? <ProtoRowSelectCheckbox {...pick.checkbox} /> : null}
       <button
         type="button"
-        className="proto-note-row__main"
+        className={`proto-note-row__main${leadIcon ? ' proto-note-row__main--lead' : ''}`}
         onClick={(e) => {
           if (pick && (e.metaKey || e.ctrlKey)) return pick.checkbox.onToggle();
           if (pick?.selectMode) return pick.checkbox.onToggle();
           onActivate();
         }}
       >
+        {leadIcon ? (
+          <span className="proto-note-row__lead-icon" aria-hidden>
+            <Icon name={leadIcon} size={13} />
+          </span>
+        ) : null}
         <div className="proto-note-row__title-line">
           {pinned ? (
             <span className="proto-note-row__pin" aria-hidden>
@@ -147,12 +172,14 @@ function HighlightSearchResultItem({
   onActivate,
   highlightsById,
   selection,
+  leadIcon,
 }: {
   result: SidebarSearchResult;
   active: boolean;
   onActivate: () => void;
   highlightsById: Map<string, PrototypeHighlightStudyThreadRow>;
   selection?: SearchResultSelection;
+  leadIcon?: IconName;
 }) {
   const row = result.highlightId ? highlightsById.get(result.highlightId) : undefined;
   const entryKind = row?.entryKind ?? result.highlightEntryKind;
@@ -180,7 +207,7 @@ function HighlightSearchResultItem({
       {pick ? <ProtoRowSelectCheckbox {...pick.checkbox} /> : null}
       <button
         type="button"
-        className="proto-note-row__main"
+        className={`proto-note-row__main${leadIcon ? ' proto-note-row__main--lead' : ''}`}
         onClick={(e) => {
           if (pick && (e.metaKey || e.ctrlKey)) return pick.checkbox.onToggle();
           if (pick?.selectMode) return pick.checkbox.onToggle();
@@ -188,10 +215,17 @@ function HighlightSearchResultItem({
         }}
         aria-label={`${highlightEntryKindAriaLabel(entryKind)}: ${title}`}
       >
-        <div className="proto-note-row__title-line">
-          <span className="proto-note-row__kind-icon" aria-hidden>
-            <Icon name={kindIcon} size={11} />
+        {leadIcon ? (
+          <span className="proto-note-row__lead-icon" aria-hidden>
+            <Icon name={leadIcon} size={13} />
           </span>
+        ) : null}
+        <div className="proto-note-row__title-line">
+          {leadIcon ? null : (
+            <span className="proto-note-row__kind-icon" aria-hidden>
+              <Icon name={kindIcon} size={11} />
+            </span>
+          )}
           <span className="pds-list-title proto-note-row__title-text">{title}</span>
         </div>
         <SearchRecencyPreview rel={rel} preview={preview} />
@@ -241,19 +275,35 @@ function InlineKindSearchResultItem({
   result,
   active,
   onActivate,
+  leadIcon,
 }: {
   result: SidebarSearchResult;
   active: boolean;
   onActivate: () => void;
+  leadIcon?: IconName;
 }) {
   const iconName = collectionIconName(result.kind);
   return (
     <li className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
-      <button type="button" className="proto-note-row__main" onClick={onActivate}>
-        <div className="proto-note-row__title-line">
-          <span className="proto-note-row__kind-icon" aria-hidden>
-            <Icon name={iconName} size={11} />
+      <button
+        type="button"
+        className={`proto-note-row__main${leadIcon ? ' proto-note-row__main--lead' : ''}`}
+        onClick={onActivate}
+      >
+        {/* The same glyph, moved out of the sentence and into its own column. Inline it had
+            to share the baseline with the title and shrink to 11px to manage it; leading, it
+            sits where this kind's own tab puts it. */}
+        {leadIcon ? (
+          <span className="proto-note-row__lead-icon" aria-hidden>
+            <Icon name={leadIcon} size={13} />
           </span>
+        ) : null}
+        <div className="proto-note-row__title-line">
+          {leadIcon ? null : (
+            <span className="proto-note-row__kind-icon" aria-hidden>
+              <Icon name={iconName} size={11} />
+            </span>
+          )}
           <span className="pds-list-title proto-note-row__title-text">{result.title}</span>
         </div>
         {result.subtitle ? (

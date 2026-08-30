@@ -1744,11 +1744,18 @@ describe('selectRecallOpportunities', () => {
   });
 
   it('orders by usefulness tier before score', () => {
+    /*
+     * The pair is unchanged and the expectation is reversed, which is the point: this is the
+     * written record of `RECALL_KIND_TIER`, and the Aug 2026 re-tier moved `crossrefGap`
+     * above `annotateHighlight` on sixty days of measured open rates (17.9% against 10.8%,
+     * with the positional confound flattering the one that lost). A higher score still does
+     * not beat a better tier — only which kinds hold which tier changed.
+     */
     const cands = [
       c('gap', 'crossrefGap', 0.95),
       c('anno', 'annotateHighlight', 0.5),
     ];
-    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['anno', 'gap']);
+    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['gap', 'anno']);
   });
 
   it('soft-varies the tail when mixed tiers exist', () => {
@@ -1758,7 +1765,10 @@ describe('selectRecallOpportunities', () => {
       c('h1', 'highlight', 0.8),
       c('gap', 'crossrefGap', 0.7),
     ];
-    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['n1', 'gap', 'n2', 'h1']);
+    /* `gap` now leads on tier despite carrying the lowest score — it moved from tier 1 to
+       tier 0 in the Aug 2026 re-tier, and the three others moved down to 1 together. The tail
+       below it is unchanged. */
+    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['gap', 'n1', 'n2', 'h1']);
   });
 
   it('caps at the limit', () => {

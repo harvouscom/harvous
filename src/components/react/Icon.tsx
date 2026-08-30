@@ -115,6 +115,8 @@ import timelineSvg from '@fortawesome/fontawesome-free/svgs/solid/timeline.svg?r
 import inboxSvg from '@fortawesome/fontawesome-free/svgs/solid/inbox.svg?raw';
 import arrowsLeftRightToLineSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-left-right-to-line.svg?raw';
 import sunSvg from '@fortawesome/fontawesome-free/svgs/solid/sun.svg?raw';
+import burstSvg from '@fortawesome/fontawesome-free/svgs/solid/burst.svg?raw';
+import checkDoubleSvg from '@fortawesome/fontawesome-free/svgs/solid/check-double.svg?raw';
 import trophySvg from '@fortawesome/fontawesome-free/svgs/solid/trophy.svg?raw';
 import layerGroupSvg from '@fortawesome/fontawesome-free/svgs/solid/layer-group.svg?raw';
 import magnifyingGlassSvg from '@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg?raw';
@@ -219,6 +221,8 @@ const icons = {
   
   // Achievement icons
   sun: svgRootCurrentColor(sunSvg),
+  burst: svgRootCurrentColor(burstSvg),
+  'check-double': svgRootCurrentColor(checkDoubleSvg),
   trophy: svgRootCurrentColor(trophySvg),
   // Navigation/UI icons
   bars: withCurrentColor(barsSvg),

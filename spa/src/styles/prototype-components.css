@@ -6334,11 +6334,22 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
   background: var(--pds-bg-page);
 }
 
+/*
+ * The modal's name, set like Activity's day heading rather than like a dialog title.
+ *
+ * It used to be 1.05rem/600, which is the size of a section label — so the pane's own title
+ * was quieter than the rows underneath it and the modal opened with nothing anchoring the
+ * top. `.proto-feed-sheet__day` is the app's established "this is what you are looking at"
+ * voice, and Settings is the same kind of statement. Same values rather than a shared class,
+ * because the two are unrelated surfaces that happen to agree; coupling them would mean a
+ * change to the feed's day heading silently restyling Settings.
+ */
 .proto-settings-modal__title {
   margin: 0;
-  font-family: var(--pds-font-display);
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-family: var(--pds-font-body);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   line-height: 1.25;
   color: var(--pds-text-primary) !important;
 }
@@ -21261,7 +21272,52 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   overflow: hidden;
 }
 
-.proto-feed-sheet__title .proto-feed-sheet__date {
+.proto-feed-sheet__title /*
+ * The date is a control now, and has to look like one without looking like a button.
+ *
+ * It sits beside a 20px day heading in a header that is deliberately quiet, so a border or a
+ * fill would make the smaller half of the title the loudest thing on the sheet. It keeps the
+ * date's own type and colour and earns its affordance on hover and focus instead — which is
+ * the same bargain the rows underneath make.
+ */
+.proto-feed-date-jump {
+  display: inline-flex;
+}
+
+.proto-feed-date-jump__trigger {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-radius: var(--pds-radius-pill);
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.proto-feed-date-jump__trigger:hover,
+.proto-feed-date-jump__trigger[aria-expanded='true'] {
+  background: var(--pds-bg-row-hover);
+  color: var(--pds-text-primary);
+}
+
+/*
+ * The picker brings its own padding and surface, so the popover is only a frame for it.
+ *
+ * Its `margin-top` is for sitting under a field label in a form, which is where it was
+ * written. In a popover of its own there is nothing above it to clear, and the margin read as
+ * the calendar hanging slightly low inside its card.
+ */
+.proto-feed-date-jump__popover {
+  padding: 0;
+}
+
+.proto-feed-date-jump__popover .proto-date-picker {
+  margin-top: 0;
+}
+
+.proto-feed-sheet__date {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

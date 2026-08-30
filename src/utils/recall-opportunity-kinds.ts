@@ -14,6 +14,7 @@ export const RECALL_OPPORTUNITY_KINDS = [
   'reflection',
   'crossrefGap',
   'connectNotes',
+  'searchGap',
 ] as const;
 
 export type RecallOpportunityKind = (typeof RECALL_OPPORTUNITY_KINDS)[number];
@@ -94,6 +95,7 @@ export const NOTE_CREATING_RECALL_KINDS: readonly RecallOpportunityKind[] = [
   'studyPerson',
   'reflection',
   'crossrefGap',
+  'searchGap',
 ];
 
 export function recallKindCreatesNote(kind: RecallOpportunityKind): boolean {
@@ -119,6 +121,7 @@ export const RECALL_KIND_LABELS: Record<RecallOpportunityKind, string> = {
   reflection: 'Reflection prompt',
   crossrefGap: 'Cross-ref gap',
   connectNotes: 'Connect notes',
+  searchGap: 'Unanswered search',
 };
 
 export function recallKindDisplayLabel(kind: string): string {

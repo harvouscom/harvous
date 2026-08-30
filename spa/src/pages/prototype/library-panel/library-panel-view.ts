@@ -51,6 +51,15 @@ export type LibraryPanelView = {
    * openings of the same place are the same place however focus was handled.
    */
   autoFocusSearch?: boolean;
+  /**
+   * Open with selection already on.
+   *
+   * For a destination whose whole point is acting on several things at once — "8 notes need a
+   * folder" is not an invitation to browse, it is a job. Arriving in browse mode would make
+   * the reader find the way into selecting before they could start, which is a step the row
+   * they pressed already implied.
+   */
+  selectOnOpen?: boolean;
 };
 
 /** Tab order for the chip row and for ⇧[ / ⇧] cycling. */

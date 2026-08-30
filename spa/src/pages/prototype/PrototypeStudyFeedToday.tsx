@@ -21,6 +21,7 @@ import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
 import PrototypeHomeReadingPlan from './PrototypeHomeReadingPlan';
 import PrototypeHomeChurchFeed from './PrototypeHomeChurchFeed';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
+import PrototypeWhatsNewPill from './PrototypeWhatsNewPill';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeRecallCarousel from './PrototypeRecallCarousel';
 import { continueReadingEyebrow, continueReadingMeta } from '@/utils/prototype-home-trends';
@@ -141,6 +142,9 @@ export default function PrototypeStudyFeedToday({
         <PrototypeHomeThisSunday homeSpaceId={homeSpaceId ?? ''} />
         <PrototypeHomeReadingPlan />
         <PrototypeHomeChurchFeed />
+        {/* Above the founder letter: one is news, the other has been true since the app
+            existed, and the row that changes should not sit under the one that never does. */}
+        <PrototypeWhatsNewPill />
         <PrototypeFounderLetterPill />
       </PrototypeHomeSection>
 
@@ -165,13 +169,14 @@ export default function PrototypeStudyFeedToday({
               onOpenScripturePassage={() => libraryNav.openList('scripture')}
             />
           ) : null}
-          {/* Filing is a suggestion like any other, and it was the sidebar's alone. Its
-              destination here is the panel's Folders tab rather than a drilled rail. */}
+          {/* Filing is a suggestion like any other, and it was the sidebar's alone. It opens
+              the unfiled notes themselves, in select mode — the row names a job, so it lands
+              where the job is done rather than on the list of folders. */}
           {looseCount >= LOOSE_MIN ? (
             <PrototypeHomeRow
               icon="folder"
               title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a folder`}
-              onClick={() => libraryNav.openList('folders')}
+              onClick={() => libraryNav.openUnfiledNotes()}
             />
           ) : null}
           {/*

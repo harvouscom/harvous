@@ -1,3 +1,6 @@
+import { draftWentBeyondItsSeed } from '@/utils/recall-draft-completion';
+import { reportRecallCompleted } from './proto-recall-completion';
+import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { stashComposeRestore } from '../../lib/compose-session-restore';
 import { consumePendingNoteFocus } from '../../lib/pending-note-focus';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -672,6 +675,70 @@ export default function PrototypeNotePage() {
     name: string;
   } | null>(null);
   const templateProvenanceRef = useRef<{ id: string; name: string } | null>(null);
+
+  /*
+   * The suggestion that seeded this draft, and whether it has already been reported.
+   *
+   * Held in a ref rather than read from `composeSeed` at save time for the same reason
+   * `templateProvenanceRef` exists: the completing save usually happens *after* the draft has
+   * been adopted, by which point the compose session — and its seed — is over. The seed is
+   * also what the finished note is compared against, so the whole thing is captured together
+   * while it is still readable.
+   */
+  const recallSeedRef = useRef<{
+    opportunityId: string;
+    kind: RecallOpportunityKind;
+    seedTitle?: string;
+    seedContentHtml?: string;
+    reported: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    const seed = composeSeed;
+    if (!seed?.startedFromRecallOpportunityId || !seed.startedFromRecallKind) return;
+    if (recallSeedRef.current?.opportunityId === seed.startedFromRecallOpportunityId) return;
+    recallSeedRef.current = {
+      opportunityId: seed.startedFromRecallOpportunityId,
+      kind: seed.startedFromRecallKind,
+      seedTitle: seed.title,
+      seedContentHtml: seed.contentHtml,
+      reported: false,
+    };
+  }, [composeSeed]);
+
+  /**
+   * Report the suggestion as carried out, the first time the note stops being just its seed.
+   *
+   * Called from every save rather than only from the create, because the create usually is
+   * not the moment: a seeded title clears `isEffectivelyEmptyPrototypeNote` on its own, so
+   * the note is typically written to disk before anything has been typed into it.
+   */
+  const maybeReportRecallCompletion = useCallback(
+    (title: string, content: string, noteId: string | null | undefined) => {
+      const seed = recallSeedRef.current;
+      if (!seed || seed.reported || !noteId) return;
+      if (
+        !draftWentBeyondItsSeed({
+          seedTitle: seed.seedTitle,
+          seedContentHtml: seed.seedContentHtml,
+          title,
+          content,
+        })
+      ) {
+        return;
+      }
+      seed.reported = true;
+      /* Recall runs on My Home, so its cooldown map is the personal space's — not whichever
+         space this note happens to have been written into. */
+      reportRecallCompleted({
+        spaceId: personalHomeSpaceId,
+        opportunityId: seed.opportunityId,
+        kind: seed.kind,
+        noteId,
+      });
+    },
+    [personalHomeSpaceId],
+  );
 
   const handlePrototypeLiveChange = useCallback((snapshot: { title: string; content: string }) => {
     setLiveNoteSnapshot(snapshot);
@@ -1408,6 +1475,7 @@ export default function PrototypeNotePage() {
     setTemplatePrefill(null);
     setTemplateApplyEpoch(0);
     templateProvenanceRef.current = null;
+    recallSeedRef.current = null;
     setTemplateProvenance(null);
     // Belt-and-braces only. The epoch stamp on liveNoteSnapshotState is what actually
     // prevents the previous session's title leaking in — this effect runs too late.
@@ -2151,6 +2219,9 @@ export default function PrototypeNotePage() {
           adoptedComposeIdRef.current = createdId;
           setAdoptedComposeId(createdId);
           setComposePersistedNoteId(createdId);
+          /* Only fires if the reader had already written past the seed before the first
+             autosave. Usually they have not, and the update path below catches it instead. */
+          maybeReportRecallCompletion(newTitle, newContent, createdId);
           // The URL is still `/` until the idle replace, so a refresh right now would
           // lose the open note. Stash it; the shell setter clears this the moment the
           // URL catches up or the session resets.
@@ -2256,6 +2327,10 @@ export default function PrototypeNotePage() {
         );
         return createdId ? { noteId: createdId } : undefined;
       }
+      /* The usual moment a suggested draft becomes a real note: the seed alone was enough to
+         create it, so the save that first carries the reader's own words is an update. */
+      maybeReportRecallCompletion(newTitle, newContent, noteId);
+
       // Offline persistence (queue + materialize) is handled by useUpdateNote's runOfflineFirst
       // path below — no separate offline write here, which would double-queue the edit.
       const sharedContextSpaceId = contextSpaceId?.trim() || null;

@@ -45,6 +45,8 @@ export type HomeGreetingNav = {
   openList: (mode: SidebarListMode) => void;
   openThread: (threadId: string) => void;
   openFolder: (folderName: string) => void;
+  /** The notes with no folder, ready to be filed — not the list of folders they lack. */
+  openUnfiledNotes: () => void;
   openTag: (tagId: string, tagName: string) => void;
   openScriptureBook: (bookOrder: number) => void;
 };

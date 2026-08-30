@@ -216,9 +216,13 @@ const MONTHS = [
 ] as const;
 
 /**
- * Name the day the way someone would say it out loud. Recent days get their familiar names;
- * anything older than a week gets a date, because "Tuesday" stops being a location once
- * there is more than one of them behind you.
+ * Name the day the way someone would say it out loud: "Today", "Yesterday", "Saturday".
+ *
+ * It used to append the date past a week, on the reasoning that "Tuesday" stops being a
+ * location once there is more than one of them behind you. True, and the sheet answers it
+ * another way — `dateLabel` sits immediately beside this and always carries the full date,
+ * with the year on it whenever the year is not this one. So the two together read
+ * "Saturday · August 22", and the label repeating the date made the header say it twice.
  */
 export function studyFeedDayLabel(date: Date, now: Date): string {
   const dayKey = localDayKey(date);
@@ -228,16 +232,7 @@ export function studyFeedDayLabel(date: Date, now: Date): string {
   yesterday.setDate(yesterday.getDate() - 1);
   if (dayKey === localDayKey(yesterday)) return 'Yesterday';
 
-  const weekday = WEEKDAYS[date.getDay()];
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfThatDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const daysBack = Math.round((startOfToday.getTime() - startOfThatDay.getTime()) / 86_400_000);
-  if (daysBack > 0 && daysBack < 7) return weekday;
-
-  const monthDay = `${MONTHS[date.getMonth()]} ${date.getDate()}`;
-  return date.getFullYear() === now.getFullYear()
-    ? `${weekday}, ${monthDay}`
-    : `${monthDay}, ${date.getFullYear()}`;
+  return WEEKDAYS[date.getDay()];
 }
 
 /**

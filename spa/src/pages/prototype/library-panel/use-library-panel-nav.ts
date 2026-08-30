@@ -46,6 +46,18 @@ export function useLibraryPanelNav(): HomeGreetingNav {
         openLibraryPanel({ tab: 'threads', drill: { kind: 'thread', threadId } }),
       openFolder: (folderName) =>
         openLibraryPanel({ tab: 'folders', drill: { kind: 'folder', folderKey: folderName } }),
+      /*
+       * `folderKey: null` is Unsorted — the notes that have no folder, which is what "8 notes
+       * need a folder" is actually about. It used to open the Folders *list*, which is the
+       * one place those notes are not: it showed the reader every folder they had already
+       * made and none of the notes waiting to go in one.
+       */
+      openUnfiledNotes: () =>
+        openLibraryPanel({
+          tab: 'folders',
+          drill: { kind: 'folder', folderKey: null },
+          selectOnOpen: true,
+        }),
       /* The tag rides in as the opening query. This used to go through a separate
          `sidebarTagSearchIntent` handshake whose only job was to tell the sidebar what the
          chip had already decided. */

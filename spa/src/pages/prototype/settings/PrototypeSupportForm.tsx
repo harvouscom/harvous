@@ -1,3 +1,4 @@
+import { RELEASE_NOTES_INDEX_URL } from '@/utils/release-notes-url';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import Icon from '@/components/react/Icon';
@@ -12,11 +13,7 @@ function appVersionRaw(): string | undefined {
   return (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__;
 }
 
-/** Matches harvous.com `versionToSlug` → `/release-notes/v2-3-10/`. */
-function releaseNotesUrlForVersion(version: string): string {
-  const slug = `v${version.replace(/\./g, '-').toLowerCase()}`;
-  return `https://harvous.com/release-notes/${slug}/`;
-}
+
 
 type Props = {
   initialTopic?: FeedbackTopic;
@@ -30,7 +27,6 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
 
   const version = appVersionRaw();
   const versionLabel = version ? `Version ${version}` : '';
-  const releaseNotesHref = version ? releaseNotesUrlForVersion(version) : null;
   const canSend = message.trim().length > 0 && !pending;
 
   const handleSend = async () => {
@@ -129,22 +125,33 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
         </button>
       </div>
 
-      {versionLabel ? (
-        <footer className="proto-support-version">
-          <p className="proto-support-version__label">{versionLabel}</p>
-          {releaseNotesHref ? (
-            <a
-              className="proto-support-version__link"
-              href={releaseNotesHref}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Release note
-              <Icon name="arrow-up-right-from-square" size={10} aria-hidden />
-            </a>
-          ) : null}
-        </footer>
-      ) : null}
+      {/*
+        * The link goes to the index, not to this version's own page.
+        *
+        * The site publishes a page per release, so `/release-notes/v2-96-1/` looks like the
+        * better destination and would be, if it existed. It routinely does not: the app's
+        * version bumps on every commit, so a build is regularly ahead of what has been
+        * published — checked live, that exact URL was a 404 while the newest published page
+        * was `v2-87-2`. This sits in the support pane, where people arrive because something
+        * is already wrong, which is the worst place in the app to hand somebody a second
+        * broken thing.
+        *
+        * The version still prints beside it. That is the part support actually needs, and it
+        * is now the only part that depends on knowing the version — the footer used to hide
+        * itself entirely without one, taking a working link with it.
+        */}
+      <footer className="proto-support-version">
+        {versionLabel ? <p className="proto-support-version__label">{versionLabel}</p> : null}
+        <a
+          className="proto-support-version__link"
+          href={RELEASE_NOTES_INDEX_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Release notes
+          <Icon name="arrow-up-right-from-square" size={10} aria-hidden />
+        </a>
+      </footer>
     </>
   );
 }

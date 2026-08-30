@@ -11,6 +11,7 @@
  * finding it. `selection` arriving undefined is the navigation-only case, which is every
  * list here except that one.
  */
+import Icon from '@/components/react/Icon';
 import { useCallback, useEffect, useState } from 'react';
 import {
   HighlightRow,
@@ -68,9 +69,15 @@ export function LibraryNoteList({
           sharedSpaceMemberByUserId={data.sharedSpaceMemberByUserId}
           viewerIsSpaceOwner={data.viewerIsSpaceOwner}
           selectMode={selection?.active ?? false}
-          selectable={selection?.active ?? false}
+          /* Selectable even before selecting has started, so the checkbox is in the DOM for
+             hover to reveal. `selectMode` still decides whether it is permanently shown. */
+          selectable={Boolean(selection)}
           selected={selection?.isSelected(row.id) ?? false}
-          onToggleSelected={selection?.toggle}
+          onToggleSelected={
+            selection
+              ? (id: string) => (selection.active ? selection.toggle(id) : selection.beginWith(id))
+              : undefined
+          }
           hideMenu={!folderRemoval}
           folderRemoval={folderRemoval}
           prefetchNote={data.prefetchNote}
@@ -106,7 +113,8 @@ export function LibraryLoadMore({ data }: { data: LibraryPanelData }) {
         disabled={data.isFetchingMoreNotes}
         onClick={data.fetchMoreNotes}
       >
-        {data.isFetchingMoreNotes ? 'Loading…' : 'Load more'}
+        <span>{data.isFetchingMoreNotes ? 'Loading…' : 'Load more'}</span>
+        {data.isFetchingMoreNotes ? null : <Icon name="caret-down" size={10} aria-hidden />}
       </button>
     </div>
   );
@@ -184,9 +192,11 @@ export function LibraryHighlightList({
             authorUserId={row.userId}
             isOwnHighlight={row.isOwnHighlight !== false}
             selectMode={selection?.active ?? false}
-            selectable={selection?.active ?? false}
+            selectable={Boolean(selection)}
             selected={selection?.isSelected(row.id) ?? false}
-            onToggleSelected={() => selection?.toggle(row.id)}
+            onToggleSelected={() =>
+              selection?.active ? selection.toggle(row.id) : selection?.beginWith(row.id)
+            }
             onOpen={() => data.openHighlight(row)}
             onTogglePin={() => togglePin(row.id)}
             onDelete={(anchorRect) => setDeleteTarget({ row, anchorRect })}
@@ -235,9 +245,11 @@ export function LibraryThreadCards({
           isPinned={cluster.studyThreadPinned === true}
           showMenu={false}
           selectMode={selection?.active ?? false}
-          selectable={selection?.active ?? false}
+          selectable={Boolean(selection)}
           selected={selection?.isSelected(cluster.id) ?? false}
-          onToggleSelected={() => selection?.toggle(cluster.id)}
+          onToggleSelected={() =>
+            selection?.active ? selection.toggle(cluster.id) : selection?.beginWith(cluster.id)
+          }
           onOpen={() => onOpen(threadClusterDrillSlug(cluster.id))}
           /* Never reached with `showMenu={false}`; the card's props are required. */
           onTogglePin={() => {}}

@@ -7,6 +7,7 @@
  * labels differing only by curly apostrophe, case or spacing land in one bucket, exactly
  * as `buildFoldersFromNotes` counted them.
  */
+import type { LibrarySelection } from './use-library-selection';
 import { useMemo } from 'react';
 import { countNotesInFolderBucket, noteBelongsToFolderBucket } from '@/utils/note-folder-display';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
@@ -14,7 +15,18 @@ import { ProtoNotesListLoading } from '../sidebar-rows';
 import { LibraryLoadMore, LibraryNoteList } from './library-panel-lists';
 import { useLibraryPanelData } from './library-panel-data';
 
-export default function PrototypeLibraryFolderView({ folderKey }: { folderKey: string | null }) {
+export default function PrototypeLibraryFolderView({
+  folderKey,
+  selection,
+}: {
+  folderKey: string | null;
+  /**
+   * Absent until now: drills rendered their lists with no selection at all, so a folder
+   * opened was browse-only however you arrived. The rows here are notes, and filing several
+   * at once is the main thing anyone opens Unsorted to do.
+   */
+  selection?: LibrarySelection;
+}) {
   const data = useLibraryPanelData();
 
   const rows = useMemo(
@@ -61,6 +73,7 @@ export default function PrototypeLibraryFolderView({ folderKey }: { folderKey: s
       <LibraryNoteList
         rows={rows}
         data={data}
+        selection={selection}
         /* Unsorted is a bucket, not a folder — there is nothing to be removed from. */
         folderRemoval={folderKey === null ? undefined : { folderName: folderKey }}
       />

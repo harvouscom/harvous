@@ -41,6 +41,7 @@ export default function PrototypeLibraryPanel({
   subject,
   search,
   tabs,
+  selectBar,
   bulkBar,
   spaceSwitcher,
   children,
@@ -54,6 +55,13 @@ export default function PrototypeLibraryPanel({
   search?: ReactNode;
   /** The tab row. Rendered between the header and the scrolling body. */
   tabs?: ReactNode;
+  /**
+   * Shown only while a selection stands, under the header and above the list.
+   *
+   * Its own slot rather than more header chrome: the header is the search field, and a mode
+   * indicator tucked into that corner is exactly what made selecting unreadable twice.
+   */
+  selectBar?: ReactNode;
   /**
    * Actions for a standing selection, pinned under the body.
    *
@@ -69,7 +77,7 @@ export default function PrototypeLibraryPanel({
    * The morph owns the panel's ref, because it has to measure the element it animates.
    * Desktop only — the sheet slides on `translateY` and has nothing to FLIP onto.
    */
-  const morph = useLibraryPanelMorph(!isMobile && !exiting);
+  const morph = useLibraryPanelMorph(!isMobile && !exiting, !isMobile && exiting);
   const panelRef = morph.ref;
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -213,6 +221,7 @@ export default function PrototypeLibraryPanel({
           </div>
         </div>
       ) : null}
+      {selectBar}
       <div ref={bodyRef} className="proto-library-panel__body">
         {children}
       </div>

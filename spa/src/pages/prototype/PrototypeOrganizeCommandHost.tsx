@@ -26,8 +26,7 @@ import { toastError } from '../../lib/error-copy';
 import { isPersonalSharedSpace } from '../../lib/church-settings';
 import {
   bulkDestructiveCopy,
-  REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
-} from './proto-destructive-copy';
+  REMOVE_NOTE_FROM_SPACE_CONFIRMATION, mixedDestructiveCopy } from './proto-destructive-copy';
 import {
   folderRowId,
   removePinnedThreadClusterId,
@@ -139,6 +138,17 @@ export default function PrototypeOrganizeCommandHost({
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [sharePending, setSharePending] = useState(false);
   const [deleteConfirmAt, setDeleteConfirmAt] = useState<DOMRect | null>(null);
+  /*
+   * The mixed delete keeps its own items rather than reading `sidebarSelectedIds`.
+   *
+   * Those ids are composite here (`${kind}:${sourceId}`), and every mutation below wants the
+   * bare source id — so the pairing has to be captured at the moment the verb ran, while the
+   * context that knew it was still in hand.
+   */
+  const [mixedConfirm, setMixedConfirm] = useState<{
+    items: { kind: 'note' | 'highlight' | 'folder' | 'thread'; id: string }[];
+    anchorRect: DOMRect;
+  } | null>(null);
   const [removeConfirmAt, setRemoveConfirmAt] = useState<DOMRect | null>(null);
 
   const { data: nav } = useNavigation();
@@ -219,6 +229,83 @@ export default function PrototypeOrganizeCommandHost({
       },
     });
   }, [sidebarSelectedIds, deleteNotesBatch, setSidebarSelectMode]);
+
+  /* Counted once for the dialog, which asks for the title, the description and the label
+     separately and would otherwise recount for each. */
+  const mixedConfirmCopy = useMemo(() => {
+    const items = mixedConfirm?.items ?? [];
+    const count = (kind: string) => items.filter((i) => i.kind === kind).length || undefined;
+    return mixedDestructiveCopy(
+      {
+        note: count('note'),
+        highlight: count('highlight'),
+        folder: count('folder'),
+        thread: count('thread'),
+      },
+      items.length,
+    );
+  }, [mixedConfirm?.items]);
+
+  /**
+   * Delete a pile holding more than one kind.
+   *
+   * Each kind keeps the call it already had — notes through the batch endpoint, folders and
+   * Threads through their own removals, highlights through theirs — because those are not
+   * interchangeable and a "generic delete" would have to reimplement all four badly. What is
+   * new is only the grouping, and the order: notes first, so the irreversible half happens
+   * while the request is freshest, and a failure part-way through has removed labels rather
+   * than lost writing.
+   */
+  const confirmMixedDelete = useCallback(async () => {
+    const items = mixedConfirm?.items ?? [];
+    if (items.length === 0 || !homeSpaceId) return;
+    const idsOf = (kind: string) => items.filter((i) => i.kind === kind).map((i) => i.id);
+
+    try {
+      const noteIds = idsOf('note');
+      if (noteIds.length > 0) await deleteNotesBatch.mutateAsync(noteIds);
+
+      for (const id of idsOf('folder')) {
+        await removeFolder.mutateAsync({ spaceId: homeSpaceId, folderName: id });
+      }
+      for (const id of idsOf('thread')) {
+        const cluster = (threadsQuery.data ?? []).find((c) => c.id === id);
+        if (!cluster) continue;
+        await removeThreadCluster.mutateAsync({ spaceId: homeSpaceId, memberIds: cluster.memberIds });
+        removePinnedThreadClusterId(homeSpaceId, cluster.id);
+      }
+      for (const id of idsOf('highlight')) {
+        const row = (highlightsQuery.data ?? []).find((h) => h.id === id);
+        if (!row) continue;
+        await deleteHighlight.mutateAsync({
+          id: row.id,
+          spaceId: homeSpaceId,
+          parentNoteId: row.parentNoteId,
+        });
+      }
+      toast.success(`Deleted ${items.length} item${items.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      /* Deliberately vague about how far it got: the loops above stop at the first failure,
+         and claiming a count would mean tracking one through four different mutations to say
+         something the reader can see for themselves by looking at the list. */
+      toastError(err, 'Could not delete everything you picked');
+    } finally {
+      setMixedConfirm(null);
+      setSidebarSelection('mixed', []);
+      setSidebarSelectMode(false);
+    }
+  }, [
+    mixedConfirm?.items,
+    homeSpaceId,
+    deleteNotesBatch,
+    removeFolder,
+    removeThreadCluster,
+    threadsQuery.data,
+    highlightsQuery.data,
+    deleteHighlight,
+    setSidebarSelection,
+    setSidebarSelectMode,
+  ]);
 
   const confirmRemoveFromSpace = useCallback(() => {
     const ids = [...sidebarSelectedIds];
@@ -343,6 +430,21 @@ export default function PrototypeOrganizeCommandHost({
           commit();
           /* Notes delete everywhere and say so; the other three take away a label, a
              connection or an annotation, and their confirms have to promise only that. */
+          if (ctx.kinds.length > 1 && anchorRect) {
+            /* More than one kind means more than one outcome, and no single confirm sentence
+               the existing two own. `mixedDestructiveCopy` writes both. */
+            setMixedConfirm({
+              items: ctx.items.filter(
+                (item): item is { kind: 'note' | 'highlight' | 'folder' | 'thread'; id: string } =>
+                  item.kind === 'note' ||
+                  item.kind === 'highlight' ||
+                  item.kind === 'folder' ||
+                  item.kind === 'thread',
+              ),
+              anchorRect,
+            });
+            return;
+          }
           if (ctx.kind === 'note') setDeleteConfirmAt(anchorRect);
           else if (ctx.kind === 'highlight' || ctx.kind === 'folder' || ctx.kind === 'thread')
             setCollectionConfirm({ kind: ctx.kind, anchorRect });
@@ -369,11 +471,13 @@ export default function PrototypeOrganizeCommandHost({
             );
             return;
           }
-          for (const id of ctx.ids) {
-            if (ctx.kind === 'highlight') togglePinnedHighlightId(homeSpaceId, id);
+          /* Per item, not per selection: a mixed pile pins each thing by its own rules, and
+             reading `ctx.kind` here would have pinned a folder as though it were a highlight. */
+          for (const item of ctx.items) {
+            if (item.kind === 'highlight') togglePinnedHighlightId(homeSpaceId, item.id);
             /* Folders select by name; the pin store keys on `folderRowId(name)`. */
-            else if (ctx.kind === 'folder') togglePinnedFolderId(homeSpaceId, folderRowId(id));
-            else if (ctx.kind === 'thread') togglePinnedThreadClusterId(homeSpaceId, id);
+            else if (item.kind === 'folder') togglePinnedFolderId(homeSpaceId, folderRowId(item.id));
+            else if (item.kind === 'thread') togglePinnedThreadClusterId(homeSpaceId, item.id);
           }
           setSidebarSelection(ctx.kind, []);
           return;
@@ -533,6 +637,22 @@ export default function PrototypeOrganizeCommandHost({
           onConfirm={confirmDelete}
           onCancel={() => {
             if (!deleteNotesBatch.isPending) setDeleteConfirmAt(null);
+          }}
+        />
+      ) : null}
+
+      {mixedConfirm ? (
+        <ProtoConfirmDialog
+          anchorRect={mixedConfirm.anchorRect}
+          preferAbove
+          alignRight
+          title={mixedConfirmCopy.title}
+          description={mixedConfirmCopy.description}
+          confirmLabel={mixedConfirmCopy.confirmLabel}
+          busy={deleteNotesBatch.isPending}
+          onConfirm={confirmMixedDelete}
+          onCancel={() => {
+            if (!deleteNotesBatch.isPending) setMixedConfirm(null);
           }}
         />
       ) : null}

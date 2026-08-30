@@ -99,7 +99,9 @@ export default function PrototypeLibraryBulkBar({
             <Icon name={chrome.icon as never} size={15} aria-hidden />
             <span className="proto-bulk-bar__label">
               {id === 'organize.delete' && selection.kind
-                ? bulkDestructiveCopy(selection.kind, selection.selectedIds.length).confirmLabel
+                ? selection.kind === 'mixed'
+                  ? 'Delete'
+                  : bulkDestructiveCopy(selection.kind, selection.selectedIds.length).confirmLabel
                 : chrome.label}
             </span>
             {/* Hold Shift and the bar says how to reach it without the mouse — the same

@@ -31,7 +31,7 @@ export default function PrototypeLibraryBody({
   if (drill) {
     switch (drill.kind) {
       case 'folder':
-        return <PrototypeLibraryFolderView folderKey={drill.folderKey} />;
+        return <PrototypeLibraryFolderView folderKey={drill.folderKey} selection={selection} />;
       case 'thread':
         return <PrototypeLibraryThreadView threadId={drill.threadId} />;
       case 'scripture':

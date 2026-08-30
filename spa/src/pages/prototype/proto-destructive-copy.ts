@@ -74,3 +74,40 @@ export function bulkDestructiveCopy(
       };
   }
 }
+
+/**
+ * The confirm for a selection holding more than one kind.
+ *
+ * A button can only say one verb, and `destructiveVerbForKinds` makes it the stronger one so a
+ * note is never described as merely "removed". That leaves the confirm owing the reader the
+ * part the label could not carry: what happens to each group, in the order of how bad it is.
+ *
+ * Notes lead because they are the only ones that genuinely go. Folders and Threads follow with
+ * the reassurance they always carry — removing them is a label or a connection coming off, and
+ * every note involved is still there afterwards. Saying that here is what makes the stronger
+ * button honest rather than alarming.
+ */
+export function mixedDestructiveCopy(
+  counts: { note?: number; highlight?: number; folder?: number; thread?: number },
+  total: number,
+): { title: string; description?: string; confirmLabel: string } {
+  const n = (value: number | undefined, one: string, many: string) =>
+    value ? `${value} ${value === 1 ? one : many}` : null;
+
+  const gone = [n(counts.note, 'note', 'notes'), n(counts.highlight, 'highlight', 'highlights')]
+    .filter(Boolean)
+    .join(' and ');
+  const kept = [n(counts.folder, 'folder', 'folders'), n(counts.thread, 'Thread', 'Threads')]
+    .filter(Boolean)
+    .join(' and ');
+
+  const sentences: string[] = [];
+  if (gone) sentences.push(`${gone} will be deleted everywhere.`);
+  if (kept) sentences.push(`${kept} will be removed, and the notes in them stay.`);
+
+  return {
+    title: `Delete ${total} item${total === 1 ? '' : 's'}?`,
+    description: sentences.join(' ') || undefined,
+    confirmLabel: 'Delete',
+  };
+}

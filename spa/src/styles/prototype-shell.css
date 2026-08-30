@@ -1701,13 +1701,40 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   }
 }
 
-/* The chip crossfades with the panel rather than blinking out.
-   Both are anchored at the same point, so one dissolving into the other reads as one
-   object — and it means `border-radius` never has to animate from pill to frame. */
+/*
+ * The chip crossfades with the panel rather than blinking out.
+ *
+ * Both are anchored at the same point, so one dissolving into the other reads as one object
+ * — and it means `border-radius` never has to animate from pill to frame.
+ *
+ * **The transition lives here, on the base.** It used to sit on `--hidden` alone, which
+ * animates only the way *in*: a transition is read from the destination's computed style,
+ * and the destination of un-hiding has no rule, so the chip faded out and then snapped back.
+ * The exit is the half you watch on a dismissal, and it was the half with no animation.
+ *
+ * `visibility` is stepped rather than faded, and the delay is what sequences it: on the way
+ * out it waits for the fade to finish, on the way back it lifts immediately so there is
+ * something to fade *in*. It is here at all because `opacity: 0` still leaves a control
+ * focusable and in the accessibility tree, and a hidden chip should be neither.
+ *
+ * Each direction borrows the curve of the panel motion it is crossfading against — the panel
+ * arrives on `emphasized` and leaves on `standard`, so the chip does the reverse of each.
+ * Two halves of one dissolve moving on two curves is what makes a crossfade read as two
+ * things rather than one object changing shape.
+ */
+.proto-library-chip {
+  transition:
+    opacity var(--pds-duration-morph) var(--pds-ease-standard),
+    visibility 0s;
+}
+
 .proto-library-chip--hidden {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity var(--pds-duration-morph) var(--pds-ease-emphasized);
+  transition:
+    opacity var(--pds-duration-morph) var(--pds-ease-emphasized),
+    visibility 0s var(--pds-duration-morph);
 }
 
 /*
@@ -1796,6 +1823,10 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
      this to reach the panel's edge — and two numbers that must agree should be one. */
   --proto-library-body-pad: 10px;
   padding: var(--proto-library-body-pad);
+  /* Except at the top, where the header's own 8px is already doing the separating — the two
+     stacked read as a band of dead space between the field and the first row. Only the top:
+     the footer above cancels the other three by that variable, and this is not one of them. */
+  padding-top: 2px;
 }
 
 /*
@@ -1816,17 +1847,209 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 }
 
 /*
+ * Everything's list, which holds two kinds of furniture at once.
+ *
+ * Notes, highlights and resources are rows; folders, Threads and Scripture are the cards they
+ * are on their own tabs. Both style themselves from their own class, so all this has to do is
+ * stack them and put air between them — the plain list it inherits from has neither, because
+ * rows carry their own vertical padding and cards expected a grid's gap.
+ */
+.proto-library-all-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+}
+
+/*
+ * Rows sit on the cards' edges, not inside them.
+ *
+ * `.proto-note-row-item` insets itself by 8px a side, which is right in a list of rows where
+ * that inset *is* the gutter. Beside a card that paints a surface to the full width, it reads
+ * as two lists that failed to agree: the card's glyph at 264 and the row's at 271, for no
+ * reason a reader could name. Full width here, and the row's own padding matched to the
+ * card's, so both furnitures share one left edge.
+ */
+.proto-library-all-list > .proto-note-row-item {
+  width: 100%;
+  margin: 0;
+}
+
+.proto-library-all-list > .proto-note-row-item .proto-note-row__main {
+  padding: 10px 11px;
+}
+
+/*
+ * Rows step aside for the tick exactly as far as the cards do.
+ *
+ * Both furnitures make room when selecting starts — the card's own rule takes it to 33px —
+ * but the padding above is more specific than the shared `:has(--selectable)` rule that moves
+ * a row, so rows stayed at 11px while the cards moved. The tick then sat on top of the row's
+ * glyph, and the two left edges that were carefully aligned a moment ago were 22px apart.
+ *
+ * 33px rather than the list's usual 32: matching the card is the point, and in this one list
+ * they are neighbours.
+ */
+.proto-library-all-list > .proto-note-row-item--selectable .proto-note-row__main {
+  padding-left: 33px;
+}
+
+/*
+ * A row that leads with what it is.
+ *
+ * Grid rather than a flex row wrapping the text, because that would have meant restructuring
+ * four separate row bodies to introduce a wrapper none of them needed. Here the glyph takes
+ * the first column and spans however many lines the row has, and everything else stacks in
+ * the second — so a row with a title and a preview and a row with only a title both come out
+ * with the glyph centred against the whole block.
+ */
+.proto-note-row__main--lead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+}
+
+.proto-note-row__main--lead > .proto-note-row__lead-icon {
+  grid-row: 1 / -1;
+  grid-column: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pds-text-secondary);
+}
+
+.proto-note-row__main--lead > :not(.proto-note-row__lead-icon) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+/*
+ * Folders in the panel are rows, not a two-up grid of tiles.
+ *
+ * The grid earns its place in the sidebar, where the rail is narrow and a tile is the only
+ * way two folders fit side by side. The panel is 880px wide, so the same grid gives every
+ * folder a tile with a great deal of nothing in it, and puts the panel's one browsing surface
+ * in a different shape from every other tab — Notes, Threads and Highlights are all lists.
+ *
+ * So here the card lies down: glyph first, then the name with its count under it. That is the
+ * note row's own anatomy, which means a folder in this panel reads as the same kind of object
+ * as everything else in it. Scoped by the panel's id rather than changed at the source,
+ * because the sidebar's rail still needs the tiles.
+ */
+#proto-library-panel .proto-collection-grid {
+  grid-template-columns: minmax(0, 1fr);
+  /* The tiles' own gap. Each card still paints its own surface, so with the rows this close
+     together they read as one slab divided by hairlines rather than as separate things. */
+  gap: 8px;
+  padding: 0;
+}
+
+#proto-library-panel .proto-collection-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  /* The tile's floor was there to keep a grid of them even. A row is as tall as its text. */
+  min-height: 0;
+  border: none;
+  border-radius: 10px;
+}
+
+#proto-library-panel .proto-collection-card__icon {
+  height: auto;
+  flex-shrink: 0;
+}
+
+/* `margin-top: auto` pushed the text to the bottom of a tile that had spare height. Lying
+   down there is none, and the auto margin would shove the name off centre. */
+#proto-library-panel .proto-collection-card__body {
+  margin-top: 0;
+}
+
+/*
+ * The tick sits on the card's middle, not at a measured height near its top.
+ *
+ * `top: 21px` is 10px of padding plus half a 22px glyph row — exactly right for the tall tile
+ * it was written for, where the icon sits above the text. Lying down, the glyph is centred on
+ * the whole card, so the same 21px left the tick floating near the top edge with the name
+ * beside it. Centring is also the more durable rule: it holds whatever the row's height turns
+ * out to be, where a literal has to be recomputed every time the card changes shape.
+ *
+ * Covers folders, Threads and Scripture together — all three draw this same card, and the
+ * `translateY(-50%)` they already carry does the other half.
+ */
+#proto-library-panel .proto-collection-card__select {
+  top: 50%;
+}
+
+/*
+ * Recent searches, as a row of terms you can put back in the field.
+ *
+ * Not `.proto-chip-bar`. That is a segmented control — a pill-shaped track with `gap: 0`
+ * whose children are `flex: 1 0 auto`, so they divide the track between them and a lone one
+ * fills it end to end. It reads as "one option, currently selected", which is wrong twice
+ * over here: these are not options, and none of them is selected. Past queries are tags.
+ * They hug their own text, they wrap, and the row behind them is nothing at all.
+ */
+.proto-recent-queries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 12px 10px;
+}
+
+.proto-recent-query {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 5px 11px;
+  border: none;
+  border-radius: 999px;
+  background: var(--pds-bg-chip);
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  /* A long query stays one line and truncates rather than growing the row into a paragraph. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.proto-recent-query:hover {
+  background: var(--pds-bg-chip-hover);
+  color: var(--pds-text-primary);
+}
+
+/*
  * The contents leave before the box closes — rows legible while being clipped
  * read as a scroll rather than a morph. Exit only; arrival rides the panel's own
  * fade-in.
+ *
+ * This comment stood alone for a while with no rule under it, which is why the close felt
+ * wrong: the box retracts toward the chip, and text that is still fully opaque while that
+ * happens is text being squashed. Half the box's duration, so the panel is empty well
+ * before it is small, and `linear` because nothing here is travelling — it is only
+ * getting out of the way.
+ *
+ * Every direct child, not a list of them: the header (which carries the tab row), the back
+ * row, the body and the bulk bar all have to go together, and naming them individually is a
+ * list that the next child added to the panel would silently not join.
+ *
+ * The doubled class is deliberate — it matches the `--settled` arrival's two-class
+ * specificity, so this wins on order rather than on a `!important`.
  */
-
-
-/* The chip holds its box while the panel is out — the toolbar must not reflow
-   under a panel that is animating out of that exact spot. */
-.proto-library-chip--hidden {
-  visibility: hidden;
+.proto-library-panel--exiting.proto-library-panel > * {
+  opacity: 0;
+  transition: opacity calc(var(--pds-duration-morph) / 2) linear;
 }
+
+
+/* The chip holds its box while the panel is out — the toolbar must not reflow under a panel
+   that is animating out of that exact spot. `visibility` preserves layout where `display`
+   would not; it is declared with the crossfade above, so the two cannot disagree. */
 
 /*
  * Mobile — a full-height sheet instead of a centred panel.
@@ -1924,8 +2147,20 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
     animation: none;
   }
 
+  /* The chip matches the panel's reduced-motion fade rather than cutting. `none` here used
+     to hide only the fade *out*, so with the transition now on the base the chip would have
+     faded in and cut out — and either way a hard cut beside a fading panel is the two halves
+     of one crossfade disagreeing. Same 120ms, both directions. */
+  .proto-library-chip {
+    transition:
+      opacity 120ms linear,
+      visibility 0s;
+  }
+
   .proto-library-chip--hidden {
-    transition: none;
+    transition:
+      opacity 120ms linear,
+      visibility 0s 120ms;
   }
 }
 
@@ -2015,26 +2250,43 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
  * folder). Pagination at the end of a list you are already reading should not be the
  * loudest thing in the panel, so this is a quiet centred pill instead.
  */
+/*
+ * The pager, set like Activity's.
+ *
+ * It was a bordered pill floating in the middle of a gutter, which is a different idea of
+ * "there is more below" from the one the study feed uses a few hundred pixels away —
+ * `.proto-feed-part__more` is a full-width bar with a hairline over it and a caret pointing
+ * down. Two shapes for one meaning in one app is one too many, and the bar is the better of
+ * the two here: it spans the list it belongs to rather than hovering unattached beneath it.
+ *
+ * Values match `.proto-feed-part__more` deliberately. Not a shared class — that one is the
+ * feed's own furniture and lives with it — but if this drifts, that is where it drifted from.
+ */
 .proto-library-more {
   display: flex;
-  justify-content: center;
-  padding: 12px 0 4px;
+  padding: 4px 0 0;
 }
 
 .proto-library-more__btn {
-  padding: 6px 14px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: var(--pds-radius-pill);
+  appearance: none;
+  border: 0;
+  border-top: 0.5px solid var(--pds-border-control);
   background: transparent;
+  font: inherit;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pds-space-2);
+  width: 100%;
+  padding: var(--pds-space-2);
   color: var(--pds-text-secondary);
+  font-size: 12px;
   transition: background 0.12s ease, color 0.12s ease;
 }
 
 .proto-library-more__btn:hover:not(:disabled) {
-  background: var(--pds-bg-hover, transparent);
+  background: var(--pds-bg-row-hover);
   color: var(--pds-text-primary);
 }
 

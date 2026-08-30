@@ -16,6 +16,8 @@
  * exists because Home's recall shelf rotates modulo its candidate count, so a late query
  * reshuffles the deck under the reader. Nothing here rotates — days are days.
  */
+import PrototypeStudyFeedDateJump from './PrototypeStudyFeedDateJump';
+import { studyFeedJumpStep } from '@/utils/study-feed-date-jump';
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -88,6 +90,15 @@ function bookOrderFor(book: string): number {
 function ProtoLayersMark() {
   return <Icon name="layer-group" size={13} />;
 }
+
+/**
+ * How far back the picker lets you reach while pages are still loading.
+ *
+ * Deliberately earlier than Harvous has existed. It is not a claim that anything is there —
+ * `studyFeedJumpStep` settles on the oldest real sheet when the study does not go that far —
+ * it just declines to guess a floor before the feed knows one.
+ */
+const JUMP_FLOOR_KEY = '2020-01-01';
 
 export default function PrototypeStudyFeedPage() {
   const navigate = useNavigate();
@@ -242,6 +253,28 @@ export default function PrototypeStudyFeedPage() {
   }, [days.length, fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const goForward = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
+
+  /*
+   * Jumping to a date the stack has not fetched yet.
+   *
+   * A date inside the loaded run is just an index. A date behind it does not exist yet and
+   * cannot be conjured — pages only go backwards — so the request is held and the effect below
+   * pulls one page at a time until the run reaches it. Holding it in state rather than looping
+   * inline is what keeps that a sequence of ordinary renders instead of an await loop that
+   * would have to know when to give up.
+   */
+  const [pendingJumpKey, setPendingJumpKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingJumpKey) return;
+    const step = studyFeedJumpStep({ days, targetDayKey: pendingJumpKey, hasMore: Boolean(hasNextPage) });
+    if (step.action === 'fetch') {
+      if (!isFetchingNextPage) void fetchNextPage();
+      return;
+    }
+    if (step.action === 'jump' || step.action === 'settle') setIndex(step.index);
+    setPendingJumpKey(null);
+  }, [pendingJumpKey, days, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   /* Jumping straight to a depth still has to ask for more, the same way stepping one day
      did — the edges are the way back now, so the fetch has to travel with them. */
@@ -479,7 +512,24 @@ export default function PrototypeStudyFeedPage() {
             ) : null}
             <div className="proto-feed-sheet__title">
               <h2 className="proto-feed-sheet__day">{day.label}</h2>
-              <span className="proto-feed-sheet__date">{day.dateLabel}</span>
+              <PrototypeStudyFeedDateJump
+                dateLabel={day.dateLabel}
+                dayKey={day.dayKey}
+                /*
+                 * The floor is only real once there is nothing left to fetch.
+                 *
+                 * Using the oldest *loaded* sheet would have been wrong in a way that quietly
+                 * removed the feature: it would grey out every date the stack has not reached
+                 * yet, which is precisely the set of dates the deep-fetch exists to reach. So
+                 * while pages remain, anything back to `JUMP_FLOOR_KEY` is selectable and the
+                 * jump pulls until it arrives; once the feed is fully loaded the oldest sheet
+                 * genuinely is the floor, and offering earlier days would promise sheets that
+                 * cannot exist.
+                 */
+                earliestDayKey={hasNextPage ? JUMP_FLOOR_KEY : days[days.length - 1]?.dayKey}
+                todayKey={days[0]?.dayKey ?? day.dayKey}
+                onPick={setPendingJumpKey}
+              />
             </div>
             <div className="proto-feed-sheet__controls">
               {/*

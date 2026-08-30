@@ -438,7 +438,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
       <div className="proto-toolbar-center">
         <PrototypeLibraryChip
           mode={mode}
-          panelOpen={Boolean(libraryPanelView) || libraryPanelExiting}
+          /* Hidden while the panel is *up*, not while it is leaving. The chip has to be
+             back on screen during the exit or there is nothing for the shrinking panel to
+             dissolve into — it was the second half of the crossfade that never played. */
+          panelOpen={Boolean(libraryPanelView) && !libraryPanelExiting}
           onOpen={(rect) => {
             /* Clearing on a failed measure matters as much as publishing on a good one:
                a stale rect from an earlier click would morph this open out of a box the

@@ -1532,6 +1532,43 @@ export const NoteVisitEvents = pgTable('NoteVisitEvents', {
   index('NoteVisitEvents_noteIdIndex').on(table.noteId),
 ]);
 
+// ─── SearchEvents (append-only log of searches) ────────────────────────────────
+// The third member of the same family as ReadingEvents and NoteVisitEvents, and the one that
+// records something the others structurally cannot.
+//
+// Every existing signal is derived from something the reader *made or read*: a note written, a
+// chapter read, a highlight left, a note returned to. A search is the only record of something
+// they wanted and did not find — a stated intent with no artifact behind it. A question asked
+// four times across three weeks that never produced a note is the clearest gap the app can see,
+// and until now it left no trace at all.
+//
+// Two actions, no UPDATE, for the same reason the siblings are append-only: "asked repeatedly
+// and never opened anything" is a grouped read over rows, not a mutable counter that has to be
+// kept correct. `openedResult` is a second row rather than a column on the first, so the write
+// path never has to go back and find what it wrote.
+//
+// The query text is the sensitive part of this table and is treated as such: normalized on the
+// way in, aged out on read, deleted for real on clear-data and delete-account (SearchEvents has
+// no noteId, so the note cascade cannot reach it), and never sent to analytics — see
+// `trackSearchPerformed`, which deliberately reports query *length* only.
+
+export const SearchEvents = pgTable('SearchEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** Trimmed, whitespace-collapsed, lowercased — so repeats group without a second pass. */
+  query: text('query').notNull(),
+  /** query | resultOpen — see src/utils/search-event-kinds.ts. */
+  action: text('action').notNull(),
+  /** What the surface actually showed. 0 is the interesting value. */
+  resultCount: integer('resultCount').notNull(),
+  /** library | spotlight — which field it was typed into. */
+  surface: text('surface').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('SearchEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('SearchEvents_userId_queryIndex').on(table.userId, table.query),
+]);
+
 // ─── SupportTickets (user feedback from settings support form) ─────────────────
 
 export const SupportTickets = pgTable('SupportTickets', {

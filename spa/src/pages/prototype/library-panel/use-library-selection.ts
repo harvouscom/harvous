@@ -26,7 +26,9 @@ import {
   type OrganizeRunOptions,
 } from '../../../lib/prototype-organize-runner-store';
 import type { CommandContext, PrototypeCommandId } from '../../../lib/prototype-commands';
+import { singleKindCommandParts } from '../../../lib/prototype-commands';
 import type { LibraryTab } from '../sidebar-search-types';
+import type { LibraryDrill } from './library-panel-view';
 import type { SelectableRow } from './use-library-tab-rows';
 
 /**
@@ -40,6 +42,9 @@ import type { SelectableRow } from './use-library-tab-rows';
  */
 export function librarySelectionKindForTab(tab: LibraryTab): LibrarySelectionKind | null {
   switch (tab) {
+    /* Everything interleaves the kinds, so its selection is whatever you happen to pick. */
+    case 'all':
+      return 'mixed';
     case 'notes':
       return 'note';
     case 'folders':
@@ -53,7 +58,53 @@ export function librarySelectionKindForTab(tab: LibraryTab): LibrarySelectionKin
   }
 }
 
-export type LibrarySelectionKind = 'note' | 'folder' | 'thread' | 'highlight';
+/**
+ * What a selection is made of *here*, which the tab alone cannot answer.
+ *
+ * A drill changes the answer completely: the Folders tab lists folders, but one folder opened
+ * lists the notes inside it, and a Thread opened lists the notes it joins. Deriving the kind
+ * from the tab alone meant selecting inside either drill built a selection of *folder* ids
+ * while the reader was looking at notes — the bar would then offer a folder's verbs and act on
+ * ids that name nothing.
+ *
+ * Scripture drills select nothing: their rows are passages and books, which are places rather
+ * than things any of the six verbs can act on.
+ */
+export function librarySelectionKindForView(
+  tab: LibraryTab,
+  drill: LibraryDrill | null,
+): LibrarySelectionKind | null {
+  if (!drill) return librarySelectionKindForTab(tab);
+  switch (drill.kind) {
+    case 'folder':
+    case 'thread':
+      return 'note';
+    case 'scripture':
+      return null;
+  }
+}
+
+export type LibrarySelectionKind = 'note' | 'folder' | 'thread' | 'highlight' | 'mixed';
+
+/**
+ * "Everything" selects by composite id — `${kind}:${sourceId}`, the key its rows already use.
+ *
+ * That is what lets one selection hold a note and a folder without the shell learning a second
+ * state shape: the kind travels with each id instead of one kind standing for all of them.
+ * These two are the only places that knowledge lives.
+ */
+export function packMixedId(kind: LibrarySelectionKind, sourceId: string): string {
+  return `${kind}:${sourceId}`;
+}
+
+export function unpackMixedId(id: string): { kind: LibrarySelectionKind; sourceId: string } | null {
+  const at = id.indexOf(':');
+  if (at <= 0) return null;
+  const kind = id.slice(0, at) as LibrarySelectionKind;
+  if (kind === 'mixed') return null;
+  if (!['note', 'folder', 'thread', 'highlight'].includes(kind)) return null;
+  return { kind, sourceId: id.slice(at + 1) };
+}
 
 export type LibrarySelection = {
   /** Whether this tab offers selection at all — gates the header's toggle. */
@@ -65,6 +116,15 @@ export type LibrarySelection = {
   isSelected: (id: string) => boolean;
   toggle: (id: string) => void;
   setActive: (on: boolean) => void;
+  /**
+   * Start selecting *with this one already picked*.
+   *
+   * Not `setActive(true)` followed by `toggle(id)`: entering deliberately clears the
+   * selection, so the two calls in that order would land on an empty list. This is the one
+   * gesture a reader actually makes — pointing at a thing and saying "this one, and I am
+   * about to say more" — and it has to be one operation to survive that clear.
+   */
+  beginWith: (id: string) => void;
   /** Every selectable row on the tab, for the "select all" control. */
   allSelected: boolean;
   toggleAll: () => void;
@@ -75,6 +135,8 @@ export type LibrarySelection = {
 
 export function useLibrarySelection(input: {
   tab: LibraryTab;
+  /** The drill on top of the tab, which decides what the rows actually are. */
+  drill?: LibraryDrill | null;
   rows: SelectableRow[];
   isScopedSharedSpace: boolean;
   viewerIsSpaceOwner: boolean;
@@ -88,7 +150,7 @@ export function useLibrarySelection(input: {
   } = useProtoShell();
   const organize = useOrganizeApi();
 
-  const kind = librarySelectionKindForTab(input.tab);
+  const kind = librarySelectionKindForView(input.tab, input.drill ?? null);
   const available = kind !== null;
   const active = available && sidebarSelectMode && sidebarSelectionKind === kind;
 
@@ -118,6 +180,15 @@ export function useLibrarySelection(input: {
     setSidebarSelection(kind, allSelected ? [] : input.rows.map((r) => r.id));
   }, [kind, allSelected, input.rows, setSidebarSelection]);
 
+  const beginWith = useCallback(
+    (id: string) => {
+      if (!kind || !id) return;
+      setSidebarSelection(kind, [id]);
+      setSidebarSelectMode(true);
+    },
+    [kind, setSidebarSelection, setSidebarSelectMode],
+  );
+
   const setActive = useCallback(
     (on: boolean) => {
       if (!kind) return;
@@ -140,8 +211,43 @@ export function useLibrarySelection(input: {
     if (!kind || !active || selectedIds.length === 0) return null;
     const rows = input.rows.filter((r) => selectedSet.has(r.id));
     if (rows.length !== selectedIds.length) return null;
+
+    /*
+     * A mixed selection unpacks its ids back into kinds and source ids.
+     *
+     * `ids` stays the *source* ids, because that is what every verb ultimately acts on — the
+     * composite form exists to keep the selection addressable while it is being made, not to
+     * be handed to a delete call. `items` carries the pairing so the runner can tell which is
+     * which. An id that does not unpack means the row and the selection have got out of step,
+     * and the whole context is withheld rather than acting on the half that parsed.
+     */
+    if (kind === 'mixed') {
+      const unpacked = selectedIds.map((id) => unpackMixedId(id));
+      if (unpacked.some((entry) => entry === null)) return null;
+      const items = unpacked
+        .filter((entry): entry is { kind: LibrarySelectionKind; sourceId: string } => entry !== null)
+        .map((entry) => ({ kind: entry.kind as CommandContext['kind'], id: entry.sourceId }));
+      const kinds = [...new Set(items.map((item) => item.kind))];
+      return {
+        /* Wording only — every gate reads `kinds`. The commonest kind is the one a sentence
+           about this pile would naturally be built around. */
+        kind: kinds.length === 1 ? kinds[0] : 'mixed',
+        kinds,
+        ids: items.map((item) => item.id),
+        items,
+        rows: rows.map((r) => ({
+          isOwnNote: r.isOwnNote,
+          isScopedSharedSpace: input.isScopedSharedSpace,
+          viewerIsSpaceOwner: input.viewerIsSpaceOwner,
+        })),
+        fromSelection: true,
+        isScopedSharedSpace: input.isScopedSharedSpace,
+      };
+    }
+
     return {
       kind,
+      ...singleKindCommandParts(kind, selectedIds),
       ids: selectedIds,
       rows: rows.map((r) => ({
         isOwnNote: r.isOwnNote,
@@ -188,6 +294,7 @@ export function useLibrarySelection(input: {
     isSelected: (id: string) => selectedSet.has(id),
     toggle,
     setActive,
+    beginWith,
     allSelected,
     toggleAll,
     run,

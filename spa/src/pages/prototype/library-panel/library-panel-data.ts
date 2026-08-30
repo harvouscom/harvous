@@ -14,6 +14,7 @@
  * and `scriptureDrill` all stay untouched — the panel's own view lives in shell context
  * (see `library-panel-view.ts`), and the two surfaces must not move each other.
  */
+import { recordRecentOpen } from './proto-recent-opens';
 import { useCallback, useMemo } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -223,6 +224,7 @@ export function useLibraryPanelData(): LibraryPanelData {
   const openNote = useCallback(
     (row: SpaceNoteRow) => {
       if (!spaceId) return;
+      recordRecentOpen(spaceId, 'note', row.id);
       prefetchNote(row);
       navigate({
         to: prototypeNoteRouteTo(),
@@ -259,6 +261,7 @@ export function useLibraryPanelData(): LibraryPanelData {
   const openHighlight = useCallback(
     (row: PrototypeHighlightStudyThreadRow) => {
       if (!spaceId) return;
+      recordRecentOpen(spaceId, 'highlight', row.id);
       const navSearch = prototypeNoteListNavigationSearch({ isScopedSharedSpace, spaceId });
       if (row.parentNoteId) {
         void queryClient
@@ -342,6 +345,7 @@ export function useLibraryPanelData(): LibraryPanelData {
    */
   const openResource = useCallback(
     (item: LibraryItem) => {
+      recordRecentOpen(spaceId, 'resource', item.id);
       if (isPrototypeNotePath(pathname) && activeNoteFullId) {
         navigate({
           to: prototypeNoteRouteTo(),

@@ -32,7 +32,8 @@ vi.mock('../../../../lib/prototype-command-context-store', () => ({
   publishPrototypeCommandContext: () => () => {},
 }));
 
-const { useLibrarySelection, librarySelectionKindForTab } = await import('../use-library-selection');
+const { useLibrarySelection, librarySelectionKindForTab, packMixedId, unpackMixedId } =
+  await import('../use-library-selection');
 
 function note(id: string) {
   return { id, isOwnNote: true };
@@ -64,8 +65,16 @@ describe('which tabs can be selected in', () => {
     expect(librarySelectionKindForTab('highlights' as never)).toBe('highlight');
   });
 
-  it('is not Everything, where a checkbox would appear on some rows and not others', () => {
-    expect(librarySelectionKindForTab('all' as never)).toBeNull();
+  it('is Everything too, where the kind is whatever you happen to pick', () => {
+    /*
+     * This used to be null, on the reasoning that a checkbox would appear on some rows and
+     * not others. That is still true of Scripture and resource rows, which have no bulk verbs
+     * to offer — but it turned out to be an argument for marking those rows, not for refusing
+     * selection on the tab people land on first. `'mixed'` is a real selection kind: its ids
+     * are composite, so one selection can hold a note and a folder and the verbs offered are
+     * the ones that work on both.
+     */
+    expect(librarySelectionKindForTab('all' as never)).toBe('mixed');
   });
 
   it('is not Scripture, whose rows are cards rather than list rows', () => {
@@ -114,5 +123,36 @@ describe('select all', () => {
   it('is false while one row is still out', () => {
     shell.sidebarSelectedIds = ['a'];
     expect(selection('notes', [note('a'), note('b')]).allSelected).toBe(false);
+  });
+});
+
+describe('composite ids, which is what lets one selection hold several kinds', () => {
+  it('round-trips a kind and its source id', () => {
+    expect(unpackMixedId(packMixedId('folder', 'Assurance'))).toEqual({
+      kind: 'folder',
+      sourceId: 'Assurance',
+    });
+  });
+
+  it('keeps a note and a folder of the same name apart', () => {
+    /* The exact collision the prefix exists for: a folder is keyed by its name, and a note id
+       could be anything — including that name. */
+    expect(packMixedId('note', 'Assurance')).not.toBe(packMixedId('folder', 'Assurance'));
+  });
+
+  it('survives a source id containing a colon', () => {
+    /* Split on the *first* colon only: thread drill slugs and scripture keys carry their own. */
+    expect(unpackMixedId('thread:cluster:abc:1')).toEqual({
+      kind: 'thread',
+      sourceId: 'cluster:abc:1',
+    });
+  });
+
+  it('refuses anything that is not a packed id', () => {
+    /* A bare id reaching the unpacker means a row and the selection have got out of step, and
+       the context is withheld rather than acting on the half that parsed. */
+    expect(unpackMixedId('note_123')).toBeNull();
+    expect(unpackMixedId(':orphan')).toBeNull();
+    expect(unpackMixedId('resource:r1')).toBeNull();
   });
 });

@@ -11,6 +11,8 @@ interface PrototypeSearchInputProps {
   placeholder?: string;
   autoFocus?: boolean;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  /** Fired when the field takes focus — for a caller that shows something once you mean to type. */
+  onFocus?: () => void;
   inputRef?: RefObject<HTMLInputElement | null>;
   id?: string;
   ariaLabel?: string;
@@ -24,6 +26,7 @@ export default function PrototypeSearchInput({
   placeholder = 'Search notes…',
   autoFocus,
   onKeyDown,
+  onFocus,
   inputRef,
   id,
   ariaLabel,
@@ -54,6 +57,7 @@ export default function PrototypeSearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
+        onFocus={onFocus}
         placeholder={placeholder}
         autoFocus={autoFocus}
         aria-label={ariaLabel ?? placeholder}
