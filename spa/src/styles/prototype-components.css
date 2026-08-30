@@ -18738,6 +18738,22 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * under it would be chrome rather than the top of a pile. Reading down leaves the stack
  * behind, which is what reading down does to the top of a pile.
  */
+/*
+ * Air above the pile.
+ *
+ * `.pds-reader__scroll` sets `padding: 0` with a reason — the reader's paper "has nothing to
+ * clear", so a top lip was only dead space. That was true when the paper was the first thing in
+ * the scroller. It is not now: the pile is, and pressed against the toolbar it reads as tabs
+ * hanging off the chrome rather than as paper behind paper. Activity gives its own stack the
+ * same `--pds-space-5` for the same reason.
+ *
+ * Scoped to the class the stack adds, so a reader with no pile — Genesis 1, the paper-stack
+ * base, every gallery fixture — keeps the flush top the comment argued for.
+ */
+.pds-reader-stack {
+  padding-top: var(--pds-space-5);
+}
+
 .pds-reader-stack__edges {
   position: relative;
   flex: 0 0 auto;
