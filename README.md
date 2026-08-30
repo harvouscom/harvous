@@ -105,5 +105,5 @@ Details, versions, and deployment: [docs/TECH_STACK.md](./docs/TECH_STACK.md).
 
 ---
 
-**Version:** 2.111.4
+**Version:** 2.111.5
 **Status:** Official 1.0 Released January 8, 2026

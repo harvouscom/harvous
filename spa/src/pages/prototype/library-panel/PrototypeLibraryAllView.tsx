@@ -227,6 +227,10 @@ export default function PrototypeLibraryAllView({ selection }: { selection?: Lib
               title: thread.title,
               subtitle: thread.subtitle ?? undefined,
               updatedAt: thread.updatedAt,
+              /* A shared space's current thread is the pinned one — `selectCurrentSpaceThread`
+                 finds it by exactly this flag — so it is the room's answer to "what are we on",
+                 and the one row in here that should never be scrolled past. */
+              isPinned: thread.isPinned === true,
             }))
           : clusters.map((cluster) => ({
               /* The drill slug, not the raw cluster id, so `sourceId` is the value the
@@ -236,6 +240,9 @@ export default function PrototypeLibraryAllView({ selection }: { selection?: Lib
               title: cluster.title?.trim() || cluster.suggestedTitle?.trim() || 'Untitled note',
               subtitle: `${cluster.noteCount} note${cluster.noteCount === 1 ? '' : 's'}`,
               updatedAt: cluster.updatedAt,
+              /* The same flag the thread card draws its pin from, so the row's glyph and its
+                 place in the list cannot disagree. */
+              isPinned: cluster.studyThreadPinned === true,
             })),
         scriptureBooks: books.map((book) => ({
           bookOrder: book.bookOrder,
@@ -251,6 +258,9 @@ export default function PrototypeLibraryAllView({ selection }: { selection?: Lib
           subtitle: item.sourceSiteName || item.sourceDomain || item.fileName || undefined,
           updatedAt: item.updatedAt,
           createdAt: item.createdAt,
+          /* No pin: this tab's resources are the personal library, whose rows carry no
+             `pinned` field — that one belongs to a space's shelf, which this view does not
+             show (`resources` is NONE inside a shared space). */
         })),
       }),
     [data.notes, data.isScopedSharedSpace, highlights, sharedThreads, clusters, books, resources],

@@ -33,6 +33,8 @@ export type LibraryAllItem = {
   /** The id to look the real row back up by when rendering. */
   sourceId: string;
   recencyMs: number;
+  /** Kept by the reader as worth returning to. Sorts above everything else — see the sort. */
+  isPinned?: boolean;
   title: string;
   subtitle?: string;
   /** Scripture opens at a book rather than by id, so the ordinal rides along. */
@@ -75,6 +77,7 @@ export type LibraryAllInput = {
     title?: string | null;
     updatedAt?: Timestamped;
     createdAt?: Timestamped;
+    isPinned?: boolean;
   }[];
   /**
    * Folders, which like books have no timestamp of their own.
@@ -102,6 +105,7 @@ export type LibraryAllInput = {
     title: string;
     subtitle?: string;
     updatedAt?: Timestamped;
+    isPinned?: boolean;
   }[];
   scriptureBooks: readonly {
     bookOrder: number;
@@ -147,11 +151,6 @@ export function buildLibraryAllItems(input: LibraryAllInput): LibraryAllItem[] {
   }
 
   for (const note of input.notes) {
-    /*
-     * Deliberately not `sortNotesByLastUpdated`, which puts pinned notes first. A pinned
-     * note from March heading a list that claims to be recent is exactly the lie this tab
-     * must not tell — pinning is an opinion about importance, not about recency.
-     */
     const recencyMs = newestMs(note.updatedAt, note.createdAt);
     if (recencyMs === null) continue;
     push({
@@ -159,6 +158,7 @@ export function buildLibraryAllItems(input: LibraryAllInput): LibraryAllItem[] {
       kind: 'note',
       sourceId: note.id,
       recencyMs,
+      isPinned: note.isPinned === true,
       title: note.title?.trim() || 'Untitled note',
     });
   }
@@ -182,6 +182,7 @@ export function buildLibraryAllItems(input: LibraryAllInput): LibraryAllItem[] {
     if (recencyMs === null) continue;
     push({
       id: `thread:${thread.id}`,
+      isPinned: thread.isPinned === true,
       kind: 'thread',
       sourceId: thread.id,
       recencyMs,
@@ -235,6 +236,23 @@ export function buildLibraryAllItems(input: LibraryAllInput): LibraryAllItem[] {
   }
 
   const sorted = [...byId.values()].sort((a, b) => {
+    /*
+     * Pinned first, then recency.
+     *
+     * This tab used to be recency alone, on the argument that "a pinned note from March
+     * heading a list that claims to be recent is exactly the lie this tab must not tell —
+     * pinning is an opinion about importance, not about recency". The argument is sound and
+     * the premise turned out to be wrong: a reader who pinned something is telling the app
+     * where they want it, and a list that scrolls it out of sight is answering a question
+     * nobody asked. Recency still orders everything else, and still orders the pins among
+     * themselves.
+     *
+     * Only the kinds that carry a pin can be pinned here — threads, notes and resources.
+     * Folders and scripture books have no such flag, so they sort as unpinned, which is
+     * what they are.
+     */
+    const pinDelta = Number(b.isPinned === true) - Number(a.isPinned === true);
+    if (pinDelta !== 0) return pinDelta;
     if (b.recencyMs !== a.recencyMs) return b.recencyMs - a.recencyMs;
     /* Stable on ties, so the list does not reshuffle between memo runs. */
     const kindDelta = KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind);
