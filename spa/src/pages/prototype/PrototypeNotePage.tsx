@@ -42,6 +42,7 @@ import {
 } from '../../hooks/mutations/usePatchSpaceNoteOrganization';
 import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
 import PrototypeInspectorPane, {
@@ -347,6 +348,7 @@ export default function PrototypeNotePage() {
     paperStack,
     setStackNoteTitle,
   } = useProtoShell();
+  const libraryNav = useLibraryPanelNav();
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   /**
    * A parked note has no note segment either: flipping the sheet down sends the URL to the
@@ -1321,16 +1323,23 @@ export default function PrototypeNotePage() {
       if (isCrossSpace) {
         setActiveSpaceId(targetSpaceId === personalHomeSpaceId ? null : targetSpaceId);
       }
+      /*
+       * Into the Library panel, which is where a thread or a folder is browsed now.
+       *
+       * These four lines set sidebar state — the list mode, the drilldown, the layer, expand
+       * it — and the sidebar has been admin-only since the rail was retired, so a thread or
+       * folder mention pill inside a note simply did nothing when pressed. `useLibraryPanelNav`
+       * is the same journey against the surface that replaced it, and the slug is the same one
+       * every other caller hands it.
+       *
+       * The mobile drawer goes with them: it held the sidebar, so opening it now opens an
+       * empty tray over the note. The panel presents itself on both widths.
+       */
       if (payload.kind === 'thread') {
-        setSidebarListMode('threads');
-        setSidebarThreadDrilldownId(threadClusterDrillSlug(payload.entityId));
+        libraryNav.openThread(threadClusterDrillSlug(payload.entityId));
       } else {
-        setSidebarListMode('folders');
-        setSidebarFolderDrilldown(payload.entityId);
+        libraryNav.openFolder(payload.entityId);
       }
-      setSidebarLayer('list');
-      ensureSidebarExpanded();
-      if (isMobileSidebar) openDrawer();
     },
     [
       navigate,
@@ -1338,13 +1347,7 @@ export default function PrototypeNotePage() {
       personalHomeSpaceId,
       selectedSpaceId,
       setActiveSpaceId,
-      setSidebarListMode,
-      setSidebarThreadDrilldownId,
-      setSidebarFolderDrilldown,
-      setSidebarLayer,
-      ensureSidebarExpanded,
-      isMobileSidebar,
-      openDrawer,
+      libraryNav,
     ],
   );
 
