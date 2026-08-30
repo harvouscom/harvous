@@ -8,6 +8,12 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthReady } from '../useAuthReady';
+import { useHarvousIdentity } from '../useHarvousIdentity';
+import {
+  addGuestHighlight,
+  guestHighlights,
+  removeGuestHighlight,
+} from '../../lib/guest-store';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 
@@ -50,10 +56,30 @@ export function usePrototypeChapterHighlights(
 ) {
   // Cold-start 401s are a recurring bug class here; every query waits for auth.
   const authReady = useAuthReady();
+  const { isGuest } = useHarvousIdentity();
   return useQuery({
     queryKey: chapterHighlightsKey(book, chapter, translation),
-    enabled: authReady && !!book && Number.isFinite(chapter),
+    /*
+     * A guest never satisfies `authReady`, which is what keeps every other user-scoped query
+     * on this page quiet for them. This one has somewhere else to read from, so it is enabled
+     * on the other side of the same fact rather than exempted from it.
+     */
+    enabled: (isGuest || authReady) && !!book && Number.isFinite(chapter),
     queryFn: async (): Promise<ChapterHighlight[]> => {
+      if (isGuest) {
+        return guestHighlights()
+          .filter((h) => h.book === book && h.chapter === chapter)
+          .map((h) => ({
+            id: h.id,
+            scriptureReference: h.reference,
+            highlightAccent: h.accent,
+            // Every guest highlight is made while reading; there is no note dock to make one
+            // from until they have an account.
+            madeWhileReading: true,
+            spanKey: h.spanKey,
+            excerpt: h.excerpt,
+          }));
+      }
       const params = new URLSearchParams({
         book,
         chapter: String(chapter),
@@ -113,6 +139,7 @@ export function useCreateChapterHighlight(
   spaceId: string | null | undefined,
 ) {
   const queryClient = useQueryClient();
+  const { isGuest } = useHarvousIdentity();
   const key = chapterHighlightsKey(book, chapter, translation);
   return useMutation({
     mutationFn: async (input: {
@@ -122,6 +149,22 @@ export function useCreateChapterHighlight(
       /** Null (or absent) for a whole-verse highlight; see `src/utils/scripture-span-key.ts`. */
       spanKey?: string | null;
     }) => {
+      if (isGuest) {
+        /*
+         * No `spaceId` guard: the space exists so the server can find the row again from the
+         * sidebar's Highlights list, and a guest has neither. Returning the stored row keeps
+         * the same contract as the POST — the optimistic entry below is replaced by a real id.
+         */
+        return addGuestHighlight({
+          book,
+          chapter,
+          translation,
+          reference: input.reference,
+          accent: input.accent,
+          spanKey: input.spanKey ?? null,
+          excerpt: input.excerpt ?? '',
+        });
+      }
       if (!spaceId) throw new Error('No space to save this highlight to yet');
       const res = await fetch('/api/scripture/highlights', {
         method: 'POST',
@@ -277,8 +320,13 @@ export function useDeleteChapterHighlight(
   spaceId: string | null | undefined,
 ) {
   const queryClient = useQueryClient();
+  const { isGuest } = useHarvousIdentity();
   return useMutation({
     mutationFn: async (studyThreadEntryId: string) => {
+      if (isGuest) {
+        removeGuestHighlight(studyThreadEntryId);
+        return;
+      }
       const res = await fetch(`/api/study-threads/${studyThreadEntryId}`, {
         method: 'DELETE',
         credentials: 'include',

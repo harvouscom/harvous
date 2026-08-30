@@ -2,6 +2,11 @@
  * Account menu — toolbar dropdown. Shows the signed-in name + email (like native
  * Mac's account screen), Settings, and Log out.
  * Mirrors SpaceSwitcherMenu / ListViewMenu (proto-menu popover, right-anchored).
+ *
+ * For a guest it becomes the one durable way to make an account. That matters structurally,
+ * not just as a convenience: it is what lets the standing guest row be dismissible without the
+ * offer disappearing with it. Settings and Log out are both absent rather than disabled —
+ * there is no session to end, and a row that cannot do anything is worse than no row.
  */
 import { useClerk, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,6 +23,8 @@ import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
 import { prefetchSettingsOpenPath } from './settings/prefetch-settings-chunks';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 
 export default function AccountMenu({ iconSize, disabled = false }: { iconSize: number; disabled?: boolean }) {
   const clerk = useClerk();
@@ -31,6 +38,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+  const { isGuest } = useHarvousIdentity();
 
   const avatarImageUrl = useMemo(
     () => resolveClerkProfileImageUrl(user, profile?.profileImageUrl),
@@ -99,7 +107,9 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
           */}
           <div className="proto-account-menu__identity">
             <span className="proto-account-menu__avatar" aria-hidden>
-              {showProfilePhoto ? (
+              {isGuest ? (
+                <Icon name="circle-user" size={PROTO_TOOLBAR_ICON_SIZE} />
+              ) : showProfilePhoto ? (
                 <img
                   src={avatarImageUrl!}
                   alt=""
@@ -111,13 +121,37 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               )}
             </span>
             <span className="proto-account-menu__text">
-              <span className="pds-list-title proto-account-menu__name">{name}</span>
-              {email ? (
+              <span className="pds-list-title proto-account-menu__name">
+                {isGuest ? 'Guest' : name}
+              </span>
+              {isGuest ? (
+                <span className="pds-list-preview proto-account-menu__email">
+                  Saved on this device
+                </span>
+              ) : email ? (
                 <span className="pds-list-preview proto-account-menu__email">{email}</span>
               ) : null}
             </span>
           </div>
 
+          {isGuest ? (
+            <div className="proto-menu-section" role="group">
+              <a
+                role="menuitem"
+                className="proto-menu-item"
+                href={guestSignUpHref()}
+                onClick={() => {
+                  setOpen(false);
+                  leaveForSignUp();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="circle-user" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>Create free account</span>
+              </a>
+            </div>
+          ) : (
           <div className="proto-menu-section" role="group">
             <button
               type="button"
@@ -160,6 +194,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               <span style={{ flex: 1, minWidth: 0 }}>{isSigningOut ? 'Logging out…' : 'Log out'}</span>
             </button>
           </div>
+          )}
         </ProtoPopoverShell>
       ) : null}
     </div>

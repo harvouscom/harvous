@@ -6,7 +6,7 @@
  * things: where it goes, that the visit is attributed as a guest conversion, and that leaving
  * this way does not trip the exit prompt on the way out.
  */
-import { GUEST_SIGNUP_SOURCE } from './guest-session';
+import { GUEST_ENTRY_PARAM, GUEST_SIGNUP_SOURCE } from './guest-session';
 
 /** Set while the app is navigating to sign-up under its own steam. */
 let leaving = false;
@@ -26,8 +26,14 @@ export function isLeavingForSignUp(): boolean {
 export function guestSignUpHref(): string {
   const params = new URLSearchParams({ source: GUEST_SIGNUP_SOURCE });
   if (typeof window !== 'undefined') {
-    // Come back to the chapter they were reading, not to a generic home.
-    params.set('redirect_url', `${window.location.pathname}${window.location.search}`);
+    // Come back to the chapter they were reading, not to a generic home — but without the
+    // `?try=1` that brought them in. Carrying it back would hand a brand-new member a link
+    // that re-arms guest mode, which does nothing while they are signed in and hands them an
+    // empty local partition the day they sign out.
+    const back = new URLSearchParams(window.location.search);
+    back.delete(GUEST_ENTRY_PARAM);
+    const query = back.toString();
+    params.set('redirect_url', `${window.location.pathname}${query ? `?${query}` : ''}`);
   }
   return `/sign-up?${params.toString()}`;
 }
