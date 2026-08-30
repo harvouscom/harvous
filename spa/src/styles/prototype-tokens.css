@@ -1004,6 +1004,29 @@ html.harvous-proto-wallpaper-image {
     --pds-paper-grain-b: rgba(255, 255, 255, 0.02);
     --pds-paper-fold-a: rgba(255, 255, 255, 0.08);
     --pds-paper-fold-b: rgba(255, 255, 255, 0.02);
+
+    /*
+     * Panel materials for dark, which the light values cannot stand in for.
+     *
+     * Both pairs are near-white in `:root` — a 95% white gradient for the sheet's panels and
+     * an 86% one for the search panel's body — and neither had a dark counterpart. On a dark
+     * sheet they painted a light slab, and the near-white row text on top of it disappeared.
+     *
+     * The relationships carry over, not the numbers. Top stays lighter than bottom, because
+     * light still falls from above. The panels sit a step above the body so the body still
+     * reads as the surface they lie on, and both stay above the sheet beneath them. The 2.5%
+     * and 3.2% steps are the light values' own, kept because a step is the whole difference
+     * between a surface and a boundary.
+     *
+     * The warm hue at the light gradient's bottom does not come along. The dark palette is
+     * hue 285 throughout, and belonging to that family matters more here than transliterating
+     * one warm value into a place nothing else is warm.
+     */
+    --pds-panel-glass-top: oklch(0.225 0.01 285 / 0.86);
+    --pds-panel-glass-bottom: oklch(0.193 0.01 285 / 0.86);
+
+    --pds-paper-panel-top: oklch(0.24 0.01 285 / 0.95);
+    --pds-paper-panel-bottom: oklch(0.215 0.01 285 / 0.95);
   }
 
   html.harvous-prototype-route:not(.harvous-proto-wallpaper-image):not([data-color-scheme="light"]) {
@@ -1205,6 +1228,14 @@ html.harvous-proto-wallpaper-image {
   --pds-paper-grain-b: rgba(255, 255, 255, 0.02);
   --pds-paper-fold-a: rgba(255, 255, 255, 0.08);
   --pds-paper-fold-b: rgba(255, 255, 255, 0.02);
+
+  /* Panel materials for dark — see the prefers-color-scheme block above for why these exist
+     and how the two pairs relate. */
+  --pds-panel-glass-top: oklch(0.225 0.01 285 / 0.86);
+  --pds-panel-glass-bottom: oklch(0.193 0.01 285 / 0.86);
+
+  --pds-paper-panel-top: oklch(0.24 0.01 285 / 0.95);
+  --pds-paper-panel-bottom: oklch(0.215 0.01 285 / 0.95);
 }
 
 html[data-color-scheme="dark"].harvous-prototype-route:not(.harvous-proto-wallpaper-image) {
