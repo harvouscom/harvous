@@ -7491,9 +7491,11 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding: 8px 14px 14px;
 }
 
+/* Same edge, same reason — see `.proto-home-greeting`. The 2px here was the other half of
+   the mismatch, and a section label belongs over the left edge of what it labels. */
 .proto-home-section__eyebrow {
   margin: 0 0 6px;
-  padding: 0 2px;
+  padding: 0;
 }
 
 /* A group on Home is one panel of hairline rows — the church hub's Tools shape — so the
@@ -7927,9 +7929,18 @@ button.proto-home-card--tappable:focus-visible {
 }
 
 /* Greeting paragraph — flowing prose with inline stat chips. */
+/*
+ * The sentence starts where the cards under it start.
+ *
+ * The 4px was a soft inset from the rail, where a paragraph pressed against a 304px edge
+ * wanted a hair of room. Nothing compensates for it — no chip carries a matching negative
+ * margin — so on a sheet it was simply the one block on the page that did not line up: the
+ * greeting's first letter at 226, the eyebrow's at 224, the card's edge at 222. Three
+ * alignments in the top two inches of a surface whose content is otherwise one column.
+ */
 .proto-home-greeting {
   margin: 0;
-  padding: 6px 4px 2px;
+  padding: 6px 0 2px;
   font-family: var(--pds-font-body);
   font-size: 15px;
   line-height: 1.75;
@@ -21714,6 +21725,21 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  */
 .proto-shared-space-dashboard--sheet .proto-home-view {
   padding-inline: 0;
+}
+
+/*
+ * The inset moves up to the scroller, so a card's shadow has somewhere to fall.
+ *
+ * The scroller is the clipping element — `overflow-y: auto` clips the other axis too — and it
+ * used to end exactly where the content did, so every card's shadow was cut off flat down both
+ * sides. Taking the sheet's side padding off the sheet and giving it to the scroller changes
+ * nothing about where anything sits: the content is still `--pds-space-5` from the paper's
+ * edge. It just puts that gap *inside* the box that clips, which is the difference between a
+ * shadow with room to fall and a shadow with none.
+ */
+.proto-shared-space-dashboard--sheet > .proto-sidebar-scroll {
+  margin-inline: calc(-1 * var(--pds-space-5));
+  padding-inline: var(--pds-space-5);
 }
 
 .proto-shared-space-header__cover {
