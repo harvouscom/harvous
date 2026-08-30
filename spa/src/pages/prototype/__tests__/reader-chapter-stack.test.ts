@@ -44,7 +44,9 @@ describe('chaptersBehind', () => {
     expect(chaptersBehind('Nonexistent', 3, 2)).toEqual([]);
   });
 
-  it('ships with the cap every other stack in the app uses', () => {
-    expect(READER_CHAPTER_EDGES).toBe(2);
+  it('shows one chapter behind, not two', () => {
+    /* Activity shows two because reaching back three days is a real thing to want. A chapter
+       has one predecessor that matters, and the heading's grid reaches the rest at once. */
+    expect(READER_CHAPTER_EDGES).toBe(1);
   });
 });

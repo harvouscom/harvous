@@ -20399,60 +20399,57 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   }
 }
 
-/* Chapter navigation — the reader's one piece of persistent chrome, at the end of
-   the text where finishing a chapter is what prompts it, rather than in a toolbar
-   competing with the reading surface. */
-.pds-reader__chapter-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--pds-space-3);
-  margin-top: var(--pds-space-10);
-  padding-top: var(--pds-space-5);
-  padding-inline: var(--pds-reader-text-inset);
-  /*
-   * Closes the chapter, the way the note header's rule opens a note.
-   *
-   * `--pds-border-on-paper`, not `--pds-border`: this sits on the paper sheet rather than on
-   * the canvas, and the ordinary border token is effectively invisible against it — the same
-   * reason the note's audience bar reaches for this token (see prototype-tokens.css).
-   */
-  border-top: 0.5px solid var(--pds-border-on-paper);
-}
-
-.pds-reader__chapter-nav-btn {
+/*
+ * Reading on — one control, floating over the paper's corner.
+ *
+ * The pair that used to close the chapter went with the pile arriving above it. Back was being
+ * stated twice: as an edge naming the chapter behind, and as a button at the foot naming the
+ * same one. Two controls for one move is how a reading surface stops being one.
+ *
+ * Sticky rather than fixed or in flow. In flow at the end of the text it could only be reached
+ * by scrolling the whole chapter — right for a page you finished, wrong for one you are three
+ * verses into and done with. Sticky keeps it over the paper the whole way down, and still lets
+ * it come to rest at the end, where a page's last control belongs.
+ */
+.pds-reader__next-float {
+  position: sticky;
+  bottom: var(--pds-space-5);
+  align-self: flex-end;
+  margin: var(--pds-space-4) var(--pds-space-5) var(--pds-space-5);
   display: inline-flex;
   align-items: center;
   gap: var(--pds-space-2);
   padding: var(--pds-space-2) var(--pds-space-3);
   border: 0.5px solid var(--pds-border);
   border-radius: var(--pds-radius-button);
-  background: none;
+  /* Opaque over the text it floats above — the same composite the stack's sheets use, for the
+     same reason: a translucent fill would have verses reading through the control. */
+  background-color: var(--pds-canvas-default);
+  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+  box-shadow: var(--pds-paper-shadow-subtle);
   cursor: pointer;
   color: var(--pds-text-secondary);
   font-family: var(--pds-font-body);
   font-size: 0.8125rem;
   font-weight: 500;
-  transition: background-color var(--pds-duration-press) var(--pds-ease-standard),
+  transition:
+    background-color var(--pds-duration-press) var(--pds-ease-standard),
     color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-.pds-reader__chapter-nav-btn:hover {
-  background-color: var(--pds-bg-control-hover);
-  color: var(--pds-text-primary);
+@media (hover: hover) {
+  .pds-reader__next-float:hover {
+    color: var(--pds-text-primary);
+  }
 }
 
-.pds-reader__chapter-nav-btn:focus-visible {
+.pds-reader__next-float:focus-visible {
   outline: 2px solid var(--pds-accent);
   outline-offset: 1px;
 }
 
-.pds-reader__chapter-nav-btn--next {
-  margin-inline-start: auto;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .pds-reader__chapter-nav-btn {
+  .pds-reader__next-float {
     transition: none;
   }
 }

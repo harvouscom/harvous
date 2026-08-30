@@ -17,8 +17,8 @@
  * Both directions are defensible; consistency decides it. Activity puts yesterday above today and
  * flipping an edge goes *back*, so edges pointing forward here would make one gesture mean two
  * things across two surfaces. It also matches a book — the pages you have turned past are the
- * ones under your thumb. Going on is the prev/next nav at the foot, which already crosses book
- * boundaries and is where "reading continues" is documented to belong.
+ * ones under your thumb. Going on is the floating control over the paper's corner, which is the
+ * only other direction and the only other control.
  */
 import { useEffect, useMemo, type CSSProperties } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -28,14 +28,15 @@ import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleC
 /**
  * How many chapters show an edge.
  *
- * Two, matching every other stack in the app: past that the pile stops reading as a stack and
- * starts reading as a row of tabs. Reaching further back is what flipping is for — or the
- * chapter grid in the heading, which goes anywhere in the book at once.
+ * One. Activity shows two because its sheets are days and reaching back three of them is a
+ * real thing to want; a chapter has one predecessor that matters — the one you were just in —
+ * and the heading's chapter grid goes anywhere in the book in a single press. A second edge
+ * was depth for its own sake, and it cost the top of the page twice over.
  *
  * Passed to CSS as `--edge-count` rather than restated there. Activity keeps this number twice,
  * once in TS and again as `calc(step * 2)`, and the two can drift with nothing to notice.
  */
-export const READER_CHAPTER_EDGES = 2;
+export const READER_CHAPTER_EDGES = 1;
 
 /** The chapters immediately behind this one, nearest first. Empty at Genesis 1. */
 export function chaptersBehind(
@@ -76,10 +77,11 @@ export default function PrototypeReaderChapterStack({
   /*
    * Warm the sheets behind, so a flip is a flip rather than a load.
    *
-   * `usePrefetchAdjacentChapters` already warms ±1, so the nearest edge is usually paid for
-   * already; this reaches the second one too. `bibleChapterQueryOptions` rather than a fetch of
-   * its own, per that module's warning: a prefetch that builds its own key or its own fetcher
-   * warms an entry the hook never reads, which looks like it works and does nothing.
+   * `usePrefetchAdjacentChapters` already warms ±1, so with one edge this is usually a cache
+   * read rather than a fetch — kept because the loop is what makes the count a number rather
+   * than an assumption. `bibleChapterQueryOptions` rather than a fetch of its own, per that
+   * module's warning: a prefetch that builds its own key or its own fetcher warms an entry the
+   * hook never reads, which looks like it works and does nothing.
    */
   useEffect(() => {
     for (const e of edges) {

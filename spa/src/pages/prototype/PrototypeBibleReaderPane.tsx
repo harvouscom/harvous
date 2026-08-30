@@ -2015,40 +2015,37 @@ export default function PrototypeBibleReaderPane({
             )}
           </div>
 
-          {/* Where reading continues. Both ends cross book boundaries, so Exodus 40 offers
-              Leviticus 1 rather than nothing — the canon reads as one book here, and only
-              Genesis 1 and the end of Revelation have no neighbour. */}
-          {onNavigateTo ? (
-            <nav className="pds-reader__chapter-nav" aria-label="Chapter navigation">
-              {prevChapter ? (
-                <button
-                  type="button"
-                  className="pds-reader__chapter-nav-btn"
-                  onClick={() => onNavigateTo(prevChapter.book, prevChapter.chapter)}
-                >
-                  <Icon name="caret-left" size={12} aria-hidden />
-                  <span>
-                    {prevChapter.book} {prevChapter.chapter}
-                  </span>
-                </button>
-              ) : (
-                <span />
-              )}
-              {nextChapter ? (
-                <button
-                  type="button"
-                  className="pds-reader__chapter-nav-btn pds-reader__chapter-nav-btn--next"
-                  onClick={() => onNavigateTo(nextChapter.book, nextChapter.chapter)}
-                >
-                  <span>
-                    {nextChapter.book} {nextChapter.chapter}
-                  </span>
-                  <Icon name="caret-right" size={12} aria-hidden />
-                </button>
-              ) : null}
-            </nav>
-          ) : null}
         </div>
+
+        {/*
+          Where reading continues, and the only direction left that needs a control.
+
+          The pair at the foot of the page went with the pile arriving above it: back was stated
+          twice, once as an edge naming the chapter behind and once as a button at the bottom
+          naming the same one, and two controls for one move is how a surface stops being
+          readable. The pile keeps back; this keeps on.
+
+          Floating rather than in flow, because it belongs to the reading rather than to the end
+          of the text. In flow at the foot it could only be reached by scrolling the whole
+          chapter — right for a page you finished, wrong for one you are three verses into and
+          done with. Over the paper's bottom corner it is reachable the whole way down.
+
+          Absent at the end of Revelation, where `adjacentChapter` returns null. The canon runs
+          out, and a disabled control would be chrome asserting there is somewhere else to go.
+        */}
+        {onNavigateTo && nextChapter ? (
+          <button
+            type="button"
+            className="pds-reader__next-float"
+            onClick={() => onNavigateTo(nextChapter.book, nextChapter.chapter)}
+            aria-label={`Read on to ${nextChapter.book} ${nextChapter.chapter}`}
+          >
+            <span className="pds-reader__next-float-label">
+              {nextChapter.book} {nextChapter.chapter}
+            </span>
+            <Icon name="caret-right" size={12} aria-hidden />
+          </button>
+        ) : null}
       </div>
 
       {readerToolbar}
