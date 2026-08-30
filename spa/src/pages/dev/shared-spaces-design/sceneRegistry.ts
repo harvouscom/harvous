@@ -152,7 +152,7 @@ export const SHARED_SPACES_DESIGN_SCENES: SharedSpacesDesignScene[] = [
     phase: 'Shell',
     editFiles: [
       'spa/src/pages/prototype/PrototypeSpaceHub.tsx',
-      'spa/src/pages/prototype/SharedSpaceAboutSheet.tsx',
+      'spa/src/pages/prototype/PrototypeSpacePeopleSheet.tsx',
       'spa/src/pages/prototype/SharedSpaceAboutLetter.tsx',
       'spa/src/pages/dev/shared-spaces-design/shared-space-dashboard-fixtures.ts',
       'spa/src/pages/dev/shared-spaces-design/SharedSpaceDashboardFixtureView.tsx',

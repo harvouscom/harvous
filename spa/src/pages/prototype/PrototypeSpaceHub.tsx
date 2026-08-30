@@ -71,7 +71,6 @@ import {
 } from './shared-space-dashboard';
 import { deletedNoteIds, subscribeDeletedNotes } from './proto-deleted-notes';
 import SharedSpaceSocialGreeting from './SharedSpaceSocialGreeting';
-import SharedSpaceAboutSheet from './SharedSpaceAboutSheet';
 import {
   readSharedSpaceDashboardFixtureMode,
   sharedSpaceDashboardFixtureForMode,
@@ -244,7 +243,15 @@ function PrototypeSpaceHubLive() {
     beginPrototypeComposeSession,
   } = useProtoShell();
   const [peopleOpen, setPeopleOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
+  /*
+   * Which screen the one sheet opens on.
+   *
+   * There used to be two sheets and two pieces of state: `aboutOpen` for the header's `i` and
+   * `peopleOpen` for the gear and the people line. They were the same object — this sheet edits
+   * the cover, the name, the description, the rhythm and the roster, and the other displayed
+   * exactly those read-only. One sheet now, and this says which door was used.
+   */
+  const [peopleView, setPeopleView] = useState<'letter' | 'details' | 'invites'>('letter');
   const [createThreadOpen, setCreateThreadOpen] = useState(false);
   const [changeThreadOpen, setChangeThreadOpen] = useState(false);
   const [threadTab, setThreadTab] = useState<'current' | 'available'>('current');
@@ -458,9 +465,9 @@ function PrototypeSpaceHubLive() {
     orgId: ministryMeta.orgId,
   });
 
-  const openPeopleSheet = () => {
+  const openPeopleSheet = (view: 'letter' | 'details' | 'invites' = 'letter') => {
     if (isMinistryChannel && !canModerateChannel) return;
-    setAboutOpen(false);
+    setPeopleView(view);
     setPeopleOpen(true);
   };
   const recentNotes = activityQuery.data?.recentNotes ?? [];
@@ -845,11 +852,19 @@ function PrototypeSpaceHubLive() {
             >
               <span>{spaceTitle}</span>
             </div>
+            {/* The word lands on the thing it names: "Invite" opens the invite links, the
+                count beside it opens what the room is. */}
             {!isMinistryChannel ? (
               <button
                 type="button"
                 className="proto-shared-space-header__people"
-                onClick={openPeopleSheet}
+                onClick={(e) =>
+                  openPeopleSheet(
+                    (e.target as HTMLElement).closest('.proto-shared-space-header__invite')
+                      ? 'invites'
+                      : 'letter',
+                  )
+                }
               >
                 <span>{membersSettled ? sharedSpacePeopleHeaderLabel(peopleCount) : ' '}</span>
                 {isSpaceOwner ? (
@@ -871,9 +886,9 @@ function PrototypeSpaceHubLive() {
             <button
               type="button"
               className="proto-toolbar-icon-btn"
-              aria-label="About this space"
-              title="About this space"
-              onClick={() => setAboutOpen(true)}
+              aria-label={isMinistryChannel ? 'About this channel' : 'About this space'}
+              title={isMinistryChannel ? 'About this channel' : 'About this space'}
+              onClick={() => openPeopleSheet('letter')}
             >
               <Icon name="circle-info" size={15} />
             </button>
@@ -883,7 +898,10 @@ function PrototypeSpaceHubLive() {
                 className="proto-toolbar-icon-btn"
                 title={isMinistryChannel ? 'Channel settings' : 'Space settings'}
                 aria-label={isMinistryChannel ? 'Channel settings' : 'Space settings'}
-                onClick={openPeopleSheet}
+                /* Straight to the page its own label names, rather than to a landing that
+                   would make someone who already knows what they want read past the room's
+                   description to reach it. */
+                onClick={() => openPeopleSheet('details')}
               >
                 <Icon name="gear" size={15} />
               </button>
@@ -952,7 +970,9 @@ function PrototypeSpaceHubLive() {
                 intro={contributorIntro}
                 presenceOthers={[]}
                 onOpenNotes={goToNotesList}
-                onOpenPeople={isMinistryChannel && !canModerateChannel ? undefined : openPeopleSheet}
+                onOpenPeople={
+                  isMinistryChannel && !canModerateChannel ? undefined : () => openPeopleSheet('letter')
+                }
               />
             </div>
           ) : null}
@@ -1149,18 +1169,10 @@ function PrototypeSpaceHubLive() {
         </div>
       </div>
 
-      <SharedSpaceAboutSheet
-        open={aboutOpen}
-        onOpenChange={setAboutOpen}
-        space={space ?? null}
-        members={isMinistryChannel && !canModerateChannel ? [] : members}
-        hideMemberRoster={isMinistryChannel && !canModerateChannel}
-        ministryChannel={isMinistryChannel}
-      />
-
       <PrototypeSpacePeopleSheet
         open={peopleOpen}
         onOpenChange={setPeopleOpen}
+        initialView={peopleView}
         spaceId={activeSpaceId}
         spaceTitle={spaceTitle}
         spaceColor={space?.color}
