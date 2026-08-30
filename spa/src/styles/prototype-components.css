@@ -21705,21 +21705,27 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /*
- * The masthead, in the letter's own composition.
+ * The masthead: the letter's composition, on the page's own left edge.
  *
- * The About panel is where a space is introduced, and it introduces one the way a title page
- * does: the tile centred and straddling the cover, the name under it, large. The room itself
- * said the same thing in a 30px tile and a 15px line — correct as a sidebar row, which is
- * where that markup came from, and wrong as the top of the place you are standing in.
+ * The About panel introduces a space the way a title page does — tile straddling the cover,
+ * name under it, large — and the room borrowed that, centred and all. Centred is right in the
+ * panel, whose entire content is the letter. It is wrong here: everything under it is
+ * left-aligned, so the page opened with a centred block over a left-aligned one and the eye
+ * had two starting points in the first two inches.
  *
- * So this is a column, centred, at the letter's measurements. The people line stays where it
- * was in the reading order, directly under the name, because "Church group · Just you · Invite"
- * is one statement about the room and splitting it across two alignments would make it two.
+ * So the column stays and the centring goes. Tile, then name, then the people line, each
+ * flush with the greeting and the cards below — one edge down the whole surface. The letter's
+ * proportions are untouched: the tile is still 52px straddling the cover by half itself, the
+ * name is still 30px.
+ *
+ * The people line stays directly under the name rather than beside it, because "Family · Just
+ * you · Invite" is one statement about the room and splitting it across two lines of the same
+ * row would make it two.
  */
 .proto-shared-space-header--cover > .proto-shared-space-header__row {
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  align-items: flex-start;
+  text-align: left;
   gap: 10px;
   padding: 0 var(--hub-header-inset-x);
 }
@@ -21808,7 +21814,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 .proto-shared-space-header--cover > .proto-shared-space-header__row > .space-icon-tile {
-  align-self: center;
+  align-self: flex-start;
   margin-top: -26px;
   /* A rim of paper, so the tile sits *on* the cover rather than being a hole cut in it. */
   box-shadow: 0 0 0 3px var(--pds-canvas-default);
@@ -21817,14 +21823,13 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 /*
  * Stretched, not shrunk to its own contents.
  *
- * `align-items: center` on a column flex makes every child shrink-to-fit on the cross axis,
- * and the title is a marquee wrapper whose width comes from its parent — so centring the meta
- * block collapsed the name to nothing while the people line under it, which has intrinsic
- * width, went on rendering. The block takes the row's width and centres its text instead.
+ * The title is a marquee wrapper whose width comes from its parent, so a meta block that
+ * shrink-to-fits collapses the name to nothing while the people line under it, which has
+ * intrinsic width, goes on rendering. It cost an hour once; the block takes the row's width.
  */
 .proto-shared-space-header--cover .proto-shared-space-header__meta {
   align-self: stretch;
-  align-items: center;
+  align-items: flex-start;
   flex: 0 0 auto;
   gap: 2px;
 }
@@ -21833,11 +21838,8 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   width: 100%;
 }
 
-/* The people line carries its own `align-self: flex-start`, which is right in a left-aligned
-   row and the one thing still pinned to the edge under a centred name. */
-.proto-shared-space-header--cover .proto-shared-space-header__people {
-  align-self: center;
-}
+/* The people line's own `align-self: flex-start` is right again now that the row is
+   left-aligned — nothing to override. */
 
 /*
  * The name at the size the letter says it.
