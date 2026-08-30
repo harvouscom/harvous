@@ -55,12 +55,12 @@
   } catch (e) { /* ignore — a guest who cannot write localStorage still gets the reader */ }
 
   /*
-   * Reserve the guest row's height before first paint.
+   * Lay the shell out for the guest row before first paint.
    *
-   * The class means "the row is taking up space", not "this is a guest" — a guest who has put
-   * the row away gets the full frame back, so the dismissed flag has to be read here too or the
-   * shell would sit 34px short with nothing in the gap. React re-asserts both from
-   * `PrototypeGuestModeRow`; this is only about the first frame.
+   * The class turns the frame into a flex column so the row can sit inside it above the
+   * toolbar. It means "the row is taking up space", not "this is a guest" — a guest who has put
+   * the row away is back to a plain shell, so the dismissed flag has to be read here too.
+   * React re-asserts both from `PrototypeGuestModeRow`; this is only about the first frame.
    * Keep in sync with PROTO_GUEST_ROW_DISMISSED_KEY in spa/src/layouts/proto-session-keys.ts.
    */
   try {

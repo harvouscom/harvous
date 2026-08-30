@@ -5,6 +5,11 @@
  * — a slim `role="status"` row with a caption and one trailing control. That component exists to
  * answer "what mode am I in, and what can I not do here", which is this question exactly.
  *
+ * It renders *inside* the shell frame, above the toolbar. Sitting above the frame instead left
+ * the notice stranded on the canvas with the app's white card starting below it, which read as
+ * a gap rather than as a bar — the shell has to move down as one object, not have a strip
+ * balanced on top of it.
+ *
  * **The copy is the honest one.** A guest's notes are in IndexedDB, so they survive a tab close,
  * a reload, and a laptop lid; what they do not survive is a different browser, a cleared cache,
  * or a phone. "Save before you lose your work" would have been the easier line and a false one,
@@ -33,11 +38,11 @@ export default function PrototypeGuestModeRow({ enabled }: { enabled: boolean })
   }, []);
 
   /*
-    The row lives above the shell frame, so its height has to come off the frame rather than out
-    of the grid — see `html.harvous-proto-guest` in prototype-shell.css. The class is asserted
-    here rather than at the shell because this component is the only thing that knows whether the
-    row is actually on screen: dismissing it must give the 34px back, not leave an empty band.
-    `prototype-route-boot.js` sets the same class pre-paint; this keeps it honest afterwards.
+    The frame only becomes a flex column while this row is in it — see `html.harvous-proto-guest`
+    in prototype-shell.css. The class is asserted here rather than at the shell because this
+    component is the only thing that knows whether the row is actually on screen: dismissing it
+    must hand the plain layout back. `prototype-route-boot.js` sets the same class pre-paint;
+    this keeps it honest afterwards.
   */
   useEffect(() => {
     const root = document.documentElement;
@@ -51,18 +56,17 @@ export default function PrototypeGuestModeRow({ enabled }: { enabled: boolean })
   return (
     <div className="proto-guest-row" role="status" aria-live="polite">
       <span className="proto-guest-row__status pds-caption">
-        <Icon name="circle-user" size={11} className="proto-guest-row__icon" aria-hidden />
-        <span className="proto-guest-row__label">
-          You&rsquo;re trying Harvous — notes are saved on this device only
-        </span>
+        <Icon name="id-card-clip" size={11} className="proto-guest-row__icon" aria-hidden />
+        {/* Short enough to sit in a 34px bar next to a button without either one wrapping. */}
+        <span className="proto-guest-row__label">Saved on this device</span>
       </span>
       <span className="proto-guest-row__trail">
         <a
-          className="proto-guest-row__action"
+          className="proto-accent-btn-sm"
           href={guestSignUpHref()}
           onClick={handleCreate}
         >
-          Create free account
+          Create account
         </a>
         {/*
           Safe to put away because it is not the only door: the toolbar's account control is a

@@ -2347,38 +2347,41 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 /* ─── Guest mode ─────────────────────────────────────────────────────────── */
 
 /*
-  The standing "you are trying Harvous" row, above the shell frame.
+  The standing "you are trying Harvous" row, inside the shell frame above the toolbar.
 
-  Above rather than inside because the shell's grid already carries four row templates
-  (`--note-chrome`, `--no-footer`, and their combinations) and a fifth variant for a notice that
-  is not about the note would have to be spelled out against each of them. Reserving the height
-  on the frame instead is one subtraction that every variant inherits for free.
+  It lived *above* the frame first, with the frame's height reduced to make room. The geometry
+  was right and the result still read as broken: a line of text stranded on the canvas with the
+  app's white card beginning below it, which looks like a gap rather than a bar. Inside the
+  frame it is part of the same object, clipped by the same rounded corners, and the shell moves
+  as one thing.
 
-  `html.harvous-proto-guest` is set by `public/scripts/prototype-route-boot.js` before the bundle
-  loads, so the space is claimed in the first paint — an arriving guest never sees the shell jump
-  down by 34px a moment after landing, which on this one screen would undo the whole handoff.
+  The frame becomes a flex column only under this class, so the grid inside it — which carries
+  four row templates already — is not touched at all.
 */
-:root {
-  --proto-guest-row-h: 34px;
+html.harvous-proto-guest .proto-shell-frame {
+  display: flex;
+  flex-direction: column;
 }
 
-html.harvous-proto-guest .proto-shell-frame {
-  height: calc(100vh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
-  height: calc(100dvh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+html.harvous-proto-guest .proto-shell-frame > .proto-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Overrides the `height: 100%` on `.proto-shell-frame > .proto-shell`, which with the row
+     above it would total more than the frame and push the footer out of the bottom. */
+  height: auto;
 }
 
 .proto-guest-row {
   box-sizing: border-box;
   display: flex;
-  /* `#root` is a flex column, so without this the row is squeezed by the frame below it and
-     renders shorter than the height the frame just subtracted for it — a few px of the shell
-     falling off the bottom of the window. */
-  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  height: var(--proto-guest-row-h);
-  padding: 0 calc(var(--pds-shell-frame-inset) + 4px);
+  gap: 10px;
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-bottom: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-page);
   color: var(--pds-text-secondary);
 }
 
@@ -2392,9 +2395,9 @@ html.harvous-proto-guest .proto-shell-frame {
 }
 
 /*
-  The sentence is the first thing to give way, not the button. On a narrow phone the label
-  truncates to "You're trying Harvous —" and the way to keep the notes stays whole and tappable;
-  the reverse would leave a full explanation of a problem next to no way to solve it.
+  The sentence gives way before the button does. On a narrow phone the label truncates and the
+  way to keep the notes stays whole and tappable; the reverse would leave a full explanation of
+  a problem beside no way to solve it.
 */
 .proto-guest-row__label {
   overflow: hidden;
@@ -2414,21 +2417,45 @@ html.harvous-proto-guest .proto-shell-frame {
   flex-shrink: 0;
 }
 
-.proto-guest-row__action {
+/*
+  The accent button, in the one size that fits a 34px bar. Same three tokens as
+  `.proto-settings-btn` — a second gradient defined by hand here would drift from that one the
+  first time either is touched.
+
+  Named for the size rather than the row, because guest Home wants the same button next to its
+  own list and a `__action` on a `proto-guest-row` block would have been the wrong thing to
+  reach for there.
+*/
+.proto-accent-btn-sm {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  height: 22px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: var(--pds-radius-button);
-  padding: 0 10px;
-  background: var(--pds-bg-glass-medium);
-  color: var(--pds-text-primary);
-  font: 600 11px/1 var(--pds-font-body);
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent) !important;
+  box-shadow: var(--pds-shadow-accent-button);
+  font: 600 12px/1 var(--pds-font-body);
   text-decoration: none;
   cursor: pointer;
+  transition: filter 0.1s;
+}
+
+.proto-accent-btn-sm:hover {
+  filter: brightness(1.06);
+}
+
+/* The long prefix is not decoration — same reason `.proto-settings-btn` and
+   `.proto-settings-danger__btn:hover` carry it. A global rule,
+   `html.harvous-prototype-route button[class*="proto-"]`, pins every prototype button to
+   text-primary with !important, and at (0,2,2) it outranks a bare class — so as an `<a>` this
+   button had white text and as a `<button>` it had dark text on the same blue. */
+html.harvous-prototype-route button[class*='proto-'].proto-accent-btn-sm {
+  color: var(--pds-on-accent) !important;
 }
 
 .proto-guest-row__dismiss {

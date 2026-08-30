@@ -29,6 +29,7 @@ import {
   PROTO_TOOLBAR_ORB_ICON_SIZE,
 } from './proto-toolbar-tokens';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import ProtoHouseIcon from './ProtoHouseIcon';
 import { offerGuestAccount } from '../../lib/guest-gate';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
@@ -278,7 +279,15 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
    * house and My Church is a church, not the generic Activity mark. Only a space with no
    * identity of its own falls back to `layer-group`.
    */
-  const spaceGlyph = homeSpaceId ? (
+  const spaceGlyph = isGuest ? (
+    /*
+     * A guest has no space, so this fell through to the neutral `layer-group` the switcher
+     * shows while nav is still resolving — a placeholder for an answer that is coming. For a
+     * guest no answer is coming, and the honest one is a house: the only space they have is
+     * their own, and this segment goes to it.
+     */
+    <ProtoHouseIcon size={PROTO_SEG_GLYPH_SIZE} />
+  ) : homeSpaceId ? (
     <SpaceSwitcherTriggerIcon
       space={activeSpaceRow}
       isMinistry={Boolean(activeSpaceRow && isMinistryBroadcastSpace(activeSpaceRow))}

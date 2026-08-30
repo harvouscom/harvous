@@ -22898,3 +22898,64 @@ button.proto-feed-sheet__stat:hover {
     }
   }
 }
+
+/* ─── Guest Home ─────────────────────────────────────────────────────────── */
+
+/*
+  The read-first state, for a guest who has not highlighted anything yet.
+
+  Not `.proto-editor-empty-state`: that is a centred pane state for a surface with nothing in
+  it, and this surface has the getting-started list directly underneath. Two centred blocks
+  stacked read as two unrelated announcements, which is exactly what the first version of this
+  screen looked like.
+*/
+.proto-guest-home__intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--pds-space-3);
+  padding-bottom: var(--pds-space-2);
+}
+
+.proto-guest-home__lead {
+  margin: 0;
+  max-width: 42ch;
+  color: var(--pds-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* The button sizes to its label here — full width is for a settings sheet, not for one
+   invitation sitting at the top of a list. */
+.proto-guest-home__intro .proto-settings-btn {
+  width: auto;
+}
+
+/*
+  The "On this device" heading — an eyebrow, a count, and one control on the right.
+
+  Deliberately its own rules rather than borrowing `.proto-onboarding-dock__head`: that block
+  belongs to the checklist, which sits directly below this one on the same screen, and two
+  sections sharing a class because they happen to look alike is how one of them ends up
+  restyled by a change meant for the other.
+*/
+.proto-guest-home__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+  padding: 0 var(--pds-space-2) var(--pds-space-2);
+}
+
+.proto-guest-home__eyebrow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.proto-guest-home__count {
+  color: var(--pds-text-secondary);
+  font-variant-numeric: tabular-nums;
+}

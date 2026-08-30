@@ -997,8 +997,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
 
   return (
     <>
-      <PrototypeGuestModeRow enabled={isGuest} />
       <div className="proto-shell-frame simplified-prototype-root">
+        <PrototypeGuestModeRow enabled={isGuest} />
         <div ref={shellRef} className={shellMods} style={shellStyle}>
         <DevModeBadge />
         {/* Never for a guest: 'guest' is a truthy userId, and mounting this would start a

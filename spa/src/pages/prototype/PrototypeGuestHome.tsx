@@ -1,0 +1,111 @@
+/**
+ * Home, for someone with no account — an activity sheet like every other day's.
+ *
+ * The first version of this was a centred empty state: an icon, a paragraph explaining what
+ * Activity would do for them one day, and a button. It read as a wall in front of the app
+ * rather than as part of it, and everything on it was about a feature they did not have.
+ *
+ * A guest *does* have activity — the verses they highlighted and the notes they wrote are
+ * sitting on this device — so the honest surface is the same paper the feed uses, showing the
+ * same thing it would show. Then "keep this" is a sentence about the list they are looking at,
+ * which is the only version of that offer worth making.
+ */
+import { useSyncExternalStore } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import Icon from '@/components/react/Icon';
+import PrototypeMainPaneShell from './PrototypeMainPaneShell';
+import PrototypeHomeRow from './PrototypeHomeRow';
+import PrototypeOnboardingDock from './PrototypeOnboardingDock';
+import { prototypeReadTodayRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
+import {
+  guestHighlights,
+  guestStoreServerSnapshot,
+  guestStoreSnapshot,
+  subscribeToGuestStore,
+} from '../../lib/guest-store';
+import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
+import { bookSlug } from '@/utils/bible-book-chapters';
+
+export default function PrototypeGuestHome() {
+  const navigate = useNavigate();
+  // Re-render on every local write, so a highlight made a moment ago is already listed here.
+  useSyncExternalStore(subscribeToGuestStore, guestStoreSnapshot, guestStoreServerSnapshot);
+  const highlights = guestHighlights();
+  const openReader = () => navigate({ to: prototypeReadTodayRouteTo() });
+
+  return (
+    <PrototypeMainPaneShell>
+      <article className="proto-feed-sheet">
+        <header className="proto-feed-sheet__head">
+          <div className="proto-feed-sheet__title">
+            <h2 className="proto-feed-sheet__day">Today</h2>
+          </div>
+        </header>
+
+        <div className="proto-feed-sheet__body">
+          {highlights.length > 0 ? (
+            <section className="proto-home-section">
+              <div className="proto-guest-home__section-head">
+                <p className="proto-caption proto-guest-home__eyebrow">
+                  On this device
+                  <span className="proto-guest-home__count">{highlights.length}</span>
+                </p>
+                {/*
+                  The offer sits on the list rather than under a paragraph about the list. It is
+                  the same accent button as everywhere else, and it is the only control here.
+                */}
+                <button
+                  type="button"
+                  className="proto-accent-btn-sm"
+                  onClick={() => {
+                    leaveForSignUp();
+                    window.location.href = guestSignUpHref();
+                  }}
+                >
+                  Keep these
+                </button>
+              </div>
+              <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
+                {highlights
+                  .slice()
+                  .reverse()
+                  .map((highlight) => (
+                    <PrototypeHomeRow
+                      key={highlight.id}
+                      icon={highlight.miniNoteBody?.trim() ? 'note-sticky' : 'highlighter'}
+                      title={highlight.reference}
+                      /* Their words if they wrote any, the verse if they did not — the row
+                         should show the thing they would recognise it by. */
+                      meta={[highlight.miniNoteBody?.trim() || highlight.excerpt]}
+                      onClick={() =>
+                        navigate({
+                          to: prototypeReadRouteTo(),
+                          params: {
+                            book: bookSlug(highlight.book),
+                            chapter: String(highlight.chapter),
+                          },
+                          search: { t: highlight.translation },
+                        })
+                      }
+                    />
+                  ))}
+              </div>
+            </section>
+          ) : (
+            <section className="proto-home-section proto-guest-home__intro">
+              <p className="proto-guest-home__lead">
+                Harvous keeps what stands out to you in Scripture. Start by reading.
+              </p>
+              <button type="button" className="proto-settings-btn" onClick={openReader}>
+                <Icon name="book-open" size={13} aria-hidden />
+                &nbsp;Open today&rsquo;s passage
+              </button>
+            </section>
+          )}
+
+          <PrototypeOnboardingDock onStepAction={openReader} />
+        </div>
+      </article>
+    </PrototypeMainPaneShell>
+  );
+}
