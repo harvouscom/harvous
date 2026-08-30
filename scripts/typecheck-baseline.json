@@ -36,7 +36,6 @@
   "spa/src/pages/prototype/PrototypeFindInNotePopover.tsx": 1,
   "spa/src/pages/prototype/PrototypeListEmptyState.tsx": 1,
   "spa/src/pages/prototype/PrototypeSharedNoteReadOnlyBanner.tsx": 1,
-  "spa/src/pages/prototype/PrototypeSidebar.tsx": 3,
   "spa/src/pages/prototype/PrototypeSidebarSearchResultItem.tsx": 1,
   "spa/src/pages/prototype/PrototypeStudyThreadPanel.tsx": 1,
   "spa/src/pages/prototype/settings/PrototypeSettingsIndex.tsx": 1,

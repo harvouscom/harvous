@@ -75,20 +75,33 @@ describe('tearing down', () => {
 });
 
 describe('the retirement it enforces', () => {
-  it('leaves the sidebar owning none of the note bulk chrome', async () => {
+  it('leaves no sidebar to own a second copy of the note bulk chrome', async () => {
+    /*
+     * This used to read `PrototypeSidebar.tsx` and assert the absences one by one —
+     * `useDeleteNotesBatch`, `bulkShareSheetOpen`, and three more — because each was a copy of
+     * something this host now owns, and each grows back easily: a "quick fix" adding a confirm
+     * there would silently give one verb two behaviours again.
+     *
+     * The rail is gone, so the guard gets to be the stronger statement. A file that does not
+     * exist cannot grow a second copy of anything, and re-creating it is the thing worth
+     * failing on — whoever does will have to decide, deliberately, where the verbs live.
+     */
+    const { existsSync } = await import('node:fs');
+    expect(existsSync('spa/src/pages/prototype/PrototypeSidebar.tsx')).toBe(false);
+  });
+
+  it('keeps the surfaces that replaced it going through the host', async () => {
+    /* The other half of the same guard: the verbs have one runner, and the surfaces that took
+       the rail's job reach them through it rather than re-implementing any. */
     const { readFileSync } = await import('node:fs');
-    const src = readFileSync('spa/src/pages/prototype/PrototypeSidebar.tsx', 'utf8');
-    /* Each was a copy of something the host now owns, and each grows back easily — a "quick
-       fix" adding a confirm here would silently give one verb two behaviours again. */
-    for (const gone of [
-      'useDeleteNotesBatch',
-      'useRemoveNotesFromSpaceBatch',
-      'bulkShareSheetOpen',
-      'bulkDeleteConfirmOpen',
-      'PrototypeCreateThreadSheet',
+    for (const surface of [
+      'spa/src/pages/prototype/library-panel/PrototypeLibraryBulkBar.tsx',
+      'spa/src/pages/prototype/PrototypeOrganizeCommandHost.tsx',
     ]) {
-      expect(src).not.toContain(gone);
+      const src = readFileSync(surface, 'utf8');
+      for (const gone of ['useDeleteNotesBatch', 'useRemoveNotesFromSpaceBatch']) {
+        if (surface.includes('BulkBar')) expect(src).not.toContain(gone);
+      }
     }
-    expect(src).toContain('useOrganizeApi');
   });
 });

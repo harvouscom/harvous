@@ -6,7 +6,6 @@ import {
   resolveSharedSpaceTitle,
   resolveSpaceSwitcherToolbarState,
 } from '../useActiveSpace';
-import { resolvePrototypeSidebarVariant } from '../../layouts/resolve-prototype-sidebar-variant';
 import {
   HOME_LOCATION,
   HOME_PARENT,
@@ -152,82 +151,6 @@ describe('resolveSpaceSwitcherToolbarState', () => {
       label: null,
       triggerTitle: 'My Church — Testament Made',
     });
-  });
-});
-
-describe('resolvePrototypeSidebarVariant', () => {
-  /*
-   * The rail answers one question now: what do I have. The church hub and the shared-space
-   * dashboard answer where am I, and both moved to the canvas, so neither has a variant here
-   * any more. These cases are the old ones re-pointed rather than deleted — the inputs that
-   * used to produce a dashboard are exactly the ones worth asserting produce a list instead.
-   */
-  it('shows a space its notes when one is open', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: true,
-        location: { parent: HOME_PARENT, spaceId: 'space_shared_1' },
-      }),
-    ).toBe('shared-list');
-  });
-
-  it('uses personal sidebar for My Home', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: false,
-        location: { parent: HOME_PARENT, spaceId: 'space_home' },
-      }),
-    ).toBe('personal');
-  });
-
-  it('leaves the rail personal at a church hub', () => {
-    /* The church is on the canvas. With no space open there is nothing to scope the rail to,
-       so it stays what it is everywhere else: your own notes. */
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: false,
-        location: { parent: churchParent('org_1'), spaceId: null },
-      }),
-    ).toBe('personal');
-  });
-
-  it('scopes to the channel when one is open inside a church', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: true,
-        location: { parent: churchParent('org_1'), spaceId: 'space_ministry' },
-      }),
-    ).toBe('shared-list');
-  });
-
-  it('prefers admin sidebar on admin routes', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: true,
-        isSharedSpace: true,
-        location: { parent: HOME_PARENT, spaceId: 'space_shared_1' },
-      }),
-    ).toBe('admin');
-  });
-
-  it('no longer has a dashboard variant to return', () => {
-    /* The guard on the deletion: if a hub variant ever comes back to the rail, the same
-       surface renders twice on one screen — once at full width and once at 288px. */
-    const everyInput = [
-      { isAdminRoute: false, isSharedSpace: true, location: { parent: HOME_PARENT, spaceId: 's' } },
-      { isAdminRoute: false, isSharedSpace: false, location: { parent: churchParent('o'), spaceId: null } },
-      { isAdminRoute: false, isSharedSpace: true, location: { parent: churchParent('o'), spaceId: 's' } },
-      { isAdminRoute: false, isSharedSpace: false, location: HOME_LOCATION },
-    ];
-    for (const input of everyInput) {
-      expect(['admin', 'shared-list', 'personal']).toContain(
-        resolvePrototypeSidebarVariant(input),
-      );
-    }
   });
 });
 

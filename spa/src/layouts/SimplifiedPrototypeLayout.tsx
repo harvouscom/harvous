@@ -31,7 +31,6 @@ import { useAuthReady } from '../hooks/useAuthReady';
 import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
-import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
 /*
  * The Library panel and everything it browses — off the critical path.
  *
@@ -84,7 +83,6 @@ import { useWarmDefaultTranslationPack } from '../hooks/useWarmDefaultTranslatio
 import { useShellModeNav } from '../hooks/useShellModeNav';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
-import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
 import { emitProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
@@ -614,14 +612,19 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const isSettingsRoute = isPrototypeSettingsPath(pathname);
   /** Desktop modal: keep last main paint under the settings portal. Mobile sheet keeps current Outlet. */
   const desktopSettingsKeepAlive = isSettingsRoute && !isMobileSidebar;
-  /** Shell id is null on My Home / My Church hub; useActiveSpace remaps null → personal home. */
-  const sidebarVariant = resolvePrototypeSidebarVariant({
-    isAdminRoute,
-    isSharedSpace,
-    location,
-  });
+  /**
+   * Standing in a shared space with that space open.
+   *
+   * This was `sidebarVariant === 'shared-list'`, back when the rail had five shapes and one of
+   * them was a space's notes. The rail is admin-only now, so the variant had exactly one
+   * surviving reader — the expanded planner — and what that reader actually wants is this
+   * predicate, not a name for a sidebar that no longer renders.
+   *
+   * Shell id is null on My Home / My Church hub; useActiveSpace remaps null → personal home.
+   */
+  const inScopedSharedSpace = isSharedSpace && Boolean(location.spaceId);
   const listScopeSpaceId =
-    sidebarVariant === 'shared-list' && sidebarListSpaceScope === 'my-home' && homeSpaceId
+    inScopedSharedSpace && sidebarListSpaceScope === 'my-home' && homeSpaceId
       ? homeSpaceId
       : resolvedActiveSpaceId;
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
@@ -941,14 +944,34 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const shellStyle = { '--proto-sidebar-w': `${sidebarWidth}px` } as CSSProperties;
 
   const useSplitDesktopToolbar = !hideSidebar && !isMobileSidebar;
+
+  /*
+   * Whether this route has a rail at all — admin's, the only one left.
+   *
+   * `hideSidebar` says "this route suppresses the rail" and is still right about the routes it
+   * names; it is just no longer the whole answer, because every non-admin route now has no rail
+   * either. Both the grid column and the `<aside>` read this one predicate, so the column
+   * cannot be reserved for something that will not render — which is what left the day sheet
+   * pushed right against an empty gutter for one commit.
+   */
+  const showRail = !hideSidebar && isAdminRoute;
   const useAdminFullWidthToolbar = isAdminRoute && useSplitDesktopToolbar;
+  /*
+   * The rail's own toolbar, which only makes sense above a rail.
+   *
+   * It carries the space switcher and the list-view menu, and both now have somewhere better to
+   * be: the switcher lives in the shell's Activity segment, and the list menu chose between the
+   * rail's six list modes, which the search panel's tabs replaced. Left ungated it rendered
+   * beside the segmented control on every route — a second space switcher, one row above the
+   * real one, both claiming to say where you are.
+   */
   const showSidebarToolbar =
-    useSplitDesktopToolbar && !useAdminFullWidthToolbar && !desktopSidebarCollapsed && !sidebarExiting;
+    showRail && useSplitDesktopToolbar && !useAdminFullWidthToolbar && !desktopSidebarCollapsed && !sidebarExiting;
 
   const shellMods = [
     'proto-shell',
     'proto-theme',
-    hideSidebar ? 'proto-shell--no-sidebar' : '',
+    !showRail ? 'proto-shell--no-sidebar' : '',
     isAdminRoute ? 'proto-shell--admin' : '',
     'proto-shell--no-footer',
     isNoteRoute ? 'proto-shell--note-chrome' : '',
@@ -1010,7 +1033,13 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           <DrawerOverlay onClose={closeDrawer} />
         ) : null}
 
-        {!hideSidebar ? (
+        {/*
+          The rail is an admin surface now, so the cell that holds it is gated on the route
+          rather than on `hideSidebar` alone. That flag used to mean "this route has no rail";
+          with only one rail left it would have meant "every other route gets the admin nav",
+          which is exactly what it did for one commit.
+        */}
+        {showRail ? (
           <aside
             className={[
               'proto-shell__sidebar-cell',
@@ -1020,17 +1049,13 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
               .filter(Boolean)
               .join(' ')}
           >
-            {sidebarVariant === 'admin' ? (
-              <PrototypeAdminSidebar />
-            ) : sidebarVariant === 'shared-list' ? (
-              <PrototypeSidebar
-                scopedSpaceId={listScopeSpaceId}
-                showListSpaceScopeBar
-                shellIsSharedSpace
-              />
-            ) : (
-              <PrototypeSidebar />
-            )}
+            {/*
+              Admin only. The rail's last job was browsing, and the search panel does that now
+              across seven kinds with the shell's own selection — so a second list beside the
+              canvas is a second answer to a question already answered. Admin keeps its own,
+              which was never part of this migration.
+            */}
+            <PrototypeAdminSidebar />
           </aside>
         ) : null}
         {!hideSidebar &&
@@ -1115,8 +1140,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             nowhere to open. Renders only portalled sheets and confirms until one is raised. */}
         <Suspense fallback={null}>
           <PrototypeOrganizeCommandHost
-            scopedSpaceId={sidebarVariant === 'shared-list' ? listScopeSpaceId : null}
-            shellIsSharedSpace={sidebarVariant === 'shared-list'}
+            scopedSpaceId={inScopedSharedSpace ? listScopeSpaceId : null}
+            shellIsSharedSpace={inScopedSharedSpace}
           />
         </Suspense>
 
