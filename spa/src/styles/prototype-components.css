@@ -18790,9 +18790,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
     color var(--pds-duration-press) var(--pds-ease-standard);
 }
 
+/* A name, in its own case. This was uppercased while the edges held translation codes, where
+   BSB and ESV are uppercase anyway; a book is not, and "EXODUS 40" shouts a reference that
+   every other surface in the app writes as "Exodus 40". Activity's edges say "Yesterday". */
 .pds-reader-stack__edge-label {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
 }
 
 @media (hover: hover) {

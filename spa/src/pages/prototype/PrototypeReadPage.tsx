@@ -47,7 +47,6 @@ import {
 } from '../../hooks/queries/usePrototypeChapterHighlights';
 import type { SavedReference } from '../../hooks/queries/usePrototypeChapterHighlights';
 import { useUpdateTranslation } from '../../hooks/mutations/useUpdateTranslation';
-import { recordTranslationUse } from '@/utils/recent-translations';
 
 /**
  * Verse numbers a stored reference covers: "Exodus 5:3" → [3], "Exodus 5:3-5" → [3,4,5].
@@ -550,7 +549,6 @@ export default function PrototypeReadPage() {
    *    gesture; a version you have to re-choose every chapter is a preview, not a switch.
    * 2. **The URL still carries it**, so a reload and a copied link both read in it — the rule
    *    `translation` above is written against, unchanged.
-   * 3. **Recency is recorded**, which is what the stack's edges are drawn from.
    *
    * Deliberately NOT called for `search.t` on arrival. Following a shared ESV link would
    * otherwise rewrite what the reader reads in, silently, on someone else's say-so. Persisting
@@ -563,7 +561,6 @@ export default function PrototypeReadPage() {
       const id = next.trim().toUpperCase();
       if (!id || id === translation) return;
 
-      recordTranslationUse(id);
       /* Fire-and-forget: the read must not wait on, or fail with, a preference write. The
          mutation is optimistic, so the profile cache already reads as `id` regardless. */
       updateTranslation.mutate(id);

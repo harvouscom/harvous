@@ -95,7 +95,7 @@ import {
   type StudyDockStack,
 } from '@/utils/study-dock-stack';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
-import PrototypeReaderTranslationStack from './PrototypeReaderTranslationStack';
+import PrototypeReaderChapterStack from './PrototypeReaderChapterStack';
 import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
 
 /**
@@ -1594,20 +1594,20 @@ export default function PrototypeBibleReaderPane({
         {/*
           The pile, above the page it belongs to.
 
-          Gated on `paperStack`, not on `onChangeTranslation`. The handler looks like the right
-          signal and is not: a *parked* stack passes the live route as its base slot, handlers and
-          all, so the pickers' `onNavigateTo` test covers one of the two stacked states and misses
-          the other. What matters is being on a stack layer at all — sheet up, this pane is scenery
-          at 96% with pointer events off; sheet parked, the stack's own edge row is pinned at the
-          top of the pane and is the way back to the note. Either way a second pile in the same
-          48px band is two stacks claiming one gesture.
+          Gated on `paperStack` as well as on the handler, and the extra test is the load-bearing
+          one: a *parked* stack passes the live route as its base slot, handlers and all, so
+          `onNavigateTo` alone covers one of the two stacked states and misses the other. What
+          matters is being on a stack layer at all — sheet up, this pane is scenery at 96% with
+          pointer events off; sheet parked, the stack's own edge row is pinned at the top of the
+          pane and is the way back to the note. Either way a second pile in the same band is two
+          stacks claiming one gesture.
         */}
-        {onChangeTranslation && data && !paperStack ? (
-          <PrototypeReaderTranslationStack
-            translation={data.translation}
+        {onNavigateTo && data && !paperStack ? (
+          <PrototypeReaderChapterStack
             book={data.book}
             chapter={data.chapter}
-            onSelect={onChangeTranslation}
+            translation={data.translation}
+            onSelect={onNavigateTo}
           />
         ) : null}
         <div className="pds-reader__column" ref={columnRef}>
