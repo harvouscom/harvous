@@ -35,6 +35,7 @@ import { useStudyFeed } from '../../hooks/queries/useStudyFeed';
 import { useNavigation } from '../../hooks/queries/useNavigation';
 import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
 import ProtoHouseIcon from './ProtoHouseIcon';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
@@ -183,9 +184,9 @@ export default function PrototypeStudyFeedPage() {
   );
   const navigation = useNavigation();
   /*
-   * Only the spaces someone actually shares with other people, and now only to answer
-   * whether the filter is worth showing at all. A personal space was never a scope —
-   * narrowing to one is what "My home" already means.
+   * Only the spaces someone actually shares with other people. A personal space is not a
+   * scope — narrowing to it is what "My home" already means, and listing it twice would
+   * make the row look like it filters by place when it filters by whose study.
    */
   const sharedSpaces = useMemo(
     () =>
@@ -198,20 +199,27 @@ export default function PrototypeStudyFeedPage() {
   );
 
   /*
-   * Whose study, and only that. The spaces are gone from here on purpose.
+   * Whose study this day is of — including one room's, which is a scope and not a place.
    *
-   * This menu used to list every shared space, which made it the app's second control for
-   * "which space" — and the two could disagree out loud: the toolbar said My Home while the
-   * sheet below it showed Young Adults. Now that a space has its own surface, going to a
-   * space is how you look at a space, and the switcher is the one control that says which.
+   * These spaces were taken out of here once, on the reasoning that the switcher is the
+   * app's one control for "which space" and a second one could disagree with it out loud:
+   * the toolbar saying My Home over a sheet showing Young Adults. That removal named its own
+   * cost — "you can no longer see one space's day-by-day trail" — and the cost is the part
+   * that turned out to matter. A space's hub shows its recent work; nothing else stacks it
+   * by day, which is the whole thing Activity is for.
    *
-   * What is left is the question the switcher cannot answer, because it is not about place:
-   * whether the day includes what other people wrote in the rooms you share, or only your
-   * own. "All" first because it is the default and the widest; "My home" second because it
-   * narrows to a person rather than to a place.
+   * The disagreement was never really one, because the two controls answer different
+   * questions and each says which it is answering. The switcher says where you *are* — the
+   * place whose surface this is. This chip says whose study the sheet is showing, and takes
+   * the space's own name and colour tile when that is a space, so the sheet describes itself
+   * rather than leaving the toolbar to be read as describing it.
    *
-   * Still nothing at all when someone shares no spaces — with no one else's study to fold
-   * in, the two options describe the same day, and a filter with one outcome is furniture.
+   * "All" first because it is the default and the widest; "My home" next because it is the
+   * only other scope about a person rather than a place. Spaces group under a heading so a
+   * long list stays readable — the menu's own grouping, not a second idea.
+   *
+   * Still nothing at all when someone shares no spaces: every option would then describe the
+   * same day, and a filter with one outcome is furniture.
    */
   const scopeOptions = useMemo<ProtoSelectOption<string>[]>(() => {
     if (sharedSpaces.length === 0) return [];
@@ -223,6 +231,15 @@ export default function PrototypeStudyFeedPage() {
         triggerLabel: 'My home',
         icon: <ProtoHouseIcon size={13} />,
       },
+      ...sharedSpaces.map((space) => ({
+        value: `space:${space.id}`,
+        label: space.title,
+        group: 'Spaces',
+        /* The space's own colour tile — how someone finds their space in a list before they
+           have read a single name. Same mark the note destination picker uses, so the two
+           menus of the same spaces look like the same spaces. */
+        icon: <ProtoSpaceMenuIcon color={space.color || 'paper'} />,
+      })),
     ];
   }, [sharedSpaces]);
 
