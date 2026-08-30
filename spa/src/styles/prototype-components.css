@@ -21089,7 +21089,16 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   flex-direction: column;
   min-height: 0;
   flex: 1 1 auto;
-  padding: var(--pds-space-5) var(--pds-space-5) var(--pds-space-6);
+  /*
+   * No bottom padding, for the reason the sheet itself has none.
+   *
+   * `.proto-feed-sheet` already ends flush and says why: the body scrolls, so a gap under it
+   * is "a strip of blank paper the last row stops short of, with more content still above the
+   * fold". The sheet was honouring that and this padding was undoing it one level up —
+   * holding the whole sheet off the shell's floor, so the paper stopped early and the canvas
+   * showed beneath it. The sheet is the page; it should reach the bottom of what it is in.
+   */
+  padding: var(--pds-space-5) var(--pds-space-5) 0;
 }
 
 .proto-feed-stack {
