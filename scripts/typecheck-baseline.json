@@ -35,7 +35,6 @@
   "spa/src/pages/prototype/mention-picker-source.ts": 2,
   "spa/src/pages/prototype/PrototypeFindInNotePopover.tsx": 1,
   "spa/src/pages/prototype/PrototypeListEmptyState.tsx": 1,
-  "spa/src/pages/prototype/PrototypeNotePage.tsx": 1,
   "spa/src/pages/prototype/PrototypeSharedNoteReadOnlyBanner.tsx": 1,
   "spa/src/pages/prototype/PrototypeSidebar.tsx": 3,
   "spa/src/pages/prototype/PrototypeSidebarSearchResultItem.tsx": 1,
