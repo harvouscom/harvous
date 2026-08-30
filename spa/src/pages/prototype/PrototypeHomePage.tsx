@@ -6,6 +6,7 @@ import PrototypeSpaceHub from './PrototypeSpaceHub';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { resolveMainPaneSurface } from '../../layouts/resolve-main-pane-surface';
+import { readSharedSpaceDashboardFixtureMode } from '../dev/shared-spaces-design/shared-space-dashboard-fixture-mode';
 
 /**
  * The main pane on `/`.
@@ -26,7 +27,17 @@ import { resolveMainPaneSurface } from '../../layouts/resolve-main-pane-surface'
 export default function PrototypeHomePage() {
   const { location } = useProtoShell();
   const { isSharedSpace } = useActiveSpace();
-  const surface = resolveMainPaneSurface({ location, isSharedSpace });
+  /*
+   * The design gallery's fixture mode used to reach the space hub through the sidebar variant
+   * resolver, which is where it was routed when the hub lived in the rail. The hub is on the
+   * canvas now, so the fixture follows it here — and the check stays out of
+   * `resolveMainPaneSurface`, which is a pure function over a location and should not learn to
+   * read sessionStorage to keep a dev tool working.
+   */
+  const fixtureMode = readSharedSpaceDashboardFixtureMode();
+  const surface = fixtureMode
+    ? ('space-hub' as const)
+    : resolveMainPaneSurface({ location, isSharedSpace });
 
   if (surface === 'space-hub') {
     /*
@@ -39,7 +50,7 @@ export default function PrototypeHomePage() {
     return (
       <PrototypeMainPaneShell>
         <div className="proto-hub-frame">
-          <PrototypeSpaceHub variant="sheet" />
+          <PrototypeSpaceHub />
         </div>
       </PrototypeMainPaneShell>
     );
@@ -54,7 +65,7 @@ export default function PrototypeHomePage() {
     return (
       <PrototypeMainPaneShell>
         <div className="proto-hub-frame">
-          <PrototypeChurchHub variant="sheet" />
+          <PrototypeChurchHub />
         </div>
       </PrototypeMainPaneShell>
     );

@@ -1,15 +1,12 @@
 /**
  * A shared or ministry space's own surface — not the full notes list.
  *
- * Wears two chromes for the same reason `PrototypeChurchHub` does: the hub is moving onto the
- * canvas while the rail survives behind ⇧S, and the two must not drift. `variant` decides the
- * frame and nothing inside it, so the eventual deletion of the rail is a deletion rather than
- * a second migration.
+ * Lives on the canvas. It wore either chrome for one phase so the move could be lived with
+ * before the rail's copy was deleted, and that copy is gone now.
  *
- * The inner markup is untouched by the move. On the sheet, CSS maps `.proto-shared-space-header`
- * onto the sheet's head and `.proto-sidebar-scroll` onto its scrolling body — one JSX tree with
- * four exit points (error, loading, thread drilldown, the dashboard) rather than four rewritten
- * ones, which is the difference between a frame swap and a rewrite of a 1100-line view.
+ * The inner markup was never touched by the move. CSS maps `.proto-shared-space-header` onto the
+ * sheet's head and `.proto-sidebar-scroll` onto its scrolling body, so a 1100-line view with
+ * four exit points changed frame without changing a single one of them.
  */
 import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
@@ -58,7 +55,6 @@ import { parseLocalDateInput } from '../../lib/proto-date-picker';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
-import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import HomeSection from './PrototypeHomeSection';
 import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
@@ -217,17 +213,15 @@ function SharedSpaceNoteRow({
   );
 }
 
-export type SpaceHubVariant = 'rail' | 'sheet';
-
-export default function PrototypeSpaceHub({ variant = 'rail' }: { variant?: SpaceHubVariant } = {}) {
+export default function PrototypeSpaceHub() {
   const fixtureMode = readSharedSpaceDashboardFixtureMode();
   if (fixtureMode) {
     return <SharedSpaceDashboardFixtureView fixture={sharedSpaceDashboardFixtureForMode(fixtureMode)} />;
   }
-  return <PrototypeSpaceHubLive variant={variant} />;
+  return <PrototypeSpaceHubLive />;
 }
 
-function PrototypeSpaceHubLive({ variant }: { variant: SpaceHubVariant }) {
+function PrototypeSpaceHubLive() {
   const navigate = useNavigate();
   const { userId: authUserId } = useAuth();
   const { user } = useUser();
@@ -747,21 +741,15 @@ function PrototypeSpaceHubLive({ variant }: { variant: SpaceHubVariant }) {
     One frame, four exits.
     
     This view leaves by four different doors — an error, a loading state, a thread drilldown and
-    the dashboard itself — and every one of them used to name the rail's root element. Rewriting
-    each for the sheet is how three of the four end up subtly different from the fourth. So the
-    chrome is chosen once here and the exits say what they always said.
+    the dashboard itself — and each of them used to name its own root element. Naming the chrome
+    once is how three of the four stop drifting from the fourth; it is also what made moving this
+    surface off the rail a one-line change rather than four.
   */
-  const frame = (children: ReactNode) =>
-    variant === 'sheet' ? (
-      <article className="proto-feed-sheet proto-shared-space-dashboard proto-shared-space-dashboard--sheet">
-        {children}
-      </article>
-    ) : (
-      <div className="proto-sidebar-root proto-shared-space-dashboard">
-        {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
-        {children}
-      </div>
-    );
+  const frame = (children: ReactNode) => (
+    <article className="proto-feed-sheet proto-shared-space-dashboard proto-shared-space-dashboard--sheet">
+      {children}
+    </article>
+  );
 
   if (dashboardHasError) {
     return frame(

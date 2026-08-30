@@ -3,22 +3,16 @@
  * Not a space dashboard; picking a row opens that space.
  * Catalog scope: docs/future/MY_CHURCH_SIDEBAR.md (Layer 1–2).
  *
- * ## Why this takes a variant rather than being copied
+ * ## Lives on the canvas, not in the rail
  *
- * The hub is moving off the rail and into the main pane, where Activity already lives, and for
- * a while it has to be both: the rail survives behind ⇧S this phase, and `proto-shell-context`
- * is explicit that "the two must not move each other". A second copy for the sheet is exactly
- * the mistake `use-home-surface-data` was written to undo — Home's derivation lived inside the
- * sidebar, so Activity could only offer what it could cheaply re-derive, and the two drifted
- * where a reader could see it.
+ * It grew up in the sidebar and spent one phase wearing either chrome, so the move could be
+ * lived with before anything was destroyed. The rail's copy is gone now: a church is a place
+ * you go, and the canvas is where places are.
  *
- * So: one component, one set of lanes and gates, and `variant` decides only the chrome around
- * them. Everything between the header and the create sheet is identical on both, which is the
- * property that makes the eventual deletion of the rail a deletion rather than a migration.
- *
- * The body needs no translation because it was already written in Home's vocabulary — sections
- * are `.proto-home-section` with a `__eyebrow`, the same anatomy `PrototypeHomeSection` renders
- * on the day sheet. That is why this is a hosting change and not a rewrite.
+ * The body needed no translation for the move because it was already written in Home's
+ * vocabulary — sections are `.proto-home-section` with a `__eyebrow`, the same anatomy
+ * `PrototypeHomeSection` renders on the day sheet. That is why this was a hosting change and
+ * never a rewrite, and why the deletion of the rail's half was a deletion.
  */
 import { useMemo, useState } from 'react';
 import Icon from '@/components/react/Icon';
@@ -42,7 +36,6 @@ import { isMinistryBroadcastSpace } from '../../lib/shared-space-capabilities';
 import { useChurchChannels, type ChurchChannel } from '../../hooks/queries/useChurchChannels';
 import { useFollowChannel } from '../../hooks/mutations/useFollowChannel';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
-import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateSharedSpaceSheet';
@@ -165,18 +158,8 @@ function ChurchHubBrowseRow({
   );
 }
 
-export type ChurchHubVariant = 'rail' | 'sheet';
-
-export default function PrototypeChurchHub({
-  variant = 'rail',
-}: {
-  /**
-   * Which chrome to wear. `rail` is the sidebar this grew up in; `sheet` is the main pane,
-   * where it wears `.proto-feed-sheet` so a church reads as the same kind of surface as a day.
-   */
-  variant?: ChurchHubVariant;
-} = {}) {
-  const { isMobileSidebar, activeChurchOrgId, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
+export default function PrototypeChurchHub() {
+  const { activeChurchOrgId, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   const switchToSpace = useSwitchToSpace();
   const navQuery = useNavigation();
   const profileQuery = useProfile();
@@ -757,26 +740,15 @@ export default function PrototypeChurchHub({
     ) : null;
 
   /*
-    The sheet wears the day sheet's own frame so a church and a day read as the same kind of
-    thing in the same place — the point of moving the hub here at all. `.proto-church-hub`
-    stays on both so the lane and row rules that key off it are untouched by the move.
+    The day sheet's own frame, so a church and a day read as the same kind of thing in the same
+    place — the point of moving the hub here at all. `.proto-church-hub` stays on it so the lane
+    and row rules that key off it are untouched by the move.
   */
-  if (variant === 'sheet') {
-    return (
-      <article className="proto-feed-sheet proto-church-hub proto-church-hub--sheet">
-        <header className="proto-feed-sheet__head proto-shared-space-header">{header}</header>
-        <div className="proto-feed-sheet__body">{content}</div>
-        {createSheet}
-      </article>
-    );
-  }
-
   return (
-    <div className="proto-sidebar-root proto-church-hub">
-      {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
-      <div className="proto-shared-space-header">{header}</div>
-      <div className="proto-sidebar-scroll">{content}</div>
+    <article className="proto-feed-sheet proto-church-hub proto-church-hub--sheet">
+      <header className="proto-feed-sheet__head proto-shared-space-header">{header}</header>
+      <div className="proto-feed-sheet__body">{content}</div>
       {createSheet}
-    </div>
+    </article>
   );
 }

@@ -48,8 +48,6 @@ const PrototypeOrganizeCommandHost = lazy(
 const PrototypeLibraryPanelHost = lazy(
   () => import('../pages/prototype/library-panel/PrototypeLibraryPanelHost'),
 );
-import PrototypeSpaceHub from '../pages/prototype/PrototypeSpaceHub';
-import PrototypeChurchHub from '../pages/prototype/PrototypeChurchHub';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSidebarHost';
 
@@ -620,7 +618,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const sidebarVariant = resolvePrototypeSidebarVariant({
     isAdminRoute,
     isSharedSpace,
-    sidebarLayer,
     location,
   });
   const listScopeSpaceId =
@@ -1025,10 +1022,6 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           >
             {sidebarVariant === 'admin' ? (
               <PrototypeAdminSidebar />
-            ) : sidebarVariant === 'church-hub' ? (
-              <PrototypeChurchHub variant="rail" />
-            ) : sidebarVariant === 'shared-space' ? (
-              <PrototypeSpaceHub variant="rail" />
             ) : sidebarVariant === 'shared-list' ? (
               <PrototypeSidebar
                 scopedSpaceId={listScopeSpaceId}
