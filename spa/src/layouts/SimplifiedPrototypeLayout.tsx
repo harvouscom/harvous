@@ -138,11 +138,14 @@ import {
 import { shouldRedirectPrototypeToSignIn } from '@/utils/prototype-shell-auth';
 import { useHarvousIdentity } from '../hooks/useHarvousIdentity';
 import PrototypeGuestModeRow from '../pages/prototype/PrototypeGuestModeRow';
+import { useGuestAdoption } from '../hooks/useGuestAdoption';
 
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn } = useAuth();
   const identity = useHarvousIdentity();
   const authReady = useAuthReady();
+  // Hands anything made as a guest to the account, the first moment there is one to hand it to.
+  useGuestAdoption();
   const { user } = useUser();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
