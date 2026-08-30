@@ -37,6 +37,11 @@ export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
 
 const STEP_ID_SET = new Set<string>(ONBOARDING_STEP_IDS);
 
+/** Narrow a string that came from storage or a URL back to a step id. */
+export function isOnboardingStepId(value: string): value is OnboardingStepId {
+  return STEP_ID_SET.has(value);
+}
+
 /**
  * The four steps Home can see the answer to without being told.
  *

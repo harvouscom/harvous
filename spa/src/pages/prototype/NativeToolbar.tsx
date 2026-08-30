@@ -30,6 +30,9 @@ import {
 } from './proto-toolbar-tokens';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import ProtoHouseIcon from './ProtoHouseIcon';
+import PrototypeOnboardingPopover from './PrototypeOnboardingPopover';
+import { useOnboardingState } from './useOnboardingState';
+import { shownOnboardingProgress } from './onboarding-visible-steps';
 import { offerGuestAccount } from '../../lib/guest-gate';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
@@ -166,6 +169,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const shareButtonRef = useRef<HTMLButtonElement | null>(null);
   const findPopover = useToolbarAnchoredPopover();
+  const onboardingPopover = useToolbarAnchoredPopover();
+  const onboarding = useOnboardingState();
+  const onboardingButtonRef = useRef<HTMLButtonElement | null>(null);
   const sharePopover = useToolbarAnchoredPopover();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
 
@@ -262,6 +268,8 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   });
 
   const { isGuest } = useHarvousIdentity();
+  /* Same count the list under it will show — see `onboarding-visible-steps`. */
+  const onboardingProgress = shownOnboardingProgress(onboarding.state, isGuest);
   const { spaceTitle: activeSpaceTitleForChip, space: activeSpaceRow } = useActiveSpace();
   const activeSpaceColor = activeSpaceRow?.color ?? null;
 
@@ -638,6 +646,38 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 />
               </button>
             </PrototypeToolbarShortcutItem>
+          ) : null}
+
+          {/*
+            The checklist, from wherever you are.
+
+            It only ever rendered at the top of Activity, so the surface that explains the app
+            was the one you had to already know how to reach. Shown only while there is a
+            checklist to show — `visible` is false once it is finished or put away — so this is
+            not a permanent piece of chrome, it is the chrome of a phase.
+          */}
+          {onboarding.visible ? (
+            <button
+              ref={onboardingButtonRef}
+              type="button"
+              className="proto-toolbar-icon-btn proto-onboarding-chip"
+              title="Getting started"
+              aria-label={`Getting started, ${onboardingProgress.done} of ${onboardingProgress.total} done`}
+              aria-haspopup="dialog"
+              aria-expanded={onboardingPopover.isOpen && !onboardingPopover.exiting}
+              onClick={() => onboardingPopover.toggleFrom(onboardingButtonRef.current)}
+            >
+              <span className="proto-onboarding-chip__count" aria-hidden>
+                {onboardingProgress.done}/{onboardingProgress.total}
+              </span>
+            </button>
+          ) : null}
+          {onboardingPopover.isOpen ? (
+            <PrototypeOnboardingPopover
+              anchorRect={onboardingPopover.anchorRect}
+              exiting={onboardingPopover.exiting}
+              onDismiss={onboardingPopover.dismiss}
+            />
           ) : null}
 
           <AccountMenu iconSize={PROTO_TOOLBAR_ORB_ICON_SIZE} />

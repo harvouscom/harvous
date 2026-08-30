@@ -16,7 +16,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
-import { guestHighlights } from '../../lib/guest-store';
+import {
+  shownOnboardingProgress,
+  stepAppliesTo,
+  stepIsDone,
+} from './onboarding-visible-steps';
 import Icon, { type IconName } from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useOnboardingState } from './useOnboardingState';
@@ -82,41 +86,19 @@ export const ONBOARDING_STEP_COPY: readonly OnboardingStepCopy[] = [
 
 const COPY_BY_ID = new Map(ONBOARDING_STEP_COPY.map((step) => [step.id, step]));
 
-/**
- * The steps a guest can actually finish.
- *
- * Reading, highlighting, and writing a note on a verse from the reader's annotate dock all
- * work without an account. Pills, threads and recall need one. Listing a step nobody can tick
- * would make the checklist lie about itself — and a count that can never reach its total is a
- * worse invitation than an honest short list ending in the thing that unlocks the rest.
- */
-const GUEST_STEP_IDS = new Set<OnboardingStepId>(['read', 'highlight', 'note']);
-
-/**
- * A guest's steps, read back off what they have rather than only off what we caught them doing.
- *
- * The account version does this too (`DERIVED_STEP_IDS`), and for the same reason: an event
- * latch only knows about the times it was listening. A guest who highlighted a verse through
- * some path that does not latch — or before a build that latched at all — would be looking at
- * their own highlight above a row telling them to go and make one.
- *
- * 'read' has nothing to derive from, which is why it stays event-only: a chapter that has been
- * opened leaves no trace on this device unless someone records that it was.
- */
-function guestStepDerived(id: OnboardingStepId): boolean {
-  const highlights = guestHighlights();
-  if (id === 'highlight') return highlights.length > 0;
-  if (id === 'note') return highlights.some((h) => h.miniNoteBody?.trim());
-  return false;
-}
-
 type Props = {
   /** Take the user to where a step gets done. */
   onStepAction: (id: OnboardingStepId) => void;
+  /**
+   * `home` is the ambient group on Activity. `popover` is the same list inside the toolbar's
+   * card, where the eyebrow and the cluster-dismiss are the popover's own chrome and would be
+   * said twice.
+   */
+  variant?: 'home' | 'popover';
 };
 
-export default function PrototypeOnboardingDock({ onStepAction }: Props) {
-  const { state, visible, progress, dismissStep, dismissAll } = useOnboardingState();
+export default function PrototypeOnboardingDock({ onStepAction, variant = 'home' }: Props) {
+  const { state, visible, dismissStep, dismissAll } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
 
   /*
@@ -133,24 +115,14 @@ export default function PrototypeOnboardingDock({ onStepAction }: Props) {
   const celebratedRef = useRef(false);
 
   const rows = ONBOARDING_STEP_COPY.filter((step) => {
-    if (isGuest && !GUEST_STEP_IDS.has(step.id)) return false;
+    if (!stepAppliesTo(step.id, isGuest)) return false;
     if (exiting.includes(step.id)) return true;
-    const s = state.steps[step.id];
-    if (isGuest && guestStepDerived(step.id)) return false;
-    return !s.done && !s.dismissed;
+    if (stepIsDone(state, step.id, isGuest)) return false;
+    return !state.steps[step.id].dismissed;
   });
 
-  /*
-   * A guest's count is over their own two steps plus the account row below, not the six an
-   * account gets. `progress` counts all six, and "1 of 6" in front of a two-row list reads as
-   * four rows having gone missing.
-   */
-  const guestDone = [...GUEST_STEP_IDS].filter(
-    (id) => state.steps[id].done || guestStepDerived(id),
-  ).length;
-  const shownProgress = isGuest
-    ? { done: guestDone, total: GUEST_STEP_IDS.size + 1 }
-    : progress;
+  const shownProgress = shownOnboardingProgress(state, isGuest);
+
   /*
    * A row still finishing its exit keeps the dock up — but only when the dock is leaving of
    * its own accord. Completing the last step should play out; being dismissed should not.
@@ -213,31 +185,7 @@ export default function PrototypeOnboardingDock({ onStepAction }: Props) {
   // A guest always has the account row, so an empty step list is not an empty dock for them.
   if (!showing || (rows.length === 0 && !isGuest)) return null;
 
-  return (
-    <section
-      className="proto-home-section proto-onboarding-dock"
-      aria-label="Getting started"
-    >
-      <div className="proto-onboarding-dock__head">
-        <p className="proto-caption proto-onboarding-dock__eyebrow">
-          Getting started
-          <span
-            className="proto-onboarding-dock__count"
-            aria-label={`${shownProgress.done} of ${shownProgress.total} done`}
-          >
-            {shownProgress.done} of {shownProgress.total}
-          </span>
-        </p>
-        <button
-          type="button"
-          className="proto-side-panel__action-btn proto-onboarding-dock__dismiss"
-          aria-label="Dismiss getting started"
-          onClick={dismissAll}
-        >
-          <Icon name="xmark" size={12} aria-hidden />
-        </button>
-      </div>
-
+  const list = (
       <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-onboarding-dock__list">
         {rows.map((step, index) => {
           const done = exiting.includes(step.id);
@@ -304,6 +252,38 @@ export default function PrototypeOnboardingDock({ onStepAction }: Props) {
           </div>
         ) : null}
       </div>
+  );
+
+  /* The popover supplies its own title and its own way out, so the section head would be
+     the same two things said twice inside a card the size of the list. */
+  if (variant === 'popover') return list;
+
+  return (
+    <section
+      className="proto-home-section proto-onboarding-dock"
+      aria-label="Getting started"
+    >
+      <div className="proto-onboarding-dock__head">
+        <p className="proto-caption proto-onboarding-dock__eyebrow">
+          Getting started
+          <span
+            className="proto-onboarding-dock__count"
+            aria-label={`${shownProgress.done} of ${shownProgress.total} done`}
+          >
+            {shownProgress.done} of {shownProgress.total}
+          </span>
+        </p>
+        <button
+          type="button"
+          className="proto-side-panel__action-btn proto-onboarding-dock__dismiss"
+          aria-label="Dismiss getting started"
+          onClick={dismissAll}
+        >
+          <Icon name="xmark" size={12} aria-hidden />
+        </button>
+      </div>
+
+      {list}
     </section>
   );
 }

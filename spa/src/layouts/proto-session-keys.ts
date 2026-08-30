@@ -64,3 +64,14 @@ export const PROTO_GUEST_ROW_PREVIEW_KEY = 'harvous-proto-guest-row-preview';
  * trip. A guest who comes back tomorrow has not been asked today.
  */
 export const PROTO_GUEST_EXIT_PROMPT_KEY = 'harvous-proto-guest-exit-prompt-shown';
+
+/**
+ * A checklist row was pressed somewhere that cannot act on it — the toolbar popover, which is
+ * reachable from every screen and knows none of their destinations.
+ *
+ * sessionStorage and consumed once, like the spotlight above: it is a handoff for this trip to
+ * Home, not a preference. Home owns `handleOnboardingStep`, which knows that "write a note"
+ * means the compose session and "revisit" means glowing the recall shelf; re-deriving any of
+ * that at the toolbar would be a second copy to keep true.
+ */
+export const PROTO_ONBOARDING_PENDING_STEP_KEY = 'harvous-proto-onboarding-pending-step';

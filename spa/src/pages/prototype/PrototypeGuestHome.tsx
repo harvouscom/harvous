@@ -10,7 +10,7 @@
  * same thing it would show. Then "keep this" is a sentence about the list they are looking at,
  * which is the only version of that offer worth making.
  */
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
@@ -25,6 +25,7 @@ import {
 } from '../../lib/guest-store';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 import { bookSlug } from '@/utils/bible-book-chapters';
+import { takeOnboardingStep } from './onboarding-step-handoff';
 
 export default function PrototypeGuestHome() {
   const navigate = useNavigate();
@@ -32,6 +33,18 @@ export default function PrototypeGuestHome() {
   useSyncExternalStore(subscribeToGuestStore, guestStoreSnapshot, guestStoreServerSnapshot);
   const highlights = guestHighlights();
   const openReader = () => navigate({ to: prototypeReadTodayRouteTo() });
+
+  /*
+   * A checklist row pressed from the toolbar, anywhere in the app, is performed on arrival —
+   * the same handoff Activity uses. Every step a guest can reach ends at the reader (a note is
+   * written on a verse, from the annotate dock), so there is one destination rather than the
+   * switch Home needs; consumed once either way, so it cannot fire again on the next visit.
+   */
+  useEffect(() => {
+    if (takeOnboardingStep()) navigate({ to: prototypeReadTodayRouteTo(), replace: true });
+    // Mount only: a later render is a later visit, not the arrival this was handed off for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <PrototypeMainPaneShell>

@@ -49,6 +49,7 @@ import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import PrototypeStudyFeedToday from './PrototypeStudyFeedToday';
 import PrototypeOnboardingDock from './PrototypeOnboardingDock';
+import { takeOnboardingStep } from './onboarding-step-handoff';
 import PrototypeThreadProposalReview from './PrototypeThreadProposalReview';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { markOnboardingLedToday, onboardingHasLedToday } from './onboarding-day-marker';
@@ -414,6 +415,20 @@ export default function PrototypeStudyFeedPage() {
   });
   const showGreeting = safeIndex === 0 && greeting.ready && home.countForLogic > 0;
 
+
+  /*
+   * A row pressed from the toolbar's checklist, anywhere in the app, arrives here.
+   *
+   * Performed on arrival rather than at the press, because this is the only place that knows
+   * what each step means — see `onboarding-step-handoff.ts`. Consumed once, so it cannot fire
+   * again the next time someone comes back to Activity.
+   */
+  useEffect(() => {
+    const pending = takeOnboardingStep();
+    if (pending) home.handleOnboardingStep(pending);
+    // Mount only: a later render is a later visit, not the arrival this was handed off for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* Only on today's sheet: a checklist is about now, and a day you flipped back to has no
      business asking you to go and read something. */

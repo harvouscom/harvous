@@ -22959,3 +22959,74 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
   font-variant-numeric: tabular-nums;
 }
+
+/* ─── Getting started, from the toolbar ──────────────────────────────────── */
+
+/*
+  A count, not a glyph.
+
+  Every other control in this group is an icon that names a thing you can do. This one names
+  progress, and "2/6" says in two characters what a checklist icon plus a badge would need a
+  tooltip to say. It also stays legible at the toolbar's size, where a ring at 24px reads as a
+  smudge.
+*/
+.proto-onboarding-chip {
+  width: auto;
+  min-width: 30px;
+  padding: 0 8px;
+}
+
+.proto-onboarding-chip__count {
+  font: 600 11px/1 var(--pds-font-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-secondary);
+}
+
+.proto-onboarding-chip[aria-expanded='true'] .proto-onboarding-chip__count {
+  color: var(--pds-text-primary);
+}
+
+/*
+  Portaled to `document.body`, so it carries its own positioning — the shared
+  `--motion` class supplies the enter/exit animation and nothing else. Without this the card
+  rendered correctly, took its inline top/left, and ignored both: `position: static` put it at
+  the end of the body, below the shell and off the bottom of the window.
+*/
+.proto-onboarding-popover {
+  position: fixed;
+  z-index: var(--pds-z-popover);
+  background: var(--pds-bg-popover-solid);
+  color: var(--pds-text-primary);
+  border: 0.5px solid var(--pds-border-control-strong);
+  border-radius: 14px;
+  box-shadow: var(--pds-shadow-popover);
+  padding: var(--pds-space-3);
+  font-family: var(--pds-font-body);
+}
+
+.proto-onboarding-popover__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+  padding: 0 var(--pds-space-1) var(--pds-space-2);
+}
+
+.proto-onboarding-popover__eyebrow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+/*
+  Inside the card the list is the whole content, so it drops the ambient group's outer surface
+  and keeps only its rows — a panel inside a panel reads as a seam.
+*/
+.proto-onboarding-popover .proto-onboarding-dock__list {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
