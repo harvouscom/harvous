@@ -18946,6 +18946,41 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /*
+ * A sheet holding two versions grows to hold them properly.
+ *
+ * The ceiling above is built for one column of text and a page around it. Two columns on that
+ * sheet came to about 316px each — under half the measure — so both versions broke every few
+ * words while the pane beside the paper sat empty. The comparison is the one layout that
+ * genuinely needs more width rather than more margin.
+ *
+ * At 901px because that is where there are two columns to widen for: below it
+ * `.pds-reader__compare-row` is already a single column (see the max-width: 900px block), and
+ * a wide sheet holding one stacked column is the failure this fixes, upside down.
+ *
+ * The floor is `--pds-paper-column-max` rather than `-min`: the single-column rule above has
+ * already reached its ceiling by 896px of pane, so starting anywhere lower would *narrow* the
+ * sheet at the moment a second column appeared.
+ *
+ * The margin is stated rather than derived, and this is the one place that is right. Every
+ * other derivation answers "what is left after the text takes its measure", which here would
+ * be measured against a doubled measure and come out negative on any pane under 1460px. The
+ * side margin does not change when a column is added — the page is the same page — so it is
+ * the single-column ceiling's own margin, written from the same two tokens it comes from.
+ */
+@container pds-reader-scroll (min-width: 901px) {
+  .pds-reader-compare > * {
+    --pds-paper-column: clamp(
+      var(--pds-paper-column-max),
+      100cqi - 2 * var(--pds-paper-column-gutter),
+      var(--pds-paper-column-compare-max)
+    );
+    --pds-editor-paper-padding-x: calc(
+      (var(--pds-paper-column-max) - var(--pds-paper-measure)) / 2
+    );
+  }
+}
+
+/*
  * This was `@container (max-width: 640px)` — unnamed, so it resolved against the nearest
  * query container in the ancestor chain. On the standalone `/read` route nothing above this
  * element declared `container-type`, so the query never matched and a phone-width reader

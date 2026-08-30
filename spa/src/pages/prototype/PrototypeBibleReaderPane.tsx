@@ -1886,7 +1886,12 @@ export default function PrototypeBibleReaderPane({
       // reads, so nothing else in the app shifts face.
       style={fontOverride ? ({ '--pds-font-reading': FONT_STACKS[fontOverride] } as CSSProperties) : undefined}
     >
-      <div className={`pds-reader__scroll${onChangeTranslation ? ' pds-reader-stack' : ''}`} ref={scrollRef}>
+      <div
+        className={`pds-reader__scroll${onChangeTranslation ? ' pds-reader-stack' : ''}${
+          compare ? ' pds-reader-compare' : ''
+        }`}
+        ref={scrollRef}
+      >
         {/*
           The pile, above the page it belongs to.
 

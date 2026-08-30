@@ -540,6 +540,22 @@
    */
   --pds-paper-column-max: 784px;
   /*
+   * The ceiling again, for a sheet holding two columns instead of one.
+   *
+   * Derived the same way and from the same parts, so it cannot drift: two measures, the gutter
+   * between them (`.pds-reader__compare-row`'s own gap), and the same total side margin the
+   * single-column ceiling leaves. 656x2 + 20 + 128 = 1460.
+   *
+   * The point is the same as the single-column ceiling's — the page around the text, not more
+   * text per line. A comparison on the 784px sheet gave each version about 316px, less than
+   * half the measure, so both texts broke every couple of words while the pane beside them sat
+   * empty. Two columns need twice the room to be the same reading.
+   */
+  --pds-paper-column-compare-max: calc(
+    2 * var(--pds-paper-measure) + var(--pds-space-5) +
+      (var(--pds-paper-column-max) - var(--pds-paper-measure))
+  );
+  /*
    * How much pane has to stay clear beside the sheet before it takes any of it. Keeps the
    * sheet from growing into its own shadow: it only widens once there is room to spare,
    * which puts the start of the growth at 720 + 2x56 = 832px of pane.
