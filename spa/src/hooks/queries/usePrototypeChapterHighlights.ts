@@ -14,6 +14,7 @@ import {
   guestHighlights,
   removeGuestHighlight,
 } from '../../lib/guest-store';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import type { StudyHighlightAccentKey } from '@/utils/study-highlight-accents';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 
@@ -73,6 +74,7 @@ export function usePrototypeChapterHighlights(
             id: h.id,
             scriptureReference: h.reference,
             highlightAccent: h.accent,
+            miniNoteBody: h.miniNoteBody,
             // Every guest highlight is made while reading; there is no note dock to make one
             // from until they have an account.
             madeWhileReading: true,
@@ -155,6 +157,10 @@ export function useCreateChapterHighlight(
          * sidebar's Highlights list, and a guest has neither. Returning the stored row keeps
          * the same contract as the POST — the optimistic entry below is replaced by a real id.
          */
+        // Latched here rather than derived: the derived signals come from account data a
+        // guest does not have, so without this the checklist would never tick the step they
+        // just finished.
+        markOnboardingStep('highlight');
         return addGuestHighlight({
           book,
           chapter,

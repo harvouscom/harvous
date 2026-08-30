@@ -5,7 +5,7 @@ import { clearGuestSession, hasGuestSession, startGuestSession } from '../guest-
 
 const SPACE = 'space_home';
 
-function seedHighlight(reference: string) {
+function seedHighlight(reference: string, miniNoteBody?: string) {
   addGuestHighlight({
     book: 'Psalms',
     chapter: 34,
@@ -14,6 +14,7 @@ function seedHighlight(reference: string) {
     accent: 'violet',
     spanKey: null,
     excerpt: 'excerpt',
+    ...(miniNoteBody ? { miniNoteBody } : {}),
   });
 }
 
@@ -62,6 +63,22 @@ describe('adoptGuestWork', () => {
 
     expect(guestHighlights()).toEqual([]);
     expect(hasGuestSession()).toBe(false);
+  });
+
+  it('carries the note written on a verse up with the highlight', async () => {
+    startGuestSession();
+    seedHighlight('Psalms 34:1', 'this is the part that mattered');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await adoptGuestWork(SPACE);
+
+    // One request, not two: the create endpoint takes miniNoteBody, so a highlight can never
+    // arrive in the account with the words missing.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body));
+    expect(body.miniNoteBody).toBe('this is the part that mattered');
   });
 
   it('keeps the work on the device when a write fails', async () => {

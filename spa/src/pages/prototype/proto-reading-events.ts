@@ -11,6 +11,7 @@
 
 import { api } from '../../lib/api';
 import { isGuestModeActive } from '../../lib/guest-session';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import type { ReadingDwellBucket } from '@/utils/reading-event-kinds';
 
 export function recordReadingEvent(input: {
@@ -23,9 +24,19 @@ export function recordReadingEvent(input: {
   onSynced?: () => void;
 }): void {
   const { book, chapter, translation, dwellBucket, onSynced } = input;
-  if (isGuestModeActive()) return;
   if (!book || !translation || !dwellBucket) return;
   if (!Number.isInteger(chapter) || chapter < 1) return;
+
+  /*
+   * A guest's reading is recorded on the device instead of the account. The step is normally
+   * latched from account signals Home derives, which for a guest never arrive — so the row
+   * they had just finished sat unticked, which is the one thing an ambient checklist must
+   * never do. This is the same event, kept where they can see it.
+   */
+  if (isGuestModeActive()) {
+    markOnboardingStep('read');
+    return;
+  }
 
   void api
     .post<{ success?: boolean }>('/api/reading/event', { book, chapter, translation, dwellBucket })

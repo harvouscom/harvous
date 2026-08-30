@@ -13,6 +13,7 @@
  * appear.
  */
 import { api } from './api';
+import { isGuestModeActive } from './guest-session';
 import {
   PROTO_ONBOARDING_KEY,
   PROTO_ONBOARDING_PENDING_KEY,
@@ -230,6 +231,13 @@ async function flushPendingOnboarding(): Promise<boolean> {
  */
 function schedulePush(delayMs = 600): void {
   if (onboardingPreviewMode || !currentRaw) return;
+  /*
+   * A guest has no account to push to, and `POST /api/user/update-onboarding` is `requireAuth`
+   * — so this would queue a pending marker that retries a guaranteed 401 on every reconnect.
+   * The local copy is the whole store for them, and adoption merges it into the account's
+   * afterwards using the same monotonic rules, so nothing is lost by staying quiet here.
+   */
+  if (isGuestModeActive()) return;
   setPending(currentRaw);
   if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
   pushDebounceTimer = setTimeout(() => {
@@ -298,6 +306,21 @@ export function initOnboardingAccountSync(): void {
   if (initialized || typeof window === 'undefined') return;
   initialized = true;
   ensureLoaded();
+
+  /*
+   * A guest is hydrated the moment the local copy is read, because there is no account coming.
+   *
+   * `ready` is `hydrated || fromCache`, and both are false for a first-visit guest — so the
+   * dock, which is deliberately silent while it knows nothing, stayed silent forever. That
+   * caution is right for a member who is merely offline: their account has an answer and we
+   * have not heard it yet. For a guest, "no account answer" is not pending, it is the whole
+   * truth, and waiting on it means the one visitor the checklist was designed for is the one
+   * person who never sees it.
+   */
+  if (isGuestModeActive()) {
+    hydrated = true;
+    emit();
+  }
   window.addEventListener(HARVOUS_ONBOARDING_ACCOUNT_SYNC, (e) => {
     const detail = (e as CustomEvent<OnboardingAccountSyncDetail>).detail;
     handleOnboardingAccountSync(detail?.onboardingState ?? null);

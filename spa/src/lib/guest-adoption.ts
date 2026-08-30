@@ -44,6 +44,10 @@ async function adoptHighlight(
         excerpt: highlight.excerpt,
         spanKey: highlight.spanKey,
         translation: highlight.translation,
+        // The note they wrote on the verse rides along on the create — the endpoint takes it,
+        // so this needs no second request and cannot half-succeed into a highlight with the
+        // words missing.
+        ...(highlight.miniNoteBody ? { miniNoteBody: highlight.miniNoteBody } : {}),
         spaceId,
       }),
     });

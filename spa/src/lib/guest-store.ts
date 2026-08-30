@@ -41,6 +41,16 @@ export interface GuestHighlight {
   /** Null for a whole-verse highlight — see `src/utils/scripture-span-key.ts`. */
   spanKey: string | null;
   excerpt: string;
+  /**
+   * A note written on the verse, from the reader's annotate dock.
+   *
+   * This is how a guest writes at all. The full editor needs a space and a server round trip,
+   * but a thought attached to a highlight needs neither — and it is the same field the account
+   * version writes, so adoption carries it up without a second path.
+   */
+  miniNoteBody?: string;
+  /** The name they gave the highlight, from the same dock. Optional there, optional here. */
+  focusTitle?: string;
   createdAt: string;
 }
 
@@ -156,6 +166,20 @@ export function addGuestHighlight(
   return row;
 }
 
+export function updateGuestHighlight(
+  id: string,
+  patch: Partial<Pick<GuestHighlight, 'accent' | 'miniNoteBody' | 'focusTitle'>>,
+): GuestHighlight | undefined {
+  const store = read();
+  const idx = store.highlights.findIndex((h) => h.id === id);
+  if (idx === -1) return undefined;
+  const updated = { ...store.highlights[idx], ...patch };
+  const highlights = store.highlights.slice();
+  highlights[idx] = updated;
+  write({ ...store, highlights });
+  return updated;
+}
+
 export function removeGuestHighlight(id: string): void {
   const store = read();
   write({ ...store, highlights: store.highlights.filter((h) => h.id !== id) });
@@ -197,11 +221,10 @@ export function deleteGuestNote(id: string): void {
 /** What the guest has to lose by walking away — the exit prompt says this out loud. */
 export function guestStoreCounts(): { notes: number; highlights: number; total: number } {
   const store = read();
-  return {
-    notes: store.notes.length,
-    highlights: store.highlights.length,
-    total: store.notes.length + store.highlights.length,
-  };
+  // A note written on a highlight counts as a note, because that is what it is to the person
+  // who wrote it — the row it happens to live on is our filing, not theirs.
+  const notes = store.notes.length + store.highlights.filter((h) => h.miniNoteBody?.trim()).length;
+  return { notes, highlights: store.highlights.length, total: notes + store.highlights.length };
 }
 
 /** Called by adoption, once the work has been handed to the account. */
