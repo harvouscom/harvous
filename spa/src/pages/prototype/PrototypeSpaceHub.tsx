@@ -1,7 +1,17 @@
 /**
- * Shared/public space view — sidebar 'space' layer dashboard (not the full notes list).
+ * A shared or ministry space's own surface — not the full notes list.
+ *
+ * Wears two chromes for the same reason `PrototypeChurchHub` does: the hub is moving onto the
+ * canvas while the rail survives behind ⇧S, and the two must not drift. `variant` decides the
+ * frame and nothing inside it, so the eventual deletion of the rail is a deletion rather than
+ * a second migration.
+ *
+ * The inner markup is untouched by the move. On the sheet, CSS maps `.proto-shared-space-header`
+ * onto the sheet's head and `.proto-sidebar-scroll` onto its scrolling body — one JSX tree with
+ * four exit points (error, loading, thread drilldown, the dashboard) rather than four rewritten
+ * ones, which is the difference between a frame swap and a rewrite of a 1100-line view.
  */
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
@@ -207,15 +217,17 @@ function SharedSpaceNoteRow({
   );
 }
 
-export default function PrototypeSidebarSharedSpaceView() {
+export type SpaceHubVariant = 'rail' | 'sheet';
+
+export default function PrototypeSpaceHub({ variant = 'rail' }: { variant?: SpaceHubVariant } = {}) {
   const fixtureMode = readSharedSpaceDashboardFixtureMode();
   if (fixtureMode) {
     return <SharedSpaceDashboardFixtureView fixture={sharedSpaceDashboardFixtureForMode(fixtureMode)} />;
   }
-  return <PrototypeSidebarSharedSpaceViewLive />;
+  return <PrototypeSpaceHubLive variant={variant} />;
 }
 
-function PrototypeSidebarSharedSpaceViewLive() {
+function PrototypeSpaceHubLive({ variant }: { variant: SpaceHubVariant }) {
   const navigate = useNavigate();
   const { userId: authUserId } = useAuth();
   const { user } = useUser();
@@ -731,32 +743,44 @@ function PrototypeSidebarSharedSpaceViewLive() {
     ]);
   };
 
-  if (dashboardHasError) {
-    return (
+  /*
+    One frame, four exits.
+    
+    This view leaves by four different doors — an error, a loading state, a thread drilldown and
+    the dashboard itself — and every one of them used to name the rail's root element. Rewriting
+    each for the sheet is how three of the four end up subtly different from the fourth. So the
+    chrome is chosen once here and the exits say what they always said.
+  */
+  const frame = (children: ReactNode) =>
+    variant === 'sheet' ? (
+      <article className="proto-feed-sheet proto-shared-space-dashboard proto-shared-space-dashboard--sheet">
+        {children}
+      </article>
+    ) : (
       <div className="proto-sidebar-root proto-shared-space-dashboard">
         {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
-        <div className="proto-shared-thread-state" role="alert">
-          <p>Could not load this shared space.</p>
-          <button type="button" className="proto-shared-thread-action" onClick={retryDashboard}>
-            Retry
-          </button>
-        </div>
+        {children}
       </div>
+    );
+
+  if (dashboardHasError) {
+    return frame(
+      <div className="proto-shared-thread-state" role="alert">
+        <p>Could not load this shared space.</p>
+        <button type="button" className="proto-shared-thread-action" onClick={retryDashboard}>
+          Retry
+        </button>
+      </div>,
     );
   }
 
   if (!contentReady) {
-    return (
-      <div className="proto-sidebar-root proto-shared-space-dashboard">
-        {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
-        <ProtoSpaceLoading label="Loading space" />
-      </div>
-    );
+    return frame(<ProtoSpaceLoading label="Loading space" />);
   }
 
 
   if (drilledThread) {
-    return (
+    return frame(
       <PrototypeSharedThreadDrilldown
         thread={drilledThread}
         spaceId={activeSpaceId}
@@ -771,13 +795,12 @@ function PrototypeSidebarSharedSpaceViewLive() {
         onThreadUpdated={(patch) => {
           setDrilledThread((current) => (current ? { ...current, ...patch } : current));
         }}
-      />
+      />,
     );
   }
 
-  return (
-    <div className="proto-sidebar-root proto-shared-space-dashboard">
-      {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
+  return frame(
+    <>
       <div className="proto-shared-space-header">
         <div className="proto-shared-space-header__row">
           <ProtoSpaceMenuIcon
@@ -1171,6 +1194,6 @@ function PrototypeSidebarSharedSpaceViewLive() {
           setThreadPinError(null);
         }}
       />
-    </div>
+    </>,
   );
 }

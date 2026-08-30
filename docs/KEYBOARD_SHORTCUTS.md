@@ -21,24 +21,39 @@ suppressed on prototype routes so the two can't collide.
 |---|---|
 | **⇧N** | New note |
 | **⇧R** | Read the Bible |
-| **⇧K** | Search and commands (opens the command palette) |
+| **⇧K** | Search the Library — opens the panel with the caret in its search field |
 | **⇧,** | Settings |
 | **⇧S** | Toggle sidebar |
-| **⇧H** | Show Home |
-| **⇧L** | Show list |
-| **⇧J** | Focus the note list |
+| **⇧H** | Show Activity |
+| **⇧L** | Open the Library — the same panel, no caret, ready to browse |
+| **⇧J** | Focus the list — the panel's when it is open, the sidebar's otherwise |
 | **Esc** | Dismiss / clear a selection |
 
-### Sidebar
+### Browsing
+
+**⇧K**, **⇧L** and **⌘F** all open one surface: the **Library panel**, which morphs out of the
+toolbar's centre chip. It replaced the command palette — the tabs are the browsing, the query is
+the retrieval, and the organize verbs appear as an **Actions** group above the results. ⇧K and ⌘F
+put the caret in the field; ⇧L does not, because the arrow keys belong to the list when you came
+to browse.
+
+The sidebar is still there behind **⇧S** and keeps its own search field, but nothing points a
+chord at it any more.
 
 | Shortcut | Action |
 |---|---|
-| **⇧← / ⇧→** | Cycle list mode (Notes, Folders, Highlights, Scripture, Threads, Resources) |
+| **⇧← / ⇧→** | Cycle sections — the panel's tabs when it is open, the sidebar's list mode when the sidebar is expanded, and from neither it opens the panel |
 | **⇧↑ / ⇧↓** | Move focus in the list |
-| **Home / End** | Jump to first / last |
 | **Enter** | Open the focused item |
-| **⌘F** | Focus the search field |
+| **⌘F** | Open the Library panel's search |
 | **⌘←** | Back |
+
+Panel tab order for ⇧← / ⇧→: Everything, Notes, Folders, Threads, Highlights, Scripture,
+Resources. Cycling clears any drill, because the tab is what Back returns to.
+
+Nothing binds Enter: every panel row is a real `<button>`, so Enter and Space already fire it.
+`use-library-panel-keys.ts` says outright that this is why the rows are buttons rather than divs
+with click handlers, and that it is worth not undoing.
 
 ### Organize
 
@@ -62,11 +77,20 @@ Notes on the vocabulary:
 - **⇧B is left alone** because native binds it to the sidebar toggle. See the divergence
   below.
 - A verb never reaches a mutation the equivalent button would have greyed out — chord,
-  palette row and bulk-bar button all pass through the same `everyRowAllows` gate in
+  Actions row and bulk-bar button all pass through the same `everyRowAllows` gate in
   `spa/src/lib/note-row-capabilities.ts`.
-- Organize verbs are **notes-only** today. `⇧X` / `⇧A` follow the checkbox wherever it
-  goes, which currently means notes and highlights. The folder, Thread and resource lists
-  still enter selection from the list menu and act from their own bars.
+- The panel's Actions group is **filtered** by the query, unlike the palette's, which listed
+  every available command unconditionally. Its field also searches notes, folders, Threads,
+  highlights, Scripture and resources, so an unfiltered group would offer six verbs to
+  someone who typed "grace" (`library-command-matches.ts`).
+- `⇧X` / `⇧A` follow the checkbox wherever it goes. In the Library panel that is Everything,
+  Notes, Folders, Threads and Highlights; Scripture and Resources have no checkbox, and a
+  Scripture drill selects nothing because its rows are passages and books rather than things
+  the six verbs can act on. Only notes take all six — folders, Threads and highlights take pin
+  and their own destructive, which is what their bars have always offered
+  (`library-panel/use-library-selection.ts`).
+- Selecting is **entered from the tab menu**, under the kinds, not from a control attached to
+  the search field and not from a hover reveal on the rows — there is no hover on a phone.
 
 ### Note
 
@@ -113,12 +137,14 @@ Harvous does not use ⌘N for create, on either scheme.
 | Prototype settings page | `spa/src/pages/prototype/settings/PrototypeKeyboardShortcutsPage.tsx` |
 | Classic preferences panel | `src/components/react/MyPreferencesPanel.tsx` |
 | Native settings screen | `native/Harvous/Views/ProfileAndSettingsViews.swift` |
-| Command palette | `spa/src/pages/prototype/PrototypeCommandPalette.tsx` |
+| Library panel | `spa/src/pages/prototype/library-panel/PrototypeLibraryPanelHost.tsx` |
+| Panel Actions group | `spa/src/pages/prototype/library-panel/library-command-matches.ts` |
 | Shift-hold badges | `spa/src/hooks/usePrototypeShiftHints.ts` |
 
 **Hold Shift for 400ms** and keycaps appear on toolbar buttons, and on the bulk bar's
-Folder / Thread / Delete once a selection stands. The hold is what keeps Shift+letter typing
-in the editor from flashing hints on every capital.
+Folder / Thread / Delete once a selection stands — on both bars, the sidebar's and the
+panel's, which are literally the same `.proto-bulk-bar` chrome. The hold is what keeps
+Shift+letter typing in the editor from flashing hints on every capital.
 
 The prototype reference page is generated from `getPrototypeKeyboardShortcutsReference()`,
 whose Organize group is derived from the command table in
@@ -126,7 +152,30 @@ whose Organize group is derived from the command table in
 that page. (The two used to be independent lists, and the page had already drifted — it was
 missing ⌘F and ⌘←.)
 
-There is no `?` cheatsheet overlay. The palette and the settings page cover it.
+There is no `?` cheatsheet overlay. The Library panel and the settings page cover it: with a
+row focused and nothing typed, the panel's Actions group lists what you could do to it, chords
+included.
+
+**The command palette is retired.** `PrototypeCommandPalette.tsx` is gone, and
+`spa/src/pages/prototype/library-panel/__tests__/palette-retired.test.ts` guards the absence —
+the component file, any `cmdk` import under `pages/prototype`, the `proto-command-palette`
+stylesheet block, and the shell mounting it. Source-text assertions rather than behaviour,
+because what is being guarded is the absence of code, which nothing else can observe.
+
+### Known drift
+
+Three places still describe the pre-panel world. All three are wording, not behaviour:
+
+- `getPrototypeKeyboardShortcutsReference()` still lists **Home / End → "Jump to first / last"**
+  under Sidebar. Nothing binds it: the only `Home`/`End` handler on a prototype route is the
+  sidebar's resize grip. The chord tables above leave it out on purpose.
+- The same reference still says **"Search and commands"** for ⇧K and **"Show Home"** for ⇧H,
+  from before the palette merged and before ⇧H aimed at the shell switch's Activity half
+  (`useShellModeNav`).
+- Several docblocks under `library-panel/` name the tab-cycling chord as **⇧[ / ⇧]**. The
+  handler dispatches `prototypeShortcutCycleListMode` from `ArrowLeft` / `ArrowRight`, so the
+  chord is **⇧← / ⇧→** — which is also what the shell's `cycleListMode` comment says it is
+  choosing between surfaces for.
 
 ---
 
@@ -138,15 +187,27 @@ There is no `?` cheatsheet overlay. The palette and the settings page cover it.
 - **Dispatch:** the handler never calls app code directly. It fires `CustomEvent`s on
   `window`; components listen. Organize verbs share **one** event,
   `prototypeShortcutListVerb`, carrying `{ verb }` — the decision about whether a verb
-  applies belongs with the selection state in `PrototypeSidebar`, not with the key.
+  applies belongs with the selection state, not with the key. The selection itself is the
+  shell's, so the sidebar and the panel act on one list rather than two that have to be kept
+  in step (`library-panel/use-library-selection.ts`).
+- **⇧K's event kept its old name.** It still fires `prototypeShortcutOpenCommandPalette`; the
+  shell now answers it by opening the panel's search. The name is what `palette-retired.test.ts`
+  asserts the shell still contains, so the chord cannot be quietly unhooked.
 - **Typing guard:** `isPrototypeTypingContext()` defers every Shift chord to any active
   text field, so `x`, `m`, `p` and `a` type normally.
-- **Command palette target:** the sidebar publishes a context *getter* to
+- **Command target:** whichever list is showing publishes a context *getter* to
   `spa/src/lib/prototype-command-context-store.ts`. A getter rather than a value because
   part of the context is which row has focus, and focus moves without re-rendering React.
+  The panel reads it through `library-panel/use-library-command-context.ts`, which captures
+  it during the mount render and afterwards only ever *improves* the answer. The palette
+  could read once and be done, because mounting was opening; the panel stays mounted while
+  you type, so a naive re-read would overwrite the good mount-time answer with `null` for
+  the worst possible reason — focus is now in the panel's own search field.
 
 **Tests:** `src/utils/__tests__/keyboard-shortcuts.test.ts` drives the real listener;
-`spa/src/lib/__tests__/prototype-commands.test.ts` covers the gates and wording.
+`spa/src/lib/__tests__/prototype-commands.test.ts` covers the gates and wording;
+`spa/src/pages/prototype/library-panel/__tests__/` covers the panel's view model, morph,
+selection and command capture.
 
 ---
 

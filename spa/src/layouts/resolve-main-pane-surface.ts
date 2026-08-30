@@ -14,15 +14,22 @@ import type { ProtoLocation } from './proto-location';
  * `resolvePrototypeSidebarVariant` — a new parent kind should fail to compile here rather than
  * quietly fall through to Activity, which is the one outcome that looks like it works.
  *
- * A space (`spaceId` set) still resolves to Activity. That is today's behaviour kept
- * deliberately: the space hub is the next phase, and this phase changes exactly one thing.
+ * A *shared* space gets its own hub for the same reason a church does. A personal space does
+ * not: narrowing to it is what My Home already means, so it keeps the feed. That is the same
+ * distinction the study feed's scope options draw — "a personal space is not a scope" — and
+ * drawing it the same way in both places is deliberate.
  */
-export type MainPaneSurface = 'activity' | 'church-hub';
+export type MainPaneSurface = 'activity' | 'church-hub' | 'space-hub';
 
-export function resolveMainPaneSurface(location: ProtoLocation): MainPaneSurface {
-  /* A space open means a space is what you are looking at, whoever its parent is. Phase 2
-     gives that its own hub; until then it is the feed, unchanged. */
-  if (location.spaceId) return 'activity';
+export function resolveMainPaneSurface(input: {
+  location: ProtoLocation;
+  /** Whether the open space is one shared with other people, rather than a personal one. */
+  isSharedSpace: boolean;
+}): MainPaneSurface {
+  const { location } = input;
+
+  /* A space open means a space is what you are looking at, whoever its parent is. */
+  if (location.spaceId) return input.isSharedSpace ? 'space-hub' : 'activity';
 
   switch (location.parent.kind) {
     case 'home':

@@ -21138,6 +21138,37 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   min-width: 0;
 }
 
+/*
+ * A space hub on the canvas, without rewriting the view that draws it.
+ *
+ * The space view leaves by four doors — error, loading, a thread drilldown, the dashboard —
+ * and each names the rail's own elements. Rather than rewrite four JSX trees for the sheet
+ * (which is how three of them end up subtly unlike the fourth), the frame swaps and these two
+ * rules give the rail's header and scroller the jobs `.proto-feed-sheet__head` and
+ * `__body` do. Same markup, same component, different room.
+ */
+.proto-shared-space-dashboard--sheet > .proto-shared-space-header {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-3);
+  padding-bottom: var(--pds-space-4);
+  flex: 0 0 auto;
+}
+
+.proto-shared-space-dashboard--sheet > .proto-shared-space-header > .proto-shared-space-header__row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-shared-space-dashboard--sheet > .proto-sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-5);
+}
+
 .proto-feed-stack {
   position: relative;
   width: 100%;

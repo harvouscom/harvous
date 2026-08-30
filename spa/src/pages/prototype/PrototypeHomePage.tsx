@@ -2,7 +2,9 @@ import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeInstallWebAppCard from './PrototypeInstallWebAppCard';
 import PrototypeStudyFeedPage from './PrototypeStudyFeedPage';
 import PrototypeChurchHub from './PrototypeChurchHub';
+import PrototypeSpaceHub from './PrototypeSpaceHub';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { resolveMainPaneSurface } from '../../layouts/resolve-main-pane-surface';
 
 /**
@@ -23,7 +25,25 @@ import { resolveMainPaneSurface } from '../../layouts/resolve-main-pane-surface'
  */
 export default function PrototypeHomePage() {
   const { location } = useProtoShell();
-  const surface = resolveMainPaneSurface(location);
+  const { isSharedSpace } = useActiveSpace();
+  const surface = resolveMainPaneSurface({ location, isSharedSpace });
+
+  if (surface === 'space-hub') {
+    /*
+     * A shared space's own surface, where the personal feed used to sit.
+     *
+     * This is the fix for the oddest thing the canvas did: standing in a shared space, it
+     * rendered *your* Continue, Following and Suggested — your study, under someone else's
+     * roof — because the feed only ever asked which day it was showing, never whose.
+     */
+    return (
+      <PrototypeMainPaneShell>
+        <div className="proto-hub-frame">
+          <PrototypeSpaceHub variant="sheet" />
+        </div>
+      </PrototypeMainPaneShell>
+    );
+  }
 
   if (surface === 'church-hub') {
     /*
