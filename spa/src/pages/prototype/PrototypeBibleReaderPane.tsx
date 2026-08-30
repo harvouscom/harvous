@@ -1027,7 +1027,16 @@ export default function PrototypeBibleReaderPane({
 
   useEffect(() => {
     const column = columnRef.current;
-    if (!column || anchorLanes.length === 0) {
+    /*
+     * No bars beside a second version, because there is nowhere to put them.
+     *
+     * The layer is pinned at `left: var(--pds-reader-paper-padding-x)` — the paper's content
+     * edge — and clears the text only because the text is inset by a lane's width. A compare
+     * row reserves no lane, which is what lets the columns run the full measure, so every bar
+     * would be drawn across the first words of the left one. The signal is not lost: each
+     * verse still carries "in 3 of your notes" in its accessible name, in both columns.
+     */
+    if (!column || anchorLanes.length === 0 || compare) {
       setBars([]);
       return;
     }
@@ -1077,7 +1086,7 @@ export default function PrototypeBibleReaderPane({
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [anchorLanes, verseLayout, verses]);
+  }, [anchorLanes, verseLayout, verses, compare]);
 
   /**
    * The bar being pointed at or pinned — the note whose card is showing.

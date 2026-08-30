@@ -19027,6 +19027,22 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   gap: var(--pds-space-3);
 }
 
+/*
+ * Except beside a second version, where there is no lane to clear.
+ *
+ * The inset above is the margin-bar lane and its mirror, taken so the title starts where the
+ * words below it start. `.pds-reader__compare-row` is a plain grid with no lane, so the columns
+ * run to the paper's content edge while the heading went on standing a gutter's width inside
+ * it — the title sat right of the text under it and the chips sat left of the second column's
+ * right edge, both by 36px of reserve for something that was not there.
+ *
+ * At every width. Below 900px the comparison is one column, but it is still a compare cell and
+ * still has no lane, so flush is right on a phone too.
+ */
+.pds-reader-compare .pds-reader__chapter-heading {
+  padding-inline: 0;
+}
+
 /* The title takes the room, the control takes what it needs — `.proto-feed-sheet__title` and
    `__controls`, which is the pair this is copying. `min-width: 0` so a long book name
    ellipses inside the marquee rather than pushing the chip off the paper. */
