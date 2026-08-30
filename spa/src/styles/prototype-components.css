@@ -21676,11 +21676,29 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
    * start on the same line, and they have to keep doing that.
    */
   --hub-header-inset-x: 14px;
-  padding: 0 0 var(--pds-space-4);
+  padding: 0 0 var(--pds-space-5);
+  /* Anchor for the two controls, which sit on the cover rather than under it. */
+  position: relative;
 }
 
+/*
+ * The masthead, in the letter's own composition.
+ *
+ * The About panel is where a space is introduced, and it introduces one the way a title page
+ * does: the tile centred and straddling the cover, the name under it, large. The room itself
+ * said the same thing in a 30px tile and a 15px line — correct as a sidebar row, which is
+ * where that markup came from, and wrong as the top of the place you are standing in.
+ *
+ * So this is a column, centred, at the letter's measurements. The people line stays where it
+ * was in the reading order, directly under the name, because "Church group · Just you · Invite"
+ * is one statement about the room and splitting it across two alignments would make it two.
+ */
 .proto-shared-space-header--cover > .proto-shared-space-header__row {
-  padding: var(--pds-space-3) var(--hub-header-inset-x) 0;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 0 var(--hub-header-inset-x);
 }
 
 .proto-shared-space-header__cover {
@@ -21708,12 +21726,9 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /*
- * The identity line, tucked up under the cover's edge.
- *
- * The tile straddles the band the way the letter's does, which is what makes the two read as
- * one header rather than a picture with a row beneath it. Only the tile is lifted — the title,
- * the people line and the two controls stay on the paper, where they are legible against a
- * cover of any colour. Lifting the whole row would have put a dark gear on a dark photograph.
+ * The tile straddles the band, exactly halfway, the way the letter's does — which is what
+ * makes cover and name read as one masthead rather than a picture with a row beneath it.
+ * Half of the tile's own 52px, so the two move together if it is ever resized.
  */
 .proto-shared-space-header--cover > .proto-shared-space-header__row {
   position: relative;
@@ -21721,10 +21736,80 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 .proto-shared-space-header--cover > .proto-shared-space-header__row > .space-icon-tile {
-  align-self: flex-start;
-  margin-top: -30px;
+  align-self: center;
+  margin-top: -26px;
   /* A rim of paper, so the tile sits *on* the cover rather than being a hole cut in it. */
   box-shadow: 0 0 0 3px var(--pds-canvas-default);
+}
+
+/*
+ * Stretched, not shrunk to its own contents.
+ *
+ * `align-items: center` on a column flex makes every child shrink-to-fit on the cross axis,
+ * and the title is a marquee wrapper whose width comes from its parent — so centring the meta
+ * block collapsed the name to nothing while the people line under it, which has intrinsic
+ * width, went on rendering. The block takes the row's width and centres its text instead.
+ */
+.proto-shared-space-header--cover .proto-shared-space-header__meta {
+  align-self: stretch;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.proto-shared-space-header--cover .proto-shared-space-header__title {
+  width: 100%;
+}
+
+/* The people line carries its own `align-self: flex-start`, which is right in a left-aligned
+   row and the one thing still pinned to the edge under a centred name. */
+.proto-shared-space-header--cover .proto-shared-space-header__people {
+  align-self: center;
+}
+
+/*
+ * The name at the size the letter says it.
+ *
+ * `white-space: normal` undoes the row's own ellipsis, on purpose: a sidebar row truncates
+ * because it has one line to spend, and a masthead has as many as the name needs. "Couples
+ * without kids" at 30px ellipsed to "Couples witho…" would be a title that cannot say what
+ * the room is called.
+ */
+.proto-shared-space-header--cover .proto-shared-space-header__title {
+  font-size: 30px;
+  line-height: 1.15;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/*
+ * The two controls move onto the cover, where the About panel already puts its close.
+ *
+ * Under a centred masthead there is no row left for them to sit at the end of, and parking
+ * them below the name would make the header a third row tall for two icons. The glass fill is
+ * the same one `.proto-shared-space-about__close` takes, and for the same reason: they now
+ * sit over a photograph that could be any colour.
+ */
+.proto-shared-space-header--cover .proto-shared-space-header__actions {
+  position: absolute;
+  /*
+   * Measured from the cover's top edge, not the header's.
+   *
+   * The cover reaches `--pds-space-5` above the header's own box (that is the negative margin
+   * that makes it full-bleed), so coming back down by `--pds-space-2` lands the controls
+   * inside the picture rather than a third of the way down it. Written as the two tokens it
+   * is made of, so moving the sheet's padding moves these with it.
+   */
+  top: calc(var(--pds-space-2) - var(--pds-space-5));
+  right: var(--pds-space-3);
+  z-index: 2;
+}
+
+.proto-shared-space-header--cover .proto-shared-space-header__actions .proto-toolbar-icon-btn {
+  background: var(--pds-bg-glass-medium);
+  border: 0.5px solid var(--pds-border-control);
+  color: var(--pds-text-primary);
 }
 
 .proto-shared-space-dashboard--sheet > .proto-sidebar-scroll {

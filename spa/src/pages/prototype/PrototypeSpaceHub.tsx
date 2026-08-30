@@ -821,10 +821,13 @@ function PrototypeSpaceHubLive() {
           <PublicJoinSpaceHero space={heroSpace} />
         </div>
         <div className="proto-shared-space-header__row">
+          {/* The letter's own tile, at the letter's own proportions: 52px at radius 12 with a
+              22px glyph, which is the ~0.42 ratio `glyphSize`'s doc names for exactly this. */}
           <ProtoSpaceMenuIcon
             color={space?.color || 'paper'}
-            size={30}
-            radius={9}
+            size={52}
+            radius={12}
+            glyphSize={22}
             iconName={isMinistryChannel ? 'rss' : 'user-group'}
           />
           <div className="proto-shared-space-header__meta">
@@ -860,7 +863,11 @@ function PrototypeSpaceHubLive() {
               </button>
             ) : null}
           </div>
-          <div className="proto-shared-space-header__actions">
+        </div>
+        {/* The header's controls, not the identity line's — and they have to be a child of the
+            header to be positioned against it, since the row below is its own positioning
+            context. */}
+        <div className="proto-shared-space-header__actions">
             <button
               type="button"
               className="proto-toolbar-icon-btn"
@@ -881,7 +888,6 @@ function PrototypeSpaceHubLive() {
                 <Icon name="gear" size={15} />
               </button>
             ) : null}
-          </div>
         </div>
       </div>
 
