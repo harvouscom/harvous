@@ -50,6 +50,57 @@ describe('what qualifies', () => {
 });
 
 describe('what it refuses', () => {
+  it('refuses a term whose third ask is a second pick on a day it already counted', () => {
+    /*
+     * The recents chip writes a real event when you pick it, so a term asked once on Monday
+     * and picked again the same day, then asked on Tuesday, produces three rows across two
+     * days. Counting rows, that cleared `MIN_OCCURRENCES` and the card appeared — built out
+     * of the reader clicking the chip that says they searched for it. Counting days, it is
+     * two days, and two days is not yet a pattern.
+     */
+    const gap = deriveSearchGap(
+      [asked('patience', TODAY - 2), asked('patience', TODAY - 2), asked('patience', TODAY - 1)],
+      { todayDayIndex: TODAY },
+    );
+    expect(gap).toBeNull();
+  });
+
+  it('counts a day once however many times the term was asked that day', () => {
+    /* Same three days as QUALIFYING, with same-day repeats added: still three, not seven. */
+    const gap = deriveSearchGap(
+      [
+        asked('patience', TODAY - 5),
+        asked('patience', TODAY - 5),
+        asked('patience', TODAY - 3),
+        asked('patience', TODAY - 3),
+        asked('patience', TODAY - 3),
+        asked('patience', TODAY - 1),
+        asked('patience', TODAY - 1),
+      ],
+      { todayDayIndex: TODAY },
+    );
+    expect(gap?.occurrences).toBe(3);
+    expect(gap?.distinctDays).toBe(3);
+  });
+
+  it('does not let same-day repeats outrank a term asked on more days', () => {
+    /*
+     * `lament` has more events; `patience` has more days. Ranking on raw events handed it to
+     * lament, which is backwards for a signal whose whole premise is repetition across days.
+     */
+    const gap = deriveSearchGap(
+      [
+        ...QUALIFYING,
+        asked('lament', TODAY - 4),
+        asked('lament', TODAY - 4),
+        asked('lament', TODAY - 4),
+        asked('lament', TODAY - 2),
+      ],
+      { todayDayIndex: TODAY },
+    );
+    expect(gap?.query).toBe('patience');
+  });
+
   it('refuses a term asked three times in one sitting', () => {
     /* Retyping something in one evening is frustration, not a pattern. */
     const gap = deriveSearchGap(

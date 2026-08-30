@@ -36,13 +36,20 @@ export type SearchGapEvent = {
 
 export type SearchGap = {
   query: string;
+  /** Days it was asked on, not events logged — see the dedupe in `deriveSearchGap`. */
   occurrences: number;
   distinctDays: number;
   /** Most recent day it was asked, for the recency bound. */
   lastDayIndex: number;
 };
 
-/** Asked enough times to be a question rather than a passing thought. */
+/**
+ * Asked on enough separate days to be a question rather than a passing thought.
+ *
+ * Counted per day, so this is three days and not three events. `MIN_DISTINCT_DAYS` below is
+ * now implied by it rather than an independent bar; both are kept because they say different
+ * things about the intent, and the looser one going first makes the stricter one's job clear.
+ */
 export const SEARCH_GAP_MIN_OCCURRENCES = 3;
 /** On separate days: one session of retrying a typo is not a pattern. */
 export const SEARCH_GAP_MIN_DISTINCT_DAYS = 2;
@@ -147,7 +154,24 @@ export function deriveSearchGap(
       continue;
     }
 
-    entry.occurrences += 1;
+    /*
+     * One ask per day, however many events that day produced.
+     *
+     * The log is an honest record of what happened, so it holds every event — including the
+     * second one you get by picking a term back off the recents list, which is a real thing
+     * the reader did and not a bug in the writer. Counting those raw is what was wrong. Two
+     * ways it went wrong, and the second is the one that matters: re-picking inflated the
+     * ranking, and it could also carry a term over the qualifying bar on its own, since
+     * `MIN_OCCURRENCES` of 3 was reachable as "asked twice on Monday, once on Tuesday". A
+     * card saying you keep looking for something, manufactured by clicking the chip that
+     * says you looked for it, is the presumptuousness this whole file is written against.
+     *
+     * Deduping here rather than at the write keeps the table append-only — its own schema
+     * comment asks for exactly that, "a grouped read rather than a counter something has to
+     * keep correct" — and it fixes retyping a term in one sitting at the same time, which
+     * was the same miscount arriving by a different route.
+     */
+    if (!entry.days.has(event.dayIndex)) entry.occurrences += 1;
     entry.days.add(event.dayIndex);
     if (event.dayIndex >= entry.lastDay) {
       entry.lastDay = event.dayIndex;
