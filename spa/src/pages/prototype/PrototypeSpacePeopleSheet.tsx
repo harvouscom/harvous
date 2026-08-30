@@ -689,6 +689,8 @@ export default function PrototypeSpacePeopleSheet({
    * The manage rows hang under it for anyone who can manage, rather than behind a second door.
    * That is the whole merge: one sheet, read at the top and write below it.
    */
+  const showRosterInLetter = !canManageHub && !(ministryChannel && !viewerCanModerate);
+
   const letterView = spaceDetail ? (
     <div className="proto-space-letter-view">
       <SharedSpaceAboutLetter
@@ -696,7 +698,16 @@ export default function PrototypeSpacePeopleSheet({
           ...mapSpaceToAboutLetterSpace(spaceDetail, members),
           iconName: ministryChannel ? ('rss' as const) : ('user-group' as const),
         }}
-        members={ministryChannel && !viewerCanModerate ? [] : members}
+        /*
+         * The roster is the People row's job once that row is on screen — it sat directly
+         * above "People · Members and access · 1", naming the same person twice with a
+         * count of them in between. Without the manage rows, which is a member who cannot
+         * manage, the letter is the only place anyone is named and it keeps the list.
+         */
+        members={showRosterInLetter ? members : []}
+        /* The sheet's own header says the name, and the room behind it shows the cover and
+           the name at size. A third statement of it is repetition, not identity. */
+        hideMasthead
         meetingDay={spaceMeetingDay}
         meetingTime={spaceMeetingTime}
         meetingKind={spaceMeetingKind}
