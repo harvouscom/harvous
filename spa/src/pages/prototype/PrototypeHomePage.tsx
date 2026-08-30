@@ -7,6 +7,8 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useActiveSpace } from '../../hooks/useActiveSpace';
 import { resolveMainPaneSurface } from '../../layouts/resolve-main-pane-surface';
 import { readSharedSpaceDashboardFixtureMode } from '../dev/shared-spaces-design/shared-space-dashboard-fixture-mode';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import PrototypeGuestLockedState from './PrototypeGuestLockedState';
 
 /**
  * The main pane on `/`.
@@ -27,6 +29,7 @@ import { readSharedSpaceDashboardFixtureMode } from '../dev/shared-spaces-design
 export default function PrototypeHomePage() {
   const { location } = useProtoShell();
   const { isSharedSpace } = useActiveSpace();
+  const { isGuest } = useHarvousIdentity();
   /*
    * The design gallery's fixture mode used to reach the space hub through the sidebar variant
    * resolver, which is where it was routed when the hub lived in the rail. The hub is on the
@@ -67,6 +70,23 @@ export default function PrototypeHomePage() {
         <div className="proto-hub-frame">
           <PrototypeChurchHub />
         </div>
+      </PrototypeMainPaneShell>
+    );
+  }
+
+  /*
+   * A guest reaches this by pressing Activity, and the feed has nothing to give them: every
+   * query under it waits on a home space that will never arrive, so the pane sat on its
+   * loading dots forever. A permanent spinner is the worst of the three possible answers —
+   * it says "wait" about something that is never coming.
+   */
+  if (isGuest) {
+    return (
+      <PrototypeMainPaneShell>
+        <PrototypeGuestLockedState
+          title="Your study, remembered"
+          what="Activity gathers what you read, write and highlight, and brings it back when it matters. Keeping it across days — and across your phone and laptop — is what an account is for."
+        />
       </PrototypeMainPaneShell>
     );
   }

@@ -28,6 +28,8 @@ import {
   PROTO_SEG_ICON_SIZE,
   PROTO_TOOLBAR_ORB_ICON_SIZE,
 } from './proto-toolbar-tokens';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { offerGuestAccount } from '../../lib/guest-gate';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
 import PrototypeLibraryChip from './PrototypeLibraryChip';
@@ -258,6 +260,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     isSpaceOwner: isContextSpaceOwner,
   });
 
+  const { isGuest } = useHarvousIdentity();
   const { spaceTitle: activeSpaceTitleForChip, space: activeSpaceRow } = useActiveSpace();
   const activeSpaceColor = activeSpaceRow?.color ?? null;
 
@@ -288,6 +291,16 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   ) : undefined;
 
   const onCompose = () => {
+    /*
+     * A guest has no space to compose into, so this used to return silently — a toolbar button
+     * that looks live and does nothing, which reads as the app being broken rather than as a
+     * feature they have not unlocked. Checked before the target so the two cases stay distinct:
+     * below is "the target has not resolved yet", which is a wait, not a wall.
+     */
+    if (isGuest) {
+      offerGuestAccount('Writing notes');
+      return;
+    }
     if (!visibleComposeTarget || !canComposeInContext) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget });
@@ -427,8 +440,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
           onOpenActivity={openActivity}
           onOpenNote={() => openNote(onCompose)}
           onOpenReader={openReader}
-          canCompose={canComposeInContext}
-          disabled={!homeSpaceId}
+          /*
+           * A guest can compose in the sense this flag governs: the half is live, and pressing
+           * it explains what writing needs (see `onCompose`). Left false, the label became
+           * "Composing is not available in this channel yet" — true of a channel someone lacks
+           * permission in, and quite wrong about a visitor who simply has no account yet.
+           */
+          canCompose={canComposeInContext || isGuest}
+          /*
+           * `disabled` here means "no home space yet", which for a member is a moment during
+           * boot and for a guest is permanent — so this disabled the entire Activity / Note /
+           * Bible control for the whole visit. Reading and moving around the app do not need a
+           * space; only writing into one does, and that is decided a line above.
+           */
+          disabled={!homeSpaceId && !isGuest}
           showShortcuts={showShiftHints}
           composeLabel={composeDestinationLabel}
           spaceGlyph={spaceGlyph}
