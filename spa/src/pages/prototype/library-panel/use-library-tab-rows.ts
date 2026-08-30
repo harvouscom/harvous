@@ -7,8 +7,10 @@
  * rows under it), this asks the same queries they do. React Query dedupes by key, so the
  * cost is a cache read rather than four more requests.
  *
- * Only the kinds that can be selected in. Everything and Scripture return nothing, which is
- * the same answer `librarySelectionKindForTab` gives from the other direction.
+ * Only the kinds that can be selected in. Scripture and resources return nothing, which is the
+ * same answer `librarySelectionKindForTab` gives from the other direction. Everything returns
+ * every corpus at once, under composite ids — it is one selection that can hold several kinds,
+ * not an absence of one.
  */
 import { packMixedId } from './use-library-selection';
 import { useMemo } from 'react';

@@ -289,7 +289,7 @@ export default function PrototypeStudyFeedPage() {
 
   /* Arrow keys step the stack, so a keyboard reader is not forced through every row of a
      sheet to reach the day behind it. Ignored while typing — on this surface that means the
-     command palette or a search field. */
+     Library panel's search or another search field. */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;

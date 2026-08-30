@@ -3,7 +3,7 @@
  *
  * The same chords the sidebar's lists answer — ⇧↑/⇧↓ to move, ⇧J to drop into the list —
  * because the panel took over that job and a reader who learned them in the rail should not
- * have to learn them again. Tab switching (⇧[ / ⇧]) is wired in the shell's shortcut bridge
+ * have to learn them again. Tab switching (⇧← / ⇧→) is wired in the shell's shortcut bridge
  * alongside the sidebar's own mode cycling, since it has to choose between the two.
  *
  * Opening needs nothing: every row is a real `<button>`, so Enter and Space already fire it.

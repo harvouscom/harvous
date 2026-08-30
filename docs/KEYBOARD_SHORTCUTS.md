@@ -162,20 +162,10 @@ the component file, any `cmdk` import under `pages/prototype`, the `proto-comman
 stylesheet block, and the shell mounting it. Source-text assertions rather than behaviour,
 because what is being guarded is the absence of code, which nothing else can observe.
 
-### Known drift
-
-Three places still describe the pre-panel world. All three are wording, not behaviour:
-
-- `getPrototypeKeyboardShortcutsReference()` still lists **Home / End → "Jump to first / last"**
-  under Sidebar. Nothing binds it: the only `Home`/`End` handler on a prototype route is the
-  sidebar's resize grip. The chord tables above leave it out on purpose.
-- The same reference still says **"Search and commands"** for ⇧K and **"Show Home"** for ⇧H,
-  from before the palette merged and before ⇧H aimed at the shell switch's Activity half
-  (`useShellModeNav`).
-- Several docblocks under `library-panel/` name the tab-cycling chord as **⇧[ / ⇧]**. The
-  handler dispatches `prototypeShortcutCycleListMode` from `ArrowLeft` / `ArrowRight`, so the
-  chord is **⇧← / ⇧→** — which is also what the shell's `cycleListMode` comment says it is
-  choosing between surfaces for.
+The reference page's second group is **Browsing**, not "Sidebar", and matches the table
+above chord for chord. It used to carry a `Home / End → "Jump to first / last"` row that
+nothing ever bound — the only Home/End handler on a prototype route is the sidebar's resize
+grip — so the row is gone rather than reproduced here.
 
 ---
 

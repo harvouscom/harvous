@@ -1,7 +1,7 @@
 /**
  * The command palette stays retired.
  *
- * It merged into the Library panel: ⇧K, ⇧L and ⇧/ all open one surface where the tabs are
+ * It merged into the Library panel: ⇧K, ⇧L and ⌘F all open one surface where the tabs are
  * the browsing and the query is the retrieval. A second overlay doing half of that job is
  * exactly what the merge removed, and it is the kind of thing that grows back — someone
  * needs a quick command list, the old component is still in the tree, and now there are

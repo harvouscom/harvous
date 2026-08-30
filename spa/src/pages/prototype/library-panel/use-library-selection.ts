@@ -34,11 +34,20 @@ import type { SelectableRow } from './use-library-tab-rows';
 /**
  * Which tabs can be selected in, and what a selection there means.
  *
- * `all` is deliberately absent. It lists notes beside folders, Threads and passages, so
- * "select these" has no single answer — and a checkbox that appears on some rows of a list
- * and not others reads as a bug rather than as a rule. Scripture is absent for the reason
- * the sidebar gives: its rows are cards, not list rows, and it has never been selectable
- * anywhere. Resources have no bulk actions to offer yet.
+ * `all` was absent at first, on the reasoning that Everything lists notes beside folders,
+ * Threads and passages — so "select these" had no single answer, and a checkbox appearing on
+ * some rows of a list and not others reads as a bug rather than as a rule. The second half of
+ * that is still true of Scripture and resource rows, which have no bulk verbs to offer. It
+ * turned out to be an argument for marking *those rows*, not for refusing selection on the tab
+ * people land on first.
+ *
+ * So `mixed` is a real kind rather than a missing one. Its ids are composite (`packMixedId`
+ * below), which is what lets one selection hold a note and a folder; the verbs offered are the
+ * ones that work on every kind in it, and `commandNoun` falls back to "items" because no
+ * single noun names the set.
+ *
+ * Scripture is still absent for the reason the sidebar gives: its rows are cards, not list
+ * rows, and it has never been selectable anywhere. Resources have no bulk actions to offer yet.
  */
 export function librarySelectionKindForTab(tab: LibraryTab): LibrarySelectionKind | null {
   switch (tab) {

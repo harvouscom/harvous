@@ -355,9 +355,11 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       return true;
     }
     /**
-     * The palette opens with its field focused and searches notes as you type, so this
-     * still does what it always did — it just also runs commands. The old behaviour is
-     * not lost either: ⌘F focuses the sidebar's own search field (see below).
+     * Opens the Library panel with its field focused. The event name is a fossil: it used to
+     * summon `PrototypeCommandPalette`, which has since merged into the panel — the tabs are
+     * the browsing, the query is the retrieval, and the organize verbs are an Actions group
+     * above the results. The name is kept because `library-panel/__tests__/palette-retired.test.ts`
+     * asserts the shell still listens for it, so the chord cannot be quietly unhooked.
      */
     if (key === 'k') {
       event.preventDefault();
@@ -459,7 +461,14 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
     }
   }
 
-  // Cmd/Ctrl + F — focus sidebar search (native SidebarPanelView parity).
+  /*
+   * Cmd/Ctrl + F — the Library panel's search (native SidebarPanelView parity).
+   *
+   * The event still says "sidebar" because that is where the field used to live. The shell's
+   * `focusPrototypeSidebarSearch` now opens the panel instead: its field is the same universal
+   * search the rail ran, so pointing this at the rail would summon a fallback to do what the
+   * primary surface does.
+   */
   if (modifier && key === 'f' && !event.altKey && !event.shiftKey) {
     if (isPrototypeTypingContext(event)) return false;
     if (isPrototypeShellPath(path)) {
@@ -810,23 +819,31 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       items: [
         { action: 'New note', keyParts: [shift, 'N'] },
         { action: 'Read the Bible', keyParts: [shift, 'R'] },
-        { action: 'Search and commands', keyParts: [shift, 'K'] },
+        { action: 'Search the Library', keyParts: [shift, 'K'] },
         { action: 'Settings', keyParts: [shift, ','] },
         { action: 'Toggle sidebar', keyParts: [shift, 'S'] },
-        { action: 'Show Home', keyParts: [shift, 'H'] },
-        { action: 'Show list', keyParts: [shift, 'L'] },
-        { action: 'Focus note list', keyParts: [shift, 'J'] },
+        { action: 'Show Activity', keyParts: [shift, 'H'] },
+        { action: 'Open the Library', keyParts: [shift, 'L'] },
+        { action: 'Focus the list', keyParts: [shift, 'J'] },
         { action: 'Dismiss', keyParts: ['Esc'] },
       ],
     },
     {
-      heading: 'Sidebar',
+      /**
+       * "Browsing" rather than "Sidebar": ⇧K, ⇧L and ⌘F all open the Library panel now, and
+       * ⇧← / ⇧→ cycles whichever of the two surfaces is up. A heading naming only the rail
+       * would send the reader to the one these keys mostly do not reach.
+       *
+       * `Home / End → Jump to first / last` used to sit here and was never bound — the only
+       * Home/End handler on a prototype route is the sidebar's resize grip. A reference page
+       * that advertises a chord nothing answers is worse than one that omits it.
+       */
+      heading: 'Browsing',
       items: [
-        { action: 'Cycle list mode', keyParts: [shift, '← / →'] },
+        { action: 'Cycle sections', keyParts: [shift, '← / →'] },
         { action: 'Move in list', keyParts: [shift, '↑ / ↓'] },
-        { action: 'Jump to first / last', keyParts: ['Home / End'] },
         { action: 'Open item', keyParts: ['Enter'] },
-        { action: 'Focus search field', keyParts: [getKeyboardShortcutModifierLabel(), 'F'] },
+        { action: 'Open the Library search', keyParts: [getKeyboardShortcutModifierLabel(), 'F'] },
         { action: 'Back', keyParts: [getKeyboardShortcutModifierLabel(), '←'] },
       ],
     },

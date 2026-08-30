@@ -32,12 +32,11 @@ import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
 import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
-/**
- * Lazy: most sessions never press ⇧K, and the palette pulls in `cmdk`. The shell owns the
- * open flag because something has to hear the shortcut while this module is unfetched.
- */
 /*
  * The Library panel and everything it browses — off the critical path.
+ *
+ * The shell owns the open flag, not the panel, because something has to hear ⇧K / ⇧L / ⌘F
+ * while this module is still unfetched.
  *
  * It only exists once someone opens it, and its body pulls in the list views for all
  * five sections, so shipping it in the initial payload charges every route (sign-in
@@ -1278,7 +1277,7 @@ function PrototypeShortcutBridge() {
   }, [ensureSidebarExpanded, libraryPanelView, setSidebarLayer]);
 
   /*
-   * ⇧/ opens the Library panel's search rather than the sidebar's.
+   * ⌘F opens the Library panel's search rather than the sidebar's.
    *
    * The panel is the browse surface now, and its search field is the same universal
    * search the sidebar ran — so pointing the chord at the rail would summon a fallback
@@ -1296,7 +1295,7 @@ function PrototypeShortcutBridge() {
   }, [openLibraryPanel]);
 
   /*
-   * ⇧[ / ⇧] walks sections of whichever browse surface is actually up.
+   * ⇧← / ⇧→ walks sections of whichever browse surface is actually up.
    *
    * Three cases rather than two, because during the transition both surfaces exist: the
    * panel wins when it is open, the sidebar keeps its own cycle when someone has it
@@ -1425,7 +1424,7 @@ function PrototypeShortcutBridge() {
   ]);
 
   /**
-   * ⇧K opens the Library panel's search, the same surface ⇧/ and ⇧L reach.
+   * ⇧K opens the Library panel's search, the same surface ⌘F and ⇧L reach.
    *
    * The palette used to live here as its own overlay — mounted at the shell rather than in
    * the sidebar so it still opened with the rail collapsed. That reasoning now belongs to

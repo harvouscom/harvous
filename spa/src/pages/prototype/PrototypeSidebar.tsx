@@ -769,8 +769,8 @@ export default function PrototypeSidebar({
   const SELECTION_CAP = NOTE_SELECTION_CAP;
   /*
    * The folder ceiling now comes from `prototype-commands.ts`, where it also gates the
-   * keyboard chord and the palette row. Personal notes assign in one batch request; a
-   * shared space still fans out per note, so it keeps the lower limit.
+   * keyboard chord and the Library panel's Actions row. Personal notes assign in one batch
+   * request; a shared space still fans out per note, so it keeps the lower limit.
    */
   const folderCap = isScopedSharedSpace ? SHARED_FOLDER_FANOUT_CAP : FOLDER_FANOUT_CAP;
 
@@ -1355,9 +1355,9 @@ export default function PrototypeSidebar({
   /**
    * Run one command against a context, reusing the sheets and confirms the bulk bar opens.
    *
-   * Enablement is checked here rather than trusted from the caller: the palette filters its
-   * rows by `availablePrototypeCommands`, but a chord arrives unfiltered, and both should
-   * meet the same gate.
+   * Enablement is checked here rather than trusted from the caller: the Library panel filters
+   * its Actions rows by `availablePrototypeCommands`, but a chord arrives unfiltered, and both
+   * should meet the same gate.
    */
   const runCommand = useCallback(
     (commandId: PrototypeCommandId, ctx: CommandContext) => {
@@ -1435,7 +1435,7 @@ export default function PrototypeSidebar({
    *
    * Published once, through refs. Publishing the callbacks themselves re-ran this on every
    * render — `runCommand` depends on the mutation object from `usePinSpaceNote()`, whose
-   * identity is new each time — and each publish notifies the store, so the palette
+   * identity is new each time — and each publish notifies the store, so every subscriber
    * re-rendered continuously. The store only ever calls these on demand, so a stable
    * wrapper over a ref is all it needs.
    */

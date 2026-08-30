@@ -62,7 +62,7 @@ export type LibraryPanelView = {
   selectOnOpen?: boolean;
 };
 
-/** Tab order for the chip row and for ⇧[ / ⇧] cycling. */
+/** Tab order for the chip row and for ⇧← / ⇧→ cycling. */
 export const LIBRARY_TABS: LibraryTab[] = [
   'all',
   'notes',
@@ -88,7 +88,7 @@ export const LIBRARY_TABS: LibraryTab[] = [
 export const LIBRARY_CHIP_OPENING_VIEW: LibraryPanelView = { tab: 'all', drill: null };
 
 /**
- * ⇧[ / ⇧] — walk the tabs.
+ * ⇧← / ⇧→ — walk the tabs.
  *
  * Clears the drill, because the keys mean "next tab" and landing on a tab still showing
  * one folder's contents would be answering a different question than the one asked.
