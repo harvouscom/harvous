@@ -44,6 +44,7 @@ import PrototypeNoteMoreMenu from './PrototypeNoteMoreMenu';
 import SplitColumnToggleIcon from './SplitColumnToggleIcon';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import {
+  isPrototypeAdminPath,
   isPrototypeHomePath,
   isPrototypeNotePath,
   matchPrototypeNoteId,
@@ -188,6 +189,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     libraryPanelView,
     libraryPanelExiting,
     openLibraryPanel,
+    hideSidebar,
   } = useProtoShell();
 
   const isUnified = variant === 'unified';
@@ -369,13 +371,25 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     return () => window.removeEventListener('prototypeOpenFindInNote', onOpenFind as EventListener);
   }, [isOnNotePage, toolbarNoteId, openFindPopover]);
 
+  /*
+   * There is only one rail left — admin's — so everywhere else the sidebar controls open
+   * nothing.
+   *
+   * Left ungated on a phone, the drawer toggle stayed in the toolbar after the rail was
+   * deleted: tapping it set `proto-shell--drawer-open` and mounted the overlay over a drawer
+   * with no contents, which is a control that does nothing and a scrim that eats the next tap.
+   * The collapsed-rail controls beside it had the same problem on desktop — an expand button
+   * for a rail that cannot expand.
+   */
+  const hasRail = !hideSidebar && isPrototypeAdminPath(pathname);
+
   const showCollapsedSidebarControls =
-    !isUnified && (desktopSidebarCollapsed || sidebarExiting);
+    hasRail && !isUnified && (desktopSidebarCollapsed || sidebarExiting);
 
   return (
     <div className="proto-toolbar-inner">
       <div className="proto-toolbar-left">
-        {isUnified ? (
+        {isUnified && hasRail ? (
           <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
             <button
               type="button"
