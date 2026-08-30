@@ -47,6 +47,7 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
+import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
@@ -245,7 +246,9 @@ function PrototypeSpaceHubLive() {
     ensureSidebarExpanded,
     closeDrawer,
     beginPrototypeComposeSession,
+    openLibraryPanel,
   } = useProtoShell();
+  const libraryNav = useLibraryPanelNav();
   const [peopleOpen, setPeopleOpen] = useState(false);
   /*
    * Which screen the one sheet opens on.
@@ -574,10 +577,17 @@ function PrototypeSpaceHubLive() {
     scriptureSettled;
   const homeViewClassName = useProtoHomeViewClassName(contentReady, activeSpaceId);
 
+  /*
+   * Into the Library panel, which is where a list lives now.
+   *
+   * This set three pieces of sidebar state — expand it, switch it to the list layer, put it on
+   * a mode — and the sidebar is admin-only, so it never mounted to read any of them. Every
+   * caller here was a button that did nothing: the Library row in Tools, the greeting's note
+   * count, the "new notes to catch up on" chip. `useLibraryPanelNav` is the same journey
+   * against the surface that replaced it, and it maps the mode names one to one.
+   */
   const goToListMode = (mode: SidebarListMode) => {
-    ensureSidebarExpanded();
-    setSidebarLayer('list');
-    setSidebarListMode(mode);
+    libraryNav.openList(mode);
   };
 
   const goToNotesList = () => goToListMode('notes');
@@ -616,12 +626,21 @@ function PrototypeSpaceHubLive() {
     setDrilledThread((current) => (current?.id === threadId ? { ...current, isPinned: true } : current));
   };
 
+  /* Same retirement, same fix — the passage opens in the panel's Scripture tab, drilled to
+     the passage itself rather than to the book it is in. */
   const openPassage = () => {
     if (!topPassage) return;
-    setScriptureDrill({ level: 'notes', bookOrder: topPassage.bookOrder, passageKey: topPassage.passageKey });
-    setSidebarListMode('scripture');
-    setSidebarLayer('list');
-    ensureSidebarExpanded();
+    openLibraryPanel({
+      tab: 'scripture',
+      drill: {
+        kind: 'scripture',
+        drill: {
+          level: 'notes',
+          bookOrder: topPassage.bookOrder,
+          passageKey: topPassage.passageKey,
+        },
+      },
+    });
   };
 
   const resolveAuthor = (note: SpaceNoteRow) => {
