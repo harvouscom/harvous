@@ -46,12 +46,25 @@ export type SearchGap = {
 /**
  * Asked on enough separate days to be a question rather than a passing thought.
  *
- * Counted per day, so this is three days and not three events. `MIN_DISTINCT_DAYS` below is
- * now implied by it rather than an independent bar; both are kept because they say different
- * things about the intent, and the looser one going first makes the stricter one's job clear.
+ * Counted per day, so this is two days and not two events — the dedupe in `deriveSearchGap`
+ * is what makes the distinction hold. Coming back to something on a second day is the
+ * smallest thing that is honestly repetition rather than one sitting, and that is the line
+ * this file cares about; asking twice in one evening still counts once.
+ *
+ * Set deliberately at the loose end. The stricter reading of the same rule is three days,
+ * which is safer against seeming presumptuous but fires rarely enough that the card would
+ * mostly not exist. Two is the call: the other gates below — never opened, still finding
+ * nothing, no note already named for it, and a term that is a real word — are doing more of
+ * the work here than the day count is.
  */
-export const SEARCH_GAP_MIN_OCCURRENCES = 3;
-/** On separate days: one session of retrying a typo is not a pattern. */
+export const SEARCH_GAP_MIN_OCCURRENCES = 2;
+/**
+ * The same bar, said as days.
+ *
+ * Identical to the constant above now that occurrences are counted per day, and kept rather
+ * than collapsed because the two names are what stop the dedupe from being quietly undone: a
+ * later reader raising `MIN_OCCURRENCES` to mean events again has to explain this one too.
+ */
 export const SEARCH_GAP_MIN_DISTINCT_DAYS = 2;
 /** Still a live interest. */
 export const SEARCH_GAP_MAX_AGE_DAYS = 14;

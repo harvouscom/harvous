@@ -50,19 +50,20 @@ describe('what qualifies', () => {
 });
 
 describe('what it refuses', () => {
-  it('refuses a term whose third ask is a second pick on a day it already counted', () => {
+  it('counts a same-day re-pick as the day it already had, not another ask', () => {
     /*
      * The recents chip writes a real event when you pick it, so a term asked once on Monday
-     * and picked again the same day, then asked on Tuesday, produces three rows across two
-     * days. Counting rows, that cleared `MIN_OCCURRENCES` and the card appeared — built out
-     * of the reader clicking the chip that says they searched for it. Counting days, it is
-     * two days, and two days is not yet a pattern.
+     * and picked again that same Monday, then asked on Tuesday, produces three rows across
+     * two days. Two days clears the bar, so this qualifies — but it has to qualify as two,
+     * not three. Counting rows would let the reader's own click on the chip inflate how
+     * often the app believes they asked, which is the thing the dedupe exists to stop.
      */
     const gap = deriveSearchGap(
       [asked('patience', TODAY - 2), asked('patience', TODAY - 2), asked('patience', TODAY - 1)],
       { todayDayIndex: TODAY },
     );
-    expect(gap).toBeNull();
+    expect(gap?.occurrences).toBe(2);
+    expect(gap?.distinctDays).toBe(2);
   });
 
   it('counts a day once however many times the term was asked that day', () => {
@@ -142,9 +143,21 @@ describe('what it refuses', () => {
     expect(deriveSearchGap(straggling, { todayDayIndex: TODAY })).toBeNull();
   });
 
-  it('refuses two asks, however recent', () => {
+  it('draws the line at two days rather than two asks', () => {
+    /*
+     * The boundary, from both sides, because it is the one number here chosen by judgment
+     * rather than forced by the data. Two asks on two days is the smallest thing this will
+     * offer; the same two asks in one evening is not, however recent, and neither is a third
+     * ask that lands on a day already counted.
+     */
     expect(
       deriveSearchGap([asked('patience', TODAY - 2), asked('patience', TODAY - 1)], {
+        todayDayIndex: TODAY,
+      })?.query,
+    ).toBe('patience');
+
+    expect(
+      deriveSearchGap([asked('patience', TODAY - 1), asked('patience', TODAY - 1)], {
         todayDayIndex: TODAY,
       }),
     ).toBeNull();
