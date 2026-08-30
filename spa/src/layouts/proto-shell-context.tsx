@@ -137,6 +137,32 @@ export function sidebarSelectionKindForListMode(mode: SidebarListMode): SidebarS
 }
 
 /** Sidebar layer — Home space dashboard vs the list views. Only 'space' layer content today is My Home. */
+/** A trigger's box in viewport coordinates — enough for a panel to grow out of it. */
+export type ProtoExpandRect = { top: number; left: number; width: number; height: number };
+
+/**
+ * The focused element's box, when there is one worth animating from.
+ *
+ * Zero-sized and disconnected elements are refused rather than returned: a rect of no size
+ * makes the panel appear to grow from a point at the top-left of the screen, which is worse
+ * than the edge unfurl it falls back to.
+ */
+function readFocusedElementRect(): ProtoExpandRect | null {
+  if (typeof document === 'undefined') return null;
+  const el = document.activeElement;
+  if (!(el instanceof HTMLElement) || !el.isConnected) return null;
+  /*
+   * `document.activeElement` is `<body>` when nothing is focused, and body is page-sized — so
+   * it passes every size check and gives an "origin" bigger than the panel itself. That is not
+   * a trigger, it is the absence of one, and the honest answer is null so the edge unfurl
+   * takes over.
+   */
+  if (el === document.body || el === document.documentElement) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return null;
+  return { top: r.top, left: r.left, width: r.width, height: r.height };
+}
+
 export type SidebarLayer = 'space' | 'list';
 
 export type VisibleComposeTargetInput = {
@@ -528,7 +554,9 @@ type ProtoShellContextValue = {
   expandedSidebarTool: string | null;
   /** True during the exit animation window — keep the panel mounted while this is true. */
   expandedSidebarExiting: boolean;
-  openExpandedSidebar: (tool: string) => void;
+  openExpandedSidebar: (tool: string, origin?: ProtoExpandRect | null) => void;
+  /** Where the open came from, for the panel's grow-out-of-it animation. Null = no opener. */
+  expandedSidebarOrigin: ProtoExpandRect | null;
   closeExpandedSidebar: (options?: { preserveHistory?: boolean }) => void;
   /**
    * Library panel — the browse surface that morphs out of the toolbar's center chip.
@@ -646,6 +674,15 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   threadPanelExpandedRef.current = threadPanelExpanded;
   const [expandedSidebarTool, setExpandedSidebarTool] = useState<string | null>(null);
   const [expandedSidebarExiting, setExpandedSidebarExiting] = useState(false);
+  /**
+   * Where the tool was opened from, so the panel can grow out of it.
+   *
+   * The surface used to unfurl from the left edge at the sidebar's width, which was the truth
+   * while the sidebar was the only way in. It is not any more — a tool is reached from a hub's
+   * header, a row in a sheet, a step in a plan — and a panel that always came from the same
+   * place regardless was animating a door that is no longer there.
+   */
+  const [expandedSidebarOrigin, setExpandedSidebarOrigin] = useState<ProtoExpandRect | null>(null);
   const expandedSidebarExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Skips the next popstate close when we called history.back() from an explicit close. */
   const expandedSidebarHistorySkipRef = useRef(false);
@@ -855,10 +892,20 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openExpandedSidebar = useCallback(
-    (tool: string) => {
+    (tool: string, origin?: ProtoExpandRect | null) => {
       if (expandedSidebarExitTimerRef.current) clearTimeout(expandedSidebarExitTimerRef.current);
       expandedSidebarExitTimerRef.current = null;
       setExpandedSidebarExiting(false);
+      /*
+       * The focused element is the opener, and reading it here rather than threading a rect
+       * through six call sites is what makes this hold for the seventh. A pointer press on a
+       * button focuses it, so by the time a click handler calls this the trigger is what has
+       * focus — and where that is not true (opened from a sheet that has already closed, or
+       * from the keyboard with focus elsewhere) the answer is null and the panel keeps the
+       * edge unfurl it has always had. Explicit beats implicit, except where implicit is the
+       * only version that stays right as call sites are added.
+       */
+      setExpandedSidebarOrigin(origin ?? readFocusedElementRect());
       setExpandedSidebarTool(tool);
       pushExpandedSidebarHistory();
     },
@@ -1624,6 +1671,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       backFromThreadPanelToInspector,
       expandedSidebarTool,
       expandedSidebarExiting,
+      expandedSidebarOrigin,
       openExpandedSidebar,
       closeExpandedSidebar,
       libraryPanelView,
@@ -1719,6 +1767,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       backFromThreadPanelToInspector,
       expandedSidebarTool,
       expandedSidebarExiting,
+      expandedSidebarOrigin,
       openExpandedSidebar,
       closeExpandedSidebar,
       libraryPanelView,

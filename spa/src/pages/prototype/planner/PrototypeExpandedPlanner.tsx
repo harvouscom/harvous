@@ -84,7 +84,7 @@ function readStoredView(): PlannerView {
   return 'board';
 }
 
-export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedSidebarToolProps) {
+export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: ExpandedSidebarToolProps) {
   const { activeChurchOrgId, closeExpandedSidebar } = useProtoShell();
   const access = useChurchPlannerAccess(activeChurchOrgId);
   const { orgId, canView, canWrite, readOnlyReason, canManageChurchTemplates, plannableSpaces } =
@@ -417,6 +417,7 @@ export default function PrototypeExpandedPlanner({ exiting, onClose }: ExpandedS
         ) : undefined
       }
       exiting={exiting}
+      origin={origin}
       onClose={onClose}
     >
       {!effectiveCanView ? (

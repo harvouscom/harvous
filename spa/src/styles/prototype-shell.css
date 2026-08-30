@@ -1341,6 +1341,54 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   /*
+   * Opened from somewhere in particular — grow out of that instead of the left edge.
+   *
+   * The width unfurl above says "the sidebar took the room it needed", which was true while
+   * the sidebar was the only way in. A tool is reached from a hub's header, a row in a sheet,
+   * a step in a plan; a panel that always came from the same edge regardless was animating a
+   * door that is not there any more.
+   *
+   * Still a clip, which is the whole reason this generalises cleanly: the width animation was
+   * already a window onto a body laid out at final size, and `clip-path` is that window with
+   * four sides instead of one. A transform would have squashed a 1040px panel into a 30px
+   * button and stretched every word in it back out.
+   *
+   * `--proto-expand-clip-from` is written by the panel before paint — see
+   * `ProtoSidebarExpandedPanel`. Only the name is overridden, so duration, easing and fill
+   * stay the shorthand's above and there is one place to change how fast any of this is.
+   */
+  .proto-sidebar-expanded-panel[data-expand-from='origin'] {
+    width: min(calc(100% - 16px), 1040px);
+    animation-name: proto-sidebar-expanded-clip-in;
+  }
+
+  @keyframes proto-sidebar-expanded-clip-in {
+    from {
+      clip-path: var(--proto-expand-clip-from);
+      opacity: 0.6;
+    }
+    to {
+      clip-path: inset(0 round var(--pds-shell-frame-radius));
+      opacity: 1;
+    }
+  }
+
+  .proto-sidebar-expanded-panel--exiting[data-expand-from='origin'] {
+    animation-name: proto-sidebar-expanded-clip-out;
+  }
+
+  @keyframes proto-sidebar-expanded-clip-out {
+    from {
+      clip-path: inset(0 round var(--pds-shell-frame-radius));
+      opacity: 1;
+    }
+    to {
+      clip-path: var(--proto-expand-clip-from);
+      opacity: 0;
+    }
+  }
+
+  /*
    * Pinned to the panel's final width so children lay out once and each frame of
    * the width animation is a clip, not a reflow.
    *

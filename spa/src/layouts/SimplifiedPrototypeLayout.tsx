@@ -334,6 +334,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     beginPrototypeComposeSession,
     expandedSidebarTool,
     expandedSidebarExiting,
+    expandedSidebarOrigin,
     libraryPanelView,
     libraryPanelExiting,
     closeExpandedSidebar,
@@ -1130,6 +1131,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           <PrototypeExpandedSidebarHost
             tool={expandedSidebarTool}
             exiting={expandedSidebarExiting}
+            origin={expandedSidebarOrigin}
             onClose={closeExpandedSidebar}
           />
         ) : null}
