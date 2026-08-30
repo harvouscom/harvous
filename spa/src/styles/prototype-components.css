@@ -18946,6 +18946,18 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   align-items: center;
   gap: var(--pds-space-2);
   flex: 0 0 auto;
+  /*
+   * One height for every chip in this row, because they do not all get there the same way.
+   *
+   * A chip with text in it is as tall as its line box — 12px — plus the chip's 2px padding
+   * either side and its two 0.5px borders, so 17. A chip with only a glyph has no line box:
+   * `Icon` writes its own `height` as an inline style, which no stylesheet rule can reach, and
+   * 10px of glyph came out 15. Two pills side by side, 2px apart in height, which is exactly
+   * far enough to look like a mistake rather than a variation.
+   *
+   * Stated as the sum rather than as 17 so it stays true if the chip's type or padding moves.
+   */
+  --pds-reader-chip-height: calc(12px + 2 * 2px + 2 * 0.5px);
 }
 
 /*
@@ -18999,6 +19011,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   align-items: center;
   justify-content: center;
   padding: 2px 6px;
+  /* Matched to the text chips beside it — a glyph has no line box of its own to be as tall as. */
+  min-height: var(--pds-reader-chip-height);
   cursor: pointer;
   color: var(--pds-text-secondary);
 }
@@ -19203,7 +19217,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   gap: 4px;
   /* The chip supplies its own; the trigger's would double it. */
   padding: 2px 6px;
-  min-height: 0;
+  min-height: var(--pds-reader-chip-height);
   cursor: pointer;
 }
 
