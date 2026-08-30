@@ -18969,10 +18969,19 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  */
 @container pds-reader-scroll (min-width: 901px) {
   .pds-reader-compare > * {
+    /*
+     * Plus the lane and its mirror, which the token cannot know about.
+     *
+     * `--pds-paper-column-compare-max` is built from measures and page margins — paper facts,
+     * declared at `:root` where `--pds-reader-text-inset` does not exist. The lane is a reader
+     * fact, so it is added here, where the reader's own variables are in scope. Without it the
+     * row's padding comes out of the columns and each lands at 620px, short of the measure the
+     * ceiling exists to guarantee.
+     */
     --pds-paper-column: clamp(
       var(--pds-paper-column-max),
       100cqi - 2 * var(--pds-paper-column-gutter),
-      var(--pds-paper-column-compare-max)
+      calc(var(--pds-paper-column-compare-max) + 2 * var(--pds-reader-text-inset))
     );
     --pds-editor-paper-padding-x: calc(
       (var(--pds-paper-column-max) - var(--pds-paper-measure)) / 2
@@ -19027,22 +19036,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   gap: var(--pds-space-3);
 }
 
-/*
- * Except beside a second version, where there is no lane to clear.
- *
- * The inset above is the margin-bar lane and its mirror, taken so the title starts where the
- * words below it start. `.pds-reader__compare-row` is a plain grid with no lane, so the columns
- * run to the paper's content edge while the heading went on standing a gutter's width inside
- * it — the title sat right of the text under it and the chips sat left of the second column's
- * right edge, both by 36px of reserve for something that was not there.
- *
- * At every width. Below 900px the comparison is one column, but it is still a compare cell and
- * still has no lane, so flush is right on a phone too.
- */
-.pds-reader-compare .pds-reader__chapter-heading {
-  padding-inline: 0;
-}
-
 /* The title takes the room, the control takes what it needs — `.proto-feed-sheet__title` and
    `__controls`, which is the pair this is copying. `min-width: 0` so a long book name
    ellipses inside the marquee rather than pushing the chip off the paper. */
@@ -19088,6 +19081,24 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   grid-template-columns: 1fr 1fr;
   gap: var(--pds-space-5);
   align-items: start;
+  /*
+   * The margin lane, and its mirror on the far side.
+   *
+   * The same `--pds-reader-text-inset` `.pds-reader__block` reserves, for the same reason: the
+   * bar layer is pinned at the paper's content edge, so text starting there would have marks
+   * drawn across its first words. Without it the columns ran the full content width and the
+   * heading — which has always taken this inset — stood 36px inside them, so the title sat
+   * right of the text under it and the chips left of the second column's right edge.
+   *
+   * As padding rather than a third grid track, because the two gaps are different sizes: the
+   * lane sits `--pds-space-2` from the text and the columns sit `--pds-space-5` from each
+   * other, and one `column-gap` cannot be both.
+   *
+   * One lane, on the left, for both columns. There is one margin layer on the page and a note
+   * is anchored to a verse number, which both versions share — a second lane down the middle
+   * would be a margin inside the page.
+   */
+  padding-inline: var(--pds-reader-text-inset);
 }
 
 .pds-reader__compare-cell {

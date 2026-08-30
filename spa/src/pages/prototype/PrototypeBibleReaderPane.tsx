@@ -1027,26 +1027,33 @@ export default function PrototypeBibleReaderPane({
 
   useEffect(() => {
     const column = columnRef.current;
-    /*
-     * No bars beside a second version, because there is nowhere to put them.
-     *
-     * The layer is pinned at `left: var(--pds-reader-paper-padding-x)` — the paper's content
-     * edge — and clears the text only because the text is inset by a lane's width. A compare
-     * row reserves no lane, which is what lets the columns run the full measure, so every bar
-     * would be drawn across the first words of the left one. The signal is not lost: each
-     * verse still carries "in 3 of your notes" in its accessible name, in both columns.
-     */
-    if (!column || anchorLanes.length === 0 || compare) {
+    if (!column || anchorLanes.length === 0) {
       setBars([]);
       return;
     }
+    /*
+     * The verse as it is actually on screen — there can be two of it.
+     *
+     * A comparison renders every verse number twice, and on a phone one of the two is
+     * `display: none`. A plain `querySelector` takes the first in the DOM, which is the primary
+     * column's: right while both are showing, and silently wrong once someone swipes to the
+     * other version, because a hidden element has no client rects and every bar would drop out.
+     * Asking for the one with a rect is the same answer at every width without knowing which
+     * width it is, and it lets the marks follow the swipe.
+     */
+    const renderedVerse = (n: number): HTMLElement | null => {
+      for (const el of column.querySelectorAll<HTMLElement>(`[data-reader-verse="${n}"]`)) {
+        if (el.getClientRects().length > 0) return el;
+      }
+      return null;
+    };
     const measure = () => {
       const base = column.getBoundingClientRect().top;
       const next: MarginBar[] = [];
       for (const a of anchorLanes) {
-        const startEl = column.querySelector(`[data-reader-verse="${a.startVerse}"]`);
-        const endEl = column.querySelector(`[data-reader-verse="${a.endVerse}"]`);
-        if (!(startEl instanceof HTMLElement) || !(endEl instanceof HTMLElement)) continue;
+        const startEl = renderedVerse(a.startVerse);
+        const endEl = renderedVerse(a.endVerse);
+        if (!startEl || !endEl) continue;
         const startRects = startEl.getClientRects();
         const endRects = endEl.getClientRects();
         const first = startRects[0];
@@ -1086,7 +1093,7 @@ export default function PrototypeBibleReaderPane({
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [anchorLanes, verseLayout, verses, compare]);
+  }, [anchorLanes, verseLayout, verses, compare, visibleColumn]);
 
   /**
    * The bar being pointed at or pinned — the note whose card is showing.
