@@ -89,7 +89,9 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               onError={() => setPhotoLoadFailed(true)}
             />
           ) : (
-            <Icon name="circle-user" size={iconSize} />
+            /* The guest's badge, so the mode is legible from the toolbar without opening the
+               menu — and the same glyph the standing row carries, so the two read as one thing. */
+            <Icon name={isGuest ? 'id-card-clip' : 'circle-user'} size={iconSize} />
           )}
         </span>
       </button>
@@ -108,7 +110,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
           <div className="proto-account-menu__identity">
             <span className="proto-account-menu__avatar" aria-hidden>
               {isGuest ? (
-                <Icon name="circle-user" size={PROTO_TOOLBAR_ICON_SIZE} />
+                <Icon name="id-card-clip" size={PROTO_TOOLBAR_ICON_SIZE} />
               ) : showProfilePhoto ? (
                 <img
                   src={avatarImageUrl!}
