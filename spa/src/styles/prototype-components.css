@@ -21742,9 +21742,32 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   padding-inline: var(--pds-space-5);
 }
 
+/*
+ * The intro gets the same air under it as over it.
+ *
+ * `.proto-home-view`'s 10px gap is the rhythm between sections — right between a card and the
+ * next section's label, and too tight under a sentence that introduces the whole page. The
+ * header leaves 28px above it and the gap left 12 below, so the paragraph sat against the
+ * first section as if it belonged to it. `--pds-space-4` on top of the gap brings the two
+ * sides level.
+ *
+ * On the section rather than the paragraph: the gap is a flex property of the parent, and a
+ * margin on the child is what adds to it without reaching into every other section's spacing.
+ */
+.proto-shared-space-dashboard--sheet .proto-home-view > .proto-home-section:first-child {
+  margin-bottom: var(--pds-space-4);
+}
+
 .proto-shared-space-header__cover {
   position: relative;
-  height: 104px;
+  /*
+   * 140px, which is what the About panel gives the same picture. It started at 104 on the
+   * reasoning that a header read past a dozen times a day should not push the room's contents
+   * under the fold — true, and it turned out to be too careful: at that height the cover read
+   * as a band above the room rather than as the room's own picture. The letter had the number
+   * already, and using it means the cover is one height wherever it appears.
+   */
+  height: 140px;
   /* Only the sheet's padding left to unpick, per the rule above. */
   margin: calc(-1 * var(--pds-space-5)) calc(-1 * var(--pds-space-5)) 0;
   overflow: hidden;
