@@ -21848,15 +21848,17 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 .proto-shared-space-header--cover .proto-shared-space-header__actions {
   position: absolute;
   /*
-   * Measured from the cover's top edge, not the header's.
+   * Measured from the cover's edges, not the header's — the same distance on both.
    *
-   * The cover reaches `--pds-space-5` above the header's own box (that is the negative margin
-   * that makes it full-bleed), so coming back down by `--pds-space-2` lands the controls
-   * inside the picture rather than a third of the way down it. Written as the two tokens it
-   * is made of, so moving the sheet's padding moves these with it.
+   * The cover reaches `--pds-space-5` past the header's own box on the top and both sides
+   * (that is the negative margin that makes it full-bleed), so coming back by
+   * `--pds-space-2` lands the controls inside the picture rather than a third of the way
+   * into it. `right` was measured from the header instead, which put it 32px from the
+   * cover's edge against the top's 8 — the same corner, two insets. One expression, used
+   * twice, and moving the sheet's padding moves both with it.
    */
   top: calc(var(--pds-space-2) - var(--pds-space-5));
-  right: var(--pds-space-3);
+  right: calc(var(--pds-space-2) - var(--pds-space-5));
   z-index: 2;
 }
 

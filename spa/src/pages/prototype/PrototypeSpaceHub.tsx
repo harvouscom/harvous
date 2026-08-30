@@ -948,7 +948,11 @@ function PrototypeSpaceHubLive() {
                 aria-expanded={toolsOpen}
                 onClick={() => setToolsOpen((v) => !v)}
               >
-                <Icon name="wrench" size={15} />
+                {/* Shapes, not a wrench: the two things behind this are a shelf and a
+                    calendar — places you go, not repairs you make. A grid of cells was the
+                    other candidate and reads as a view switcher, which is what it means
+                    everywhere else in this app. */}
+                <Icon name="shapes" size={15} />
               </button>
             ) : null}
         </div>
