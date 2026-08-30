@@ -27,7 +27,9 @@ import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useSheetPresentation } from './design-system/useSheetPresentation';
-import { useSpaceMembers, useSpaceInvites } from '../../hooks/queries/useSpace';
+import { useSpace, useSpaceMembers, useSpaceInvites } from '../../hooks/queries/useSpace';
+import SharedSpaceAboutLetter from './SharedSpaceAboutLetter';
+import { mapSpaceToAboutLetterSpace } from '../../lib/shared-space-about';
 import { useCreateSpaceInvite, useRevokeSpaceInvite } from '../../hooks/mutations/useSpaceInviteActions';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import { useSpaceLeadership } from '../../hooks/mutations/useSpaceLeadership';
@@ -63,6 +65,22 @@ export interface PrototypeSpacePeopleSheetProps {
   spaceMeetingKind?: import('@/utils/space-meeting-rhythm').MeetingKind | null;
   /** The room's standing video link. Members only. */
   spaceMeetingUrl?: string | null;
+  /**
+   * Which screen to open on.
+   *
+   * `letter` for anything asking what this room is — the header's `i`, its name, its people
+   * line. `hub` for the gear, which is someone who already knows and wants the controls.
+   * `invites` for the Invite link itself, so the word lands on the thing it names.
+   */
+  initialView?: 'letter' | 'details' | 'invites';
+  /**
+   * The space record, when the caller already has one that the network does not.
+   *
+   * Only the design gallery passes it: its spaces are fixtures with no row behind them, so
+   * `useSpace` has nothing to return and the letter would render its loading state forever.
+   * In the product this stays unset and the query answers.
+   */
+  spaceDetail?: import('../../hooks/queries/useSpace').SpaceDetail | null;
   /** Nav/dashboard hint until members query resolves (keeps owner hub reachable). */
   viewerIsOwner?: boolean;
   /** Ministry channel staff (owner/leader) — follower list + settings while members load. */
@@ -115,7 +133,15 @@ export function resolvePeopleQueryState(input: {
  * rows, each drilling into its own focused sub-view. Members (non-owners) skip the
  * hub — they only have the people list — so they land on it directly.
  */
-type PeopleView = 'hub' | 'people' | 'invites' | 'details' | 'meeting';
+/**
+ * `letter` is what the room *is*; the rest is what you can do to it.
+ *
+ * It used to be a sheet of its own — `SharedSpaceAboutSheet`, opened by the header's `i` while
+ * the gear and the people line opened this one. They were never two panels: this sheet edits
+ * the cover, the name, the description, the rhythm and the roster, and that one displayed the
+ * same five things read-only. One object, seen twice, with two doors into it.
+ */
+type PeopleView = 'letter' | 'people' | 'invites' | 'details' | 'meeting';
 
 export default function PrototypeSpacePeopleSheet({
   open,
@@ -130,6 +156,8 @@ export default function PrototypeSpacePeopleSheet({
   spaceMeetingDay = null,
   spaceMeetingTime = null,
   spaceMeetingKind = null,
+  initialView = 'letter',
+  spaceDetail: spaceDetailProp = null,
   spaceMeetingUrl = null,
   viewerIsOwner = false,
   viewerCanModerate = false,
@@ -137,7 +165,18 @@ export default function PrototypeSpacePeopleSheet({
   canGrantLeadership = false,
 }: PrototypeSpacePeopleSheetProps) {
   const [spaceTitle, setSpaceTitle] = useState(spaceTitleProp);
-  const [view, setView] = useState<PeopleView>('hub');
+  const [view, setView] = useState<PeopleView>(initialView);
+
+  /*
+   * The view the sheet opens on, honoured each time it opens rather than only on mount.
+   *
+   * The sheet stays mounted between openings, so without this the second visit would land
+   * wherever the first one left off — tapping `i` after a trip through Space settings would
+   * open the settings page instead of the room's letter.
+   */
+  useEffect(() => {
+    if (open) setView(initialView);
+  }, [open, initialView]);
   const navigate = useNavigate();
   const { userId: authUserId } = useAuth();
   const { setActiveSpaceId } = useProtoShell();
@@ -178,7 +217,7 @@ export default function PrototypeSpacePeopleSheet({
 
   useEffect(() => {
     if (!open) {
-      setView('hub');
+      setView(initialView);
       setCopiedInviteId(null);
       setPendingRemoveMember(null);
       setRemoveConfirmAnchor(null);
@@ -190,7 +229,7 @@ export default function PrototypeSpacePeopleSheet({
       }
       setIsCreatingInvite(false);
     }
-  }, [open, deleteSpace.isPending]);
+  }, [open, deleteSpace.isPending, initialView]);
 
   useEffect(() => {
     if (view !== 'invites') setIsCreatingInvite(false);
@@ -298,6 +337,14 @@ export default function PrototypeSpacePeopleSheet({
 
   const members = membersQuery.data?.members ?? [];
   const invites = invitesQuery.data?.invites ?? [];
+  /*
+   * The room itself, for the letter. Same `['space', id]` entry the hub behind this sheet
+   * already filled, so opening it asks nothing new of the network in the common case — and
+   * `mapSpaceToAboutLetterSpace` needs the whole record, not the handful of scalars this
+   * sheet takes as props for its editors.
+   */
+  const spaceQuery = useSpace(spaceId);
+  const spaceDetail = spaceDetailProp ?? spaceQuery.data ?? null;
   const memberCount = members.length;
   const memberLimit = membersQuery.data?.limits?.membersPerSpace ?? MEMBERS_PER_SPACE_CAP;
   const ownerCapacityCopy =
@@ -305,7 +352,14 @@ export default function PrototypeSpacePeopleSheet({
       ? getSpaceMembersCapacityCopy({ memberCount, memberLimit })
       : null;
   const activeInvites = invites.length;
-  const showBack = canManageHub && view !== 'hub';
+  /*
+   * Back goes to the letter, not the hub — the letter is the landing now, and the hub is one
+   * of the places you can get to from it. A manager who opened the gear straight onto the hub
+   * still gets a back arrow there, which lands them on what the room is; that is a step they
+   * did not ask for but it is never a dead end, and the alternative is a screen with no way
+   * out but Close.
+   */
+  const showBack = view !== 'letter';
   const peopleLabel = ministryChannel ? 'Followers' : 'People';
   const settingsLabel = ministryChannel ? 'Channel settings' : 'Space settings';
   /* "Wednesdays · Online", or "Not set" — the row answers itself so nobody has
@@ -315,17 +369,21 @@ export default function PrototypeSpacePeopleSheet({
       .filter(Boolean)
       .join(' · ') || 'Not set';
   const manageLabel = ministryChannel ? 'Manage channel' : 'Manage space';
+  const aboutLabel = ministryChannel ? 'About this channel' : 'About this space';
   // On a sub-view the header title becomes that section's name (the eyebrow label
   // inside the scroll is dropped as redundant); the hub keeps "Manage space".
-  const headerPrimary = !canManageHub
-    ? peopleLabel
-    : view === 'people'
-      ? peopleLabel
-      : view === 'invites'
-        ? 'Invite links'
-        : view === 'details'
-          ? settingsLabel
-          : manageLabel;
+  const headerPrimary =
+    view === 'letter'
+      ? aboutLabel
+      : view === 'people'
+        ? peopleLabel
+        : view === 'invites'
+          ? 'Invite links'
+          : view === 'details'
+            ? settingsLabel
+            : view === 'meeting'
+              ? 'Meeting'
+              : aboutLabel;
 
   const memberListState = resolvePeopleQueryState({
     isLoading: membersQuery.isLoading,
@@ -622,8 +680,38 @@ export default function PrototypeSpacePeopleSheet({
     </div>
   );
 
+  /*
+   * What the room is: its cover, its name, what it says about itself, when it meets, and who
+   * is in it. The same letter someone reads when they are invited — `SharedSpaceAboutLetter`
+   * itself, so the two cannot drift, and the room describes itself the way it was described to
+   * you.
+   *
+   * The manage rows hang under it for anyone who can manage, rather than behind a second door.
+   * That is the whole merge: one sheet, read at the top and write below it.
+   */
+  const letterView = spaceDetail ? (
+    <div className="proto-space-letter-view">
+      <SharedSpaceAboutLetter
+        space={{
+          ...mapSpaceToAboutLetterSpace(spaceDetail, members),
+          iconName: ministryChannel ? ('rss' as const) : ('user-group' as const),
+        }}
+        members={ministryChannel && !viewerCanModerate ? [] : members}
+        meetingDay={spaceMeetingDay}
+        meetingTime={spaceMeetingTime}
+        meetingKind={spaceMeetingKind}
+        meetingUrl={spaceMeetingUrl}
+      />
+      {canManageHub ? hub : null}
+    </div>
+  ) : (
+    <ProtoSpaceLoading label={aboutLabel} />
+  );
+
   let body: React.ReactNode;
-  if (membersQuery.isError) {
+  if (view === 'letter') {
+    body = letterView;
+  } else if (membersQuery.isError) {
     body = memberList;
   } else if (!canManageHub) {
     body = memberList;
@@ -677,7 +765,7 @@ export default function PrototypeSpacePeopleSheet({
       </>
     );
   } else {
-    body = hub;
+    body = letterView;
   }
 
   const content = (
@@ -688,7 +776,7 @@ export default function PrototypeSpacePeopleSheet({
             <button
               type="button"
               className="proto-side-panel__action-btn"
-              onClick={() => setView('hub')}
+              onClick={() => setView('letter')}
               aria-label="Back"
               title="Back"
             >
