@@ -35,7 +35,6 @@ import { useStudyFeed } from '../../hooks/queries/useStudyFeed';
 import { useNavigation } from '../../hooks/queries/useNavigation';
 import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
 import ProtoHouseIcon from './ProtoHouseIcon';
-import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
@@ -105,11 +104,6 @@ export default function PrototypeStudyFeedPage() {
   const [scope, setScope] = useState<StudyFeedScope>(STUDY_FEED_SCOPE_ALL);
   const { items, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } = useStudyFeed(scope);
 
-  /*
-   * Only the spaces someone actually shares with other people. A personal space is not a
-   * scope — narrowing to it is what "My home" already means, and listing it twice would
-   * make the row look like it filters by place when it filters by whose study.
-   */
   const libraryNav = useLibraryPanelNav();
   const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
   const organize = useOrganizeApi();
@@ -188,6 +182,11 @@ export default function PrototypeStudyFeedPage() {
     [notesById],
   );
   const navigation = useNavigation();
+  /*
+   * Only the spaces someone actually shares with other people, and now only to answer
+   * whether the filter is worth showing at all. A personal space was never a scope —
+   * narrowing to one is what "My home" already means.
+   */
   const sharedSpaces = useMemo(
     () =>
       [...(navigation.data?.spaces ?? []), ...(navigation.data?.memberOfSpaces ?? [])]
@@ -199,9 +198,20 @@ export default function PrototypeStudyFeedPage() {
   );
 
   /*
-   * "All" first because it is the default and the widest; "My home" next because it is the
-   * only other scope that is about a person rather than a place. Spaces group under a
-   * heading so a long list stays readable — the menu's own grouping, not a second idea.
+   * Whose study, and only that. The spaces are gone from here on purpose.
+   *
+   * This menu used to list every shared space, which made it the app's second control for
+   * "which space" — and the two could disagree out loud: the toolbar said My Home while the
+   * sheet below it showed Young Adults. Now that a space has its own surface, going to a
+   * space is how you look at a space, and the switcher is the one control that says which.
+   *
+   * What is left is the question the switcher cannot answer, because it is not about place:
+   * whether the day includes what other people wrote in the rooms you share, or only your
+   * own. "All" first because it is the default and the widest; "My home" second because it
+   * narrows to a person rather than to a place.
+   *
+   * Still nothing at all when someone shares no spaces — with no one else's study to fold
+   * in, the two options describe the same day, and a filter with one outcome is furniture.
    */
   const scopeOptions = useMemo<ProtoSelectOption<string>[]>(() => {
     if (sharedSpaces.length === 0) return [];
@@ -213,15 +223,6 @@ export default function PrototypeStudyFeedPage() {
         triggerLabel: 'My home',
         icon: <ProtoHouseIcon size={13} />,
       },
-      ...sharedSpaces.map((space) => ({
-        value: `space:${space.id}`,
-        label: space.title,
-        group: 'Spaces',
-        /* The space's own colour tile — how someone finds their space in a list before they
-           have read a single name. Same mark the note destination picker uses, so the two
-           menus of the same spaces look like the same spaces. */
-        icon: <ProtoSpaceMenuIcon color={space.color || 'paper'} />,
-      })),
     ];
   }, [sharedSpaces]);
 
