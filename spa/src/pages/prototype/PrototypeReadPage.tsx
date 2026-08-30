@@ -47,6 +47,7 @@ import {
 } from '../../hooks/queries/usePrototypeChapterHighlights';
 import type { SavedReference } from '../../hooks/queries/usePrototypeChapterHighlights';
 import { useUpdateTranslation } from '../../hooks/mutations/useUpdateTranslation';
+import { TRANSLATIONS } from '@/data/translations';
 
 /**
  * Verse numbers a stored reference covers: "Exodus 5:3" → [3], "Exodus 5:3-5" → [3,4,5].
@@ -75,6 +76,7 @@ export default function PrototypeReadPage() {
     v?: string;
     vEnd?: string;
     t?: string;
+    c?: string;
     ref?: string;
     req?: string;
   };
@@ -118,6 +120,17 @@ export default function PrototypeReadPage() {
   // URL wins so a shared link reads in the translation it was shared in; otherwise
   // the reader follows the account's default rather than a hardcoded one.
   const translation = (search.t || profile?.defaultTranslation || 'NET').toUpperCase();
+
+  /*
+   * The second column, when there is one. Absent means the page is a single column.
+   *
+   * Never the same as `translation` — a page split against itself is two identical columns and
+   * a control that appears to have done nothing. Guarded here rather than at each writer so a
+   * hand-edited URL cannot produce it either.
+   */
+  const compareRaw = search.c ? search.c.toUpperCase() : undefined;
+  const compareTranslation =
+    compareRaw && compareRaw !== translation && TRANSLATIONS[compareRaw] ? compareRaw : undefined;
 
   /**
    * Highlights on this chapter, from the one store that holds all of them — made here while
@@ -283,11 +296,12 @@ export default function PrototypeReadPage() {
       void navigate({
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(nextBook), chapter: String(nextChapter) },
-        // Drop `v`: a verse focus belongs to the chapter it was linked into.
-        search: { v: undefined, t: search.t },
+        // Drop `v`: a verse focus belongs to the chapter it was linked into. `c` rides along —
+        // turning the page should not close a comparison you set up.
+        search: { v: undefined, t: search.t, c: search.c },
       });
     },
-    [navigate, search.t],
+    [navigate, search.t, search.c],
   );
 
   /**
@@ -508,6 +522,20 @@ export default function PrototypeReadPage() {
 
   // Reuses the reader's own cached chapter query, so opening the inspector costs nothing.
   const { data: chapterData } = usePrototypeBibleChapter(book, chapter, translation);
+  /*
+   * The compared chapter. Same hook, same cache, so a version already read — or already pulled
+   * as a stack edge's prefetch — costs nothing to bring alongside.
+   *
+   * `undefined` for the translation when there is no comparison, which leaves the query
+   * disabled rather than fetching a column nothing will show. A translation that genuinely
+   * lacks this chapter answers 404, and `data` stays undefined: the column then renders its
+   * verses as gaps, which is the honest thing and is what the aligner already produces.
+   */
+  const { data: compareData } = usePrototypeBibleChapter(
+    compareTranslation ? book : undefined,
+    compareTranslation ? chapter : undefined,
+    compareTranslation ?? translation,
+  );
 
   /**
    * Record the read. Marks the position as soon as the chapter is on screen and logs how long
@@ -569,10 +597,43 @@ export default function PrototypeReadPage() {
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(book), chapter: String(chapter) },
         // Pin it in the URL so the choice survives a reload and travels in a shared link.
-        search: { v: search.v, t: id },
+        search: {
+          v: search.v,
+          t: id,
+          /* Reading in what you were comparing against closes the comparison rather than
+             splitting the page against itself. The other column has become this one. */
+          c: search.c && search.c.toUpperCase() === id ? undefined : search.c,
+        },
       });
     },
-    [navigate, book, chapter, search.v, translation, updateTranslation],
+    [navigate, book, chapter, search.v, search.c, translation, updateTranslation],
+  );
+
+  /**
+   * Open, change, or close the second column.
+   *
+   * `null` closes it. Choosing the translation already in the first column closes it too, for
+   * the same reason: the two columns would be the same text, and a control that appears to have
+   * done nothing is worse than one that did the obvious thing.
+   *
+   * Deliberately does NOT write the account default, unlike choosing the primary. What you read
+   * in is a preference; what you happen to be holding a passage up against is not, and making
+   * it one would mean a comparison silently changed the version every other surface uses.
+   */
+  const handleChangeCompare = useCallback(
+    (next: string | null) => {
+      const id = next?.trim().toUpperCase();
+      void navigate({
+        to: prototypeReadRouteTo(),
+        params: { book: bookSlug(book), chapter: String(chapter) },
+        search: {
+          v: search.v,
+          t: search.t,
+          c: !id || id === translation ? undefined : id,
+        },
+      });
+    },
+    [navigate, book, chapter, search.v, search.t, translation],
   );
 
   const readerInspector = (
@@ -685,6 +746,12 @@ export default function PrototypeReadPage() {
           focusVerseEnd={Number.isFinite(focusVerseEnd) ? focusVerseEnd : undefined}
           onNavigateTo={handleNavigateTo}
           onChangeTranslation={handleChangeTranslation}
+          compare={
+            compareTranslation
+              ? { translation: compareTranslation, verses: compareData?.verses ?? [] }
+              : null
+          }
+          onChangeCompare={handleChangeCompare}
           onStartNote={handleStartNote}
           // A cross-reference tapped inside the scripture dock is a place to go, not another
           // card to stack — it moves the reader, and the dock re-describes where you landed.

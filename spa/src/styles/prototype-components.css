@@ -18933,6 +18933,113 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /*
+ * ─── Comparing two translations ─────────────────────────────────────────────────────────
+ *
+ * Two columns on one page, not two pages. The chapter, its heading and the pile of chapters
+ * behind it all stay single — only the text splits — which is what makes this a mode the page
+ * enters rather than a second reader to keep in step with the first.
+ *
+ * The measure is the compromise, and it is a real one. One column is 656px, which is about 90
+ * characters; two of those need 1350 and the paper's ceiling is 784. So each column takes
+ * roughly half, landing near 45 characters — narrow for a single read, and exactly what printed
+ * parallel Bibles use, because holding two texts against each other is a different act from
+ * reading one.
+ */
+.pds-reader__compare-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--pds-space-5);
+  align-items: start;
+}
+
+.pds-reader__compare-cell {
+  /* Each cell is its own paragraph of one verse, so the two sides start level however many
+     lines either takes. The row is the alignment; the cells do not try to help. */
+  margin: 0;
+  min-width: 0;
+}
+
+/*
+ * A verse one version does not have.
+ *
+ * Named rather than blank. An empty cell beside a full one reads as text that has not loaded,
+ * and this is not a failure — the versions genuinely differ, which is most of what someone
+ * comparing them is looking for.
+ */
+.pds-reader__compare-absent {
+  color: var(--pds-text-muted);
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+/*
+ * The `+` that asks for a second column, and the `×` that closes it.
+ *
+ * The `+` wears the chip's own shape with nothing in it yet, so adding a version reads as
+ * adding a chip beside the one already there rather than as entering a mode.
+ */
+.pds-reader__compare-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--pds-text-secondary);
+}
+
+.pds-reader__compare-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  background: none;
+  border-radius: var(--pds-radius-sm, 4px);
+  color: var(--pds-text-muted);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .pds-reader__compare-add:hover,
+  .pds-reader__compare-close:hover {
+    color: var(--pds-text-primary);
+  }
+}
+
+.pds-reader__compare-add:focus-visible,
+.pds-reader__compare-close:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+/*
+ * Below the width two columns can be read at, there is one column and no way to ask for two.
+ *
+ * The threshold lives here rather than in a `useShellPaneIsWide` check because it is about this
+ * layout and nothing else — that hook answers whether the inspector can dock, which is a
+ * different question that would drift from this one. `?c=` stays in the URL while the pane is
+ * narrow, so widening brings the comparison back rather than making it be set up again.
+ *
+ * 900px because two 45-character columns plus the gutter and the paper's own padding is about
+ * 700, and below that the columns start breaking lines mid-phrase.
+ */
+@container pds-reader-scroll (max-width: 900px) {
+  .pds-reader__compare-add,
+  .pds-reader__compare-close,
+  .pds-reader__trans-trigger--compare {
+    display: none;
+  }
+
+  .pds-reader__compare-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pds-reader__compare-cell--second {
+    display: none;
+  }
+}
+
+/*
  * The row goes back to being two lines when the title needs two of its own.
  *
  * Activity's header can sit on one row because its title is "Today" — three syllables, always.

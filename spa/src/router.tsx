@@ -379,10 +379,21 @@ function buildPrototypeRouteBranch() {
     // just `{v, t}`, and a required-but-undefined key would make each of them a type error.
     validateSearch: (
       search: Record<string, unknown>,
-    ): { v?: string; vEnd?: string; t?: string; ref?: string; req?: string } => ({
+    ): {
+      v?: string;
+      vEnd?: string;
+      t?: string;
+      c?: string;
+      ref?: string;
+      req?: string;
+    } => ({
       v: typeof search.v === 'string' ? search.v : undefined,
       vEnd: typeof search.vEnd === 'string' ? search.vEnd : undefined,
       t: typeof search.t === 'string' ? search.t : undefined,
+      /* The translation being compared against, when the page is split. In the URL for the
+         same reasons `t` is: a reload keeps the pair, and a link shares the comparison rather
+         than just the passage. Absent means one column. */
+      c: typeof search.c === 'string' ? search.c : undefined,
       ref: typeof search.ref === 'string' ? search.ref : undefined,
       req: typeof search.req === 'string' ? search.req : undefined,
     }),

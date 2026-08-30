@@ -97,6 +97,7 @@ import {
 import { useSettledFlag } from '../../hooks/useSettledFlag';
 import PrototypeReaderChapterStack from './PrototypeReaderChapterStack';
 import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
+import { alignChapterVerses } from '@/utils/compare-chapter-alignment';
 
 /**
  * Patch one highlight card's session in place, found by the key it was filed under.
@@ -312,6 +313,15 @@ export interface PrototypeBibleReaderPaneProps {
    */
   onChangeTranslation?: (translation: string) => void;
   /**
+   * The chapter in the translation being compared against, when the page is split.
+   *
+   * The pane does not fetch it — same rule as `highlights`: it paints what it is given, which is
+   * what keeps the two columns one surface rather than two readers side by side.
+   */
+  compare?: { translation: string; verses: { number: number; text: string }[] } | null;
+  /** Open, change (`id`) or close (`null`) the second column. */
+  onChangeCompare?: (translation: string | null) => void;
+  /**
    * Start a note from the selected verses. Omitted when the reader is the base of a
    * paper stack — a note is already open above it, so offering to start another there
    * would stack a sheet on a sheet.
@@ -426,6 +436,8 @@ export default function PrototypeBibleReaderPane({
   focusVerseEnd,
   onNavigateTo,
   onChangeTranslation,
+  compare,
+  onChangeCompare,
   onStartNote,
   onOpenDock,
   fontOverride,
@@ -516,6 +528,23 @@ export default function PrototypeBibleReaderPane({
         triggerLabel: getTranslationAbbreviationDisplay(id),
       })),
     [],
+  );
+
+  /*
+    What `+` opens with: the first version in canon order that is not the one being read. A
+    choice has to be made — an empty second column would be a split page asking a question —
+    and the chip beside it changes it in one press.
+  */
+  /* One list of rows for the two columns, so neither can be laid out against the other's
+     indices. Empty when there is no comparison, which costs nothing to compute. */
+  const comparedRows = useMemo(
+    () => (compare ? alignChapterVerses(verses, compare.verses) : []),
+    [compare, verses],
+  );
+
+  const defaultCompareTranslation = useMemo(
+    () => TRANSLATION_ORDER.find((id) => id !== data?.translation) ?? TRANSLATION_ORDER[0],
+    [data?.translation],
   );
 
   const prevChapter = useMemo(() => adjacentChapter(book, chapter, -1), [book, chapter]);
@@ -1684,6 +1713,57 @@ export default function PrototypeBibleReaderPane({
                   {getTranslationAbbreviationDisplay(data.translation)}
                 </span>
               )}
+
+              {/*
+                The second column's chip, and the way to ask for one.
+
+                Two chips rather than one control that means both: each names a column and picks
+                that column's version, so which chip belongs to which side needs no explaining —
+                they are in the same order as the columns. The `+` is the same chip shape with
+                nothing in it yet, which is what makes the split feel like adding a version
+                rather than entering a mode.
+
+                Hidden below the width two columns can be read at, in CSS rather than here — the
+                threshold belongs beside the layout it is about, in the same named container query
+                the paper already measures itself with, and `useShellPaneIsWide` answers a
+                different question (whether the inspector can dock). The column hides with it, so
+                a narrowed pane degrades to the single column it can show while `?c=` waits in the
+                URL for the room to come back. A swipe between versions is the real answer at that
+                width, and its own pass.
+              */}
+              {onChangeCompare ? (
+                compare ? (
+                  <>
+                    <ProtoSelectMenu
+                      value={compare.translation}
+                      options={translationOptions}
+                      onChange={(next) => onChangeCompare(next)}
+                      label="Compared translation"
+                      className="pds-reader__trans-trigger pds-reader__trans-trigger--compare scripture-pill-chrome__trans-chip"
+                      menuClassName="pds-reader__trans-menu"
+                      menuWidth={168}
+                    />
+                    <button
+                      type="button"
+                      className="pds-reader__compare-close"
+                      aria-label={`Stop comparing with ${getTranslationAbbreviationDisplay(compare.translation)}`}
+                      onClick={() => onChangeCompare(null)}
+                    >
+                      <Icon name="xmark" size={11} aria-hidden />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="pds-reader__compare-add scripture-pill-chrome__trans-chip"
+                    aria-label="Compare with another translation"
+                    title="Compare with another translation"
+                    onClick={() => onChangeCompare(defaultCompareTranslation)}
+                  >
+                    <Icon name="plus" size={10} aria-hidden />
+                  </button>
+                )
+              ) : null}
             </div>
           </div>
 
@@ -1812,7 +1892,67 @@ export default function PrototypeBibleReaderPane({
             role="listbox"
             aria-label={`${data.book} ${data.chapter} verses`}
           >
-            {verseLayout === 'prose' ? (
+            {compare ? (
+              /*
+                Two versions of the chapter, row by row.
+
+                A row is a verse *number*, not an index — see `alignChapterVerses`. Translations
+                disagree about how many verses a chapter has, and pairing by position would put
+                verse 12 beside verse 11 from the first disagreement onward and stay wrong.
+                A version that lacks a verse says so where its text would be, which is what a
+                printed parallel Bible does and what stops an empty cell reading as still loading.
+
+                Always one verse per row here, whatever `verseLayout` says. Prose is right when a
+                chapter is being read — verses run together and the number is a locator inside the
+                flow — and wrong when two texts are being held against each other, where the
+                number is the whole point of the row.
+              */
+              comparedRows.map((row) => (
+                <div className="pds-reader__compare-row" role="none" key={row.verse}>
+                  <p className="pds-reader-text pds-reader__compare-cell" role="none">
+                    {row.left == null ? (
+                      <span className="pds-reader__compare-absent">
+                        Not in {getTranslationAbbreviationDisplay(data.translation)}
+                      </span>
+                    ) : (
+                      <VerseSpan
+                        verse={{ number: row.verse, text: row.left }}
+                        selected={
+                          selection != null &&
+                          row.verse >= selection[0] &&
+                          row.verse <= selection[1]
+                        }
+                        accent={highlights?.get(row.verse)?.accent}
+                        noteCount={noteCountByVerse.get(row.verse) ?? 0}
+                        inFocus={
+                          focusRange != null && row.verse >= focusRange[0] && row.verse <= focusRange[1]
+                        }
+                        roving={rovingVerse === row.verse}
+                        html={verseHtml.get(row.verse) ?? EMPTY_VERSE_HTML}
+                        onFocusVerse={handleVerseFocus}
+                        onActivate={handleVerseActivate}
+                        onKeys={handleVerseKeys}
+                      />
+                    )}
+                  </p>
+                  <p
+                    className="pds-reader-text pds-reader__compare-cell pds-reader__compare-cell--second"
+                    role="none"
+                  >
+                    {row.right == null ? (
+                      <span className="pds-reader__compare-absent">
+                        Not in {getTranslationAbbreviationDisplay(compare.translation)}
+                      </span>
+                    ) : (
+                      <>
+                        <sup className="pds-reader-verse-num">{row.verse}</sup>
+                        <span className="pds-reader__verse-text">{row.right}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              ))
+            ) : verseLayout === 'prose' ? (
               <div className="pds-reader__block" role="none">
                 <p className="pds-reader-text" role="none">
                   {verses.map((verse, i) => (
