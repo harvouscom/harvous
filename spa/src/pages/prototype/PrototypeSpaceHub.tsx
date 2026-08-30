@@ -770,6 +770,7 @@ function PrototypeSpaceHubLive() {
   if (drilledThread) {
     return frame(
       <PrototypeSharedThreadDrilldown
+        framed
         thread={drilledThread}
         spaceId={activeSpaceId}
         isOwner={canManageThreads}
