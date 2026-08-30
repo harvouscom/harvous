@@ -526,14 +526,19 @@
   --pds-paper-measure: 656px;
   --pds-paper-column-min: 720px;
   /*
-   * On a wide pane the sheet grows to here — 816px, which leaves 80px of margin either
+   * On a wide pane the sheet grows to here — 784px, which leaves 64px of margin either
    * side instead of 32. The point is the page around the text, not more text per line.
    *
-   * Derived from the margin rather than chosen for itself: 656px of text plus 2x80. Moving
+   * Derived from the margin rather than chosen for itself: 656px of text plus 2x64. Moving
    * the margin means moving this number, and the two must be changed together or the
    * measure shifts — which is the one thing the derivation below exists to prevent.
+   *
+   * Was 2x80. Eighty was generous enough that the text read as a narrow column inset in a
+   * wide sheet rather than a page with margins; sixty-four keeps the page and closes the
+   * gap. The measure is untouched at 656, so no line rewraps — which is the check on this
+   * change, not a side effect of it.
    */
-  --pds-paper-column-max: 816px;
+  --pds-paper-column-max: 784px;
   /*
    * How much pane has to stay clear beside the sheet before it takes any of it. Keeps the
    * sheet from growing into its own shadow: it only widens once there is room to spare,
@@ -756,7 +761,7 @@
    *
    * The sheet's side margin is whatever is left over after the text has taken its 656px,
    * so the two can never drift apart the way two hand-kept numbers do. At the 720px floor
-   * it comes to exactly the 32px this used to be; at the 816px ceiling, 80px.
+   * it comes to exactly the 32px this used to be; at the 784px ceiling, 64px.
    *
    * Restated verbatim inside each of the three growth rules, and it has to be. A custom
    * property is substituted at the element where it is *declared*, and the resolved value

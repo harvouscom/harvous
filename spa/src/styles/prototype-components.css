@@ -19428,7 +19428,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * The stack's own chrome — the edge row, the shadow strip, the collapse button — is sized
  * from `--pds-paper-column`, not measured from the sheets. Widening the papers inside their
  * own containers and stopping there would have left that chrome at 720 while the sheets
- * reached 816: a band and a shadow ending 48px short of the paper they belong to. Restating
+ * reached 784: a band and a shadow ending 32px short of the paper they belong to. Restating
  * the growth on the two layers puts one value on the whole stack, so the sheets and the
  * chrome cannot disagree.
  *
@@ -19438,8 +19438,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  *
  * `> *` rather than the two layers by name, because the chrome is not inside them: the edge
  * rows and the collapse button are siblings of `__base` and `__sheet`, not descendants.
- * Naming the layers left the edge row on the 720px floor while the sheet went to 816 — a
- * band ending 48px short of the paper it belongs to. Every direct child sits in the
+ * Naming the layers left the edge row on the 720px floor while the sheet went to 784 — a
+ * band ending 32px short of the paper it belongs to. Every direct child sits in the
  * container and so resolves the same `100cqi`, and a child added later is covered too.
  *
  * The scale that says depth is a transform, which does not change layout width, so both
