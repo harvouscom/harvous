@@ -44,7 +44,9 @@ import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
-import PrototypeInspectorPane from './PrototypeInspectorPane';
+import PrototypeInspectorPane, {
+  type PrototypeInspectorTemplatesProps,
+} from './PrototypeInspectorPane';
 import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
@@ -483,45 +485,8 @@ export default function PrototypeNotePage() {
     return secondaries?.length ? secondaries : EMPTY_NOTE_COLLECTIONS;
   }, [isDraft, note?.secondaryCollections]);
 
-  // @ts-expect-error DEBUG-RENDER
-  const __snap: Record<string, unknown> = { pathname, note, nav, libraryData, penHolding: pen.holding, penLeaseActive: pen.leaseActive, penAvailable: pen.available, penObj: pen, coEditProbe, isLoading, isError, personalHomeSpaceId, clerkUser, authUserId, initialScriptureDock, initialHighlightDock, initialResourceDock, initialCrossRefTarget, editorSecondaryCollections, readOnlyInSharedSpace, isForeignSharedNote, noteInSharedSpace, foreignSharedSpaceId, foreignNoteAuthor, isCoEditable, canCoEdit, coEditContributors, coEditEnabledInContext, audienceScope, noteAudience, contextSpaceId, noteId, isDraft, dockReq, spaceSearchParam,
-    selectedSpaceId, inspectorOpen, inspectorExiting, isMobileSidebar, composeDraftActive, composeSeed, composeSessionEpoch, composeTargetSpaceIdOverride, formatToolbarHostEl, studyDockCarouselHostEl, studyThreadPopoverOpen, paperStack, noteSlugFromPath, noteSlugParam,
-    shell_closeInspector: closeInspector, shell_stackNote: stackNote, shell_openInspector: openInspector, shell_setEditorChromeMode: setEditorChromeMode, shell_openDrawer: openDrawer, shell_setStackNoteTitle: setStackNoteTitle, shell_ensureSidebarExpanded: ensureSidebarExpanded };
-  // @ts-expect-error DEBUG-RENDER
-  const __prev = useRef<Record<string, unknown> | null>(null);
-  // @ts-expect-error DEBUG-RENDER
-  if (typeof window !== 'undefined') {
-    // @ts-expect-error DEBUG-RENDER
-    window.__renders = (window.__renders || 0) + 1;
-    const prev = __prev.current;
-    if (prev) {
-      const changed = Object.keys(__snap).filter((k) => !Object.is(prev[k], __snap[k]));
-      // @ts-expect-error DEBUG-RENDER
-      window.__renderLog = window.__renderLog || [];
-      // @ts-expect-error DEBUG-RENDER
-      window.__renderLog.push(changed.join(',') || '(nothing tracked changed)');
-    }
-    __prev.current = __snap;
-  }
 
   const queryClient = useQueryClient();
-  // @ts-expect-error DEBUG-RENDER
-  useEffect(() => {
-    // @ts-expect-error DEBUG-RENDER
-    if (window.__cacheSubbed) return; window.__cacheSubbed = true;
-    // @ts-expect-error DEBUG-RENDER
-    window.__cacheEvents = [];
-    const qc = queryClient.getQueryCache();
-    qc.subscribe((e: { type?: string; query?: { queryKey?: unknown } }) => {
-      // @ts-expect-error DEBUG-RENDER
-      window.__cacheEvents.push([window.__renders, e.type, JSON.stringify(e.query?.queryKey ?? '').slice(0, 70)].join(' :: '));
-    });
-    const mc = queryClient.getMutationCache();
-    mc.subscribe((e: { type?: string }) => {
-      // @ts-expect-error DEBUG-RENDER
-      window.__cacheEvents.push([window.__renders, 'MUT-' + e.type, ''].join(' :: '));
-    });
-  }, [queryClient]);
   const router = useRouter();
   const updateNoteMutation = useUpdateNote();
   const createNoteMutation = useCreateSimpleNote();
@@ -2042,22 +2007,6 @@ export default function PrototypeNotePage() {
   /** Bumped when the editor loses focus so a focus-bailed open-time reprocess can retry. */
   const [scriptureReprocessFocusTick, setScriptureReprocessFocusTick] = useState(0);
 
-  // @ts-expect-error DEBUG-RENDER2
-  const __snap2: Record<string, unknown> = { adoptedComposeId, draftPersistRemountTick, liveNoteSnapshotState, templatePrefill, templateApplyEpoch, templateProvenance, composeThreadSelection, destinationOpen, pendingDestinationIds, pendingDraftSpaceIds, activeActivityId, purposeDismissals, sharedOverlayContainerEl, sharedOverlayEditor, highlightOpenRequest, scriptureReprocessFocusTick };
-  // @ts-expect-error DEBUG-RENDER2
-  const __prev2 = useRef<Record<string, unknown> | null>(null);
-  // @ts-expect-error DEBUG-RENDER2
-  if (typeof window !== 'undefined') {
-    const prev = __prev2.current;
-    if (prev) {
-      const changed = Object.keys(__snap2).filter((k) => !Object.is(prev[k], __snap2[k]));
-      // @ts-expect-error DEBUG-RENDER2
-      window.__renderLog2 = window.__renderLog2 || [];
-      // @ts-expect-error DEBUG-RENDER2
-      window.__renderLog2.push(changed.join(',') || '(no local state changed)');
-    }
-    __prev2.current = __snap2;
-  }
 
   useEffect(() => {
     if (isDraft || !note || isLoading || note.contentEncrypted) return;
@@ -2697,7 +2646,16 @@ export default function PrototypeNotePage() {
       ? { noteId, enabled: true }
       : null;
 
-  const inspectorTemplates = showTemplatesInInspector
+  /*
+    Annotated rather than inferred, which is what types the callbacks inside it.
+    
+    Unannotated, this literal gave `onTemplateProvenanceChange`'s parameter no contextual type,
+    so it was an implicit `any` — the one real type error in this file, as opposed to the seven
+    the debug scaffolding was suppressing. Naming the type also checks the other twelve fields
+    against what the pane actually accepts, which is how the two copies of this shape drifted
+    without anything noticing.
+  */
+  const inspectorTemplates: PrototypeInspectorTemplatesProps | null = showTemplatesInInspector
     ? {
         spaceId: templateSpaceId,
         spaceTitle: showSpaceAttachOption
