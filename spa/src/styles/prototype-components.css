@@ -21819,6 +21819,14 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   z-index: 2;
 }
 
+/* The tools popover takes the menu shell's own width rather than a menu's default, because its
+   rows carry a count line under the title and a chevron after it — the same rows the body used
+   to draw at the sheet's full width. */
+.proto-space-tools-popover {
+  width: 268px;
+  padding: 6px;
+}
+
 .proto-shared-space-header--cover .proto-shared-space-header__actions .proto-toolbar-icon-btn {
   background: var(--pds-bg-glass-medium);
   border: 0.5px solid var(--pds-border-control);

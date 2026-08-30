@@ -8,7 +8,8 @@
  * sheet's head and `.proto-sidebar-scroll` onto its scrolling body, so a 1100-line view with
  * four exit points changed frame without changing a single one of them.
  */
-import { useMemo, useState, useEffect, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
@@ -46,6 +47,9 @@ import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
 import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
+import ProtoPopoverShell from './ProtoPopoverShell';
+import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
+import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import { companionToolRow } from '../../lib/space-companion';
 import { spaceLibraryMeta, useSpaceLibrary } from '../../hooks/queries/useSpaceLibrary';
@@ -252,6 +256,20 @@ function PrototypeSpaceHubLive() {
    * exactly those read-only. One sheet now, and this says which door was used.
    */
   const [peopleView, setPeopleView] = useState<'letter' | 'details' | 'invites'>('letter');
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const toolsCardRef = useRef<HTMLDivElement | null>(null);
+  const { position: toolsPosition } = useProtoAnchoredPopoverPosition(
+    toolsCardRef,
+    { anchorEl: toolsButtonRef.current },
+    { enabled: toolsOpen },
+    [toolsOpen],
+  );
+  /* The trigger is in the ignore list, not a second watched ref: without it the same press
+     that closes the popover reopens it, and the button reads as dead. */
+  useDismissOnOutside(toolsCardRef, () => setToolsOpen(false), toolsOpen, {
+    ignoreSelector: '[aria-label="Tools"]',
+  });
   const [createThreadOpen, setCreateThreadOpen] = useState(false);
   const [changeThreadOpen, setChangeThreadOpen] = useState(false);
   const [threadTab, setThreadTab] = useState<'current' | 'available'>('current');
@@ -892,18 +910,30 @@ function PrototypeSpaceHubLive() {
             >
               <Icon name="circle-info" size={15} />
             </button>
-            {(isSpaceOwner && !isMinistryChannel) || canModerateChannel ? (
+            {/*
+              Tools, where the gear used to be.
+              
+              The gear went because it had nowhere left to go that the `i` beside it did not
+              already reach: settings is a row inside that sheet, one tap in. Its slot is worth
+              more to the room's own tools, which were the last section of a scrolling page —
+              so the shelf and the planner, the two places you actually go from here, cost a
+              scroll to the bottom to find.
+              
+              The header is where a room's navigation belongs; the body is what is happening in
+              it. Absent when the room has no tools to offer, rather than opening on nothing.
+            */}
+            {spaceToolRows.length > 0 ? (
               <button
                 type="button"
+                ref={toolsButtonRef}
                 className="proto-toolbar-icon-btn"
-                title={isMinistryChannel ? 'Channel settings' : 'Space settings'}
-                aria-label={isMinistryChannel ? 'Channel settings' : 'Space settings'}
-                /* Straight to the page its own label names, rather than to a landing that
-                   would make someone who already knows what they want read past the room's
-                   description to reach it. */
-                onClick={() => openPeopleSheet('details')}
+                title="Tools"
+                aria-label="Tools"
+                aria-haspopup="menu"
+                aria-expanded={toolsOpen}
+                onClick={() => setToolsOpen((v) => !v)}
               >
-                <Icon name="gear" size={15} />
+                <Icon name="wrench" size={15} />
               </button>
             ) : null}
         </div>
@@ -1154,20 +1184,46 @@ function PrototypeSpaceHubLive() {
             </div>
           ) : null}
 
-          {/*
-            Below the room's own activity, not above it. Tools are how you act
-            on a space; the cards above are what is happening in it, and that
-            is what someone opening the room came to see. It stays the last
-            section — the paired room sits above it, not inside it.
-          */}
-          {spaceToolRows.length > 0 ? (
-            <div className="proto-home-section">
-              <p className="proto-caption proto-home-section__eyebrow">Tools</p>
-              <ProtoToolsRowList rows={spaceToolRows} />
-            </div>
-          ) : null}
         </div>
       </div>
+
+      {/*
+        The tools, in a popover, as the same rows the section used to draw.
+
+        `ProtoToolsRowList` rather than a menu of its own, so the shelf and the planner look
+        here exactly as they looked in the body — same icon, same title, same count line, same
+        chevron — and a change to one is a change to both.
+      */}
+      {toolsOpen
+        ? createPortal(
+            <ProtoPopoverShell
+              ref={toolsCardRef}
+              className="proto-menu__popover proto-space-tools-popover"
+              role="menu"
+              aria-label="Tools"
+              /* Parked offscreen until it has been measured — the position is computed from
+                 the rendered card, so gating the render on it would mean it never renders.
+                 The house pattern, same as the change-thread sheet. */
+              style={{
+                position: 'fixed',
+                top: toolsPosition?.top ?? -9999,
+                left: toolsPosition?.left ?? -9999,
+                zIndex: 6000,
+              }}
+            >
+              <ProtoToolsRowList
+                rows={spaceToolRows.map((row) => ({
+                  ...row,
+                  onSelect: () => {
+                    setToolsOpen(false);
+                    row.onSelect();
+                  },
+                }))}
+              />
+            </ProtoPopoverShell>,
+            document.body,
+          )
+        : null}
 
       <PrototypeSpacePeopleSheet
         open={peopleOpen}
