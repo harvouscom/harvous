@@ -57,8 +57,15 @@ export default function PrototypeGuestModeRow({ enabled }: { enabled: boolean })
     <div className="proto-guest-row" role="status" aria-live="polite">
       <span className="proto-guest-row__status pds-caption">
         <Icon name="id-card-clip" size={11} className="proto-guest-row__icon" aria-hidden />
-        {/* Short enough to sit in a 34px bar next to a button without either one wrapping. */}
-        <span className="proto-guest-row__label">Saved on this device</span>
+        {/*
+          Someone is being told what mode they are in, so it is said the way a person would say
+          it — "you're trying". "Saved on this device" alone was short enough and read like a
+          status code; this keeps the sentence and drops the words that were only padding
+          ("notes are saved… only" → "notes stay").
+        */}
+        <span className="proto-guest-row__label">
+          You&rsquo;re trying Harvous — notes stay on this device
+        </span>
       </span>
       <span className="proto-guest-row__trail">
         <a

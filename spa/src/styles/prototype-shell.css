@@ -2347,28 +2347,28 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 /* ─── Guest mode ─────────────────────────────────────────────────────────── */
 
 /*
-  The standing "you are trying Harvous" row, inside the shell frame above the toolbar.
+  The standing "you are trying Harvous" row, above the shell frame.
 
-  It lived *above* the frame first, with the frame's height reduced to make room. The geometry
-  was right and the result still read as broken: a line of text stranded on the canvas with the
-  app's white card beginning below it, which looks like a gap rather than a bar. Inside the
-  frame it is part of the same object, clipped by the same rounded corners, and the shell moves
-  as one thing.
+  At the `#root` layer rather than inside the card: it is a notice about this whole visit, not a
+  piece of the app's chrome, and the app shell moves down as one object beneath it. Its height
+  comes off the frame rather than out of the grid, which already carries four row templates that
+  a fifth variant would have to be spelled out against.
 
-  The frame becomes a flex column only under this class, so the grid inside it — which carries
-  four row templates already — is not touched at all.
+  It needed a surface of its own to work there. Transparent, it was a line of text stranded on
+  the canvas above a white card, which is what read as a gap — a bar has to look like a bar.
+
+  `html.harvous-proto-guest` is set by `public/scripts/prototype-route-boot.js` before the bundle
+  loads, so the space is claimed in the first paint: an arriving guest never sees the shell jump
+  down by 37px a moment after landing, on the one screen whose whole job is to look like an
+  uninterrupted continuation of the marketing page.
 */
-html.harvous-proto-guest .proto-shell-frame {
-  display: flex;
-  flex-direction: column;
+:root {
+  --proto-guest-row-h: 37px;
 }
 
-html.harvous-proto-guest .proto-shell-frame > .proto-shell {
-  flex: 1 1 auto;
-  min-height: 0;
-  /* Overrides the `height: 100%` on `.proto-shell-frame > .proto-shell`, which with the row
-     above it would total more than the frame and push the footer out of the bottom. */
-  height: auto;
+html.harvous-proto-guest .proto-shell-frame {
+  height: calc(100vh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+  height: calc(100dvh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
 }
 
 .proto-guest-row {
@@ -2377,10 +2377,11 @@ html.harvous-proto-guest .proto-shell-frame > .proto-shell {
   align-items: center;
   justify-content: center;
   gap: 10px;
+  /* `#root` is a flex column, so without this the frame below squeezes the row shorter than the
+     height the frame just subtracted for it, and the shell hangs off the bottom. */
   flex-shrink: 0;
-  min-height: 34px;
-  padding: 6px 12px;
-  border-bottom: 0.5px solid var(--pds-border);
+  height: var(--proto-guest-row-h);
+  padding: 0 12px;
   background: var(--pds-bg-page);
   color: var(--pds-text-secondary);
 }
