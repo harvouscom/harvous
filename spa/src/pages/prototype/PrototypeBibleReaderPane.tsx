@@ -25,7 +25,11 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import Icon from '@/components/react/Icon';
-import { nextVerseSelection } from './reader-verse-selection';
+import {
+  nextVerseSelection,
+  type ReaderColumn,
+  type VerseSelection,
+} from './reader-verse-selection';
 // For `.scripture-pill-chrome__trans-chip` — the reader states the translation in the
 // same chip the dock does, so it borrows the chip rather than growing a second one.
 import '@/styles/scripture-pill-chrome.css';
@@ -204,6 +208,8 @@ const EMPTY_VERSE_HTML = { __html: '' };
  */
 const VerseSpan = memo(function VerseSpan({
   verse,
+  column,
+  versionLabel,
   selected,
   accent,
   inFocus,
@@ -215,6 +221,22 @@ const VerseSpan = memo(function VerseSpan({
   onKeys,
 }: {
   verse: { number: number; text: string };
+  /**
+   * Which of the two texts this verse is in.
+   *
+   * Passed down and handed back to every handler rather than closed over, because the handlers
+   * are one stable callback each for the whole chapter — which is what `memo` here depends on,
+   * and what a per-column copy of them would quietly undo.
+   */
+  column: ReaderColumn;
+  /**
+   * The version this verse is in, spoken but not shown — only set while two are side by side.
+   *
+   * The two columns are one listbox, so a screen reader walks them as v1-ESV, v1-NIV, v2-ESV…
+   * and without this every option is a bare verse with no way to tell which translation just
+   * got read out. On screen the columns say it once at the top and do not need it repeated.
+   */
+  versionLabel?: string;
   selected: boolean;
   accent?: string;
   inFocus: boolean;
@@ -222,9 +244,9 @@ const VerseSpan = memo(function VerseSpan({
   /** How many of your notes cite this verse, 0 for none. See `noteCountLabel` below. */
   noteCount: number;
   html: { __html: string };
-  onFocusVerse: (n: number) => void;
-  onActivate: (n: number, e: ReactMouseEvent<HTMLSpanElement>) => void;
-  onKeys: (n: number, e: ReactKeyboardEvent<HTMLSpanElement>) => void;
+  onFocusVerse: (n: number, column: ReaderColumn) => void;
+  onActivate: (n: number, e: ReactMouseEvent<HTMLSpanElement>, column: ReaderColumn) => void;
+  onKeys: (n: number, e: ReactKeyboardEvent<HTMLSpanElement>, column: ReaderColumn) => void;
 }) {
   return (
     <span
@@ -237,9 +259,9 @@ const VerseSpan = memo(function VerseSpan({
       data-highlighted={accent ? 'true' : undefined}
       data-highlight-color={accent}
       data-in-focus={inFocus ? 'true' : undefined}
-      onFocus={() => onFocusVerse(verse.number)}
-      onClick={(e) => onActivate(verse.number, e)}
-      onKeyDown={(e) => onKeys(verse.number, e)}
+      onFocus={() => onFocusVerse(verse.number, column)}
+      onClick={(e) => onActivate(verse.number, e, column)}
+      onKeyDown={(e) => onKeys(verse.number, e, column)}
     >
       <sup className="pds-reader-verse-num">{verse.number}</sup>
       <span className="pds-reader__verse-text" dangerouslySetInnerHTML={html} />
@@ -258,6 +280,7 @@ const VerseSpan = memo(function VerseSpan({
       {noteCount > 0 ? (
         <span className="proto-visually-hidden">{noteCountLabel(noteCount)}</span>
       ) : null}
+      {versionLabel ? <span className="proto-visually-hidden">, {versionLabel}</span> : null}
     </span>
   );
 });
@@ -273,6 +296,69 @@ function noteCountLabel(count: number): string {
 }
 
 const LOADING_GRACE_MS = 250;
+
+/** Shared empty list, so an absent compare column does not make a new array every render. */
+const EMPTY_VERSES: { number: number; text: string }[] = [];
+
+/**
+ * A signature of a column's sub-verse paints, so the markup memo re-runs when a span appears
+ * or changes colour — and only then.
+ *
+ * A paints map is a fresh Map every render, so depending on it directly would rebuild every
+ * verse's HTML on every render, which is exactly the bug the memo exists to prevent: a new
+ * `{ __html }` object makes React re-apply innerHTML, and re-applying innerHTML destroys any
+ * text selection the reader is holding. A string signature is stable when the content is.
+ *
+ * Whole-verse highlights are deliberately not in it. They paint through a CSS attribute on the
+ * verse span, so recolouring one must not regenerate any markup at all.
+ */
+function versePaintsSignature(paints?: ReadonlyMap<number, PassageHighlightPaint[]>): string {
+  if (!paints || paints.size === 0) return '';
+  const parts: string[] = [];
+  for (const [verse, list] of [...paints.entries()].sort((a, b) => a[0] - b[0])) {
+    for (const p of list) parts.push(`${verse}:${p.id}:${p.accentRaw}:${p.excerpt}`);
+  }
+  return parts.join('|');
+}
+
+/**
+ * Decorated markup per verse, built once per chapter rather than per render.
+ *
+ * The `{ __html }` objects have to be stable: a fresh object each render makes React re-apply
+ * innerHTML every time, which destroys any text selection the reader is holding — the same bug
+ * that bit the note body. The callers memoize the whole map, which keeps them identity-stable.
+ *
+ * One function for both columns. It was inline in the pane while a chapter was one text; a
+ * second copy for the comparison would be the place the two columns quietly stopped matching.
+ * `providers` is null until the dictionary index has loaded, which is what "no suggestions yet"
+ * means — passing an empty array instead would run the decorator for nothing.
+ */
+function buildVerseHtml(
+  verses: readonly { number: number; text: string }[],
+  providers: ReferenceProvider[] | null,
+  paints?: ReadonlyMap<number, PassageHighlightPaint[]>,
+): Map<number, { __html: string }> {
+  const map = new Map<number, { __html: string }>();
+  for (const verse of verses) {
+    const escaped = escapeHtml(verse.text);
+    const decorated = providers
+      ? decoratePassageHtmlWithReferenceSuggestions(escaped, providers)
+      : escaped;
+    /*
+     * Marks go on after the dictionary suggestions, matching the order the scripture dock uses
+     * — the painter splits text nodes, and running it last means it can split a suggestion span
+     * rather than a suggestion decorator having to reason about marks that already exist.
+     */
+    const versePaints = paints?.get(verse.number);
+    map.set(verse.number, {
+      __html:
+        versePaints && versePaints.length > 0
+          ? decoratePassageHtmlWithSavedHighlights(decorated, [...versePaints])
+          : decorated,
+    });
+  }
+  return map;
+}
 
 /** Text → HTML, so a verse can carry suggestion spans without carrying anything else. */
 function escapeHtml(text: string): string {
@@ -318,7 +404,21 @@ export interface PrototypeBibleReaderPaneProps {
    * The pane does not fetch it — same rule as `highlights`: it paints what it is given, which is
    * what keeps the two columns one surface rather than two readers side by side.
    */
-  compare?: { translation: string; verses: { number: number; text: string }[] } | null;
+  compare?: {
+    translation: string;
+    verses: { number: number; text: string }[];
+    /**
+     * This version's own highlights and sub-verse paints.
+     *
+     * Not shared with the primary column's, and not derivable from them: a highlight is stored
+     * against the translation it was made in (`scripturePassageTranslation` in the query the
+     * reader's highlights come from), because it is of a text rather than of a verse number.
+     * Painting the primary's colours onto this column would claim you had marked words you
+     * have never seen.
+     */
+    highlights?: ReadonlyMap<number, ReaderVerseHighlight>;
+    versePaints?: ReadonlyMap<number, PassageHighlightPaint[]>;
+  } | null;
   /** Open, change (`id`) or close (`null`) the second column. */
   onChangeCompare?: (translation: string | null) => void;
   /**
@@ -357,6 +457,13 @@ export interface PrototypeBibleReaderPaneProps {
     excerpt: string,
     /** The full text of the verses in `range` — how the caller tells a phrase from a passage. */
     passageText?: string,
+    /**
+     * Which translation the excerpt is in, when it is not the one the page is reading.
+     *
+     * Only ever set from the comparison's second column. Absent means the page's own
+     * translation, which is what every caller assumed silently before there were two.
+     */
+    translation?: string,
   ) => void;
   /**
    * Highlight, then open the study dock on it so a thought can be written straight away.
@@ -369,9 +476,16 @@ export interface PrototypeBibleReaderPaneProps {
     range: { start: number; end: number },
     accent: StudyHighlightAccentKey,
     excerpt: string,
+    /** As `onHighlight`'s: set only from the comparison's second column. */
+    translation?: string,
   ) => Promise<string | null> | void;
-  /** Delete the row behind an open highlight dock — the "Remove highlight" trash icon. */
-  onRemoveHighlight?: (studyThreadEntryId: string) => void;
+  /**
+   * Delete the row behind an open highlight dock — the "Remove highlight" trash icon.
+   *
+   * Takes the translation for the same reason the writes do: the row lives in one version's
+   * set, and the cache the delete has to invalidate is keyed by it.
+   */
+  onRemoveHighlight?: (studyThreadEntryId: string, translation?: string) => void;
   /** Open a margin note, with its scripture dock already on the passage the bar marked. */
   onOpenNoteAtReference?: (noteId: string, reference: string) => void;
   /**
@@ -561,58 +675,41 @@ export default function PrototypeBibleReaderPane({
     [eastonsIndex],
   );
 
-  /**
-   * Decorated markup per verse, built once per chapter rather than per render.
-   *
-   * The `{ __html }` objects have to be stable: a fresh object each render makes React
-   * re-apply innerHTML every time, which destroys any text selection the reader is holding —
-   * the same bug that bit the note body. Memoizing the whole map keeps them identity-stable.
-   */
-  /**
-   * A signature of the sub-verse paints, so the memo below re-runs when a span appears or changes
-   * colour — and only then.
-   *
-   * `versePaints` is a fresh Map every render, so depending on it directly would rebuild every
-   * verse's HTML on every render, which is exactly the bug the memo exists to prevent: a new
-   * `{ __html }` object makes React re-apply innerHTML, and re-applying innerHTML destroys any
-   * text selection the reader is holding. A string signature is stable when the content is.
-   *
-   * Whole-verse highlights are deliberately not in it. They paint through a CSS attribute on the
-   * verse span, so recolouring one must not regenerate any markup at all.
-   */
-  const versePaintSignature = useMemo(() => {
-    if (!versePaints || versePaints.size === 0) return '';
-    const parts: string[] = [];
-    for (const [verse, paints] of [...versePaints.entries()].sort((a, b) => a[0] - b[0])) {
-      for (const p of paints) parts.push(`${verse}:${p.id}:${p.accentRaw}:${p.excerpt}`);
-    }
-    return parts.join('|');
-  }, [versePaints]);
+  /* One signature per column — see `versePaintsSignature` for why the maps cannot be depended
+     on directly, and `buildVerseHtml` for what the memos below actually do. */
+  const versePaintSignature = useMemo(() => versePaintsSignature(versePaints), [versePaints]);
+  const comparePaintSignature = useMemo(
+    () => versePaintsSignature(compare?.versePaints),
+    [compare?.versePaints],
+  );
 
-  const verseHtml = useMemo(() => {
-    const map = new Map<number, { __html: string }>();
-    for (const verse of verses) {
-      const escaped = escapeHtml(verse.text);
-      const decorated = eastonsIndex
-        ? decoratePassageHtmlWithReferenceSuggestions(escaped, referenceProviders)
-        : escaped;
-      /*
-       * Marks go on after the dictionary suggestions, matching the order the scripture dock uses
-       * — the painter splits text nodes, and running it last means it can split a suggestion span
-       * rather than a suggestion decorator having to reason about marks that already exist.
-       */
-      const paints = versePaints?.get(verse.number);
-      map.set(verse.number, {
-        __html:
-          paints && paints.length > 0
-            ? decoratePassageHtmlWithSavedHighlights(decorated, [...paints])
-            : decorated,
-      });
-    }
-    return map;
+  const verseHtml = useMemo(
+    () => buildVerseHtml(verses, eastonsIndex ? referenceProviders : null, versePaints),
     // versePaintSignature stands in for versePaints — see its own comment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verses, eastonsIndex, referenceProviders, versePaintSignature]);
+    [verses, eastonsIndex, referenceProviders, versePaintSignature],
+  );
+
+  /*
+   * The same treatment for the version being compared against, and for the same reasons.
+   *
+   * Built here rather than left as plain text because the second column is a column, not a
+   * quotation: the dictionary underlines a word wherever it is read, and a sub-verse highlight
+   * made in this version has to paint in the text it was made in. A separate memo rather than
+   * one over both, so a change on one side does not regenerate the other's markup and tear out
+   * a live text selection in it.
+   */
+  const compareVerseHtml = useMemo(
+    () =>
+      buildVerseHtml(
+        compare?.verses ?? EMPTY_VERSES,
+        eastonsIndex ? referenceProviders : null,
+        compare?.versePaints,
+      ),
+    // comparePaintSignature stands in for compare.versePaints — see `versePaintsSignature`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [compare?.verses, eastonsIndex, referenceProviders, comparePaintSignature],
+  );
 
   /**
    * Mark already-saved words in the passage text with a solid underline instead of the dotted
@@ -715,7 +812,13 @@ export default function PrototypeBibleReaderPane({
   const openHighlightDock = useCallback(
     (range: [number, number], session: Omit<HighlightDockSession, 'range' | 'studyThreadEntryId'>,
      studyThreadEntryId: string | null) => {
-      const key = highlightDockStableKey(null, { from: range[0], to: range[1] });
+      // The same key `openOrFocusHighlight` will compute from this session — including its
+      // translation, or the id would be written into an entry filed under a different name.
+      const key = highlightDockStableKey(
+        null,
+        { from: range[0], to: range[1] },
+        session.scripturePassageTranslation,
+      );
       setDockStack((s) =>
         openOrFocusHighlight(s, {
           ...session,
@@ -757,8 +860,15 @@ export default function PrototypeBibleReaderPane({
   /** The menu is showing colours for the highlight just made, rather than the action list. */
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  /** Selected verse range, as [start, end] — a range because selection can extend. */
-  const [selection, setSelection] = useState<[number, number] | null>(null);
+  /**
+   * The selected verses: a range, because selection can extend, in one of the two columns.
+   *
+   * The column is part of the selection rather than beside it so the two cannot disagree.
+   * Everything downstream — the text a highlight is of, the version it is written against,
+   * which verse the action bar hangs under — is a question about one column, and a `[start,
+   * end]` that did not say which one would answer all three for whichever column asked last.
+   */
+  const [selection, setSelection] = useState<VerseSelection>(null);
 
   /**
    * A drag across words, as opposed to a tap on a verse.
@@ -773,7 +883,10 @@ export default function PrototypeBibleReaderPane({
    * rather than refused. See docs/future/READER_PARTIAL_VERSE_HIGHLIGHTS.md.
    */
   const [dragText, setDragText] = useState<string | null>(null);
-  const [focusedVerse, setFocusedVerse] = useState<number | null>(null);
+  /** Where the roving tab stop is, and in which column — the keyboard's own cursor. */
+  const [focusedVerse, setFocusedVerse] = useState<{ column: ReaderColumn; number: number } | null>(
+    null,
+  );
 
   /**
    * Where a deep link put you — dimmed-in like a selection, but not one.
@@ -792,7 +905,9 @@ export default function PrototypeBibleReaderPane({
     setLanding(null);
     setFocusedVerse(null);
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [book, chapter, translation]);
+    // The compared version counts: a selection in the second column is of text that is gone
+    // the moment that column changes translation, and acting on it would quote the old one.
+  }, [book, chapter, translation, compare?.translation]);
 
   /**
    * Which verse is at the top of the view, for "where you left off".
@@ -1044,15 +1159,35 @@ export default function PrototypeBibleReaderPane({
         setDragText(null);
         return;
       }
+      /*
+       * Which column the drag is in — and a drag across both is not a drag in either.
+       *
+       * With two versions side by side, `sel.toString()` for a range that starts in one and
+       * ends in the other is one translation's words run into another's. That is not a phrase
+       * anybody meant to mark, and there is no version to write it against, so it is ignored
+       * outright rather than resolved to whichever end the code happened to read first.
+       */
+      const columnOf = (node: Node | null) =>
+        (node instanceof HTMLElement ? node : (node?.parentElement ?? null))?.closest<HTMLElement>(
+          '[data-reader-column]',
+        ) ?? null;
+      const anchorColumn = columnOf(sel.anchorNode);
+      if (!anchorColumn || anchorColumn !== columnOf(sel.focusNode)) {
+        setDragText(null);
+        return;
+      }
+      const side: ReaderColumn =
+        anchorColumn.dataset.readerColumn === 'compare' ? 'compare' : 'primary';
       const text = sel.toString().trim();
       if (!text) {
         setDragText(null);
         return;
       }
       /* Which verses the drag touches. Taken from the DOM rather than from character offsets:
-         the verse spans are the only thing that knows where one verse ends. */
+         the verse spans are the only thing that knows where one verse ends. Scoped to the
+         column the drag is in, so the same numbers in the other version are not swept up. */
       const touched: number[] = [];
-      for (const el of column.querySelectorAll<HTMLElement>('[data-reader-verse]')) {
+      for (const el of anchorColumn.querySelectorAll<HTMLElement>('[data-reader-verse]')) {
         if (!sel.containsNode(el, true)) continue;
         const n = Number(el.dataset.readerVerse);
         if (Number.isFinite(n)) touched.push(n);
@@ -1065,7 +1200,9 @@ export default function PrototypeBibleReaderPane({
       const end = Math.max(...touched);
       setDragText(text);
       setSelection((current) =>
-        current && current[0] === start && current[1] === end ? current : [start, end],
+        current && current.start === start && current.end === end && current.column === side
+          ? current
+          : { start, end, column: side },
       );
     };
     document.addEventListener('selectionchange', onSelectionChange);
@@ -1081,17 +1218,22 @@ export default function PrototypeBibleReaderPane({
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; above: boolean } | null>(
     null,
   );
-  const selectionEnd = selection?.[1] ?? null;
+  const selectionEnd = selection?.end ?? null;
+  const selectionColumn = selection?.column ?? null;
 
   useEffect(() => {
-    if (selectionEnd == null) {
+    if (selectionEnd == null || selectionColumn == null) {
       setMenuPos(null);
       // A new selection starts at the action list; the palette belonged to the last highlight.
       setPaletteOpen(false);
       return;
     }
     const place = () => {
-      const el = scrollRef.current?.querySelector(`[data-reader-verse="${selectionEnd}"]`);
+      // Column-qualified: with a comparison open the same verse number exists twice, and the
+      // bar belongs under the one that was actually selected.
+      const el = scrollRef.current?.querySelector(
+        `[data-reader-column="${selectionColumn}"] [data-reader-verse="${selectionEnd}"]`,
+      );
       if (!(el instanceof HTMLElement)) return;
       const rects = el.getClientRects();
       // Last rect, not the bounding box: a verse that wraps spans several lines, and the
@@ -1133,7 +1275,7 @@ export default function PrototypeBibleReaderPane({
       scroller?.removeEventListener('scroll', place);
       window.removeEventListener('resize', place);
     };
-  }, [selectionEnd]);
+  }, [selectionEnd, selectionColumn]);
 
   /*
    * Land on the deep-linked verse once its element exists — BEFORE the browser paints.
@@ -1173,7 +1315,9 @@ export default function PrototypeBibleReaderPane({
      */
     const end = focusVerseEnd && focusVerseEnd > focusVerse ? focusVerseEnd : focusVerse;
     setLanding([focusVerse, end]);
-    setFocusedVerse(focusVerse);
+    // Landing is always in the page's own translation — a deep link names a chapter and a
+    // verse, never a column of a comparison the reader may or may not have open.
+    setFocusedVerse({ column: 'primary', number: focusVerse });
     // `landRequestKey` so asking for the verse you are already on lands on it again: the
     // verse number has not changed, but the request is new.
   }, [focusVerse, focusVerseEnd, verses.length, landRequestKey]);
@@ -1182,22 +1326,74 @@ export default function PrototypeBibleReaderPane({
    * Tapping a second verse extends the passage rather than replacing it — see
    * `nextVerseSelection` for the rule and why shift-only was not enough.
    */
-  const selectVerse = useCallback((num: number, extend: boolean) => {
-    setSelection((current) => nextVerseSelection(current, num, extend));
+  const selectVerse = useCallback((num: number, extend: boolean, column: ReaderColumn) => {
+    setSelection((current) => nextVerseSelection(current, num, extend, column));
+  }, []);
+
+  /** One column's verses — the list the arrow keys walk and the text actions read. */
+  const versesIn = useCallback(
+    (column: ReaderColumn) => (column === 'compare' ? (compare?.verses ?? EMPTY_VERSES) : verses),
+    [compare?.verses, verses],
+  );
+
+  /*
+   * Scoped to this pane's scroller rather than the document.
+   *
+   * A verse number is not unique on the page: the paper stack renders a whole second reader as
+   * its base, and now a comparison renders the same numbers twice within this one. A bare
+   * `document.querySelector` would move focus into whichever matched first, which with a note
+   * open over a chapter is a different reader entirely.
+   */
+  const focusVerseElement = useCallback((column: ReaderColumn, num: number) => {
+    scrollRef.current
+      ?.querySelector<HTMLElement>(
+        `[data-reader-column="${column}"] [data-reader-verse="${num}"]`,
+      )
+      ?.focus();
   }, []);
 
   const moveFocus = useCallback(
-    (from: number, delta: number) => {
-      const i = verses.findIndex((v) => v.number === from);
+    (from: number, delta: number, column: ReaderColumn) => {
+      const list = versesIn(column);
+      const i = list.findIndex((v) => v.number === from);
       if (i === -1) return;
-      const next = verses[Math.min(verses.length - 1, Math.max(0, i + delta))];
-      setFocusedVerse(next.number);
-      document.querySelector<HTMLElement>(`[data-reader-verse="${next.number}"]`)?.focus();
+      const next = list[Math.min(list.length - 1, Math.max(0, i + delta))];
+      setFocusedVerse({ column, number: next.number });
+      focusVerseElement(column, next.number);
     },
-    [verses],
+    [versesIn, focusVerseElement],
   );
 
-  const rovingVerse = focusedVerse ?? verses[0]?.number ?? null;
+  /**
+   * Step sideways to the same verse in the other version.
+   *
+   * The rows are aligned by verse number, so "the same verse over there" is exactly what the
+   * eye is doing when it crosses a parallel Bible — and without this the keyboard could reach
+   * the second column only by tabbing through every verse of the first. Nothing happens where
+   * the other version has no such verse: the row is a gap there, and moving focus into an
+   * empty cell would be a tab stop on the words "Not in NIV".
+   */
+  const crossFocus = useCallback(
+    (num: number, column: ReaderColumn) => {
+      const other: ReaderColumn = column === 'primary' ? 'compare' : 'primary';
+      if (!versesIn(other).some((v) => v.number === num)) return;
+      setFocusedVerse({ column: other, number: num });
+      focusVerseElement(other, num);
+    },
+    [versesIn, focusVerseElement],
+  );
+
+  /**
+   * Which verse carries the tab stop, per column — exactly one across the whole listbox.
+   *
+   * With focus somewhere, that verse is it and the other column has none. With focus nowhere,
+   * it is the first verse of the primary column, which is where a reader entering the chapter
+   * should land whether or not a comparison is open.
+   */
+  const rovingVerse = (column: ReaderColumn): number | null => {
+    if (focusedVerse) return focusedVerse.column === column ? focusedVerse.number : null;
+    return column === 'primary' ? (verses[0]?.number ?? null) : null;
+  };
 
   /*
    * Verse handlers, above the loading and error returns below.
@@ -1207,10 +1403,13 @@ export default function PrototypeBibleReaderPane({
    * Each takes the verse number so one stable callback serves every verse, which is what
    * lets the memo on `VerseSpan` actually hold.
    */
-  const handleVerseFocus = useCallback((n: number) => setFocusedVerse(n), []);
+  const handleVerseFocus = useCallback(
+    (n: number, column: ReaderColumn) => setFocusedVerse({ column, number: n }),
+    [],
+  );
 
   const handleVerseActivate = useCallback(
-    (n: number, e: ReactMouseEvent<HTMLSpanElement>) => {
+    (n: number, e: ReactMouseEvent<HTMLSpanElement>, column: ReaderColumn) => {
       /*
        * The click that ends a drag is not a tap.
        *
@@ -1265,25 +1464,33 @@ export default function PrototypeBibleReaderPane({
         }
         return;
       }
-      selectVerse(n, e.shiftKey);
+      selectVerse(n, e.shiftKey, column);
     },
     [book, chapter, selectVerse, lookupSavedReferenceId],
   );
 
   const handleVerseKeys = useCallback(
-    (n: number, e: ReactKeyboardEvent<HTMLSpanElement>) => {
+    (n: number, e: ReactKeyboardEvent<HTMLSpanElement>, column: ReaderColumn) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        selectVerse(n, e.shiftKey);
+        selectVerse(n, e.shiftKey, column);
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        moveFocus(n, 1);
+        moveFocus(n, 1, column);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        moveFocus(n, -1);
+        moveFocus(n, -1, column);
+      } else if (e.key === 'ArrowRight' && column === 'primary') {
+        // Only outward, per side: the two columns are left and right on the page, so right
+        // from the left one and left from the right one is the whole gesture.
+        e.preventDefault();
+        crossFocus(n, column);
+      } else if (e.key === 'ArrowLeft' && column === 'compare') {
+        e.preventDefault();
+        crossFocus(n, column);
       }
     },
-    [selectVerse, moveFocus],
+    [selectVerse, moveFocus, crossFocus],
   );
 
 
@@ -1331,12 +1538,34 @@ export default function PrototypeBibleReaderPane({
     );
   }
 
+  /**
+   * The column the selection is in, and everything that follows from it.
+   *
+   * One derivation rather than a `selection.column === 'compare'` test at each of the six
+   * places that need it. They are all asking the same question — *which text is this action
+   * about* — and answering it once is what keeps the excerpt, the version it is written
+   * against, and the highlights it is checked against from ever describing different columns.
+   */
+  const activeColumn: ReaderColumn = selection?.column ?? 'primary';
+  const inCompare = activeColumn === 'compare' && !!compare;
+  const activeVerses = inCompare ? compare.verses : verses;
+  const activeHighlights = inCompare ? compare.highlights : highlights;
+  const activeTranslation = inCompare ? compare.translation : data.translation;
+  /**
+   * Passed to the write handlers only from the second column.
+   *
+   * The page's own translation is what every caller assumed before there were two, so leaving
+   * it absent there keeps the primary path exactly as it was rather than newly depending on an
+   * argument being threaded correctly.
+   */
+  const actionTranslation = inCompare ? compare.translation : undefined;
+
   const selectionLabel =
     selection == null
       ? null
-      : selection[0] === selection[1]
-        ? `${data.book} ${data.chapter}:${selection[0]}`
-        : `${data.book} ${data.chapter}:${selection[0]}-${selection[1]}`;
+      : selection.start === selection.end
+        ? `${data.book} ${data.chapter}:${selection.start}`
+        : `${data.book} ${data.chapter}:${selection.start}-${selection.end}`;
 
   /**
    * The verses currently under consideration — whatever put them there.
@@ -1353,16 +1582,29 @@ export default function PrototypeBibleReaderPane({
    * contributes nothing, and the chapter simply stays as it was.
    */
   const activeDockRange = dockEntryVerseRange(getActiveDockEntry(dockStack), data.book, data.chapter);
+  /*
+   * Verse numbers only — no column. The fade says which passage is under consideration, and
+   * with two versions of it on screen the answer is both: dimming one column's context while
+   * leaving the other's lit would break the alignment the comparison exists for.
+   */
   const focusRange: [number, number] | null = activeBar
     ? [activeBar.startVerse, activeBar.endVerse]
-    : (selection ?? activeDockRange ?? landing);
+    : selection
+      ? [selection.start, selection.end]
+      : (activeDockRange ?? landing);
 
-  /** The full text of the selected verses — the passage a highlight sits inside. */
+  /**
+   * The full text of the selected verses — the passage a highlight sits inside.
+   *
+   * From the selected column's own verses. Reading the primary's here while the selection was
+   * in the second would file the other translation's words under this one's name, which is the
+   * kind of wrong that looks right until someone reads the highlight back.
+   */
   const passageText =
     selection == null
       ? ''
-      : verses
-          .filter((v) => v.number >= selection[0] && v.number <= selection[1])
+      : activeVerses
+          .filter((v) => v.number >= selection.start && v.number <= selection.end)
           .map((v) => v.text)
           .join(' ');
 
@@ -1386,12 +1628,14 @@ export default function PrototypeBibleReaderPane({
    * silently reopen verse 20's annotation instead of offering a new highlight over all five.
    */
   const existingHighlight = (() => {
-    if (!selection || !highlights) return undefined;
-    const first = highlights.get(selection[0]);
+    if (!selection || !activeHighlights) return undefined;
+    const first = activeHighlights.get(selection.start);
     if (!first) return undefined;
-    for (let v = selection[0] + 1; v <= selection[1]; v += 1) {
+    for (let v = selection.start + 1; v <= selection.end; v += 1) {
       // The map holds a fresh object per verse, so compare the row id rather than identity.
-      if (highlights.get(v)?.studyThreadEntryId !== first.studyThreadEntryId) return undefined;
+      if (activeHighlights.get(v)?.studyThreadEntryId !== first.studyThreadEntryId) {
+        return undefined;
+      }
     }
     return first;
   })();
@@ -1477,7 +1721,13 @@ export default function PrototypeBibleReaderPane({
                       // Re-colours the existing row rather than adding one — the write is
                       // keyed on the passage, so trying colours leaves a single highlight.
                       setAccent(token);
-                      onHighlight({ start: selection[0], end: selection[1] }, token, selectedText, passageText);
+                      onHighlight(
+                        { start: selection.start, end: selection.end },
+                        token,
+                        selectedText,
+                        passageText,
+                        actionTranslation,
+                      );
                     }}
                   >
                     <span className="dock-accent-swatch__choice-ring" aria-hidden />
@@ -1510,7 +1760,13 @@ export default function PrototypeBibleReaderPane({
                     // you guessed what it did. Committing on the first tap means the palette
                     // only ever appears attached to a highlight that already exists, so each
                     // colour is a change you can see rather than a choice you must predict.
-                    onHighlight({ start: selection[0], end: selection[1] }, accent, selectedText, passageText);
+                    onHighlight(
+                      { start: selection.start, end: selection.end },
+                      accent,
+                      selectedText,
+                      passageText,
+                      actionTranslation,
+                    );
                     setPaletteOpen(true);
                   }}
                 />
@@ -1529,13 +1785,14 @@ export default function PrototypeBibleReaderPane({
                       // Already annotated — go straight to the existing row instead of
                       // starting another network round trip for one that's already there.
                       openHighlightDock(
-                        selection,
+                        [selection.start, selection.end],
                         {
                           accent: existingHighlight!.accent,
                           excerpt: selectedText,
                           focusTitle: selectionLabel ?? undefined,
                           miniNoteBody: existingHighlight!.miniNoteBody ?? '',
                           entryKind: 'scriptureLink',
+                          scripturePassageTranslation: activeTranslation,
                         },
                         existingAnnotationId,
                       );
@@ -1548,24 +1805,34 @@ export default function PrototypeBibleReaderPane({
                     // gets typed before then and flush it once `studyThreadEntryId` shows up.
                     const annotated = selection;
                     openHighlightDock(
-                      annotated,
+                      [annotated.start, annotated.end],
                       {
                         accent,
                         excerpt: selectedText,
                         focusTitle: selectionLabel ?? undefined,
                         miniNoteBody: '',
                         entryKind: 'scriptureLink',
+                        // Which version this card is of. Its own field on the session, and the
+                        // thing that keeps verse 5 of one translation from filing under verse 5
+                        // of the other while neither has a row id yet.
+                        scripturePassageTranslation: activeTranslation,
                       },
                       null,
                     );
                     void Promise.resolve(
-                      onAnnotate({ start: annotated[0], end: annotated[1] }, accent, selectedText),
+                      onAnnotate(
+                        { start: annotated.start, end: annotated.end },
+                        accent,
+                        selectedText,
+                        actionTranslation,
+                      ),
                     ).then((id) => {
                       if (!id) return;
-                      const key = highlightDockStableKey(null, {
-                        from: annotated[0],
-                        to: annotated[1],
-                      });
+                      const key = highlightDockStableKey(
+                        null,
+                        { from: annotated.start, to: annotated.end },
+                        activeTranslation,
+                      );
                       setDockStack((s) =>
                         updateHighlightSessionAt(s, key, (sess) => ({
                           ...sess,
@@ -1601,7 +1868,7 @@ export default function PrototypeBibleReaderPane({
                 <MenuAction
                   icon="note-sticky"
                   label="Note"
-                  onClick={() => onStartNote({ start: selection[0], end: selection[1] })}
+                  onClick={() => onStartNote({ start: selection.start, end: selection.end })}
                 />
               </>
             ) : null}
@@ -1889,6 +2156,10 @@ export default function PrototypeBibleReaderPane({
                only thing in focus. Marking the container rather than each verse keeps it one
                state to reason about — and lets the fade be a single transition. */
             data-focus={focusRange ? 'true' : undefined}
+            /* Undivided, this whole listbox is the primary column — so the three DOM lookups
+               that ask which column a verse is in have an answer either way, rather than one
+               path scoped by column and another falling back to the first match on the page. */
+            data-reader-column={compare ? undefined : 'primary'}
             role="listbox"
             aria-label={`${data.book} ${data.chapter} verses`}
           >
@@ -1909,7 +2180,17 @@ export default function PrototypeBibleReaderPane({
               */
               comparedRows.map((row) => (
                 <div className="pds-reader__compare-row" role="none" key={row.verse}>
-                  <p className="pds-reader-text pds-reader__compare-cell" role="none">
+                  {/*
+                    `data-reader-column` is what makes a verse number unique again. It exists
+                    twice on this page now, and three things ask the DOM which one they mean:
+                    where the action bar hangs, where a drag happened, and where the arrow keys
+                    move focus to.
+                  */}
+                  <p
+                    className="pds-reader-text pds-reader__compare-cell"
+                    role="none"
+                    data-reader-column="primary"
+                  >
                     {row.left == null ? (
                       <span className="pds-reader__compare-absent">
                         Not in {getTranslationAbbreviationDisplay(data.translation)}
@@ -1917,17 +2198,20 @@ export default function PrototypeBibleReaderPane({
                     ) : (
                       <VerseSpan
                         verse={{ number: row.verse, text: row.left }}
+                        column="primary"
+                        versionLabel={getTranslationAbbreviationDisplay(data.translation)}
                         selected={
                           selection != null &&
-                          row.verse >= selection[0] &&
-                          row.verse <= selection[1]
+                          selection.column === 'primary' &&
+                          row.verse >= selection.start &&
+                          row.verse <= selection.end
                         }
                         accent={highlights?.get(row.verse)?.accent}
                         noteCount={noteCountByVerse.get(row.verse) ?? 0}
                         inFocus={
                           focusRange != null && row.verse >= focusRange[0] && row.verse <= focusRange[1]
                         }
-                        roving={rovingVerse === row.verse}
+                        roving={rovingVerse('primary') === row.verse}
                         html={verseHtml.get(row.verse) ?? EMPTY_VERSE_HTML}
                         onFocusVerse={handleVerseFocus}
                         onActivate={handleVerseActivate}
@@ -1938,16 +2222,43 @@ export default function PrototypeBibleReaderPane({
                   <p
                     className="pds-reader-text pds-reader__compare-cell pds-reader__compare-cell--second"
                     role="none"
+                    data-reader-column="compare"
                   >
                     {row.right == null ? (
                       <span className="pds-reader__compare-absent">
                         Not in {getTranslationAbbreviationDisplay(compare.translation)}
                       </span>
                     ) : (
-                      <>
-                        <sup className="pds-reader-verse-num">{row.verse}</sup>
-                        <span className="pds-reader__verse-text">{row.right}</span>
-                      </>
+                      /*
+                        The same component as the column beside it, on its own translation's
+                        highlights and its own markup.
+                        
+                        It was a `<sup>` and a `<span>` — a quotation of the other column rather
+                        than a column. Reading two versions is not reading one and glancing at
+                        another: the verse you want to keep is as often the one on the right, and
+                        a page where only half the words can be marked decides that for you.
+                      */
+                      <VerseSpan
+                        verse={{ number: row.verse, text: row.right }}
+                        column="compare"
+                        versionLabel={getTranslationAbbreviationDisplay(compare.translation)}
+                        selected={
+                          selection != null &&
+                          selection.column === 'compare' &&
+                          row.verse >= selection.start &&
+                          row.verse <= selection.end
+                        }
+                        accent={compare.highlights?.get(row.verse)?.accent}
+                        noteCount={noteCountByVerse.get(row.verse) ?? 0}
+                        inFocus={
+                          focusRange != null && row.verse >= focusRange[0] && row.verse <= focusRange[1]
+                        }
+                        roving={rovingVerse('compare') === row.verse}
+                        html={compareVerseHtml.get(row.verse) ?? EMPTY_VERSE_HTML}
+                        onFocusVerse={handleVerseFocus}
+                        onActivate={handleVerseActivate}
+                        onKeys={handleVerseKeys}
+                      />
                     )}
                   </p>
                 </div>
@@ -1963,10 +2274,12 @@ export default function PrototypeBibleReaderPane({
                       {i > 0 ? ' ' : null}
                       <VerseSpan
                         verse={verse}
+                        column="primary"
                         selected={
                           selection != null &&
-                          verse.number >= selection[0] &&
-                          verse.number <= selection[1]
+                          selection.column === 'primary' &&
+                          verse.number >= selection.start &&
+                          verse.number <= selection.end
                         }
                         accent={highlights?.get(verse.number)?.accent}
                         noteCount={noteCountByVerse.get(verse.number) ?? 0}
@@ -1975,7 +2288,7 @@ export default function PrototypeBibleReaderPane({
                           verse.number >= focusRange[0] &&
                           verse.number <= focusRange[1]
                         }
-                        roving={rovingVerse === verse.number}
+                        roving={rovingVerse('primary') === verse.number}
                         html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
                         onFocusVerse={handleVerseFocus}
                         onActivate={handleVerseActivate}
@@ -1991,10 +2304,12 @@ export default function PrototypeBibleReaderPane({
                   <p className="pds-reader-text" role="none">
                     <VerseSpan
                       verse={verse}
+                      column="primary"
                       selected={
                         selection != null &&
-                        verse.number >= selection[0] &&
-                        verse.number <= selection[1]
+                        selection.column === 'primary' &&
+                        verse.number >= selection.start &&
+                        verse.number <= selection.end
                       }
                       accent={highlights?.get(verse.number)?.accent}
                       noteCount={noteCountByVerse.get(verse.number) ?? 0}
@@ -2003,7 +2318,7 @@ export default function PrototypeBibleReaderPane({
                         verse.number >= focusRange[0] &&
                         verse.number <= focusRange[1]
                       }
-                      roving={rovingVerse === verse.number}
+                      roving={rovingVerse('primary') === verse.number}
                       html={verseHtml.get(verse.number) ?? EMPTY_VERSE_HTML}
                       onFocusVerse={handleVerseFocus}
                       onActivate={handleVerseActivate}
@@ -2154,7 +2469,17 @@ export default function PrototypeBibleReaderPane({
                       // several cards up, the one being recoloured is not necessarily the one
                       // the chapter is faded to.
                       if (range) {
-                        onHighlight?.({ start: range.from, end: range.to }, next, entry.session.excerpt);
+                        onHighlight?.(
+                          { start: range.from, end: range.to },
+                          next,
+                          entry.session.excerpt,
+                          // No passage text: a recolour re-writes the row it already has, and
+                          // this is the same absent 4th argument it has always passed.
+                          undefined,
+                          // The version this card is of, so recolouring one made in the second
+                          // column does not write against the page's translation instead.
+                          entry.session.scripturePassageTranslation ?? undefined,
+                        );
                       }
                       setDockStack((s) =>
                         updateDockEntry(s, entry.id, (e) =>
@@ -2164,7 +2489,10 @@ export default function PrototypeBibleReaderPane({
                     }}
                     onRemove={() => {
                       if (entry.session.studyThreadEntryId) {
-                        onRemoveHighlight?.(entry.session.studyThreadEntryId);
+                        onRemoveHighlight?.(
+                          entry.session.studyThreadEntryId,
+                          entry.session.scripturePassageTranslation ?? undefined,
+                        );
                       }
                       close();
                     }}

@@ -636,4 +636,23 @@ describe('reader word lookups', () => {
     expect(beforeId).toBe(sameVerses);
     expect(beforeId).not.toContain('anonymous');
   });
+
+  it('tells the same verses apart in two translations', () => {
+    /*
+     * Reading two versions side by side, verse 5 of each is a different piece of text. Sharing
+     * one key would make annotating the second focus the first's card — showing the wrong
+     * version's words under a note being written about the other.
+     */
+    const esv = highlightDockStableKey(null, { from: 5, to: 5 }, 'ESV');
+    const niv = highlightDockStableKey(null, { from: 5, to: 5 }, 'NIV');
+
+    expect(esv).not.toBe(niv);
+    expect(esv).toBe(highlightDockStableKey(null, { from: 5, to: 5 }, 'ESV'));
+  });
+
+  it('leaves a key with no translation exactly as it was', () => {
+    // Nothing that never knew its translation changes shape.
+    expect(highlightDockStableKey(null, { from: 5, to: 5 })).toBe('highlight:range:5-5');
+    expect(highlightDockStableKey(null, { from: 5, to: 5 }, null)).toBe('highlight:range:5-5');
+  });
 });

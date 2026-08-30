@@ -42,9 +42,11 @@ const activate = (() => {
 describe('a drag does not end by deselecting what it selected', () => {
   it('the two correct behaviours that combine into the bug are both still here', () => {
     // If this ever stops returning null, the guard is protecting nothing and can go.
-    expect(nextVerseSelection([20, 20], 20, false)).toBeNull();
+    expect(nextVerseSelection({ start: 20, end: 20, column: 'primary' }, 20, false, 'primary')).toBeNull();
     // And the reason a cross-verse drag looked fine, which is why the bug was easy to miss.
-    expect(nextVerseSelection([17, 18], 18, false)).toEqual([18, 18]);
+    expect(
+      nextVerseSelection({ start: 17, end: 18, column: 'primary' }, 18, false, 'primary'),
+    ).toEqual({ start: 18, end: 18, column: 'primary' });
   });
 
   it('ignores a click that arrives with a live selection in the column', () => {
@@ -63,7 +65,7 @@ describe('a drag does not end by deselecting what it selected', () => {
 
   it('guards before selecting, not after', () => {
     const guard = activate.indexOf('document.getSelection()');
-    const select = activate.indexOf('selectVerse(n, e.shiftKey)');
+    const select = activate.indexOf('selectVerse(n, e.shiftKey, column)');
     expect(guard).toBeGreaterThan(-1);
     expect(select).toBeGreaterThan(-1);
     // A guard that runs after the selection has already been toggled is not a guard.

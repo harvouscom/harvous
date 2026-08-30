@@ -489,9 +489,25 @@ export function scriptureDockStableKey(
 export function highlightDockStableKey(
   studyThreadEntryId: string | null,
   range: { from: number; to: number } | null,
+  /**
+   * Which translation the range is in, where that is known.
+   *
+   * A card opens before its row id exists, so until the network answers it is filed under the
+   * verses it covers. That was unambiguous while a chapter was one text. Reading two versions
+   * side by side it is not: verse 5 in each is two different pieces of text, and annotating
+   * both would file the second under the first's key — focusing a card showing the wrong
+   * version's words rather than opening one for what was actually selected.
+   *
+   * Optional, and absent leaves the key exactly as it was, so nothing that never knew its
+   * translation changes shape.
+   */
+  translation?: string | null,
 ): string {
   if (studyThreadEntryId) return `highlight:${studyThreadEntryId}`;
-  if (range) return `highlight:range:${range.from}-${range.to}`;
+  if (range) {
+    const suffix = translation ? `:${translation}` : '';
+    return `highlight:range:${range.from}-${range.to}${suffix}`;
+  }
   return `highlight:anonymous:${Date.now()}`;
 }
 
@@ -570,7 +586,11 @@ export function openOrFocusHighlight(
   session: HighlightDockSession,
   options?: OpenDockOptions,
 ): StudyDockStack {
-  const stableKey = highlightDockStableKey(session.studyThreadEntryId, session.range);
+  const stableKey = highlightDockStableKey(
+    session.studyThreadEntryId,
+    session.range,
+    session.scripturePassageTranslation,
+  );
   const existing = stack.entries.find((e) => e.stableKey === stableKey);
   if (existing) {
     return {
