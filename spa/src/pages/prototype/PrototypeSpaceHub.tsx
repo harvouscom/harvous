@@ -259,10 +259,12 @@ function PrototypeSpaceHubLive() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsButtonRef = useRef<HTMLButtonElement | null>(null);
   const toolsCardRef = useRef<HTMLDivElement | null>(null);
-  const { position: toolsPosition } = useProtoAnchoredPopoverPosition(
+  const { position: toolsPosition, sync: syncToolsPosition } = useProtoAnchoredPopoverPosition(
     toolsCardRef,
     { anchorEl: toolsButtonRef.current },
-    { enabled: toolsOpen },
+    /* Right edge to the button's, because the button is at the right of the header — the
+       card should hang back under it, not off toward the pane's edge. */
+    { enabled: toolsOpen, alignEnd: true },
     [toolsOpen],
   );
   /* The trigger is in the ignore list, not a second watched ref: without it the same press
@@ -270,6 +272,19 @@ function PrototypeSpaceHubLive() {
   useDismissOnOutside(toolsCardRef, () => setToolsOpen(false), toolsOpen, {
     ignoreSelector: '[aria-label="Tools"]',
   });
+  /*
+   * Measure again once the card has its final width.
+   *
+   * The first pass runs before the popover has settled at the width its own rule gives it, and
+   * end-alignment is `anchor.right - cardWidth` — so a width that is 8px short at that instant
+   * puts the card 8px right of the button and nothing afterwards moves it back. Left-aligned
+   * callers never noticed, because their `left` does not depend on how wide the card is.
+   */
+  useEffect(() => {
+    if (!toolsOpen) return undefined;
+    const raf = requestAnimationFrame(() => syncToolsPosition());
+    return () => cancelAnimationFrame(raf);
+  }, [toolsOpen, syncToolsPosition]);
   const [createThreadOpen, setCreateThreadOpen] = useState(false);
   const [changeThreadOpen, setChangeThreadOpen] = useState(false);
   const [threadTab, setThreadTab] = useState<'current' | 'available'>('current');

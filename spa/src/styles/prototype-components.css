@@ -21819,12 +21819,41 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   z-index: 2;
 }
 
-/* The tools popover takes the menu shell's own width rather than a menu's default, because its
-   rows carry a count line under the title and a chevron after it — the same rows the body used
-   to draw at the sheet's full width. */
+/* The tools popover takes a width of its own rather than a menu's default, because its rows
+   carry a count line under the title and a chevron after it. */
 .proto-space-tools-popover {
   width: 268px;
-  padding: 6px;
+  /*
+   * No inset, so a row's hover fills the card the way it does in the body.
+   *
+   * A menu popover pads itself because its rows are pills that float inside it. These are the
+   * list rows the sheet uses, which take the full width of the card they sit in and light up
+   * across all of it — inset by the menu's own padding, the highlight stopped 5px short on
+   * every side and read as a tile rather than as the row being pointed at.
+   *
+   * `overflow: hidden` so the first and last rows' fill is clipped to the card's own corners
+   * instead of squaring them off.
+   */
+  padding: 0;
+  overflow: hidden;
+}
+
+/*
+ * One surface, not two.
+ *
+ * `ProtoToolsRowList` paints `.proto-glass-surface--panel` because in the body it is a card
+ * lying on the page. In here the popover is already that card, so the panel was a second
+ * rounded fill inset inside the first — its own background, its own border, its own shadow,
+ * and a rim of the popover's fill showing all the way round it. The rows keep every one of
+ * their own styles; only the box they came in loses its.
+ */
+.proto-space-tools-popover .proto-church-tools {
+  background: none;
+  background-image: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .proto-shared-space-header--cover .proto-shared-space-header__actions .proto-toolbar-icon-btn {
