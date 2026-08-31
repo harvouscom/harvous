@@ -16,6 +16,8 @@ import Icon from '@/components/react/Icon';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeOnboardingDock from './PrototypeOnboardingDock';
+import PrototypeHomeSection from './PrototypeHomeSection';
+import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import { prototypeReadTodayRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
 import {
   guestHighlights,
@@ -60,13 +62,12 @@ export default function PrototypeGuestHome() {
         <header className="proto-feed-sheet__head">
           <div className="proto-feed-sheet__title">
             {/*
-              Not "Today". That is the feed's day label, and it is the one word here that means
-              nothing to a guest: there is no stack of previous days behind this sheet and
-              nothing about what they have made belongs to a particular date. "Your study" is
-              true of both states this sheet has — the empty one, where it names what the page
-              is for, and the populated one, where it names what is on it.
+              Not "Today" — that is the feed's day label, and it is the one word here that means
+              nothing to a guest: no stack of days behind this sheet, nothing dated on it. Not
+              "Your study" either, which was the first attempt and claims too much of someone
+              who has been here ninety seconds. This page is an introduction, so it says so.
             */}
-            <h2 className="proto-feed-sheet__day">Your study</h2>
+            <h2 className="proto-feed-sheet__day">This is Harvous</h2>
           </div>
         </header>
 
@@ -132,6 +133,21 @@ export default function PrototypeGuestHome() {
           )}
 
           <PrototypeOnboardingDock onStepAction={openReader} />
+
+          {/*
+            Why the app exists, for the person deciding whether to care.
+
+            The letter is the strongest thing on this page for a visitor and it costs nothing to
+            offer: `GET /api/about/founder-letter` carries no auth, so it reads for a guest
+            exactly as it does for a member — and the pill brings its own dismissed flag, so
+            putting it away here is the same gesture, remembered the same way.
+
+            Below the checklist rather than above it. The checklist is what to *do*; this is why
+            it is worth doing, and someone who wants the reasons will scroll for them.
+          */}
+          <PrototypeHomeSection title="About">
+            <PrototypeFounderLetterPill />
+          </PrototypeHomeSection>
         </div>
       </article>
         </div>
