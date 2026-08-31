@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   RELEASE_NOTES_INDEX_URL,
+  releaseNotesUrlForSlug,
   resetPublishedReleasesCacheForTests,
   resolveReleaseNotesUrl,
   versionToSlug,
@@ -24,8 +25,13 @@ describe('resolveReleaseNotesUrl', () => {
 
   it('links to the version’s own page once the site says it exists', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(manifest(['v2-113-0', 'v2-87-2']));
+    // The slug is written out, so a resolver that picked the wrong one still fails here. The
+    // origin is not: `VITE_HARVOUS_SITE_ORIGIN` points this at a local harvous.com while the
+    // deep link is being worked on, and a hardcoded production host made the suite pass or
+    // fail on whether the developer had that set. Every other case here compares against
+    // `RELEASE_NOTES_INDEX_URL` for the same reason.
     await expect(resolveReleaseNotesUrl('2.113.0')).resolves.toBe(
-      'https://harvous.com/release-notes/v2-113-0/',
+      releaseNotesUrlForSlug('v2-113-0'),
     );
   });
 
