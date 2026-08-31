@@ -22917,12 +22917,28 @@ button.proto-feed-sheet__stat:hover {
   padding-bottom: var(--pds-space-2);
 }
 
+/* The greeting's type, because it is the same thing: the sentence this sheet opens with. */
 .proto-guest-home__lead {
   margin: 0;
   max-width: 42ch;
-  color: var(--pds-text-secondary);
-  font-size: 14px;
-  line-height: 1.5;
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--pds-text-primary);
+}
+
+/*
+  No glow on the accent buttons inside this sheet.
+
+  `.proto-feed-sheet__body` scrolls, so it clips on both axes, and
+  `--pds-shadow-accent-button` throws its light 24px past the button — which at the content's
+  left edge came off square against the scroller's box. Indenting the button to make room would
+  break its alignment with every row beneath it, and the fill is doing the work here anyway:
+  the glow reads on a canvas, not on paper it is already sitting on.
+*/
+.proto-guest-home__sheet .proto-settings-btn,
+.proto-guest-home__sheet .proto-accent-btn-sm {
+  box-shadow: none;
 }
 
 /* The button sizes to its label here — full width is for a settings sheet, not for one

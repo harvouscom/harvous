@@ -59,7 +59,14 @@ export default function PrototypeGuestHome() {
       <article className="proto-feed-sheet proto-guest-home__sheet">
         <header className="proto-feed-sheet__head">
           <div className="proto-feed-sheet__title">
-            <h2 className="proto-feed-sheet__day">Today</h2>
+            {/*
+              Not "Today". That is the feed's day label, and it is the one word here that means
+              nothing to a guest: there is no stack of previous days behind this sheet and
+              nothing about what they have made belongs to a particular date. "Your study" is
+              true of both states this sheet has — the empty one, where it names what the page
+              is for, and the populated one, where it names what is on it.
+            */}
+            <h2 className="proto-feed-sheet__day">Your study</h2>
           </div>
         </header>
 

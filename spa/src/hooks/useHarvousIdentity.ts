@@ -15,7 +15,12 @@ import {
   type PrototypeShellMode,
 } from '@/utils/prototype-shell-auth';
 import { hasClerkSessionCookieHint } from './queries/useProfile';
-import { GUEST_USER_ID, hasGuestSession, subscribeToGuestSession } from '../lib/guest-session';
+import {
+  GUEST_USER_ID,
+  hasGuestSession,
+  publishShellMode,
+  subscribeToGuestSession,
+} from '../lib/guest-session';
 
 export interface HarvousIdentity {
   mode: PrototypeShellMode;
@@ -48,6 +53,13 @@ export function useHarvousIdentity(): HarvousIdentity {
     hasClerkSessionCookieHint(),
     guest,
   );
+
+  /*
+   * Publish it for code that cannot call a hook — the reader's annotate dock, the
+   * fire-and-forget loggers, the onboarding store. They used to re-derive the answer from a
+   * cookie and could disagree with this one; now there is one resolver and one reader of it.
+   */
+  publishShellMode(mode);
 
   return {
     mode,

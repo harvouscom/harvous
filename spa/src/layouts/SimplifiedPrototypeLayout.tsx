@@ -112,6 +112,7 @@ import {
 } from '../lib/prototype-background';
 import {
   fetchAndHydrateOnboardingFromProfile,
+  hydrateOnboardingForGuest,
   initOnboardingAccountSync,
 } from '../lib/proto-onboarding-sync';
 import {
@@ -147,6 +148,10 @@ export default function SimplifiedPrototypeLayout() {
   const authReady = useAuthReady();
   // Hands anything made as a guest to the account, the first moment there is one to hand it to.
   useGuestAdoption();
+  // The checklist has nothing to wait for when there is no account — see the function's note.
+  useEffect(() => {
+    if (identity.isGuest) hydrateOnboardingForGuest();
+  }, [identity.isGuest]);
   const { user } = useUser();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });

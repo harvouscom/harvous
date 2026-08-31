@@ -14,7 +14,7 @@ import {
   PROTO_GUEST_SESSION_KEY,
   PROTO_GUEST_EXIT_PROMPT_KEY,
 } from '../layouts/proto-session-keys';
-import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
+import type { PrototypeShellMode } from '@/utils/prototype-shell-auth';
 
 /**
  * The Dexie partition a guest's rows live under.
@@ -121,14 +121,44 @@ export function startGuestSessionFromUrl(search: string): boolean {
 export const GUEST_SIGNUP_SOURCE = 'guest';
 
 /**
- * Guest mode, for code that has no hooks to ask with — the fire-and-forget loggers, the sync
- * bootstrap, anything running outside a render.
+ * The mode the shell actually settled on, published by `useHarvousIdentity`.
  *
- * Carries the same precedence rule as `resolvePrototypeShellMode`: a session cookie means a
- * member, and a member is never a guest no matter what marker this browser is holding. Stated
- * again here rather than imported because the React answer arrives a render late, and these
- * callers fire during the first one.
+ * Null until the first render. Non-React callers below prefer it over guessing, because the two
+ * answers diverging is not hypothetical — see `isGuestModeActive`.
+ */
+let resolvedMode: PrototypeShellMode | null = null;
+
+/** Called by `useHarvousIdentity` so code without hooks can read the same answer. */
+export function publishShellMode(mode: PrototypeShellMode): void {
+  resolvedMode = mode;
+}
+
+/**
+ * `__client_uat` is Clerk's "user authenticated at" stamp: a timestamp when signed in, `0` when
+ * not. Narrower on purpose than `hasClerkSessionCookieHint`, which also accepts a bare
+ * `__session` because painting a shell early is worth a false positive and this is not.
+ */
+function hasAuthenticatedClerkCookie(): boolean {
+  if (typeof document === 'undefined') return false;
+  return /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie);
+}
+
+/**
+ * Guest mode, for code that has no hooks to ask with — the fire-and-forget loggers, the sync
+ * bootstrap, the reader's annotate dock.
+ *
+ * **It defers to the resolved mode rather than re-deriving one.** This used to ask
+ * `hasClerkSessionCookieHint()`, on the reasoning that a session cookie means a member. That
+ * hint is deliberately loose — its job is to paint a shell during Clerk's cold start, so it
+ * answers true for the mere *presence* of a `__session` cookie. A signed-out browser can carry
+ * one alongside `__client_uat=0`, and then this said "not a guest" while `useHarvousIdentity`,
+ * which waits for Clerk, said "guest". The checklist never hydrated; worse, the annotate dock
+ * would have PATCHed a guest's note to a server that answers 401 rather than saving it here.
+ *
+ * Before the first render there is no resolved mode, so it falls back to the marker plus the
+ * narrower cookie above.
  */
 export function isGuestModeActive(): boolean {
-  return hasGuestSession() && !hasClerkSessionCookieHint();
+  if (resolvedMode) return resolvedMode === 'guest';
+  return hasGuestSession() && !hasAuthenticatedClerkCookie();
 }
