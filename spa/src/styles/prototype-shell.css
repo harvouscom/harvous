@@ -2384,44 +2384,66 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 /*
  * A result group's heading.
  *
- * Three things make it a break rather than a line of text:
+ * ## Why it no longer sticks
  *
- * 1. It is sticky. Results can run past a screen, and a label that scrolls away leaves you
- *    reading rows with no idea which group they are in — which is the one question having
- *    two groups exists to answer. It needs an opaque backing to do that, hence the fill.
- * 2. The rule runs from the label to the edge, so the heading sits *in* the break instead
- *    of floating above the list. A pseudo-element rather than a border, because the label
- *    has to interrupt it.
- * 3. Sentence case at caption weight, which is the voice the rest of this app speaks in.
- *    Uppercase and letter-spaced was inherited from a class the sidebar no longer renders,
- *    and it shouted over the rows it was labelling.
+ * It was sticky, on the reasoning that results run past a screen and a label that scrolls
+ * away leaves you reading rows with no idea which group they are in. True, but sticking
+ * costs an opaque backing, and the panel behind it is a *gradient* — so the fill matched
+ * near the top and turned into a visible white band everywhere else. No flat colour can
+ * sit still over a gradient; the band was not a wrong shade, it was the wrong idea. The
+ * hairline still passes under the eye on the way down, which is what actually marks the
+ * boundary between two groups.
+ *
+ * ## What is left
+ *
+ * The rule runs from the label to the edge, so the heading sits *in* the break instead of
+ * floating above the list. A pseudo-element rather than a border, because the label has to
+ * interrupt it.
+ *
+ * ## Why the type lives on the span
+ *
+ * `prototype-route-overrides.css` paints every `h*` inside a `proto-` class at
+ * `--pds-text-primary !important`, and a global sets `h3` bold — so this element's own
+ * `font-weight` and `color` were being ignored and the label rendered as a full-strength
+ * heading shouting over the rows it names. A declaration on the child beats a value
+ * inherited from the parent whatever its importance, so the voice is set there.
  */
 .proto-library-results__heading {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 0;
-  padding: 14px 2px 8px;
-  background: var(--pds-bg-page);
-  font-size: 0.75rem;
-  font-weight: 500;
+  /* Left lines the label up with the row text below it — the rows' own box inset plus their
+     inner padding. Right stops the hairline where the rows stop, rather than running it out
+     to the panel's edge past everything it is dividing. */
+  padding: 14px 8px 8px 18px;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--pds-text-secondary);
 }
 
 .proto-library-results__heading-text {
   flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 500;
+  /* Muted, like `.proto-home-section__eyebrow`. A group label is the quietest thing in the
+     list — it names rows rather than competing with them. */
+  color: var(--pds-text-muted);
 }
 
+/*
+ * Ink, not `--pds-border-control`.
+ *
+ * The `border-control*` tokens are derived from the canvas — near-white at low alpha, made
+ * to draw an edge on something darker. On this panel's pale gradient the rule was there and
+ * invisible, which stopped mattering only while the heading still had an opaque band doing
+ * the dividing. Now that the band is gone this line *is* the break, so it is the token that
+ * is dark ink on a light surface and is named for exactly that.
+ */
 .proto-library-results__heading::after {
   content: '';
   flex: 1 1 auto;
   height: 0.5px;
-  background: var(--pds-border-control);
+  background: var(--pds-border-on-paper);
 }
 
 /* The first group opens the list, so it has nothing to be broken away from. */
