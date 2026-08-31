@@ -122,7 +122,13 @@ export default function PrototypeGuestHome() {
             </section>
           ) : (
             <section className="proto-home-section proto-guest-home__intro">
-              <p className="proto-guest-home__lead">
+              {/*
+                `proto-home-greeting` itself, not a copy of its type. This is the same thing it
+                is — the sentence a Home opens with — and the shared-space hub already reuses it
+                for exactly that. A second set of matching values is a second set to keep
+                matching, and it had already drifted once.
+              */}
+              <p className="proto-home-greeting proto-guest-home__lead">
                 Harvous keeps what stands out to you in Scripture. Start by reading.
               </p>
               <button type="button" className="proto-settings-btn" onClick={openReader}>

@@ -22917,14 +22917,10 @@ button.proto-feed-sheet__stat:hover {
   padding-bottom: var(--pds-space-2);
 }
 
-/* The greeting's type, because it is the same thing: the sentence this sheet opens with. */
+/* Type comes from `.proto-home-greeting`, which this element also carries. Only the measure
+   is ours: the greeting runs the width of a sidebar, and this one has a whole sheet. */
 .proto-guest-home__lead {
-  margin: 0;
-  max-width: 42ch;
-  font-family: var(--pds-font-body);
-  font-size: 15px;
-  line-height: 1.75;
-  color: var(--pds-text-primary);
+  max-width: 46ch;
 }
 
 /*
@@ -23106,6 +23102,26 @@ button.proto-feed-sheet__stat:hover {
   Scoped to this sheet rather than fixed on `.proto-feed-sheet__body`, which would move the
   spacing of the signed-in feed — a surface being worked on elsewhere right now.
 */
+/*
+  No fade at the top of this sheet, and so no padding to clear one.
+
+  `.proto-feed-sheet__body` fades both ends because its content scrolls under the day header
+  above it. This sheet's heading lives in `.proto-feed-sheet__head`, outside the scroller, so
+  there is nothing for the first line to pass beneath — the fade only dimmed it, and the
+  padding added to escape the fade left a hole under the title. The bottom half is kept: a list
+  that outgrows the sheet should still say so.
+*/
 .proto-guest-home__sheet .proto-feed-sheet__body {
-  padding-top: var(--pds-space-5);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--proto-feed-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--proto-feed-fade)),
+    transparent 100%
+  );
 }
