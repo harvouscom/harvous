@@ -34,7 +34,7 @@ import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar'
 /*
  * The Library panel and everything it browses — off the critical path.
  *
- * The shell owns the open flag, not the panel, because something has to hear ⇧K / ⇧L / ⌘F
+ * The shell owns the open flag, not the panel, because something has to hear ⇧K / ⇧L
  * while this module is still unfetched.
  *
  * It only exists once someone opens it, and its body pulls in the list views for all
@@ -1315,12 +1315,15 @@ function PrototypeShortcutBridge() {
   }, [ensureSidebarExpanded, libraryPanelView, setSidebarLayer]);
 
   /*
-   * ⌘F opens the Library panel's search rather than the sidebar's.
+   * Opens the Library panel's search rather than the sidebar's.
    *
    * The panel is the browse surface now, and its search field is the same universal
-   * search the sidebar ran — so pointing the chord at the rail would summon a fallback
+   * search the sidebar ran — so pointing a chord at the rail would summon a fallback
    * to do what the primary surface does. The sidebar keeps its own field for anyone who
    * opens it with ⇧S.
+   *
+   * Still named for the sidebar, as are the events that reach it: renaming the pair is a
+   * sweep across the shell and the native parity tests, and the fossil is documented here.
    */
   const focusPrototypeSidebarSearch = useCallback(() => {
     /* Opened by a chord, so there is no chip box to grow from — clearing the last one
@@ -1416,7 +1419,6 @@ function PrototypeShortcutBridge() {
       toggleInspector();
     };
     const onFocusList = () => focusPrototypeNoteList();
-    const onFocusSidebarSearch = () => focusPrototypeSidebarSearch();
     const onCycleListMode = (event: Event) => {
       const custom = event as CustomEvent<{ step?: number }>;
       const step = custom.detail?.step === -1 ? -1 : 1;
@@ -1431,7 +1433,6 @@ function PrototypeShortcutBridge() {
     window.addEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
     window.addEventListener('prototypeShortcutToggleInspector', onToggleInspector);
     window.addEventListener('prototypeShortcutFocusNoteList', onFocusList);
-    window.addEventListener('prototypeShortcutFocusSidebarSearch', onFocusSidebarSearch);
     window.addEventListener('prototypeShortcutCycleListMode', onCycleListMode as EventListener);
     window.addEventListener('prototypeShortcutShowHome', onShowHome);
     window.addEventListener('prototypeShortcutShowList', onShowList);
@@ -1442,7 +1443,6 @@ function PrototypeShortcutBridge() {
       window.removeEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
       window.removeEventListener('prototypeShortcutToggleInspector', onToggleInspector);
       window.removeEventListener('prototypeShortcutFocusNoteList', onFocusList);
-      window.removeEventListener('prototypeShortcutFocusSidebarSearch', onFocusSidebarSearch);
       window.removeEventListener('prototypeShortcutCycleListMode', onCycleListMode as EventListener);
       window.removeEventListener('prototypeShortcutShowHome', onShowHome);
       window.removeEventListener('prototypeShortcutShowList', onShowList);
@@ -1451,7 +1451,6 @@ function PrototypeShortcutBridge() {
     createPrototypeNote,
     cycleListMode,
     focusPrototypeNoteList,
-    focusPrototypeSidebarSearch,
     toggleReader,
     pathname,
     showNoteDetailsOrb,
@@ -1462,7 +1461,8 @@ function PrototypeShortcutBridge() {
   ]);
 
   /**
-   * ⇧K opens the Library panel's search, the same surface ⌘F and ⇧L reach.
+   * ⇧K opens the Library panel's search, the same surface ⇧L reaches — and the only chord
+   * that does, so the toolbar chip's hint can name one key.
    *
    * The palette used to live here as its own overlay — mounted at the shell rather than in
    * the sidebar so it still opened with the rail collapsed. That reasoning now belongs to

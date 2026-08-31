@@ -462,21 +462,11 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
   }
 
   /*
-   * Cmd/Ctrl + F — the Library panel's search (native SidebarPanelView parity).
-   *
-   * The event still says "sidebar" because that is where the field used to live. The shell's
-   * `focusPrototypeSidebarSearch` now opens the panel instead: its field is the same universal
-   * search the rail ran, so pointing this at the rail would summon a fallback to do what the
-   * primary surface does.
+   * Cmd/Ctrl + F is deliberately *not* bound: it belongs to the browser's find-in-page, and a
+   * document app is exactly where someone reaches for that. ⇧K opens the Library panel's search
+   * — searching the library rather than the page in front of you — and that is the only chord
+   * for it, so the toolbar chip can name one key rather than two.
    */
-  if (modifier && key === 'f' && !event.altKey && !event.shiftKey) {
-    if (isPrototypeTypingContext(event)) return false;
-    if (isPrototypeShellPath(path)) {
-      event.preventDefault();
-      window.dispatchEvent(new CustomEvent('prototypeShortcutFocusSidebarSearch'));
-      return true;
-    }
-  }
 
   // Cmd/Ctrl + S — save in editor/forms.
   if (modifier && key === 's' && !event.altKey && !event.shiftKey) {
@@ -830,7 +820,7 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
     },
     {
       /**
-       * "Browsing" rather than "Sidebar": ⇧K, ⇧L and ⌘F all open the Library panel now, and
+       * "Browsing" rather than "Sidebar": ⇧K and ⇧L both open the Library panel now, and
        * ⇧← / ⇧→ cycles whichever of the two surfaces is up. A heading naming only the rail
        * would send the reader to the one these keys mostly do not reach.
        *
@@ -843,7 +833,6 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
         { action: 'Cycle sections', keyParts: [shift, '← / →'] },
         { action: 'Move in list', keyParts: [shift, '↑ / ↓'] },
         { action: 'Open item', keyParts: ['Enter'] },
-        { action: 'Open the Library search', keyParts: [getKeyboardShortcutModifierLabel(), 'F'] },
         { action: 'Back', keyParts: [getKeyboardShortcutModifierLabel(), '←'] },
       ],
     },
@@ -851,7 +840,7 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       /**
        * Derived from the command table rather than restated, so a verb cannot exist as a
        * chord without appearing here. The two lists used to be independent, and this one
-       * had already drifted — it was missing ⌘F and ⌘← above.
+       * had already drifted — it was missing ⌘← above.
        *
        * These act on the selection when one stands, and on the row holding keyboard focus
        * when none does.

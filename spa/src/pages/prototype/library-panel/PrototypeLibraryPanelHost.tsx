@@ -162,7 +162,7 @@ export default function PrototypeLibraryPanelHost({
         <PrototypeSearchInput
           id="proto-library-search-input"
           /*
-           * The field takes focus as the panel opens, so ⇧K and ⌘F land ready to type and
+           * The field takes focus as the panel opens, so ⇧K lands ready to type and
            * the chip — which now says "Search" — does what it advertises. Declarative
            * rather than a `querySelector` after a frame: the panel is a lazy chunk, and on
            * the first open of a session that element does not exist yet when the frame
