@@ -18,7 +18,7 @@
  */
 import PrototypeStudyFeedDateJump from './PrototypeStudyFeedDateJump';
 import { studyFeedJumpStep } from '@/utils/study-feed-date-jump';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { prototypeNoteRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
@@ -384,6 +384,34 @@ export default function PrototypeStudyFeedPage() {
   }, [safeIndex, onboardingLeads]);
 
   /*
+   * A row pressed from the toolbar's checklist, anywhere in the app, arrives here.
+   *
+   * Performed on arrival rather than at the press, because this is the only place that knows
+   * what each step means — see `onboarding-step-handoff.ts`.
+   *
+   * **Above the early returns below, and it has to be.** This first sat next to the code that
+   * uses it, past the loading branch — so on the first render the hook was not called and on
+   * the second it was, which is "Rendered more hooks than during the previous render" and takes
+   * the whole page down. It only showed up for members, because a guest renders
+   * `PrototypeGuestHome` and never reaches this file.
+   *
+   * It still waits for `contentReady`, because `handleOnboardingStep` needs the data those
+   * queries carry — hence the readiness check *inside* the effect rather than a return above
+   * it. The `take` is on the far side of that check too: consuming the handoff while the page
+   * could not act on it would swallow the request silently.
+   */
+  const onboardingHandoffDone = useRef(false);
+  useEffect(() => {
+    if (onboardingHandoffDone.current) return;
+    if (isPending || !home.contentReady) return;
+    onboardingHandoffDone.current = true;
+    const pending = takeOnboardingStep();
+    if (pending) home.handleOnboardingStep(pending);
+    // `home` is a fresh object each render; the ref above is what makes this run once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, home.contentReady]);
+
+  /*
    * One presentation, not a trickle. `home.contentReady` is the sidebar's own gate — every
    * query the greeting, Continue and Suggested draw from has settled, or the 2.5s deadline
    * inside the hook has called it. Without it this page painted the moment the feed landed
@@ -416,19 +444,6 @@ export default function PrototypeStudyFeedPage() {
   const showGreeting = safeIndex === 0 && greeting.ready && home.countForLogic > 0;
 
 
-  /*
-   * A row pressed from the toolbar's checklist, anywhere in the app, arrives here.
-   *
-   * Performed on arrival rather than at the press, because this is the only place that knows
-   * what each step means — see `onboarding-step-handoff.ts`. Consumed once, so it cannot fire
-   * again the next time someone comes back to Activity.
-   */
-  useEffect(() => {
-    const pending = takeOnboardingStep();
-    if (pending) home.handleOnboardingStep(pending);
-    // Mount only: a later render is a later visit, not the arrival this was handed off for.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   /* Only on today's sheet: a checklist is about now, and a day you flipped back to has no
      business asking you to go and read something. */
