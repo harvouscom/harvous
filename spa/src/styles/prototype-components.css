@@ -23077,3 +23077,19 @@ button.proto-feed-sheet__stat:hover {
   box-shadow: none;
   backdrop-filter: none;
 }
+
+/*
+  The guest sheet's first row travels through the top fade instead of starting inside it.
+
+  `.proto-feed-sheet__body` masks 14px at each end and pads only the bottom — its own comment
+  says the padding exists "so the first and last rows travel through the fade rather than
+  starting and ending inside it", but only one half was ever there. On the signed-in feed the
+  greeting absorbs it; here the first thing in the body is the "On this device" heading, which
+  sat at offset 0 and came up half-faded.
+
+  Scoped to this sheet rather than fixed on `.proto-feed-sheet__body`, which would move the
+  spacing of the signed-in feed — a surface being worked on elsewhere right now.
+*/
+.proto-guest-home__sheet .proto-feed-sheet__body {
+  padding-top: var(--pds-space-5);
+}

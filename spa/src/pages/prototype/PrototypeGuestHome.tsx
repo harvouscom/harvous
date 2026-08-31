@@ -48,7 +48,15 @@ export default function PrototypeGuestHome() {
 
   return (
     <PrototypeMainPaneShell>
-      <article className="proto-feed-sheet">
+      {/*
+        The same two wrappers a signed-in Activity uses. The sheet alone is just the paper's
+        contents — `.proto-feed` and `.proto-feed-stack` are what give it the card it sits on,
+        so without them a guest's Home was the right rows on no surface at all. No edges inside
+        the stack: those are the days behind today, and a guest has none.
+      */}
+      <div className="proto-feed">
+        <div className="proto-feed-stack">
+      <article className="proto-feed-sheet proto-guest-home__sheet">
         <header className="proto-feed-sheet__head">
           <div className="proto-feed-sheet__title">
             <h2 className="proto-feed-sheet__day">Today</h2>
@@ -119,6 +127,8 @@ export default function PrototypeGuestHome() {
           <PrototypeOnboardingDock onStepAction={openReader} />
         </div>
       </article>
+        </div>
+      </div>
     </PrototypeMainPaneShell>
   );
 }
