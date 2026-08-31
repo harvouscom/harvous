@@ -51,12 +51,6 @@ export const PROTO_SPOTLIGHT_KEY = 'harvous-proto-spotlight';
  */
 export const PROTO_GUEST_SESSION_KEY = 'harvous-proto-guest';
 
-/** Client flag: guest put away the "notes are saved on this device" row. */
-export const PROTO_GUEST_ROW_DISMISSED_KEY = 'harvous-proto-guest-row-dismissed';
-
-/** Dev-only: force the guest row for UI testing (`import.meta.env.DEV` only). */
-export const PROTO_GUEST_ROW_PREVIEW_KEY = 'harvous-proto-guest-row-preview';
-
 /**
  * The exit prompt has already had its one turn this visit.
  *

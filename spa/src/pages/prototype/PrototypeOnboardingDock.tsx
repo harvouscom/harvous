@@ -242,7 +242,14 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
               <PrototypeHomeRow
                 icon="circle-user"
                 title="Create a free account"
-                meta={['Keeps what you make, and opens notes, threads and recall.']}
+                /*
+                  Says what an account is *for*, in the terms this reader already has. The line
+                  before it — "keeps what you make, and opens notes, threads and recall" —
+                  listed three features they have never seen, and led with a verb ("opens")
+                  doing work it cannot do on its own. Their study following them is the promise
+                  the product actually makes; a phone is the concrete form of it.
+                */
+                meta={['Keeps your study, and brings it to your phone too.']}
                 onClick={() => {
                   leaveForSignUp();
                   window.location.href = guestSignUpHref();

@@ -55,17 +55,15 @@
   } catch (e) { /* ignore — a guest who cannot write localStorage still gets the reader */ }
 
   /*
-   * Lay the shell out for the guest row before first paint.
+   * Reserve the guest row's space before first paint.
    *
-   * The class turns the frame into a flex column so the row can sit inside it above the
-   * toolbar. It means "the row is taking up space", not "this is a guest" — a guest who has put
-   * the row away is back to a plain shell, so the dismissed flag has to be read here too.
-   * React re-asserts both from `PrototypeGuestModeRow`; this is only about the first frame.
-   * Keep in sync with PROTO_GUEST_ROW_DISMISSED_KEY in spa/src/layouts/proto-session-keys.ts.
+   * The class takes the row's height off the shell frame so the two do not overlap. It tracks
+   * the session and nothing else — the row is not dismissible, so being a guest is the whole
+   * condition. React re-asserts it from `PrototypeGuestModeRow`; this is only about the first
+   * frame, where an arriving guest must not see the shell jump down a moment after landing.
    */
   try {
-    if (localStorage.getItem(PROTO_GUEST_SESSION_KEY) &&
-        localStorage.getItem('harvous-proto-guest-row-dismissed') !== '1') {
+    if (localStorage.getItem(PROTO_GUEST_SESSION_KEY)) {
       root.classList.add('harvous-proto-guest');
     }
   } catch (e) { /* ignore */ }

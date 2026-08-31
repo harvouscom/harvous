@@ -2498,19 +2498,3 @@ html.harvous-prototype-route button[class*='proto-'].proto-accent-btn-sm {
   color: var(--pds-on-accent) !important;
 }
 
-.proto-guest-row__dismiss {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-}
-
-.proto-guest-row__dismiss:hover {
-  background: var(--pds-bg-glass-medium);
-}

@@ -3,10 +3,10 @@
  * Mac's account screen), Settings, and Log out.
  * Mirrors SpaceSwitcherMenu / ListViewMenu (proto-menu popover, right-anchored).
  *
- * For a guest it becomes the one durable way to make an account. That matters structurally,
- * not just as a convenience: it is what lets the standing guest row be dismissible without the
- * offer disappearing with it. Settings and Log out are both absent rather than disabled —
- * there is no session to end, and a row that cannot do anything is worse than no row.
+ * For a guest it becomes a second way to make an account, and the one that survives a narrow
+ * window — the standing row's label truncates on a phone, but this control is always the same
+ * size. Settings and Log out are both absent rather than disabled: there is no session to end,
+ * and a row that cannot do anything is worse than no row.
  */
 import { useClerk, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';

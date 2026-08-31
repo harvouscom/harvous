@@ -1,14 +1,19 @@
 /**
- * The guest's standing notice: what mode this is, and where their work lives.
+ * The guest's standing notice: what mode this is, and the way out of it.
  *
  * Shaped after `PrototypeSharedNoteReadOnlyBanner` rather than the deprecated `PrototypeBanner`
  * — a slim `role="status"` row with a caption and one trailing control. That component exists to
  * answer "what mode am I in, and what can I not do here", which is this question exactly.
  *
- * It renders *inside* the shell frame, above the toolbar. Sitting above the frame instead left
- * the notice stranded on the canvas with the app's white card starting below it, which read as
- * a gap rather than as a bar — the shell has to move down as one object, not have a strip
- * balanced on top of it.
+ * It renders above the shell frame, at the `#root` layer, with no surface of its own: the
+ * canvas or the wallpaper runs straight through it and the app shell below is exactly the
+ * shell, moved down as one object.
+ *
+ * **Not dismissible, unlike every other one-time surface here.** Those say a thing once — a
+ * letter, a release note, an install tip — and putting them away means "I have read it". This
+ * is not a message, it is the state of the session: a guest is in guest mode for as long as
+ * they are in it, and a bar that reports that cannot be switched off any more than the mode
+ * can. It is also the only place on a reading screen that says where this work lives.
  *
  * **The copy is the honest one.** A guest's notes are in IndexedDB, so they survive a tab close,
  * a reload, and a laptop lid; what they do not survive is a different browser, a cleared cache,
@@ -16,44 +21,29 @@
  * and a first impression built on a false alarm is a bad trade for a signup. Which is why the
  * button says what it gives ("free account") rather than what you might lose — the same reason
  * the row states the mode and stops there.
- *
- * Unlike the install-web-app card it borrows `useDismissibleFlag` from, this is not mobile-only:
- * a guest on a desktop is in exactly the same position as a guest on a phone.
  */
 import { useCallback, useEffect } from 'react';
-import Icon from '@/components/react/Icon';
-import {
-  PROTO_GUEST_ROW_DISMISSED_KEY,
-  PROTO_GUEST_ROW_PREVIEW_KEY,
-} from '../../layouts/proto-session-keys';
-import { useDismissibleFlag } from './useDismissibleFlag';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 
 export default function PrototypeGuestModeRow({ enabled }: { enabled: boolean }) {
-  const [visible, dismiss] = useDismissibleFlag(PROTO_GUEST_ROW_DISMISSED_KEY, {
-    previewKey: PROTO_GUEST_ROW_PREVIEW_KEY,
-    eligible: enabled,
-  });
-
   const handleCreate = useCallback(() => {
     leaveForSignUp();
   }, []);
 
   /*
-    The frame only becomes a flex column while this row is in it — see `html.harvous-proto-guest`
-    in prototype-shell.css. The class is asserted here rather than at the shell because this
-    component is the only thing that knows whether the row is actually on screen: dismissing it
-    must hand the plain layout back. `prototype-route-boot.js` sets the same class pre-paint;
-    this keeps it honest afterwards.
+    The frame gives up its top inset only while this row is above it — see
+    `html.harvous-proto-guest` in prototype-shell.css. Asserted here rather than at the shell
+    because this component is the one that knows whether the row is on screen at all.
+    `prototype-route-boot.js` sets the same class pre-paint; this keeps it honest afterwards.
   */
   useEffect(() => {
     const root = document.documentElement;
-    if (visible) root.classList.add('harvous-proto-guest');
+    if (enabled) root.classList.add('harvous-proto-guest');
     else root.classList.remove('harvous-proto-guest');
     return () => root.classList.remove('harvous-proto-guest');
-  }, [visible]);
+  }, [enabled]);
 
-  if (!visible) return null;
+  if (!enabled) return null;
 
   return (
     <div className="proto-guest-row" role="status" aria-live="polite">
@@ -66,26 +56,9 @@ export default function PrototypeGuestModeRow({ enabled }: { enabled: boolean })
         <span className="proto-guest-row__label">You&rsquo;re trying Harvous</span>
       </span>
       <span className="proto-guest-row__trail">
-        <a
-          className="proto-accent-btn-sm"
-          href={guestSignUpHref()}
-          onClick={handleCreate}
-        >
+        <a className="proto-accent-btn-sm" href={guestSignUpHref()} onClick={handleCreate}>
           Create free account
         </a>
-        {/*
-          Safe to put away because it is not the only door: the toolbar's account control is a
-          guest's permanent way in (see `AccountMenu`). A notice you cannot dismiss becomes
-          furniture people read past, which is worse for the thing it is asking.
-        */}
-        <button
-          type="button"
-          className="proto-guest-row__dismiss"
-          onClick={dismiss}
-          aria-label="Dismiss"
-        >
-          <Icon name="xmark" size={11} aria-hidden />
-        </button>
       </span>
     </div>
   );
