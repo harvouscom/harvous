@@ -46,27 +46,41 @@ jobs:
 
       - run: npm run build:spa
         env:
-          # Live Clerk on main; dev Clerk on staging (new.harvous.com), matching
-          # netlify.toml's [context.staging]. The key is inlined at build time, which is
-          # why staging is a separate build rather than a redeploy of the same artifact.
+          # EXACTLY the 10 build-time vars Netlify's PRODUCTION context sets, verified
+          # 2026-08-30 via `netlify env:list --context production`. Do not add to this list
+          # on the theory that a var "looks needed": Phase A must produce a bundle
+          # indistinguishable from today's, and a var Netlify leaves unset is a var this
+          # build must leave unset too.
+          #
+          # Notably ABSENT on purpose, though the code reads them:
+          #   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — unset in production, so
+          #     isSupabaseRealtimeConfigured() is false and the app runs on HTTP polling.
+          #     Setting them here would switch realtime ON only on Cloudflare.
+          #   VITE_API_BASE_URL — unset, so the SPA calls its own origin. Correct, since the
+          #     Worker proxies /api/* to Fly.
+          #   VITE_PUBLIC_POSTHOG_KEY — the code reads it, production never sets it;
+          #     PUBLIC_POSTHOG_KEY is the one that is actually used.
+          #   VITE_POLAR_CHURCH_PRODUCT_* — referenced in one file, unset in production.
+          #
+          # Live Clerk on main, dev Clerk on staging (new.harvous.com), matching
+          # netlify.toml's [context.staging]. The key is inlined at build time, which is why
+          # staging is a separate build rather than a redeploy of the same artifact.
+          # WARNING: VITE_CLERK_PUBLISHABLE_KEY in the repo's .env is a pk_test_ DEV key.
+          # The _LIVE secret must come from the Clerk dashboard, not from .env — copying it
+          # across is what failed all three Fly cutovers.
           VITE_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
           PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
-          PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
+          PUBLIC_POSTHOG_KEY: ${{ secrets.PUBLIC_POSTHOG_KEY }}
+          PUBLIC_POSTHOG_HOST: ${{ secrets.PUBLIC_POSTHOG_HOST }}
+          VITE_CLERK_SHARED_SPACES_PLAN_ID: ${{ secrets.VITE_CLERK_SHARED_SPACES_PLAN_ID }}
           # Public plan identifiers, not secrets (netlify.toml carried them in
           # SECRETS_SCAN_OMIT_KEYS for exactly this reason). Omitting these is what made
-          # billing return zero plans during the Fly migration — the grep that built that
-          # import list only covered server/, and missed the ones the SPA bundle inlines.
+          # billing return zero plans during the Fly migration.
           VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL }}
           VITE_POLAR_PLUS_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_MONTHLY }}
           VITE_POLAR_PLUS_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_ANNUAL }}
           VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY }}
           VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL }}
-          VITE_POLAR_CHURCH_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_CHURCH_PRODUCT_MONTHLY }}
-          VITE_POLAR_CHURCH_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_CHURCH_PRODUCT_ANNUAL }}
 
       # Cloudflare-only routing/header config. Deliberately NOT in public/ — Vite copies
       # public/ verbatim, so a file there would also ship to Netlify and layer a second
