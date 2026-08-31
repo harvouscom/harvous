@@ -17,7 +17,8 @@ import PrototypeTranslationRow from './PrototypeTranslationRow';
 export default function PrototypeTranslationPage() {
   const { data: profile } = useProfile();
   const updateTranslation = useUpdateTranslation();
-  const { packs, loading, downloading, download, cancel, remove, atLimit, maxPacks } = useBiblePacks();
+  const { packs, loading, downloading, queue, download, cancel, remove, atLimit, maxPacks } =
+    useBiblePacks();
 
   // Optimistic selection: pending value if mutating, else server value, else NET.
   const selected =
@@ -65,6 +66,9 @@ export default function PrototypeTranslationPage() {
           const isSelected = id === selected;
           const pack = packs.find((p) => p.translationId === id);
           const isDownloading = downloading?.translationId === id;
+          /* Asked for, but another pack is still transferring — `queue` includes the one in
+             flight, so the head is excluded rather than shown twice. */
+          const isQueued = !isDownloading && queue.includes(id);
           const canDownload = !pack?.complete && !isDownloading && (!atLimit || !!pack);
 
           /*
@@ -91,17 +95,27 @@ export default function PrototypeTranslationPage() {
               ? pack.booksSaved / pack.booksTotal
               : null;
 
-          /* One shape for the five states, resolved here so the row stays presentational
+          /* One shape for the six states, resolved here so the row stays presentational
              and the gallery can render every one of them without a pack store. */
           const state = isDownloading
-            ? ({ kind: 'saving', booksSaved: downloading.booksSaved, booksTotal: downloading.booksTotal } as const)
-            : pack?.complete
-              ? ({ kind: 'offline' } as const)
-              : pack
-                ? ({ kind: 'partial', booksSaved: pack.booksSaved, booksTotal: pack.booksTotal } as const)
-                : canDownload
-                  ? ({ kind: 'available' } as const)
-                  : ({ kind: 'blocked' } as const);
+            ? ({
+                kind: 'saving',
+                booksSaved: downloading.booksSaved,
+                booksTotal: downloading.booksTotal,
+              } as const)
+            : isQueued
+              ? ({ kind: 'queued' } as const)
+              : pack?.complete
+                ? ({ kind: 'offline' } as const)
+                : pack
+                  ? ({
+                      kind: 'partial',
+                      booksSaved: pack.booksSaved,
+                      booksTotal: pack.booksTotal,
+                    } as const)
+                  : canDownload
+                    ? ({ kind: 'available' } as const)
+                    : ({ kind: 'blocked' } as const);
 
           return (
             <PrototypeTranslationRow
@@ -115,7 +129,7 @@ export default function PrototypeTranslationPage() {
                 updateTranslation.mutate(id);
               }}
               onSave={() => void download(id)}
-              onStop={cancel}
+              onStop={() => cancel(id)}
               onRemove={() => void remove(id)}
             />
           );

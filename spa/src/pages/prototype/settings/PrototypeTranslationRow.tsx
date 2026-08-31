@@ -15,7 +15,7 @@
  * positioned so a row starting or finishing a download never reflows the list.
  *
  * Presentational on purpose — every piece of state arrives as a prop. That is what lets the
- * design gallery render all five states side by side without a profile, a network or a
+ * design gallery render all six states side by side without a profile, a network or a
  * pack store, and it is why this row can be looked at rather than only reasoned about.
  */
 import Icon from '@/components/react/Icon';
@@ -27,6 +27,8 @@ export type TranslationRowState =
   | { kind: 'blocked' }
   /** Saving now. */
   | { kind: 'saving'; booksSaved: number; booksTotal: number }
+  /** Asked for, waiting behind another download. Packs transfer one at a time. */
+  | { kind: 'queued' }
   /** Stopped or interrupted part-way — why some chapters open on a plane and others don't. */
   | { kind: 'partial'; booksSaved: number; booksTotal: number }
   /** The whole thing is on the device. */
@@ -52,6 +54,9 @@ export type PrototypeTranslationRowProps = {
  */
 function statusLabel(state: TranslationRowState): string | null {
   if (state.kind === 'saving') return `Saving ${state.booksSaved} of ${state.booksTotal}`;
+  /* Says why nothing is moving. A queued row with no word for it looks like a download that
+     started and stalled — which is the reading the old single-slot flicker also invited. */
+  if (state.kind === 'queued') return 'Waiting to save';
   if (state.kind === 'partial') return `${state.booksSaved} of ${state.booksTotal} saved`;
   return null;
 }
@@ -146,7 +151,9 @@ export default function PrototypeTranslationRow({
         </button>
 
         <div className="proto-translation-row__offline">
-          {state.kind === 'saving' ? (
+          {state.kind === 'saving' || state.kind === 'queued' ? (
+            /* One word for both: leaving the queue and stopping the transfer are the same
+               intent, and the row should not rename its button when its turn comes up. */
             <button type="button" className="proto-translation-row__action" onClick={onStop}>
               Stop
             </button>

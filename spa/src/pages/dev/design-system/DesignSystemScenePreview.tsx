@@ -1089,6 +1089,9 @@ function TranslationRowScene() {
     { id: 'NLT', name: 'New Living Translation', state: { kind: 'saving', booksSaved: 49, booksTotal: 66 } },
     { id: 'NET', name: 'New English Translation', state: { kind: 'offline' } },
     { id: 'BSB', name: 'Berean Standard Bible', state: { kind: 'partial', booksSaved: 12, booksTotal: 66 } },
+    /* Packs transfer one at a time, so a second press waits — shown beside the one saving,
+       which is the pairing that matters: the two rows have to be tellable apart at a glance. */
+    { id: 'CSB', name: 'Christian Standard Bible', state: { kind: 'queued' } },
     { id: 'KJV', name: 'King James Version', state: { kind: 'blocked' } },
   ];
 
