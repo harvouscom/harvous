@@ -200,20 +200,34 @@ export default function PrototypeGuestHome() {
                         the right chapter is still most of the answer.
                       */
                       onClick={() => {
-                        const route = readerRouteForReference(
+                        const target = readerRouteForReference(
                           item.highlight.reference,
                           item.highlight.translation,
-                        );
-                        navigate(
-                          route ?? {
-                            to: prototypeReadRouteTo(),
-                            params: {
-                              book: bookSlug(item.highlight.book),
-                              chapter: String(item.highlight.chapter),
-                            },
-                            search: { t: item.highlight.translation },
+                        ) ?? {
+                          to: prototypeReadRouteTo(),
+                          params: {
+                            book: bookSlug(item.highlight.book),
+                            chapter: String(item.highlight.chapter),
                           },
-                        );
+                          search: { t: item.highlight.translation },
+                        };
+                        navigate({
+                          ...target,
+                          search: {
+                            ...target.search,
+                            /*
+                              A stamp, so the same row lands twice.
+
+                              The router treats an identical URL as no navigation at all, and
+                              the landing is dismissible — one stray tap in the chapter clears
+                              it. Without this, returning to a highlight you had already opened
+                              once left the verse un-singled-out, which is the state you tapped
+                              the row to get out of. `PrototypeDailyPassagePill` stamps today's
+                              passage for the same reason.
+                            */
+                            req: String(Date.now()),
+                          },
+                        });
                       }}
                     />
                   ),

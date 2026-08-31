@@ -914,9 +914,30 @@ export default function PrototypeBibleReaderPane({
    */
   const [landing, setLanding] = useState<[number, number] | null>(null);
 
-  // A new chapter is a new document: keep no selection or roving focus from the
-  // last one, or verse 12 of John 3 stays lit while reading John 4.
+  /**
+   * A new chapter is a new document: keep no selection or roving focus from the last one, or
+   * verse 12 of John 3 stays lit while reading John 4.
+   *
+   * On a *change*, never on mount. On the first render there is no last document to carry
+   * anything over from, and running it there raced the landing layout effect below: layout
+   * effects run before passive ones, so arriving at a chapter already in the query cache set
+   * the focus and centred the verse, and then this cleared both and scrolled back to the top.
+   *
+   * Invisible on a first visit, because the chapter is not cached yet — the landing effect
+   * bails on `verses.length === 0`, this runs against nothing, and landing is set later when
+   * the verses arrive. Which is exactly why it presented as "the highlight works the first
+   * time, and not when I come back to it".
+   */
+  const lastDocumentKey = useRef<string | null>(null);
   useEffect(() => {
+    // The compared version counts: a selection in the second column is of text that is gone
+    // the moment that column changes translation, and acting on it would quote the old one.
+    const documentKey = `${book}|${chapter}|${translation}|${compare?.translation ?? ''}`;
+    // Also guards React's double-invoked mount effects in development, where the ref survives.
+    if (lastDocumentKey.current === documentKey) return;
+    const isFirstRender = lastDocumentKey.current === null;
+    lastDocumentKey.current = documentKey;
+    if (isFirstRender) return;
     setSelection(null);
     setLanding(null);
     setFocusedVerse(null);
@@ -924,8 +945,6 @@ export default function PrototypeBibleReaderPane({
     // had swapped to in the last one — the swap is about this passage, not a setting.
     setVisibleColumn('primary');
     scrollRef.current?.scrollTo({ top: 0 });
-    // The compared version counts: a selection in the second column is of text that is gone
-    // the moment that column changes translation, and acting on it would quote the old one.
   }, [book, chapter, translation, compare?.translation]);
 
   /**
