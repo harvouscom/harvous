@@ -499,6 +499,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
              dissolve into — it was the second half of the crossfade that never played. */
           panelOpen={Boolean(libraryPanelView) && !libraryPanelExiting}
           onOpen={(rect) => {
+            /*
+             * The panel is search and the lists it searches, and both are the account's — a
+             * guest has no space for either to read from, so it opened onto nothing. Answered
+             * here rather than inside the panel because there is no version of that surface
+             * worth showing them: an empty search over an empty library is not a preview of
+             * the feature, it is a blank box.
+             *
+             * Before the rect work below, so a press that only explains itself does not also
+             * publish a morph origin for a panel that will not open.
+             */
+            if (isGuest) {
+              offerGuestAccount('Search');
+              return;
+            }
             /* Clearing on a failed measure matters as much as publishing on a good one:
                a stale rect from an earlier click would morph this open out of a box the
                chip no longer occupies. */
