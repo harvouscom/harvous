@@ -2368,6 +2368,18 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   --proto-guest-row-h: 37px;
 }
 
+/*
+  The boot script's placeholder card starts below the row as well.
+
+  `prototype-route-boot.js` paints `#root::before` as a fixed card at the frame inset, so it was
+  still pinned to 14px while the shell had moved down — its white ran up behind the notice and
+  read as a band of blank paper above the toolbar belonging to no surface. Both classes so this
+  outranks the boot rule rather than relying on which stylesheet the browser saw last.
+*/
+html.harvous-prototype-route.harvous-proto-guest #root::before {
+  top: calc(var(--pds-shell-frame-inset) + var(--proto-guest-row-h));
+}
+
 html.harvous-proto-guest .proto-shell-frame {
   height: calc(100vh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
   height: calc(100dvh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));

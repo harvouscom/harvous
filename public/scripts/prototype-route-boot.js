@@ -166,6 +166,15 @@
       'html.' +
       PROTO_ROUTE_CLASS +
       ' #root::before{content:"";position:fixed;inset:var(--pds-shell-frame-inset);z-index:-1;border-radius:var(--pds-shell-frame-radius);background:var(--pds-bg-page);box-shadow:var(--pds-shadow-shell);pointer-events:none}' +
+      /*
+       * The guest row sits above the shell on the background layer, so the placeholder card has
+       * to start below it too. Without this the card is still pinned at the frame inset and its
+       * white runs up behind the notice — a band of blank paper above the toolbar that belongs
+       * to no surface.
+       */
+      'html.' +
+      PROTO_ROUTE_CLASS +
+      '.harvous-proto-guest #root::before{top:calc(var(--pds-shell-frame-inset) + var(--proto-guest-row-h, 37px))}' +
       'html.' +
       PROTO_ROUTE_CLASS +
       '.' +
