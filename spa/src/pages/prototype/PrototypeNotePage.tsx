@@ -24,7 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
-import { readerRouteForReference } from '../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
 import { buildNoteDockOrigin, readPaperStackDockPlacement } from './paper-stack-origins';
 import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
@@ -1165,7 +1165,7 @@ export default function PrototypeNotePage() {
         }),
         targetNoteId,
       );
-      void navigate(route);
+      void navigate(landAgain(route));
     },
     [
       isDraft,
@@ -1226,7 +1226,7 @@ export default function PrototypeNotePage() {
       initialScriptureTranslation ?? '',
     );
     if (!readerRoute) return;
-    navigate(readerRoute);
+    navigate(landAgain(readerRoute));
   }, [navigate, initialScriptureRef, initialScriptureTranslation]);
 
   // Dock the inspector side-by-side only when the pane is wide enough to seat the

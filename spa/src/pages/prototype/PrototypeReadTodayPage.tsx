@@ -37,6 +37,11 @@ export default function PrototypeReadTodayPage() {
     if (!route) return;
     // `replace`, so Back from the reader leaves the app rather than bouncing through a
     // redirect that would immediately send them forward again.
+    //
+    // No `landAgain` stamp, unlike every other caller of `readerRouteForReference`: this is a
+    // redirect, and arriving here at all means the reader was just unmounted and is about to
+    // mount fresh — the landing fires on that mount. A stamp would only put a timestamp in the
+    // URL a visitor from harvous.com lands on.
     navigate({ ...route, replace: true });
   }, [data, isPending, isError, navigate]);
 

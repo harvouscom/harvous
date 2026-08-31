@@ -37,7 +37,7 @@ import {
   normalizeNoteIdFromParam,
 } from '../proto-route-slugs';
 import { isScripturePassageHighlightRow } from '../proto-highlight-subtitle';
-import { readerRouteForReference } from '../../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../../utils/reader-nav';
 import type { PrototypeHighlightStudyThreadRow } from '../../../hooks/queries/usePrototypeSpaceStudyThreadHighlights';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useActiveSpace } from '../../../hooks/useActiveSpace';
@@ -288,7 +288,7 @@ export function useLibraryPanelData(): LibraryPanelData {
             return;
           }
           const readerRoute = readerRouteForReference(canon, trans);
-          if (readerRoute) navigate(readerRoute);
+          if (readerRoute) navigate(landAgain(readerRoute));
           closeLibraryPanel({ preserveHistory: true });
           return;
         }

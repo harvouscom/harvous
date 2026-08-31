@@ -29,7 +29,7 @@ import {
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 import { bookSlug } from '@/utils/bible-book-chapters';
-import { readerRouteForReference } from '../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { takeOnboardingStep } from './onboarding-step-handoff';
 
 export default function PrototypeGuestHome() {
@@ -211,23 +211,8 @@ export default function PrototypeGuestHome() {
                           },
                           search: { t: item.highlight.translation },
                         };
-                        navigate({
-                          ...target,
-                          search: {
-                            ...target.search,
-                            /*
-                              A stamp, so the same row lands twice.
-
-                              The router treats an identical URL as no navigation at all, and
-                              the landing is dismissible — one stray tap in the chapter clears
-                              it. Without this, returning to a highlight you had already opened
-                              once left the verse un-singled-out, which is the state you tapped
-                              the row to get out of. `PrototypeDailyPassagePill` stamps today's
-                              passage for the same reason.
-                            */
-                            req: String(Date.now()),
-                          },
-                        });
+                        // Stamped, so tapping the same row twice lands twice — see `landAgain`.
+                        navigate(landAgain(target));
                       }}
                     />
                   ),

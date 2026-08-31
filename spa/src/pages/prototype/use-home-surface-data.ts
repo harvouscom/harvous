@@ -103,7 +103,7 @@ import {
 import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
 
-import { readerRouteForReference } from '../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { prototypeHighlightRecencyIso } from './proto-highlight-subtitle';
 import { loadPinnedHighlightIds } from './proto-pinned-stores';
@@ -715,7 +715,7 @@ export function useHomeSurfaceData({
       getEffectiveDefaultTranslation(),
     );
     if (!readerRoute) return;
-    navigate(readerRoute);
+    navigate(landAgain(readerRoute));
   }, [passageConnection, isMobileSidebar, closeDrawer, navigate]);
 
   // Memory layer Workstream C: a study arc — a theme that keeps returning across your notes over

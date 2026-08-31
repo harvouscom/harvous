@@ -23,7 +23,7 @@ import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-lis
 import { toast } from '@/utils/toast';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useProtoShell, type PaperStackOrigin } from '../../layouts/proto-shell-context';
-import { readerRouteForReference } from '../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteDockReturnSearch } from './paper-stack-origins';
@@ -513,7 +513,7 @@ export default function PrototypeReadPage() {
       // the same way today's passage and a note's dock now do.
       const route = readerRouteForReference(ref, translation);
       if (!route) return;
-      void navigate(route);
+      void navigate(landAgain(route));
     },
     [navigate, translation],
   );
