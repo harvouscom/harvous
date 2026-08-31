@@ -133,8 +133,8 @@ export default function PrototypeGuestHome() {
                 <Icon name="note-sticky" size={10} aria-hidden />
                 <span>notes</span>
               </span>{' '}
-              on the verses you want to come back to. Harvous remembers what you studied, so
-              you can find your way back to it.
+              on the verses you want to come back to. Harvous remembers what you studied, for
+              later.
             </p>
           </section>
 
