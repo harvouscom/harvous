@@ -560,27 +560,6 @@ export default function PrototypeStudyFeedPage() {
 
         <article className="proto-feed-sheet">
           <header className="proto-feed-sheet__head">
-            {/*
-              * The sidebar's back row, borrowed: a tile you press to leave, then the name of
-              * where you are with its date beneath. The sheet already printed the second
-              * half; it was the way out that was a text button reading "Today" while every
-              * other drilldown in the app used a tile. One anatomy, two surfaces.
-              *
-              * It steps one day forward rather than jumping straight to today, because the
-              * stack is a pile you flipped back through and a tile that skipped the whole
-              * way would lose the days between. Holding the newest day is what makes it
-              * disappear at index 0.
-              */}
-            {safeIndex > 0 ? (
-              <button
-                type="button"
-                className="proto-sidebar-back-tile proto-feed-sheet__back"
-                onClick={goForward}
-                aria-label={`Back to ${days[safeIndex - 1]?.label ?? 'today'}`}
-              >
-                <Icon name="caret-left" size={16} aria-hidden />
-              </button>
-            ) : null}
             <div className="proto-feed-sheet__title">
               <h2 className="proto-feed-sheet__day">{day.label}</h2>
               <PrototypeStudyFeedDateJump
@@ -621,6 +600,35 @@ export default function PrototypeStudyFeedPage() {
                   menuClassName="proto-note-destination"
                   filterPlaceholder="Filter spaces…"
                 />
+              ) : null}
+              {/*
+                * The way back toward today, at the end of the row and pointing that way.
+                *
+                * It was a back tile in the leading slot with a left caret, borrowed from the
+                * sidebar's drilldowns — and in a drilldown that is exactly right. In a stack
+                * of days it lied twice over: the caret pointed the way the pile's own edges
+                * go, which is *older*, and the position is where every other surface puts
+                * "the thing before this". So the one control that moves you forward in time
+                * wore the costume of the one that moves you back, and read as "previous day"
+                * while doing the opposite.
+                *
+                * On the right, pointing right, after the filter. The edges above the sheet go
+                * back; this goes on. Same mirror the reader's chapter piles use.
+                *
+                * It still steps one day rather than jumping to today: the stack is a pile you
+                * flipped back through, and a control that skipped the whole way would lose
+                * the days between. Absent at index 0, where there is nowhere newer to go.
+                */}
+              {safeIndex > 0 ? (
+                <button
+                  type="button"
+                  className="proto-sidebar-back-tile proto-feed-sheet__forward"
+                  onClick={goForward}
+                  aria-label={`Forward to ${days[safeIndex - 1]?.label ?? 'today'}`}
+                  title={`Forward to ${days[safeIndex - 1]?.label ?? 'today'}`}
+                >
+                  <Icon name="caret-right" size={16} aria-hidden />
+                </button>
               ) : null}
             </div>
           </header>

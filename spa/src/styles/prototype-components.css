@@ -22128,7 +22128,7 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * a second thing to look like it. Only the placement is local: the sheet's title sits beside
  * it, so the title takes the middle and the controls stay pinned right.
  */
-.proto-feed-sheet__back {
+.proto-feed-sheet__forward {
   flex: 0 0 auto;
 }
 
