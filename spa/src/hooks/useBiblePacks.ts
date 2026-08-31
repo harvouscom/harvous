@@ -6,6 +6,7 @@ import {
   downloadPack,
   listPacks,
   removePack,
+  requestPack,
   type PackSummary,
 } from '@/utils/bible-pack-store';
 
@@ -54,6 +55,14 @@ export function useBiblePacks() {
       const controller = new AbortController();
       abortRef.current = controller;
       setDownloading({ translationId, booksSaved: 0, booksTotal: 66 });
+
+      /*
+       * `downloadPack` records the request as its first act, but it does not return until all
+       * 66 books are done — so without this the list would not learn about the new pack until
+       * the transfer finished, and every other row's control would flip to its limit-reached
+       * state minutes after the press that caused it.
+       */
+      void requestPack(translationId).then(refresh);
 
       await downloadPack(
         translationId,

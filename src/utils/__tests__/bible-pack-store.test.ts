@@ -6,6 +6,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * to the rest — and none of that is a property of the storage engine.
  */
 const store = new Map<string, any>();
+/* Which translations the reader asked to keep — the fact that separates a pack from books
+   that happen to be cached. Keyed by translation, like the real table. */
+const requests = new Map<string, any>();
 
 vi.mock('../offline-db', () => ({
   offlineDB: {
@@ -26,6 +29,18 @@ vi.mock('../offline-db', () => ({
         }),
       }),
     },
+    biblePackRequests: {
+      put: async (row: any) => {
+        requests.set(row.translationId, row);
+      },
+      bulkPut: async (rows: any[]) => {
+        for (const row of rows) requests.set(row.translationId, row);
+      },
+      delete: async (translationId: string) => {
+        requests.delete(translationId);
+      },
+      toArray: async () => [...requests.values()],
+    },
   },
 }));
 
@@ -36,6 +51,7 @@ const {
   listPacks,
   readPackedChapter,
   removePack,
+  writePackedBook,
 } = await import('../bible-pack-store');
 const { orderedCanonBooks } = await import('../bible-book-chapters');
 
@@ -52,6 +68,7 @@ function payloadFor(book: string, translation = 'NLT') {
 
 beforeEach(() => {
   store.clear();
+  requests.clear();
 });
 
 describe('downloadPack', () => {
@@ -114,6 +131,47 @@ describe('downloadPack', () => {
 });
 
 describe('listPacks', () => {
+  /*
+   * The bug this table exists for.
+   *
+   * Reading one chapter caches the book it belongs to, so comparing a verse across versions
+   * used to create a pack per version — each shown as "Part-saved · 1 of 66" with a button
+   * offering to finish a download nobody started, and between them they spent the
+   * three-translation limit before the reader had asked for anything.
+   */
+  it('does not turn incidentally cached books into packs', async () => {
+    await writePackedBook(payloadFor('Genesis', 'ESV'));
+    await writePackedBook(payloadFor('Romans', 'NET'));
+
+    expect(await listPacks()).toEqual([]);
+    /* Still readable offline — the cache is not what changed. */
+    expect(await readPackedChapter('ESV', 'Genesis', 1)).not.toBeNull();
+  });
+
+  it('counts cached books toward a translation once it is asked for', async () => {
+    await writePackedBook(payloadFor('Genesis', 'NLT'));
+    await downloadPack('NLT', async (book) =>
+      book === 'Exodus' ? payloadFor(book, 'NLT') : Promise.reject(new Error('x')),
+    );
+
+    const [pack] = await listPacks();
+    expect(pack).toMatchObject({ translationId: 'NLT', booksSaved: 2, complete: false });
+  });
+
+  /*
+   * Someone who downloaded translations before the request table existed must not open the
+   * page and find them gone. Sixty-six books do not accumulate by reading, so a complete pack
+   * is unambiguous evidence of intent; a partial one is not, and is left as cache that one
+   * press re-adopts and resumes.
+   */
+  it('adopts pre-existing complete packs the first time it reads an empty request table', async () => {
+    for (const book of orderedCanonBooks()) await writePackedBook(payloadFor(book, 'KJV'));
+    await writePackedBook(payloadFor('Genesis', 'ESV'));
+    requests.clear();
+
+    expect((await listPacks()).map((p) => p.translationId)).toEqual(['KJV']);
+  });
+
   it('reports a partial pack as incomplete', async () => {
     await downloadPack('NLT', async (book) => {
       if (book !== 'Genesis') throw new Error('stop');

@@ -211,6 +211,25 @@ export interface OfflineBiblePack {
   savedAt: number;
 }
 
+/**
+ * A translation the reader asked to keep, as opposed to one that merely has books cached.
+ *
+ * Books arrive in `biblePacks` two ways — a download the reader started, and the free copy
+ * taken of any book they read online — and the rows are identical. Without this table the
+ * only available reading of "has stored books" was "is an offline pack", so comparing a
+ * verse in three versions created three packs of one book each, each shown as "Part-saved"
+ * with a Finish button, and together they spent the three-translation limit that the ones
+ * the reader actually wanted then hit.
+ *
+ * So intent is recorded where intent happens, and stays a separate fact from what is stored.
+ * `biblePacks` remains the cache it always was; this says which translations are meant to be
+ * whole.
+ */
+export interface OfflineBiblePackRequest {
+  translationId: string;
+  requestedAt: number;
+}
+
 // Offline database class
 class OfflineDatabase extends Dexie {
   spaces!: Table<OfflineSpace>;
@@ -226,6 +245,7 @@ class OfflineDatabase extends Dexie {
   threadCache!: Table<ThreadCacheEntry>;
   scriptureIndexCache!: Table<ScriptureIndexCacheEntry>;
   biblePacks!: Table<OfflineBiblePack>;
+  biblePackRequests!: Table<OfflineBiblePackRequest>;
 
   constructor() {
     super('HarvousOfflineDB');
@@ -314,6 +334,18 @@ class OfflineDatabase extends Dexie {
       threadCache: '[threadId+userId], threadId, userId, timestamp, expiresAt',
       scriptureIndexCache: '[spaceId+userId], spaceId, userId, updatedAt',
       biblePacks: '[translationId+book], translationId, book, savedAt'
+    });
+
+    /*
+     * Version 7: which translations the reader asked to keep.
+     *
+     * Only the new table is declared — Dexie carries every earlier one forward, the way
+     * version 5 did. Nothing is migrated here: `bible-pack-store` seeds this from the packs
+     * that are already complete the first time it reads an empty table, because a finished
+     * pack is the one case where stored books are unambiguous evidence somebody asked.
+     */
+    this.version(7).stores({
+      biblePackRequests: 'translationId, requestedAt'
     });
   }
 }

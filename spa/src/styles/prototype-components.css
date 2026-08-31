@@ -21168,14 +21168,6 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   padding-left: 4px;
 }
 
-.proto-translation-row__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--pds-text-tertiary);
-  white-space: nowrap;
-}
-
 /* A small button, not a text link — bordered and filled like every other row-scoped control
    in the app, rather than the bare underline-on-hover treatment this used to have. */
 .proto-translation-row__action {
@@ -21196,8 +21188,15 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   transition: background-color 0.1s;
 }
 
-.proto-translation-row__action:hover {
+.proto-translation-row__action:hover:not(:disabled) {
   background: var(--pds-bg-control-strong);
+}
+
+/* Off, not gone. The limit is a real answer and the control keeps saying what it would do —
+   the reason lives in its `title`, so the row does not change shape to deliver it. */
+.proto-translation-row__action:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* The neighbour, not the equal: Remove beside Finish is the thing you did not come here to

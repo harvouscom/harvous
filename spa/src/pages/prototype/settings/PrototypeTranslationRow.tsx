@@ -23,7 +23,7 @@ import Icon from '@/components/react/Icon';
 export type TranslationRowState =
   /** No copy, and room to make one. */
   | { kind: 'available' }
-  /** No copy, and the pack limit is already spent. */
+  /** No copy, and the pack limit is already spent — the save control is present but off. */
   | { kind: 'blocked' }
   /** Saving now. */
   | { kind: 'saving'; booksSaved: number; booksTotal: number }
@@ -169,14 +169,31 @@ export default function PrototypeTranslationRow({
                 Remove
               </button>
             </>
-          ) : state.kind === 'available' ? (
-            <button type="button" className="proto-translation-row__action" onClick={onSave}>
+          ) : (
+            /*
+             * The same button either way — blocked only disables it.
+             *
+             * Blocked used to render the sentence "Remove one first" in place of the button,
+             * which meant starting one download rewrote every other row on the page: eight
+             * buttons vanished and eight sentences appeared, at a different width, because of
+             * a press on a ninth. One action should not restyle the list it was taken in.
+             *
+             * The reason is not lost, it moves to the button's `title` — where a disabled
+             * control's explanation belongs, and where it does not cost the row a layout.
+             */
+            <button
+              type="button"
+              className="proto-translation-row__action"
+              onClick={onSave}
+              disabled={state.kind === 'blocked'}
+              title={
+                state.kind === 'blocked'
+                  ? 'Remove another translation first — three can be kept offline at once'
+                  : undefined
+              }
+            >
               Save offline
             </button>
-          ) : (
-            /* Not an action — why there isn't one. Stays in the trailing slot so the column
-               of controls does not develop a hole. */
-            <span className="pds-caption proto-translation-row__status">Remove one first</span>
           )}
         </div>
       </div>
