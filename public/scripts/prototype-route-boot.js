@@ -174,7 +174,7 @@
        */
       'html.' +
       PROTO_ROUTE_CLASS +
-      '.harvous-proto-guest #root::before{top:calc(var(--pds-shell-frame-inset) + var(--proto-guest-row-h, 37px))}' +
+      '.harvous-proto-guest #root::before{top:var(--proto-guest-row-h, 52px)}' +
       'html.' +
       PROTO_ROUTE_CLASS +
       '.' +

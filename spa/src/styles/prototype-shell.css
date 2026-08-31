@@ -2365,7 +2365,12 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   uninterrupted continuation of the marketing page.
 */
 :root {
-  --proto-guest-row-h: 37px;
+  /*
+   * Content height plus its padding: a 24px button with 14px above and below. Named as one
+   * number because three places have to agree on it — the frame's height, the frame's top
+   * offset, and the boot script's placeholder card.
+   */
+  --proto-guest-row-h: 52px;
 }
 
 /*
@@ -2377,12 +2382,18 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   outranks the boot rule rather than relying on which stylesheet the browser saw last.
 */
 html.harvous-prototype-route.harvous-proto-guest #root::before {
-  top: calc(var(--pds-shell-frame-inset) + var(--proto-guest-row-h));
+  top: var(--proto-guest-row-h);
 }
 
 html.harvous-proto-guest .proto-shell-frame {
-  height: calc(100vh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
-  height: calc(100dvh - 2 * var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+  /*
+   * No top margin. The row's own bottom padding is the space above the shell, so the frame's
+   * usual 14px on top would sit under it as a second gap — the notice would read as a bar with
+   * a margin rather than as breathing room around a line of text.
+   */
+  margin-top: 0;
+  height: calc(100vh - var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+  height: calc(100dvh - var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
 }
 
 .proto-guest-row {
@@ -2395,7 +2406,8 @@ html.harvous-proto-guest .proto-shell-frame {
      height the frame just subtracted for it, and the shell hangs off the bottom. */
   flex-shrink: 0;
   height: var(--proto-guest-row-h);
-  padding: 0 12px;
+  /* Vertical padding, not a margin below — see the frame's `margin-top: 0` above. */
+  padding: 14px 12px;
   /* No fill and no rule beneath it — the canvas (or the wallpaper) is the background here. */
   background: transparent;
   color: var(--pds-text-secondary);
@@ -2405,13 +2417,18 @@ html.harvous-proto-guest .proto-shell-frame {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /*
+   * Room for descenders. The read-only banner this is shaped after uses `line-height: 1`, which
+   * is right there because it has no `overflow: hidden` — here the label clips to its line box
+   * to make an ellipsis possible, so at 1 the tails of "y" and "g" were cut off.
+   */
+  line-height: 1.4;
   /* The whole flex chain needs this, not just the label: one ancestor at its default
      `min-width: auto` refuses to shrink below its content, and the sentence ran off both edges
      of a phone instead of truncating. */
   min-width: 0;
   flex-shrink: 1;
   font-weight: 500;
-  line-height: 1;
 }
 
 /*
