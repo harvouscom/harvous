@@ -21102,6 +21102,18 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
  * not, nothing is lost that the row is not already saying — the badge on the title line
  * names the state, and the rule along the foot shows the fraction.
  */
+/*
+ * What the offline copies cost, inside the intro paragraph.
+ *
+ * Quieter than the sentence it follows, because it answers a question the reader may not have
+ * asked — but it has to be legible, since the whole point is that a number beats a limit
+ * taken on trust.
+ */
+.proto-translation-usage {
+  color: var(--pds-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .proto-translation-row__meta {
   display: block;
   min-width: 0;

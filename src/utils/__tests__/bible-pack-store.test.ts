@@ -50,6 +50,7 @@ const {
   downloadPack,
   listPacks,
   readPackedChapter,
+  packStorageBytes,
   removePack,
   writePackedBook,
 } = await import('../bible-pack-store');
@@ -201,6 +202,28 @@ describe('removePack', () => {
 
     expect((await listPacks()).map((p) => p.translationId)).toEqual(['KJV']);
     expect(await readPackedChapter('KJV', 'Genesis', 1)).not.toBeNull();
+  });
+});
+
+describe('packStorageBytes', () => {
+  it('is zero with nothing stored, and grows with what is', async () => {
+    expect(await packStorageBytes()).toBe(0);
+
+    await writePackedBook(payloadFor('Genesis'));
+    const one = await packStorageBytes();
+    expect(one).toBeGreaterThan(0);
+
+    await writePackedBook(payloadFor('Exodus'));
+    expect(await packStorageBytes()).toBeGreaterThan(one);
+  });
+
+  /* Counts every book, not every pack: the incidentally cached ones take up room too, and a
+     figure the reader is meant to weigh against their own device has to include them. */
+  it('counts cached books that belong to no pack', async () => {
+    await writePackedBook(payloadFor('Genesis', 'ESV'));
+
+    expect(await listPacks()).toEqual([]);
+    expect(await packStorageBytes()).toBeGreaterThan(0);
   });
 });
 

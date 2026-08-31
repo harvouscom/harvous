@@ -30,10 +30,25 @@ import { orderedCanonBooks } from './bible-book-chapters';
 /**
  * How many translations may be kept offline at once.
  *
- * Not a licensing limit — a storage one. Each translation is roughly 4MB of text, and browsers
- * evict whole origins rather than individual records when they run out, so a reader who saves
- * everything risks losing everything, including their unsynced notes. Three is enough for the
- * translation someone reads in, one they compare against, and one for a study they are in.
+ * Not a licensing limit — a storage one. Three is enough for the translation someone reads in,
+ * one they compare against, and one for a study they are in.
+ *
+ * **The reasoning behind the number is weaker than it looks, and the measurements are here so
+ * the next person does not have to take it on trust.** Measured Aug 2026 in Chrome: a
+ * translation is 4.6MB stored (6.3MB as raw JSON), so all eleven would be ~51MB against a
+ * 4.28GB origin quota — 1.2%. The app's own service-worker asset cache was 37.8MB at the time,
+ * uncapped, which is 2.75× everything this limit governs.
+ *
+ * The stated fear — browsers evict whole origins rather than individual records, taking
+ * unsynced notes with the scripture — is real, but a cap does not answer it: eviction is a
+ * decision about the whole origin under device-wide pressure, and 51MB versus 14MB barely
+ * enters into it. The lever that does is `navigator.storage.persist()`, which
+ * `usePersistentStorage` now asks for at boot.
+ *
+ * So this stays at three for now, not because three is defensible on size, but because
+ * persistence is not yet granted (Chrome declines it until a site earns engagement or is
+ * installed). Raise it when it is — and prefer showing the reader the megabytes, which the
+ * settings page now does, over rationing on their behalf.
  */
 export const MAX_OFFLINE_TRANSLATIONS = 3;
 
@@ -202,6 +217,36 @@ export async function listPacks(): Promise<PackSummary[]> {
       .sort((a, b) => a.translationId.localeCompare(b.translationId));
   } catch {
     return [];
+  }
+}
+
+/**
+ * How much of the device the offline copies are actually using, in bytes.
+ *
+ * Measured rather than estimated from a per-translation constant: the packs differ in size
+ * (the largest is about 13% bigger than the smallest), a partial pack is worth whatever it
+ * has, and a number the reader can check has to be the real one.
+ *
+ * `navigator.storage.estimate()` is not used for this — it reports the whole origin, which
+ * includes the service worker's asset cache and every note, and would answer a question about
+ * translations with a number mostly about something else.
+ *
+ * Serialising every book to measure it is not free, so this is for the settings page that
+ * asked, not for a render that happens to be nearby.
+ */
+export async function packStorageBytes(): Promise<number> {
+  try {
+    const rows = await offlineDB.biblePacks.toArray();
+    /* Nothing stored is nothing used. Without this the empty case reports 2 bytes — the
+       brackets of `JSON.stringify([])` — which is the kind of number that survives all the
+       way to a reader being told their empty library takes up space. */
+    if (rows.length === 0) return 0;
+    /* `Blob` rather than a character count: the text is scripture in many languages and a
+       `length` would under-report every multi-byte character in it. The array's own commas
+       and brackets ride along, which at this scale is a rounding error on a megabyte. */
+    return new Blob([JSON.stringify(rows)]).size;
+  } catch {
+    return 0;
   }
 }
 

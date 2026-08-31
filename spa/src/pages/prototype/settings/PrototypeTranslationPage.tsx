@@ -7,6 +7,19 @@ import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import PrototypeTranslationRow from './PrototypeTranslationRow';
 
 /**
+ * Bytes as something a person can picture.
+ *
+ * Whole megabytes above 10 and one decimal below, because "4.6 MB" is the difference between
+ * two translations and "14 MB" versus "14.2 MB" is not — precision where it changes a
+ * decision, and none where it is only noise.
+ */
+function formatPackStorage(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  if (mb < 0.1) return 'under 0.1 MB';
+  return `${mb >= 10 ? Math.round(mb) : mb.toFixed(1)} MB`;
+}
+
+/**
  * Translations — which one you read in, and which ones you keep.
  *
  * This page used to be a list of radio buttons for the default translation. It now also owns
@@ -17,7 +30,7 @@ import PrototypeTranslationRow from './PrototypeTranslationRow';
 export default function PrototypeTranslationPage() {
   const { data: profile } = useProfile();
   const updateTranslation = useUpdateTranslation();
-  const { packs, loading, downloading, queue, download, cancel, remove, atLimit, maxPacks } =
+  const { packs, storageBytes, loading, downloading, queue, download, cancel, remove, atLimit, maxPacks } =
     useBiblePacks();
 
   // Optimistic selection: pending value if mutating, else server value, else NET.
@@ -53,11 +66,31 @@ export default function PrototypeTranslationPage() {
     }
   }, [loading, selected, packs, downloading, atLimit, download]);
 
+  /* Complete copies only. A pack halfway through is not yet something you can read on a
+     plane, and counting it here would promise otherwise. */
+  const savedCount = packs.filter((p) => p.complete).length;
+
   return (
     <SettingsShell>
       <SettingsIntro>
         Scripture you read appears in this translation. Keep up to {maxPacks} available offline —
         your default is saved automatically, and any chapter you read is kept as you go.
+        {/*
+          The size, once there is one.
+
+          "3 of 3" is a limit to take on trust; "3 saved · 14 MB" is a fact someone can weigh
+          against their own device, which is the only way to have an opinion about whether the
+          limit is the right one. Appended to the paragraph rather than given a line of its own
+          — it is a footnote to the promise above it, not a second statement.
+        */}
+        {savedCount > 0 ? (
+          <>
+            {' '}
+            <span className="proto-translation-usage">
+              {savedCount} saved · {formatPackStorage(storageBytes)} on this device.
+            </span>
+          </>
+        ) : null}
       </SettingsIntro>
 
       <SettingsGroup>

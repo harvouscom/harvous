@@ -79,6 +79,7 @@ import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useWarmDefaultTranslationPack } from '../hooks/useWarmDefaultTranslationPack';
+import { usePersistentStorage } from '../hooks/usePersistentStorage';
 import { useShellModeNav } from '../hooks/useShellModeNav';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
@@ -290,6 +291,11 @@ export default function SimplifiedPrototypeLayout() {
   // offline pack in the background so it's there before a reader ever needs it, rather than
   // only once they happen to visit Settings > Translation.
   useWarmDefaultTranslationPack();
+
+  // And ask that none of it be treated as disposable. Everything offline — unsynced notes,
+  // the sync queue, the packs above — shares one origin, and an origin without persistence
+  // is evicted whole. This is the guard the pack limit was standing in for.
+  usePersistentStorage();
 
   // Optimistic shell only while Clerk is still loading (cookie hint avoids boot-canvas flash).
   // After isLoaded, require a real signed-in session — ignore stale cookie hints. A guest is the

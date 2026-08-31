@@ -5,6 +5,7 @@ import {
   canAddPack,
   downloadPack,
   listPacks,
+  packStorageBytes,
   removePack,
   requestPack,
   unrequestPack,
@@ -26,6 +27,9 @@ export interface PackDownloadState {
  */
 export function useBiblePacks() {
   const [packs, setPacks] = useState<PackSummary[]>([]);
+  /* What the copies actually cost, so the page can say "14 MB" instead of "3 of 3" — a
+     number someone can weigh against their own phone, rather than a limit to take on trust. */
+  const [storageBytes, setStorageBytes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<PackDownloadState | null>(null);
   /*
@@ -51,6 +55,10 @@ export function useBiblePacks() {
   const refresh = useCallback(async () => {
     const next = await listPacks();
     if (mountedRef.current) setPacks(next);
+    /* Measured after the list, not alongside it: the count is what the page renders and the
+       size is a detail under it, so a slow serialisation must not hold up the rows. */
+    const bytes = await packStorageBytes();
+    if (mountedRef.current) setStorageBytes(bytes);
   }, []);
 
   const setQueueState = useCallback((next: string[]) => {
@@ -177,6 +185,7 @@ export function useBiblePacks() {
 
   return {
     packs,
+    storageBytes,
     loading,
     downloading,
     /** Asked for, waiting its turn. The head of this is whatever `downloading` reports. */
