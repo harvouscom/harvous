@@ -13,6 +13,7 @@
  * appear.
  */
 import { api } from './api';
+import { isGuestModeActive } from './guest-session';
 import {
   PROTO_ONBOARDING_KEY,
   PROTO_ONBOARDING_PENDING_KEY,
@@ -230,6 +231,13 @@ async function flushPendingOnboarding(): Promise<boolean> {
  */
 function schedulePush(delayMs = 600): void {
   if (onboardingPreviewMode || !currentRaw) return;
+  /*
+   * A guest has no account to push to, and `POST /api/user/update-onboarding` is `requireAuth`
+   * — so this would queue a pending marker that retries a guaranteed 401 on every reconnect.
+   * The local copy is the whole store for them, and adoption merges it into the account's
+   * afterwards using the same monotonic rules, so nothing is lost by staying quiet here.
+   */
+  if (isGuestModeActive()) return;
   setPending(currentRaw);
   if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
   pushDebounceTimer = setTimeout(() => {
@@ -244,6 +252,24 @@ export function updateOnboardingState(
   const next = fn(ensureLoaded());
   if (commit(next)) schedulePush();
   return current!;
+}
+
+/**
+ * Push this device's checklist to the account, whether or not it has just changed.
+ *
+ * Every other write here rides `updateOnboardingState`, which pushes only when the state
+ * actually moved — right for an edit, wrong for adoption. A guest arrives at their new account
+ * with steps already done, so the seed on Home computes no change, `commit` returns false, and
+ * a checklist someone genuinely completed would stay on one device forever.
+ *
+ * The merge is the server's (`POST /api/user/update-onboarding` merges monotonically), so
+ * sending a state the account may already know is safe by construction.
+ */
+export async function pushOnboardingStateToAccount(): Promise<boolean> {
+  ensureLoaded();
+  if (!currentRaw) return false;
+  setPending(currentRaw);
+  return flushPendingOnboarding();
 }
 
 /** Record a step as done. Safe to call repeatedly — the first call is the one that counts. */
@@ -293,11 +319,33 @@ export async function fetchAndHydrateOnboardingFromProfile(
 
 let initialized = false;
 
+/**
+ * A guest is hydrated the moment the local copy is read, because there is no account coming.
+ *
+ * `ready` is `hydrated || fromCache`, and both are false for a first-visit guest — so the dock,
+ * which is deliberately silent while it knows nothing, stayed silent forever. That caution is
+ * right for a member who is merely offline: their account has an answer we have not heard yet.
+ * For a guest, "no account answer" is not pending, it is the whole truth, and waiting on it
+ * means the one visitor the checklist was designed for is the one who never sees it.
+ *
+ * Called when guest mode *resolves*, not from `initOnboardingAccountSync` below. That runs in a
+ * mount effect, and on the first render the shell is still optimistically an account — the
+ * cookie hint paints one before Clerk answers — so asking there caught the wrong answer and
+ * never asked again.
+ */
+export function hydrateOnboardingForGuest(): void {
+  if (hydrated) return;
+  ensureLoaded();
+  hydrated = true;
+  emit();
+}
+
 /** Wire account → device sync. Idempotent; called once on prototype mount. */
 export function initOnboardingAccountSync(): void {
   if (initialized || typeof window === 'undefined') return;
   initialized = true;
   ensureLoaded();
+
   window.addEventListener(HARVOUS_ONBOARDING_ACCOUNT_SYNC, (e) => {
     const detail = (e as CustomEvent<OnboardingAccountSyncDetail>).detail;
     handleOnboardingAccountSync(detail?.onboardingState ?? null);

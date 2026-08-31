@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { initDiagnosticCapture } from '@/utils/diagnostics-client';
+import { startGuestSessionFromUrl } from './lib/guest-session';
 import { clearAppCachesThen, showPrototypeAppUpdateNotice } from '@/utils/prototype-app-update-notice';
 import {
   REDUCE_MOTION_APP_PREFERENCE_ENABLED,
@@ -99,6 +100,10 @@ import './styles/prototype-tokens.css';
 import './styles/prototype-shell.css';
 import './styles/prototype-components.css';
 
+// A `?try=1` arrival is a guest visit. `prototype-route-boot.js` already wrote the marker on a
+// real page load; this covers the cases it cannot see — dev, and any navigation that reaches
+// the shell without a document load. Idempotent, so running twice costs nothing.
+startGuestSessionFromUrl(window.location.search);
 syncReduceMotionFromStorage();
 initDiagnosticCapture();
 if (REDUCE_MOTION_APP_PREFERENCE_ENABLED) {

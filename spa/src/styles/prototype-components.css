@@ -22000,6 +22000,23 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   cursor: default;
 }
 
+/*
+  The bottom of the pile — the day the study started.
+  
+  Quieter than "Earlier" above it, and deliberately so: that edge is an invitation to keep
+  going, this one is the end of the road. It reads as a caption on the paper rather than a
+  control, which is also what it is — a div, because there is nothing behind it to open.
+*/
+.proto-feed-stack__edge--origin {
+  cursor: default;
+}
+
+.proto-feed-stack__edge--origin .proto-feed-stack__edge-label {
+  color: var(--pds-text-muted);
+  /* The one edge whose label is a sentence rather than a day name; let it breathe. */
+  letter-spacing: 0.01em;
+}
+
 .proto-feed-stack__edge {
   position: absolute;
   left: 0;
@@ -22212,30 +22229,38 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   display: flex;
   flex-direction: column;
   gap: var(--pds-space-5);
-  /* Padding inside the scroller, so the first and last rows travel through the fade
-     rather than starting and ending inside it. */
+  /* Padding inside the scroller, so the last row travels through the fade rather than ending
+     inside it. */
   padding-bottom: var(--pds-space-5);
   --proto-feed-fade: 14px;
+  /*
+   * Bottom only. The fade says "there is more below", and at the bottom that is true — the
+   * content runs to the sheet's edge and the softening is what tells you so.
+   *
+   * At the top it said nothing, because there is nothing up there to scroll under:
+   * `.proto-feed-sheet__head` is a static flex row above this box, not a sticky overlay, so
+   * the first line never passes beneath anything. All the top half did was dim whatever came
+   * first — the day's opening section on Activity, the greeting on a guest's sheet — and the
+   * `padding-bottom` above carried a matching `padding-top` in its comment but never in the
+   * rule, which is the tell that this was half-written from the start.
+   */
   -webkit-mask-image: linear-gradient(
     to bottom,
-    transparent 0,
-    #000 var(--proto-feed-fade),
+    #000 0,
     #000 calc(100% - var(--proto-feed-fade)),
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
-    transparent 0,
-    #000 var(--proto-feed-fade),
+    #000 0,
     #000 calc(100% - var(--proto-feed-fade)),
     transparent 100%
   );
 }
 
 /*
- * A mask paints nothing, so a masked scroller cannot show a focus ring that leaves its
- * box. Reduced-transparency readers lose the fade and get the honest hard edge back rather
- * than a surface whose top row is permanently dimmed.
+ * A mask paints nothing, so a masked scroller cannot show a focus ring that leaves its box.
+ * Reduced-transparency readers lose the fade and get the honest hard edge back.
  */
 @media (prefers-reduced-transparency: reduce) {
   .proto-feed-sheet__body {
@@ -22898,3 +22923,227 @@ button.proto-feed-sheet__stat:hover {
     }
   }
 }
+
+/* ─── Guest Home ─────────────────────────────────────────────────────────── */
+
+/*
+  The read-first state, for a guest who has not highlighted anything yet.
+
+  Not `.proto-editor-empty-state`: that is a centred pane state for a surface with nothing in
+  it, and this surface has the getting-started list directly underneath. Two centred blocks
+  stacked read as two unrelated announcements, which is exactly what the first version of this
+  screen looked like.
+*/
+.proto-guest-home__intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--pds-space-3);
+  padding-bottom: var(--pds-space-2);
+}
+
+/* Type comes from `.proto-home-greeting`, which this element also carries. Only the measure
+   is ours: the greeting runs the width of a sidebar, and this one has a whole sheet. */
+.proto-guest-home__lead {
+  max-width: 46ch;
+}
+
+/*
+  Give the accent buttons' glow somewhere to fall.
+
+  `.proto-feed-sheet__body` is the scroller, and `overflow-y: auto` clips the other axis too —
+  so it ended exactly where the content did, and `--pds-shadow-accent-button`, which throws its
+  light 24px past the button, came off square down the side. The first fix here was to delete
+  the shadow, which is treating the symptom: the button is meant to glow.
+
+  This is the shared-space sheet's answer, which had the identical problem with card shadows
+  (see `.proto-shared-space-dashboard--sheet > .proto-sidebar-scroll`). Take the side padding
+  off the sheet and give it to the scroller. Nothing moves — the content still sits
+  `--pds-space-5` from the paper's edge — but that gap is now *inside* the box that clips,
+  which is the difference between a shadow with room to fall and a shadow with none.
+*/
+.proto-guest-home__sheet {
+  padding-inline: 0;
+}
+
+.proto-guest-home__sheet .proto-feed-sheet__body {
+  padding-inline: var(--pds-space-5);
+}
+
+.proto-guest-home__sheet .proto-feed-sheet__head {
+  padding-inline: var(--pds-space-5);
+  /*
+   * And the heading belongs to the paragraph under it. 16px is right on the feed, where the
+   * head is a date over a stack of unrelated sections; here the next line finishes the
+   * heading's thought, and at that distance the two read as separate announcements. The
+   * paragraph brings 6px of its own, so this is the half that is ours to give back.
+   */
+  padding-bottom: var(--pds-space-2);
+}
+
+/*
+  The read-first invitation, shown only until this browser holds something.
+
+  Its own block rather than a child of `.proto-guest-home__intro`, which the button used to
+  sit inside: the paragraph above now renders whether or not there is anything here, and the
+  button does not, so they are no longer one thing that could share a rule.
+*/
+.proto-guest-home__start {
+  display: flex;
+  padding-bottom: var(--pds-space-2);
+}
+
+/* The button sizes to its label here — full width is for a settings sheet, not for one
+   invitation sitting at the top of a list. */
+.proto-guest-home__start .proto-settings-btn {
+  width: auto;
+}
+
+/*
+  The "On this device" heading — an eyebrow, a count, and one control on the right.
+
+  Deliberately its own rules rather than borrowing `.proto-onboarding-dock__head`: that block
+  belongs to the checklist, which sits directly below this one on the same screen, and two
+  sections sharing a class because they happen to look alike is how one of them ends up
+  restyled by a change meant for the other.
+*/
+.proto-guest-home__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+  padding: 0 var(--pds-space-2) var(--pds-space-2);
+}
+
+.proto-guest-home__eyebrow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.proto-guest-home__count {
+  color: var(--pds-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Getting started, from the toolbar ──────────────────────────────────── */
+
+/*
+  A named control, not a bare number.
+
+  It started as just "2/4", on the reasoning that two characters say what an icon plus a badge
+  would need a tooltip to say. They do not: a fraction in a toolbar counts *something*, and
+  nothing on screen said what. The checklist glyph and the word are what make it legible on
+  sight; the count is the part that changes.
+
+  A progress ring was the other option and is worse here — at 24px it reads as a smudge, and it
+  cannot say "getting started" at any size.
+*/
+/* Both classes, because `.proto-toolbar-icon-btn` pins width and height to the orb size at the
+   same specificity as a bare `.proto-onboarding-chip` — this control is the one member of that
+   group that is wider than it is tall. */
+.proto-toolbar-icon-btn.proto-onboarding-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  /*
+   * `max-content`, not a pixel floor. As a flex item in the orb group this box would not grow
+   * to its own contents — `width: auto` still resolved to the orb size and the label spilled
+   * out across the account avatar. This states the actual rule: never narrower than the words
+   * inside it, which on mobile is the glyph and the count once the label is hidden.
+   */
+  min-width: max-content;
+  padding: 0 10px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-onboarding-chip__label {
+  font: 500 12px/1 var(--pds-font-body);
+  white-space: nowrap;
+}
+
+.proto-onboarding-chip__count {
+  font: 600 12px/1 var(--pds-font-body);
+  /* Tabular, so the pill does not resize by a hair each time a step is ticked off. */
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-primary);
+}
+
+.proto-toolbar-icon-btn.proto-onboarding-chip[aria-expanded='true'] {
+  color: var(--pds-text-primary);
+}
+
+/*
+  The shell's own mobile breakpoint. Below it the toolbar is fighting for every pixel with the
+  search field and the account orb, and the glyph plus the count still say enough — this is the
+  one place the label is worth losing rather than wrapping or squeezing its neighbours.
+*/
+@media (max-width: 899px) {
+  /* Prefixed for the same reason the accent button is: a global
+     `html.harvous-prototype-route button[class*="proto-"] span` rule sets display on every span
+     inside a prototype button, and at (0,2,2) it outranks a bare class — so `display: none`
+     here did nothing and the label stayed on a toolbar that had no room for it. */
+  html.harvous-prototype-route button[class*='proto-'] .proto-onboarding-chip__label,
+  html.harvous-prototype-route button[class*='proto-'] .proto-onboarding-chip__count {
+    display: none;
+  }
+
+  /* Icon-only here, matching its neighbours in the orb group. Keeping the count cost 30px the
+     toolbar does not have — with it, the search field truncated to "Sear…". The number is a
+     nicety; the way in is not, and `aria-label` still carries "2 of 4 done". */
+  html.harvous-prototype-route .proto-toolbar-icon-btn.proto-onboarding-chip {
+    width: var(--pds-toolbar-orb-size);
+    min-width: var(--pds-toolbar-orb-size);
+    padding: 0;
+  }
+}
+
+/*
+  Portaled to `document.body`, so it carries its own positioning — the shared
+  `--motion` class supplies the enter/exit animation and nothing else. Without this the card
+  rendered correctly, took its inline top/left, and ignored both: `position: static` put it at
+  the end of the body, below the shell and off the bottom of the window.
+*/
+.proto-onboarding-popover {
+  position: fixed;
+  z-index: var(--pds-z-popover);
+  background: var(--pds-bg-popover-solid);
+  color: var(--pds-text-primary);
+  border: 0.5px solid var(--pds-border-control-strong);
+  border-radius: 14px;
+  box-shadow: var(--pds-shadow-popover);
+  padding: var(--pds-space-3);
+  font-family: var(--pds-font-body);
+}
+
+.proto-onboarding-popover__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-3);
+  padding: 0 var(--pds-space-1) var(--pds-space-2);
+}
+
+.proto-onboarding-popover__eyebrow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+/*
+  Inside the card the list is the whole content, so it drops the ambient group's outer surface
+  and keeps only its rows — a panel inside a panel reads as a seam.
+*/
+.proto-onboarding-popover .proto-onboarding-dock__list {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+

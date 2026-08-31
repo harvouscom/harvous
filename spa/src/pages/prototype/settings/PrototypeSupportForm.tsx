@@ -1,4 +1,4 @@
-import { RELEASE_NOTES_INDEX_URL } from '@/utils/release-notes-url';
+import { useReleaseNotesUrl } from '../../../hooks/useReleaseNotesUrl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import Icon from '@/components/react/Icon';
@@ -27,6 +27,7 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
 
   const version = appVersionRaw();
   const versionLabel = version ? `Version ${version}` : '';
+  const releaseNotesUrl = useReleaseNotesUrl(version);
   const canSend = message.trim().length > 0 && !pending;
 
   const handleSend = async () => {
@@ -126,15 +127,14 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
       </div>
 
       {/*
-        * The link goes to the index, not to this version's own page.
+        * The link goes to this version's own page when the site has published one, and to the
+        * index when it has not.
         *
-        * The site publishes a page per release, so `/release-notes/v2-96-1/` looks like the
-        * better destination and would be, if it existed. It routinely does not: the app's
-        * version bumps on every commit, so a build is regularly ahead of what has been
-        * published — checked live, that exact URL was a 404 while the newest published page
-        * was `v2-87-2`. This sits in the support pane, where people arrive because something
-        * is already wrong, which is the worst place in the app to hand somebody a second
-        * broken thing.
+        * It was the index unconditionally, because the app's version bumps on every commit and
+        * a build is regularly ahead of what has been published — and this sits in the support
+        * pane, where people arrive because something is already wrong, which is the worst place
+        * in the app to hand somebody a second broken thing. The site now says which versions
+        * exist, so the specific page can be offered without that risk.
         *
         * The version still prints beside it. That is the part support actually needs, and it
         * is now the only part that depends on knowing the version — the footer used to hide
@@ -144,7 +144,7 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
         {versionLabel ? <p className="proto-support-version__label">{versionLabel}</p> : null}
         <a
           className="proto-support-version__link"
-          href={RELEASE_NOTES_INDEX_URL}
+          href={releaseNotesUrl}
           target="_blank"
           rel="noopener noreferrer"
         >

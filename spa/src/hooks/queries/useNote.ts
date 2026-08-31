@@ -1,4 +1,6 @@
 import { useQuery, QueryClient } from '@tanstack/react-query';
+import { useHarvousIdentity } from '../useHarvousIdentity';
+import { guestNoteById, isGuestNoteId } from '../../lib/guest-store';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { resolveNoteListPreview } from '@/utils/note-list-preview';
@@ -648,6 +650,7 @@ export function useNote(noteId: string, contextSpaceId?: string | null) {
    * Share and ⋯ with no note to render from.
    */
   const authReady = useAuthReady();
+  const { isGuest } = useHarvousIdentity();
   const context = contextSpaceId?.trim() || null;
   const options = getNoteQueryOptions(noteId, context);
   // Prefer session snapshot for unscoped reads; for shared-context reads, still paint
@@ -667,10 +670,46 @@ export function useNote(noteId: string, contextSpaceId?: string | null) {
           : 'simpleNoteId' in cachedDetail
             ? Date.now() - 5_000
             : 0;
+  /*
+   * A guest's note lives in localStorage, and the same query key serves it.
+   *
+   * Branching here rather than at each of the three call sites — the note page, the toolbar
+   * and the shell all call this hook for the open note, and any one of them left on the server
+   * path would report the note missing while the other two showed it. `authReady` is false for
+   * a guest forever, so the enabled flag has to answer on the other side of the same fact, the
+   * way `usePrototypeChapterHighlights` does.
+   */
+  const guestDetail = isGuest && isGuestNoteId(noteId) ? guestNoteDetail(noteId) : undefined;
+
   return useQuery({
     ...options,
-    enabled: authReady && !!noteId,
-    initialData: cachedDetail,
-    initialDataUpdatedAt,
+    ...(guestDetail !== undefined
+      ? { queryFn: async () => guestDetail, staleTime: 0 as const }
+      : {}),
+    enabled: (guestDetail !== undefined || authReady) && !!noteId,
+    initialData: guestDetail ?? cachedDetail,
+    initialDataUpdatedAt: guestDetail !== undefined ? 0 : initialDataUpdatedAt,
   });
+}
+
+/**
+ * A stored guest note as a `NoteDetail`.
+ *
+ * Only the fields the type requires plus the two the editor reads. Everything else is a
+ * server concept a local note has no answer for — versions, sharing, authorship — and
+ * inventing values for them would be a lie the rest of the page could act on.
+ */
+function guestNoteDetail(noteId: string): NoteDetail | undefined {
+  const note = guestNoteById(noteId);
+  if (!note) return undefined;
+  return {
+    id: note.id,
+    title: note.title,
+    content: note.contentHtml,
+    noteType: 'default',
+    contentEncrypted: false,
+    isPublic: false,
+    createdAt: note.createdAt,
+    updatedAt: note.updatedAt,
+  } as NoteDetail;
 }

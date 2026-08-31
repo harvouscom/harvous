@@ -6,6 +6,8 @@
  * surfaces later (paper stack, split view) without dragging routing along.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { offerGuestAccount } from '../../lib/guest-gate';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
@@ -139,6 +141,7 @@ export default function PrototypeReadPage() {
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const { isGuest } = useHarvousIdentity();
   const {
     beginPrototypeComposeSession,
     stackNote,
@@ -418,7 +421,7 @@ export default function PrototypeReadPage() {
       });
       stackNote(readerOrigin(start));
     },
-    [homeSpaceId, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
+    [homeSpaceId, isGuest, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
   );
 
   /**

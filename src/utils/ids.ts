@@ -110,13 +110,25 @@ function base62Decode(slug: string): number {
  * timestamp instead of the raw number. The mapping is reversible and stateless —
  * no DB column. Falls back gracefully for non-timestamp ids and legacy links.
  */
+/**
+ * A note that only exists in this browser, written by someone with no account.
+ *
+ * Its id is not a `note_<timestamp>`, so neither half of the codec below can round-trip it:
+ * base62 has no `_`, and the decode's passthrough would hand back `note_guest_note_…`, which
+ * resolves to nothing. Both ends return it untouched — there is no server id to shorten, and
+ * the URL is only ever read back by the same browser that wrote it.
+ */
+const GUEST_NOTE_PREFIX = 'guest_note_';
+
 export function encodeNoteSlug(id: string): string {
+  if (id.startsWith(GUEST_NOTE_PREFIX)) return id;
   const m = /^note_(\d+)$/.exec(id);
   if (!m) return id.startsWith('note_') ? id.slice('note_'.length) : id;
   return base62Encode(Number(m[1]));
 }
 
 export function decodeNoteSlug(slug: string): string {
+  if (slug.startsWith(GUEST_NOTE_PREFIX)) return slug;
   if (slug.startsWith('note_')) return slug; // already a full id (defensive)
   if (/^\d{11,}$/.test(slug)) return `note_${slug}`; // legacy raw-timestamp URL
   const n = base62Decode(slug);

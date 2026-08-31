@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
+import { isGuestNoteId } from '../../../spa/src/lib/guest-store';
 import { TextSelection } from '@tiptap/pm/state';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
@@ -2978,6 +2979,13 @@ export default function CardFullEditable({
       // the local write above already landed under that real id, so the next open
       // recovers the edit even though this PUT is skipped.
       if (departingNoteId === PROTOTYPE_DRAFT_NOTE_ID) return;
+
+      /*
+       * A guest's note has no server row to PUT against either, and this fetch is `keepalive`
+       * — it outlives the page, so there is nothing left to catch the 401 it would earn. The
+       * local write above already landed, which is the whole of that note's storage.
+       */
+      if (isGuestNoteId(departingNoteId)) return;
 
       try {
         const body = JSON.stringify({

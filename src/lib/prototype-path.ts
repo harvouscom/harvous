@@ -257,6 +257,19 @@ export function prototypeReadRouteTo(): '/prototype/read/$book/$chapter' {
     : '/prototype/read/$book/$chapter') as '/prototype/read/$book/$chapter';
 }
 
+/**
+ * TanStack Router `to` for `/read/today` — the reader on whatever today's passage is.
+ *
+ * Separate from `prototypeReadRouteTo` because it takes no params: this is the URL for
+ * "somewhere real to land" (the marketing handoff, a guest's checklist), where the caller
+ * knows it wants today and not a particular chapter.
+ */
+export function prototypeReadTodayRouteTo(): '/prototype/read/today' {
+  return (isDedicatedPrototypeHost()
+    ? '/read/today'
+    : '/prototype/read/today') as '/prototype/read/today';
+}
+
 /** True for `/read/{book}/{chapter}` — the reader hosts in the shell like the note editor. */
 export function isPrototypeReadPath(pathname: string): boolean {
   return /^\/read\/[^/]+\/[^/]+\/?$/.test(prototypeLogicalPath(pathname));

@@ -28,6 +28,12 @@ import {
   PROTO_SEG_ICON_SIZE,
   PROTO_TOOLBAR_ORB_ICON_SIZE,
 } from './proto-toolbar-tokens';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import ProtoHouseIcon from './ProtoHouseIcon';
+import PrototypeOnboardingPopover from './PrototypeOnboardingPopover';
+import { useOnboardingState } from './useOnboardingState';
+import { shownOnboardingProgress } from './onboarding-visible-steps';
+import { offerGuestAccount } from '../../lib/guest-gate';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
 import PrototypeLibraryChip from './PrototypeLibraryChip';
@@ -116,7 +122,25 @@ export function resolveNativeToolbarContextCapabilities(options: {
   contextualAccessKnown: boolean;
   isOwnNote: boolean;
   isSpaceOwner: boolean;
+  /** A guest's note exists only in their browser — there is nothing to hand anyone. */
+  isGuest?: boolean;
 }) {
+  /*
+   * Sharing is the one capability a guest cannot be offered an account for.
+   *
+   * Everywhere else the answer is "this needs an account", because the feature is waiting on
+   * the other side of one. Here there is no note on any server to publish, no token to mint
+   * and no URL that could resolve — so the control is removed rather than explained. The rest
+   * of the row is untouched: organizing and pinning a local note are still coherent.
+   */
+  if (options.isGuest) {
+    return {
+      canOrganize: true,
+      canPin: true,
+      canRemove: false,
+      canShare: false,
+    };
+  }
   if (!options.hasSharedContext) {
     return {
       canOrganize: true,
@@ -163,6 +187,12 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const shareButtonRef = useRef<HTMLButtonElement | null>(null);
   const findPopover = useToolbarAnchoredPopover();
+  const onboardingPopover = useToolbarAnchoredPopover();
+  /* Declared up here because the toolbar's capabilities are computed below and one of them
+     (sharing) depends on it. */
+  const { isGuest } = useHarvousIdentity();
+  const onboarding = useOnboardingState();
+  const onboardingButtonRef = useRef<HTMLButtonElement | null>(null);
   const sharePopover = useToolbarAnchoredPopover();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
 
@@ -252,12 +282,15 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
       ? `New note in ${activeSpaceTitle}`
       : 'New note in My Home';
   const contextualCapabilities = resolveNativeToolbarContextCapabilities({
+    isGuest,
     hasSharedContext: isSharedContext,
     contextualAccessKnown,
     isOwnNote: !readOnlyForeignNote,
     isSpaceOwner: isContextSpaceOwner,
   });
 
+  /* Same count the list under it will show — see `onboarding-visible-steps`. */
+  const onboardingProgress = shownOnboardingProgress(onboarding.state, isGuest);
   const { spaceTitle: activeSpaceTitleForChip, space: activeSpaceRow } = useActiveSpace();
   const activeSpaceColor = activeSpaceRow?.color ?? null;
 
@@ -275,7 +308,15 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
    * house and My Church is a church, not the generic Activity mark. Only a space with no
    * identity of its own falls back to `layer-group`.
    */
-  const spaceGlyph = homeSpaceId ? (
+  const spaceGlyph = isGuest ? (
+    /*
+     * A guest has no space, so this fell through to the neutral `layer-group` the switcher
+     * shows while nav is still resolving — a placeholder for an answer that is coming. For a
+     * guest no answer is coming, and the honest one is a house: the only space they have is
+     * their own, and this segment goes to it.
+     */
+    <ProtoHouseIcon size={PROTO_SEG_GLYPH_SIZE} />
+  ) : homeSpaceId ? (
     <SpaceSwitcherTriggerIcon
       space={activeSpaceRow}
       isMinistry={Boolean(activeSpaceRow && isMinistryBroadcastSpace(activeSpaceRow))}
@@ -288,9 +329,17 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   ) : undefined;
 
   const onCompose = () => {
-    if (!visibleComposeTarget || !canComposeInContext) return;
+    /*
+     * A guest composes too, into no space at all — the note is saved to this device by
+     * `handleNoteSave`, which never asks where it belongs. So the target check below, which is
+     * about which of a member's spaces receives the note, has nothing to decide for them and
+     * would only stop a session that works.
+     */
+    if (!isGuest && (!visibleComposeTarget || !canComposeInContext)) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget });
+    /* `?? undefined` because a guest has no target and the session takes none — the early
+       return above used to guarantee this was a string. */
+    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget ?? undefined });
     navigate({ to: prototypeHomeRouteTo() });
   };
 
@@ -427,8 +476,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
           onOpenActivity={openActivity}
           onOpenNote={() => openNote(onCompose)}
           onOpenReader={openReader}
-          canCompose={canComposeInContext}
-          disabled={!homeSpaceId}
+          /*
+           * A guest can compose in the sense this flag governs: the half is live, and pressing
+           * it explains what writing needs (see `onCompose`). Left false, the label became
+           * "Composing is not available in this channel yet" — true of a channel someone lacks
+           * permission in, and quite wrong about a visitor who simply has no account yet.
+           */
+          canCompose={canComposeInContext || isGuest}
+          /*
+           * `disabled` here means "no home space yet", which for a member is a moment during
+           * boot and for a guest is permanent — so this disabled the entire Activity / Note /
+           * Bible control for the whole visit. Reading and moving around the app do not need a
+           * space; only writing into one does, and that is decided a line above.
+           */
+          disabled={!homeSpaceId && !isGuest}
           showShortcuts={showShiftHints}
           composeLabel={composeDestinationLabel}
           spaceGlyph={spaceGlyph}
@@ -457,6 +518,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
              dissolve into — it was the second half of the crossfade that never played. */
           panelOpen={Boolean(libraryPanelView) && !libraryPanelExiting}
           onOpen={(rect) => {
+            /*
+             * The panel is search and the lists it searches, and both are the account's — a
+             * guest has no space for either to read from, so it opened onto nothing. Answered
+             * here rather than inside the panel because there is no version of that surface
+             * worth showing them: an empty search over an empty library is not a preview of
+             * the feature, it is a blank box.
+             *
+             * Before the rect work below, so a press that only explains itself does not also
+             * publish a morph origin for a panel that will not open.
+             */
+            if (isGuest) {
+              offerGuestAccount('Search');
+              return;
+            }
             /* Clearing on a failed measure matters as much as publishing on a good one:
                a stale rect from an earlier click would morph this open out of a box the
                chip no longer occupies. */
@@ -604,6 +679,46 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 />
               </button>
             </PrototypeToolbarShortcutItem>
+          ) : null}
+
+          {/*
+            The checklist, from wherever you are.
+
+            It only ever rendered at the top of Activity, so the surface that explains the app
+            was the one you had to already know how to reach. Shown only while there is a
+            checklist to show — `visible` is false once it is finished or put away — so this is
+            not a permanent piece of chrome, it is the chrome of a phase.
+          */}
+          {onboarding.visible ? (
+            <button
+              ref={onboardingButtonRef}
+              type="button"
+              className="proto-toolbar-icon-btn proto-onboarding-chip"
+              title="Getting started"
+              aria-label={`Getting started, ${onboardingProgress.done} of ${onboardingProgress.total} done`}
+              aria-haspopup="dialog"
+              aria-expanded={onboardingPopover.isOpen && !onboardingPopover.exiting}
+              onClick={() => onboardingPopover.toggleFrom(onboardingButtonRef.current)}
+            >
+              <Icon name="list-check" size={12} aria-hidden />
+              {/*
+                The word, where there is room for it. "2/4" alone is a fraction of nothing in
+                particular — it counts something, and the toolbar gives no clue what. The label
+                is what makes the control legible on sight rather than on hover, and it drops
+                out below the shell's mobile breakpoint where the count and the glyph carry it.
+              */}
+              <span className="proto-onboarding-chip__label">Getting started</span>
+              <span className="proto-onboarding-chip__count" aria-hidden>
+                {onboardingProgress.done}/{onboardingProgress.total}
+              </span>
+            </button>
+          ) : null}
+          {onboardingPopover.isOpen ? (
+            <PrototypeOnboardingPopover
+              anchorRect={onboardingPopover.anchorRect}
+              exiting={onboardingPopover.exiting}
+              onDismiss={onboardingPopover.dismiss}
+            />
           ) : null}
 
           <AccountMenu iconSize={PROTO_TOOLBAR_ORB_ICON_SIZE} />

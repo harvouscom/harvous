@@ -5,6 +5,10 @@
  * look: someone who wants it back wants to be shown around again, and that is what this
  * category is for.
  *
+ * "at the top of Activity" was the whole answer when that was the only place it rendered. The
+ * checklist is in the toolbar on every screen now, so the row says both — the point of this
+ * sublabel is that someone who cannot find the thing can be told where it is.
+ *
  * The row states what it is rather than only offering an action, because the interesting
  * case is the one where there is nothing to do — dismissed, still showing, or genuinely
  * finished are three different answers, and a single greyed-out button would give the same
@@ -27,9 +31,9 @@ export default function PrototypeGettingStartedRow() {
         label="Getting started"
         sublabel={
           canRestore
-            ? 'Bring the checklist back to the top of Activity.'
+            ? 'Bring the checklist back.'
             : visible
-              ? 'Showing at the top of Activity.'
+              ? 'In the toolbar, and at the top of Activity.'
               : 'You have finished every step.'
         }
         value={finished ? 'Done' : `${progress.done} of ${progress.total}`}

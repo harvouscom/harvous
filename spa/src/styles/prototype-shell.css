@@ -2343,3 +2343,158 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   opacity: 0.6;
 }
 
+
+/* ─── Guest mode ─────────────────────────────────────────────────────────── */
+
+/*
+  The standing "you are trying Harvous" row, above the shell frame.
+
+  At the `#root` layer rather than inside the card: it is a notice about this whole visit, not a
+  piece of the app's chrome, and the app shell moves down as one object beneath it. Its height
+  comes off the frame rather than out of the grid, which already carries four row templates that
+  a fifth variant would have to be spelled out against.
+
+  It has no surface of its own on purpose: it belongs to the background layer, so the wallpaper
+  or canvas runs straight through it and the app shell below is exactly the shell, unchanged.
+  Painting it `--pds-bg-page` made it a second white bar stacked on the app instead of a notice
+  written on the ground the app sits on.
+
+  `html.harvous-proto-guest` is set by `public/scripts/prototype-route-boot.js` before the bundle
+  loads, so the space is claimed in the first paint: an arriving guest never sees the shell jump
+  down by 37px a moment after landing, on the one screen whose whole job is to look like an
+  uninterrupted continuation of the marketing page.
+*/
+:root {
+  /*
+   * Content height plus its padding: a 24px button with 14px above and below. Named as one
+   * number because three places have to agree on it — the frame's height, the frame's top
+   * offset, and the boot script's placeholder card.
+   */
+  --proto-guest-row-h: 52px;
+}
+
+/*
+  The boot script's placeholder card starts below the row as well.
+
+  `prototype-route-boot.js` paints `#root::before` as a fixed card at the frame inset, so it was
+  still pinned to 14px while the shell had moved down — its white ran up behind the notice and
+  read as a band of blank paper above the toolbar belonging to no surface. Both classes so this
+  outranks the boot rule rather than relying on which stylesheet the browser saw last.
+*/
+html.harvous-prototype-route.harvous-proto-guest #root::before {
+  top: var(--proto-guest-row-h);
+}
+
+html.harvous-proto-guest .proto-shell-frame {
+  /*
+   * No top margin. The row's own bottom padding is the space above the shell, so the frame's
+   * usual 14px on top would sit under it as a second gap — the notice would read as a bar with
+   * a margin rather than as breathing room around a line of text.
+   */
+  margin-top: 0;
+  height: calc(100vh - var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+  height: calc(100dvh - var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+}
+
+.proto-guest-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  /* `#root` is a flex column, so without this the frame below squeezes the row shorter than the
+     height the frame just subtracted for it, and the shell hangs off the bottom. */
+  flex-shrink: 0;
+  height: var(--proto-guest-row-h);
+  /* Vertical padding, not a margin below — see the frame's `margin-top: 0` above. */
+  padding: 14px 12px;
+  /* No fill and no rule beneath it — the canvas (or the wallpaper) is the background here. */
+  background: transparent;
+  color: var(--pds-text-secondary);
+}
+
+.proto-guest-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /*
+   * Room for descenders. The read-only banner this is shaped after uses `line-height: 1`, which
+   * is right there because it has no `overflow: hidden` — here the label clips to its line box
+   * to make an ellipsis possible, so at 1 the tails of "y" and "g" were cut off.
+   */
+  line-height: 1.4;
+  /* The whole flex chain needs this, not just the label: one ancestor at its default
+     `min-width: auto` refuses to shrink below its content, and the sentence ran off both edges
+     of a phone instead of truncating. */
+  min-width: 0;
+  flex-shrink: 1;
+  font-weight: 500;
+}
+
+/*
+  The sentence gives way before the button does. On a narrow phone the label truncates and the
+  way to keep the notes stays whole and tappable; the reverse would leave a full explanation of
+  a problem beside no way to solve it.
+*/
+.proto-guest-row__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /*
+   * Shrinkable in its own right, not just allowed to be narrow. `min-width: 0` lets a flex item
+   * go below its content; it does not make it *give way*, and with `flex-shrink: 0` the label
+   * stayed at its full 315px inside a 197px parent and ran under the button. Both halves are
+   * needed for an ellipsis to ever appear.
+   */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-guest-row__trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/*
+  The accent button, in the one size that fits a 34px bar. Same three tokens as
+  `.proto-settings-btn` — a second gradient defined by hand here would drift from that one the
+  first time either is touched.
+
+  Named for the size rather than the row, because guest Home wants the same button next to its
+  own list and a `__action` on a `proto-guest-row` block would have been the wrong thing to
+  reach for there.
+*/
+.proto-accent-btn-sm {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent) !important;
+  box-shadow: var(--pds-shadow-accent-button);
+  font: 600 12px/1 var(--pds-font-body);
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.1s;
+}
+
+.proto-accent-btn-sm:hover {
+  filter: brightness(1.06);
+}
+
+/* The long prefix is not decoration — same reason `.proto-settings-btn` and
+   `.proto-settings-danger__btn:hover` carry it. A global rule,
+   `html.harvous-prototype-route button[class*="proto-"]`, pins every prototype button to
+   text-primary with !important, and at (0,2,2) it outranks a bare class — so as an `<a>` this
+   button had white text and as a `<button>` it had dark text on the same blue. */
+html.harvous-prototype-route button[class*='proto-'].proto-accent-btn-sm {
+  color: var(--pds-on-accent) !important;
+}
+

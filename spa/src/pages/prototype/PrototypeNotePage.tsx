@@ -1,4 +1,7 @@
 import { draftWentBeyondItsSeed } from '@/utils/recall-draft-completion';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { addGuestNote, updateGuestNote } from '../../lib/guest-store';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 import { reportRecallCompleted } from './proto-recall-completion';
 import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { stashComposeRestore } from '../../lib/compose-session-restore';
@@ -173,7 +176,15 @@ export function draftSaveDestinationLabel(input: {
   homeSpaceId: string | null | undefined;
   targetSpaceTitle: string | null | undefined;
   threadTitle?: string | null;
+  /** A guest's note has no space; it is saved to the browser it was written in. */
+  isGuest?: boolean;
 }): string {
+  /*
+   * First, because every branch below names a space and a guest has none — this line read
+   * "Saving to My Home" over a note whose destination was localStorage, which is the one
+   * place in the app that says out loud where writing goes.
+   */
+  if (input.isGuest) return 'Saving to this device';
   if (isDraftSaveDestinationHome(input)) return 'Saving to My Home';
   const spaceTitle = input.targetSpaceTitle?.trim() || 'this space';
   const threadTitle = input.threadTitle?.trim();
@@ -501,7 +512,16 @@ export default function PrototypeNotePage() {
   const patchSpaceNoteOrganizationMutationRef = useRef(patchSpaceNoteOrganizationMutation);
   patchSpaceNoteOrganizationMutationRef.current = patchSpaceNoteOrganizationMutation;
   const draftPersistPromiseRef = useRef<Promise<string | null> | null>(null);
+  const { isGuest } = useHarvousIdentity();
   const persistedDraftIdRef = useRef<string | null>(null);
+  /*
+   * The guest equivalent of `persistedDraftIdRef`: the local note this compose session has
+   * already filed, so every later autosave updates it instead of filing another.
+   *
+   * Keyed to the compose session by the effect below rather than living forever, or a second
+   * "New note" would keep writing into the first one.
+   */
+  const guestDraftIdRef = useRef<string | null>(null);
   // The note id a draft compose persisted into. Unlike `persistedDraftIdRef` (reset
   // on every slug change), this survives the compose-on-home → /{id} swap so the editor
   // subtree key can stay stable across that single transition (no remount mid-typing).
@@ -869,12 +889,16 @@ export default function PrototypeNotePage() {
         homeSpaceId: personalHomeSpaceId,
         targetSpaceTitle: composeTargetTitle,
         threadTitle: composeGroupThreads.find((t) => t.id === resolvedComposeThreadId)?.title,
+        isGuest,
       });
     }
+    /* A saved guest note has no space either — the same sentence, in the present tense. */
+    if (isGuest) return 'Saved on this device';
     return noteDestinationLabel(destinationRows);
   }, [
     viewerIsAuthor,
     isDraft,
+    isGuest,
     composeTargetSpaceId,
     personalHomeSpaceId,
     composeTargetTitle,
@@ -2260,6 +2284,10 @@ export default function PrototypeNotePage() {
     persistDraftNoteRef.current = persistDraftNote;
   }, [persistDraftNote]);
 
+  useEffect(() => {
+    guestDraftIdRef.current = null;
+  }, [composeSessionEpoch]);
+
   const handleNoteSave = useCallback(
     async (
       newTitle: string,
@@ -2269,6 +2297,25 @@ export default function PrototypeNotePage() {
     ) => {
       if (isEffectivelyEmptyPrototypeNote(newTitle, newContent)) {
         return;
+      }
+      /*
+       * A guest's note never leaves the device.
+       *
+       * Before the draft branch, because both halves of that branch reach for a server: the
+       * create needs a space id a guest does not have, and the update needs a note the server
+       * has never seen. The ref is what makes an autosave an update — without it every 700ms
+       * pass would file a new note, and a paragraph would arrive as a dozen.
+       */
+      if (isGuest) {
+        const existingId = isDraft ? guestDraftIdRef.current : noteId;
+        const saved = existingId
+          ? updateGuestNote(existingId, { title: newTitle, contentHtml: newContent })
+          : addGuestNote({ title: newTitle, contentHtml: newContent });
+        if (!saved) return undefined;
+        if (isDraft) guestDraftIdRef.current = saved.id;
+        /* The checklist's own step, latched where the writing actually happens. */
+        markOnboardingStep('note');
+        return { noteId: saved.id };
       }
       if (isDraft) {
         const createdId = await persistDraftNote(
@@ -2312,7 +2359,7 @@ export default function PrototypeNotePage() {
       }
       return result;
     },
-    [contextSpaceId, isDraft, noteId, patchSharedOrganization, persistDraftNote],
+    [contextSpaceId, isDraft, isGuest, noteId, patchSharedOrganization, persistDraftNote],
   );
 
   const handlePrototypeEditorUnmount = useCallback(

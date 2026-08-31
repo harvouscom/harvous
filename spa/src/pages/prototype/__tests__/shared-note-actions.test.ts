@@ -567,6 +567,20 @@ describe('shared permission and Thread picker policies', () => {
     ).toEqual({ canOrganize: true, canPin: true, canRemove: false, canShare: true });
   });
 
+  it('withholds sharing from a guest, and only sharing', () => {
+    // A guest's note lives in their browser and nowhere else, so there is no link to hand out.
+    // Organizing and pinning it are still coherent, so they stay.
+    expect(
+      resolveNativeToolbarContextCapabilities({
+        hasSharedContext: false,
+        contextualAccessKnown: true,
+        isOwnNote: true,
+        isSpaceOwner: false,
+        isGuest: true,
+      }),
+    ).toEqual({ canOrganize: true, canPin: true, canRemove: false, canShare: false });
+  });
+
   it('uses explicit-context membership instead of active-shell ownership', () => {
     expect(
       resolveNativeToolbarSharedContextId({
