@@ -11,7 +11,14 @@
  * in the body without those two components knowing about each other.
  */
 import { useEffect, useRef, useState } from 'react';
-import PrototypeLibrarySearchEmpty from './PrototypeLibrarySearchEmpty';
+import { createPortal } from 'react-dom';
+import Icon from '@/components/react/Icon';
+import PrototypeLibraryRecentSearches, {
+  useRecentSearchTerms,
+} from './PrototypeLibraryRecentSearches';
+import ProtoPopoverShell from '../ProtoPopoverShell';
+import { useProtoAnchoredPopoverPosition } from '../useProtoAnchoredPopoverPosition';
+import { useDismissOnOutside } from '../../../hooks/usePopoverDismiss';
 import PrototypeSearchInput from '../components/PrototypeSearchInput';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import PrototypeLibraryPanel from './PrototypeLibraryPanel';
@@ -81,21 +88,38 @@ export default function PrototypeLibraryPanelHost({
   });
 
   /*
-   * Whether an empty field should offer history rather than the browse body.
+   * Past queries, on request.
    *
-   * True when a search chord opened the panel — that gesture means "I am about to type" —
-   * and from the moment the field takes focus, which is the same intent expressed with a
-   * mouse. Latched rather than tracking focus live: the chips are things you click, and
-   * hiding them on blur would remove them in the instant between mousedown and click.
+   * This was a latch on focus that swapped the browse body for a history panel. Focus is not
+   * a request to stop looking at the library — it is the first half of typing — so the swap
+   * arrived before anyone had asked for it and took the list away in the process. Now it is
+   * a control with a state, opened deliberately and closed the same way.
    *
-   * Stored as *which tab* it was engaged for, so choosing a tab drops it with no effect and
-   * no reset condition to keep in sync — a tab is a request to browse, and that is a
-   * different question from the one the field answers.
+   * Absent entirely until something is remembered, rather than a button that opens on
+   * nothing: a new account gets the library, not an empty promise about its own past.
    */
-  const [searchEngagedTab, setSearchEngagedTab] = useState<string | null>(
-    view.autoFocusSearch ? view.tab : null,
+  const recentTerms = useRecentSearchTerms();
+  const [recentsOpen, setRecentsOpen] = useState(false);
+  const recentsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const recentsCardRef = useRef<HTMLDivElement | null>(null);
+  const { position: recentsPosition, sync: syncRecentsPosition } = useProtoAnchoredPopoverPosition(
+    recentsCardRef,
+    { anchorEl: recentsButtonRef.current },
+    /* Right edge to the button's, so a card wider than its trigger hangs back under the
+       header rather than off toward the panel's edge. */
+    { enabled: recentsOpen, alignEnd: true },
+    [recentsOpen],
   );
-  const showSearchHistory = !view.drill && searchEngagedTab === view.tab;
+  useDismissOnOutside(recentsCardRef, () => setRecentsOpen(false), recentsOpen, {
+    ignoreSelector: '[aria-label="Recent searches"]',
+  });
+  /* Measure again once the card has its width — end-alignment is `anchor.right - cardWidth`,
+     so a first pass taken before layout settles lands it short. */
+  useEffect(() => {
+    if (!recentsOpen) return undefined;
+    const raf = requestAnimationFrame(() => syncRecentsPosition());
+    return () => cancelAnimationFrame(raf);
+  }, [recentsOpen, syncRecentsPosition]);
 
   const tabRows = useLibraryTabRows(view.tab);
   const selection = useLibrarySelection({
@@ -150,10 +174,27 @@ export default function PrototypeLibraryPanelHost({
           /* Only when the opener asked — see `autoFocusSearch`. Mobile never takes it:
              a caret there raises the on-screen keyboard over the results. */
           autoFocus={!isMobileSidebar && Boolean(view.autoFocusSearch)}
-          onFocus={() => setSearchEngagedTab(view.tab)}
           value={search.input}
           onChange={search.setInput}
           onClear={search.clear}
+          /* Inside the field, at its trailing edge — it fills this box and has nothing to do
+             with the kind picker beside it. Absent until something is remembered. */
+          trailing={
+            recentTerms.length > 0 ? (
+              <button
+                type="button"
+                ref={recentsButtonRef}
+                className="proto-library-recents__toggle"
+                aria-label="Recent searches"
+                title="Recent searches"
+                aria-haspopup="dialog"
+                aria-expanded={recentsOpen}
+                onClick={() => setRecentsOpen((v) => !v)}
+              >
+                <Icon name="clock-rotate-left" size={14} aria-hidden />
+              </button>
+            ) : null
+          }
           placeholder="Search my Harvous…"
           ariaLabel="Search my Harvous"
           /*
@@ -193,6 +234,13 @@ export default function PrototypeLibraryPanelHost({
         )
       }
     >
+      {/*
+        Two states, not three. The library is up until you have typed something, and then it
+        is results — focusing the field is no longer a third thing that takes the list away
+        before a character has been entered. Past queries are in the header now, behind a
+        control, and "Pick up where you left off" is gone with them: the browse body opens
+        newest-first, so it was covering the very rows it was recommending.
+      */}
       {query.trim() ? (
         <PrototypeLibrarySearchResults
           query={query}
@@ -200,13 +248,36 @@ export default function PrototypeLibraryPanelHost({
           navigationItems={navigationItems}
           onResultsSettled={searchHistory.onResultsSettled}
         />
-      ) : showSearchHistory ? (
-        /* Renders nothing when there is no history yet, and the browse body shows through —
-           a new account gets the library rather than an empty promise about its own past. */
-        <PrototypeLibrarySearchEmpty onPickRecent={search.applyImmediate} />
       ) : (
         <PrototypeLibraryBody view={view} selection={selection} />
       )}
+      {recentsOpen
+        ? createPortal(
+            <ProtoPopoverShell
+              ref={recentsCardRef}
+              className="proto-menu__popover proto-library-recents__popover"
+              role="dialog"
+              aria-label="Recent searches"
+              /* Parked offscreen until measured — the position is computed from the rendered
+                 card, so gating the render on it would mean it never renders. */
+              style={{
+                position: 'fixed',
+                top: recentsPosition?.top ?? -9999,
+                left: recentsPosition?.left ?? -9999,
+                zIndex: 6000,
+              }}
+            >
+              <PrototypeLibraryRecentSearches
+                terms={recentTerms}
+                onPickRecent={(term) => {
+                  setRecentsOpen(false);
+                  search.applyImmediate(term);
+                }}
+              />
+            </ProtoPopoverShell>,
+            document.body,
+          )
+        : null}
     </PrototypeLibraryPanel>
   );
 

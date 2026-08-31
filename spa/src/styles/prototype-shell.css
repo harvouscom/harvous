@@ -1819,7 +1819,20 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
    * picker — and they are different widths, so centring was already a fiction. Sizing each
    * cell to its job gives the field more room than the symmetry ever did.
    */
-  grid-template-columns: auto minmax(0, 1fr) minmax(124px, auto);
+  /*
+   * The trailing track is never narrower than what it holds.
+   *
+   * It was `minmax(124px, auto)`, which was enough while it held one control: the kind picker
+   * came to 141 and the track sat at roughly that. Add a second control and the track stayed
+   * where it was and the new one overflowed *left*, out of its own cell and over the end of
+   * the search field — `1fr` is greedy, and a `minmax` floor could not pull the track back
+   * because the flex cell's own min-content contribution was zeroed by its `min-width: 0`.
+   *
+   * Plain `auto` sizes the track to what it holds and lets the field take the remainder,
+   * which is the arrangement the 124px was approximating. It keeps holding if either
+   * control's label changes.
+   */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -1853,12 +1866,69 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   min-width: 0;
 }
 
+/*
+ * The field's trailing control, given a slot of its own rather than crowded against the edge.
+ *
+ * A square the full height of the field, flush to its end.
+ *
+ * Sized and placed rather than padded: a 24px button inside the field's 10px side padding sat
+ * 11px from the right edge and 5px from the top, and an icon further in from the side than
+ * from the top reads as misplaced even when nobody can say why. Filling the height and
+ * cancelling the field's own padding makes the box square by construction, so the glyph's
+ * clearance is the same on all four sides and stays that way if the field's height or padding
+ * moves. `aspect-ratio` rather than a width, so neither number is written twice.
+ *
+ * `flex: 0 0 auto` because the input beside it is the flexible one: when the row is tight the
+ * field gives up width, never the control.
+ */
+.proto-library-recents__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  align-self: stretch;
+  /* The field's own side padding, on the button — so the glyph's clearance to the right edge
+     is the same number as the field gives its text, and the same as the (34 - 14) / 2 it gets
+     above and below. Cancelled again as margin so the box sits flush to the field's end.
+     `aspect-ratio` was the first attempt and does nothing here: a flex item's width comes
+     from its content, so there is no definite axis for the ratio to work from. */
+  padding-inline: var(--proto-search-field-pad-x);
+  margin-inline-end: calc(-1 * var(--proto-search-field-pad-x));
+  border: none;
+  border-radius: var(--pds-radius-input);
+  background: transparent;
+  color: var(--pds-text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+@media (hover: hover) {
+  .proto-library-recents__toggle:hover {
+    background: var(--pds-bg-control);
+    color: var(--pds-text-primary);
+  }
+}
+
+.proto-library-recents__toggle[aria-expanded='true'] {
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+}
+
+/*
+ * `min-width: 0` deliberately absent.
+ *
+ * It was here so the cell could shrink, and while the cell held one control that cost
+ * nothing. It also zeroes the element's min-content contribution, which is what the track's
+ * `min-content` floor is computed from — so with the floor in place and this still here, the
+ * track went on resolving to the picker's width alone and the second control overflowed left
+ * over the search field. The field is the flexible cell; it is the one that should give up
+ * width when the row is tight, not the controls that stop being pressable.
+ */
 .proto-library-panel__actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
-  min-width: 0;
 }
 
 .proto-library-panel__body {
@@ -2044,6 +2114,29 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   flex-wrap: wrap;
   gap: 6px;
   padding: 2px 12px 10px;
+}
+
+/*
+ * Past queries, in the card the header's control opens.
+ *
+ * The chips keep their own padding, so the card supplies only the label's inset and a width
+ * wide enough that two or three terms sit on one line — a popover that wrapped every term
+ * onto its own row would be a list pretending to be chips.
+ */
+.proto-library-recents__popover {
+  width: 264px;
+}
+
+.proto-library-recents__label {
+  margin: 0;
+  padding: 10px 12px 4px;
+  color: var(--pds-text-muted);
+}
+
+/* The chips already carry the card's bottom inset; the row above them does not need a
+   second one. */
+.proto-library-recents .proto-recent-queries {
+  padding-top: 0;
 }
 
 .proto-recent-query {

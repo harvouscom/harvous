@@ -2206,7 +2206,10 @@ html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger[aria-expand
   box-sizing: border-box;
   width: 100%;
   min-height: 34px;
-  padding: 0 10px;
+  /* Named because a trailing control has to cancel it to sit flush — see
+     `.proto-library-recents__toggle`. One number, two readers. */
+  --proto-search-field-pad-x: 10px;
+  padding: 0 var(--proto-search-field-pad-x);
   border-radius: var(--pds-radius-input);
   border: 0.5px solid var(--pds-border-control);
   background: var(--pds-bg-faint);
