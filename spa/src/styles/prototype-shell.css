@@ -2450,10 +2450,6 @@ html.harvous-proto-guest .proto-shell-frame {
   min-width: 0;
 }
 
-.proto-guest-row__icon {
-  flex-shrink: 0;
-}
-
 .proto-guest-row__trail {
   display: inline-flex;
   align-items: center;
