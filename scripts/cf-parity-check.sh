@@ -150,7 +150,20 @@ check_redirect() {
     bad "$path" "$want_status $want_loc" "$st ${loc:-<no location>}"
   fi
 }
-check_redirect "/prototype/dashboard" 302 "/dashboard"
+# The /prototype strip is host-gated in the Worker, because /prototype is a LIVE route on
+# any host outside DEDICATED_PROTOTYPE_HOSTS (status.harvous.com is one such host, and is
+# served by this same Worker). So this check is only meaningful once a real dedicated
+# domain is attached — on a *.workers.dev URL the correct behaviour is NOT to redirect.
+case "$BASE" in
+  *app.harvous.com|*new.harvous.com) check_redirect "/prototype/dashboard" 302 "/dashboard" ;;
+  *)
+    st=$(status_of "$BASE/prototype/dashboard")
+    if [ "$st" = "200" ]; then
+      ok "/prototype/* correctly NOT stripped on a non-dedicated host"
+    else
+      bad "/prototype/* on a non-dedicated host" "200 (no redirect — /prototype is live here)" "$st"
+    fi ;;
+esac
 check_redirect "/thread_abc123" 301 "/thread/abc123"
 check_redirect "/note_abc123" 301 "/note/abc123"
 check_redirect "/space_abc123" 301 "/space/abc123"

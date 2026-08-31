@@ -62,6 +62,16 @@ const CRAWLER_UA_SNIPPETS = [
 
 const SHARE_PATH = /^\/shared\/(note|thread)\/([A-Za-z0-9]{12})\/?$/;
 
+/**
+ * Mirrors DEDICATED_PROTOTYPE_HOSTS in src/lib/prototype-path.ts. Keep the two in sync:
+ * the app decides whether `/prototype` is a live route from this same set, and the
+ * /prototype strip below is only correct on hosts that are in it.
+ *
+ * `localhost` is omitted deliberately — it is in the app's set for dev, but this Worker
+ * never serves it.
+ */
+const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com']);
+
 function isCrawler(userAgent: string | null): boolean {
   if (!userAgent) return false;
   const ua = userAgent.toLowerCase();
@@ -101,7 +111,15 @@ function legacyRedirect(url: URL): Response | null {
   const p = url.pathname;
 
   // 302 — legacy bookmarks from when the prototype lived under /prototype/.
-  if (p.startsWith('/prototype/')) {
+  //
+  // HOST-GATED, and it must stay that way. `/prototype` is only a dead prefix on hosts in
+  // DEDICATED_PROTOTYPE_HOSTS; everywhere else it is a LIVE route
+  // (getPrototypeBasePath() returns '/prototype' when the host is not dedicated), so
+  // stripping it there would break the app. status.harvous.com is exactly such a host —
+  // it is served by this same build and this same Worker, and spa/src/router.tsx carries
+  // the matching rule in so many words: "status.harvous.com owns `/` for the public status
+  // page — never send it to /prototype."
+  if (DEDICATED_PROTOTYPE_HOSTS.has(url.hostname) && p.startsWith('/prototype/')) {
     return Response.redirect(new URL(p.slice('/prototype'.length) + url.search, url).toString(), 302);
   }
 

@@ -567,4 +567,30 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
      GitHub secrets, let `cloudflare-deploy.yml` build, then smoke-test that artifact
      *before* stage 3.
 
+- 2026-08-30 (status host) — **`status.harvous.com` resolved, and it was hiding a bug.**
+  The runbook left it as "decide during execution". Decision: it belongs on the **production
+  Worker**, because it is a Netlify *domain alias of the same site* today — same `dist-spa`,
+  with `isStatusHost()` (`src/lib/status-page-host.ts`) making the SPA render the status page
+  at `/`. Putting it anywhere else would mean keeping the Netlify site alive purely for one
+  alias, which blocks the "delete the Netlify site" cleanup step.
+
+  The bug it exposed: `status.harvous.com` is **not** in `DEDICATED_PROTOTYPE_HOSTS`, so
+  `/prototype` is a **live route** there — `spa/src/router.tsx` states it directly
+  ("status.harvous.com owns `/` for the public status page — never send it to /prototype").
+  `legacyRedirect()` stripped `/prototype/*` on every host, so attaching the status domain
+  would have broken it. It is now gated on a mirror of `DEDICATED_PROTOTYPE_HOSTS`
+  (app/new only — `localhost` omitted, this Worker never serves it); keep the two in sync.
+
+  Consequence for the gate: the `/prototype` strip is **unverifiable on a `*.workers.dev`
+  URL**, where the correct behaviour is *not* to redirect. `scripts/cf-parity-check.sh` now
+  asserts both directions and picks which by hostname. Re-verified 20/20 after the change.
+
+  Status-page data path is unaffected: it reads `/api/status/public` on Fly through the
+  Worker proxy, and `BETTERSTACK_STATUS_JSON_URL` is a Fly env var that does not move. Per
+  `docs/STATUS_PAGE_SETUP.md`, it must not point at `status.harvous.com/index.json` (loops).
+
+  So **three** custom domains attach at stage 4, not one: `app.harvous.com` and
+  `status.harvous.com` on production, `new.harvous.com` on `--env staging`.
+
+
 

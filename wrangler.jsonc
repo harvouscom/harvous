@@ -54,11 +54,20 @@
   // app has exactly one public origin.
   "workers_dev": true,
 
-  // STAGE 4 ONLY — uncomment when attaching the custom domain, NOT before.
+  // STAGE 4 ONLY — uncomment when attaching the custom domains, NOT before.
   // harvous.com becomes a Cloudflare zone in stage 3; until then wrangler cannot resolve
-  // this route and every deploy fails. Attaching it is the moment traffic actually moves,
-  // and the rollback is re-pointing this record back at Netlify.
-  // "routes": [{ "pattern": "app.harvous.com", "custom_domain": true }],
+  // these routes and every deploy fails. Attaching them is the moment traffic actually
+  // moves, and the rollback is re-pointing the records back at Netlify.
+  //
+  // status.harvous.com belongs on THIS Worker, not on a separate one: it is a Netlify
+  // domain alias of the same site today, serving the same dist-spa, with the SPA branching
+  // on hostname (src/lib/status-page-host.ts, spa/src/router.tsx buildStatusHostRoutes).
+  // Same build, same Worker. It is also the reason legacyRedirect() is host-gated — see
+  // cloudflare/worker.ts; /prototype is a LIVE route on the status host.
+  // "routes": [
+  //   { "pattern": "app.harvous.com", "custom_domain": true },
+  //   { "pattern": "status.harvous.com", "custom_domain": true }
+  // ],
 
   "env": {
     // Mirrors netlify.toml's [context.staging]: dev Clerk key, production DB.
