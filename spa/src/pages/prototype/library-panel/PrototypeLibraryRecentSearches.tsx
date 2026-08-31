@@ -12,6 +12,7 @@
  * wanted it.
  */
 import { useEffect, useMemo, useState } from 'react';
+import Icon from '@/components/react/Icon';
 import { useLibraryPanelData } from './library-panel-data';
 import {
   readRecentSearchTerms,
@@ -51,33 +52,59 @@ export function useRecentSearchTerms(): RecentSearchEntry[] {
 export default function PrototypeLibraryRecentSearches({
   terms,
   onPickRecent,
+  onForget,
 }: {
   terms: RecentSearchEntry[];
   /** Runs the term without waiting for the debounce — nobody typed it. */
   onPickRecent: (term: string) => void;
+  /** Drops one term from the stored list. */
+  onForget: (term: string) => void;
 }) {
   return (
     <div className="proto-library-recents">
       <p className="proto-caption proto-library-recents__label">Recent searches</p>
       {/*
-        Not `ProtoChipBar`, and not its classes. That component is a `role="tablist"` needing
-        a `selectedId`, which is a lie about a list of past queries: none is current, and
-        picking one is not switching views. Its classes carried the same claim — a pill track
-        whose children are `flex: 1 0 auto`, so a single remembered term stretched the whole
-        width and looked like one selected segment.
+        Rows, not chips.
+        These began as a wrapping pill track, which reads as a set of filters — things you
+        turn on, side by side, none more recent than another. A history is ordered and
+        singular: you pick one. And a chip has no room beside its own label for the second
+        thing each of these needs, which is a way to be forgotten. A row has both — the term
+        takes the width, the dismiss sits at the end of it.
+
+        Still not `ProtoChipBar` either, for the older reason: that is a `role="tablist"`
+        needing a `selectedId`, which is a lie about past queries — none is current, and
+        picking one is not switching views.
+
+        A `<ul>` rather than a stack of divs, because that is what this is, and it is the
+        difference between a screen reader announcing "list, 3 items" and announcing
+        nothing at all.
       */}
-      <div className="proto-recent-queries">
+      <ul className="proto-recent-queries">
         {terms.map((entry) => (
-          <button
-            key={entry.term}
-            type="button"
-            className="proto-recent-query"
-            onClick={() => onPickRecent(entry.term)}
-          >
-            {entry.term}
-          </button>
+          <li key={entry.term} className="proto-recent-query">
+            <button
+              type="button"
+              className="proto-recent-query__term"
+              onClick={() => onPickRecent(entry.term)}
+            >
+              {entry.term}
+            </button>
+            {/*
+              Its own button rather than a click zone inside the first one: a button inside a
+              button is invalid, and the two do opposite things — one runs the search, one
+              destroys it. They should not be able to be confused by a stray pixel.
+            */}
+            <button
+              type="button"
+              className="proto-recent-query__forget"
+              aria-label={`Forget "${entry.term}"`}
+              onClick={() => onForget(entry.term)}
+            >
+              <Icon name="xmark" size={11} aria-hidden />
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }

@@ -16,6 +16,7 @@ import Icon from '@/components/react/Icon';
 import PrototypeLibraryRecentSearches, {
   useRecentSearchTerms,
 } from './PrototypeLibraryRecentSearches';
+import { removeRecentSearchTerm } from '@/utils/recent-search-storage';
 import ProtoPopoverShell from '../ProtoPopoverShell';
 import { useProtoAnchoredPopoverPosition } from '../useProtoAnchoredPopoverPosition';
 import { useDismissOnOutside } from '../../../hooks/usePopoverDismiss';
@@ -115,6 +116,15 @@ export default function PrototypeLibraryPanelHost({
   });
   /* Measure again once the card has its width — end-alignment is `anchor.right - cardWidth`,
      so a first pass taken before layout settles lands it short. */
+  /*
+   * Forgetting the last remembered term takes the toggle away with it, and a popover
+   * anchored to a button that no longer exists is a card floating beside nothing. So the
+   * emptied list closes itself.
+   */
+  useEffect(() => {
+    if (recentsOpen && recentTerms.length === 0) setRecentsOpen(false);
+  }, [recentsOpen, recentTerms.length]);
+
   useEffect(() => {
     if (!recentsOpen) return undefined;
     const raf = requestAnimationFrame(() => syncRecentsPosition());
@@ -273,6 +283,11 @@ export default function PrototypeLibraryPanelHost({
                   setRecentsOpen(false);
                   search.applyImmediate(term);
                 }}
+                /* The card stays up. Forgetting one term is usually the first of several,
+                   and closing after each would make tidying the list a matter of reopening
+                   it; the row leaves and the rest stay where they are. The card closes on
+                   its own once the last one goes — see the effect above. */
+                onForget={(term) => removeRecentSearchTerm(recentSearchScope, term)}
               />
             </ProtoPopoverShell>,
             document.body,

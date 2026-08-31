@@ -2101,65 +2101,120 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 }
 
 /*
- * Recent searches, as a row of terms you can put back in the field.
+ * Recent searches, as a list of terms you can put back in the field.
  *
- * Not `.proto-chip-bar`. That is a segmented control — a pill-shaped track with `gap: 0`
- * whose children are `flex: 1 0 auto`, so they divide the track between them and a lone one
- * fills it end to end. It reads as "one option, currently selected", which is wrong twice
- * over here: these are not options, and none of them is selected. Past queries are tags.
- * They hug their own text, they wrap, and the row behind them is nothing at all.
+ * These were a wrapping pill track, which is what a set of filters looks like — things
+ * standing side by side, any number of them on at once. A history is ordered and you pick
+ * one from it, and each entry needed room for a dismiss that a pill has nowhere to put. So
+ * one term per line.
+ *
+ * Still not `.proto-chip-bar`, for the older reason: that is a segmented control whose
+ * children are `flex: 1 0 auto`, so a lone entry fills the track and reads as "one option,
+ * currently selected". None of these is selected.
  */
 .proto-recent-queries {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 2px 12px 10px;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0 8px 8px;
+  list-style: none;
 }
 
 /*
  * Past queries, in the card the header's control opens.
  *
- * The chips keep their own padding, so the card supplies only the label's inset and a width
- * wide enough that two or three terms sit on one line — a popover that wrapped every term
- * onto its own row would be a list pretending to be chips.
+ * The rows carry their own padding, so the card supplies only its width — wide enough that
+ * an ordinary query reads whole rather than trailing into an ellipsis on every line.
  */
 .proto-library-recents__popover {
   width: 264px;
 }
 
+/*
+ * The heading sits apart from the list rather than on top of it.
+ *
+ * It was 4px, which put "Recent searches" close enough to the first term to read as its
+ * label rather than the group's. The gap is the thing that says one is a heading.
+ */
 .proto-library-recents__label {
   margin: 0;
-  padding: 10px 12px 4px;
+  padding: 10px 12px 10px;
   color: var(--pds-text-muted);
 }
 
-/* The chips already carry the card's bottom inset; the row above them does not need a
-   second one. */
-.proto-library-recents .proto-recent-queries {
-  padding-top: 0;
+/*
+ * One remembered search: the term, and the way to be rid of it.
+ *
+ * The row is the hover surface and the two buttons inside it are transparent, so the
+ * highlight is the whole line — a term whose background stopped short of its own dismiss
+ * would look like two controls that happened to be adjacent.
+ */
+.proto-recent-query {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+  transition: background 0.12s ease;
 }
 
-.proto-recent-query {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
-  padding: 5px 11px;
-  border: none;
-  border-radius: 999px;
+.proto-recent-query:hover {
   background: var(--pds-bg-chip);
+}
+
+.proto-recent-query__term {
+  flex: 1 1 auto;
+  /* Without this a long query pushes the dismiss off the end instead of truncating: a flex
+     item's floor is its content, and `text-overflow` never fires above its own floor. */
+  min-width: 0;
+  padding: 6px 4px 6px 8px;
+  border: none;
+  background: none;
   font-family: var(--pds-font-body);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
+  text-align: left;
   color: var(--pds-text-secondary);
   cursor: pointer;
   /* A long query stays one line and truncates rather than growing the row into a paragraph. */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color 0.12s ease, background 0.12s ease;
+  transition: color 0.12s ease;
 }
 
-.proto-recent-query:hover {
+.proto-recent-query:hover .proto-recent-query__term {
+  color: var(--pds-text-primary);
+}
+
+/*
+ * Present at rest, muted.
+ *
+ * Not revealed on hover: the app's other per-row dismiss — `.proto-side-panel__action-btn`
+ * on a Home suggestion — sits at 0.4 and brightens, and a control that appears only when
+ * pointed at is a control a touch screen never advertises. The user has to know a row can
+ * be forgotten before they think to reach for it.
+ */
+.proto-recent-query__forget {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--pds-text-muted);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.proto-recent-query__forget:hover,
+.proto-recent-query__forget:focus-visible {
+  opacity: 1;
   background: var(--pds-bg-chip-hover);
   color: var(--pds-text-primary);
 }
@@ -2376,6 +2431,30 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
 
 .proto-library-results__group:first-child .proto-library-results__heading::after {
   display: none;
+}
+
+/*
+ * A lone group has nothing to be told apart from, so it loses its heading.
+ *
+ * These labels exist to divide: "Actions", "Go to", "Everywhere else" say which of several
+ * lists you are looking at. Most searches produce one group, and then the label is a bar
+ * across the top of the panel announcing "Results" above the only thing there — a sticky
+ * band of chrome, wider than the rows it introduces, saying what the search field already
+ * said. `:only-child` is exact here: the body holds groups and nothing else.
+ *
+ * Clipped rather than `display: none`, so a screen reader still hears the region named. The
+ * heading is redundant on screen because the eye takes in the whole panel at once; read
+ * linearly it is still the thing that says the list has started.
+ */
+.proto-library-results__group:only-child .proto-library-results__heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .proto-library-root {
