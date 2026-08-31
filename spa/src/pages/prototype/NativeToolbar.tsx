@@ -122,7 +122,25 @@ export function resolveNativeToolbarContextCapabilities(options: {
   contextualAccessKnown: boolean;
   isOwnNote: boolean;
   isSpaceOwner: boolean;
+  /** A guest's note exists only in their browser — there is nothing to hand anyone. */
+  isGuest?: boolean;
 }) {
+  /*
+   * Sharing is the one capability a guest cannot be offered an account for.
+   *
+   * Everywhere else the answer is "this needs an account", because the feature is waiting on
+   * the other side of one. Here there is no note on any server to publish, no token to mint
+   * and no URL that could resolve — so the control is removed rather than explained. The rest
+   * of the row is untouched: organizing and pinning a local note are still coherent.
+   */
+  if (options.isGuest) {
+    return {
+      canOrganize: true,
+      canPin: true,
+      canRemove: false,
+      canShare: false,
+    };
+  }
   if (!options.hasSharedContext) {
     return {
       canOrganize: true,
@@ -170,6 +188,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const shareButtonRef = useRef<HTMLButtonElement | null>(null);
   const findPopover = useToolbarAnchoredPopover();
   const onboardingPopover = useToolbarAnchoredPopover();
+  /* Declared up here because the toolbar's capabilities are computed below and one of them
+     (sharing) depends on it. */
+  const { isGuest } = useHarvousIdentity();
   const onboarding = useOnboardingState();
   const onboardingButtonRef = useRef<HTMLButtonElement | null>(null);
   const sharePopover = useToolbarAnchoredPopover();
@@ -261,13 +282,13 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
       ? `New note in ${activeSpaceTitle}`
       : 'New note in My Home';
   const contextualCapabilities = resolveNativeToolbarContextCapabilities({
+    isGuest,
     hasSharedContext: isSharedContext,
     contextualAccessKnown,
     isOwnNote: !readOnlyForeignNote,
     isSpaceOwner: isContextSpaceOwner,
   });
 
-  const { isGuest } = useHarvousIdentity();
   /* Same count the list under it will show — see `onboarding-visible-steps`. */
   const onboardingProgress = shownOnboardingProgress(onboarding.state, isGuest);
   const { spaceTitle: activeSpaceTitleForChip, space: activeSpaceRow } = useActiveSpace();
