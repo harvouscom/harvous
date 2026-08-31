@@ -413,16 +413,6 @@ export default function PrototypeReadPage() {
    */
   const handleStartNote = useCallback(
     ({ start, end }: { start: number; end: number }) => {
-      /*
-       * The reader has its own door into composing, separate from the toolbar's. Left open, a
-       * guest landed in the editor over a header reading "Saving to My Home" — naming a space
-       * they do not have, above a note whose every save would 401. Highlighting still works
-       * from the same selection; it is writing that waits for an account.
-       */
-      if (isGuest) {
-        offerGuestAccount('Writing notes');
-        return;
-      }
       const reference =
         start === end ? `${book} ${chapter}:${start}` : `${book} ${chapter}:${start}-${end}`;
       beginPrototypeComposeSession({

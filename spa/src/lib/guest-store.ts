@@ -136,6 +136,11 @@ export function guestNoteById(id: string): GuestNote | undefined {
   return read().notes.find((n) => n.id === id);
 }
 
+/** True for an id this store owns — the one check anything server-bound should make first. */
+export function isGuestNoteId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && id.startsWith('guest_note_');
+}
+
 /** Local ids are prefixed so adoption, and anything reading a URL, can tell them apart. */
 export function guestId(kind: 'note' | 'highlight'): string {
   const rand = Math.random().toString(36).slice(2, 10);

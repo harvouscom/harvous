@@ -21,10 +21,12 @@ import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import { prototypeReadTodayRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
 import {
   guestHighlights,
+  guestNotes,
   guestStoreServerSnapshot,
   guestStoreSnapshot,
   subscribeToGuestStore,
 } from '../../lib/guest-store';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 import { bookSlug } from '@/utils/bible-book-chapters';
 import { takeOnboardingStep } from './onboarding-step-handoff';
@@ -34,6 +36,19 @@ export default function PrototypeGuestHome() {
   // Re-render on every local write, so a highlight made a moment ago is already listed here.
   useSyncExternalStore(subscribeToGuestStore, guestStoreSnapshot, guestStoreServerSnapshot);
   const highlights = guestHighlights();
+  const notes = guestNotes();
+  /*
+   * Newest first, and one list rather than two.
+   *
+   * A note and a highlight are the same kind of thing on this sheet — something you made
+   * today — and splitting them into "Notes" and "Highlights" would give a visitor with two
+   * items two headings to read. Sorted together by when they were made so the list matches
+   * the order they happened in.
+   */
+  const items = [
+    ...highlights.map((h) => ({ kind: 'highlight' as const, at: h.createdAt, highlight: h })),
+    ...notes.map((n) => ({ kind: 'note' as const, at: n.updatedAt, note: n })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
   const openReader = () => navigate({ to: prototypeReadTodayRouteTo() });
 
   /*
@@ -74,12 +89,12 @@ export default function PrototypeGuestHome() {
         </header>
 
         <div className="proto-feed-sheet__body">
-          {highlights.length > 0 ? (
+          {items.length > 0 ? (
             <section className="proto-home-section">
               <div className="proto-guest-home__section-head">
                 <p className="proto-caption proto-guest-home__eyebrow">
                   On this device
-                  <span className="proto-guest-home__count">{highlights.length}</span>
+                  <span className="proto-guest-home__count">{items.length}</span>
                 </p>
                 {/*
                   The offer sits on the list rather than under a paragraph about the list. It is
@@ -97,29 +112,43 @@ export default function PrototypeGuestHome() {
                 </button>
               </div>
               <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
-                {highlights
-                  .slice()
-                  .reverse()
-                  .map((highlight) => (
+                {items.map((item) =>
+                  item.kind === 'note' ? (
                     <PrototypeHomeRow
-                      key={highlight.id}
-                      icon={highlight.miniNoteBody?.trim() ? 'note-sticky' : 'highlighter'}
-                      title={highlight.reference}
+                      key={item.note.id}
+                      icon="note-sticky"
+                      title={item.note.title || 'Untitled note'}
+                      /* The words, not the markup — the row is how they recognise which note
+                         this is, and tags read as gibberish at this size. */
+                      meta={[item.note.contentHtml.replace(/<[^>]+>/g, ' ').trim()]}
+                      onClick={() =>
+                        navigate({
+                          to: prototypeNoteRouteTo(),
+                          params: { noteId: item.note.id },
+                        })
+                      }
+                    />
+                  ) : (
+                    <PrototypeHomeRow
+                      key={item.highlight.id}
+                      icon={item.highlight.miniNoteBody?.trim() ? 'note-sticky' : 'highlighter'}
+                      title={item.highlight.reference}
                       /* Their words if they wrote any, the verse if they did not — the row
                          should show the thing they would recognise it by. */
-                      meta={[highlight.miniNoteBody?.trim() || highlight.excerpt]}
+                      meta={[item.highlight.miniNoteBody?.trim() || item.highlight.excerpt]}
                       onClick={() =>
                         navigate({
                           to: prototypeReadRouteTo(),
                           params: {
-                            book: bookSlug(highlight.book),
-                            chapter: String(highlight.chapter),
+                            book: bookSlug(item.highlight.book),
+                            chapter: String(item.highlight.chapter),
                           },
-                          search: { t: highlight.translation },
+                          search: { t: item.highlight.translation },
                         })
                       }
                     />
-                  ))}
+                  ),
+                )}
               </div>
             </section>
           ) : (

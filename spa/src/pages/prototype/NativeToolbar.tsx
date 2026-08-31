@@ -309,18 +309,16 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
 
   const onCompose = () => {
     /*
-     * A guest has no space to compose into, so this used to return silently — a toolbar button
-     * that looks live and does nothing, which reads as the app being broken rather than as a
-     * feature they have not unlocked. Checked before the target so the two cases stay distinct:
-     * below is "the target has not resolved yet", which is a wait, not a wall.
+     * A guest composes too, into no space at all — the note is saved to this device by
+     * `handleNoteSave`, which never asks where it belongs. So the target check below, which is
+     * about which of a member's spaces receives the note, has nothing to decide for them and
+     * would only stop a session that works.
      */
-    if (isGuest) {
-      offerGuestAccount('Writing notes');
-      return;
-    }
-    if (!visibleComposeTarget || !canComposeInContext) return;
+    if (!isGuest && (!visibleComposeTarget || !canComposeInContext)) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget });
+    /* `?? undefined` because a guest has no target and the session takes none — the early
+       return above used to guarantee this was a string. */
+    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget ?? undefined });
     navigate({ to: prototypeHomeRouteTo() });
   };
 

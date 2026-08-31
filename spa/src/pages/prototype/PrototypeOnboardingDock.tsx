@@ -130,7 +130,16 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
    * whole thing on screen for another second, which reads as the button not working.
    */
   const dismissed = state.dismissedVersion >= ONBOARDING_VERSION;
-  const showing = !dismissed && (visible || exiting.length > 0);
+  /*
+   * A guest is never "finished".
+   *
+   * `visible` goes false once every step is done, which is right for a member — the list has
+   * served its purpose and retires itself. A guest's list has a fourth row that is not a step
+   * and cannot be ticked, so finishing read, highlight and note made the checklist vanish
+   * taking the account offer with it, at the exact moment they had most to keep. Dismissing it
+   * still works; completing it no longer counts as dismissing it.
+   */
+  const showing = !dismissed && (visible || isGuest || exiting.length > 0);
   const liveIds = showing ? rows.filter((r) => !exiting.includes(r.id)).map((r) => r.id) : [];
   const liveKey = liveIds.join(',');
 

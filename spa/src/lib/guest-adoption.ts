@@ -19,7 +19,7 @@
  * losing it. A failed adoption leaves both in place and tries again on the next mount.
  */
 import { clearGuestSession, hasGuestSession } from './guest-session';
-import { clearGuestStore, guestHighlights, guestStoreCounts } from './guest-store';
+import { clearGuestStore, guestHighlights, guestNotes, guestStoreCounts } from './guest-store';
 import { pushOnboardingStateToAccount } from './proto-onboarding-sync';
 
 /** One run at a time, and never twice for the same page. */
@@ -27,6 +27,7 @@ let running = false;
 
 export interface GuestAdoptionResult {
   adoptedHighlights: number;
+  adoptedNotes: number;
   failed: number;
 }
 
@@ -50,6 +51,30 @@ async function adoptHighlight(
         // words missing.
         ...(highlight.miniNoteBody ? { miniNoteBody: highlight.miniNoteBody } : {}),
         spaceId,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function adoptNote(
+  note: ReturnType<typeof guestNotes>[number],
+  spaceId: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch('/api/notes/create', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spaceId,
+        title: note.title,
+        content: note.contentHtml,
+        noteType: 'default',
+        /* The create route takes it, and every note in the app carries one. */
+        threadId: '',
       }),
     });
     return res.ok;
@@ -97,13 +122,24 @@ export async function adoptGuestWork(spaceId: string): Promise<GuestAdoptionResu
     for (const highlight of highlights) {
       if (await adoptHighlight(highlight, spaceId)) adopted += 1;
     }
-    const failed = highlights.length - adopted;
+
+    /*
+     * Notes after highlights, and sequentially for the same reason: a burst of writes is
+     * harder on the rate limit than a queue, and nothing here is urgent enough to race.
+     */
+    const notes = guestNotes();
+    let adoptedNotes = 0;
+    for (const note of notes) {
+      if (await adoptNote(note, spaceId)) adoptedNotes += 1;
+    }
+
+    const failed = highlights.length - adopted + (notes.length - adoptedNotes);
 
     if (failed === 0) {
       clearGuestStore();
       clearGuestSession();
     }
-    return { adoptedHighlights: adopted, failed };
+    return { adoptedHighlights: adopted, adoptedNotes, failed };
   } finally {
     running = false;
   }

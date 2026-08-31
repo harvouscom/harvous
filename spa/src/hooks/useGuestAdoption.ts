@@ -42,12 +42,25 @@ export function useGuestAdoption(): void {
         );
         return;
       }
-      // The adopted rows are real now; every chapter view and the Highlights list are stale.
+      // The adopted rows are real now; every chapter view, the Highlights list and the note
+      // lists are stale.
       void queryClient.invalidateQueries({ queryKey: ['prototype', 'scripture-highlights'] });
+      void queryClient.invalidateQueries({ queryKey: ['space'] });
+      void queryClient.invalidateQueries({ queryKey: ['navigation'] });
+
+      /*
+       * Counts what they made, in their words rather than ours — "2 highlights and 1 note",
+       * not "3 items". It is the receipt for a promise the standing row made all visit.
+       */
+      const parts: string[] = [];
       if (result.adoptedHighlights > 0) {
-        showPrototypeFeedbackToast(
-          `Saved to your account — ${result.adoptedHighlights} highlight${result.adoptedHighlights === 1 ? '' : 's'}`,
-        );
+        parts.push(`${result.adoptedHighlights} highlight${result.adoptedHighlights === 1 ? '' : 's'}`);
+      }
+      if (result.adoptedNotes > 0) {
+        parts.push(`${result.adoptedNotes} note${result.adoptedNotes === 1 ? '' : 's'}`);
+      }
+      if (parts.length > 0) {
+        showPrototypeFeedbackToast(`Saved to your account — ${parts.join(' and ')}`);
       }
     });
   }, [isAccount, authReady, homeSpaceId, queryClient]);

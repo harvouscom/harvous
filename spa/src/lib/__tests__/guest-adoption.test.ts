@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { adoptGuestWork } from '../guest-adoption';
-import { addGuestHighlight, clearGuestStore, guestHighlights } from '../guest-store';
+import { addGuestHighlight, addGuestNote, clearGuestStore, guestHighlights, guestNotes } from '../guest-store';
 import { clearGuestSession, hasGuestSession, startGuestSession } from '../guest-session';
 import { pushOnboardingStateToAccount } from '../proto-onboarding-sync';
 
@@ -15,10 +15,15 @@ vi.mock('../proto-onboarding-sync', () => ({
 
 const SPACE = 'space_home';
 const HIGHLIGHTS_URL = '/api/scripture/highlights';
+const NOTES_URL = '/api/notes/create';
 
 /** Only the highlight writes — adoption also pushes the checklist, which is not what these count. */
 function highlightCalls(spy: { mock: { calls: unknown[][] } }) {
   return spy.mock.calls.filter((c) => String(c[0]) === HIGHLIGHTS_URL);
+}
+
+function noteCalls(spy: { mock: { calls: unknown[][] } }) {
+  return spy.mock.calls.filter((c) => String(c[0]) === NOTES_URL);
 }
 
 function seedHighlight(reference: string, miniNoteBody?: string) {
@@ -86,7 +91,7 @@ describe('adoptGuestWork', () => {
 
     const result = await adoptGuestWork(SPACE);
 
-    expect(result).toEqual({ adoptedHighlights: 2, failed: 0 });
+    expect(result).toEqual({ adoptedHighlights: 2, adoptedNotes: 0, failed: 0 });
     expect(highlightCalls(fetchSpy)).toHaveLength(2);
 
     // The space id is the whole reason adoption waits for navigation to answer — a highlight
@@ -114,6 +119,39 @@ describe('adoptGuestWork', () => {
     expect(body.miniNoteBody).toBe('this is the part that mattered');
   });
 
+  it('carries a note written in the editor up as a real note', async () => {
+    startGuestSession();
+    addGuestNote({ title: 'Psalm 34', contentHtml: '<p>Taste and see.</p>' });
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+
+    const result = await adoptGuestWork(SPACE);
+
+    expect(result).toEqual({ adoptedHighlights: 0, adoptedNotes: 1, failed: 0 });
+    const body = JSON.parse(String((noteCalls(fetchSpy)[0][1] as RequestInit).body));
+    expect(body).toMatchObject({
+      spaceId: SPACE,
+      title: 'Psalm 34',
+      content: '<p>Taste and see.</p>',
+    });
+    expect(guestNotes()).toEqual([]);
+    expect(hasGuestSession()).toBe(false);
+  });
+
+  it('keeps a note on the device when its write fails', async () => {
+    startGuestSession();
+    addGuestNote({ title: 'Psalm 34', contentHtml: '<p>Taste and see.</p>' });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 500 }));
+
+    const result = await adoptGuestWork(SPACE);
+
+    expect(result).toEqual({ adoptedHighlights: 0, adoptedNotes: 0, failed: 1 });
+    // The whole point: a failed note is still a note, and it is still theirs.
+    expect(guestNotes()).toHaveLength(1);
+    expect(hasGuestSession()).toBe(true);
+  });
+
   it('keeps the work on the device when a write fails', async () => {
     startGuestSession();
     seedHighlight('Psalms 34:1');
@@ -124,7 +162,7 @@ describe('adoptGuestWork', () => {
 
     const result = await adoptGuestWork(SPACE);
 
-    expect(result).toEqual({ adoptedHighlights: 1, failed: 1 });
+    expect(result).toEqual({ adoptedHighlights: 1, adoptedNotes: 0, failed: 1 });
     // Both survive: clearing either one on a partial run is how a guest's work disappears.
     expect(guestHighlights()).toHaveLength(2);
     expect(hasGuestSession()).toBe(true);
@@ -135,7 +173,7 @@ describe('adoptGuestWork', () => {
     seedHighlight('Psalms 34:1');
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
 
-    await expect(adoptGuestWork(SPACE)).resolves.toEqual({ adoptedHighlights: 0, failed: 1 });
+    await expect(adoptGuestWork(SPACE)).resolves.toEqual({ adoptedHighlights: 0, adoptedNotes: 0, failed: 1 });
     expect(hasGuestSession()).toBe(true);
   });
 });
