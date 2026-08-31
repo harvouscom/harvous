@@ -22000,6 +22000,23 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   cursor: default;
 }
 
+/*
+  The bottom of the pile — the day the study started.
+  
+  Quieter than "Earlier" above it, and deliberately so: that edge is an invitation to keep
+  going, this one is the end of the road. It reads as a caption on the paper rather than a
+  control, which is also what it is — a div, because there is nothing behind it to open.
+*/
+.proto-feed-stack__edge--origin {
+  cursor: default;
+}
+
+.proto-feed-stack__edge--origin .proto-feed-stack__edge-label {
+  color: var(--pds-text-muted);
+  /* The one edge whose label is a sentence rather than a day name; let it breathe. */
+  letter-spacing: 0.01em;
+}
+
 .proto-feed-stack__edge {
   position: absolute;
   left: 0;

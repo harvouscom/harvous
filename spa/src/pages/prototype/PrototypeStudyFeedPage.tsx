@@ -497,6 +497,19 @@ export default function PrototypeStudyFeedPage() {
    * would end in a wall with older study visibly behind it. One more edge, which fetches.
    */
   const showFetchEdge = edges.length === 0 && hasNextPage;
+  /*
+   * The bottom of the pile, once there is nothing left to fetch.
+   *
+   * The stack used to simply stop here: the oldest sheet with blank paper above it and no
+   * indication that you had reached anything, which reads as a page that failed to load more
+   * rather than as a beginning. A study has a first day, and after a year of use it is the one
+   * day in the stack you cannot get to any other way.
+   *
+   * Not a button. Every other edge is somewhere to go; this one is the fact that there is
+   * nowhere further, and a control that does nothing when pressed is a worse answer than a
+   * label that never invited the press.
+   */
+  const showOriginEdge = edges.length === 0 && !hasNextPage;
 
 
   return (
@@ -532,6 +545,16 @@ export default function PrototypeStudyFeedPage() {
                 {isFetchingNextPage ? 'Loading…' : 'Earlier'}
               </span>
             </button>
+          ) : null}
+          {showOriginEdge ? (
+            <div
+              className="proto-feed-stack__edge proto-feed-stack__edge--origin"
+              style={{ '--edge-depth': 1 } as CSSProperties}
+            >
+              <span className="pds-caption proto-feed-stack__edge-label">
+                Your study begins here · {day.dateLabel}
+              </span>
+            </div>
           ) : null}
         </div>
 

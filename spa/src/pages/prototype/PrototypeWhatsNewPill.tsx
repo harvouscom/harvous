@@ -29,17 +29,17 @@
  * a quiet way out to somewhere else. The version still prints in Settings, which is the one
  * audience that ever needs it.
  *
- * ## Why the link is the index and not this version's page
+ * ## Where the link goes
  *
- * The site publishes a page per version, which would be the better destination if it always
- * existed. It does not: the app's version bumps on every commit, so a build is routinely
- * ahead of what has been published — `/release-notes/v2-96-1/` was a 404 while the newest
- * published page was `v2-87-2`. A notice whose whole job is to point somewhere cannot point
- * at a 404, so it points at the list, which is never wrong and is newest-first anyway.
+ * This version's own page when the site has one, the index when it does not. It used to be the
+ * index always, because the app's version bumps on every commit and a build is routinely ahead
+ * of what has been published — a notice whose whole job is to point somewhere cannot point at a
+ * 404. The site now publishes which versions exist (`/release-notes/published.json`), so the
+ * question is answerable and the specific page is offered only once it is known to be there.
  */
 import { useCallback } from 'react';
 import PrototypeHomeRow from './PrototypeHomeRow';
-import { RELEASE_NOTES_INDEX_URL } from '@/utils/release-notes-url';
+import { useReleaseNotesUrl } from '../../hooks/useReleaseNotesUrl';
 import {
   PROTO_WHATS_NEW_DISMISSED_KEY,
   PROTO_WHATS_NEW_PREVIEW_KEY,
@@ -53,6 +53,7 @@ function appVersion(): string | undefined {
 
 export default function PrototypeWhatsNewPill() {
   const version = appVersion();
+  const releaseNotesUrl = useReleaseNotesUrl(version);
   const [visible, dismiss] = useDismissibleRelease(PROTO_WHATS_NEW_DISMISSED_KEY, version, {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
   });
@@ -60,7 +61,7 @@ export default function PrototypeWhatsNewPill() {
   /* Reading the notes is also an answer, so it counts as having seen this release. Without
      this the row would still be sitting there when you came back from reading it. */
   const open = useCallback(() => {
-    window.open(RELEASE_NOTES_INDEX_URL, '_blank', 'noopener,noreferrer');
+    window.open(releaseNotesUrl, '_blank', 'noopener,noreferrer');
     dismiss();
   }, [dismiss]);
 
