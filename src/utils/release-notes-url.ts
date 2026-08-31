@@ -16,7 +16,19 @@
  * that has not shipped) lands on the index, which is exactly where these links pointed before.
  */
 
-const BASE = 'https://harvous.com/release-notes';
+/**
+ * The marketing site's origin.
+ *
+ * Overridable so the deep link can be exercised against a local harvous.com — the manifest is
+ * published by that site, so against production a dev build asks a real host about a version
+ * it has never heard of and correctly falls back to the index every time. Which is right, and
+ * indistinguishable from the feature not working. Unset (every real build) it is production.
+ */
+const SITE_ORIGIN =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_HARVOUS_SITE_ORIGIN) ||
+  'https://harvous.com';
+
+const BASE = `${SITE_ORIGIN}/release-notes`;
 
 /** Every release, newest first. Always valid, and the fallback for everything below. */
 export const RELEASE_NOTES_INDEX_URL = `${BASE}/`;
