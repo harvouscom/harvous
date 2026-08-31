@@ -89,6 +89,55 @@ export default function PrototypeGuestHome() {
         </header>
 
         <div className="proto-feed-sheet__body">
+          {/*
+            The page opens with what Harvous is, whether or not this browser holds anything yet.
+
+            It used to be the empty state, shown only until the first highlight landed — which
+            meant the sentence explaining the app disappeared the moment someone started using
+            it, and left the heading sitting on a bare list. Backwards: a guest two minutes in
+            is still deciding what this is, and the list below is evidence for the claim rather
+            than a replacement for it.
+          */}
+          <section className="proto-home-section proto-guest-home__intro">
+            {/*
+              The first-run greeting's shape, for the reader who needs it most.
+
+              `proto-home-greeting` itself rather than a copy of its type — this is the same
+              thing it is, the sentence a Home opens with, and the shared-space hub already
+              reuses it for exactly that. A second set of matching values is a second set to
+              keep matching, and it had already drifted once.
+
+              Pills for the same reason that greeting uses them: three nouns in a row read as
+              a list of features, and the same three set in the sentence read as things you
+              do. Every one named here is something a guest can actually do today — threads
+              and recall are deliberately absent, because naming them would be advertising a
+              room this visitor cannot enter.
+
+              Spans, not buttons. The greeting's chips open sidebar lists; a guest has none,
+              and a pill that looks pressable and goes nowhere is worse than a pill that
+              plainly does not. The button below is the way in.
+            */}
+            <p className="proto-home-greeting proto-guest-home__lead">
+              Read{' '}
+              <span className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage">
+                <Icon name="book-open" size={10} aria-hidden />
+                <span>Scripture</span>
+              </span>
+              , keep what stands out as{' '}
+              <span className="proto-glass-surface proto-home-greeting__chip">
+                <Icon name="highlighter" size={10} aria-hidden />
+                <span>highlights</span>
+              </span>
+              , and write{' '}
+              <span className="proto-glass-surface proto-home-greeting__chip">
+                <Icon name="note-sticky" size={10} aria-hidden />
+                <span>notes</span>
+              </span>{' '}
+              on the verses you want to come back to. Harvous remembers what you studied, so
+              you can find your way back to it.
+            </p>
+          </section>
+
           {items.length > 0 ? (
             <section className="proto-home-section">
               <div className="proto-guest-home__section-head">
@@ -152,44 +201,12 @@ export default function PrototypeGuestHome() {
               </div>
             </section>
           ) : (
-            <section className="proto-home-section proto-guest-home__intro">
-              {/*
-                The first-run greeting's shape, for the reader who needs it most.
-
-                `proto-home-greeting` itself rather than a copy of its type — this is the same
-                thing it is, the sentence a Home opens with, and the shared-space hub already
-                reuses it for exactly that. A second set of matching values is a second set to
-                keep matching, and it had already drifted once.
-
-                Pills for the same reason that greeting uses them: three nouns in a row read as
-                a list of features, and the same three set in the sentence read as things you
-                do. Every one named here is something a guest can actually do today — threads
-                and recall are deliberately absent, because naming them would be advertising a
-                room this visitor cannot enter.
-
-                Spans, not buttons. The greeting's chips open sidebar lists; a guest has none,
-                and a pill that looks pressable and goes nowhere is worse than a pill that
-                plainly does not. The button below is the way in.
-              */}
-              <p className="proto-home-greeting proto-guest-home__lead">
-                Read{' '}
-                <span className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage">
-                  <Icon name="book-open" size={10} aria-hidden />
-                  <span>Scripture</span>
-                </span>
-                , keep what stands out as{' '}
-                <span className="proto-glass-surface proto-home-greeting__chip">
-                  <Icon name="highlighter" size={10} aria-hidden />
-                  <span>highlights</span>
-                </span>
-                , and write{' '}
-                <span className="proto-glass-surface proto-home-greeting__chip">
-                  <Icon name="note-sticky" size={10} aria-hidden />
-                  <span>notes</span>
-                </span>{' '}
-                on the verses you want to come back to. Harvous remembers what you studied, so
-                you can find your way back to it.
-              </p>
+            /*
+              Only while there is nothing here yet. Once the list exists, its rows are the way
+              back into the reader, and the checklist below still names the next thing to do —
+              a third door to the same place would just be one more thing to read past.
+            */
+            <section className="proto-home-section proto-guest-home__start">
               <button type="button" className="proto-settings-btn" onClick={openReader}>
                 <Icon name="book-open" size={13} aria-hidden />
                 &nbsp;Open today&rsquo;s passage

@@ -22981,9 +22981,21 @@ button.proto-feed-sheet__stat:hover {
   padding-bottom: var(--pds-space-2);
 }
 
+/*
+  The read-first invitation, shown only until this browser holds something.
+
+  Its own block rather than a child of `.proto-guest-home__intro`, which the button used to
+  sit inside: the paragraph above now renders whether or not there is anything here, and the
+  button does not, so they are no longer one thing that could share a rule.
+*/
+.proto-guest-home__start {
+  display: flex;
+  padding-bottom: var(--pds-space-2);
+}
+
 /* The button sizes to its label here — full width is for a settings sheet, not for one
    invitation sitting at the top of a list. */
-.proto-guest-home__intro .proto-settings-btn {
+.proto-guest-home__start .proto-settings-btn {
   width: auto;
 }
 
