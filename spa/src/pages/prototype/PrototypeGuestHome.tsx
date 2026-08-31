@@ -29,6 +29,7 @@ import {
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 import { bookSlug } from '@/utils/bible-book-chapters';
+import { readerRouteForReference } from '../../utils/reader-nav';
 import { takeOnboardingStep } from './onboarding-step-handoff';
 
 export default function PrototypeGuestHome() {
@@ -185,16 +186,35 @@ export default function PrototypeGuestHome() {
                       /* Their words if they wrote any, the verse if they did not — the row
                          should show the thing they would recognise it by. */
                       meta={[item.highlight.miniNoteBody?.trim() || item.highlight.excerpt]}
-                      onClick={() =>
-                        navigate({
-                          to: prototypeReadRouteTo(),
-                          params: {
-                            book: bookSlug(item.highlight.book),
-                            chapter: String(item.highlight.chapter),
+                      /*
+                        The verse, not just the chapter it lives in.
+                        `readerRouteForReference` is what every other highlight-to-reader
+                        journey uses — the sidebar's Highlights list, the Home passage card,
+                        the note page's scripture dock — and it puts `v`/`vEnd` on the URL,
+                        which is what makes the reader focus the verse and dim the rest.
+                        Building the route by hand here landed on the chapter with nothing
+                        singled out, so a guest tapping their own highlight had to go find it.
+
+                        The stored book and chapter are the fallback rather than a no-op: the
+                        reference is a display string, and if one ever fails to parse, opening
+                        the right chapter is still most of the answer.
+                      */
+                      onClick={() => {
+                        const route = readerRouteForReference(
+                          item.highlight.reference,
+                          item.highlight.translation,
+                        );
+                        navigate(
+                          route ?? {
+                            to: prototypeReadRouteTo(),
+                            params: {
+                              book: bookSlug(item.highlight.book),
+                              chapter: String(item.highlight.chapter),
+                            },
+                            search: { t: item.highlight.translation },
                           },
-                          search: { t: item.highlight.translation },
-                        })
-                      }
+                        );
+                      }}
                     />
                   ),
                 )}
