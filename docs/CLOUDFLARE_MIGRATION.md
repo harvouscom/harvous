@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: PLANNED.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 2 CLEAR — deployed to the real Cloudflare account, 20/20 parity, no DNS touched.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -462,3 +462,109 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
   against source this date; Cloudflare platform behaviors (`_headers` detach
   syntax, assets-binding 404 shape) flagged inline for empirical verification at
   execution time.
+
+- 2026-08-30 — **Stage 1 built and verified locally. No Cloudflare account, no deploy, no DNS
+  change yet.** Added `wrangler.jsonc`, `cloudflare/worker.ts`, `cloudflare/_headers`,
+  `cloudflare/_redirects`, `scripts/cf-parity-check.sh`,
+  `.github/workflows/cloudflare-deploy.yml`; `wrangler` + `@cloudflare/workers-types` as
+  devDeps. `scripts/cf-parity-check.sh` reports **20/20 against `wrangler dev`**, and 16/20
+  against production Netlify (the four gaps being the legacy redirects — see below).
+  `npm run perf:check` green (1117.2 KB, 0.3 KB under baseline; the doc's 1078.4 KB figure
+  had already moved).
+
+  Five findings that change the runbook as drafted:
+
+  1. **`scripts/inject-sw-cache-version.js` read only `COMMIT_REF`/`DEPLOY_ID`, both
+     Netlify-only.** On GitHub Actions the build id fell back to empty, which ships a
+     byte-identical `sw.js` for every deploy between two version bumps — returning clients
+     then keep serving the previous deploy's `index.html` with dead chunk hashes. Fixed by
+     adding `GITHUB_SHA` to the fallback chain. This would have been a soak-week mystery.
+  2. **The `/assets/*` guard is REQUIRED — the tier question is settled against us.** With
+     `/assets/*` removed from `run_worker_first`, local workerd answers a missing hashed asset
+     with `200 text/html`; `not_found_handling: "single-page-application"` does not exempt
+     extension-bearing paths. So every hashed chunk bills an invocation (~7 per cold load from
+     the initial document alone, 90 built asset files in total). The drafted
+     Workers-Paid-from-day-one recommendation stands, now on evidence rather than estimate.
+  3. **Every legacy redirect in `netlify.toml` is dead in production.** Verified against
+     app.harvous.com: `public/_redirects` ends in a `/* -> /index.html 200` catch-all that
+     Netlify evaluates first, so `/thread_abc123` and `/prototype/dashboard` both return the
+     SPA shell at 200 and the `[[redirects]]` blocks never fire. The Worker hits the same trap
+     unless the paths are listed in `run_worker_first` — they now are, so these work for the
+     first time. Deleting those four strings is the clean opt-out back to strict parity.
+  4. **Cloudflare's `_headers` reproduced the cache tiering exactly**, `!` detach syntax and
+     all — the ordering risk the doc flags as the #1 regression did not materialise. The files
+     live at `cloudflare/` rather than `public/` so Vite does not also ship them to Netlify
+     during the soak, keeping the rollback target byte-identical.
+  5. **`public/.well-known/web-app-origin-association` now exists as a real file** and Vite
+     copies the dotfile directory into `dist-spa`. The 200-rewrite is kept anyway to match
+     current behaviour; revisit in cleanup.
+
+  Also corrected in `.claude/agents/engineer.context.md`: the stale "Netlify free plan is a
+  hard cap" section (the account is on Pro — 5,000 credits, measured 2,628.4 consumed in 9
+  days), and the `/api/health` baseline (**182 ms** re-measured 2026-08-30, vs the 250-280 ms
+  row that predates the Fly cutover).
+
+- 2026-08-30 (later) — **Verified against REAL Cloudflare edge** via
+  `wrangler deploy --temporary`, which spins up a throwaway preview account with no
+  signup, no payment and no DNS (`https://harvous-app-preview.<temp>.workers.dev`).
+  Every one of the 20 parity checks passed on real infrastructure. Three things this
+  caught that local `wrangler dev` could not:
+
+  1. **A hard deploy blocker the runbook never anticipated.** Workers assets reject any
+     single file over **5 MiB**, and `dist-spa/assets/index-*.js.map` is ~10 MB, so the
+     first upload failed outright (`code: 10304`). Fixed with `cloudflare/.assetsignore`
+     excluding `*.map` — 14 MB across 34 files, **37% of a 38 MB deploy**, with no
+     consumer: `vite.config.ts` sets `sourcemap: 'hidden'` so no `sourceMappingURL` is
+     emitted, and no workflow uploads them to an error tracker. The deploy workflow now
+     copies `.assetsignore` alongside `_headers`/`_redirects` and fails the build on any
+     non-map asset over the limit.
+  2. **Sourcemaps are publicly served on Netlify today** —
+     `GET /assets/index-<hash>.js.map` returns **200 and 10.4 MB**, which makes the
+     minified bundle trivially reconstructable. Closed on Cloudflare by the above; closing
+     it on Netlify would mean changing the shared build, deliberately frozen until cleanup.
+  3. **`_headers` specificity reproduces the Netlify tiering exactly on real edge** —
+     `/assets/*` immutable, `/fonts|images|icons/*` at 30 days, `/*` no-cache, all seven
+     security headers, and `/api/*` `no-store` passing through untouched from Fly. The
+     ordering risk the doc calls the #1 regression did not materialise in either engine.
+
+  Two caveats on the method, both about the throwaway account rather than the config:
+  **temporary preview accounts challenge automated traffic** — roughly 20% of rapid
+  requests come back as a bare 403, and some as Cloudflare's "Just a moment..."
+  interstitial, on the same URL within the same second. `scripts/cf-parity-check.sh` now
+  retries transient 403s and reports the count, since retries are expected on a temporary
+  account and a red flag on a real one. A clean single-shot 20/20 therefore needs a real
+  account. Latency measured 149-192 ms through Cloudflare to Fly against 182 ms through
+  Netlify to Fly, but the challenge traffic makes that provisional — re-measure at stage 4.
+
+- 2026-08-30 (stage 2) — **Deployed to the real account and the gate is CLEAR: 20/20, zero
+  retries.** Account `Testament Made` / `ec934baa29eb81459ffeaf18ba044b9e`, authenticated
+  by `wrangler login` (browser OAuth — no API token ever entered the working session).
+  Worker live at `https://harvous-app.harvous.workers.dev`; `app.harvous.com` untouched and
+  still entirely on Netlify. Latency 126-152 ms mean of 6 vs **182 ms** through Netlify, so
+  the "≤ Netlify" gate is met with margin.
+
+  Three things stage 2 changed:
+
+  1. **`wrangler.jsonc` cannot carry the custom-domain route before stage 3.** harvous.com
+     is not a zone on the account yet, so wrangler cannot resolve `app.harvous.com` and
+     *every* deploy fails. Both `routes` blocks are now commented with a STAGE 4 marker and
+     `workers_dev: true` added, which is what stages 1-2 test against. Uncomment at stage 4;
+     that is the moment traffic actually moves.
+  2. **`_headers` rules take ~30-60s to propagate after a deploy.** Runs started immediately
+     after `wrangler deploy` reported random subsets of missing `cache-control` / HSTS that
+     were all correct a minute later — seen on three separate deploys, and it is what made
+     the earlier temporary-account runs look worse than they were.
+     `scripts/cf-parity-check.sh` now polls for HSTS on `/` before running anything and says
+     so, which is the difference between a trustworthy gate and a flaky one.
+  3. **The deployed bundle is unauthenticated and cannot boot.** There is no `.env` in the
+     worktree, so the local `build:spa` inlined no `VITE_CLERK_PUBLISHABLE_KEY` and no
+     Supabase config; the page renders its theme background and React then throws
+     `Missing VITE_CLERK_PUBLISHABLE_KEY env var`. **This does not affect the parity result** —
+     the matrix exercises the Worker layer (routing, headers, proxy, redirects, crawler
+     rewrite), all of which is what Phase A migrates. But it means the **authenticated Clerk
+     smoke test cannot be run against this build**, and that is the single check that caught
+     all three failed Fly cutovers. It needs a CI build carrying the real secrets — set the
+     GitHub secrets, let `cloudflare-deploy.yml` build, then smoke-test that artifact
+     *before* stage 3.
+
+

@@ -184,6 +184,7 @@
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@clerk/testing": "^1.13.35",
+    "@cloudflare/workers-types": "^5.20260831.1",
     "@netlify/edge-functions": "^3.0.8",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.6.3",
@@ -196,6 +197,7 @@
     "jsdom": "^25.0.1",
     "lighthouse": "^11.7.1",
     "tsx": "^4.21.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wrangler": "^4.127.1"
   }
 }

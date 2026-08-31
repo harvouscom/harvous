@@ -86,3 +86,6 @@ playwright-report/
 # version of the fix that survives the next wide `add`. The file stays on disk and is not deleted;
 # if it ever becomes something to publish, remove this line and add it deliberately.
 docs/future/SCRIPTURE_CONCORDANCE.md
+
+# Wrangler local state (wrangler dev caches, local KV/DO/R2 simulation)
+.wrangler/

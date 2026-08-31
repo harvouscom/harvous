@@ -1,0 +1,97 @@
+# Deploy the SPA + Worker to Cloudflare (Phase A — docs/CLOUDFLARE_MIGRATION.md).
+#
+# Cloudflare has no git integration, so this replaces what Netlify's build hook did.
+# Netlify keeps building `main` in parallel during the cutover soak; it is the rollback
+# path and is not touched here.
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main, staging]
+    # Mirrors scripts/netlify-skip-build.sh, which skips only when EVERY changed file is
+    # doc-only. paths-ignore reproduces that exactly; a `paths` allowlist would instead
+    # silently skip deploys for any path nobody remembered to list.
+    paths-ignore:
+      - 'docs/**'
+      - 'Changelog/**'
+      - 'help/**'
+      - 'release-notes/**'
+  workflow_dispatch:
+
+# One deploy at a time per branch; a newer push supersedes an in-flight one.
+concurrency:
+  group: cloudflare-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # was NODE_VERSION in netlify.toml
+          cache: npm
+
+      # NPM_FLAGS from netlify.toml
+      - run: npm ci --prefer-offline --no-audit
+
+      # Rolls the PWA cache key so returning clients pick up the new build. Reads
+      # GITHUB_SHA here — Netlify's COMMIT_REF/DEPLOY_ID do not exist on Actions, and
+      # without a build id every deploy between two version bumps ships a byte-identical
+      # sw.js. See the comment block in the script itself.
+      - run: node scripts/inject-sw-cache-version.js
+
+      - run: npm run build:spa
+        env:
+          # Live Clerk on main; dev Clerk on staging (new.harvous.com), matching
+          # netlify.toml's [context.staging]. The key is inlined at build time, which is
+          # why staging is a separate build rather than a redeploy of the same artifact.
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
+          PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
+          PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
+          # Public plan identifiers, not secrets (netlify.toml carried them in
+          # SECRETS_SCAN_OMIT_KEYS for exactly this reason). Omitting these is what made
+          # billing return zero plans during the Fly migration — the grep that built that
+          # import list only covered server/, and missed the ones the SPA bundle inlines.
+          VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL }}
+          VITE_POLAR_PLUS_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_MONTHLY }}
+          VITE_POLAR_PLUS_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_ANNUAL }}
+          VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY }}
+          VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL }}
+          VITE_POLAR_CHURCH_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_CHURCH_PRODUCT_MONTHLY }}
+          VITE_POLAR_CHURCH_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_CHURCH_PRODUCT_ANNUAL }}
+
+      # Cloudflare-only routing/header config. Deliberately NOT in public/ — Vite copies
+      # public/ verbatim, so a file there would also ship to Netlify and layer a second
+      # header source onto the live rollback target mid-soak.
+      - name: Stage Cloudflare _headers / _redirects / .assetsignore
+        # .assetsignore is not optional: Workers assets reject any single file over 5 MiB,
+        # and dist-spa/assets/index-*.js.map is ~10 MB. Without it the deploy fails outright
+        # with "Invalid manifest: file size ... exceeds 5242880 limit [code: 10304]".
+        run: cp cloudflare/_headers cloudflare/_redirects cloudflare/.assetsignore dist-spa/
+
+      # Guards the one regression this migration is most likely to ship. See the ordering
+      # note in cloudflare/_headers.
+      - name: Assert the two deploy-breaking invariants
+        run: |
+          # The cache tier that costs ~703.7 KB per visit if it regresses.
+          grep -q 'max-age=31536000, immutable' dist-spa/_headers
+          # No asset may exceed the 5 MiB Workers limit once .assetsignore is applied.
+          if find dist-spa -type f -size +5242880c ! -name '*.map' | grep -q .; then
+            echo "Asset over the 5 MiB Workers limit:" >&2
+            find dist-spa -type f -size +5242880c ! -name '*.map' -exec ls -lh {} \; >&2
+            exit 1
+          fi
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy ${{ github.ref_name == 'staging' && '--env staging' || '' }}

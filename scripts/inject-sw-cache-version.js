@@ -28,8 +28,12 @@ const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 const version = pkg.version || '0.0.0';
 // e.g. "1.132.0" -> "v1-132-0"
 const cacheVersion = 'v' + version.replace(/\./g, '-');
-// Netlify sets COMMIT_REF (and DEPLOY_ID) on every build, including redeploys of the same commit.
-const buildId = (process.env.COMMIT_REF || process.env.DEPLOY_ID || '')
+// Netlify sets COMMIT_REF (and DEPLOY_ID) on every build, including redeploys of the same
+// commit. GitHub Actions sets GITHUB_SHA instead, and sets neither of the others — so the
+// Cloudflare deploy workflow would otherwise fall through to an empty build id here and ship
+// a byte-identical sw.js for every deploy between two version bumps, which is exactly the
+// failure the paragraph above describes. Keep all three.
+const buildId = (process.env.COMMIT_REF || process.env.DEPLOY_ID || process.env.GITHUB_SHA || '')
   .replace(/[^a-zA-Z0-9]/g, '')
   .slice(0, 8);
 const cacheName = buildId

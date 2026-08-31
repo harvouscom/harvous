@@ -1,0 +1,77 @@
+// Cloudflare Worker for app.harvous.com (docs/CLOUDFLARE_MIGRATION.md, Phase A).
+//
+// Workers-with-static-assets, deliberately NOT Pages: Cloudflare's _redirects cannot
+// 200-proxy to an external domain, so the /api/* -> Fly proxy has to be code. Pages is
+// also in maintenance mode, and Durable Objects (Phase B) only attach to Workers.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "harvous-app",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2026-08-01",
+
+  // Workers Logs — on for the stage-5 soak, where Worker error rate is one of the
+  // things being watched. Cheap to leave on afterwards.
+  "observability": { "enabled": true },
+
+  "assets": {
+    "directory": "./dist-spa",
+    "binding": "ASSETS",
+    // Replaces the `/* /index.html 200` catch-all from public/_redirects.
+    "not_found_handling": "single-page-application",
+
+    // Paths where Worker code runs BEFORE the asset lookup. Everything absent from this
+    // list is served straight from the asset store, which is free and unmetered.
+    //
+    // /assets/* hosts the stale-chunk 404 guard, and MEASUREMENT SAYS IT MUST STAY
+    // (2026-08-30, local workerd): without it a missing hashed asset returns 200 text/html,
+    // not 404. So every hashed JS/CSS chunk does bill a Worker invocation — ~7 per cold
+    // load from the initial document alone, more as lazy chunks load. Price the plan tier
+    // on that; it does not get to be free.
+    //
+    // The four legacy-redirect patterns are here for the same reason the netlify.toml
+    // versions never worked: without them the asset layer answers first and returns the SPA
+    // shell at 200, so cloudflare/worker.ts#legacyRedirect never runs. They are rare paths,
+    // so the invocation cost is noise. Deleting these four strings is the clean way to opt
+    // back into strict parity with today's production — the function then goes dormant
+    // rather than needing removal.
+    "run_worker_first": [
+      "/api/*",
+      "/shared/note/*",
+      "/shared/thread/*",
+      "/assets/*",
+      "/prototype/*",
+      "/thread_*",
+      "/note_*",
+      "/space_*"
+    ]
+  },
+
+  "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
+
+  // A *.workers.dev URL for every deploy. This is what stages 1-2 test against, with
+  // app.harvous.com still served entirely by Netlify and completely unaffected.
+  // Consider turning this off in stage-5 cleanup once the custom domain is live, so the
+  // app has exactly one public origin.
+  "workers_dev": true,
+
+  // STAGE 4 ONLY — uncomment when attaching the custom domain, NOT before.
+  // harvous.com becomes a Cloudflare zone in stage 3; until then wrangler cannot resolve
+  // this route and every deploy fails. Attaching it is the moment traffic actually moves,
+  // and the rollback is re-pointing this record back at Netlify.
+  // "routes": [{ "pattern": "app.harvous.com", "custom_domain": true }],
+
+  "env": {
+    // Mirrors netlify.toml's [context.staging]: dev Clerk key, production DB.
+    // The Clerk split happens at build time via VITE_CLERK_PUBLISHABLE_KEY, so staging is
+    // a SEPARATE BUILD of dist-spa — see .github/workflows/cloudflare-deploy.yml, which
+    // builds per target rather than deploying one artifact twice.
+    "staging": {
+      "name": "harvous-app-staging",
+      "observability": { "enabled": true },
+      "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
+      "workers_dev": true
+      // STAGE 4 ONLY — same reasoning as the production route above.
+      // "routes": [{ "pattern": "new.harvous.com", "custom_domain": true }]
+    }
+  }
+}

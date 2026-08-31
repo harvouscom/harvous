@@ -1,0 +1,21 @@
+# Excluded from the Cloudflare asset upload (gitignore syntax, read from the assets
+# directory root). Cloudflare-only: the Netlify build stays byte-identical, so the
+# rollback target during the soak is unaffected.
+
+# Sourcemaps. Two reasons, found 2026-08-30 during the first temporary deploy:
+#
+#   1. HARD BLOCKER. Workers assets cap a single file at 5 MiB
+#      (5,242,880 bytes) and dist-spa/assets/index-*.js.map is ~10 MB, so the
+#      upload is rejected outright: "Invalid manifest: file size of 10450166
+#      exceeds 5242880 limit [code: 10304]".
+#   2. Nothing consumes them. vite.config.ts sets `sourcemap: 'hidden'`, so no
+#      `//# sourceMappingURL=` comment is emitted and no browser requests them; no
+#      workflow uploads them to an error tracker either. They are 14 MB across 34
+#      files — 37% of a 38 MB deploy — shipped for no reader.
+#
+# Worth knowing separately: they ARE publicly fetchable on Netlify today
+# (GET /assets/index-<hash>.js.map returns 200 and 10.4 MB), which makes the
+# minified bundle trivially reconstructable. Excluding them here closes that on
+# Cloudflare; closing it on Netlify would mean changing the shared build, which is
+# deliberately frozen until cleanup.
+*.map

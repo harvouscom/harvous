@@ -1,0 +1,18 @@
+# What is left of public/_redirects once the Worker owns routing (Phase A).
+#
+# Gone from here, all now Worker code (cloudflare/worker.ts):
+#   /api/og/image/* and /api/*  -> Fly            (Cloudflare _redirects CANNOT 200-proxy to
+#                                                  an external domain; this is the whole
+#                                                  reason Phase A uses Workers, not Pages)
+#   /assets/*  404 guard                          (assets branch)
+#   /*  ->  /index.html  200                      (not_found_handling: single-page-application)
+#
+# Same-site rewrites are supported, so this one stays. Chrome fetches the dotted path for
+# PWA link handling; the undotted copy is what gets served.
+#
+# NOTE (found 2026-08-30): public/.well-known/web-app-origin-association now also exists as a
+# real file — same JSON, pretty-printed rather than minified — so this rule may be a leftover
+# from the Astro era, when /well-known/ was an endpoint rather than a file. Keeping it
+# reproduces today's Netlify behaviour exactly, which is the Phase A contract. Revisit in
+# cleanup, not during the cutover.
+/.well-known/web-app-origin-association  /well-known/web-app-origin-association  200
