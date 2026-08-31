@@ -22212,30 +22212,38 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   display: flex;
   flex-direction: column;
   gap: var(--pds-space-5);
-  /* Padding inside the scroller, so the first and last rows travel through the fade
-     rather than starting and ending inside it. */
+  /* Padding inside the scroller, so the last row travels through the fade rather than ending
+     inside it. */
   padding-bottom: var(--pds-space-5);
   --proto-feed-fade: 14px;
+  /*
+   * Bottom only. The fade says "there is more below", and at the bottom that is true — the
+   * content runs to the sheet's edge and the softening is what tells you so.
+   *
+   * At the top it said nothing, because there is nothing up there to scroll under:
+   * `.proto-feed-sheet__head` is a static flex row above this box, not a sticky overlay, so
+   * the first line never passes beneath anything. All the top half did was dim whatever came
+   * first — the day's opening section on Activity, the greeting on a guest's sheet — and the
+   * `padding-bottom` above carried a matching `padding-top` in its comment but never in the
+   * rule, which is the tell that this was half-written from the start.
+   */
   -webkit-mask-image: linear-gradient(
     to bottom,
-    transparent 0,
-    #000 var(--proto-feed-fade),
+    #000 0,
     #000 calc(100% - var(--proto-feed-fade)),
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
-    transparent 0,
-    #000 var(--proto-feed-fade),
+    #000 0,
     #000 calc(100% - var(--proto-feed-fade)),
     transparent 100%
   );
 }
 
 /*
- * A mask paints nothing, so a masked scroller cannot show a focus ring that leaves its
- * box. Reduced-transparency readers lose the fade and get the honest hard edge back rather
- * than a surface whose top row is permanently dimmed.
+ * A mask paints nothing, so a masked scroller cannot show a focus ring that leaves its box.
+ * Reduced-transparency readers lose the fade and get the honest hard edge back.
  */
 @media (prefers-reduced-transparency: reduce) {
   .proto-feed-sheet__body {
@@ -22947,6 +22955,13 @@ button.proto-feed-sheet__stat:hover {
 
 .proto-guest-home__sheet .proto-feed-sheet__head {
   padding-inline: var(--pds-space-5);
+  /*
+   * And the heading belongs to the paragraph under it. 16px is right on the feed, where the
+   * head is a date over a stack of unrelated sections; here the next line finishes the
+   * heading's thought, and at that distance the two read as separate announcements. The
+   * paragraph brings 6px of its own, so this is the half that is ours to give back.
+   */
+  padding-bottom: var(--pds-space-2);
 }
 
 /* The button sizes to its label here — full width is for a settings sheet, not for one
@@ -23102,50 +23117,4 @@ button.proto-feed-sheet__stat:hover {
   backdrop-filter: none;
 }
 
-/*
-  The guest sheet's first row travels through the top fade instead of starting inside it.
 
-  `.proto-feed-sheet__body` masks 14px at each end and pads only the bottom — its own comment
-  says the padding exists "so the first and last rows travel through the fade rather than
-  starting and ending inside it", but only one half was ever there. On the signed-in feed the
-  greeting absorbs it; here the first thing in the body is the "On this device" heading, which
-  sat at offset 0 and came up half-faded.
-
-  Scoped to this sheet rather than fixed on `.proto-feed-sheet__body`, which would move the
-  spacing of the signed-in feed — a surface being worked on elsewhere right now.
-*/
-/*
-  No fade at the top of this sheet, and so no padding to clear one.
-
-  `.proto-feed-sheet__body` fades both ends because its content scrolls under the day header
-  above it. This sheet's heading lives in `.proto-feed-sheet__head`, outside the scroller, so
-  there is nothing for the first line to pass beneath — the fade only dimmed it, and the
-  padding added to escape the fade left a hole under the title. The bottom half is kept: a list
-  that outgrows the sheet should still say so.
-*/
-/*
-  The heading belongs to the paragraph under it.
-
-  16px is right on the feed, where the head is a date over a stack of unrelated sections. Here
-  the first thing below it is a sentence that finishes the heading's thought, and at that
-  distance the two read as separate announcements. The paragraph brings 6px of its own, so this
-  is the half that is ours to give back.
-*/
-.proto-guest-home__sheet .proto-feed-sheet__head {
-  padding-bottom: var(--pds-space-2);
-}
-
-.proto-guest-home__sheet .proto-feed-sheet__body {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0,
-    #000 calc(100% - var(--proto-feed-fade)),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    #000 0,
-    #000 calc(100% - var(--proto-feed-fade)),
-    transparent 100%
-  );
-}
