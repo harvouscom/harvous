@@ -13,7 +13,9 @@
  * **The copy is the honest one.** A guest's notes are in IndexedDB, so they survive a tab close,
  * a reload, and a laptop lid; what they do not survive is a different browser, a cleared cache,
  * or a phone. "Save before you lose your work" would have been the easier line and a false one,
- * and a first impression built on a false alarm is a bad trade for a signup.
+ * and a first impression built on a false alarm is a bad trade for a signup. "to save" on the
+ * button is the same claim at the right size: an account keeps this, rather than a warning that
+ * something is about to be lost.
  *
  * Unlike the install-web-app card it borrows `useDismissibleFlag` from, this is not mobile-only:
  * a guest on a desktop is in exactly the same position as a guest on a phone.
@@ -58,14 +60,11 @@ export default function PrototypeGuestModeRow({ enabled }: { enabled: boolean })
       <span className="proto-guest-row__status pds-caption">
         <Icon name="id-card-clip" size={11} className="proto-guest-row__icon" aria-hidden />
         {/*
-          Someone is being told what mode they are in, so it is said the way a person would say
-          it — "you're trying". "Saved on this device" alone was short enough and read like a
-          status code; this keeps the sentence and drops the words that were only padding
-          ("notes are saved… only" → "notes stay").
+          The state, and only the state. The device clause moved onto the button, where "to
+          save" says the same thing in three words and says it on the control that acts on it —
+          a reason attached to the offer beats a reason sitting next to one.
         */}
-        <span className="proto-guest-row__label">
-          You&rsquo;re trying Harvous — notes stay on this device
-        </span>
+        <span className="proto-guest-row__label">You&rsquo;re trying Harvous</span>
       </span>
       <span className="proto-guest-row__trail">
         <a
@@ -73,7 +72,7 @@ export default function PrototypeGuestModeRow({ enabled }: { enabled: boolean })
           href={guestSignUpHref()}
           onClick={handleCreate}
         >
-          Create account
+          Create account to save
         </a>
         {/*
           Safe to put away because it is not the only door: the toolbar's account control is a
