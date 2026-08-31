@@ -254,6 +254,24 @@ export function updateOnboardingState(
   return current!;
 }
 
+/**
+ * Push this device's checklist to the account, whether or not it has just changed.
+ *
+ * Every other write here rides `updateOnboardingState`, which pushes only when the state
+ * actually moved — right for an edit, wrong for adoption. A guest arrives at their new account
+ * with steps already done, so the seed on Home computes no change, `commit` returns false, and
+ * a checklist someone genuinely completed would stay on one device forever.
+ *
+ * The merge is the server's (`POST /api/user/update-onboarding` merges monotonically), so
+ * sending a state the account may already know is safe by construction.
+ */
+export async function pushOnboardingStateToAccount(): Promise<boolean> {
+  ensureLoaded();
+  if (!currentRaw) return false;
+  setPending(currentRaw);
+  return flushPendingOnboarding();
+}
+
 /** Record a step as done. Safe to call repeatedly — the first call is the one that counts. */
 export function markOnboardingStep(id: OnboardingStepId): void {
   updateOnboardingState((state) => markStep(state, id, new Date().toISOString()));

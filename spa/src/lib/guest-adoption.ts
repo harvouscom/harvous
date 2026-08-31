@@ -20,6 +20,7 @@
  */
 import { clearGuestSession, hasGuestSession } from './guest-session';
 import { clearGuestStore, guestHighlights, guestStoreCounts } from './guest-store';
+import { pushOnboardingStateToAccount } from './proto-onboarding-sync';
 
 /** One run at a time, and never twice for the same page. */
 let running = false;
@@ -66,6 +67,15 @@ async function adoptHighlight(
 export async function adoptGuestWork(spaceId: string): Promise<GuestAdoptionResult | null> {
   if (running) return null;
   if (!hasGuestSession()) return null;
+
+  /*
+   * The checklist goes up either way, before the early return below.
+   *
+   * Someone can finish "Open the Bible" without making anything the store would hold, and their
+   * progress lives only on this device until something sends it — the ordinary write path
+   * pushes on change, and after signup the seed on Home computes no change at all.
+   */
+  void pushOnboardingStateToAccount();
 
   const counts = guestStoreCounts();
   if (counts.total === 0) {

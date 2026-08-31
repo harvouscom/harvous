@@ -2,8 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { adoptGuestWork } from '../guest-adoption';
 import { addGuestHighlight, clearGuestStore, guestHighlights } from '../guest-store';
 import { clearGuestSession, hasGuestSession, startGuestSession } from '../guest-session';
+import { pushOnboardingStateToAccount } from '../proto-onboarding-sync';
+
+/*
+ * Mocked because the real push goes through `api.post`, which wants a Clerk token — the wrong
+ * layer to assert at. What adoption owes the account is that it *asks* for the checklist to be
+ * sent; whether that request succeeds is the sync module's contract, tested there.
+ */
+vi.mock('../proto-onboarding-sync', () => ({
+  pushOnboardingStateToAccount: vi.fn(async () => true),
+}));
 
 const SPACE = 'space_home';
+const HIGHLIGHTS_URL = '/api/scripture/highlights';
+
+/** Only the highlight writes — adoption also pushes the checklist, which is not what these count. */
+function highlightCalls(spy: { mock: { calls: unknown[][] } }) {
+  return spy.mock.calls.filter((c) => String(c[0]) === HIGHLIGHTS_URL);
+}
 
 function seedHighlight(reference: string, miniNoteBody?: string) {
   addGuestHighlight({
@@ -23,6 +39,7 @@ describe('adoptGuestWork', () => {
     localStorage.clear();
     clearGuestStore();
     clearGuestSession();
+    vi.mocked(pushOnboardingStateToAccount).mockClear();
     vi.restoreAllMocks();
   });
 
@@ -43,6 +60,22 @@ describe('adoptGuestWork', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('sends the checklist up even when nothing was made', async () => {
+    startGuestSession();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await adoptGuestWork(SPACE);
+
+    /*
+     * Someone can finish "Open the Bible" without creating anything the store holds. The
+     * ordinary write path pushes only when the state changes, and after signup the seed on Home
+     * computes no change — so without this a checklist someone genuinely completed would stay
+     * on one device forever.
+     */
+    expect(pushOnboardingStateToAccount).toHaveBeenCalled();
+    expect(hasGuestSession()).toBe(false);
+  });
+
   it('posts each highlight to the account, then clears both stores', async () => {
     startGuestSession();
     seedHighlight('Psalms 34:1');
@@ -54,11 +87,11 @@ describe('adoptGuestWork', () => {
     const result = await adoptGuestWork(SPACE);
 
     expect(result).toEqual({ adoptedHighlights: 2, failed: 0 });
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(highlightCalls(fetchSpy)).toHaveLength(2);
 
     // The space id is the whole reason adoption waits for navigation to answer — a highlight
     // saved without one is a row the Highlights list can never find again.
-    const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body));
+    const body = JSON.parse(String((highlightCalls(fetchSpy)[0][1] as RequestInit).body));
     expect(body).toMatchObject({ reference: 'Psalms 34:1', spaceId: SPACE, translation: 'NET' });
 
     expect(guestHighlights()).toEqual([]);
@@ -76,8 +109,8 @@ describe('adoptGuestWork', () => {
 
     // One request, not two: the create endpoint takes miniNoteBody, so a highlight can never
     // arrive in the account with the words missing.
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body));
+    expect(highlightCalls(fetchSpy)).toHaveLength(1);
+    const body = JSON.parse(String((highlightCalls(fetchSpy)[0][1] as RequestInit).body));
     expect(body.miniNoteBody).toBe('this is the part that mattered');
   });
 

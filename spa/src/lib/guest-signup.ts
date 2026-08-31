@@ -22,6 +22,18 @@ export function isLeavingForSignUp(): boolean {
  * `source=guest` rides the existing marketing-attribution rail — `signup-attribution.ts` reads
  * it off the URL and parks it in a cookie so it survives Clerk's multi-step email-code flow,
  * which is the only reason a conversion this many screens later can still be counted.
+ *
+ * `redirect_url` rides the query string, and both auth UIs carry it across the email-code step
+ * in their own way. On `app.harvous.com`, `new.harvous.com` and `localhost`,
+ * `isSiteInspiredAuthHost()` picks `HarvousAuthForm` — a headless form driving `useSignUp()`
+ * with its steps in React state, so the URL never leaves `/sign-up?…` and the param is still
+ * there when `redirectAfterAuth()` reads it. Any other host (a raw `127.0.0.1`, say) gets
+ * `ClerkPrebuiltAuth`, which does route to `/sign-up/verify-email-address` but hands Clerk a
+ * `fallbackRedirectUrl` built from the param at mount.
+ *
+ * `writePendingAuthRedirect` was tried here and is the wrong tool twice over: its allowlist
+ * covers join / invite / share / upgrade only, so a reader path is rejected and the call is a
+ * silent no-op.
  */
 export function guestSignUpHref(): string {
   const params = new URLSearchParams({ source: GUEST_SIGNUP_SOURCE });
