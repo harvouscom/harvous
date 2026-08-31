@@ -64,10 +64,12 @@ export default function PrototypeGuestHome() {
             {/*
               Not "Today" — that is the feed's day label, and it is the one word here that means
               nothing to a guest: no stack of days behind this sheet, nothing dated on it. Not
-              "Your study" either, which was the first attempt and claims too much of someone
-              who has been here ninety seconds. This page is an introduction, so it says so.
+              "Your study" either, which claims too much of someone who has been here ninety
+              seconds. The greeting below used to open with these words and the heading said
+              something near enough to them; one of the two had to go, and a heading is the
+              better place to be welcomed than the middle of a sentence about features.
             */}
-            <h2 className="proto-feed-sheet__day">This is Harvous</h2>
+            <h2 className="proto-feed-sheet__day">Welcome to Harvous</h2>
           </div>
         </header>
 
@@ -123,13 +125,41 @@ export default function PrototypeGuestHome() {
           ) : (
             <section className="proto-home-section proto-guest-home__intro">
               {/*
-                `proto-home-greeting` itself, not a copy of its type. This is the same thing it
-                is — the sentence a Home opens with — and the shared-space hub already reuses it
-                for exactly that. A second set of matching values is a second set to keep
-                matching, and it had already drifted once.
+                The first-run greeting's shape, for the reader who needs it most.
+
+                `proto-home-greeting` itself rather than a copy of its type — this is the same
+                thing it is, the sentence a Home opens with, and the shared-space hub already
+                reuses it for exactly that. A second set of matching values is a second set to
+                keep matching, and it had already drifted once.
+
+                Pills for the same reason that greeting uses them: three nouns in a row read as
+                a list of features, and the same three set in the sentence read as things you
+                do. Every one named here is something a guest can actually do today — threads
+                and recall are deliberately absent, because naming them would be advertising a
+                room this visitor cannot enter.
+
+                Spans, not buttons. The greeting's chips open sidebar lists; a guest has none,
+                and a pill that looks pressable and goes nowhere is worse than a pill that
+                plainly does not. The button below is the way in.
               */}
               <p className="proto-home-greeting proto-guest-home__lead">
-                Harvous keeps what stands out to you in Scripture. Start by reading.
+                Read{' '}
+                <span className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage">
+                  <Icon name="book-open" size={10} aria-hidden />
+                  <span>Scripture</span>
+                </span>
+                , keep what stands out as{' '}
+                <span className="proto-glass-surface proto-home-greeting__chip">
+                  <Icon name="highlighter" size={10} aria-hidden />
+                  <span>highlights</span>
+                </span>
+                , and write{' '}
+                <span className="proto-glass-surface proto-home-greeting__chip">
+                  <Icon name="note-sticky" size={10} aria-hidden />
+                  <span>notes</span>
+                </span>{' '}
+                on the verses you want to come back to. Harvous remembers what you studied, so
+                you can find your way back to it.
               </p>
               <button type="button" className="proto-settings-btn" onClick={openReader}>
                 <Icon name="book-open" size={13} aria-hidden />

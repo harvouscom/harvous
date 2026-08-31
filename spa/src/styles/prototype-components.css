@@ -23111,6 +23111,18 @@ button.proto-feed-sheet__stat:hover {
   padding added to escape the fade left a hole under the title. The bottom half is kept: a list
   that outgrows the sheet should still say so.
 */
+/*
+  The heading belongs to the paragraph under it.
+
+  16px is right on the feed, where the head is a date over a stack of unrelated sections. Here
+  the first thing below it is a sentence that finishes the heading's thought, and at that
+  distance the two read as separate announcements. The paragraph brings 6px of its own, so this
+  is the half that is ours to give back.
+*/
+.proto-guest-home__sheet .proto-feed-sheet__head {
+  padding-bottom: var(--pds-space-2);
+}
+
 .proto-guest-home__sheet .proto-feed-sheet__body {
   -webkit-mask-image: linear-gradient(
     to bottom,
