@@ -22924,17 +22924,29 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
-  No glow on the accent buttons inside this sheet.
+  Give the accent buttons' glow somewhere to fall.
 
-  `.proto-feed-sheet__body` scrolls, so it clips on both axes, and
-  `--pds-shadow-accent-button` throws its light 24px past the button — which at the content's
-  left edge came off square against the scroller's box. Indenting the button to make room would
-  break its alignment with every row beneath it, and the fill is doing the work here anyway:
-  the glow reads on a canvas, not on paper it is already sitting on.
+  `.proto-feed-sheet__body` is the scroller, and `overflow-y: auto` clips the other axis too —
+  so it ended exactly where the content did, and `--pds-shadow-accent-button`, which throws its
+  light 24px past the button, came off square down the side. The first fix here was to delete
+  the shadow, which is treating the symptom: the button is meant to glow.
+
+  This is the shared-space sheet's answer, which had the identical problem with card shadows
+  (see `.proto-shared-space-dashboard--sheet > .proto-sidebar-scroll`). Take the side padding
+  off the sheet and give it to the scroller. Nothing moves — the content still sits
+  `--pds-space-5` from the paper's edge — but that gap is now *inside* the box that clips,
+  which is the difference between a shadow with room to fall and a shadow with none.
 */
-.proto-guest-home__sheet .proto-settings-btn,
-.proto-guest-home__sheet .proto-accent-btn-sm {
-  box-shadow: none;
+.proto-guest-home__sheet {
+  padding-inline: 0;
+}
+
+.proto-guest-home__sheet .proto-feed-sheet__body {
+  padding-inline: var(--pds-space-5);
+}
+
+.proto-guest-home__sheet .proto-feed-sheet__head {
+  padding-inline: var(--pds-space-5);
 }
 
 /* The button sizes to its label here — full width is for a settings sheet, not for one
