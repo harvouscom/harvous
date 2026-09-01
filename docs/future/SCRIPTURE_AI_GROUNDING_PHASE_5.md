@@ -1,5 +1,21 @@
 # Scripture AI Grounding (Phase 5)
 
+> **Superseded for Review (September 2026).** Review shipped in 3.0 **without generative AI**,
+> and the Mistral runtime described below was never built. Prompts are authored
+> (`src/utils/review-prompts.ts`) and filled with the reader's own notes, passages and
+> connections; the schedule is arithmetic (`src/utils/review-scheduling.ts`); nothing the
+> reader writes is graded. The product position is in
+> [REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md](./REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md):
+> Harvous surfaces and sequences a person's own study, and does not generate study content for
+> them.
+>
+> What survives here is the **grounding layer's** value for deterministic work — cross-refs,
+> themes, entity refs, `getRelatedNotesForPassages` — which Review's prompt context already
+> uses without a model. Read sections 3 and 5 as a design for a runtime that does not exist.
+> If generation is ever proposed, the cost constraint in
+> [billing-plans.ts](../../src/lib/billing-plans.ts) still applies, and so does the product
+> decision, which would have to change first.
+
 The phase where the deterministic Scripture Knowledge Layer (Phases 0-4) becomes the
 **grounding substrate** for Harvous's first user-facing AI feature: **Review** — personal, interactive
 quiz sessions from the user's own notes. The model formats questions from real cross-references,

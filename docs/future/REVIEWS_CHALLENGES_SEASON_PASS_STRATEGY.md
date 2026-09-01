@@ -1,5 +1,45 @@
 # Harvous Reviews, Challenges, and Season Pass
 
+> **Status (September 2026): Reviews and personal Challenges shipped in v3.0. Season Pass did not.**
+>
+> This doc is canonical for the product thesis, and it supersedes the Mistral-based Review
+> runtime in [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md). The
+> "no generative AI for study content" rule below is the shipped position, not an aspiration.
+>
+> **What is built** — the Recommended v1 section at the foot of this doc, minus the Season Pass
+> block and the Study Dock:
+>
+> | Piece | Where |
+> |---|---|
+> | Review items (note / highlight / connection / Thread / verse) | `ReviewItems`, `server/utils/review-service.ts` |
+> | Authored prompts, verse ladder, cloze | `src/utils/review-prompts.ts`, `src/utils/verse-cloze.ts` |
+> | Transparent scheduling (1 / 4 / 14, ×1.8 from the third recall, 180 cap) | `src/utils/review-scheduling.ts` |
+> | `I recalled it` / `I almost had it` / reveal | `PrototypeReviewSessionPage.tsx` |
+> | Study Inbox, max three rows, no counts | `PrototypeStudyInbox.tsx` on Activity |
+> | Personal challenges (4 templates) | `src/utils/challenge-templates.ts`, `server/utils/challenge-service.ts` |
+> | Plus gating on `review` / `challenges` | `server/middleware/require-feature.ts`, `useHasFeature` |
+>
+> **What is not built, and why**
+>
+> - **Season Pass.** Needs authored editorial content — a season map, a curated quiz set, a
+>   schedule — which is a content pipeline rather than a code problem. The access model in this
+>   doc stands; the `challenges` feature key already covers it, and there is deliberately no
+>   `season_pass` key.
+> - **The Study Dock** (one contextual card inside a note). Deliberately last and deliberately
+>   cut: it is the one surface here that can interrupt writing, and the rules it has to obey —
+>   never cover the editor, never take focus, not on create, not on every open, suppress after
+>   dismissals — are easy to state and easy to get wrong. The Study Inbox and the note's own
+>   menu reach the same actions without touching the editor.
+> - **Escalation between surfaces** (dock → inbox), which only matters once the dock exists.
+> - **XP or streaks** on review activity. The tables exist and are untouched; a streak on a
+>   spiritual practice is the "spiritual competition" this doc's own language section rules out.
+> - **Native parity.** Web only; native calls the same endpoints when it comes.
+>
+> **One thing worth revisiting:** the `revisitNote` recall kind on Home can still offer a note
+> that Review is actively asking about. A clean recall lengthens the note's resurfacing
+> stability, which pushes it down the deck rather than removing it — enough in practice, but
+> excluding notes with an active review item would be exact.
+
 ## Product thesis
 
 Harvous helps people **build their own Study Bible**.
