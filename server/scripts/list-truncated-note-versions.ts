@@ -24,6 +24,7 @@ import { NoteVersions, Notes } from '../db/schema';
 import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import { NOTE_LIST_CONTENT_MAX_CHARS } from '../utils/dashboard-data';
 import { endsWithTagBoundary } from '@/utils/note-truncated-write-guard';
+import { requireDbTarget } from '../utils/require-db-target';
 
 function parseArgs() {
   let userId: string | undefined;
@@ -40,6 +41,7 @@ function parseArgs() {
 }
 
 async function main() {
+  requireDbTarget({ scriptName: 'list-truncated-note-versions', writes: false });
   const { userId, days, minLength } = parseArgs();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
