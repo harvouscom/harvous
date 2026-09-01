@@ -108,4 +108,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy ${{ github.ref_name == 'staging' && '--env staging' || '' }}
+          # ONLY main reaches the production Worker. Everything else — the staging branch,
+          # and any manual workflow_dispatch from a feature branch — goes to harvous-app-staging.
+          # Without this, a dispatch from a feature branch would deploy a DEV-Clerk build onto
+          # the production Worker, since the key above is chosen by the same ref check.
+          command: deploy ${{ github.ref_name == 'main' && '' || '--env staging' }}
