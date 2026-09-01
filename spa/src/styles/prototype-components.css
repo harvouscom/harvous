@@ -21112,6 +21112,10 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 .proto-translation-usage {
   color: var(--pds-text-muted);
   font-variant-numeric: tabular-nums;
+  /* Wraps as one unit or not at all. Without this, "3 saved · 14 MB." breaks wherever the
+     paragraph happens to run out of room — often between the dot and the number, which reads
+     as two unrelated fragments rather than one fact. */
+  white-space: nowrap;
 }
 
 .proto-translation-row__meta {

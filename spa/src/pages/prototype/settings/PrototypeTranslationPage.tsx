@@ -72,22 +72,25 @@ export default function PrototypeTranslationPage() {
 
   return (
     <SettingsShell>
-      <SettingsIntro>
-        Scripture you read appears in this translation. Keep up to {maxPacks} available offline —
-        your default is saved automatically, and any chapter you read is kept as you go.
-        {/*
-          The size, once there is one.
+      {/*
+        One line, like every other settings intro on this shell.
 
-          "3 of 3" is a limit to take on trust; "3 saved · 14 MB" is a fact someone can weigh
-          against their own device, which is the only way to have an opinion about whether the
-          limit is the right one. Appended to the paragraph rather than given a line of its own
-          — it is a footnote to the promise above it, not a second statement.
-        */}
+        This was four sentences: what choosing does, the limit, that your default saves itself,
+        and that chapters are kept as you read. The last two described behaviour rather than
+        asking anything of the reader — and both are already visible in the list, where the
+        default wears an Offline badge and the rest do not. Explaining machinery every visit is
+        how a settings page ends up with more prose than controls.
+
+        The size stays, because it is the one thing the rows cannot say: "3 of 3" is a limit to
+        take on trust, "14 MB" is a fact someone can weigh against their own device.
+      */}
+      <SettingsIntro>
+        Pick what you read in, and keep up to {maxPacks} offline.
         {savedCount > 0 ? (
           <>
             {' '}
             <span className="proto-translation-usage">
-              {savedCount} saved · {formatPackStorage(storageBytes)} on this device.
+              {savedCount} saved · {formatPackStorage(storageBytes)}.
             </span>
           </>
         ) : null}
