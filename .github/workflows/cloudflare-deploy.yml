@@ -1,0 +1,115 @@
+# Deploy the SPA + Worker to Cloudflare (Phase A — docs/CLOUDFLARE_MIGRATION.md).
+#
+# Cloudflare has no git integration, so this replaces what Netlify's build hook did.
+# Netlify keeps building `main` in parallel during the cutover soak; it is the rollback
+# path and is not touched here.
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [main, staging]
+    # Mirrors scripts/netlify-skip-build.sh, which skips only when EVERY changed file is
+    # doc-only. paths-ignore reproduces that exactly; a `paths` allowlist would instead
+    # silently skip deploys for any path nobody remembered to list.
+    paths-ignore:
+      - 'docs/**'
+      - 'Changelog/**'
+      - 'help/**'
+      - 'release-notes/**'
+  workflow_dispatch:
+
+# One deploy at a time per branch; a newer push supersedes an in-flight one.
+concurrency:
+  group: cloudflare-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22 # was NODE_VERSION in netlify.toml
+          cache: npm
+
+      # NPM_FLAGS from netlify.toml
+      - run: npm ci --prefer-offline --no-audit
+
+      # Rolls the PWA cache key so returning clients pick up the new build. Reads
+      # GITHUB_SHA here — Netlify's COMMIT_REF/DEPLOY_ID do not exist on Actions, and
+      # without a build id every deploy between two version bumps ships a byte-identical
+      # sw.js. See the comment block in the script itself.
+      - run: node scripts/inject-sw-cache-version.js
+
+      - run: npm run build:spa
+        env:
+          # EXACTLY the 10 build-time vars Netlify's PRODUCTION context sets, verified
+          # 2026-08-30 via `netlify env:list --context production`. Do not add to this list
+          # on the theory that a var "looks needed": Phase A must produce a bundle
+          # indistinguishable from today's, and a var Netlify leaves unset is a var this
+          # build must leave unset too.
+          #
+          # Notably ABSENT on purpose, though the code reads them:
+          #   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — unset in production, so
+          #     isSupabaseRealtimeConfigured() is false and the app runs on HTTP polling.
+          #     Setting them here would switch realtime ON only on Cloudflare.
+          #   VITE_API_BASE_URL — unset, so the SPA calls its own origin. Correct, since the
+          #     Worker proxies /api/* to Fly.
+          #   VITE_PUBLIC_POSTHOG_KEY — the code reads it, production never sets it;
+          #     PUBLIC_POSTHOG_KEY is the one that is actually used.
+          #   VITE_POLAR_CHURCH_PRODUCT_* — referenced in one file, unset in production.
+          #
+          # Live Clerk on main, dev Clerk on staging (new.harvous.com), matching
+          # netlify.toml's [context.staging]. The key is inlined at build time, which is why
+          # staging is a separate build rather than a redeploy of the same artifact.
+          # WARNING: VITE_CLERK_PUBLISHABLE_KEY in the repo's .env is a pk_test_ DEV key.
+          # The _LIVE secret must come from the Clerk dashboard, not from .env — copying it
+          # across is what failed all three Fly cutovers.
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
+          PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
+          PUBLIC_POSTHOG_KEY: ${{ secrets.PUBLIC_POSTHOG_KEY }}
+          PUBLIC_POSTHOG_HOST: ${{ secrets.PUBLIC_POSTHOG_HOST }}
+          VITE_CLERK_SHARED_SPACES_PLAN_ID: ${{ secrets.VITE_CLERK_SHARED_SPACES_PLAN_ID }}
+          # Public plan identifiers, not secrets (netlify.toml carried them in
+          # SECRETS_SCAN_OMIT_KEYS for exactly this reason). Omitting these is what made
+          # billing return zero plans during the Fly migration.
+          VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL }}
+          VITE_POLAR_PLUS_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_MONTHLY }}
+          VITE_POLAR_PLUS_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_ANNUAL }}
+          VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY }}
+          VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL }}
+
+      # Cloudflare-only routing/header config. Deliberately NOT in public/ — Vite copies
+      # public/ verbatim, so a file there would also ship to Netlify and layer a second
+      # header source onto the live rollback target mid-soak.
+      - name: Stage Cloudflare _headers / _redirects / .assetsignore
+        # .assetsignore is not optional: Workers assets reject any single file over 5 MiB,
+        # and dist-spa/assets/index-*.js.map is ~10 MB. Without it the deploy fails outright
+        # with "Invalid manifest: file size ... exceeds 5242880 limit [code: 10304]".
+        run: cp cloudflare/_headers cloudflare/_redirects cloudflare/.assetsignore dist-spa/
+
+      # Guards the one regression this migration is most likely to ship. See the ordering
+      # note in cloudflare/_headers.
+      - name: Assert the two deploy-breaking invariants
+        run: |
+          # The cache tier that costs ~703.7 KB per visit if it regresses.
+          grep -q 'max-age=31536000, immutable' dist-spa/_headers
+          # No asset may exceed the 5 MiB Workers limit once .assetsignore is applied.
+          if find dist-spa -type f -size +5242880c ! -name '*.map' | grep -q .; then
+            echo "Asset over the 5 MiB Workers limit:" >&2
+            find dist-spa -type f -size +5242880c ! -name '*.map' -exec ls -lh {} \; >&2
+            exit 1
+          fi
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # ONLY main reaches the production Worker. Everything else — the staging branch,
+          # and any manual workflow_dispatch from a feature branch — goes to harvous-app-staging.
+          # Without this, a dispatch from a feature branch would deploy a DEV-Clerk build onto
+          # the production Worker, since the key above is chosen by the same ref check.
+          command: deploy ${{ github.ref_name == 'main' && '' || '--env staging' }}
