@@ -146,9 +146,18 @@ export function buildVerseCloze(text: string, seed: string, ratio = 0.3): VerseC
 /**
  * The recognize rung's cue: the opening of the verse, enough to place it without giving it
  * away. Words rather than characters, so the cue never cuts mid-word.
+ *
+ * Leading and trailing quote marks are stripped because the prompt wraps the cue in quotes of
+ * its own. Many verses open mid-speech — John 15:5 begins with a curly double quote — and the
+ * result was `"“I am the vine;…"`, two opening marks in a row.
  */
 export function verseCue(text: string, words = 4): string {
   const tokens = text.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return '';
-  return tokens.slice(0, Math.max(1, words)).join(' ');
+  return tokens
+    .slice(0, Math.max(1, words))
+    .join(' ')
+    .replace(/^[“”"'‘’]+/, '')
+    .replace(/[“”"'‘’]+$/, '')
+    .trim();
 }

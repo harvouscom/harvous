@@ -72,6 +72,12 @@ describe('verseCue', () => {
     expect(verseCue(JOHN_15_5, 4)).toBe('I am the vine;');
   });
 
+  it('strips the verse own quote marks, which the prompt supplies', () => {
+    // Real text: many verses open mid-speech, and the prompt already wraps the cue in quotes.
+    expect(verseCue('\u201cI am the vine; you are the branches.', 4)).toBe('I am the vine;');
+    expect(verseCue('\u201cI am\u201d', 2)).toBe('I am');
+  });
+
   it('is empty for empty text', () => {
     expect(verseCue('')).toBe('');
   });
