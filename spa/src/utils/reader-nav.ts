@@ -72,7 +72,9 @@ export function readerRouteForReference(
  */
 let landingRequests = 0;
 
-export function landAgain<T extends { search: Record<string, unknown> }>(route: T): T {
+export function landAgain<T extends { search: Record<string, unknown> }>(
+  route: T,
+): Omit<T, 'search'> & { search: T['search'] & { req: string } } {
   /*
    * A counter, not `Date.now()` alone. The clock is only millisecond-resolution, so two asks
    * inside the same millisecond produce the same stamp and the second one is silently not a
@@ -80,5 +82,15 @@ export function landAgain<T extends { search: Record<string, unknown> }>(route: 
    * it makes a stamp legible in a URL someone is looking at; the counter is what makes it true.
    */
   landingRequests += 1;
+  /*
+   * The return type widens `search` rather than echoing `T`.
+   *
+   * It used to say it returned `T` unchanged, which was a lie in the one way that mattered:
+   * this function's entire purpose is to add `req`, so every caller was handed a type with no
+   * `req` on it. Nothing broke at the call sites — they pass the result straight to
+   * `navigate`, and the read route's `validateSearch` accepts `req` — so the only place it
+   * surfaced was a test reading the field back, which is exactly where a stamp should be
+   * checked.
+   */
   return { ...route, search: { ...route.search, req: `${Date.now()}-${landingRequests}` } };
 }
