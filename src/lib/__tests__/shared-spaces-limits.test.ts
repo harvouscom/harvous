@@ -51,7 +51,19 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     const bullets = getSharedSpacesAddonFeatureBullets({ hasAddOn: false });
     expect(bullets[0]).toBe('Everything in free');
     expect(bullets[1]).toBe('Unlimited shared spaces');
-    expect(bullets).toHaveLength(5);
+    expect(bullets).toHaveLength(7);
+  });
+
+  it('lists Review and Challenges, which shipped in 3.0', () => {
+    for (const bullets of [
+      getSharedSpacesAddonFeatureBullets({ hasAddOn: false }),
+      getSharedSpacesAddonFeatureBullets({ hasAddOn: true, ownedCount: 2, ownedLimit: 10 }),
+    ]) {
+      // Both copies, because the active one is rebuilt from slice(2) and appending is only
+      // safe while that keeps picking these up.
+      expect(bullets.some((b) => /^Review —/.test(b))).toBe(true);
+      expect(bullets.some((b) => /^Challenges —/.test(b))).toBe(true);
+    }
   });
 
   it('keeps Everything in free and swaps the owned-spaces bullet when active', () => {

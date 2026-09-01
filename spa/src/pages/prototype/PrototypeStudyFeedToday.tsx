@@ -24,6 +24,8 @@ import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import PrototypeWhatsNewPill from './PrototypeWhatsNewPill';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeRecallCarousel from './PrototypeRecallCarousel';
+import PrototypeStudyInbox from './PrototypeStudyInbox';
+import PrototypeStrengthenThreadRow from './PrototypeStrengthenThreadRow';
 import { continueReadingEyebrow, continueReadingMeta } from '@/utils/prototype-home-trends';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
@@ -136,6 +138,20 @@ export default function PrototypeStudyFeedToday({
         </PrototypeHomeSection>
       ) : null}
 
+      {/*
+        * The Study Inbox, between what you were doing and what is coming.
+        *
+        * Above Following because it is about your own study rather than about something
+        * arriving from elsewhere, and below Continue because Continue is where you already
+        * were — a page that opens by asking you a question before showing you the note you
+        * had open is the interstitial the strategy doc rules out.
+        *
+        * Decides its own visibility, including whether it exists at all for this account:
+        * guest renders null, free renders one dismissible line, Plus with nothing due renders
+        * null and the section collapses.
+        */}
+      <PrototypeStudyInbox />
+
       {/* Both of these decide for themselves whether they have anything to show, so the
           section wrapper is theirs to fill or collapse — the same contract Home relies on. */}
       <PrototypeHomeSection title="Following">
@@ -156,8 +172,20 @@ export default function PrototypeStudyFeedToday({
         * own div below the section, which gave the sheet two unlabelled piles of suggestion
         * and gave the prompts a dashed frame nothing else on the page wore.
         */}
-      {votd || looseCount >= LOOSE_MIN || recallOpportunities.length > 0 ? (
-        <PrototypeHomeSection title="Suggested">
+      {/*
+        * Unconditional, like Following above it, and for the same reason.
+        *
+        * This used to gate on `votd || looseCount || recallOpportunities.length`, which was a
+        * correct list of everything the section could hold — right up until it held something
+        * else. The strengthen-a-Thread row decides its own visibility from its own queries, so
+        * a parent enumerating its children's conditions cannot include it without duplicating
+        * them, and would silently hide it for any reader whose other three offers were empty.
+        *
+        * `.proto-home-section--group:not(:has(...))` already collapses a group whose children
+        * all render null, which is the mechanism Following relies on. Asking after the fact
+        * beats keeping a list in sync.
+        */}
+      <PrototypeHomeSection title="Suggested">
           {votd ? (
             <PrototypeDailyPassagePill
               homeSpaceId={homeSpaceId ?? ''}
@@ -188,6 +216,9 @@ export default function PrototypeStudyFeedToday({
             * disagreeing about what "not now" means. It returns a bare fragment, so it drops
             * into this section as rows rather than arriving with a frame of its own.
             */}
+          {/* A Thread with enough in it to be worth a path through. Renders nothing when there
+              is no such Thread, when one already has a challenge open, or without the key. */}
+          <PrototypeStrengthenThreadRow />
           <PrototypeRecallCarousel
             opportunities={recallOpportunities}
             onSnooze={handleRecallSnooze}
@@ -197,7 +228,6 @@ export default function PrototypeStudyFeedToday({
             homeSpaceId={homeSpaceId}
           />
         </PrototypeHomeSection>
-      ) : null}
     </div>
   );
 }

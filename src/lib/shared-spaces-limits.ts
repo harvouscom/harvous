@@ -20,6 +20,11 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
   'Turn a thread into a study plan your group reads together',
   'Joining is always free',
+  // Shipped in 3.0. Appended rather than inserted: `getSharedSpacesAddonFeatureBullets`
+  // rewrites index 1 and keeps `slice(2)` verbatim, so anything added at the end reaches both
+  // the purchase and the active copy without touching that function.
+  'Review — return to your own notes on a schedule',
+  'Challenges — short guided paths through a Thread or verse',
 ] as const;
 
 /** Purchase-copy line for owned spaces (index 1 — after “Everything in Free”). */

@@ -418,7 +418,6 @@
 /* ─── Glass surface recipe (tiered backdrop-filter — see prototype-tokens.css) ─ */
 .proto-glass-surface,
 .proto-daily-passage-pill,
-.proto-migration-pill,
 .proto-collection-card,
 .proto-sidebar-root,
 .proto-inspector-desktop,
@@ -449,16 +448,13 @@
 /* Pseudo-element anchoring — omit mobile inspector (shell.css sets position: fixed <900px). */
 .proto-glass-surface,
 .proto-daily-passage-pill,
-.proto-migration-pill,
 .proto-collection-card,
 .proto-sidebar-root,
 .proto-inspector-desktop {
   position: relative;
 }
-
 .proto-glass-surface::before,
 .proto-daily-passage-pill::before,
-.proto-migration-pill::before,
 .proto-collection-card::before,
 .proto-sidebar-root::before,
 .proto-inspector-desktop::before,
@@ -471,10 +467,8 @@
   pointer-events: none;
   z-index: 0;
 }
-
 .proto-glass-surface::after,
 .proto-daily-passage-pill::after,
-.proto-migration-pill::after,
 .proto-collection-card::after,
 .proto-sidebar-root::after,
 .proto-inspector-desktop::after,
@@ -487,10 +481,8 @@
   pointer-events: none;
   z-index: 0;
 }
-
 .proto-glass-surface > *,
 .proto-daily-passage-pill > *,
-.proto-migration-pill > *,
 .proto-collection-card > *,
 .proto-sidebar-root > *,
 .proto-inspector-desktop > *,
@@ -602,20 +594,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 /* ─── Keyboard shortcut keycaps (native SettingsShortcutKeycapsRow parity) ─── */
-
-.proto-toolbar-brand {
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--pds-text-tertiary);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  user-select: none;
-}
-
-.proto-toolbar-brand--muted {
-  opacity: 0.45;
-}
 
 /* ─── Sidebar toolbar cluster (desktop split column) ───────────────────────── */
 .proto-sidebar-toolbar {
@@ -961,48 +939,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 /* Space switcher rows: small eyebrow + title (ministry = church name; shared = Shared space). */
-.proto-menu-item--stacked {
-  align-items: flex-start;
-  padding-top: 8px;
-  padding-bottom: 8px;
-}
-
-.proto-menu-item__label--stacked {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  white-space: normal;
-  overflow: hidden;
-}
-
-.proto-menu-item__eyebrow {
-  margin: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--pds-text-tertiary);
-}
-
-.proto-menu-item span.proto-menu-item__title {
-  margin: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  /* Match plain switcher rows (overrides span:not(.proto-menu-item__label) weight). */
-  font-size: inherit;
-  font-weight: inherit;
-  font-family: inherit;
-  font-variation-settings: inherit;
-  line-height: inherit;
-  color: inherit;
-}
-
-.proto-menu-item--stacked .proto-menu-item__icon {
-  margin-top: 2px;
-}
 
 .proto-menu-item__check {
   flex-shrink: 0;
@@ -1399,23 +1335,18 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 /* Icon-only orbs — kill font strut so SVG glyphs center in the circle (iOS Safari). */
 .proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)),
 .proto-daily-passage-pill__orb,
-.proto-appearance-preview__check-orb,
-.proto-study-thread__disconnect-btn {
+.proto-appearance-preview__check-orb {
   line-height: 0;
 }
-
 .proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)) > span,
 .proto-daily-passage-pill__orb > span,
-.proto-appearance-preview__check-orb > span,
-.proto-study-thread__disconnect-btn > span {
+.proto-appearance-preview__check-orb > span {
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 0;
 }
-
-.proto-daily-passage-pill__orb svg,
-.proto-study-thread__disconnect-btn svg {
+.proto-daily-passage-pill__orb svg {
   flex-shrink: 0;
   display: block;
 }
@@ -1528,74 +1459,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 /* Avatar circle */
-.proto-avatar-mini {
-  width: var(--pds-toolbar-orb-size);
-  height: var(--pds-toolbar-orb-size);
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-control-strong);
-  color: var(--pds-text-primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--pds-font-body);
-  font-size: 10.5px;
-  font-weight: 600;
-  flex-shrink: 0;
-  cursor: pointer;
-  border: none;
-}
 
 /* ─── Space switcher trigger ─────────────────────────────────────────────── */
-.proto-space-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--pds-toolbar-orb-size);
-  height: var(--pds-toolbar-orb-size);
-  border-radius: var(--pds-radius-pill);
-  border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-bg-glass-medium);
-  -webkit-backdrop-filter: var(--pds-glass-blur-control);
-  backdrop-filter: var(--pds-glass-blur-control);
-  cursor: pointer;
-  color: var(--pds-text-primary);
-  font-family: var(--pds-font-body);
-  transition: background 0.1s;
-}
-
-.proto-space-trigger svg {
-  flex-shrink: 0;
-  display: block;
-}
-
-.proto-space-trigger:hover {
-  background: var(--pds-bg-control);
-}
-
-.proto-space-trigger:active {
-  background: var(--pds-bg-control-hover);
-}
-
-.proto-space-trigger:focus-visible {
-  outline: none;
-}
-
-.proto-space-trigger:disabled {
-  opacity: 1;
-  cursor: default;
-  pointer-events: none;
-  color: var(--pds-text-tertiary);
-  background: var(--pds-bg-glass-light);
-  border-color: var(--pds-border-control-soft);
-}
 
 /* Static (non-interactive) variant — rendered as a <span> when there is only one space.
    Looks identical to the button but has no hover/active state and is not focusable. */
-.proto-space-trigger--static {
-  cursor: default;
-  pointer-events: none;
-  user-select: none;
-}
 
 /* ─── Popover menu ───────────────────────────────────────────────────────── */
 .proto-menu {
@@ -1807,13 +1675,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 }
 
 /* Trailing checkmark on an already-shared space row. */
-.proto-menu-item__trail {
-  display: inline-flex;
-  align-items: center;
-  margin-left: auto;
-  padding-left: 8px;
-  color: var(--pds-text-tertiary);
-}
 
 .proto-menu-item {
   display: flex;
@@ -1971,13 +1832,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   margin: 3px 0;
   background: var(--pds-border);
   border: none;
-}
-
-.proto-menu-muted {
-  font-size: 11px;
-  color: var(--pds-text-tertiary);
-  padding: 4px 8px;
-  font-family: var(--pds-font-body);
 }
 
 @keyframes proto-menu-pop-in {
@@ -2351,40 +2205,6 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 }
 
 /* ─── Sidebar mode toggle ────────────────────────────────────────────────── */
-.proto-sidebar-mode {
-  display: flex;
-  flex-shrink: 0;
-  padding: 0 12px 6px;
-  gap: 4px;
-}
-
-.proto-sidebar-mode-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 5px 8px;
-  border: none;
-  border-radius: var(--pds-radius-format);
-  background: transparent;
-  cursor: pointer;
-  font-family: var(--pds-font-body);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--pds-text-secondary);
-  transition: background 0.12s, color 0.12s;
-}
-
-.proto-sidebar-mode-btn:hover {
-  background: var(--pds-bg-row-hover);
-  color: var(--pds-text-primary);
-}
-
-.proto-sidebar-mode-btn[data-active='true'] {
-  background: var(--pds-accent-active-bg-strong);
-  color: var(--pds-accent);
-}
 
 /* ─── Note list (sidebar) — typography from .pds-list-*; selection/hover via tokens only */
 .proto-note-list {
@@ -2752,82 +2572,10 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
 }
 
 /* ─── Space rows (home sidebar) ──────────────────────────────────────────── */
-.proto-space-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: calc(100% - 16px);
-  margin: 0 8px;
-  padding: 8px 10px;
-  border-radius: var(--pds-radius-row);
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-family: var(--pds-font-body);
-  color: inherit;
-  text-decoration: none;
-  box-sizing: border-box;
-  transition: background 0.08s;
-}
-
-.proto-space-row:hover {
-  background: var(--pds-bg-row-hover);
-}
 
 /* Space icon tile grid */
-.proto-space-swatches {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5px;
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  overflow: hidden;
-  flex-shrink: 0;
-  margin-top: 2px;
-  background: var(--pds-accent);
-}
-
-.proto-space-swatches[data-color='purple'] { background: rgb(140, 69, 235); }
-.proto-space-swatches[data-color='teal']   { background: rgb(0, 148, 158); }
-.proto-space-swatches[data-color='green']  { background: rgb(51, 158, 89); }
-.proto-space-swatches[data-color='orange'] { background: rgb(242, 115, 26); }
-.proto-space-swatches[data-color='rose']   { background: rgb(229, 71, 102); }
-.proto-space-swatches[data-color='indigo'] { background: rgb(74, 82, 191); }
-
-.proto-space-swatches span {
-  display: block;
-  background: inherit;
-  filter: brightness(1.12);
-}
 
 /* ─── Sidebar section header ─────────────────────────────────────────────── */
-.proto-sidebar-section-header {
-  padding: 2px 18px 8px;
-}
-
-.proto-sidebar-list-view__trigger--back {
-  color: var(--pds-text-primary);
-}
-
-.proto-sidebar-list-view__trigger--back:hover:not(:disabled) {
-  color: var(--pds-text-primary);
-}
-
-.proto-sidebar-list-view__kind {
-  flex-shrink: 0;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--pds-bg-faint);
-  border: 0.5px solid var(--pds-border-control);
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation-chip);
-  line-height: 1.4;
-  color: var(--pds-text-secondary);
-  white-space: nowrap;
-}
 
 /* ─── Chip bar (highlight-kind + dictionary-category filters) ────────────── */
 .proto-chip-bar {
@@ -3431,87 +3179,6 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
 }
 
 /* ─── Dictionary entry drilldown ─────────────────────────────────────────── */
-.proto-dict-entry__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.proto-dict-entry__headword {
-  font-family: var(--pds-font-body);
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--pds-text-primary);
-}
-
-.proto-dict-entry__category-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  background: var(--pds-bg-chip-hover);
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--pds-text-muted-soft);
-}
-
-.proto-dict-entry__body {
-  font-family: var(--pds-font-body);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--pds-text-primary);
-  white-space: pre-wrap;
-  margin: 0 0 12px;
-}
-
-.proto-dict-entry__see-also {
-  margin-top: 12px;
-}
-
-.proto-dict-entry__see-also-label {
-  font-family: var(--pds-font-body);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--pds-text-secondary);
-  margin-bottom: 6px;
-}
-
-.proto-dict-entry__chip-flow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.proto-dict-chip {
-  border: none;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: var(--pds-bg-chip-hover);
-  font-family: var(--pds-font-body);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--pds-text-muted-faint);
-  cursor: default;
-}
-
-.proto-dict-chip--linked {
-  background: var(--pds-accent-active-bg);
-  color: var(--pds-accent);
-  cursor: pointer;
-}
-
-.proto-dict-chip--linked:hover {
-  background: var(--pds-accent-pressed-bg);
-}
-
-.proto-dict-entry__disclaimer {
-  margin-top: 14px;
-  font-size: 10px;
-  color: var(--pds-text-muted-ghost);
-}
 
 /* ─── Inspector pane ─────────────────────────────────────────────────────── */
 .proto-inspector-desktop {
@@ -3590,23 +3257,10 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   transition: width 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
 }
 
-.proto-side-panel--expanded {
-  width: clamp(360px, min(720px, 60vw), 720px);
-}
-
 /* Docked (narrow) — width eases in from expanded; exit slide only on --exiting. */
-.proto-side-panel--docked {
-  width: var(--pds-inspector-w);
-}
-
-.proto-side-panel--exiting {
-  animation: proto-inspector-desktop-out var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease) both;
-  transition: none;
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .proto-side-panel,
-  .proto-side-panel--exiting {
+.proto-side-panel {
     animation: none;
     transition: none;
   }
@@ -4493,19 +4147,6 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   outline-offset: 0;
 }
 
-.proto-inspector-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-chip-hover);
-  border: 0.5px solid var(--pds-border-control-medium);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-  margin: 2px 2px 2px 0;
-}
-
 /* ─── Folder + tag editor ────────────────────────────────────────────────── */
 .proto-folder-tag-editor {
   --proto-fte-action-size: 26px;
@@ -5184,19 +4825,6 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 }
 
 /* ─── Scripture chip (sidebar badge / inline) ────────────────────────────── */
-.proto-chip-scripture {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: var(--pds-radius-scripture);
-  background: var(--pds-scripture-bg);
-  color: var(--pds-scripture-fg);
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 500;
-  border: 0.5px solid var(--pds-scripture-border);
-  white-space: nowrap;
-}
 
 /* ─── Connect note sheet (prototype) ─────────────────────────────────────── */
 .proto-connect-note-sheet-overlay {
@@ -5226,27 +4854,6 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   max-height: min(520px, 72vh);
 }
 
-.proto-connect-note-sheet__header {
-  flex-shrink: 0;
-}
-
-.proto-connect-note-sheet__title {
-  margin: 0;
-  font-family: var(--pds-font-display);
-  font-size: 1.15rem;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--pds-text-primary);
-}
-
-.proto-connect-note-sheet__subtitle {
-  margin: 8px 0 0;
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  color: var(--pds-text-secondary);
-  line-height: 1.35;
-}
-
 .proto-connect-note-sheet__scroll {
   flex: 1;
   min-height: 100px;
@@ -5267,14 +4874,6 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   padding: 16px 14px;
 }
 
-.proto-connect-note-sheet__hint {
-  margin: 8px 0 0;
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  color: var(--pds-text-tertiary);
-  text-align: center;
-}
-
 .proto-connect-note-sheet__search-wrap {
   padding: 10px 12px 0;
 }
@@ -5285,45 +4884,6 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   color: var(--color-error, #c0392b);
   margin: 0;
   padding: 6px 14px;
-}
-
-.proto-connect-note-sheet__row {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-bg-card, var(--pds-bg-subtle));
-  font-family: var(--pds-font-body);
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
-}
-
-.proto-connect-note-sheet__row:hover:not(:disabled) {
-  background: var(--pds-bg-hover, rgba(0, 0, 0, 0.03));
-  border-color: var(--pds-border-strong, rgba(0, 0, 0, 0.15));
-  transform: scale(1.005);
-}
-
-.proto-connect-note-sheet__row:active:not(:disabled) {
-  transform: scale(0.995);
-}
-
-.proto-connect-note-sheet__row:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.proto-connect-note-sheet__row-title {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--pds-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.35;
 }
 
 /* ── Add notes / create folder-thread sheets ─────────────────────────────── */
@@ -5633,10 +5193,7 @@ html.harvous-prototype-route
   background: var(--pds-bg-accent-button);
   filter: brightness(1.05);
 }
-
-.proto-collection-grid-actions__btn,
-.proto-list-create-empty__btn,
-.proto-drill-empty__cta {
+.proto-collection-grid-actions__btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -5654,15 +5211,6 @@ html.harvous-prototype-route
 /* Two ways to fill an empty Thread or folder — writing one, or moving ones you
    already have. Writing leads, so the second drops its fill and reads as the
    alternative rather than a second equal button. */
-.proto-drill-empty__cta--secondary {
-  border-color: transparent;
-  background: none;
-  color: var(--pds-text-secondary);
-}
-
-.proto-drill-empty__cta--secondary:hover {
-  background: var(--pds-bg-subtle);
-}
 
 .proto-list-create-empty {
   display: flex;
@@ -5682,46 +5230,9 @@ html.harvous-prototype-route
   padding: 8px 0;
 }
 
-.proto-list-create-empty__btn {
-  margin-bottom: 0;
-  flex-shrink: 0;
-}
-
-.proto-drill-empty {
-  display: flex;
-  flex: 1 0 auto;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  box-sizing: border-box;
-  padding: 12px 24px;
-}
-
 /* ── References dock ─────────────────────────────────────────────────────── */
 
-.proto-ref-url-item {
-  list-style: none;
-  padding: 0;
-}
-
-.proto-ref-url-item__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Nested note list under each URL row */
-.proto-ref-url-notes {
-  list-style: none;
-  margin: 0;
-  padding: 0 0 4px 16px;
-}
-
-.proto-ref-url-note-btn {
-  padding-left: 12px !important;
-  opacity: 0.85;
-}
 
 /* Account edit-photo badge — accent gradient matching scripture confirm orb. */
 .proto-account-photo-badge {
@@ -5808,13 +5319,6 @@ html.harvous-prototype-route
 
 /* ─── Settings (macOS System Settings-style two-pane) ─────────────────────── */
 /* Centered "Settings" title shown in the toolbar while in the settings shell. */
-.proto-toolbar-title {
-  font-family: var(--pds-font-body);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--pds-text-primary);
-  user-select: none;
-}
 
 /* Two-pane grid: category nav (left) + detail pane (right). Wide screens only —
    narrow screens render the child route full-width (drilldown). */
@@ -6441,28 +5945,6 @@ html.harvous-proto-wallpaper-color .proto-settings-modal {
 }
 
 /* ─── Settings → Sharing dashboard ─────────────────────────────────────── */
-.proto-sharing-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.proto-sharing-tab {
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-bg-toolbar);
-  color: var(--pds-text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.proto-sharing-tab--active {
-  background: var(--pds-bg-selected);
-  color: var(--pds-text-primary);
-  border-color: transparent;
-}
 
 /* ─── Settings copy row (email, share links) ─────────────────────────────── */
 .proto-copy-row {
@@ -6847,16 +6329,12 @@ a.proto-copy-row__value:hover {
   background: var(--pds-bg-subtle);
   text-align: left;
 }
-
-.proto-detail-card__icon,
-.proto-pane-empty-state__error-icon {
+.proto-detail-card__icon {
   flex-shrink: 0;
   margin-top: 1px;
   color: var(--pds-text-secondary);
 }
-
-.proto-detail-card__text,
-.proto-pane-empty-state__error-detail {
+.proto-detail-card__text {
   margin: 0;
   flex: 1;
   min-width: 0;
@@ -6976,8 +6454,7 @@ html.harvous-prototype-route .proto-editor-empty-state h2.proto-editor-empty-sta
 
 /* Fill the scroll viewport when the list has no rows — center in the pane below search. */
 .proto-sidebar-scroll > .proto-list-empty-state:only-child,
-.proto-sidebar-scroll > .proto-list-create-empty:only-child,
-.proto-sidebar-scroll > .proto-drill-empty:only-child {
+.proto-sidebar-scroll > .proto-list-create-empty:only-child {
   min-height: 100%;
 }
 
@@ -7180,32 +6657,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   color: var(--pds-text-primary);
 }
 
-.proto-pin-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.proto-pin-overlay__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.proto-pin-overlay__card {
-  position: relative;
-  z-index: 1;
-  max-width: 420px;
-  width: calc(100% - 32px);
-  background: var(--pds-bg-modal);
-  border-radius: 16px;
-  box-shadow: var(--pds-shadow-menu);
-  overflow: hidden;
-}
-
 .proto-pin-entry {
   display: flex;
   flex-direction: column;
@@ -7335,22 +6786,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 /* Horizontal inset matches native `HarvousFeedListLayout.listRowHorizontalInset` (14)
    and `.proto-sidebar-search` — same as `SidebarPanelView` daily-passage overlay. */
 /* Stack: scroll (1) < floating pills (2). Row ⋯ menus portal to body at z-index 100. */
-.proto-sidebar-floating-stack {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  padding: 0 14px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  pointer-events: none;
-}
-
-.proto-sidebar-floating-stack > * {
-  pointer-events: auto;
-}
 
 /* ─── Daily passage pill (sidebar, native DailyPassagePill parity) ───────── */
 /* Interior H: macOS `interiorContentHPadding` 10 · iOS 14 (DailyPassagePill.cardContent). */
@@ -7422,25 +6857,12 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding-right: 68px;
 }
 
-.proto-daily-passage-pill__content--no-add {
-  padding-right: 38px;
-}
-
 .proto-daily-passage-pill__eyebrow {
   margin: 0;
 }
 
 .proto-daily-passage-pill__reference {
   margin: 0;
-}
-
-.proto-daily-passage-pill__orbs {
-  position: absolute;
-  right: 10px;
-  bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .proto-daily-passage-pill__orb {
@@ -7673,7 +7095,6 @@ button.proto-home-card--tappable:focus-visible {
    column the church rows stack their cadence line in, reached by an indent instead of a
    second wrapper so no card's markup has to change. */
 .proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__preview,
-.proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__excerpt,
 .proto-home-card__body:has(.proto-home-card__icon-orb) .proto-home-card__meta {
   padding-left: calc(
     var(--proto-home-card-icon-size, 28px) + var(--proto-home-card-icon-gap, 12px)
@@ -7693,9 +7114,7 @@ button.proto-home-card--tappable:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.proto-home-card__preview,
-.proto-home-card__excerpt {
+.proto-home-card__preview {
   margin: 2px 0 0;
   min-width: 0;
   overflow: hidden;
@@ -7753,13 +7172,6 @@ button.proto-home-card--tappable:focus-visible {
   by the space's own colour, which would claim the gathering came *from* a room
   in the sense the church card's does.
 */
-.proto-this-sunday--context {
-  border-color: color-mix(in srgb, var(--pds-border-control) 60%, transparent);
-}
-
-.proto-this-sunday--context .proto-home-card__title {
-  font-weight: 500;
-}
 
 .proto-this-sunday__main {
   display: block;
@@ -7780,42 +7192,6 @@ button.proto-home-card--tappable:focus-visible {
   gap: it belongs to the card, and a gap would read as the orphaned sibling line
   that CHURCH_STUDY_MATERIAL_LINKING.md removed.
 */
-.proto-this-sunday__attached {
-  padding: 7px 10px 8px;
-  border-top: 0.5px solid var(--pds-border-control);
-}
-
-.proto-this-sunday__attached-label {
-  margin: 0 0 4px;
-}
-
-.proto-this-sunday__attached-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.proto-this-sunday__attached-item {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 4px 5px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-  font-family: var(--pds-font-body);
-  color: var(--pds-text-primary);
-  transition: background 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.proto-this-sunday__attached-item:hover {
-  background: var(--pds-bg-control-strong);
-}
 
 /*
   Wraps rather than truncates. At 375px "Romans 8 discussion guide" ellipsed to
@@ -7824,16 +7200,8 @@ button.proto-home-card--tappable:focus-visible {
   almost nothing. The room's name is the part that may not shrink: it is already
   brief, and it is what distinguishes two ministries speaking to the same week.
 */
-.proto-this-sunday__attached-title {
-  min-width: 0;
-  flex: 1 1 auto;
-  overflow-wrap: anywhere;
-}
 
 /* The room it came from, named in words. Never its colour — see the component. */
-.proto-this-sunday__attached-from {
-  flex: 0 0 auto;
-}
 
 /* Mobile home — Add to Home Screen card (main pane empty state). */
 .proto-install-web-app-card {
@@ -7906,29 +7274,6 @@ button.proto-home-card--tappable:focus-visible {
   .proto-install-web-app-card {
     display: none;
   }
-}
-
-.proto-home-tag-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 8px;
-}
-
-.proto-home-tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-bg-control-strong);
-  font-size: 12px;
-  color: var(--pds-text-primary);
-}
-
-.proto-home-tag-chip__count {
-  color: var(--pds-text-secondary);
 }
 
 /* Greeting paragraph — flowing prose with inline stat chips. */
@@ -8492,7 +7837,6 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
 }
 
 /* Classic → 2.0 migration detail sheet */
-.proto-migration-sheet__body,
 .proto-migration-sheet__text {
   user-select: text;
   -webkit-user-select: text;
@@ -8506,35 +7850,8 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
   color: var(--pds-text-primary);
 }
 
-.proto-migration-sheet__disclaimer {
-  margin-top: 16px;
-}
-
 .proto-detail-card__icon svg,
 .proto-detail-card__icon svg * {
-  color: inherit !important;
-}
-
-.proto-migration-sheet__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  vertical-align: baseline;
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 0.5px solid var(--pds-border-control-soft);
-  background: var(--pds-bg-chip);
-  font-family: var(--pds-font-body);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.proto-migration-sheet__chip *,
-.proto-migration-sheet__chip svg,
-.proto-migration-sheet__chip svg * {
   color: inherit !important;
 }
 
@@ -9193,15 +8510,6 @@ button.proto-appearance-hero__card {
   line-height: 1.2;
 }
 
-.proto-side-panel__note-list .proto-note-row-item--current,
-.proto-side-panel__note-list .proto-note-row-item--current:focus-within {
-  background: var(--pds-bg-row-hover);
-}
-
-.proto-side-panel__note-list .proto-note-row-item--current .proto-note-row__title-text {
-  font-weight: 600;
-}
-
 .proto-side-panel__note-list {
   list-style: none;
   margin: 0;
@@ -9617,9 +8925,6 @@ button.proto-appearance-hero__card {
 }
 
 /* Sits in the scrolling list, so it needs the gutter the rows used to have. */
-.proto-sidebar-thread-trail-card {
-  margin: 8px 12px 16px;
-}
 
 .proto-thread-trail__also-list {
   display: flex;
@@ -9803,21 +9108,6 @@ button.proto-appearance-hero__card {
 }
 
 /* 2-column grid for connected notes when panel is expanded */
-.proto-study-thread__nodes--grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.proto-study-thread__nodes--grid .proto-study-thread__node-row {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.proto-study-thread__nodes--grid .proto-study-thread__disconnect-btn {
-  margin-top: 4px;
-  align-self: flex-end;
-}
 
 /* ── Study thread popover ─────────────────────────────────────────────────── */
 .proto-study-thread-popover {
@@ -9927,130 +9217,16 @@ button.proto-appearance-hero__card {
 }
 
 /* ── Study thread (note-connection graph) view ────────────────────────────── */
-.proto-study-thread-container {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 28px 20px 64px;
-  font-family: var(--pds-font-body);
-}
 
 /* Focus note */
-.proto-study-thread__focus-row {
-  margin-bottom: 20px;
-}
 
 /* Connected notes section */
-.proto-study-thread__connected-section {
-  margin-top: 4px;
-}
-
-.proto-study-thread__section-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--pds-text-tertiary);
-  margin: 0 0 10px;
-}
-
-.proto-study-thread__nodes {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.proto-study-thread__node-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-}
 
 /* Card button (shared between focus + connected) */
-.proto-study-thread__card-btn {
-  flex: 1 1 auto;
-  min-width: 0;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-  transition: transform 0.18s ease;
-}
-
-.proto-study-thread__card-btn:hover {
-  transform: scale(1.002);
-}
-
-.proto-study-thread__card-btn:active {
-  transform: scale(0.99);
-}
-
-.proto-study-thread__card-btn--focus {
-  outline: 2px solid var(--pds-accent, var(--color-deep-grey, #444));
-  outline-offset: 2px;
-  border-radius: 16px;
-}
 
 /* Disconnect button */
-.proto-study-thread__disconnect-btn {
-  flex: 0 0 auto;
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-bg-faint);
-  color: var(--pds-text-tertiary);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.proto-study-thread__disconnect-btn:hover {
-  background: var(--pds-bg-hover, rgba(0, 0, 0, 0.06));
-  color: var(--pds-text-secondary);
-}
-
-.proto-study-thread__disconnect-btn--confirm {
-  background: var(--color-error-faint, rgba(192, 57, 43, 0.08));
-  color: var(--color-error, #c0392b);
-  border-color: var(--color-error, #c0392b);
-}
-
-.proto-study-thread__empty {
-  color: var(--pds-text-secondary);
-  font-size: 14px;
-  line-height: 1.5;
-  margin: 8px 0 16px;
-}
 
 /* Connect action */
-.proto-study-thread__connect {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 0.5px solid var(--pds-border-control);
-}
-
-.proto-study-thread__connect-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: var(--pds-radius-input);
-  background: var(--pds-bg-faint);
-  color: var(--pds-text-primary);
-  font-family: var(--pds-font-body);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.18s ease;
-}
-
-.proto-study-thread__connect-trigger:hover {
-  background: var(--pds-bg-hover, rgba(0, 0, 0, 0.04));
-}
 
 /* ─── Global sync status chip (portaled to body) ─────────────────────────── */
 @keyframes protoSyncChipSpin {
@@ -10091,10 +9267,6 @@ button.proto-appearance-hero__card {
   flex: 0 0 auto;
   box-sizing: border-box;
   background: #9aa0a6;
-}
-
-.proto-sync-chip--pending .proto-sync-chip__dot {
-  background: #e8a33d;
 }
 
 .proto-sync-chip--syncing .proto-sync-chip__dot {
@@ -10723,16 +9895,6 @@ button.proto-appearance-hero__card {
   margin: 0 0 12px;
 }
 
-.proto-support-form__label {
-  display: block;
-  margin: 0 0 10px;
-  color: var(--pds-text-tertiary);
-}
-
-.proto-support-form__topics {
-  margin-bottom: 12px;
-}
-
 .proto-support-form__textarea {
   display: block;
   width: 100%;
@@ -11296,53 +10458,6 @@ html.harvous-prototype-route
   }
 }
 
-.proto-recall-carousel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.proto-recall-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0;
-}
-
-.proto-recall-card:hover .proto-daily-passage-pill__dismiss,
-.proto-recall-card:focus-within .proto-daily-passage-pill__dismiss {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.proto-recall-card__main {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  padding: 9px 10px 8px;
-  color: var(--pds-text-primary);
-  font-family: var(--pds-font-body);
-  border-radius: 14px;
-  transition: background 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.proto-recall-card__main:hover {
-  background: var(--pds-bg-control-strong);
-}
-
-.proto-recall-card__main:focus-visible {
-  outline: none;
-}
-
-.proto-recall-card .proto-home-card__meta {
-  min-width: 0;
-  overflow: hidden;
-}
-
 /*
  * One line, truncated — a recall card's meta is a reminder of what the note was about, not
  * the note.
@@ -11353,18 +10468,6 @@ html.harvous-prototype-route
  * does not apply to flex layout, so `inline-flex` opted the item out regardless. The item
  * carries plain text in this card, so a block box is what it wants.
  */
-.proto-recall-card .proto-home-card__meta {
-  flex-wrap: nowrap;
-}
-
-.proto-recall-card .proto-home-card__meta-item {
-  display: block;
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 /* Bottom-center deploy/update notice (prototype shell only). */
 .proto-update-toast {
@@ -11614,13 +10717,9 @@ html.harvous-prototype-route
 
 /* Beat global.css + prototype-route `button` !important color rules
  * (gallery/shell ancestors often match `[class*="proto-"] button`). */
-html.harvous-prototype-route .pds-banner .pds-banner__action-btn,
 html.harvous-prototype-route .pds-banner .pds-banner__action > button,
-html.harvous-prototype-route .pds-banner .pds-banner__action-btn *,
 html.harvous-prototype-route .pds-banner .pds-banner__action > button *,
-.pds-banner .pds-banner__action-btn,
 .pds-banner .pds-banner__action > button,
-.pds-banner .pds-banner__action-btn *,
 .pds-banner .pds-banner__action > button * {
   appearance: none;
   border: 0;
@@ -11634,17 +10733,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button *,
   line-height: 1.2;
   cursor: pointer;
 }
-
-html.harvous-prototype-route .pds-banner .pds-banner__action-btn:hover:not(:disabled),
 html.harvous-prototype-route .pds-banner .pds-banner__action > button:hover:not(:disabled),
-.pds-banner .pds-banner__action-btn:hover:not(:disabled),
 .pds-banner .pds-banner__action > button:hover:not(:disabled) {
   text-decoration: underline;
 }
-
-html.harvous-prototype-route .pds-banner .pds-banner__action-btn:disabled,
 html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
-.pds-banner .pds-banner__action-btn:disabled,
 .pds-banner .pds-banner__action > button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -12326,34 +11419,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   margin-top: 10px;
 }
 
-.proto-church-invite__input {
-  /* The app reset sets `* { flex-shrink: 0 }` — both are required. */
-  flex: 1;
-  min-width: 0;
-  flex-shrink: 1;
-  appearance: none;
-  font: inherit;
-  font-size: 0.8125rem;
-  /* Pinned rather than derived: inherited input styling kept adding a few
-     pixels, so field and button drifted out of alignment on the row. */
-  box-sizing: border-box;
-  height: 28px;
-  line-height: 1;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-bg-control);
-  color: var(--pds-text-primary);
-}
-
-.proto-church-invite__input::placeholder {
-  color: var(--pds-text-tertiary);
-}
-
-.proto-church-invite__input:disabled {
-  opacity: 0.5;
-}
-
 .proto-church-invite__note,
 .proto-church-invite__error {
   margin: 8px 0 0;
@@ -12643,14 +11708,12 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 
 /* Status is a row, not a banner. A pilot counting down is information; only a
    lapse is an interruption, and that earns colour rather than size. */
-.proto-church-tools__row--status,
-.proto-list-panel__row--status {
+.proto-church-tools__row--status {
   cursor: default;
 }
 
 /* Create action sits under its lane, aligned left with the list. */
-.proto-church-tools__add,
-.proto-list-panel__after {
+.proto-church-tools__add {
   margin-top: 8px;
 }
 
@@ -12838,69 +11901,6 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   gap: 10px;
   margin-top: 10px;
   align-items: flex-start;
-}
-
-.proto-teaching-plan__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-
-.proto-teaching-plan__list--past {
-  opacity: 0.68;
-}
-
-.proto-teaching-plan__row-button {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  padding: 4px 0;
-  width: 100%;
-  text-align: left;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.proto-teaching-plan__row-button:disabled {
-  cursor: default;
-}
-
-.proto-teaching-plan__date {
-  /* Fixed column so dates line up down the list like a real calendar. */
-  flex: 0 0 auto;
-  min-width: 48px;
-  opacity: 0.72;
-  font-variant-numeric: tabular-nums;
-}
-
-.proto-teaching-plan__row-text {
-  /* The app reset sets `* { flex-shrink: 0 }` — both are required to wrap. */
-  flex: 1;
-  min-width: 0;
-  flex-shrink: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.proto-teaching-plan__title,
-.proto-teaching-plan__meta {
-  margin: 0;
-  min-width: 0;
-  flex-shrink: 1;
-}
-
-.proto-teaching-plan__meta {
-  opacity: 0.72;
-  line-height: 1.25;
 }
 
 .proto-teaching-plan__empty,
@@ -13565,17 +12565,6 @@ p.proto-teaching-plan__divider {
   font-size: 12px;
   line-height: 1.3;
   transition: background 0.12s ease;
-}
-
-.proto-shared-space-header__people--static {
-  cursor: default;
-  margin: 0;
-  padding: 0;
-}
-
-.proto-shared-space-header__people--static:hover,
-.proto-shared-space-header__people--static:focus-visible {
-  background: none;
 }
 
 .proto-shared-space-header__people:hover {
@@ -14248,13 +13237,6 @@ html.harvous-prototype-route
   background-position: center;
 }
 
-.proto-shared-space-empty {
-  padding: 24px 16px;
-  text-align: center;
-  color: var(--pds-text-secondary);
-  font-size: 13px;
-}
-
 .proto-shared-people-capacity {
   margin: 0 0 10px;
   color: var(--pds-text-secondary);
@@ -14454,8 +13436,7 @@ html.harvous-prototype-route
 /* The tick on a destination this note is in, held at the trailing edge so the labels stay
    in one column and the answer is scannable down the right. Reserves its width whether or
    not it is ticked, so ticking a row cannot shuffle the column. */
-.proto-note-destination__check,
-.proto-menu-item__trailing {
+.proto-note-destination__check {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
@@ -15073,36 +14054,6 @@ html.harvous-prototype-route
   opacity: 0.85;
 }
 
-.proto-join-preview-avatars {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.proto-join-preview-avatars__stack {
-  display: flex;
-  align-items: center;
-}
-
-.proto-join-preview-avatars__dot {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid var(--pds-bg-popover-solid);
-  margin-left: -6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.proto-join-preview-avatars__dot:first-child {
-  margin-left: 0;
-}
-
 /* Invite link block — mirrors the note share popover (URL row + Copy + Revoke). */
 .proto-shared-invite {
   display: flex;
@@ -15520,49 +14471,12 @@ html.harvous-prototype-route
   box-shadow: 0 1px 2px oklch(0% 0 0 / 0.12);
 }
 
-.proto-space-cover-picker--compact .proto-appearance-preview {
-  width: 72px;
-}
-
-.proto-space-cover-picker--compact .proto-appearance-preview__label {
-  font-size: 10px;
-}
-
 /* ─── Shared space dashboard (space layer) ───────────────────────────────── */
 
 .proto-shared-space-dashboard .proto-sidebar-scroll {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.proto-shared-space-presence {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 0 2px;
-  min-height: 20px;
-}
-
-.proto-shared-space-presence__dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.proto-shared-space-presence__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--presence-color, var(--pds-accent, #3d7de8));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--presence-color, #3d7de8) 25%, transparent);
-}
-
-.proto-shared-space-presence__label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--pds-text-secondary, #666);
 }
 
 .proto-space-switcher-badge {
@@ -15828,9 +14742,6 @@ html.harvous-prototype-route
 
 /* Plan switcher in the teaching-plan pane. The chip bar's own margin assumes a
    toolbar context; here it heads a section, so only the bottom gap is kept. */
-.proto-teaching-plan__scope {
-  margin: 0 0 10px;
-}
 
 /* ── Planner scope switcher (Church | channel ▾) ─────────────────────────── */
 
@@ -15955,71 +14866,10 @@ html.harvous-prototype-route
 
 /* Role for a pending invite. Sized to its content so the email field keeps the
    room — the address is the part that needs space. */
-.proto-church-invite__role {
-  flex: 0 0 auto;
-  appearance: none;
-  cursor: pointer;
-  padding: 0 8px;
-  height: 30px;
-  border-radius: 999px;
-  border: 0.5px solid var(--pds-border-control);
-  background: var(--pds-bg-control);
-  font-family: var(--pds-font-body);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-}
 
-@media (pointer: coarse) {
-  .proto-church-invite__role {
-    height: 44px;
-  }
-}
-
-.proto-church-invite__role:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 /* Role select — same treatment as `.hmc-church-picker__select`: the native
    chevron differs per browser, so it is suppressed and redrawn. */
-.proto-church-invite__select-wrap {
-  position: relative;
-  display: block;
-}
-
-.proto-church-invite__select {
-  padding-right: 32px;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  background-image: none;
-}
-
-.proto-church-invite__select::-ms-expand {
-  display: none;
-}
-
-.proto-church-invite__select-chevron {
-  position: absolute;
-  right: 10px;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  pointer-events: none;
-  color: var(--pds-text-tertiary, var(--pds-text-secondary));
-  line-height: 0;
-}
-
-.proto-church-invite__select:disabled + .proto-church-invite__select-chevron {
-  opacity: 0.45;
-}
-
-.proto-church-invite__role-note {
-  margin: 6px 0 0;
-  color: var(--pds-text-tertiary, var(--pds-text-secondary));
-}
 
 /* =========================================================================
    Expanded sidebar tool surface — chrome
@@ -16239,15 +15089,6 @@ html.harvous-prototype-route
   flex: 1 1 0;
   min-width: 0;
 }
-
-.proto-chip-bar.proto-planner__scope {
-  margin: 10px 14px 4px;
-  flex: 0 0 auto;
-  align-self: flex-start;
-  max-width: calc(100% - 28px);
-}
-
-.proto-planner__empty,
 .proto-planner__readonly {
   padding: 14px;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
@@ -16661,78 +15502,30 @@ html.harvous-prototype-route
    `overflow: visible` is load-bearing: the band bridges the 10px column gap
    with negative margins, so clipping it to the column would put the break back
    exactly where the run is supposed to be continuous. */
-.proto-planner-column__bands {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 2px 6px;
-  overflow: visible;
-}
 
 /* 5px, not 3. A hollow segment needs an interior to be hollow *in* — at 3px an
    inset border leaves nothing between its two edges and filled and unwritten
    read the same. This is the one place the run is allowed weight, because it is
    now carrying two facts rather than one. */
-.proto-planner-band {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 5px;
-  border-radius: 3px;
-  background: var(--pds-series-accent, var(--pds-border-control));
-}
 
 /* A week still to write. Outlined rather than faded: opacity would read as
    "less important", and an unwritten week is the opposite — it is the one
    asking for attention. The page shows through, so the run stays continuous
    while the gap in it stays obvious. */
-.proto-planner-band--unwritten {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--pds-series-accent, var(--pds-border-control));
-}
 
 /* The count beside the name. Tertiary and tabular so a column of them lines up
    and none of them competes with the series' own title. */
-.proto-planner-band__progress {
-  margin-left: 5px;
-  color: var(--pds-text-tertiary, var(--pds-text-secondary));
-  font-variant-numeric: tabular-nums;
-}
 
 /* Squared and extended into the gutter wherever the run carries on. 10px is the
    board's own column gap plus the 2px the band strip is inset by — if that gap
    changes, these change with it or the spine grows a seam. */
-.proto-planner-band--from-left {
-  margin-left: -12px;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.proto-planner-band--to-right {
-  margin-right: -12px;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
 
 /* The series' name, once, at the run's start. Sits above the band rather than
    inside it: a 3px rule has no room for text, and thickening it to fit would
    turn the spine into the banner this deliberately is not. */
-.proto-planner-band__label {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 2px);
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--pds-text-tertiary, var(--pds-text-secondary));
-}
 
 /* Room for that label to sit above the first band without overlapping the
    column heading. Only the strip grows — the cards below do not move. */
-.proto-planner-column__bands:has(.proto-planner-band__label) {
-  padding-top: 15px;
-}
 
 .proto-planner-card {
   display: flex;
@@ -16849,8 +15642,6 @@ html.harvous-prototype-route
   max-width: 100%;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
-
-.proto-planner-card__series .proto-icon,
 .proto-planner-card__series svg {
   flex: 0 0 auto;
   opacity: 0.7;
@@ -16858,13 +15649,6 @@ html.harvous-prototype-route
 
 /* `flex: 1 1 auto` is load-bearing: the prototype reset sets `flex-shrink: 0`
    on `*`, so ellipsis never fires on a flex child without it. */
-.proto-planner-card__series-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .proto-planner-card--compact {
   padding: 3px 6px;
@@ -17656,32 +16440,6 @@ html.harvous-prototype-route
 }
 
 /* ─── Import surface ──────────────────────────────────────────────────────── */
-
-.proto-import-page {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 28px 20px 120px;
-}
-
-.proto-import-page__title {
-  margin: 0;
-  font-family: var(--pds-font-display, var(--pds-font-body));
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--pds-text-primary);
-}
-
-.proto-import-page__subtitle {
-  margin: 6px 0 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--pds-text-secondary);
-}
 
 /* Drop zone ---------------------------------------------------------------- */
 
@@ -18492,9 +17250,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 @media (max-width: 600px) {
-  .proto-import-page {
-    padding: 18px 14px 120px;
-  }
 
   /* Tighten the spread and the sheets rather than scaling the hand, so the format
      labels stay at full size — they're the whole point of the illustration. */
@@ -18559,50 +17314,9 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   planned weeks and another for one with eight. Levels rather than a continuous
   ramp so the steps stay legible against glass at small sizes.
 */
-.proto-scripture-map__swatch {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--pds-accent) 10%, transparent);
-}
-
-.proto-scripture-map__swatch[data-heat='1'] { background: color-mix(in srgb, var(--pds-accent) 18%, transparent); }
-.proto-scripture-map__swatch[data-heat='2'] { background: color-mix(in srgb, var(--pds-accent) 38%, transparent); }
-.proto-scripture-map__swatch[data-heat='3'] { background: color-mix(in srgb, var(--pds-accent) 62%, transparent); }
-.proto-scripture-map__swatch[data-heat='4'] { background: color-mix(in srgb, var(--pds-accent) 88%, transparent); }
-
-.proto-scripture-map__chapters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 2px 12px 12px 40px;
-}
-
-.proto-scripture-map__chapter {
-  display: inline-grid;
-  place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 4px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--pds-accent) 10%, transparent);
-  color: var(--pds-text-secondary);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
 
 /* At the top of the ramp the swatch is nearly solid accent, so the numeral has
    to flip to the on-accent colour or it reads as a dark smudge. */
-.proto-scripture-map__chapter[data-heat='3'],
-.proto-scripture-map__chapter[data-heat='4'] {
-  color: var(--pds-on-accent);
-}
-
-.proto-scripture-map__chapter[data-heat='1'] { background: color-mix(in srgb, var(--pds-accent) 18%, transparent); }
-.proto-scripture-map__chapter[data-heat='2'] { background: color-mix(in srgb, var(--pds-accent) 38%, transparent); }
-.proto-scripture-map__chapter[data-heat='3'] { background: color-mix(in srgb, var(--pds-accent) 62%, transparent); }
-.proto-scripture-map__chapter[data-heat='4'] { background: color-mix(in srgb, var(--pds-accent) 88%, transparent); }
 
 /* ── Inspector › Thread ─────────────────────────────────────────────────────
    Connecting a note happens in place now. It used to open a floating sheet
@@ -20446,15 +19160,8 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 
 /* The note's paper behind is still the note's paper: same opaque composite as when it
    is the sheet, so the band does not turn translucent on the way here. */
-.pds-paper-stack__origin-paper .proto-editor-paper {
-  background-color: var(--pds-canvas-default);
-  background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
-}
 
 /* Nothing to scroll: only the top band is ever on screen. */
-.pds-paper-stack__origin-paper .proto-editor-scroll {
-  overflow: hidden;
-}
 
 /*
  * The note's own lip, dropped while it is a stacked sheet.
@@ -20717,104 +19424,12 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   min-width: 0;
 }
 
-.pds-reader-dock {
-  flex: 0 0 auto;
-  width: 300px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-inline-start: 0.5px solid var(--pds-border);
-  background-color: var(--pds-bg-sidebar);
-  backdrop-filter: var(--pds-glass-blur);
-}
-
-.pds-reader-dock__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--pds-space-2);
-  padding: var(--pds-space-4) var(--pds-space-3) var(--pds-space-2) var(--pds-space-4);
-}
-
-.pds-reader-dock__heading {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.pds-reader-dock__ref {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Way back from a dictionary entry to the passage it was found in. Sits above the title, so
    the panel reads as one level down from the passage rather than a new place. */
-.pds-reader-dock__back {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--pds-text-tertiary);
-  cursor: pointer;
-  min-width: 0;
-}
-
-.pds-reader-dock__back:hover {
-  color: var(--pds-text-secondary);
-}
-
-.pds-reader-dock__back .pds-caption {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pds-reader-dock__close {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: var(--pds-radius-pill);
-  background: none;
-  color: var(--pds-text-secondary);
-  cursor: pointer;
-}
-
-.pds-reader-dock__close:hover {
-  background-color: var(--pds-bg-control-hover);
-  color: var(--pds-text-primary);
-}
-
-.pds-reader-dock__close:focus-visible {
-  outline: 2px solid var(--pds-accent);
-  outline-offset: 1px;
-}
-
-.pds-reader-dock__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 var(--pds-space-3) var(--pds-space-5);
-}
 
 /* Narrow viewports have no room for two columns of prose — the dock takes the pane and
    the reader waits behind it, rather than squeezing both into an unreadable measure. */
 @media (max-width: 899px) {
-  .pds-reader-dock {
-    position: absolute;
-    inset: 0;
-    width: auto;
-    z-index: var(--pds-z-dropdown);
-    border-inline-start: none;
-  }
 
   .pds-reader-with-dock {
     position: relative;
@@ -20964,7 +19579,6 @@ html.harvous-prototype-route button[class*='proto-'] .proto-appearance-preview__
 html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexic'] {
   font-family: var(--pds-font-choice-dyslexic) !important;
 }
-
 
 
 /* Face tiles inside the reader inspector — the settings carousel at panel scale. It already
@@ -22433,82 +21047,6 @@ button.proto-feed-sheet__stat:hover {
   padding-left: var(--pds-space-1);
 }
 
-.proto-feed-prompts {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pds-space-2);
-  margin-bottom: var(--pds-space-5);
-}
-
-.proto-feed-prompt {
-  appearance: none;
-  font: inherit;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: var(--pds-space-3);
-  width: 100%;
-  text-align: left;
-  padding: var(--pds-space-3);
-  border: 1px dashed var(--pds-border-control);
-  border-radius: var(--pds-radius-card);
-  background: transparent;
-  transition:
-    background var(--pds-duration-press) var(--pds-ease-standard),
-    border-color var(--pds-duration-press) var(--pds-ease-standard);
-}
-
-.proto-feed-prompt:hover {
-  background: var(--pds-bg-row-hover);
-  border-color: var(--pds-border-on-paper);
-}
-
-.proto-feed-prompt__icon {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  opacity: 0.75;
-  background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
-}
-
-.proto-feed-prompt__text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.proto-feed-prompt__eyebrow {
-  color: var(--pds-text-muted-strong);
-}
-
-.proto-feed-prompt__title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--pds-text-primary);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.proto-feed-prompt__meta {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--pds-text-muted);
-  font-size: 12px;
-}
-
-.proto-feed-prompt__go {
-  flex: 0 0 auto;
-  color: var(--pds-text-muted-soft);
-}
-
 .proto-feed-sheet__rest {
   margin: auto;
   padding: var(--pds-space-10) 0;
@@ -22703,62 +21241,10 @@ button.proto-feed-sheet__stat:hover {
  * The scope row. Sits above the sheet's own header because it says which stack you are
  * looking at, and the header names a day inside that stack.
  */
-.proto-feed-scope {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pds-space-2);
-  margin-bottom: var(--pds-space-4);
-}
-
-.proto-feed-scope__chip {
-  appearance: none;
-  border: 1px solid transparent;
-  background: var(--pds-bg-chip);
-  font: inherit;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pds-space-2);
-  max-width: 220px;
-  padding: 3px var(--pds-space-3);
-  border-radius: var(--pds-radius-pill);
-  color: var(--pds-text-secondary);
-  font-size: 12px;
-  transition: background var(--pds-duration-press) var(--pds-ease-standard);
-}
-
-.proto-feed-scope__chip:hover {
-  background: var(--pds-bg-chip-hover);
-}
 
 /* Selected by fill and weight, not colour: `prototype-route-overrides.css` pins every
    descendant of a prototype button to text-primary, so a colour arm here would do nothing.
    Same reason the segmented controls distinguish their halves this way. */
-.proto-feed-scope__chip[data-active='true'] {
-  background: var(--pds-bg-control-strong);
-  border-color: var(--pds-border-on-paper);
-  font-weight: 600;
-}
-
-.proto-feed-scope__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-feed-scope__count {
-  flex: 0 0 auto;
-  min-width: 16px;
-  padding: 0 4px;
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-accent);
-  color: var(--pds-on-accent);
-  font-size: 10px;
-  font-weight: 600;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
 
 .proto-feed-said__time {
   flex: 0 0 auto;
@@ -23165,3 +21651,181 @@ button.proto-feed-sheet__stat:hover {
 }
 
 
+/* ─── Review and Challenges ──────────────────────────────────────────────────
+ *
+ * Two surfaces and one row, all wearing chrome that already exists. The Study Inbox is a
+ * `.proto-home-section` of `PrototypeHomeRow`s, so it needs no styling at all beyond its
+ * overflow anchor; the session and challenge pages sit inside `.proto-feed-sheet`, the same
+ * paper Activity's day sheets use. What is below is only what those two pages add: a prompt
+ * that has to read as a question rather than a heading, and the places a reader writes.
+ */
+
+/* Anchors the portaled overflow, exactly as `.proto-recall-row__more` does for the shelf.
+   The menu itself is portaled to the body, so this element only ever holds the trigger. */
+.proto-study-inbox-row__more {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The Plus badge and its dismiss, side by side in a row's trailing slot. */
+.proto-study-inbox__plus {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+}
+
+.proto-review-session,
+.proto-challenge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-5);
+}
+
+/*
+ * The question, and it is the largest thing on the page.
+ *
+ * Sized above body text but not as a heading: it is a sentence addressed to the reader, and
+ * setting it in the heading face made the session read like an article about their note. Body
+ * face, larger, with the line height a sentence wants rather than the tight one a title takes.
+ */
+.proto-review-session__prompt {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 20px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+/*
+ * Where the reader attempts it, and it is deliberately roomy.
+ *
+ * A single-line input would say "type the answer" — there is no answer, and nothing here is
+ * checked against anything. A few lines of paper says "write what you remember", which is the
+ * actual invitation.
+ */
+.proto-review-session__attempt,
+.proto-challenge__response {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 96px;
+  padding: var(--pds-space-3);
+  border: 1px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-row);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.proto-review-session__attempt:focus-visible,
+.proto-challenge__response:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+.proto-review-session__actions,
+.proto-challenge__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+}
+
+/* The buttons are pill-shaped and full-width by default (`.proto-settings-btn` is a settings
+   control first). In a row of two or three answers they size to their content instead. */
+.proto-review-session__actions > .proto-settings-btn,
+.proto-challenge__actions > .proto-settings-btn {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+
+/*
+ * The revealed answer, set apart from the question above it.
+ *
+ * A left rule rather than a card: the reader is looking at their own writing, and boxing it
+ * would make it look like something the app produced. The same mark a quotation takes.
+ */
+.proto-review-session__reveal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+  padding-left: var(--pds-space-3);
+  border-left: 2px solid var(--pds-border);
+}
+
+.proto-review-session__note-title {
+  margin: 0 0 var(--pds-space-2);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+}
+
+.proto-review-session__note-body,
+.proto-review-session__verse,
+.proto-challenge__verse {
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--pds-text-primary);
+}
+
+.proto-review-session__note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+  align-items: flex-start;
+}
+
+.proto-review-session__note > .proto-settings-btn {
+  width: auto;
+}
+
+.proto-review-session__thread ul {
+  margin: var(--pds-space-2) 0 0;
+  padding-left: var(--pds-space-5);
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.proto-challenge__step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+}
+
+.proto-challenge__step-title {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-challenge__step-prompt {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--pds-text-secondary);
+}
+
+/*
+ * The cloze line, in a monospaced face.
+ *
+ * The blanks are runs of underscores sized to the hidden word, and in a proportional face they
+ * collapse into visually different widths for the same letter count — which turns a memory
+ * exercise into a letter-counting one. Monospace makes every gap honest.
+ */
+.proto-challenge__cloze {
+  margin: 0;
+  font-family: var(--pds-font-mono, ui-monospace, monospace);
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--pds-text-primary);
+}

@@ -14,6 +14,9 @@ import {
   NoteFingerprints,
   RecallEvents,
   NoteVisitEvents,
+  ReviewItems,
+  ReviewEvents,
+  Challenges,
   ChurchServicePublishedNotes,
   ChurchSeriesPublishedNotes,
   and,
@@ -58,6 +61,9 @@ export const NOTE_DELETE_CASCADE_TABLES = [
   'NoteFingerprints',
   'RecallEvents',
   'NoteVisitEvents',
+  'ReviewItems',
+  'ReviewEvents',
+  'Challenges',
   'ChurchServicePublishedNotes',
   'ChurchSeriesPublishedNotes',
   'Notes',
@@ -145,6 +151,42 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
       // The visit log too — it is what tells resurfacing which notes are returned to, so a
       // deleted note left in it would keep weighting a library it is no longer part of.
       await tx.delete(NoteVisitEvents).where(inArray(NoteVisitEvents.noteId, chunk));
+      // Review rows go; challenges are retired instead.
+      //
+      // A review item is a question about a note, and a question about a note that no longer
+      // exists cannot be answered — it would surface in the inbox forever with nothing behind
+      // the Reveal. Both ends of a `connection` item count, so either column deleting the note
+      // retires the pair.
+      //
+      // A challenge is the opposite case and the reason this is an UPDATE rather than a DELETE.
+      // Its steps produced ordinary notes the reader still owns — evidence added, a link made, a
+      // summary written — and those artifacts point back at a path that explains them. Deleting
+      // the row would leave the notes orphaned and make a finished piece of work disappear
+      // because one of its inputs was tidied up. `retired` keeps the record and takes it off
+      // every active surface. Only active and paused rows move; a completed challenge is history
+      // and stays completed.
+      await tx.delete(ReviewEvents).where(inArray(ReviewEvents.noteId, chunk));
+      await tx
+        .delete(ReviewItems)
+        .where(
+          and(
+            eq(ReviewItems.userId, userId),
+            or(inArray(ReviewItems.noteId, chunk), inArray(ReviewItems.secondaryNoteId, chunk)),
+          ),
+        );
+      await tx
+        .update(Challenges)
+        .set({ status: 'retired', updatedAt: new Date() })
+        .where(
+          and(
+            eq(Challenges.userId, userId),
+            inArray(Challenges.status, ['active', 'paused']),
+            or(
+              inArray(Challenges.sourceNoteId, chunk),
+              inArray(Challenges.sourceSecondaryNoteId, chunk),
+            ),
+          ),
+        );
       // A published step's claim on the week it accompanies. Left behind, the
       // week would still read as published and a republish would skip it —
       // the series would be permanently missing a step no one could restore.

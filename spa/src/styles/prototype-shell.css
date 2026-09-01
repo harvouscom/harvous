@@ -530,51 +530,11 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   display: none;
 }
 
-.proto-shell__inspector-cell {
-  grid-column: 3;
-  grid-row: 2;
-  min-height: 0;
-  overflow: hidden;
-  border-left: 1px solid var(--pds-border);
-  background: var(--pds-bg-sidebar);
-  display: flex;
-  flex-direction: column;
-}
-
 .proto-shell--no-sidebar .proto-shell__main-cell {
   grid-column: 1;
 }
 .proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__main-cell {
   grid-column: 1;
-}
-.proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__inspector-cell {
-  grid-column: 2;
-}
-
-.proto-shell__footer-cell {
-  grid-column: 1 / -1;
-  grid-row: 3;
-  border-top: 1px solid var(--pds-border);
-  background: transparent;
-  box-shadow: var(--pds-glass-rim);
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  position: relative;
-}
-
-.proto-shell__footer-cell::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--pds-glass-sheen);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-shell__footer-cell > * {
-  position: relative;
-  z-index: 1;
 }
 
 /* ─── Sidebar root ───────────────────────────────────────────────────────── */
@@ -600,56 +560,12 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   scroll-padding-bottom: 16px;
 }
 
-.proto-load-more-sentinel {
-  height: 4px;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-
-.proto-load-more-status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 18px 16px;
-  min-height: 28px;
-  flex-shrink: 0;
-}
-
-.proto-load-more-retry {
-  border: none;
-  background: transparent;
-  padding: 4px 0;
-  cursor: pointer;
-  font-family: inherit;
-  color: var(--pds-text-secondary);
-  text-decoration: none;
-}
-
-.proto-load-more-retry:hover {
-  color: var(--pds-text-primary);
-  text-decoration: none;
-}
-
 /* ─── Main pane ──────────────────────────────────────────────────────────── */
 .proto-main-pane {
   flex: 1;
   min-height: 0;
   overflow: auto;
   font-family: var(--pds-font-body);
-}
-
-.proto-main-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  padding: 32px;
-  color: var(--pds-text-secondary);
-  font-size: 0.9375rem;
-  text-align: center;
-  gap: 8px;
 }
 
 /* ─── Mobile drawer ──────────────────────────────────────────────────────── */
@@ -765,14 +681,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 
   .proto-shell--inspector-open {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .proto-shell__footer-cell {
-    display: none;
-  }
-
-  .proto-shell__inspector-cell {
-    display: none;
   }
 
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
@@ -1056,43 +964,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   /* Reusable expandable right-side panel — mobile variants. */
-  .proto-side-panel-mobile-backdrop {
-    position: fixed;
-    inset: var(--pds-toolbar-h) 0 0 0;
-    z-index: 155;
-    background: transparent;
-    pointer-events: auto;
-  }
-
-  .proto-side-panel-mobile {
-    position: fixed;
-    top: calc(var(--pds-toolbar-h) + 8px);
-    right: 8px;
-    bottom: 8px;
-    width: min(var(--pds-inspector-w), calc(92vw - 16px));
-    z-index: 160;
-    border-radius: var(--pds-shell-frame-radius);
-    background: var(--pds-bg-page);
-    box-shadow: var(--pds-shadow-drawer);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    animation: proto-inspector-mobile-in 0.26s cubic-bezier(0.32, 0.72, 0.24, 1) forwards;
-    transition: width 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
-  }
-
-  .proto-side-panel-mobile--expanded {
-    width: calc(92vw - 16px);
-  }
-
-  .proto-side-panel-mobile--docked {
-    width: min(var(--pds-inspector-w), calc(92vw - 16px));
-  }
-
-  .proto-side-panel-mobile--exiting {
-    animation: proto-inspector-mobile-out 200ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
-    transition: none;
-  }
 }
 
 @media (min-width: 900px) {
@@ -1445,11 +1316,9 @@ html.harvous-prototype-route .proto-shell-frame {
 html.harvous-prototype-route .proto-shell {
   background: transparent;
 }
-
 html.harvous-prototype-route .proto-shell__toolbar-cell,
 html.harvous-prototype-route .proto-shell__sidebar-toolbar-cell,
 html.harvous-prototype-route .proto-shell__detail-toolbar-cell,
-html.harvous-prototype-route .proto-shell__footer-cell,
 html.harvous-prototype-route .proto-shell__editor-chrome-row {
   background: transparent;
 }
@@ -2284,10 +2153,6 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   /* Duration MUST match PROTO_VOTD_SHEET_MOTION_MS in proto-motion.ts — the shell
      keeps the sheet mounted for exactly this long after dismissal. */
   animation: proto-library-sheet-in 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
-}
-
-.proto-library-sheet--exiting {
-  animation: proto-library-sheet-out 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
 }
 
 @keyframes proto-library-sheet-in {

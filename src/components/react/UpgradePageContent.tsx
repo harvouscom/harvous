@@ -258,17 +258,24 @@ export default function UpgradePageContent({
               ))}
             </ul>
 
-            <p className="public-addon-letter__coming-label">Coming soon</p>
-            <ul className="public-addon-letter__features public-addon-letter__features--coming" role="list">
-              {PLUS_COMING_SOON_FEATURE_BULLETS.map((feature) => (
-                <li key={feature}>
-                  <span className="public-addon-letter__check" aria-hidden="true">
-                    <Icon name="check" size={10} />
-                  </span>
-                  <span className="public-addon-letter__feature-text">{feature}</span>
-                </li>
-              ))}
-            </ul>
+            {/* Nothing is promised when nothing is coming. Review and Challenges shipped in
+                3.0 and moved into the list above; a heading over an empty list would be the
+                page advertising a blank. */}
+            {PLUS_COMING_SOON_FEATURE_BULLETS.length > 0 ? (
+              <>
+                <p className="public-addon-letter__coming-label">Coming soon</p>
+                <ul className="public-addon-letter__features public-addon-letter__features--coming" role="list">
+                  {PLUS_COMING_SOON_FEATURE_BULLETS.map((feature) => (
+                    <li key={feature}>
+                      <span className="public-addon-letter__check" aria-hidden="true">
+                        <Icon name="check" size={10} />
+                      </span>
+                      <span className="public-addon-letter__feature-text">{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
 
             <div className="public-addon-letter__cta">
               {hasSharedSpaces ? (

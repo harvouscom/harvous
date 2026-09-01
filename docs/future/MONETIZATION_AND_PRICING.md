@@ -11,7 +11,7 @@ per product, everything included, no tiers within a product.**
 |---|---|---|
 | **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is the paid line. |
 | **Founding** | **$30/yr** | First **99** subscribers · **annual only** · lifetime price lock. |
-| **Harvous Plus** | **$5/mo** | Shared Spaces hosting now; Review, Challenges, and seasons fold in later. Standard annual ($45) is unlisted — Founding is the yearly offer. |
+| **Harvous Plus** | **$5/mo** | Shared Spaces hosting, **Review and personal Challenges (v3.0)**; themed seasons fold in later. Standard annual ($45) is unlisted — Founding is the yearly offer. |
 | **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
@@ -86,12 +86,21 @@ brings up to 50 free members in, and those members use shared spaces for weeks b
 consider hosting one. That is the trial, and it is already built. The consequence to accept: the
 **first 99 founders are the hard part**, because the loop has no hosts to seed it yet.
 
-### Review (paid, individual)
+### Review (paid, individual) — **shipped v3.0, September 2026**
 
-- AI-generated quiz sessions from the user's own notes and preferences
-- Grounded on [scripture-knowledge layer](./SCRIPTURE_KNOWLEDGE_LAYER.md) (cross-refs, themes, related notes)
-- Web-first runtime: **Mistral Small** on server ([SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md))
-- Each subscriber's Review is tied to **their account only** — not shareable via Group Sharing or church org
+- **No generative AI.** Authored prompt templates filled with the user's own notes, highlights,
+  connections and Threads — see
+  [REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md](./REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md).
+  This reverses the Mistral plan in
+  [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md), which is superseded.
+- **Transparent schedule:** revealed → 1 day, almost → 4 days, recalled → 14, compounding ×1.8
+  from the third consecutive recall, capped at 180. Every interval can be said in a sentence.
+- Surfaces: a max-three-row **Study Inbox** on Activity, a review session, and a manage page.
+  No counts, no badges, no overdue language anywhere.
+- Each subscriber's Review is tied to **their account only** — not shareable via Group Sharing
+  or church org.
+- **Marginal cost is a few database rows.** The small-model budget the pricing was built on is
+  unspent, which strengthens the cost constraint rather than testing it.
 
 ### Shared Spaces hosting (in Plus)
 
@@ -246,14 +255,17 @@ providers — see [entitlements.ts](../../server/utils/entitlements.ts).
 | Feature key | Gates | Granted by |
 |---|---|---|
 | `shared_spaces` | Owning shared spaces (`canCreateSharedSpace`) | Plus |
-| `review` | AI quiz session generation (when Review ships) | Plus |
-| `challenges` | Full seasons, incl. guide + archive | Plus |
+| `review` | Study Inbox, review sessions, adding items — **live in 3.0** | Plus |
+| `challenges` | Personal challenge paths — **live in 3.0**; seasons later | Plus |
 | `connector` | Connector API key, MCP OAuth, `/api/connector/*` + `/mcp` reads | Connector (separate product) |
 
 There is no `season_pass` key — Plus includes every season via `challenges`.
 
-**Plus grants `review` and `challenges` from day one**, before those products exist. Nothing gates on
-them yet, and issuing the rows now means existing subscribers need no backfill when they ship.
+**Plus granted `review` and `challenges` from day one**, before those products existed — so when
+they shipped in 3.0 no subscriber needed a backfill. Both now gate real routes via
+`requireFeature()` ([server/middleware/require-feature.ts](../../server/middleware/require-feature.ts)),
+which reconciles with the provider once on a miss before refusing, covering the post-checkout
+webhook gap.
 
 **Sources.** `EntitlementSource` is `'billing' | 'admin_grant' | 'church_seat' | 'trial'`, unique on
 `(userId, featureKey, source)`. Provider sync only ever touches `billing` rows, so an `admin_grant`
@@ -419,11 +431,17 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
 
 ## 8. Rollout sequence
 
-1. **Deterministic Compete + Review product** — UX and grounding builder; Mistral Review endpoint
-2. **Review runtime** — no new billing needed; Plus already grants `review`
-3. **Challenges** — first themed season, included in Plus
+1. ~~**Deterministic Compete + Review product**~~ — **shipped v3.0**, and deterministic all the
+   way down: no grounding builder and no Mistral endpoint were needed.
+2. ~~**Review runtime**~~ — **shipped v3.0**. No new billing; Plus already granted `review`.
+3. ~~**Challenges**~~ — **personal challenges shipped v3.0**. Themed *seasons* (Season Pass) are
+   still ahead and still fold into Plus via the same `challenges` key.
 4. **Referral** rewards update
 5. **Church org** — research pricing vs Planning Center; pilot with friendly churches
+
+**Still ahead for Compete:** public seasons need editorial content — an authored season map, a
+curated quiz set, and a schedule — which is a content pipeline rather than a code problem. The
+free-track/Plus split in §3 is unchanged by 3.0.
 
 **Deferred:** [Give Me More Context](./GIVE_ME_MORE_CONTEXT.md) — not v1 paid scope.
 
@@ -458,7 +476,8 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
 
 ## Related docs
 
-- [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md) — Review runtime AI + grounding
+- [REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md](./REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md) — **canonical** product thesis for Review, Challenges and Season Pass
+- [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md) — superseded for Review; grounding layer only
 - [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) — Remember / Learn / Compete pillars
 - [CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) — technical billing
 - [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) — church ladder

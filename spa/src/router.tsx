@@ -413,6 +413,41 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadTodayPage')),
   });
 
+  /**
+   * Review and Challenges — four lazy main-pane routes.
+   *
+   * Both first segments are in `RESERVED_PROTOTYPE_SEGMENTS`, which is what keeps the
+   * single-segment `$noteId` catch-all from reading `/review` as a note id. They register
+   * before it in `addChildren` for the same reason `read/today` does.
+   *
+   * `useShellModeNav` needs no case for these: it classifies anything that is neither the
+   * reader nor a note path as Activity, which is right — a review session is launched from
+   * Activity and the segmented control should stay where it was.
+   */
+  const prototypeReviewRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'review',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReviewPage')),
+  });
+
+  const prototypeReviewSessionRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'review/session',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReviewSessionPage')),
+  });
+
+  const prototypeChallengesRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'challenges',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeChallengesPage')),
+  });
+
+  const prototypeChallengeRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'challenges/$challengeId',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeChallengePage')),
+  });
+
   const prototypeLegacySpaceRedirectRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'space/$spaceId',
@@ -580,9 +615,15 @@ function buildPrototypeRouteBranch() {
     prototypeAdminVotdRoute,
     prototypeAdminChurchesRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
-    // Before the catch-all `$noteId`, which would otherwise swallow `/read`.
+    // Before the catch-all `$noteId`, which would otherwise swallow `/read`, `/review` and
+    // `/challenges`. The two-segment forms come first so they cannot be shadowed by their own
+    // one-segment parents.
     prototypeReadTodayRoute,
     prototypeReadRoute,
+    prototypeReviewSessionRoute,
+    prototypeReviewRoute,
+    prototypeChallengeRoute,
+    prototypeChallengesRoute,
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([
       prototypeSettingsIndexRoute,

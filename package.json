@@ -1,7 +1,7 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "2.127.1",
+  "version": "2.128.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/harvouscom/harvous.git"
@@ -82,6 +82,9 @@
     "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts",
     "fingerprints:backfill": "tsx server/scripts/backfill-note-fingerprints.ts",
     "recall:kind-rates": "tsx server/scripts/recall-open-rate-by-kind.ts",
+    "review:schema": "tsx server/scripts/add-review-challenges-schema.ts",
+    "review:schema:apply": "tsx server/scripts/add-review-challenges-schema.ts --apply",
+    "entitlement:grant": "tsx server/scripts/grant-entitlement.ts",
     "library:schema": "tsx server/scripts/add-resource-library-schema.ts",
     "library:schema:apply": "tsx server/scripts/add-resource-library-schema.ts --apply",
     "channel-links:schema": "tsx server/scripts/add-space-channel-links-schema.ts",

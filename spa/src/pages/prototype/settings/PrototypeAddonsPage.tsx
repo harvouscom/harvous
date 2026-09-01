@@ -201,8 +201,14 @@ export default function PrototypeAddonsPage() {
         <div className="proto-settings-plan__body">
           <PlanFeatureList items={featureBullets} />
 
-          <p className="proto-settings-plan-features__coming-label">Coming soon</p>
-          <PlanFeatureList items={PLUS_COMING_SOON_FEATURE_BULLETS} comingSoon />
+          {/* Empty since 3.0 — see the constant. A heading with no list under it reads as a
+              rendering bug, not as restraint. */}
+          {PLUS_COMING_SOON_FEATURE_BULLETS.length > 0 ? (
+            <>
+              <p className="proto-settings-plan-features__coming-label">Coming soon</p>
+              <PlanFeatureList items={PLUS_COMING_SOON_FEATURE_BULLETS} comingSoon />
+            </>
+          ) : null}
 
           {!hasSharedSpaces ? (
             <button
