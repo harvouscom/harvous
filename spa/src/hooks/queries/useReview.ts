@@ -58,6 +58,17 @@ export const reviewSessionQueryKey = ['review', 'session'] as const;
 export const reviewItemsQueryKey = (status?: ReviewItemStatus) =>
   ['review', 'items', status ?? 'all'] as const;
 
+/*
+ * Called unconditionally, then combined — never `authReady && useAccess()`.
+ *
+ * `&&` short-circuits, so the access hook is skipped while auth is still resolving and called
+ * once it settles. That changes the number of hooks between two renders of the same component,
+ * which is a Rules of Hooks violation, and React tears the tree down with an error that names
+ * neither this file nor the real cause.
+ *
+ * It only fires on the false-to-true auth transition, so every signed-out path looks fine —
+ * which is exactly how it reached a signed-in browser. Keep the call on its own line.
+ */
 /**
  * Holds the key and is a real account — the half of the gate that is not session readiness.
  *
@@ -75,12 +86,14 @@ function useReviewAccess(): boolean {
 /** True when Review is worth asking the server about at all. */
 export function useReviewEnabled(): boolean {
   const authReady = useAuthReady();
-  return authReady && useReviewAccess();
+  const access = useReviewAccess();
+  return authReady && access;
 }
 
 export function useReviewInbox() {
   const authReady = useAuthReady();
-  const enabled = authReady && useReviewAccess();
+  const access = useReviewAccess();
+  const enabled = authReady && access;
   return useQuery({
     queryKey: reviewInboxQueryKey,
     enabled,
@@ -91,7 +104,8 @@ export function useReviewInbox() {
 
 export function useReviewItems(status?: ReviewItemStatus) {
   const authReady = useAuthReady();
-  const enabled = authReady && useReviewAccess();
+  const access = useReviewAccess();
+  const enabled = authReady && access;
   return useQuery({
     queryKey: reviewItemsQueryKey(status),
     enabled,
@@ -112,7 +126,8 @@ export function useReviewItems(status?: ReviewItemStatus) {
  */
 export function useReviewSession(options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
-  const enabled = authReady && useReviewAccess();
+  const access = useReviewAccess();
+  const enabled = authReady && access;
   return useQuery({
     queryKey: reviewSessionQueryKey,
     enabled: enabled && options?.enabled !== false,
@@ -130,7 +145,8 @@ export function useReviewSession(options?: { enabled?: boolean }) {
  */
 export function useReviewReveal(itemId: string | null, options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
-  const featureEnabled = authReady && useReviewAccess();
+  const access = useReviewAccess();
+  const featureEnabled = authReady && access;
   return useQuery({
     queryKey: ['review', 'reveal', itemId ?? 'none'] as const,
     enabled: featureEnabled && Boolean(itemId) && options?.enabled === true,

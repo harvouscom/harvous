@@ -43,8 +43,10 @@ import {
 } from '@/lib/prototype-path';
 
 function rowMeta(item: ReviewItemView): (string | null)[] {
+  const subject = item.noteTitle ?? item.scriptureReference;
   return [
-    item.noteTitle ?? item.scriptureReference,
+    // Omitted when the question already names it — see PrototypeStudyInbox's `rowSubtitle`.
+    subject && !item.prompt.includes(subject) ? subject : null,
     item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
   ];
 }

@@ -412,7 +412,7 @@ export async function createReviewItem(
         status: 'active',
         recallState: 'new',
         intervalDays: 1,
-        dueAt: firstDueAt(now),
+        dueAt: firstDueAt(now, input.origin ?? 'user'),
         successStreak: 0,
         reviewCount: 0,
         ladderStep: 0,

@@ -21747,6 +21747,12 @@ button.proto-feed-sheet__stat:hover {
  *
  * A left rule rather than a card: the reader is looking at their own writing, and boxing it
  * would make it look like something the app produced. The same mark a quotation takes.
+ *
+ * Capped, and scrolling inside itself. A note can be a whole testimony — the first one this
+ * feature ever revealed ran past the fold and pushed "I recalled it" off the bottom of the
+ * screen, so answering meant scrolling away from the question to reach the buttons. Bounding
+ * the note keeps the question, the answer and the two verdicts on screen together, which is
+ * the whole exchange.
  */
 .proto-review-session__reveal {
   display: flex;
@@ -21754,6 +21760,9 @@ button.proto-feed-sheet__stat:hover {
   gap: var(--pds-space-3);
   padding-left: var(--pds-space-3);
   border-left: 2px solid var(--pds-border);
+  max-height: min(46vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .proto-review-session__note-title {

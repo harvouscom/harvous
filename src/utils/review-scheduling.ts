@@ -164,14 +164,20 @@ export function deferReview(
 }
 
 /**
- * The first due date for a brand-new item.
+ * The first due date for a brand-new item, which depends on how it got there.
  *
- * Tomorrow rather than immediately: an item added while looking at the note would otherwise
- * ask about the note still open on screen, which teaches the reader that Review is a trick
- * question. A night's sleep is the shortest gap at which recall means anything.
+ * An item the reader **added** waits a night. They added it while looking at the note, so
+ * asking immediately would be asking about something still on screen — a trick question, and
+ * the fastest way to teach someone the feature is not serious.
+ *
+ * An item the app **seeded** is due at once. The reader tapped "Start reviewing" to try
+ * Review, and the seed deliberately picks notes untouched for at least two weeks
+ * (`SEED_MIN_AGE_DAYS`), so there is nothing on screen to read the answer off. Making them
+ * wait a day to see the thing they just opted into meant tapping the offer and watching the
+ * whole section vanish, which is what it did in the first preview.
  */
-export function firstDueAt(now: Date = new Date()): Date {
-  return addDays(now, 1);
+export function firstDueAt(now: Date = new Date(), origin: 'user' | 'seed' | 'challenge' = 'user'): Date {
+  return origin === 'seed' ? new Date(now.getTime()) : addDays(now, 1);
 }
 
 /** Human phrasing for the next return, for the one line the session shows after an answer. */
