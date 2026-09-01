@@ -91,6 +91,33 @@ jobs:
         # with "Invalid manifest: file size ... exceeds 5242880 limit [code: 10304]".
         run: cp cloudflare/_headers cloudflare/_redirects cloudflare/.assetsignore dist-spa/
 
+      # Staging authenticates against a Clerk DEVELOPMENT instance, which serves clerk.js
+      # from <slug>.clerk.accounts.dev. Production's CSP allows *.clerk.com and
+      # clerk.harvous.com only, so the dev script is blocked and the app never boots.
+      #
+      # That gap is latent on Netlify rather than absent: netlify.toml documents
+      # [context.staging] as "dev Clerk", but new.harvous.com actually ships pk_live_ today,
+      # so the dev path has never been exercised there. Verified 2026-09-01.
+      #
+      # Applied to STAGING ONLY, and derived from the production file rather than duplicated,
+      # so production's CSP stays byte-identical to netlify.toml and the two cannot drift.
+      - name: Widen CSP for the dev Clerk instance (staging only)
+        if: github.ref_name != 'main'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const f = "dist-spa/_headers";
+            let h = fs.readFileSync(f, "utf8");
+            const before = h;
+            for (const d of ["script-src", "frame-src"]) {
+              h = h.replace(new RegExp("(" + d + " [^;]*)", "g"),
+                            "$1 https://*.clerk.accounts.dev");
+            }
+            if (h === before) { console.error("CSP not modified — directive names changed?"); process.exit(1); }
+            fs.writeFileSync(f, h);
+            console.log("staging CSP: added *.clerk.accounts.dev to script-src and frame-src");
+          '
+
       # Guards the one regression this migration is most likely to ship. See the ordering
       # note in cloudflare/_headers.
       - name: Assert the two deploy-breaking invariants
