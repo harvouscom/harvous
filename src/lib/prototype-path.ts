@@ -101,6 +101,7 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   'new',
   'compose',
   'church',
+  'review',
   'challenges',
   'compete',
   'learn',
@@ -301,6 +302,35 @@ export function prototypeSettingsAccountRouteTo(): '/prototype/settings/account'
 
 export function prototypeSettingsSupportRouteTo(): '/prototype/settings/support' {
   return (isDedicatedPrototypeHost() ? '/settings/support' : '/prototype/settings/support') as '/prototype/settings/support';
+}
+
+/**
+ * Review's two URLs, and Challenges' two.
+ *
+ * Shaped like `prototypeReadTodayRouteTo` rather than the note route: these take no params,
+ * except the one challenge id, and both live under segments reserved in
+ * `RESERVED_PROTOTYPE_SEGMENTS` so the single-segment note catch-all cannot swallow them.
+ */
+export function prototypeReviewRouteTo(): '/prototype/review' {
+  return (isDedicatedPrototypeHost() ? '/review' : '/prototype/review') as '/prototype/review';
+}
+
+export function prototypeReviewSessionRouteTo(): '/prototype/review/session' {
+  return (isDedicatedPrototypeHost()
+    ? '/review/session'
+    : '/prototype/review/session') as '/prototype/review/session';
+}
+
+export function prototypeChallengesRouteTo(): '/prototype/challenges' {
+  return (isDedicatedPrototypeHost()
+    ? '/challenges'
+    : '/prototype/challenges') as '/prototype/challenges';
+}
+
+export function prototypeChallengeRouteTo(): '/prototype/challenges/$challengeId' {
+  return (isDedicatedPrototypeHost()
+    ? '/challenges/$challengeId'
+    : '/prototype/challenges/$challengeId') as '/prototype/challenges/$challengeId';
 }
 
 export function prototypeHomeRouteTo(): '/prototype' {

@@ -369,17 +369,31 @@ export function isFeatureKey(value: string): value is FeatureKey {
  * FEATURE_KEYS that PLUS_FEATURES already grants.
  *
  * COST CONSTRAINT — do not break this without re-running the pricing math:
- * every Plus feature must stay fixed-cost or near-zero-marginal. Review is
- * budgeted on a small model (~$0.001/session, so even a heavy user costs
- * pennies against ~$4.25 net on the $5 plan). Moving Review to a frontier model
- * is a 30–100x jump that would put heavy users underwater at every price in
- * this file — and founding subscribers are locked in for life. If that swap is
- * ever proposed, the price has to move first.
+ * every Plus feature must stay fixed-cost or near-zero-marginal.
+ *
+ * Review shipped in 3.0 with **no runtime model at all** — authored prompts filled
+ * with the reader's own notes, and a schedule that is arithmetic. Its marginal cost
+ * is a few database rows, which is the strongest possible version of this
+ * constraint rather than an exception to it. See
+ * docs/future/REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md.
+ *
+ * The original budget assumed a small model at ~$0.001/session against ~$4.25 net
+ * on the $5 plan. That headroom is now unspent, and the reasoning it was written
+ * for still stands if generation is ever proposed: a frontier model is a 30–100x
+ * jump that would put heavy users underwater at every price in this file, and
+ * founding subscribers are locked in for life. If that swap is ever proposed, the
+ * price has to move first — and so does the product decision, which is currently
+ * that Harvous does not generate study content.
  */
-export const PLUS_COMING_SOON_FEATURE_BULLETS = [
-  'Review — practice from your notes',
-  'Challenges — guided study seasons',
-] as const;
+/**
+ * Empty since 3.0, and kept rather than deleted.
+ *
+ * Review and Challenges shipped and moved into `SHARED_SPACES_ADDON_FEATURE_BULLETS`, which
+ * left nothing here. The constant stays because both surfaces that render it now hide the
+ * "Coming soon" heading when it is empty — so the next thing that is genuinely coming is one
+ * string, not a re-plumbing of two pages.
+ */
+export const PLUS_COMING_SOON_FEATURE_BULLETS: readonly string[] = [];
 
 /** Short label for the capped founding price lock ($30/yr). */
 export const PLUS_FOUNDING_BADGE = 'Founding';

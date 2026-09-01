@@ -1,0 +1,140 @@
+/**
+ * Review's reads.
+ *
+ * Every query here is gated three ways — signed in, holds the key, not a guest — because a
+ * request that would 403 is a request worth not making. The gate is not a security boundary;
+ * `requireFeature` on the server is. It exists so a free account's Activity page does not fire
+ * two doomed requests on every load.
+ */
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../lib/api';
+import { useAuthReady } from '../useAuthReady';
+import { useHasFeature } from '../useHasFeature';
+import { useHarvousIdentity } from '../useHarvousIdentity';
+import type {
+  RecallState,
+  ReviewItemKind,
+  ReviewItemOrigin,
+  ReviewItemStatus,
+} from '@/utils/review-item-kinds';
+import type { VerseCloze } from '@/utils/verse-cloze';
+
+export interface ReviewItemView {
+  id: string;
+  kind: ReviewItemKind;
+  prompt: string;
+  promptKey: string;
+  recallState: RecallState;
+  status: ReviewItemStatus;
+  origin: ReviewItemOrigin;
+  dueAt: string;
+  reviewCount: number;
+  ladderStep: number;
+  noteTitle: string | null;
+  secondaryNoteTitle: string | null;
+  scriptureReference: string | null;
+  noteId: string | null;
+  challengeId: string | null;
+}
+
+export interface ReviewInboxResponse {
+  items: ReviewItemView[];
+  /** A boolean, never a count — see the route's docblock. */
+  hasMore: boolean;
+  canSeed: boolean;
+}
+
+export interface ReviewRevealResponse {
+  note?: { id: string; title: string | null; content: string } | null;
+  secondaryNote?: { id: string; title: string | null; content: string } | null;
+  verseText?: string | null;
+  cloze?: VerseCloze | null;
+  thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
+}
+
+export const reviewQueryKey = ['review'] as const;
+export const reviewInboxQueryKey = ['review', 'inbox'] as const;
+export const reviewSessionQueryKey = ['review', 'session'] as const;
+export const reviewItemsQueryKey = (status?: ReviewItemStatus) =>
+  ['review', 'items', status ?? 'all'] as const;
+
+/**
+ * Holds the key and is a real account — the half of the gate that is not session readiness.
+ *
+ * Session readiness is deliberately *not* folded in here. `check:auth-gated-queries` reads
+ * each hook on its own and wants `useAuthReady()` visible at the call site, and it is right
+ * to: burying the gate one call deep is exactly how fourteen hooks lost it before, and a
+ * reader skimming a query cannot see a gate that lives in another function.
+ */
+function useReviewAccess(): boolean {
+  const { has } = useHasFeature('review');
+  const { isGuest } = useHarvousIdentity();
+  return has && !isGuest;
+}
+
+/** True when Review is worth asking the server about at all. */
+export function useReviewEnabled(): boolean {
+  const authReady = useAuthReady();
+  return authReady && useReviewAccess();
+}
+
+export function useReviewInbox() {
+  const authReady = useAuthReady();
+  const enabled = authReady && useReviewAccess();
+  return useQuery({
+    queryKey: reviewInboxQueryKey,
+    enabled,
+    queryFn: () => api.get<ReviewInboxResponse>('/api/review/inbox'),
+    staleTime: 60_000,
+  });
+}
+
+export function useReviewItems(status?: ReviewItemStatus) {
+  const authReady = useAuthReady();
+  const enabled = authReady && useReviewAccess();
+  return useQuery({
+    queryKey: reviewItemsQueryKey(status),
+    enabled,
+    queryFn: () =>
+      api.get<{ items: ReviewItemView[] }>(
+        status ? `/api/review/items?status=${encodeURIComponent(status)}` : '/api/review/items',
+      ),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * A sitting's worth of questions.
+ *
+ * `staleTime: Infinity` and no refetch on focus: the session is a fixed set once it starts.
+ * Tabbing away mid-answer and coming back to a reshuffled queue would lose the reader's place
+ * in the one place where losing it costs them an answer they had already thought of.
+ */
+export function useReviewSession(options?: { enabled?: boolean }) {
+  const authReady = useAuthReady();
+  const enabled = authReady && useReviewAccess();
+  return useQuery({
+    queryKey: reviewSessionQueryKey,
+    enabled: enabled && options?.enabled !== false,
+    queryFn: () => api.get<{ items: ReviewItemView[] }>('/api/review/session'),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * The answer behind the question, fetched only when asked for.
+ *
+ * Disabled until `enabled` flips, which is what makes the reveal a deliberate act rather than
+ * something already sitting in the page while the question is on screen.
+ */
+export function useReviewReveal(itemId: string | null, options?: { enabled?: boolean }) {
+  const authReady = useAuthReady();
+  const featureEnabled = authReady && useReviewAccess();
+  return useQuery({
+    queryKey: ['review', 'reveal', itemId ?? 'none'] as const,
+    enabled: featureEnabled && Boolean(itemId) && options?.enabled === true,
+    queryFn: () => api.get<ReviewRevealResponse>(`/api/review/items/${encodeURIComponent(itemId!)}/reveal`),
+    staleTime: 5 * 60_000,
+  });
+}

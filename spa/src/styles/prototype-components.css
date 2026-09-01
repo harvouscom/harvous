@@ -23165,3 +23165,182 @@ button.proto-feed-sheet__stat:hover {
 }
 
 
+
+/* ─── Review and Challenges ──────────────────────────────────────────────────
+ *
+ * Two surfaces and one row, all wearing chrome that already exists. The Study Inbox is a
+ * `.proto-home-section` of `PrototypeHomeRow`s, so it needs no styling at all beyond its
+ * overflow anchor; the session and challenge pages sit inside `.proto-feed-sheet`, the same
+ * paper Activity's day sheets use. What is below is only what those two pages add: a prompt
+ * that has to read as a question rather than a heading, and the places a reader writes.
+ */
+
+/* Anchors the portaled overflow, exactly as `.proto-recall-row__more` does for the shelf.
+   The menu itself is portaled to the body, so this element only ever holds the trigger. */
+.proto-study-inbox-row__more {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The Plus badge and its dismiss, side by side in a row's trailing slot. */
+.proto-study-inbox__plus {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+}
+
+.proto-review-session,
+.proto-challenge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-5);
+}
+
+/*
+ * The question, and it is the largest thing on the page.
+ *
+ * Sized above body text but not as a heading: it is a sentence addressed to the reader, and
+ * setting it in the heading face made the session read like an article about their note. Body
+ * face, larger, with the line height a sentence wants rather than the tight one a title takes.
+ */
+.proto-review-session__prompt {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 20px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+/*
+ * Where the reader attempts it, and it is deliberately roomy.
+ *
+ * A single-line input would say "type the answer" — there is no answer, and nothing here is
+ * checked against anything. A few lines of paper says "write what you remember", which is the
+ * actual invitation.
+ */
+.proto-review-session__attempt,
+.proto-challenge__response {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 96px;
+  padding: var(--pds-space-3);
+  border: 1px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-row);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.proto-review-session__attempt:focus-visible,
+.proto-challenge__response:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 1px;
+}
+
+.proto-review-session__actions,
+.proto-challenge__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+}
+
+/* The buttons are pill-shaped and full-width by default (`.proto-settings-btn` is a settings
+   control first). In a row of two or three answers they size to their content instead. */
+.proto-review-session__actions > .proto-settings-btn,
+.proto-challenge__actions > .proto-settings-btn {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+
+/*
+ * The revealed answer, set apart from the question above it.
+ *
+ * A left rule rather than a card: the reader is looking at their own writing, and boxing it
+ * would make it look like something the app produced. The same mark a quotation takes.
+ */
+.proto-review-session__reveal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+  padding-left: var(--pds-space-3);
+  border-left: 2px solid var(--pds-border);
+}
+
+.proto-review-session__note-title {
+  margin: 0 0 var(--pds-space-2);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pds-text-secondary);
+}
+
+.proto-review-session__note-body,
+.proto-review-session__verse,
+.proto-challenge__verse {
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--pds-text-primary);
+}
+
+.proto-review-session__note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-2);
+  align-items: flex-start;
+}
+
+.proto-review-session__note > .proto-settings-btn {
+  width: auto;
+}
+
+.proto-review-session__thread ul {
+  margin: var(--pds-space-2) 0 0;
+  padding-left: var(--pds-space-5);
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.proto-challenge__step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+}
+
+.proto-challenge__step-title {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-challenge__step-prompt {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--pds-text-secondary);
+}
+
+/*
+ * The cloze line, in a monospaced face.
+ *
+ * The blanks are runs of underscores sized to the hidden word, and in a proportional face they
+ * collapse into visually different widths for the same letter count — which turns a memory
+ * exercise into a letter-counting one. Monospace makes every gap honest.
+ */
+.proto-challenge__cloze {
+  margin: 0;
+  font-family: var(--pds-font-mono, ui-monospace, monospace);
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--pds-text-primary);
+}

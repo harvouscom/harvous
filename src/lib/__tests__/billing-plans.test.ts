@@ -50,12 +50,16 @@ describe('billing-plans registry', () => {
     }
   });
 
-  it('exposes founding badge, cap, and Plus coming-soon bullets', () => {
+  it('exposes founding badge and cap', () => {
     expect(PLUS_FOUNDING_BADGE).toBe('Founding');
     expect(FOUNDING_CAP).toBe(99);
-    expect(PLUS_COMING_SOON_FEATURE_BULLETS.length).toBeGreaterThanOrEqual(2);
-    expect(PLUS_COMING_SOON_FEATURE_BULLETS.some((b) => /Review/i.test(b))).toBe(true);
-    expect(PLUS_COMING_SOON_FEATURE_BULLETS.some((b) => /Challenges/i.test(b))).toBe(true);
+  });
+
+  it('no longer promises Review or Challenges as coming — they shipped in 3.0', () => {
+    // The two bullets moved into SHARED_SPACES_ADDON_FEATURE_BULLETS, which is asserted in
+    // shared-spaces-limits.test.ts. Nothing else is promised, so the list is empty and both
+    // surfaces hide the heading.
+    expect(PLUS_COMING_SOON_FEATURE_BULLETS).toHaveLength(0);
   });
 });
 
