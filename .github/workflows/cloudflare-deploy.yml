@@ -108,8 +108,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # ONLY main reaches the production Worker. Everything else — the staging branch,
-          # and any manual workflow_dispatch from a feature branch — goes to harvous-app-staging.
-          # Without this, a dispatch from a feature branch would deploy a DEV-Clerk build onto
-          # the production Worker, since the key above is chosen by the same ref check.
-          command: deploy ${{ github.ref_name == 'main' && '' || '--env staging' }}
+          # ONLY main reaches the production Worker; everything else — the staging branch and
+          # any manual workflow_dispatch — goes to harvous-app-staging.
+          #
+          # The condition is NEGATED on purpose. GitHub's `A && B || C` is not a ternary: it
+          # is boolean short-circuiting, so when B is an EMPTY STRING it is falsy and the
+          # expression falls through to C. Writing this the intuitive way round —
+          # `ref_name == 'main' && '' || '--env staging'` — therefore sends *main* to staging,
+          # which is exactly what happened on the first CI run (2026-09-01: `deploy --env
+          # staging` executed on main, putting a live-Clerk build on the staging Worker).
+          # Keep the non-empty value in the TRUE position.
+          command: deploy ${{ github.ref_name != 'main' && '--env staging' || '' }}
