@@ -1569,6 +1569,142 @@ export const SearchEvents = pgTable('SearchEvents', {
   index('SearchEvents_userId_queryIndex').on(table.userId, table.query),
 ]);
 
+// ─── ReviewItems (Plus: a scheduled return to your own study) ─────────────────
+// The sixth member of the memory-layer family above, and the first one the reader puts
+// something *into* deliberately. NoteFingerprints, RecallEvents, ReadingEvents,
+// NoteVisitEvents and SearchEvents all record what happened; this records what the reader
+// asked to come back to, which is why it is a mutable row rather than an append-only log.
+//
+// The schedule is stored, not derived. `intervalDays` and `dueAt` are written by
+// `nextReviewAfter` (src/utils/review-scheduling.ts) on every outcome, so the inbox is one
+// indexed read rather than a scan-and-score over history — and so the reader can be told
+// exactly when something is coming back. That is the whole point of a transparent schedule:
+// a number that only exists inside a ranking function cannot be shown to anyone.
+//
+// `sourceKey` carries the uniqueness the columns cannot. A review of a note, of a highlight,
+// of a connection between two notes and of a Thread are four different rows with four
+// different id columns; one text key over `(userId, sourceKey)` stops the same thing being
+// added twice without four partial indexes.
+
+export const ReviewItems = pgTable('ReviewItems', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** note | highlight | connection | thread | verse — see src/utils/review-item-kinds.ts. */
+  kind: text('kind').notNull(),
+  /** `${kind}:${id}[:${secondaryId}]` — the dedupe key across all five shapes. */
+  sourceKey: text('sourceKey').notNull(),
+  /** The note under review; for `connection` the from-note, for `thread` the cluster rep. */
+  noteId: text('noteId'),
+  /** `connection` only — the to-note. */
+  secondaryNoteId: text('secondaryNoteId'),
+  /** `highlight` only — the StudyThreadEntries row. */
+  studyThreadEntryId: text('studyThreadEntryId'),
+  /** `highlight` | `verse` — normalized reference, e.g. "John 15:5". */
+  scriptureReference: text('scriptureReference'),
+  translation: text('translation'),
+  /** active | paused | archived. Paused is the reader's "not this season". */
+  status: text('status').notNull().default('active'),
+  /** new | fragile | forming | durable — derived by deriveRecallState, stored for cheap reads. */
+  recallState: text('recallState').notNull().default('new'),
+  intervalDays: real('intervalDays').notNull().default(1),
+  dueAt: ts('dueAt').notNull(),
+  lastReviewedAt: ts('lastReviewedAt'),
+  /** recalled | almost | revealed — the last answer, which decides the next interval. */
+  lastOutcome: text('lastOutcome'),
+  /** Consecutive `recalled` answers. Resets to 0 on almost/revealed. */
+  successStreak: integer('successStreak').notNull().default(0),
+  reviewCount: integer('reviewCount').notNull().default(0),
+  /** Verse ladder position 0..4 (recognize → rebuild → recall → contextualize → connect). */
+  ladderStep: integer('ladderStep').notNull().default(0),
+  /** user | seed | challenge — where the row came from, so cold-start seeds stay legible. */
+  origin: text('origin').notNull().default('user'),
+  /** Set when a challenge created this item, so completing the challenge can advance it. */
+  challengeId: text('challengeId'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('ReviewItems_userId_sourceKeyIndex').on(table.userId, table.sourceKey),
+  // The inbox read: due, active, oldest first.
+  index('ReviewItems_userId_status_dueAtIndex').on(table.userId, table.status, table.dueAt),
+  // The three cascade filters. NoteVisitEvents_noteIdIndex's docblock calls the missing
+  // equivalent on RecallEvents a gap rather than a precedent; these are the ones that close it.
+  index('ReviewItems_noteIdIndex').on(table.noteId),
+  index('ReviewItems_secondaryNoteIdIndex').on(table.secondaryNoteId),
+  index('ReviewItems_studyThreadEntryIdIndex').on(table.studyThreadEntryId),
+]);
+
+// ─── ReviewEvents (append-only log of what a review session was answered with) ─
+// Separate from ReviewItems for the same reason RecallEvents is separate from
+// NoteFingerprints: the item holds the current state, this holds how it got there. A
+// reader who wants to know whether their recall is actually improving needs the sequence,
+// which a row that only ever holds "last outcome" has already thrown away.
+//
+// `attempt` is what the reader typed before revealing, and it is the sensitive column here:
+// it is their own words about their own study. Never sent to analytics, deleted by the note
+// cascade and by clear-data along with everything else keyed to the note.
+
+export const ReviewEvents = pgTable('ReviewEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  reviewItemId: text('reviewItemId').notNull(),
+  /** Denormalized so the note cascade can find these rows without joining ReviewItems. */
+  noteId: text('noteId'),
+  /** shown | recalled | almost | revealed | deferred | paused | resumed | archived. */
+  action: text('action').notNull(),
+  /** What the reader wrote before revealing, when they wrote anything. */
+  attempt: text('attempt'),
+  previousIntervalDays: real('previousIntervalDays'),
+  nextIntervalDays: real('nextIntervalDays'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('ReviewEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('ReviewEvents_reviewItemId_createdAtIndex').on(table.reviewItemId, table.createdAt),
+  index('ReviewEvents_noteIdIndex').on(table.noteId),
+]);
+
+// ─── Challenges (Plus: a bounded path through study you already have) ─────────
+// Steps are a JSON column rather than a ChallengeSteps table, and the reason is that they
+// are never queried across challenges. A template builds four or five of them at creation,
+// they are always read and written as one unit with their parent, and nothing ever asks
+// "every link step across all users". That is the same shape as ThreadProgress.openedNoteIds
+// and StudyThreadMemberOrders.orderedNoteIds, and it buys a second table, a second index set
+// and a second cascade branch for nothing.
+//
+// A challenge is retired, not deleted, when its source note goes: the notes it produced are
+// ordinary notes the reader still owns, and a finished path that quietly vanishes because
+// one of its inputs was tidied away reads as data loss. See delete-note-cascade.ts.
+
+export const Challenges = pgTable('Challenges', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** strengthen_thread | keep_verse | return_to_question | trace_connection. */
+  templateKey: text('templateKey').notNull(),
+  /** Resolved at creation from the source's own title, so a renamed Thread keeps its path. */
+  title: text('title').notNull(),
+  /** active | paused | completed | archived | retired. */
+  status: text('status').notNull().default('active'),
+  /** `${templateKey}:${id}[:${secondaryId}]` — one active challenge per source. */
+  sourceKey: text('sourceKey').notNull(),
+  /** Thread rep note, question note, or the from-note of a connection. */
+  sourceNoteId: text('sourceNoteId'),
+  sourceSecondaryNoteId: text('sourceSecondaryNoteId'),
+  sourceEntryId: text('sourceEntryId'),
+  scriptureReference: text('scriptureReference'),
+  translation: text('translation'),
+  /** JSON ChallengeStep[] — shape in src/utils/challenge-templates.ts. */
+  steps: text('steps').notNull(),
+  currentStepIndex: integer('currentStepIndex').notNull().default(0),
+  startedAt: ts('startedAt').notNull(),
+  lastStepAt: ts('lastStepAt'),
+  completedAt: ts('completedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('Challenges_userId_statusIndex').on(table.userId, table.status),
+  index('Challenges_sourceNoteIdIndex').on(table.sourceNoteId),
+  index('Challenges_sourceSecondaryNoteIdIndex').on(table.sourceSecondaryNoteId),
+]);
+
 // ─── SupportTickets (user feedback from settings support form) ─────────────────
 
 export const SupportTickets = pgTable('SupportTickets', {

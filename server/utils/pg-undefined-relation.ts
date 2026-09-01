@@ -75,6 +75,27 @@ export function isNoteVisitEventsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'NoteVisitEvents');
 }
 
+export function isReviewItemsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'ReviewItems');
+}
+
+export function isReviewEventsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'ReviewEvents');
+}
+
+export function isChallengesTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'Challenges');
+}
+
+/** Any of the three Review/Challenge tables — the surfaces read them together. */
+export function isReviewTableMissing(error: unknown): boolean {
+  return (
+    isReviewItemsTableMissing(error) ||
+    isReviewEventsTableMissing(error) ||
+    isChallengesTableMissing(error)
+  );
+}
+
 export function isSupportTicketsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SupportTickets');
 }

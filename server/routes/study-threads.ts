@@ -50,6 +50,7 @@ import {
   tipTapHtmlToCanonicalText,
 } from '../utils/durable-note-anchor';
 import { ensureAnchorableCurrentNoteVersion } from '../utils/note-version-service';
+import { retireReviewForStudyThreadEntry } from '../utils/review-service';
 
 const route = new Hono();
 
@@ -860,6 +861,24 @@ route.delete('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c
     if (existing.parentNoteId && parentCtx.note) {
       await touchParentNoteEditedAt(existing.parentNoteId, parentCtx.note.userId, auth.userId);
       broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
+    }
+
+    /*
+     * Retire anything in Review or Challenges that was anchored to this highlight.
+     *
+     * The note cascade cannot reach these: a highlight-backed review item has no `noteId` at
+     * all when it was made while reading, so deleting the highlight is the only event that
+     * says the item's subject is gone. Left behind, it would ask "what made this worth
+     * keeping?" about a mark that no longer exists.
+     *
+     * Outside the transaction and non-fatal, deliberately. The deletion the reader asked for
+     * has already committed, and failing the request now would report an error for work that
+     * succeeded.
+     */
+    try {
+      await retireReviewForStudyThreadEntry(existing.userId, id);
+    } catch (err) {
+      console.warn('[study-threads] review retirement skipped', err);
     }
 
     return c.json({ success: true, deletedId: id });
