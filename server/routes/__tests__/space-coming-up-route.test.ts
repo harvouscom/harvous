@@ -63,7 +63,7 @@ describe('GET /api/church/spaces/:spaceId/coming-up', () => {
 
 describe('the space dashboard', () => {
   it('asks in any room that can hold a plan, not behind thread rights', () => {
-    const text = source('spa/src/pages/prototype/PrototypeSidebarSharedSpaceView.tsx');
+    const text = source('spa/src/pages/prototype/PrototypeSpaceHub.tsx');
     const call = text.slice(
       text.indexOf('<PrototypeSpaceComingUp'),
       text.indexOf('<PrototypeSpaceComingUp') + 260,
