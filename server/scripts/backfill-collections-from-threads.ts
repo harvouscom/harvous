@@ -17,6 +17,7 @@
 
 import 'dotenv/config';
 import { db, Notes, eq, and, asc, gt, isNull, ne, sql, type SQL } from '../db';
+import { requireDbTarget } from '../utils/require-db-target';
 import {
   backfillCollectionsFromThreadsForUser,
   countCollectionBackfillCandidates,
@@ -105,6 +106,7 @@ async function backfillAllUsers(batchSize: number, maxNotes?: number): Promise<n
 }
 
 async function main() {
+  requireDbTarget({ scriptName: 'backfill-collections', writes: true });
   const { dryRun, repairPins, userId, batchSize, maxNotes } = parseArgs();
 
   if (repairPins) {

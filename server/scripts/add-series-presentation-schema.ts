@@ -23,6 +23,7 @@
 import 'dotenv/config';
 import postgres from 'postgres';
 import { pathToFileURL } from 'node:url';
+import { requireDbTarget } from '../utils/require-db-target';
 
 export const ADDITIVE_SERIES_PRESENTATION_DDL = [
   // Nullable with no default on purpose: null means "derive it", and
@@ -71,6 +72,8 @@ export async function runAddSeriesPresentationSchema(
     console.log('[series:schema] review, then re-run with --apply');
     return;
   }
+  // Only past the dry run: printing the DDL connects to nothing.
+  requireDbTarget({ scriptName: 'series:schema', writes: true, argv, env });
 
   const databaseUrl = env.SUPABASE_DIRECT_URL?.trim();
   if (!databaseUrl) {

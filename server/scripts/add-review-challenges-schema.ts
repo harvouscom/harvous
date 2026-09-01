@@ -16,6 +16,7 @@
 import 'dotenv/config';
 import postgres from 'postgres';
 import { pathToFileURL } from 'node:url';
+import { requireDbTarget } from '../utils/require-db-target';
 
 export const ADDITIVE_REVIEW_CHALLENGES_DDL = [
   `CREATE TABLE IF NOT EXISTS "ReviewItems" (
@@ -105,6 +106,8 @@ export async function runAddReviewChallengesSchema(
     console.log('[review:schema] review, then re-run with --apply');
     return;
   }
+  // Only past the dry run: printing the DDL connects to nothing.
+  requireDbTarget({ scriptName: 'review:schema', writes: true, argv, env });
 
   const databaseUrl = env.SUPABASE_DIRECT_URL?.trim();
   if (!databaseUrl) {

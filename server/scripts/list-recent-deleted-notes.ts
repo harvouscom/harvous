@@ -12,6 +12,7 @@ import 'dotenv/config';
 import { db } from '../db/client';
 import { SyncDeletedEntities } from '../db/schema';
 import { and, desc, eq, gt } from 'drizzle-orm';
+import { requireDbTarget } from '../utils/require-db-target';
 
 function parseArgs() {
   let userId: string | undefined;
@@ -26,6 +27,7 @@ function parseArgs() {
 }
 
 async function main() {
+  requireDbTarget({ scriptName: 'list-recent-deleted-notes', writes: false });
   const { userId, hours, entityType } = parseArgs();
   const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 

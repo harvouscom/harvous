@@ -17,6 +17,7 @@
 import 'dotenv/config';
 import { db, Notes, eq, and, ne } from '../db';
 import { computeAndStoreNoteFingerprint, findNotesMissingFingerprint } from '../utils/note-fingerprint';
+import { requireDbTarget } from '../utils/require-db-target';
 
 function parseArgs() {
   const dryRun = process.argv.includes('--dry-run');
@@ -53,6 +54,7 @@ async function noteIdsForUser(userId: string, all: boolean): Promise<string[]> {
 }
 
 async function main() {
+  requireDbTarget({ scriptName: 'backfill-note-fingerprints', writes: true });
   const { dryRun, all, userId, limit } = parseArgs();
   const users = await targetUserIds(userId);
   console.log(`[backfill-fingerprints] ${users.length} user(s); mode=${all ? 'all' : 'missing-only'}${dryRun ? ' (dry-run)' : ''}`);
