@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: STAGE 2 CLEAR — deployed to the real Cloudflare account, 20/20 parity, no DNS touched.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 2 COMPLETE — CI deploys a byte-identical artifact, 20/20 parity, no DNS touched. Next: staging auth test, then stage 3.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -591,6 +591,45 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
 
   So **three** custom domains attach at stage 4, not one: `app.harvous.com` and
   `status.harvous.com` on production, `new.harvous.com` on `--env staging`.
+
+- 2026-09-01 (stage 2 complete, one gate re-ordered) — **CI now builds and deploys the real
+  artifact, and it is byte-identical to Netlify's.** `harvous-app.harvous.workers.dev` serves
+  `/assets/index-DTnuXr7O.js` at 2,718,358 bytes — the *same content hash and same bytes* as
+  app.harvous.com. That is the strongest available proof the env reconciliation is right: had
+  any of `VITE_SUPABASE_*`, `VITE_API_BASE_URL` or the rest been set, the hash would differ.
+  Live Clerk key inlined (6 occurrences), zero Supabase project URLs, `sw.js` cache name now
+  carries its commit sha (`harvous-cache-v2-87-2-5c3aeaec`), parity 20/20.
+
+  **Two CI bugs found by checking rather than trusting the green tick:**
+
+  1. The first run went green and deployed **nothing to production**. `deploy --env staging`
+     executed on `main`, putting a live-Clerk build on the staging Worker while production
+     kept serving a manual upload. Cause: GitHub's `A && B || C` is short-circuiting, not a
+     ternary — an empty-string true-branch is falsy and falls through, so
+     `ref_name == 'main' && '' || '--env staging'` sends *every* ref to staging. The
+     non-empty value must sit in the TRUE position. Fixed by negating the condition.
+  2. `wrangler.jsonc` cannot carry the custom-domain routes before the zone exists (already
+     recorded above) — worth restating because it is the same class: config that reads
+     correctly and behaves otherwise.
+
+  **GATE RE-ORDERED — the authenticated smoke test cannot run on `*.workers.dev`.** Clerk
+  production instances are domain-locked: loading the deployed app there fails with
+  *"Production Keys are only allowed for domain harvous.com"*, and the page stays blank. The
+  plan's ordering (smoke-test on workers.dev, then move DNS) is therefore impossible as
+  written. Revised:
+
+  - The **wrong-key failure mode that killed all three Fly cutovers is structurally ruled
+    out here**, in a way it never was on Fly: the bundle is byte-identical to the one
+    production serves today, so the key inside it is definitionally the working one. What
+    remains untested is not the credential but whether Clerk works *through the Worker* —
+    an Origin/proxy question, not a secrets question.
+  - Exercise that on **staging with the dev Clerk key**: development instances are not
+    domain-locked, so `harvous-app-staging.harvous.workers.dev` can be signed into and will
+    exercise Clerk → Worker proxy → Fly → DB end to end. Do this before stage 3.
+  - The live-key sign-in necessarily happens at **stage 4, immediately after attaching
+    app.harvous.com**, with the DNS rollback standing by. Treat it as the first action after
+    attach, not a later step.
+
 
 
 
