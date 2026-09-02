@@ -32,6 +32,7 @@ import {
 } from './proto-review-copy';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
 import { reviewRowSource, reviewRowSubtitle } from '@/utils/review-row-subtitle';
+import { reviewKindIcon } from './review-kind-icons';
 import { prototypeChallengeRouteTo, prototypeHomeRouteTo } from '@/lib/prototype-path';
 
 function rowMeta(item: ReviewItemView): (string | null)[] {
@@ -139,7 +140,7 @@ export default function PrototypeReviewPage() {
               {waiting.map((item) => (
                 <PrototypeReviewRow
                   key={item.id}
-                  icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
+                  icon={reviewKindIcon(item.kind)}
                   title={item.prompt}
                   meta={rowMeta(item)}
                   onOpen={() => openReviewDock(item.id)}
@@ -179,7 +180,7 @@ export default function PrototypeReviewPage() {
               {scheduled.map((item) => (
                 <PrototypeReviewRow
                   key={item.id}
-                  icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
+                  icon={reviewKindIcon(item.kind)}
                   title={item.noteLabel ?? item.scriptureReference ?? reviewRowSubtitle(item) ?? 'A note'}
                   meta={[
                     item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],

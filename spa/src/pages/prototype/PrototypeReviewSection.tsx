@@ -42,6 +42,7 @@ import {
 import { prototypeChallengeRouteTo, prototypeReviewRouteTo } from '@/lib/prototype-path';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
 import { reviewRowSource, reviewRowSubtitle } from '@/utils/review-row-subtitle';
+import { reviewKindIcon } from './review-kind-icons';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 
 export default function PrototypeReviewSection() {
@@ -119,7 +120,7 @@ export default function PrototypeReviewSection() {
       {reviewRows.map((item) => (
         <PrototypeReviewRow
           key={item.id}
-          icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
+          icon={reviewKindIcon(item.kind)}
           title={item.prompt}
           meta={[
             // Which note, then why it is here — and the second is dropped when the first
