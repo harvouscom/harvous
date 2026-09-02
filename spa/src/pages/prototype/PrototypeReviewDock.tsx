@@ -29,6 +29,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { canJudgeRecall, resolveReviewDockItem } from '@/utils/review-dock-state';
+import { reviewRowSubtitle } from '@/utils/review-row-subtitle';
 import { noteParamSlug } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
@@ -284,6 +285,7 @@ export default function PrototypeReviewDock() {
 
   const answeringOnNote = paperStack?.origin.review?.itemId === item?.id && Boolean(item);
   const isVerse = item?.kind === 'verse';
+  const subtitle = item ? reviewRowSubtitle(item) : null;
   const canJudge = canJudgeRecall({ attempt });
 
   const verdictRow = (
@@ -442,6 +444,10 @@ export default function PrototypeReviewDock() {
         ) : !revealed ? (
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {/* Which note is being asked about, when the question does not already say. The
+                row on Activity carries this too, and it is the difference between answering
+                about your note and guessing which note it means. */}
+            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
             <textarea
               className="proto-review-dock__attempt"
               placeholder={REVIEW_ATTEMPT_PLACEHOLDER}

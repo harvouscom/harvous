@@ -21778,6 +21778,16 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-primary);
 }
 
+/* Which note the question is about, when the question itself does not name it. Quiet, and
+   directly under the prompt so the two read as one thing. */
+.proto-review-dock__subject {
+  margin: calc(var(--pds-space-2) * -1) 0 0;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--pds-text-tertiary);
+}
+
 /* The collapsed header line's second half — what is waiting, without opening the card. */
 .proto-review-dock__header-prompt {
   margin-left: var(--pds-space-2);

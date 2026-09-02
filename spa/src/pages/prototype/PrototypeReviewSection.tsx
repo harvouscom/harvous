@@ -41,20 +41,8 @@ import {
 } from './proto-review-copy';
 import { prototypeChallengeRouteTo, prototypeReviewRouteTo } from '@/lib/prototype-path';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
+import { reviewRowSource, reviewRowSubtitle } from '@/utils/review-row-subtitle';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
-
-/**
- * The line under the question, when there is something left to say.
- *
- * A note prompt already names its subject — "what did you observe in My journey?" — so
- * repeating "My journey" underneath says the same thing twice in two lines. Only shown when
- * the question does not already contain it, which is the case for a Thread or a bare verse.
- */
-function rowSubtitle(item: { prompt: string; noteTitle: string | null; scriptureReference: string | null }): string | null {
-  const subject = item.noteTitle ?? item.scriptureReference;
-  if (!subject) return null;
-  return item.prompt.includes(subject) ? null : subject;
-}
 
 export default function PrototypeReviewSection() {
   const navigate = useNavigate();
@@ -134,10 +122,10 @@ export default function PrototypeReviewSection() {
           icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
           title={item.prompt}
           meta={[
-            rowSubtitle(item),
-            // Where it came from — "Highlighted while reading John 15". Null on rows the
-            // reader added themselves, who do not need telling.
-            item.sourceLabel,
+            // Which note, then why it is here — and the second is dropped when the first
+            // already said it. See review-row-subtitle.ts.
+            reviewRowSubtitle(item),
+            reviewRowSource(item, reviewRowSubtitle(item)),
             // The recall state as a word, never a percentage. "New" says nothing useful on a
             // row that is by definition being asked for the first time.
             item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],

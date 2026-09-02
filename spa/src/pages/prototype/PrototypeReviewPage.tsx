@@ -31,14 +31,14 @@ import {
   REVIEW_RESUME_COPY,
 } from './proto-review-copy';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
+import { reviewRowSource, reviewRowSubtitle } from '@/utils/review-row-subtitle';
 import { prototypeChallengeRouteTo, prototypeHomeRouteTo } from '@/lib/prototype-path';
 
 function rowMeta(item: ReviewItemView): (string | null)[] {
-  const subject = item.noteTitle ?? item.scriptureReference;
+  const subtitle = reviewRowSubtitle(item);
   return [
-    // Omitted when the question already names it — see PrototypeReviewSection's `rowSubtitle`.
-    subject && !item.prompt.includes(subject) ? subject : null,
-    item.sourceLabel,
+    subtitle,
+    reviewRowSource(item, subtitle),
     item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
   ];
 }
@@ -180,7 +180,7 @@ export default function PrototypeReviewPage() {
                 <PrototypeReviewRow
                   key={item.id}
                   icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
-                  title={item.noteTitle ?? item.scriptureReference ?? 'A note'}
+                  title={item.noteLabel ?? item.scriptureReference ?? reviewRowSubtitle(item) ?? 'A note'}
                   meta={[
                     item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
                   ]}
@@ -203,7 +203,7 @@ export default function PrototypeReviewPage() {
                 <PrototypeHomeRow
                   key={item.id}
                   icon="circle-minus"
-                  title={item.noteTitle ?? item.scriptureReference ?? 'A note'}
+                  title={item.noteLabel ?? item.scriptureReference ?? reviewRowSubtitle(item) ?? 'A note'}
                   onClick={() => setStatus.mutate({ itemId: item.id, status: 'active' })}
                   meta={[REVIEW_RESUME_COPY]}
                 />
@@ -217,7 +217,7 @@ export default function PrototypeReviewPage() {
                 <PrototypeHomeRow
                   key={item.id}
                   icon="eye-slash"
-                  title={item.noteTitle ?? item.scriptureReference ?? 'A note'}
+                  title={item.noteLabel ?? item.scriptureReference ?? reviewRowSubtitle(item) ?? 'A note'}
                   onClick={() => setStatus.mutate({ itemId: item.id, status: 'active' })}
                   meta={[REVIEW_RESUME_COPY]}
                 />

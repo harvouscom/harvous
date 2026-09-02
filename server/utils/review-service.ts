@@ -19,6 +19,8 @@ import {
   Notes,
   NoteConnections,
   NoteFingerprints,
+  NoteScriptureReferences,
+  ScriptureMetadata,
   ReviewEvents,
   ReviewItems,
   StudyThreadEntries,
@@ -111,6 +113,16 @@ export interface ReviewItemView {
   /** Titles for the row's meta line; never the note body, which is the point of the reveal. */
   noteTitle: string | null;
   secondaryNoteTitle: string | null;
+  /**
+   * The shortest thing that says *which* note this is — title, else the first passage it
+   * cites. Null when the note has neither, and `noteWrittenAt` is the last resort.
+   *
+   * Never a snippet of the body. A preview of what you wrote partly answers the question
+   * being asked, which is the one thing a review row must not do.
+   */
+  noteLabel: string | null;
+  /** When the note was written, for a reader to place a note that has no name of its own. */
+  noteWrittenAt: string | null;
   scriptureReference: string | null;
   noteId: string | null;
   challengeId: string | null;
@@ -130,14 +142,59 @@ function displayTitle(title: string | null | undefined): string | null {
  * The inbox renders at most three, but the session and the manage list do not, and a
  * per-item lookup there is a straightforward N+1 on the page a subscriber uses most.
  */
-async function loadTitles(userId: string, noteIds: string[]): Promise<Map<string, string | null>> {
+interface NoteLabelRow {
+  title: string | null;
+  writtenAt: Date | null;
+  /** First passage the note cites, filled in only for notes with no usable title. */
+  passage: string | null;
+}
+
+async function loadTitles(userId: string, noteIds: string[]): Promise<Map<string, NoteLabelRow>> {
   const unique = [...new Set(noteIds.filter(Boolean))];
   if (unique.length === 0) return new Map();
   const rows = await db
-    .select({ id: Notes.id, title: Notes.title })
+    .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
     .from(Notes)
     .where(and(eq(Notes.userId, userId), inArray(Notes.id, unique)));
-  return new Map(rows.map((r) => [r.id, displayTitle(r.title)]));
+
+  const byId = new Map<string, NoteLabelRow>(
+    rows.map((r) => [r.id, { title: displayTitle(r.title), writtenAt: r.createdAt, passage: null }]),
+  );
+
+  /*
+   * A note with no name is identified by what it is about.
+   *
+   * The server auto-titles empty notes "Untitled Note 4", which `displayTitle` strips — so a
+   * row about one of them said "this note" and nothing else, and there was no way to tell which
+   * of them it meant. The first passage it cites is the strongest honest answer: it names the
+   * subject the way a title would, and gives nothing of what the reader wrote about it away.
+   *
+   * Only queried for the notes that need it, and through both joins, because a pill points at
+   * the canonical scripture child rather than at the reader's own note.
+   */
+  const unnamed = [...byId.entries()].filter(([, v]) => !v.title).map(([id]) => id);
+  if (unnamed.length > 0) {
+    const [viaChild, viaOwn] = await Promise.all([
+      db
+        .select({ noteId: NoteScriptureReferences.noteId, reference: ScriptureMetadata.reference })
+        .from(ScriptureMetadata)
+        .innerJoin(
+          NoteScriptureReferences,
+          eq(NoteScriptureReferences.scriptureNoteId, ScriptureMetadata.noteId),
+        )
+        .where(inArray(NoteScriptureReferences.noteId, unnamed)),
+      db
+        .select({ noteId: ScriptureMetadata.noteId, reference: ScriptureMetadata.reference })
+        .from(ScriptureMetadata)
+        .where(inArray(ScriptureMetadata.noteId, unnamed)),
+    ]);
+    for (const row of [...viaChild, ...viaOwn]) {
+      const entry = byId.get(row.noteId);
+      if (entry && !entry.passage) entry.passage = row.reference?.trim() || null;
+    }
+  }
+
+  return byId;
 }
 
 /**
@@ -171,8 +228,11 @@ export async function buildReviewItemViews(
   const views: ReviewItemView[] = [];
   for (const row of rows) {
     const kind = row.kind as ReviewItemKind;
-    const noteTitle = row.noteId ? titles.get(row.noteId) ?? null : null;
-    const secondaryNoteTitle = row.secondaryNoteId ? titles.get(row.secondaryNoteId) ?? null : null;
+    const primary = row.noteId ? titles.get(row.noteId) ?? null : null;
+    const noteTitle = primary?.title ?? null;
+    const secondaryNoteTitle = row.secondaryNoteId
+      ? titles.get(row.secondaryNoteId)?.title ?? null
+      : null;
     const threadTitle =
       kind === 'thread' && row.noteId ? await threadTitleFor(userId, row.noteId) : null;
 
@@ -211,6 +271,8 @@ export async function buildReviewItemViews(
       scriptureReference: row.scriptureReference,
       noteId: row.noteId,
       challengeId: row.challengeId,
+      noteLabel: noteTitle ?? primary?.passage ?? null,
+      noteWrittenAt: primary?.writtenAt?.toISOString() ?? null,
       sourceLabel: row.sourceLabel,
       sourceAt: row.sourceAt?.toISOString() ?? null,
     });
