@@ -161,7 +161,14 @@ const REVIEW_EXCERPT_CHARS = 48;
 function noteExcerpt(html: string | null | undefined): string | null {
   if (!html) return null;
   const preview = stripHtmlForListPreview(html, REVIEW_EXCERPT_CHARS).trim();
-  return preview || null;
+  /*
+   * Trailing punctuation is trimmed here, at the source, so the excerpt is one string
+   * everywhere. The prompt joins it to a question with an em dash and cannot carry the stop;
+   * if the label kept it, the row's "does the question already name this?" check would fail
+   * on the punctuation alone and print the excerpt twice, once in each line.
+   */
+  const trimmed = preview.replace(/[.,;:—–-]+$/, '').trim();
+  return trimmed || null;
 }
 
 function displayTitle(title: string | null | undefined): string | null {
@@ -298,6 +305,9 @@ export async function buildReviewItemViews(
         secondaryNoteTitle,
         threadTitle,
         cue,
+        // The note's own words, so a note with no title still gets a specific question
+        // rather than one about "this note".
+        notePhrase: primary?.excerpt ?? null,
       },
     );
 

@@ -123,3 +123,47 @@ describe('a fresh queue does not ask the same question three times', () => {
     expect(pickPromptKey('verse', 5, 2, 'review_v')).toBe(VERSE_LADDER[2]);
   });
 });
+
+describe('note questions speak to the reader, not about the note', () => {
+  const noteKeys = REVIEW_PROMPT_KEYS.filter((k) => k.startsWith('note.'));
+
+  it('never falls back to "this note", which named nothing', () => {
+    for (const key of noteKeys) {
+      const rendered = fillReviewPrompt(key, {});
+      expect(rendered).not.toMatch(/this note/i);
+    }
+  });
+
+  it('drops the worksheet vocabulary', () => {
+    for (const key of noteKeys) {
+      const rendered = fillReviewPrompt(key, { noteTitle: 'Adoption' });
+      expect(rendered).not.toMatch(/central idea|carry forward|the text itself|your note on/i);
+      expect(rendered).toMatch(/\byou\b/i);
+    }
+  });
+
+  it('puts a named subject inside the sentence', () => {
+    expect(fillReviewPrompt('note.observe', { noteTitle: 'Romans 8' })).toBe(
+      'What did you see in Romans 8?',
+    );
+  });
+
+  it('lets the note own words lead instead, since a fragment cannot follow "in"', () => {
+    expect(
+      fillReviewPrompt('note.observe', { notePhrase: 'God chose us before the foundation' }),
+    ).toBe('God chose us before the foundation — what did you see?');
+  });
+
+  it('prefers a name over the note own words when it has one', () => {
+    expect(
+      fillReviewPrompt('note.central', { noteTitle: 'Adoption', notePhrase: 'God chose us' }),
+    ).toBe('What were you working out in Adoption?');
+  });
+
+  it('does not run two stops together when joining a phrase', () => {
+    // The excerpt ends wherever the sentence did.
+    expect(fillReviewPrompt('note.phrase', { notePhrase: 'He wept for the city.' })).toBe(
+      'He wept for the city — what made you write it?',
+    );
+  });
+});
