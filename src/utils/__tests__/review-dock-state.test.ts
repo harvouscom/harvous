@@ -31,15 +31,13 @@ describe('resolveReviewDockItem', () => {
 
 describe('canJudgeRecall', () => {
   it('lets someone judge after a written attempt', () => {
-    expect(canJudgeRecall({ attempted: false, attempt: 'the spirit of adoption' })).toBe(true);
-  });
-
-  it('lets someone judge after saying they had it in mind', () => {
-    expect(canJudgeRecall({ attempted: true, attempt: '' })).toBe(true);
+    expect(canJudgeRecall({ attempt: 'the spirit of adoption' })).toBe(true);
   });
 
   it('does not offer a verdict to someone who revealed cold', () => {
-    expect(canJudgeRecall({ attempted: false, attempt: '' })).toBe(false);
-    expect(canJudgeRecall({ attempted: false, attempt: '   ' })).toBe(false);
+    // Writing is the whole signal. There is no button for "I had it in mind" — asking someone
+    // to declare a mental state before checking it is the survey the strategy doc rules out.
+    expect(canJudgeRecall({ attempt: '' })).toBe(false);
+    expect(canJudgeRecall({ attempt: '   ' })).toBe(false);
   });
 });

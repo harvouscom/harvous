@@ -36,6 +36,9 @@ export const REVIEW_SEE_ALL_COPY = 'See all';
 export const REVIEW_SEED_TITLE = 'Start reviewing';
 export const REVIEW_SEED_META = 'Pick up three things worth returning to';
 
+/* The note's ⋯ menu is the one place this is offered. The Review card briefly carried a `+`
+   for it too, which was disabled everywhere the card usually sits and explained itself to
+   nobody — two entry points for one action, one of them a bare icon. */
 export const REVIEW_ADD_COPY = 'Add to Review';
 export const REVIEW_ADDED_COPY = 'In Review';
 
@@ -47,7 +50,6 @@ export const REVIEW_REVEAL_VERSE_COPY = 'Show the verse';
 /** After revealing cold: the honest answer is that it needed looking at. */
 export const REVIEW_REVEALED_ACK_COPY = 'Got it now';
 export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';
-export const REVIEW_HAVE_IT_COPY = 'I have it in mind';
 
 export const CHALLENGE_STEP_DONE_COPY = 'Done';
 export const CHALLENGE_STEP_SKIP_COPY = 'Skip this';

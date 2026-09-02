@@ -21808,10 +21808,25 @@ button.proto-feed-sheet__stat:hover {
   line-height: 1.5;
 }
 
+/*
+ * The border is restated on focus, and it has to shout to be heard.
+ *
+ * `src/styles/global.css` carries a blanket rule — every `input`/`textarea`/`select` on focus
+ * gets `outline: none !important; border: none !important; box-shadow: none !important`. The
+ * lost 1px top and bottom is what made this card shrink 2px and step down under the caret at
+ * the exact moment someone clicked in to write. Nothing without `!important` can win against
+ * it, which is why this rule carries one.
+ *
+ * The blanket rule is a bigger problem than this symptom: it removes the focus indicator from
+ * every field in the app, which is a keyboard-accessibility failure rather than a style choice.
+ * Not fixed here — it touches every input and this is launch week — but the accent border below
+ * is a real indicator for this field, so the dock does not inherit that failure.
+ */
+.proto-review-dock__attempt:focus,
 .proto-review-dock__attempt:focus-visible,
+.proto-challenge__response:focus,
 .proto-challenge__response:focus-visible {
-  outline: 2px solid var(--pds-accent);
-  outline-offset: 1px;
+  border: 1px solid var(--pds-accent) !important;
 }
 
 .proto-review-dock__actions,

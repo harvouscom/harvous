@@ -29,33 +29,21 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { canJudgeRecall, resolveReviewDockItem } from '@/utils/review-dock-state';
-import {
-  isPrototypeDraftNoteSlug,
-  noteParamSlug,
-  normalizeNoteIdFromParam,
-} from './proto-route-slugs';
-import {
-  matchPrototypeNoteId,
-  matchPrototypeReadParams,
-  prototypeNoteRouteTo,
-} from '@/lib/prototype-path';
-import { bookFromSlug } from '@/utils/bible-book-chapters';
+import { noteParamSlug } from './proto-route-slugs';
+import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useReviewItems, useReviewReveal, useReviewSession } from '../../hooks/queries/useReview';
-import { useAddReviewItem, useReviewOutcome } from '../../hooks/mutations/useReviewMutations';
+import { useReviewOutcome } from '../../hooks/mutations/useReviewMutations';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { buildReviewCardStackOrigin } from './paper-stack-origins';
 import {
-  REVIEW_ADDED_COPY,
-  REVIEW_ADD_COPY,
   REVIEW_ALMOST_COPY,
   REVIEW_ATTEMPT_PLACEHOLDER,
   REVIEW_EMPTY_COPY,
-  REVIEW_HAVE_IT_COPY,
   REVIEW_RECALLED_COPY,
   REVIEW_REVEALED_ACK_COPY,
   REVIEW_REVEAL_COPY,
@@ -102,19 +90,15 @@ export default function PrototypeReviewDock() {
   );
 
   const [attempt, setAttempt] = useState('');
-  const [attempted, setAttempted] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [lastReturn, setLastReturn] = useState<string | null>(null);
-  const [added, setAdded] = useState(false);
 
   const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed });
   const outcome = useReviewOutcome();
-  const addItem = useAddReviewItem();
 
   // A new question is a clean slate; the previous attempt must not sit under it.
   useEffect(() => {
     setAttempt('');
-    setAttempted(false);
     setRevealed(false);
   }, [item?.id]);
 
@@ -132,27 +116,6 @@ export default function PrototypeReviewDock() {
       setReviewDockItem(item.id);
     }
   }, [item, reviewDock?.itemId, sessionItems, setReviewDockItem]);
-
-  /** What the `+` would add here: the note being read, or the verse being looked at. */
-  const addTarget = useMemo(() => {
-    const noteSlug = matchPrototypeNoteId(pathname);
-    if (noteSlug && !isPrototypeDraftNoteSlug(noteSlug)) {
-      return { kind: 'note' as const, noteId: normalizeNoteIdFromParam(noteSlug) };
-    }
-    const read = matchPrototypeReadParams(pathname);
-    const verse = typeof search.v === 'string' ? search.v : null;
-    if (read && verse) {
-      const book = bookFromSlug(read.bookSlug);
-      if (book) {
-        return {
-          kind: 'verse' as const,
-          scriptureReference: `${book} ${read.chapter}:${verse}`,
-          translation: typeof search.t === 'string' ? search.t : undefined,
-        };
-      }
-    }
-    return null;
-  }, [pathname, search]);
 
   const answer = useCallback(
     (value: 'recalled' | 'almost' | 'revealed') => {
@@ -189,7 +152,7 @@ export default function PrototypeReviewDock() {
    */
   const revealElsewhere = useCallback(() => {
     if (!item) return;
-    const snapshot = { attempted, attempt: attempt.trim() || undefined };
+    const snapshot = { attempted: attempt.trim().length > 0, attempt: attempt.trim() || undefined };
     if (item.kind === 'thread' && item.noteId) {
       libraryNav.openThread(threadClusterDrillSlug(item.noteId));
       setRevealed(true);
@@ -206,7 +169,7 @@ export default function PrototypeReviewDock() {
       params: { noteId: noteParamSlug(item.noteId) },
       search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
     });
-  }, [attempt, attempted, item, libraryNav, navigate, pathname, setReviewDockExpanded, stackNote]);
+  }, [attempt, item, libraryNav, navigate, pathname, setReviewDockExpanded, stackNote]);
 
   const verseMarkup = useMemo(
     () => (reveal.data?.verseText ? { __html: reveal.data.verseText } : null),
@@ -217,7 +180,7 @@ export default function PrototypeReviewDock() {
 
   const answeringOnNote = paperStack?.origin.review?.itemId === item?.id && Boolean(item);
   const isVerse = item?.kind === 'verse';
-  const canJudge = canJudgeRecall({ attempted, attempt });
+  const canJudge = canJudgeRecall({ attempt });
 
   const verdictRow = (
     <div className="proto-review-dock__actions">
@@ -272,26 +235,6 @@ export default function PrototypeReviewDock() {
           ) : null}
         </span>
       }
-      headerPrimaryActions={
-        <button
-          type="button"
-          className="study-dock-card__header-btn"
-          disabled={!addTarget || addItem.isPending || added}
-          aria-label={added ? REVIEW_ADDED_COPY : REVIEW_ADD_COPY}
-          title={addTarget ? REVIEW_ADD_COPY : 'Open a note or a verse to add it'}
-          onClick={() => {
-            if (!addTarget) return;
-            addItem.mutate(addTarget, {
-              onSuccess: () => {
-                setAdded(true);
-                window.setTimeout(() => setAdded(false), 1400);
-              },
-            });
-          }}
-        >
-          <Icon name={added ? 'circle-check' : 'plus'} size={13} aria-hidden />
-        </button>
-      }
     >
       <div className="proto-review-dock__body">
         {!item ? (
@@ -313,18 +256,19 @@ export default function PrototypeReviewDock() {
               onChange={(event) => setAttempt(event.target.value)}
               rows={3}
             />
+            {/*
+              * One action, because there was only ever one.
+              *
+              * There used to be an "I have it in mind" beside this, for someone who retrieved the
+              * note mentally without typing. Both buttons revealed; the only difference was an
+              * invisible flag deciding which verdicts appeared afterwards, which is why it read
+              * as two ways to do the same thing. It also asked the reader to declare a mental
+              * state *before* checking it, which is the same invitation to a comfortable lie that
+              * the cold-reveal rule exists to avoid — and the strategy doc is explicit that
+              * "whether they attempt recall before revealing a note" is something to infer from
+              * behaviour, not to ask about. Writing something is the attempt.
+              */}
             <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                onClick={() => {
-                  setAttempted(true);
-                  if (revealsElsewhere(item.kind, item.noteId)) revealElsewhere();
-                  else setRevealed(true);
-                }}
-              >
-                {REVIEW_HAVE_IT_COPY}
-              </button>
               <button
                 type="button"
                 className="proto-settings-btn proto-settings-btn--compact"
