@@ -14,6 +14,7 @@
  */
 
 import { hashSeed, mulberry32 } from '@/utils/verse-cloze';
+import { buildChoiceExercise, gradeChoiceExercise } from '@/utils/choice-exercise';
 
 // ─── Sequence: put the phrases back in order ─────────────────────────────────
 
@@ -157,8 +158,9 @@ const FALLBACK_REFERENCES = [
 /**
  * Build the "where is this from?" puzzle.
  *
- * Distractors come from the reader's own passages first — the question is about their study,
- * and telling Romans 8 from Ephesians 2 when you have worked in both is a real distinction.
+ * A thin wrapper over `buildChoiceExercise` now that the note ladder needs the same shape about
+ * a different subject. What stays here is what is genuinely about scripture: the fragment, and
+ * the canned references for a reader who has not marked enough passages of their own.
  */
 export function buildVerseLocate(
   reference: string,
@@ -172,38 +174,16 @@ export function buildVerseLocate(
   const answer = reference.trim();
   if (!answer) return null;
 
-  const seen = new Set([answer.toLowerCase()]);
-  const dedupe = (source: readonly string[]): string[] => {
-    const out: string[] = [];
-    for (const candidate of source) {
-      const value = candidate.trim();
-      if (!value || seen.has(value.toLowerCase())) continue;
-      seen.add(value.toLowerCase());
-      out.push(value);
-    }
-    return out;
-  };
+  const choice = buildChoiceExercise({
+    answers: [answer],
+    pool: poolReferences,
+    fallbackPool: FALLBACK_REFERENCES,
+    optionCount: LOCATE_OPTION_COUNT,
+    seed,
+  });
+  if (!choice) return null;
 
-  const own = dedupe(poolReferences);
-  const canned = dedupe(FALLBACK_REFERENCES);
-  if (own.length + canned.length < LOCATE_OPTION_COUNT - 1) return null;
-
-  // The reader's own passages are exhausted before a canned one is used: a reference they have
-  // never met is not a distractor, and would turn the question into "pick the familiar one".
-  const random = mulberry32(hashSeed(seed));
-  const picked: string[] = [];
-  for (const tier of [own, canned]) {
-    const remaining = [...tier];
-    while (picked.length < LOCATE_OPTION_COUNT - 1 && remaining.length) {
-      picked.push(remaining.splice(Math.floor(random() * remaining.length), 1)[0]);
-    }
-  }
-
-  const answerIndex = Math.floor(random() * LOCATE_OPTION_COUNT);
-  const options = [...picked];
-  options.splice(answerIndex, 0, answer);
-
-  return { phrase, options, answerIndex };
+  return { phrase, options: choice.options, answerIndex: choice.answerIndex };
 }
 
 /** A middle fragment, so the opening words do not give the reference away. */
@@ -216,7 +196,7 @@ function locatePhrase(text: string): string | null {
 
 /** True when the reader picked the right reference. Compared loosely — it is a display string. */
 export function gradeVerseLocate(exercise: VerseLocateExercise, answer: string): boolean {
-  const chosen = answer?.trim().toLowerCase();
-  if (!chosen) return false;
-  return exercise.options[exercise.answerIndex]?.trim().toLowerCase() === chosen;
+  const shown = exercise.options[exercise.answerIndex];
+  if (!shown) return false;
+  return gradeChoiceExercise(exercise, answer, [shown]);
 }
