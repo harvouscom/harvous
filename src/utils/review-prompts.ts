@@ -15,17 +15,22 @@
  */
 
 import type { ReviewItemKind } from './review-item-kinds';
+import { hashSeed } from './verse-cloze';
 
 export const REVIEW_PROMPT_KEYS = [
   'note.observe',
   'note.central',
   'note.carry',
+  'note.phrase',
+  'note.unclear',
   'highlight.why',
   'highlight.detail',
   'connection.why',
   'connection.distinct',
+  'connection.tension',
   'thread.central',
   'thread.unresolved',
+  'thread.backbone',
   'verse.recognize',
   'verse.rebuild',
   'verse.recall',
@@ -67,6 +72,8 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
   'note.observe': (ctx) => `Before opening it, what did you observe in ${subject(ctx)}?`,
   'note.central': (ctx) => `What is the central idea of your note on ${subject(ctx)}?`,
   'note.carry': (ctx) => `What did you intend to carry forward from ${subject(ctx)}?`,
+  'note.phrase': (ctx) => `What in the text itself led you to write ${subject(ctx)}?`,
+  'note.unclear': (ctx) => `What has become clearer since you wrote ${subject(ctx)} — and what has not?`,
   'highlight.why': (ctx) => `You marked this in ${subject(ctx)}. What made it worth keeping?`,
   'highlight.detail': (ctx) => `What detail in ${subject(ctx)} led you to mark this passage?`,
   'connection.why': (ctx) =>
@@ -77,10 +84,16 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     `${ctx.noteTitle?.trim() || 'One note'} and ${
       ctx.secondaryNoteTitle?.trim() || 'the other'
     } sit together in your study. What is similar, and what is distinct?`,
+  'connection.tension': (ctx) =>
+    `Where do ${ctx.noteTitle?.trim() || 'these notes'} and ${
+      ctx.secondaryNoteTitle?.trim() || 'the other'
+    } pull against each other?`,
   'thread.central': (ctx) =>
     `What central idea is taking shape across your ${threadName(ctx)} Thread?`,
   'thread.unresolved': (ctx) =>
     `What is still unresolved in your ${threadName(ctx)} Thread?`,
+  'thread.backbone': (ctx) =>
+    `If your ${threadName(ctx)} Thread had one sentence at its centre, what would it be?`,
   'verse.recognize': (ctx) =>
     ctx.cue?.trim()
       ? `${subject(ctx)} — "${ctx.cue.trim()}…" What comes next?`
@@ -112,10 +125,10 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
 export const VERSE_REBUILD_STEP = 1;
 
 const ROTATIONS: Record<Exclude<ReviewItemKind, 'verse'>, readonly ReviewPromptKey[]> = {
-  note: ['note.observe', 'note.central', 'note.carry'],
+  note: ['note.observe', 'note.central', 'note.carry', 'note.phrase', 'note.unclear'],
   highlight: ['highlight.why', 'highlight.detail'],
-  connection: ['connection.why', 'connection.distinct'],
-  thread: ['thread.central', 'thread.unresolved'],
+  connection: ['connection.why', 'connection.distinct', 'connection.tension'],
+  thread: ['thread.central', 'thread.unresolved', 'thread.backbone'],
 };
 
 /**
@@ -124,18 +137,25 @@ const ROTATIONS: Record<Exclude<ReviewItemKind, 'verse'>, readonly ReviewPromptK
  * Rotation by review count rather than at random, for two reasons: the same item asked twice
  * on two devices must read the same, and a reader who sees "what did you observe" every single
  * time stops reading the question. Deterministic, so it is testable and cacheable.
+ *
+ * The item id offsets where in the rotation each item starts. Without it every brand-new item
+ * begins at index 0, so a queue of three fresh notes asks "what did you observe" three times —
+ * which is exactly how it read in the first preview. The offset is a hash rather than a random
+ * pick for the same reason the rotation is: two devices must render the same question.
  */
 export function pickPromptKey(
   kind: ReviewItemKind,
   reviewCount: number,
   ladderStep = 0,
+  itemId?: string | null,
 ): ReviewPromptKey {
   if (kind === 'verse') {
     const step = Math.min(Math.max(0, Math.trunc(ladderStep)), VERSE_LADDER_MAX_STEP);
     return VERSE_LADDER[step];
   }
   const options = ROTATIONS[kind];
-  const index = Math.max(0, Math.trunc(reviewCount)) % options.length;
+  const offset = itemId ? hashSeed(itemId) : 0;
+  const index = (Math.max(0, Math.trunc(reviewCount)) + offset) % options.length;
   return options[index];
 }
 
@@ -149,9 +169,10 @@ export function reviewPromptFor(
     kind: ReviewItemKind;
     reviewCount: number;
     ladderStep?: number | null;
+    id?: string | null;
   },
   ctx: ReviewPromptContext,
 ): { key: ReviewPromptKey; prompt: string } {
-  const key = pickPromptKey(item.kind, item.reviewCount, item.ladderStep ?? 0);
+  const key = pickPromptKey(item.kind, item.reviewCount, item.ladderStep ?? 0, item.id ?? null);
   return { key, prompt: fillReviewPrompt(key, ctx) };
 }

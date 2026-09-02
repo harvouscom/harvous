@@ -372,7 +372,13 @@ export type PaperStackOrigin = {
    * single honest answer instead. Snapshotted here rather than read from the dock because the
    * edge renders in the layout, and a keystroke in the dock must not re-render the shell.
    */
-  review?: { itemId: string; attempted: boolean; attempt?: string };
+  review?: {
+    itemId: string;
+    attempted: boolean;
+    attempt?: string;
+    /** Where recall stood before this answer, so the result can say when it crossed into holding. */
+    recallState?: string;
+  };
   label: string;
   icon: string;
   returnTo: PaperStackReturnTo;
@@ -424,10 +430,31 @@ export type PaperStackState = {
  * keystroke here would re-render every consumer in the shell; the dock keeps its own draft and
  * hands a snapshot to `PaperStackOrigin.review` when it reveals.
  */
+/**
+ * What just happened, so the dock can say so.
+ *
+ * Lives on shell state rather than inside the dock because a verdict can be given from the
+ * paper stack's edge, and answering there clears the stack synchronously — the card that
+ * would show the result is unmounting at the moment the answer lands. The dock, which is
+ * always mounted, picks it up from here instead.
+ */
+export type ReviewDockResult = {
+  outcome: 'recalled' | 'almost' | 'revealed';
+  /** "Back in 2 weeks", phrased once on the server so web and native cannot drift. */
+  label: string;
+  recallState: string;
+  /** True when this answer is what moved it into "Holding" — worth marking, once. */
+  crossedToDurable: boolean;
+  /** Set fresh on each answer so the dock's dwell timer restarts. */
+  at: number;
+};
+
 export type ReviewDockState = {
   /** Which item is being asked. Null means "whatever is next in the session". */
   itemId: string | null;
   expanded: boolean;
+  /** The moment after an answer, cleared once the dock has shown it. */
+  lastResult: ReviewDockResult | null;
 };
 
 /** Bottom chrome on note routes — format bar, scripture dock, etc. */
@@ -640,6 +667,8 @@ type ProtoShellContextValue = {
   setReviewDockExpanded: (expanded: boolean) => void;
   /** Move the dock to another item — used when the current one is answered and leaves the queue. */
   setReviewDockItem: (itemId: string | null) => void;
+  /** Record what an answer produced, from either verdict path. Null clears the moment. */
+  setReviewDockResult: (result: ReviewDockResult | null) => void;
   paperStack: PaperStackState | null;
   /** Stack a sheet over an origin. Replaces any existing stack — there is exactly one edge. */
   stackNote: (origin: PaperStackOrigin, noteId?: string) => void;
@@ -1608,6 +1637,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setReviewDock((current) => ({
         itemId: itemId !== undefined ? itemId : (current?.itemId ?? null),
         expanded: options?.expanded ?? true,
+        lastResult: null,
       }));
     },
     [],
@@ -1618,6 +1648,13 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   }, []);
   const setReviewDockItem = useCallback((itemId: string | null) => {
     setReviewDock((current) => (current ? { ...current, itemId } : current));
+  }, []);
+  const setReviewDockResult = useCallback((result: ReviewDockResult | null) => {
+    // Answering from the stack's edge expands the dock: the card is the only thing left on
+    // screen that can show the result, and collapsed it would show nothing at all.
+    setReviewDock((current) =>
+      current ? { ...current, lastResult: result, expanded: result ? true : current.expanded } : current,
+    );
   }, []);
 
   const stackNote = useCallback((origin: PaperStackOrigin, noteId?: string) => {
@@ -1760,6 +1797,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeReviewDock,
       setReviewDockExpanded,
       setReviewDockItem,
+      setReviewDockResult,
       paperStack,
       stackNote,
       setStackSheetOpen,
@@ -1861,6 +1899,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeReviewDock,
       setReviewDockExpanded,
       setReviewDockItem,
+      setReviewDockResult,
       paperStack,
       stackNote,
       setStackSheetOpen,

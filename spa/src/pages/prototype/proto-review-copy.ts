@@ -59,6 +59,22 @@ export const REVIEW_REVEAL_THREAD_COPY = 'Open the Thread';
 export const REVIEW_REVEAL_CONNECTION_COPY = 'Check my notes';
 /** After revealing cold: the honest answer is that it needed looking at. */
 export const REVIEW_REVEALED_ACK_COPY = 'Got it now';
+
+/**
+ * The word the dock says back after an answer, before the next return.
+ *
+ * Past tense and one word each, because this is a receipt rather than praise. "Well done" for
+ * remembering a verse is the app grading a spiritual practice, which is what the whole feature
+ * is built not to do.
+ */
+export const REVIEW_OUTCOME_ACK_COPY: Record<'recalled' | 'almost' | 'revealed', string> = {
+  recalled: 'Recalled.',
+  almost: 'Almost.',
+  revealed: 'Read again.',
+};
+
+/** Said once, on the answer that moves something into durable recall. Never a score. */
+export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
 export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';
 
 export const CHALLENGE_STEP_DONE_COPY = 'Done';

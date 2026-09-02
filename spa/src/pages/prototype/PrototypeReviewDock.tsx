@@ -34,6 +34,7 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { PROTO_REVIEW_RESULT_DWELL_MS } from '../../layouts/proto-motion';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import {
@@ -51,6 +52,8 @@ import {
   REVIEW_EMPTY_COPY,
   REVIEW_RECALLED_COPY,
   REVIEW_REVEALED_ACK_COPY,
+  REVIEW_CROSSED_TO_HOLDING_COPY,
+  REVIEW_OUTCOME_ACK_COPY,
   REVIEW_REVEAL_CONNECTION_COPY,
   REVIEW_REVEAL_COPY,
   REVIEW_REVEAL_THREAD_COPY,
@@ -61,6 +64,19 @@ import {
 function revealsElsewhere(kind: string, noteId: string | null): boolean {
   if (kind === 'thread') return true;
   return (kind === 'note' || kind === 'connection' || kind === 'highlight') && Boolean(noteId);
+}
+
+/**
+ * The one line at the end of a sitting.
+ *
+ * Counts of what was *done*, never of what remains — the difference between "you returned to
+ * three things" and "27 due" is the whole posture of the feature.
+ */
+function sittingCloseLine(sitting: { answered: number; holding: number }): string {
+  const things = sitting.answered === 1 ? 'one thing' : `${sitting.answered} things`;
+  if (sitting.holding === 0) return `You returned to ${things}.`;
+  const holding = sitting.holding === 1 ? 'One is holding' : `${sitting.holding} are holding`;
+  return `You returned to ${things}. ${holding}.`;
 }
 
 /**
@@ -88,6 +104,7 @@ export default function PrototypeReviewDock() {
     closeReviewDock,
     setReviewDockExpanded,
     setReviewDockItem,
+    setReviewDockResult,
     stackNote,
     paperStack,
   } = useProtoShell();
@@ -117,10 +134,32 @@ export default function PrototypeReviewDock() {
 
   const [attempt, setAttempt] = useState('');
   const [revealed, setRevealed] = useState(false);
-  const [lastReturn, setLastReturn] = useState<string | null>(null);
+  /*
+   * What this sitting came to, counted only as it happens.
+   *
+   * Never a count of what is left — the strategy doc's named failure mode is "27 due", and the
+   * cure is that no surface anywhere is able to say a number about work not yet done. This is
+   * the opposite number: what you did.
+   */
+  const [sitting, setSitting] = useState({ answered: 0, holding: 0 });
 
   const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed });
   const outcome = useReviewOutcome();
+
+  const lastResult = reviewDock?.lastResult ?? null;
+
+  /*
+   * The result holds for a beat, then the next question takes the card.
+   *
+   * A timer rather than a tap-to-continue: the reader has just answered, and asking them to
+   * acknowledge their own acknowledgement is one interaction too many. Long enough to read a
+   * short line, short enough that a sitting does not feel gated on it.
+   */
+  useEffect(() => {
+    if (!lastResult) return;
+    const timer = setTimeout(() => setReviewDockResult(null), PROTO_REVIEW_RESULT_DWELL_MS);
+    return () => clearTimeout(timer);
+  }, [lastResult, setReviewDockResult]);
 
   // A new question is a clean slate; the previous attempt must not sit under it.
   useEffect(() => {
@@ -150,7 +189,19 @@ export default function PrototypeReviewDock() {
         { itemId: item.id, outcome: value, attempt: attempt.trim() || undefined },
         {
           onSuccess: (data) => {
-            setLastReturn(data.next.label);
+            const crossedToDurable =
+              item.recallState !== 'durable' && data.next.recallState === 'durable';
+            setReviewDockResult({
+              outcome: value,
+              label: data.next.label,
+              recallState: data.next.recallState,
+              crossedToDurable,
+              at: Date.now(),
+            });
+            setSitting((current) => ({
+              answered: current.answered + 1,
+              holding: current.holding + (data.next.recallState === 'durable' ? 1 : 0),
+            }));
             /*
              * Hand the dock back to the queue rather than leaving it pointed at what was just
              * answered.
@@ -165,7 +216,7 @@ export default function PrototypeReviewDock() {
         },
       );
     },
-    [attempt, item, outcome, setReviewDockItem],
+    [attempt, item, outcome, setReviewDockItem, setReviewDockResult],
   );
 
   /**
@@ -263,10 +314,35 @@ export default function PrototypeReviewDock() {
       }
     >
       <div className="proto-review-dock__body">
-        {!item ? (
+        {lastResult ? (
+          /*
+           * The moment after an answer, and the thing the first preview had nothing of: a
+           * verdict went in and the card silently moved on, so there was no way to tell that
+           * anything had been recorded. It says what you did, when it comes back, and — once,
+           * on the answer that earns it — that it is holding now.
+           */
+          <div className="proto-review-dock__result">
+            <span className="proto-dock-check" aria-hidden>
+              <Icon name="check" size={12} />
+            </span>
+            <p className="proto-review-dock__result-text">
+              <span className="proto-review-dock__result-outcome">
+                {REVIEW_OUTCOME_ACK_COPY[lastResult.outcome]}
+              </span>
+              <span className="proto-review-dock__result-next">{lastResult.label}.</span>
+              {lastResult.crossedToDurable ? (
+                <span className="proto-review-dock__result-crossed">
+                  {REVIEW_CROSSED_TO_HOLDING_COPY}
+                </span>
+              ) : null}
+            </p>
+          </div>
+        ) : !item ? (
           <>
             <p className="proto-review-dock__empty">{REVIEW_EMPTY_COPY}</p>
-            {lastReturn ? <p className="proto-caption">{lastReturn}.</p> : null}
+            {sitting.answered > 0 ? (
+              <p className="proto-caption">{sittingCloseLine(sitting)}</p>
+            ) : null}
           </>
         ) : answeringOnNote ? (
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats

@@ -91,12 +91,26 @@ export function isChallengesTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'Challenges');
 }
 
-/** Any of the three Review/Challenge tables — the surfaces read them together. */
+/**
+ * Columns added to ReviewItems after its first apply — the engine's provenance line.
+ *
+ * A column guard rather than a table one because the tables exist by now on any database that
+ * has run the feature at all. Treated the same way: an unmigrated database is an empty Review
+ * section, not a broken Activity page. This is what keeps the window between deploying the code
+ * and applying the DDL survivable, and it is the same pattern as
+ * `isStudyThreadNamingColumnMissing`.
+ */
+export function isReviewSourceColumnMissing(error: unknown): boolean {
+  return isPgUndefinedColumn(error, 'sourceLabel') || isPgUndefinedColumn(error, 'sourceAt');
+}
+
+/** Any of the three Review/Challenge tables, or a column not yet applied to them. */
 export function isReviewTableMissing(error: unknown): boolean {
   return (
     isReviewItemsTableMissing(error) ||
     isReviewEventsTableMissing(error) ||
-    isChallengesTableMissing(error)
+    isChallengesTableMissing(error) ||
+    isReviewSourceColumnMissing(error)
   );
 }
 

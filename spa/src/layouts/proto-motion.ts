@@ -126,3 +126,12 @@ export const PROTO_FOUNDER_LETTER_PAPER_MS = 900;
 
 /** Founder letter sheet unmount delay — paper fan-back + small buffer. */
 export const PROTO_FOUNDER_LETTER_SHEET_EXIT_MS = 920;
+
+/**
+ * How long the Review dock holds the moment after an answer.
+ *
+ * Long enough to read "Recalled. Back in two weeks." and short enough that a sitting of three
+ * does not feel gated on animation. The reader can start typing the next answer before it
+ * clears — the timer replaces the card, it does not block anything.
+ */
+export const PROTO_REVIEW_RESULT_DWELL_MS = 1800;

@@ -172,7 +172,7 @@ export async function buildReviewItemViews(
     }
 
     const { key, prompt } = reviewPromptFor(
-      { kind, reviewCount: row.reviewCount, ladderStep: row.ladderStep },
+      { kind, reviewCount: row.reviewCount, ladderStep: row.ladderStep, id: row.id },
       {
         reference: row.scriptureReference,
         noteTitle,

@@ -353,6 +353,7 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     retargetStackOrigin,
     clearPaperStack,
     setReviewDockItem,
+    setReviewDockResult,
     openDrawer,
     clearComposeDraftActive,
     beginPrototypeComposeSession,
@@ -648,13 +649,28 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     (outcome: ReviewOutcome) => {
       const review = paperStack?.origin.review;
       if (!review) return;
-      reviewOutcome.mutate({ itemId: review.itemId, outcome, attempt: review.attempt });
+      const wasDurable = review.recallState === 'durable';
+      reviewOutcome.mutate(
+        { itemId: review.itemId, outcome, attempt: review.attempt },
+        {
+          // The stack is already gone by the time this lands — see below — so the moment is
+          // handed to the dock, which is the one surface still on screen.
+          onSuccess: (data) =>
+            setReviewDockResult({
+              outcome,
+              label: data.next.label,
+              recallState: data.next.recallState,
+              crossedToDurable: !wasDurable && data.next.recallState === 'durable',
+              at: Date.now(),
+            }),
+        },
+      );
       // The dock goes back to "whatever is next"; an answered item is rescheduled rather than
       // deleted, so a pointer left on it would show the same question again. See the dock.
       setReviewDockItem(null);
       clearPaperStack();
     },
-    [paperStack, reviewOutcome, setReviewDockItem, clearPaperStack],
+    [paperStack, reviewOutcome, setReviewDockItem, setReviewDockResult, clearPaperStack],
   );
 
   const handleFlipSheetUp = useCallback(() => {

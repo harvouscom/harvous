@@ -109,6 +109,7 @@ export function buildReviewCardStackOrigin(
     noteTitle: string | null;
     secondaryNoteTitle: string | null;
     scriptureReference: string | null;
+    recallState?: string;
   },
   reveal: { attempted: boolean; attempt?: string },
   returnTo: PaperStackReturnTo,
@@ -121,7 +122,12 @@ export function buildReviewCardStackOrigin(
     stripServerAutoUntitledNoteTitleForDisplay(item.secondaryNoteTitle?.trim() ?? '') || undefined;
   return {
     kind: 'reviewCard',
-    review: { itemId: item.id, attempted: reveal.attempted, attempt: reveal.attempt },
+    review: {
+      itemId: item.id,
+      attempted: reveal.attempted,
+      attempt: reveal.attempt,
+      recallState: item.recallState,
+    },
     label: 'Review',
     icon: 'arrows-rotate',
     returnTo,

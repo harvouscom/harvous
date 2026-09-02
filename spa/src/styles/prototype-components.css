@@ -20168,7 +20168,10 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   }
 }
 
-.proto-onboarding-dock__check {
+/* Two docks now say "that is done": the onboarding checklist and Review's result line. Same
+   mark, same pop, one rule — they are the same gesture and should not drift apart. */
+.proto-onboarding-dock__check,
+.proto-dock-check {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20179,6 +20182,12 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   background: var(--pds-accent);
   color: #fff;
   animation: proto-onboarding-check-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Review's sits on a line of text rather than in a row, so it does not need the row's margin. */
+.proto-dock-check {
+  flex: none;
+  margin: 1px 0 0;
 }
 
 /* A completed row is a receipt, not a destination — it stops looking tappable while it
@@ -20231,6 +20240,8 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   }
 
   .proto-onboarding-dock__check,
+  .proto-dock-check,
+  .proto-review-dock__result,
   .proto-spotlight-glow {
     animation: none;
   }
@@ -21775,6 +21786,54 @@ button.proto-feed-sheet__stat:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/*
+ * The moment after an answer.
+ *
+ * A check, the word for what happened, and when it comes back — held for
+ * PROTO_REVIEW_RESULT_DWELL_MS and then replaced by the next question. It sits where the
+ * question was rather than beside it, because two things in the card at once would make the
+ * reader choose which one to read.
+ */
+.proto-review-dock__result {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pds-space-2);
+  animation: proto-review-result-in 0.24s ease both;
+}
+
+@keyframes proto-review-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.proto-review-dock__result-text {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.35em;
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+.proto-review-dock__result-outcome {
+  color: var(--pds-text-primary);
+  font-weight: 600;
+}
+
+/* Said once, on the answer that earns it. Accent rather than a badge — a badge would be a
+   score, and this is a note about a memory. */
+.proto-review-dock__result-crossed {
+  color: var(--pds-accent);
 }
 
 .proto-review-dock__empty,

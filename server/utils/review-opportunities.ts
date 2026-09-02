@@ -33,7 +33,11 @@ import {
   type NodeKind,
 } from '@/utils/study-bible-nodes';
 import { createReviewItem, type ReviewItemRow } from './review-service';
-import { isUserNodeStatesTableMissing, isReviewItemsTableMissing } from './pg-undefined-relation';
+import {
+  isUserNodeStatesTableMissing,
+  isReviewItemsTableMissing,
+  isReviewSourceColumnMissing,
+} from './pg-undefined-relation';
 
 /** How many nodes to consider. Well past what three picks needs, cheap on the index. */
 const CANDIDATE_LIMIT = 400;
@@ -161,7 +165,13 @@ export async function refillReviewQueue(
 
     return created;
   } catch (error) {
-    if (isUserNodeStatesTableMissing(error) || isReviewItemsTableMissing(error)) return [];
+    if (
+      isUserNodeStatesTableMissing(error) ||
+      isReviewItemsTableMissing(error) ||
+      isReviewSourceColumnMissing(error)
+    ) {
+      return [];
+    }
     console.error('[review-opportunities] refill failed:', error);
     return [];
   }
