@@ -290,12 +290,14 @@ export function verseTouches(input: {
   }));
 
   // The chapter above every verse, so reading and marking are comparable granularities.
+  // Derived when the caller did not pass them, deduped by the key they would produce.
   const chapters = input.chapters.length
     ? input.chapters
-    : [...new Set(input.verses.map((v) => chapterKeyForVerse(v)))].flatMap((key) => {
-        const [book, chapter] = key.slice('chapter:'.length).split('|');
-        return Number.isFinite(Number(chapter)) ? [{ book, chapter: Number(chapter) }] : [];
-      });
+    : [
+        ...new Map(
+          input.verses.map((v) => [chapterKeyForVerse(v), { book: v.book, chapter: v.chapter }]),
+        ).values(),
+      ];
 
   for (const chapter of chapters) {
     touches.push(

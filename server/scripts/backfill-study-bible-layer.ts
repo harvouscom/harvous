@@ -509,9 +509,9 @@ async function collectForUser(userId: string, since: Date): Promise<TouchCollect
   return collector;
 }
 
-function summarize(touches: readonly NodeTouch[]): string {
+function summarize(items: readonly { kind: string }[]): string {
   const byKind = new Map<string, number>();
-  for (const touch of touches) byKind.set(touch.kind, (byKind.get(touch.kind) ?? 0) + 1);
+  for (const item of items) byKind.set(item.kind, (byKind.get(item.kind) ?? 0) + 1);
   return [...byKind.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([kind, count]) => `${kind} ${count}`)
@@ -563,7 +563,9 @@ export async function runBackfillStudyBibleLayer(argv: readonly string[]): Promi
       .select({ nodeKind: UserNodeStates.nodeKind })
       .from(UserNodeStates)
       .where(eq(UserNodeStates.userId, userId));
-    console.log(`  written: ${written.length} node(s) (${summarize(written.map((row) => ({ kind: row.nodeKind })) as NodeTouch[])})`);
+    console.log(
+      `  written: ${written.length} node(s) (${summarize(written.map((row) => ({ kind: row.nodeKind })))})`,
+    );
   }
 }
 
