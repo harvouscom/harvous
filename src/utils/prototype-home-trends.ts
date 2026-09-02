@@ -1218,8 +1218,15 @@ export interface StudyArcNoteInput {
 
 export interface StudyArc {
   theme: string;
-  /** Distinct notes touching this theme within the window. */
+  /**
+   * Distinct notes touching this theme within the window.
+   *
+   * **Zero from `deriveStudyArcsFromNodes`**, which counts touches rather than notes and so
+   * may not claim a number. Copy must treat 0 as "no count to show", not as "no notes".
+   */
   noteCount: number;
+  /** Node path only: how much the reader has written about this theme. Ranks the arcs. */
+  weight?: number;
   firstMs: number;
   lastMs: number;
   spanDays: number;
@@ -1242,6 +1249,25 @@ export interface StudyArcOptions {
 
 /** Themes too universal to be "a theme God's been teaching you" — they'd match almost everything. */
 const ARC_THEME_DENYLIST = UNIVERSAL_BIBLE_ENTITIES;
+
+/**
+ * A curated topic label, as a reader should see it.
+ *
+ * All 6,738 rows in `ScriptureTopics` are lowercase and strip apostrophes, so the label comes
+ * through as "gods love". Sentence case fixes most of it; the possessive does not, and 37 of
+ * them begin that way — "Gods compassion" in the greeting of a Bible app reads as a typo, and
+ * the greeting is the most-read line in the product. Narrow on purpose: this restores the one
+ * apostrophe the source data reliably drops, and guesses at nothing else.
+ */
+export function curatedTopicLabelForDisplay(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) return trimmed;
+  const possessive = trimmed.replace(/^gods\s+/i, "God's ");
+  return possessive.charAt(0).toUpperCase() + possessive.slice(1);
+}
+
+/** A theme has to have been written about at least twice before it is anyone's arc. */
+const ARC_NODE_MIN_EXPANSIONS = 2;
 
 const ARC_WINDOW_MS = 180 * DAY_MS;
 
@@ -1353,14 +1379,21 @@ const toMs = (value: string | Date): number =>
  * The same arcs, from server-side counts rather than the notes in the browser.
  *
  * `deriveStudyArcs` above needs every note the reader has, which is why it gives up whenever
- * the list is paginated — a count of three that is really thirty is worse than saying nothing.
- * The Study Bible layer counts as study happens, so this can answer for a reader with two
- * thousand notes and a first page of twenty.
+ * the list is paginated. The Study Bible layer counts as study happens, so this can answer for
+ * a reader with two thousand notes and a first page of twenty.
  *
- * Same thresholds and the same denylist, deliberately: an arc should mean the same thing
- * whichever path produced it. `noteIds` is left to the caller, which has the fingerprints and
- * can match the label back to notes it holds — the layer knows the theme was studied, not
- * which of the reader's notes are currently on screen.
+ * **`noteCount` is deliberately 0 here, and the copy must not claim a number.** The layer
+ * counts *touches*, not notes: one note citing five verses that all carry the theme "water"
+ * gives that theme five exposures. Rendering that as "Across 5 notes" is simply false, and it
+ * is what this function did on its first day. Until a node can count distinct notes, the node
+ * path earns a since-line and nothing more.
+ *
+ * The bar is also higher than the note path's. A theme has to have been *written about*
+ * (`expansionCount`), not merely met while reading — the topic layer tags broadly enough that
+ * exposure alone surfaces "life" and "water" as though they were someone's study.
+ *
+ * `noteIds` is left to the caller, which has the fingerprints and can match the label back to
+ * notes it holds.
  */
 export function deriveStudyArcsFromNodes(
   nodes: readonly StudyArcThemeNode[],
@@ -1379,27 +1412,36 @@ export function deriveStudyArcsFromNodes(
     if (!Number.isFinite(lastMs) || !Number.isFinite(firstMs)) continue;
     if (lastMs < windowStart || lastMs > nowMs) continue;
 
-    // Writing about a theme counts alongside meeting it: an arc is study, not exposure.
-    const touches = node.exposureCount + node.expansionCount;
-    if (touches < minNotes) continue;
+    // Written about, not merely met. Exposure alone is the topic layer's breadth, not the
+    // reader's attention — it is what put "water" and "life" forward as study arcs.
+    if (node.expansionCount < ARC_NODE_MIN_EXPANSIONS) continue;
+    if (node.exposureCount + node.expansionCount < minNotes) continue;
 
     const spanDays = (lastMs - firstMs) / DAY_MS;
     if (spanDays < minSpanDays) continue;
 
     arcs.push({
-      theme: label,
-      noteCount: touches,
+      theme: curatedTopicLabelForDisplay(label),
+      // See the docblock: touches are not notes, so this path claims no count at all.
+      noteCount: 0,
       firstMs,
       lastMs,
       spanDays,
       // Tone lives on note fingerprints, not on the theme node.
       dominantTone: null,
       noteIds: [],
+      // Ranked by what the reader wrote, full stop. Exposure deliberately plays no part: it
+      // is how broadly the curated layer tags a passage, and a weighted blend of the two let
+      // a theme merely cited eight times outrank one written about five.
+      weight: node.expansionCount,
     });
   }
 
   arcs.sort(
-    (a, b) => b.noteCount - a.noteCount || b.spanDays - a.spanDays || a.theme.localeCompare(b.theme),
+    (a, b) =>
+      (b.weight ?? 0) - (a.weight ?? 0) ||
+      b.spanDays - a.spanDays ||
+      a.theme.localeCompare(b.theme),
   );
   return arcs.slice(0, Math.max(0, limit));
 }

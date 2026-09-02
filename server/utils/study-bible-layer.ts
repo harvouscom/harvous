@@ -147,7 +147,10 @@ function foldTouches(userId: string, touches: readonly NodeTouch[], now: Date): 
     if (at >= existing.lastSourceAt) {
       existing.lastSignal = touch.signal;
       existing.lastSourceAt = at;
-      if (touch.sourceLabel !== undefined) existing.lastSourceLabel = touch.sourceLabel ?? null;
+      // Only a touch that *has* something to say replaces the reason. Matching the COALESCE on
+      // the SQL side, and not a detail: a glance at a note carries no label, so overwriting
+      // with null let one drive-by visit erase "You wrote this" and leave the row unexplained.
+      if (touch.sourceLabel != null) existing.lastSourceLabel = touch.sourceLabel;
     }
     existing.label = existing.label ?? touch.label ?? null;
     existing.noteId = existing.noteId ?? touch.noteId ?? null;

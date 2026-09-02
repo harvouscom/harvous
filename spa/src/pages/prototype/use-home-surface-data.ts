@@ -799,7 +799,12 @@ export function useHomeSurfaceData({
     if (studyArc) {
       const since = studyArcSinceLabel(studyArc.firstMs, Date.now());
       const tone = studyArcToneLabel(studyArc.dominantTone);
-      const base = `Across ${studyArc.noteCount} notes since ${since}`;
+      // A zero count means the layer found the arc, and the layer counts touches rather than
+      // notes — see deriveStudyArcsFromNodes. Saying "across 4 notes" when four is really four
+      // verse-citations inside one note is a lie the reader cannot check, so it says nothing.
+      const base = studyArc.noteCount > 0
+        ? `Across ${studyArc.noteCount} notes since ${since}`
+        : `Returning to this since ${since}`;
       return tone ? `${base} · ${tone}` : base;
     }
     if (sectionArc) return sectionArcCopy(sectionArc, Date.now());

@@ -2248,7 +2248,7 @@ describe('deriveStudyArcsFromNodes', () => {
   const themeNode = (label: string, overrides: Partial<Parameters<typeof deriveStudyArcsFromNodes>[0][number]> = {}) => ({
     label,
     exposureCount: 5,
-    expansionCount: 0,
+    expansionCount: 2,
     firstStudiedAt: daysAgo(60),
     lastSeenAt: daysAgo(2),
     ...overrides,
@@ -2257,23 +2257,44 @@ describe('deriveStudyArcsFromNodes', () => {
   it('answers for a reader whose notes are paginated, which the note-side derive cannot', () => {
     const arcs = deriveStudyArcsFromNodes([themeNode('Adoption')], { nowMs: NOW, limit: 1 });
     expect(arcs[0]?.theme).toBe('Adoption');
-    expect(arcs[0]?.noteCount).toBe(5);
+  });
+
+  it('never claims a note count, because it counts touches and not notes', () => {
+    // One note citing five verses that share a theme gives that theme five exposures.
+    // "Across 5 notes" would be false, so the node path reports no count at all.
+    const arcs = deriveStudyArcsFromNodes([themeNode('Adoption')], { nowMs: NOW });
+    expect(arcs[0]?.noteCount).toBe(0);
   });
 
   it('holds the same thresholds as the note-side derive', () => {
-    // Too few touches, and too short a span, are each on their own a reason not to claim an arc.
-    expect(deriveStudyArcsFromNodes([themeNode('Adoption', { exposureCount: 2 })], { nowMs: NOW })).toEqual([]);
+    // Two touches in total is below minNotes, however they were earned.
+    expect(deriveStudyArcsFromNodes([themeNode('Adoption', { exposureCount: 0, expansionCount: 2 })], { nowMs: NOW })).toEqual([]);
     expect(
       deriveStudyArcsFromNodes([themeNode('Adoption', { firstStudiedAt: daysAgo(4) })], { nowMs: NOW }),
     ).toEqual([]);
   });
 
-  it('counts writing about a theme alongside meeting it', () => {
-    const arcs = deriveStudyArcsFromNodes(
-      [themeNode('Covenant', { exposureCount: 2, expansionCount: 2 })],
-      { nowMs: NOW },
+  it('refuses a theme that was only ever met while reading', () => {
+    // The topic layer tags broadly; exposure alone put "water" and "life" forward as arcs.
+    const met = themeNode('Water', { exposureCount: 9, expansionCount: 0 });
+    expect(deriveStudyArcsFromNodes([met], { nowMs: NOW })).toEqual([]);
+  });
+
+  it('restores the apostrophe the curated topic data drops', () => {
+    // All 6,738 ScriptureTopics rows are lowercase and apostrophe-free; 37 are possessives.
+    expect(deriveStudyArcsFromNodes([themeNode('gods love')], { nowMs: NOW })[0]?.theme).toBe(
+      "God's love",
     );
-    expect(arcs[0]?.noteCount).toBe(4);
+    expect(deriveStudyArcsFromNodes([themeNode('the meaning of life')], { nowMs: NOW })[0]?.theme).toBe(
+      'The meaning of life',
+    );
+  });
+
+  it('ranks by what the reader wrote, never by how broadly the topic layer tags', () => {
+    const written = themeNode('Covenant', { exposureCount: 1, expansionCount: 5 });
+    const cited = themeNode('Kingdom', { exposureCount: 80, expansionCount: 2 });
+    const arcs = deriveStudyArcsFromNodes([cited, written], { nowMs: NOW, limit: 2 });
+    expect(arcs[0]?.theme).toBe('Covenant');
   });
 
   it('drops the universal entities the note-side derive drops', () => {
