@@ -2122,6 +2122,18 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   color: var(--pds-text-primary);
 }
 
+/*
+  The wrapper draws the focus ring on `:focus-within`, so the input must not draw
+  a second one inside it. Declared on `:focus-visible` as well as at rest below:
+  the resting `outline: none` only ties with the global `input:focus-visible`
+  ring on specificity, and a tie is settled by stylesheet order — which differs
+  between the dev server and the bundled build. Stating the focused state keeps
+  it decided by specificity instead.
+*/
+.proto-sidebar-search__field input:focus-visible {
+  outline: none;
+}
+
 .proto-sidebar-search__field input {
   flex: 1;
   min-width: 0;
@@ -4517,6 +4529,16 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   font-family: var(--pds-font-body);
   font-size: 14px;
   color: var(--pds-text-primary);
+  outline: none;
+}
+
+/*
+  The wrapper draws the focus ring on `:focus-within` (above), so the input must
+  not draw a second one inside it. Stated on the focused state, not just as the
+  resting `outline: none` above: that resting declaration is a weaker selector
+  than the global `input:focus-visible` ring and would lose to it.
+*/
+.proto-fte-field__input:focus-visible {
   outline: none;
 }
 

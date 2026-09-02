@@ -29,14 +29,6 @@
     text-align: center;
     width: 100%;
   }
-
-  /* Remove focus border/outline on all inputs */
-  input:focus,
-  input:focus-visible {
-    outline: none !important;
-    border: none !important;
-    box-shadow: none !important;
-  }
 }
 
 .search-input__icon {
@@ -734,9 +726,27 @@
   opacity: 0.5;
 }
 
-.clerk-form-input:focus {
+/*
+  The focused state used to repeat `--shadow-small` — the field's *resting*
+  shadow — so focusing this field changed nothing on screen. Compose the ring on
+  top of that resting shadow instead.
+
+  `box-shadow` rather than the global `outline` here because this field is a
+  24px pill carrying its own inset shadow: a shadow ring follows the radius and
+  sits in the same paint as the shadow already there. Like `outline`, it takes
+  part in no layout, so the field does not move.
+
+  The `:not()` chain is repeated from the resting rule and is load-bearing, not
+  copy-paste: that rule is (0,3,0) and sets `box-shadow` with `!important`, so a
+  plain `.clerk-form-input:focus-visible` at (0,2,0) loses to it and the focused
+  field keeps painting its resting shadow. Matching the resting selector and
+  adding the pseudo-class puts this one rung above it.
+*/
+.clerk-form-input:not([class*='otp']):not(.clerk-form-otp-input):focus-visible {
   outline: none !important;
-  box-shadow: var(--shadow-small) !important;
+  box-shadow:
+    var(--shadow-small),
+    0 0 0 var(--focus-ring-width) var(--pds-accent-focus-ring, var(--focus-ring-color)) !important;
 }
 
 /* OTP / email-code step — clerk-js 5.125+ uses input-otp with visual segments. */
@@ -824,13 +834,20 @@
   }
 }
 
-.clerk-form-otp-input:focus,
-.clerk-form-root .cl-otpCodeFieldInput:focus,
-.clerk-form-card .cl-otpCodeFieldInput:focus,
+/* Same fix as the field above — this repeated the resting shadow, so the active
+   code segment was indistinguishable. The selectors mirror the resting rule's
+   exactly, plus the focus pseudo-class, for the same specificity reason. */
+.clerk-form-otp-input:focus-visible,
+.clerk-form-root .cl-otpCodeFieldInput:focus-visible,
+.clerk-form-card .cl-otpCodeFieldInput:focus-visible,
+.clerk-form-root [class*='cl-otpCodeFieldInput']:not([class*='Container']):not([class*='Inputs']):focus-visible,
+.clerk-form-card [class*='cl-otpCodeFieldInput']:not([class*='Container']):not([class*='Inputs']):focus-visible,
 .clerk-form-root [data-testid='otp-input-segment']:focus-within,
 .clerk-form-card [data-testid='otp-input-segment']:focus-within {
   outline: none !important;
-  box-shadow: var(--shadow-small) !important;
+  box-shadow:
+    var(--shadow-small),
+    0 0 0 var(--focus-ring-width) var(--pds-accent-focus-ring, var(--focus-ring-color)) !important;
 }
 
 /* Transparent input-otp overlay — must not get pill input styling. */
@@ -854,6 +871,10 @@
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+  /* This input is an invisible overlay stretched across the whole code row; the
+     ring belongs on the segment the caret is in, which the rule above draws.
+     Without this the global field ring would outline the entire row. */
+  outline: none !important;
   letter-spacing: inherit !important;
   font-size: inherit !important;
   text-align: center !important;

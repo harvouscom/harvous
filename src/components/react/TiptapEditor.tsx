@@ -7994,7 +7994,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     
     // Set localStorage first (as backup in case event listener isn't ready yet)
     localStorage.setItem('showNewNotePanel', 'true');
-    localStorage.setItem('showNewThreadPanel', 'false');
     
     // Dispatch event to open NewNotePanel
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));

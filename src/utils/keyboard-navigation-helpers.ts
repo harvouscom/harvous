@@ -132,22 +132,3 @@ export function navigatePersistentNavStep(direction: 1 | -1): boolean {
   appNavigate(dest);
   return true;
 }
-
-/**
- * Cycle TabNav on Space/Thread pages (buttons with [data-tab-button]).
- */
-export function cycleTabNavStep(direction: 1 | -1): boolean {
-  if (typeof document === 'undefined') return false;
-
-  const buttons = Array.from(
-    document.querySelectorAll<HTMLButtonElement>('.tab-nav .tab-nav__button[data-tab-button]'),
-  );
-  if (buttons.length < 2) return false;
-
-  let activeIndex = buttons.findIndex((b) => b.getAttribute('data-active') === 'true');
-  if (activeIndex < 0) activeIndex = 0;
-
-  const nextIndex = (activeIndex + direction + buttons.length) % buttons.length;
-  buttons[nextIndex].click();
-  return true;
-}

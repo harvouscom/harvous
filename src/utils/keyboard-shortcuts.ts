@@ -6,7 +6,7 @@
  */
 
 import { getBackTarget, popNavStack } from './nav-stack';
-import { cycleTabNavStep, navigatePersistentNavStep } from './keyboard-navigation-helpers';
+import { navigatePersistentNavStep } from './keyboard-navigation-helpers';
 import { detectEntityTypeFromPath, extractIdFromPath, idToUrl } from './url-helpers';
 import { decodeNoteSlug } from './ids';
 import {
@@ -133,7 +133,6 @@ function isPanelOpen(): boolean {
   if (typeof localStorage === 'undefined') return false;
 
   const showNewNotePanel = localStorage.getItem('showNewNotePanel') === 'true';
-  const showNewThreadPanel = localStorage.getItem('showNewThreadPanel') === 'true';
   const showNewResourcePanel = localStorage.getItem('showNewResourcePanel') === 'true';
   const showProfilePanel = !!(localStorage.getItem('showProfilePanel') || '').trim();
 
@@ -143,7 +142,6 @@ function isPanelOpen(): boolean {
 
   return (
     showNewNotePanel ||
-    showNewThreadPanel ||
     showNewResourcePanel ||
     showProfilePanel ||
     panelHidden ||
@@ -197,18 +195,8 @@ function tryDismissBreadcrumbLayer(): boolean {
     return true;
   }
 
-  const profile = (localStorage.getItem('showProfilePanel') || '').trim();
-  if (profile.length > 0) {
-    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-    return true;
-  }
-
   if (localStorage.getItem('showNewResourcePanel') === 'true') {
     window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
-    return true;
-  }
-  if (localStorage.getItem('showNewThreadPanel') === 'true') {
-    window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
     return true;
   }
   if (localStorage.getItem('showNewNotePanel') === 'true') {
@@ -578,14 +566,6 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     return;
   }
 
-  // Cmd/Ctrl + ; — New thread (right hand; adjacent to ' on US QWERTY)
-  if (modifier && !event.shiftKey && !event.altKey && code === 'Semicolon') {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
-    return;
-  }
-
   // Don't handle shortcuts when typing in inputs
   if (isTypingInInput()) {
     return;
@@ -628,20 +608,6 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
         }
         return;
       }
-      if (key === 'arrowleft' || code === 'ArrowLeft') {
-        if (cycleTabNavStep(-1)) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-        }
-        return;
-      }
-      if (key === 'arrowright' || code === 'ArrowRight') {
-        if (cycleTabNavStep(1)) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-        }
-        return;
-      }
     }
   }
 
@@ -675,19 +641,6 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     return;
   }
   
-  // Cmd/Ctrl + Shift + D — Details: note details or thread edit panel (context-aware)
-  if (modifier && event.shiftKey && key === 'd' && !event.altKey) {
-    if (shouldPassThroughToBrowser(event, 'mod-shift-d')) return;
-    event.preventDefault();
-    const context = getPageContext();
-    if (context.isNote) {
-      window.dispatchEvent(new CustomEvent('openNoteDetailsPanel'));
-    } else if (context.isThread) {
-      window.dispatchEvent(new CustomEvent('openEditThreadPanel'));
-    }
-    return;
-  }
-
   // Cmd/Ctrl + Shift + S — Share (note or thread; same as Edit → Share)
   if (modifier && event.shiftKey && key === 's' && !event.altKey) {
     if (shouldPassThroughToBrowser(event, 'mod-shift-s')) return;
@@ -731,14 +684,6 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     const id = extractIdFromPath(path);
     if (entity === 'note' && id?.startsWith('note_')) {
       window.dispatchEvent(new CustomEvent('editNote'));
-    } else if (entity === 'thread' && id?.startsWith('thread_')) {
-      window.dispatchEvent(
-        new CustomEvent('openEditThreadPanel', { detail: { contentId: id, contentType: 'thread' } }),
-      );
-    } else if (entity === 'space' && id?.startsWith('space_')) {
-      window.dispatchEvent(
-        new CustomEvent('openEditSpacePanel', { detail: { contentId: id, contentType: 'space' } }),
-      );
     }
     return;
   }
