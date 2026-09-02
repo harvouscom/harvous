@@ -30,6 +30,12 @@ import {
   RECALL_NEVERMIND_COPY,
   RECALL_PUT_DOWN_COPY,
 } from './proto-recall-copy';
+import {
+  REVIEW_ALMOST_COPY,
+  REVIEW_RECALLED_COPY,
+  REVIEW_REVEALED_ACK_COPY,
+} from './proto-review-copy';
+import type { ReviewOutcome } from '@/utils/review-item-kinds';
 
 export default function PrototypePaperStack({
   stack,
@@ -39,6 +45,7 @@ export default function PrototypePaperStack({
   onDismiss,
   onSuggestionNevermind,
   onSuggestionIgnore,
+  onReviewVerdict,
   baseSlot,
   children,
 }: {
@@ -47,6 +54,15 @@ export default function PrototypePaperStack({
   exiting?: boolean;
   onFlipDown: () => void;
   onFlipUp: () => void;
+  /**
+   * The answer to a review question, when the sheet is the note being asked about.
+   *
+   * A `reviewCard` origin has nowhere to flip back to — the dock that asked is still on screen —
+   * so its edge is not a way back at all. It is the verdict, sitting at the top of the note the
+   * reader is judging themselves against, which is the one place both halves of the question
+   * are visible at once.
+   */
+  onReviewVerdict?: (outcome: ReviewOutcome) => void;
   /** Put the origin down: the stack clears and the sheet becomes an ordinary page. */
   onDismiss: () => void;
   /**
@@ -249,6 +265,58 @@ export default function PrototypePaperStack({
             onClick={onDismiss}
             aria-label={RECALL_PUT_DOWN_COPY.ariaFor(suggestionName)}
             title={RECALL_PUT_DOWN_COPY.label}
+          >
+            <Icon name="xmark" size={12} aria-hidden />
+          </button>
+        </div>
+      ) : stack.open && origin.review ? (
+        /*
+         * The verdict edge. Its label is a static span rather than a button because there is no
+         * paper underneath to flip to — the base here is the review card, which is a picture of
+         * the question rather than a place. Pressing the question would promise a destination
+         * that does not exist.
+         */
+        <div className="pds-paper-stack__edge-row pds-paper-stack__edge-row--review">
+          <span className="pds-paper-stack__edge pds-paper-stack__edge--static">
+            <Icon name={origin.icon as IconName} size={12} aria-hidden />
+            <span className="pds-caption">{origin.label}</span>
+          </span>
+          <div className="pds-paper-stack__edge-verdicts">
+            {origin.review.attempted || origin.review.attempt ? (
+              <>
+                <button
+                  type="button"
+                  className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                  onClick={() => onReviewVerdict?.('almost')}
+                >
+                  {REVIEW_ALMOST_COPY}
+                </button>
+                <button
+                  type="button"
+                  className="proto-settings-btn proto-settings-btn--compact"
+                  onClick={() => onReviewVerdict?.('recalled')}
+                >
+                  {REVIEW_RECALLED_COPY}
+                </button>
+              </>
+            ) : (
+              /* Revealed without attempting. One honest answer — asking someone who has just
+                 opened the note whether they recalled it invites a lie the schedule pays for. */
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--compact"
+                onClick={() => onReviewVerdict?.('revealed')}
+              >
+                {REVIEW_REVEALED_ACK_COPY}
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            className="proto-side-panel__action-btn pds-paper-stack__edge-dismiss"
+            onClick={onDismiss}
+            aria-label="Leave this unanswered"
+            title="Leave this unanswered"
           >
             <Icon name="xmark" size={12} aria-hidden />
           </button>

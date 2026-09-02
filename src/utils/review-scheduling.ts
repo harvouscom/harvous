@@ -16,6 +16,7 @@
 
 import {
   type RecallState,
+  type ReviewItemOrigin,
   type ReviewOutcome,
 } from './review-item-kinds';
 
@@ -164,14 +165,21 @@ export function deferReview(
 }
 
 /**
- * The first due date for a brand-new item.
+ * The first due date for a brand-new item, which depends on how it got there.
  *
- * Tomorrow rather than immediately: an item added while looking at the note would otherwise
- * ask about the note still open on screen, which teaches the reader that Review is a trick
- * question. A night's sleep is the shortest gap at which recall means anything.
+ * An item the reader **added** waits a night. They added it while looking at the note, so
+ * asking immediately would be asking about something still on screen — a trick question, and
+ * the fastest way to teach someone the feature is not serious.
+ *
+ * An item the **engine** added is due at once, and so is a legacy seeded one. The reader did
+ * not ask for it, so there is nothing on screen to read the answer off; and a section that
+ * fills itself but shows nothing until tomorrow reads as a feature that does not work, which
+ * is exactly what the seed did in the first preview.
  */
-export function firstDueAt(now: Date = new Date()): Date {
-  return addDays(now, 1);
+export function firstDueAt(now: Date = new Date(), origin: ReviewItemOrigin = 'user'): Date {
+  // Seeded and engine-added items are due immediately: the reader did not ask for them, so a
+  // section that stays empty until tomorrow reads as a feature that does not work.
+  return origin === 'seed' || origin === 'engine' ? new Date(now.getTime()) : addDays(now, 1);
 }
 
 /** Human phrasing for the next return, for the one line the session shows after an answer. */

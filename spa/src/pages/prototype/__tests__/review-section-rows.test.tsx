@@ -1,5 +1,5 @@
 /**
- * What the Study Inbox shows, and to whom.
+ * What the Review section shows, and to whom.
  *
  * Four audiences with four different right answers, and three of them are decisions that a
  * later change could silently reverse: a guest must see nothing at all, a free account must
@@ -21,7 +21,7 @@ const features: Record<string, { has: boolean; ready: boolean }> = {
   challenges: { has: true, ready: true },
 };
 const inbox = {
-  data: undefined as undefined | { items: unknown[]; hasMore: boolean; canSeed: boolean },
+  data: undefined as undefined | { items: unknown[]; hasMore: boolean },
 };
 const challenges = { data: undefined as undefined | { challenges: unknown[] } };
 
@@ -40,13 +40,17 @@ vi.mock('../../../hooks/queries/useChallenges', () => ({
 vi.mock('../../../hooks/mutations/useReviewMutations', () => ({
   useDeferReview: () => ({ mutate: vi.fn(), isPending: false }),
   useSetReviewStatus: () => ({ mutate: vi.fn(), isPending: false }),
-  useSeedReviews: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+const navigate = vi.fn();
+const openReviewDock = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
+}));
+vi.mock('../../../layouts/proto-shell-context', () => ({
+  useProtoShell: () => ({ openReviewDock }),
 }));
 
-const PrototypeStudyInbox = (await import('../PrototypeStudyInbox')).default;
+const PrototypeReviewSection = (await import('../PrototypeReviewSection')).default;
 
 function reviewItem(id: string, prompt: string) {
   return {
@@ -65,6 +69,8 @@ function reviewItem(id: string, prompt: string) {
     scriptureReference: 'Romans 8:15',
     noteId: 'note_1',
     challengeId: null,
+    sourceLabel: null as string | null,
+    sourceAt: null as string | null,
   };
 }
 
@@ -87,25 +93,27 @@ function challenge(id: string) {
 }
 
 beforeEach(() => {
+  navigate.mockClear();
+  openReviewDock.mockClear();
   identity.isGuest = false;
   features.review = { has: true, ready: true };
   features.challenges = { has: true, ready: true };
-  inbox.data = { items: [], hasMore: false, canSeed: false };
+  inbox.data = { items: [], hasMore: false };
   challenges.data = { challenges: [] };
 });
 
-describe('who sees the Study Inbox', () => {
+describe('who sees the Review section', () => {
   it('shows a guest nothing at all', () => {
     identity.isGuest = true;
-    inbox.data = { items: [reviewItem('r1', 'What did you observe?')], hasMore: false, canSeed: false };
-    const { container } = render(<PrototypeStudyInbox />);
+    inbox.data = { items: [reviewItem('r1', 'What did you observe?')], hasMore: false };
+    const { container } = render(<PrototypeReviewSection />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('shows a free account one line, with the Plus badge', () => {
     features.review = { has: false, ready: true };
     features.challenges = { has: false, ready: true };
-    render(<PrototypeStudyInbox />);
+    render(<PrototypeReviewSection />);
     expect(screen.getByText('Plus')).toBeInTheDocument();
     expect(screen.getByText(/Return to your study/)).toBeInTheDocument();
   });
@@ -114,12 +122,12 @@ describe('who sees the Study Inbox', () => {
     // The expensive bug: a subscriber must never be flashed a paywall on a cold load.
     features.review = { has: false, ready: false };
     features.challenges = { has: false, ready: false };
-    const { container } = render(<PrototypeStudyInbox />);
+    const { container } = render(<PrototypeReviewSection />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('shows a subscriber with an empty queue nothing, rather than an empty state', () => {
-    const { container } = render(<PrototypeStudyInbox />);
+    const { container } = render(<PrototypeReviewSection />);
     expect(container).toBeEmptyDOMElement();
   });
 });
@@ -128,10 +136,9 @@ describe('what it shows a subscriber', () => {
   it('renders the questions themselves, not the note titles', () => {
     inbox.data = {
       items: [reviewItem('r1', 'Before opening it, what did you observe in Romans 8:15?')],
-      hasMore: false,
-      canSeed: false,
+      hasMore: false
     };
-    render(<PrototypeStudyInbox />);
+    render(<PrototypeReviewSection />);
     expect(
       screen.getByText('Before opening it, what did you observe in Romans 8:15?'),
     ).toBeInTheDocument();
@@ -140,10 +147,9 @@ describe('what it shows a subscriber', () => {
   it('never shows more than three rows of work', () => {
     inbox.data = {
       items: ['a', 'b', 'c', 'd', 'e'].map((id) => reviewItem(id, `Question ${id}`)),
-      hasMore: true,
-      canSeed: false,
+      hasMore: true
     };
-    render(<PrototypeStudyInbox />);
+    render(<PrototypeReviewSection />);
     const questions = screen.queryAllByText(/^Question /);
     expect(questions.length).toBeLessThanOrEqual(3);
   });
@@ -151,18 +157,17 @@ describe('what it shows a subscriber', () => {
   it('gives up a review row for the challenge continuation, keeping the cap', () => {
     inbox.data = {
       items: ['a', 'b', 'c', 'd'].map((id) => reviewItem(id, `Question ${id}`)),
-      hasMore: true,
-      canSeed: false,
+      hasMore: true
     };
     challenges.data = { challenges: [challenge('c1')] };
-    render(<PrototypeStudyInbox />);
+    render(<PrototypeReviewSection />);
     expect(screen.queryAllByText(/^Question /).length).toBe(2);
     expect(screen.getByText('Strengthen Covenant')).toBeInTheDocument();
   });
 
   it('says where a challenge is as a position, never as a count of what is left', () => {
     challenges.data = { challenges: [challenge('c1')] };
-    render(<PrototypeStudyInbox />);
+    render(<PrototypeReviewSection />);
     expect(screen.getByText(/Step 2 of 5/)).toBeInTheDocument();
     expect(screen.queryByText(/remaining|left|overdue/i)).not.toBeInTheDocument();
   });
@@ -170,17 +175,42 @@ describe('what it shows a subscriber', () => {
   it('never renders a count of what it is not showing', () => {
     inbox.data = {
       items: ['a', 'b', 'c', 'd', 'e'].map((id) => reviewItem(id, `Question ${id}`)),
-      hasMore: true,
-      canSeed: false,
+      hasMore: true
     };
-    const { container } = render(<PrototypeStudyInbox />);
+    const { container } = render(<PrototypeReviewSection />);
     // The named failure mode: an escalating badge like "27 due".
     expect(container.textContent).not.toMatch(/\d+\s*(due|waiting|remaining|overdue)/i);
   });
 
-  it('offers the cold-start seed only when the server says it is worth it', () => {
-    inbox.data = { items: [], hasMore: false, canSeed: true };
-    render(<PrototypeStudyInbox />);
-    expect(screen.getByText('Start reviewing')).toBeInTheDocument();
+  it('says where a row came from, so the queue reads as their own study', () => {
+    const item = reviewItem('r1', 'What comes next?');
+    item.sourceLabel = 'Highlighted while reading John 15:5';
+    inbox.data = { items: [item], hasMore: false };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(/Highlighted while reading John 15:5/)).toBeInTheDocument();
+  });
+
+  it('never offers to start reviewing: the engine fills the queue', () => {
+    inbox.data = { items: [], hasMore: false };
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container.textContent ?? '').not.toMatch(/Start reviewing/);
+  });
+});
+
+describe('opening a question', () => {
+  it('opens the dock where you are, rather than navigating to a session page', () => {
+    /*
+     * The whole point of the redesign: a question about a note is answered beside your study,
+     * not on a page you have to leave it for. If this ever navigates again, Review has quietly
+     * become a destination a second time.
+     */
+    inbox.data = {
+      items: [reviewItem('r1', 'What did you observe?')],
+      hasMore: false
+    };
+    render(<PrototypeReviewSection />);
+    screen.getByText('What did you observe?').click();
+    expect(openReviewDock).toHaveBeenCalledWith('r1');
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

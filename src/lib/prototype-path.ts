@@ -315,12 +315,6 @@ export function prototypeReviewRouteTo(): '/prototype/review' {
   return (isDedicatedPrototypeHost() ? '/review' : '/prototype/review') as '/prototype/review';
 }
 
-export function prototypeReviewSessionRouteTo(): '/prototype/review/session' {
-  return (isDedicatedPrototypeHost()
-    ? '/review/session'
-    : '/prototype/review/session') as '/prototype/review/session';
-}
-
 export function prototypeChallengesRouteTo(): '/prototype/challenges' {
   return (isDedicatedPrototypeHost()
     ? '/challenges'

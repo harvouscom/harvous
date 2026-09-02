@@ -18933,6 +18933,56 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   color: var(--pds-accent);
 }
 
+/*
+ * The verdict edge — a review question at the top of the note it is about.
+ *
+ * The label here is a `<span>`, not a button, and the CSS follows: there is no paper behind
+ * this edge to flip to. Its base is the review card, which is a picture of the question rather
+ * than a place, so a hover state and a pointer would both promise a destination that does not
+ * exist. The card that asked is still on screen in the dock band below.
+ */
+.pds-paper-stack__edge--static {
+  pointer-events: none;
+  cursor: default;
+}
+
+/*
+ * The two answers, held clear of the × the way the ignore button is.
+ *
+ * Same right-hand budget as `.pds-paper-stack__edge-ignore`: one action's width plus a gap,
+ * so the dismiss stays where a dismiss always is on this edge and the verdicts queue up
+ * beside it rather than under it.
+ */
+.pds-paper-stack__edge-verdicts {
+  position: absolute;
+  right: calc(var(--pds-space-5) + 22px + var(--pds-space-2));
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  z-index: var(--pds-z-sticky);
+}
+
+/* The question can be long; it yields to the answers rather than pushing them off the edge. */
+.pds-paper-stack__edge-row--review .pds-paper-stack__edge--static {
+  max-width: 45%;
+  overflow: hidden;
+}
+
+.pds-paper-stack__edge-row--review .pds-paper-stack__edge--static .pds-caption {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 620px) {
+  /* Narrow: the label steps back further so two verdicts still fit on one line. */
+  .pds-paper-stack__edge-row--review .pds-paper-stack__edge--static {
+    max-width: 28%;
+  }
+}
+
 .pds-paper-stack__sheet {
   position: absolute;
   inset: 0;
@@ -20118,7 +20168,10 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   }
 }
 
-.proto-onboarding-dock__check {
+/* Two docks now say "that is done": the onboarding checklist and Review's result line. Same
+   mark, same pop, one rule — they are the same gesture and should not drift apart. */
+.proto-onboarding-dock__check,
+.proto-dock-check {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20129,6 +20182,12 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   background: var(--pds-accent);
   color: #fff;
   animation: proto-onboarding-check-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Review's sits on a line of text rather than in a row, so it does not need the row's margin. */
+.proto-dock-check {
+  flex: none;
+  margin: 1px 0 0;
 }
 
 /* A completed row is a receipt, not a destination — it stops looking tappable while it
@@ -20181,6 +20240,8 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   }
 
   .proto-onboarding-dock__check,
+  .proto-dock-check,
+  .proto-review-dock__result,
   .proto-spotlight-glow {
     animation: none;
   }
@@ -21653,7 +21714,7 @@ button.proto-feed-sheet__stat:hover {
 
 /* ─── Review and Challenges ──────────────────────────────────────────────────
  *
- * Two surfaces and one row, all wearing chrome that already exists. The Study Inbox is a
+ * Two surfaces and one row, all wearing chrome that already exists. The Review section is a
  * `.proto-home-section` of `PrototypeHomeRow`s, so it needs no styling at all beyond its
  * overflow anchor; the session and challenge pages sit inside `.proto-feed-sheet`, the same
  * paper Activity's day sheets use. What is below is only what those two pages add: a prompt
@@ -21662,135 +21723,267 @@ button.proto-feed-sheet__stat:hover {
 
 /* Anchors the portaled overflow, exactly as `.proto-recall-row__more` does for the shelf.
    The menu itself is portaled to the body, so this element only ever holds the trigger. */
-.proto-study-inbox-row__more {
+.proto-review-row__more {
   position: relative;
   display: inline-flex;
   align-items: center;
 }
 
 /* The Plus badge and its dismiss, side by side in a row's trailing slot. */
-.proto-study-inbox__plus {
+.proto-review-section__plus {
   display: inline-flex;
   align-items: center;
   gap: var(--pds-space-2);
 }
 
-.proto-review-session,
+/* ─── Review dock ────────────────────────────────────────────────────────────
+ *
+ * Review used to be a page; it is a card in the study-dock band now. What survives from the
+ * page is the shape of one exchange — a question, a place to attempt it, then the verdicts —
+ * and the selectors the challenge page shares, which keep their half of every rule below.
+ *
+ * Everything is sized for a dock rather than a screen: the body is bounded and scrolls inside
+ * itself so the card never grows past the band, and the buttons size to their text instead of
+ * filling a column.
+ */
+
 .proto-challenge {
   display: flex;
   flex-direction: column;
   gap: var(--pds-space-5);
 }
 
+.proto-review-dock__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pds-space-3);
+  /* Bounded, and it scrolls itself. A long note is not rendered in here any more, but a verse
+     with a long footnote still is, and the card must not push the band up the screen. */
+  max-height: min(46vh, 360px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 /*
- * The question, and it is the largest thing on the page.
+ * The question, and the largest thing in the card.
  *
- * Sized above body text but not as a heading: it is a sentence addressed to the reader, and
- * setting it in the heading face made the session read like an article about their note. Body
- * face, larger, with the line height a sentence wants rather than the tight one a title takes.
+ * Body face rather than the heading face: it is a sentence addressed to the reader, and setting
+ * it as a title made the dock read like an article about their note.
  */
-.proto-review-session__prompt {
+.proto-review-dock__prompt {
   margin: 0;
   font-family: var(--pds-font-body);
-  font-size: 20px;
+  font-size: 15px;
   line-height: 1.45;
   color: var(--pds-text-primary);
 }
 
+/* The collapsed header line's second half — what is waiting, without opening the card. */
+.proto-review-dock__header-prompt {
+  margin-left: var(--pds-space-2);
+  color: var(--pds-text-tertiary);
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /*
- * Where the reader attempts it, and it is deliberately roomy.
+ * The moment after an answer.
  *
- * A single-line input would say "type the answer" — there is no answer, and nothing here is
- * checked against anything. A few lines of paper says "write what you remember", which is the
- * actual invitation.
+ * A check, the word for what happened, and when it comes back — held for
+ * PROTO_REVIEW_RESULT_DWELL_MS and then replaced by the next question. It sits where the
+ * question was rather than beside it, because two things in the card at once would make the
+ * reader choose which one to read.
  */
-.proto-review-session__attempt,
+.proto-review-dock__result {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pds-space-2);
+  animation: proto-review-result-in 0.24s ease both;
+}
+
+@keyframes proto-review-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.proto-review-dock__result-text {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.35em;
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+.proto-review-dock__result-outcome {
+  color: var(--pds-text-primary);
+  font-weight: 600;
+}
+
+/* Said once, on the answer that earns it. Accent rather than a badge — a badge would be a
+   score, and this is a note about a memory. */
+.proto-review-dock__result-crossed {
+  color: var(--pds-accent);
+}
+
+/*
+ * The two graded rungs: phrases to arrange, or four references to choose between.
+ *
+ * Chips rather than drag handles. A drag library for a puzzle of four pieces is a dependency
+ * and a touch-target problem; tap to place and tap again to take it back works with one finger
+ * and reads the same on a phone and a desktop. The chip itself is a compact secondary button,
+ * which already exists — only the wrapping and the placed state are new here.
+ */
+.proto-review-dock__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Where the placed phrases gather, numbered so the order the reader built is visible. */
+.proto-review-dock__chips--placed {
+  flex-direction: column;
+  align-items: stretch;
+  counter-reset: proto-review-chip;
+}
+
+.proto-review-dock__chips--placed li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pds-space-2);
+  counter-increment: proto-review-chip;
+}
+
+.proto-review-dock__chips--placed li::before {
+  content: counter(proto-review-chip);
+  width: 1.2em;
+  flex: none;
+  font-size: 12px;
+  color: var(--pds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A placed phrase reads as part of the sentence being rebuilt, not as an option any more. */
+.proto-review-dock__chips--placed .proto-settings-btn {
+  flex: 1;
+  text-align: left;
+  white-space: normal;
+}
+
+.proto-review-dock__empty,
+.proto-review-dock__handoff {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+}
+
+/*
+ * Where the reader writes what they remember — paper, not a form field.
+ *
+ * This was a bordered, padded, grey-filled input, and it was wrong twice. It was the only boxed
+ * control in a card family whose own write-in area (`.highlight-dock-web__mini-note`) is bare,
+ * so it read as furniture borrowed from a settings page. And its 12px of padding pushed the
+ * placeholder 13px right of the question directly above it, giving a three-line card three
+ * different left edges — icon, question, then answer, each stepping further in.
+ *
+ * Bare fixes both at once: the text you write starts exactly under the question you are
+ * answering, and the card stops looking like a form. It also ends the layout shift for good
+ * rather than by force — `global.css` strips `border`, `outline` and `box-shadow` from focused
+ * fields with `!important`, and a field with none of them has nothing left to lose. The caret
+ * is the focus indicator, which is the same bargain every other dock here already makes.
+ */
+.proto-review-dock__attempt {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  min-height: 60px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.proto-review-dock__attempt::placeholder {
+  color: var(--pds-text-tertiary);
+}
+
+/*
+ * The challenge page keeps its box, and is not folded into the rule above.
+ *
+ * Bare paper works in a dock because the card *is* the paper — its edges are right there giving
+ * the writing area its shape. On a full-page sheet there is no such frame within reach, and a
+ * borderless field in the middle of one reads as nothing at all. This becomes moot when
+ * challenge steps move into the dock; until then the two contexts want different things.
+ */
 .proto-challenge__response {
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
   min-height: 96px;
-  padding: var(--pds-space-3);
+  padding: var(--pds-space-2) var(--pds-space-3);
   border: 1px solid var(--pds-border-control);
   border-radius: var(--pds-radius-row);
   background: var(--pds-bg-control);
   color: var(--pds-text-primary);
   font-family: var(--pds-font-body);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
-.proto-review-session__attempt:focus-visible,
-.proto-challenge__response:focus-visible {
-  outline: 2px solid var(--pds-accent);
-  outline-offset: 1px;
-}
-
-.proto-review-session__actions,
+.proto-review-dock__actions,
 .proto-challenge__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--pds-space-2);
 }
 
-/* The buttons are pill-shaped and full-width by default (`.proto-settings-btn` is a settings
-   control first). In a row of two or three answers they size to their content instead. */
-.proto-review-session__actions > .proto-settings-btn,
-.proto-challenge__actions > .proto-settings-btn {
-  width: auto;
-  flex: 1 1 auto;
-  min-width: 140px;
-}
-
-/*
- * The revealed answer, set apart from the question above it.
- *
- * A left rule rather than a card: the reader is looking at their own writing, and boxing it
- * would make it look like something the app produced. The same mark a quotation takes.
- */
-.proto-review-session__reveal {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pds-space-3);
-  padding-left: var(--pds-space-3);
-  border-left: 2px solid var(--pds-border);
-}
-
-.proto-review-session__note-title {
-  margin: 0 0 var(--pds-space-2);
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--pds-text-secondary);
-}
-
-.proto-review-session__note-body,
-.proto-review-session__verse,
+.proto-review-dock__verse,
 .proto-challenge__verse {
   font-family: var(--pds-font-body);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--pds-text-primary);
 }
 
-.proto-review-session__note {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pds-space-2);
-  align-items: flex-start;
-}
-
-.proto-review-session__note > .proto-settings-btn {
+/*
+ * A verdict button sizes to its words.
+ *
+ * `.proto-settings-btn` is a settings control first, so it is full-width and 40px tall by
+ * default. Two of these sit in a dock header's worth of space and on the paper stack's edge,
+ * where a full-width pill would be absurd.
+ */
+.proto-settings-btn--compact {
   width: auto;
+  flex: 0 1 auto;
+  height: 28px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 
-.proto-review-session__thread ul {
-  margin: var(--pds-space-2) 0 0;
-  padding-left: var(--pds-space-5);
-  color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 14px;
-  line-height: 1.6;
+.proto-challenge__actions > .proto-settings-btn {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 140px;
 }
 
 .proto-challenge__step {

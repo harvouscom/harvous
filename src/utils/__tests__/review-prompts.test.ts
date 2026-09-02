@@ -98,3 +98,28 @@ describe('reviewPromptFor', () => {
     expect(result.key).toBe(VERSE_LADDER[0]);
   });
 });
+
+describe('a fresh queue does not ask the same question three times', () => {
+  it('starts three brand-new items at different points in the rotation', () => {
+    // Every new item has reviewCount 0, so without the id offset all three land on
+    // 'note.observe' — which is exactly how the first preview read.
+    const keys = ['review_a1', 'review_b2', 'review_c3'].map((id) =>
+      pickPromptKey('note', 0, 0, id),
+    );
+    expect(new Set(keys).size).toBeGreaterThan(1);
+  });
+
+  it('asks the same item the same question on every device', () => {
+    expect(pickPromptKey('note', 2, 0, 'review_x')).toBe(pickPromptKey('note', 2, 0, 'review_x'));
+  });
+
+  it('still moves on as an item is answered', () => {
+    const first = pickPromptKey('thread', 0, 0, 'review_t');
+    const second = pickPromptKey('thread', 1, 0, 'review_t');
+    expect(second).not.toBe(first);
+  });
+
+  it('ignores the id for a verse, whose rung is the ladder position', () => {
+    expect(pickPromptKey('verse', 5, 2, 'review_v')).toBe(VERSE_LADDER[2]);
+  });
+});

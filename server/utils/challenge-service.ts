@@ -22,6 +22,8 @@ import {
   first,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
+import { threadTouchForNote, touchNodes } from './study-bible-layer';
+import { THREAD_FORMING_SOURCE } from '@/utils/study-bible-source-copy';
 import {
   type ChallengeSettableStatus,
   type ChallengeStatus,
@@ -419,6 +421,22 @@ export async function completeChallengeStep(
       .where(and(eq(Challenges.id, challenge.id), eq(Challenges.userId, userId)))
       .returning(),
   ) as ChallengeRow;
+
+  // Study Bible layer: a written summary step is the reader saying what the whole Thread is,
+  // which is the same act as naming one. Skipping the step is not, and records nothing.
+  const step = next.find((s) => s.key === stepKey);
+  if (step?.kind === 'summary' && status === 'done' && challenge.sourceNoteId) {
+    void (async () => {
+      const touches = await threadTouchForNote(
+        userId,
+        challenge.sourceNoteId!,
+        'synthesis',
+        now,
+        THREAD_FORMING_SOURCE,
+      );
+      await touchNodes(userId, touches);
+    })();
+  }
 
   return { challenge: updated };
 }

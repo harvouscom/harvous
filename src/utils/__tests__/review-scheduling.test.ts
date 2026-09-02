@@ -93,8 +93,15 @@ describe('deferReview', () => {
 });
 
 describe('firstDueAt', () => {
-  it('waits a night before asking about a note just added', () => {
+  it('waits a night before asking about a note the reader just added', () => {
+    // They added it while looking at it; asking now would be asking about what is on screen.
     expect(daysBetween(NOW, firstDueAt(NOW))).toBe(1);
+    expect(daysBetween(NOW, firstDueAt(NOW, 'user'))).toBe(1);
+  });
+
+  it('offers a seeded item at once, so the cold start has something to show', () => {
+    // Tapping "Start reviewing" and watching the section empty itself is what this fixes.
+    expect(firstDueAt(NOW, 'seed').getTime()).toBe(NOW.getTime());
   });
 });
 

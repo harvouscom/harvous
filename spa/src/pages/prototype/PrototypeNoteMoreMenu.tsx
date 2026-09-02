@@ -288,7 +288,7 @@ export default function PrototypeNoteMoreMenu({
                 * Not offered on a foreign read-only note: Review asks what *you* observed, and
                 * a note you are reading in someone else's space has no answer of yours behind
                 * it. Renders nothing without the key rather than showing a locked row, because
-                * the Study Inbox on Activity already carries the one upsell this feature gets
+                * the Review section on Activity already carries the one upsell this feature gets
                 * and a second one in a note's menu is a paywall following you around.
                 */}
               <PrototypeAddToReviewItem noteId={noteId} readOnlyForeign={readOnlyForeign} onDone={() => setOpen(false)} />

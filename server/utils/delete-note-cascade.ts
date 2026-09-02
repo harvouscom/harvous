@@ -16,6 +16,7 @@ import {
   NoteVisitEvents,
   ReviewItems,
   ReviewEvents,
+  UserNodeStates,
   Challenges,
   ChurchServicePublishedNotes,
   ChurchSeriesPublishedNotes,
@@ -63,6 +64,7 @@ export const NOTE_DELETE_CASCADE_TABLES = [
   'NoteVisitEvents',
   'ReviewItems',
   'ReviewEvents',
+  'UserNodeStates',
   'Challenges',
   'ChurchServicePublishedNotes',
   'ChurchSeriesPublishedNotes',
@@ -172,6 +174,24 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
           and(
             eq(ReviewItems.userId, userId),
             or(inArray(ReviewItems.noteId, chunk), inArray(ReviewItems.secondaryNoteId, chunk)),
+          ),
+        );
+      // The reader's Study Bible layer. Note-owned nodes go with the note; a connection
+      // whose far end survives is archived instead, because half a link is not a link but
+      // the exposure that made it still happened. Verse, chapter, theme, person and place
+      // nodes are never note-owned and stay: the reader did read Romans 8, whatever became
+      // of the note they wrote about it.
+      await tx
+        .delete(UserNodeStates)
+        .where(and(eq(UserNodeStates.userId, userId), inArray(UserNodeStates.noteId, chunk)));
+      await tx
+        .update(UserNodeStates)
+        .set({ status: 'archived', updatedAt: new Date() })
+        .where(
+          and(
+            eq(UserNodeStates.userId, userId),
+            eq(UserNodeStates.nodeKind, 'connection'),
+            inArray(UserNodeStates.secondaryNoteId, chunk),
           ),
         );
       await tx

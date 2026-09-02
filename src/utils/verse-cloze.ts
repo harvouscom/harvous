@@ -46,7 +46,7 @@ export interface VerseCloze {
 }
 
 /** FNV-1a. Stable across runtimes, which `String.prototype.hashCode`-style ad-hoc hashes are not. */
-function hashSeed(seed: string): number {
+export function hashSeed(seed: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i);
@@ -56,7 +56,7 @@ function hashSeed(seed: string): number {
 }
 
 /** mulberry32 — small, fast, and good enough for choosing which words to hide. */
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;

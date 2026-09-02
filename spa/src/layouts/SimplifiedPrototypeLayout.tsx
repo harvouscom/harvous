@@ -54,6 +54,8 @@ import { cycleLibraryTab } from '../pages/prototype/library-panel/library-panel-
 import { clearLibraryChipRect } from '../pages/prototype/library-panel/library-chip-rect';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
+import { useReviewOutcome } from '../hooks/mutations/useReviewMutations';
+import type { ReviewOutcome } from '@/utils/review-item-kinds';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
@@ -350,6 +352,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     adoptStackNoteId,
     retargetStackOrigin,
     clearPaperStack,
+    setReviewDockItem,
+    setReviewDockResult,
     openDrawer,
     clearComposeDraftActive,
     beginPrototypeComposeSession,
@@ -525,6 +529,10 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     if (!stack) return;
     const { origin } = stack;
 
+    // A review edge has no flip-down: its base is a picture of a question, not a place. The
+    // edge renders no flip button, and this guards the keyboard path to the same handler.
+    if (origin.kind === 'reviewCard') return;
+
     if (origin.kind === 'noteDock') {
       if (paperStackExiting) return;
       setPaperStackExiting(true);
@@ -610,6 +618,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     });
   }, [paperStack, homeSpaceId, clearPaperStack, isMobileSidebar, openDrawer, chromeRouter]);
 
+  const reviewOutcome = useReviewOutcome();
+
   const handleSuggestionIgnore = useCallback(() => {
     const suggestion = paperStack?.origin.suggestion;
     if (!suggestion) return;
@@ -622,6 +632,46 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     notifyRecallCooldownChanged();
     clearPaperStack();
   }, [paperStack, homeSpaceId, clearPaperStack]);
+
+  /**
+   * Answer the review question the stacked note was opened for.
+   *
+   * The attempt rides on the origin rather than being read from the dock: this handler lives in
+   * the layout, and reaching into the dock's local draft from here would mean putting keystrokes
+   * in shell state. The snapshot was taken when the note was revealed, which is exactly when the
+   * fact being recorded — whether a retrieval happened first — stopped being able to change.
+   *
+   * Clearing the stack is what advances the queue: the mutation drops the item from the session
+   * optimistically, the dock's resolver falls through to the next one, and the note stays open
+   * underneath because the route was already the note.
+   */
+  const handleReviewVerdict = useCallback(
+    (outcome: ReviewOutcome) => {
+      const review = paperStack?.origin.review;
+      if (!review) return;
+      const wasDurable = review.recallState === 'durable';
+      reviewOutcome.mutate(
+        { itemId: review.itemId, outcome, attempt: review.attempt },
+        {
+          // The stack is already gone by the time this lands — see below — so the moment is
+          // handed to the dock, which is the one surface still on screen.
+          onSuccess: (data) =>
+            setReviewDockResult({
+              outcome,
+              label: data.next.label,
+              recallState: data.next.recallState,
+              crossedToDurable: !wasDurable && data.next.recallState === 'durable',
+              at: Date.now(),
+            }),
+        },
+      );
+      // The dock goes back to "whatever is next"; an answered item is rescheduled rather than
+      // deleted, so a pointer left on it would show the same question again. See the dock.
+      setReviewDockItem(null);
+      clearPaperStack();
+    },
+    [paperStack, reviewOutcome, setReviewDockItem, setReviewDockResult, clearPaperStack],
+  );
 
   const handleFlipSheetUp = useCallback(() => {
     setStackSheetOpen(true);
@@ -1126,6 +1176,7 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
                 onDismiss={clearPaperStack}
                 onSuggestionNevermind={handleSuggestionNevermind}
                 onSuggestionIgnore={handleSuggestionIgnore}
+                onReviewVerdict={handleReviewVerdict}
                 /* Parked: the URL is the origin's own address, so the Outlet IS the reader
                    route — hand it down as the paper behind, which is the surface being used
                    now. Any other time the descriptor's stand-in is right, and the Outlet is
@@ -1190,9 +1241,13 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
             It still goes down with a stacked note sheet: with the note flipped away the bar
             below it belongs to the chapter, and leaving the note's toolbar hovering over
             Scripture would also cover the way back up to the note. */}
-        {(isNoteRoute || isPrototypeReadPath(pathname)) && (!paperStack || paperStack.open) ? (
-          <PrototypeEditorChromeBar />
-        ) : null}
+        {/* Always mounted: the Review dock lives in this bar's floating layer and has to reach
+            Activity and the reader too. The old condition now only governs the format bar. */}
+        <PrototypeEditorChromeBar
+          bottomBarActive={
+            (isNoteRoute || isPrototypeReadPath(pathname)) && (!paperStack || paperStack.open)
+          }
+        />
         </div>
       </div>
     </>

@@ -22,11 +22,11 @@ import {
   ReviewEvents,
   ReviewItems,
   StudyThreadEntries,
+  UserNodeStates,
   first,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
 import {
-  REVIEW_SEED_MAX,
   type ReviewEventAction,
   type ReviewItemKind,
   type ReviewItemOrigin,
@@ -39,9 +39,20 @@ import {
   firstDueAt,
   nextReviewAfter,
 } from '@/utils/review-scheduling';
-import { reviewPromptFor, VERSE_LADDER_MAX_STEP, VERSE_REBUILD_STEP } from '@/utils/review-prompts';
+import {
+  reviewPromptFor,
+  VERSE_LADDER_MAX_STEP,
+  VERSE_LOCATE_STEP,
+  VERSE_REBUILD_STEP,
+  VERSE_SEQUENCE_STEP,
+} from '@/utils/review-prompts';
+import {
+  buildVerseLocate,
+  buildVerseSequence,
+  gradeVerseLocate,
+  gradeVerseSequence,
+} from '@/utils/verse-ladder-exercises';
 import { buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
-import { rankSeedCandidates } from '@/utils/review-seed-selection';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { collectStudyThreadGraph } from './study-thread-graph';
 import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
@@ -49,6 +60,14 @@ import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
 import { fetchVerseText } from './fetch-verse-text';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
+import {
+  noteTouch,
+  touchNodes,
+  verseTouches,
+  type NodeTouch,
+} from './study-bible-layer';
+import { nodeKey, verseNodesForReference } from '@/utils/study-bible-nodes';
+import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
 
 export interface ReviewItemRow {
   id: string;
@@ -71,6 +90,8 @@ export interface ReviewItemRow {
   ladderStep: number;
   origin: string;
   challengeId: string | null;
+  sourceLabel: string | null;
+  sourceAt: Date | null;
   createdAt: Date;
   updatedAt: Date | null;
 }
@@ -93,6 +114,9 @@ export interface ReviewItemView {
   scriptureReference: string | null;
   noteId: string | null;
   challengeId: string | null;
+  /** Why this row is here, in the reader's words. Null on items they added themselves. */
+  sourceLabel: string | null;
+  sourceAt: string | null;
 }
 
 function displayTitle(title: string | null | undefined): string | null {
@@ -161,7 +185,7 @@ export async function buildReviewItemViews(
     }
 
     const { key, prompt } = reviewPromptFor(
-      { kind, reviewCount: row.reviewCount, ladderStep: row.ladderStep },
+      { kind, reviewCount: row.reviewCount, ladderStep: row.ladderStep, id: row.id },
       {
         reference: row.scriptureReference,
         noteTitle,
@@ -187,6 +211,8 @@ export async function buildReviewItemViews(
       scriptureReference: row.scriptureReference,
       noteId: row.noteId,
       challengeId: row.challengeId,
+      sourceLabel: row.sourceLabel,
+      sourceAt: row.sourceAt?.toISOString() ?? null,
     });
   }
   return views;
@@ -259,6 +285,9 @@ export interface CreateReviewItemInput {
   translation?: string | null;
   origin?: ReviewItemOrigin;
   challengeId?: string | null;
+  /** Engine only: why this is here, in the reader's words. See study-bible-source-copy.ts. */
+  sourceLabel?: string | null;
+  sourceAt?: Date | null;
 }
 
 export function reviewSourceKey(input: {
@@ -354,10 +383,19 @@ export async function createReviewItem(
     if (!edge) return { error: 'These notes are not connected' };
   }
 
-  if (input.kind === 'highlight' && input.studyThreadEntryId) {
+  // A verse item made from a highlight inherits that highlight's reference and translation:
+  // without it the row has no subject at all, since `verse` is keyed by reference.
+  let scriptureReference = input.scriptureReference?.trim() || null;
+  let translation = input.translation?.trim() || null;
+
+  if ((input.kind === 'highlight' || input.kind === 'verse') && input.studyThreadEntryId) {
     const entry = first(
       await db
-        .select({ id: StudyThreadEntries.id, reference: StudyThreadEntries.scriptureReference })
+        .select({
+          id: StudyThreadEntries.id,
+          reference: StudyThreadEntries.scriptureReference,
+          translation: StudyThreadEntries.scripturePassageTranslation,
+        })
         .from(StudyThreadEntries)
         .where(
           and(
@@ -368,9 +406,11 @@ export async function createReviewItem(
         .limit(1),
     );
     if (!entry) return { error: 'Highlight not found' };
+    scriptureReference = scriptureReference ?? entry.reference ?? null;
+    translation = translation ?? entry.translation ?? null;
   }
 
-  const sourceKey = reviewSourceKey({ ...input, noteId, secondaryNoteId });
+  const sourceKey = reviewSourceKey({ ...input, noteId, secondaryNoteId, scriptureReference });
   if (!sourceKey) return { error: 'Not enough to review' };
 
   const existing = first(
@@ -407,17 +447,19 @@ export async function createReviewItem(
         noteId,
         secondaryNoteId,
         studyThreadEntryId: input.studyThreadEntryId?.trim() || null,
-        scriptureReference: input.scriptureReference?.trim() || null,
-        translation: input.translation?.trim() || null,
+        scriptureReference,
+        translation,
         status: 'active',
         recallState: 'new',
         intervalDays: 1,
-        dueAt: firstDueAt(now),
+        dueAt: firstDueAt(now, input.origin ?? 'user'),
         successStreak: 0,
         reviewCount: 0,
         ladderStep: 0,
         origin: input.origin ?? 'user',
         challengeId: input.challengeId ?? null,
+        sourceLabel: input.sourceLabel?.trim() || null,
+        sourceAt: input.sourceAt ?? null,
         createdAt: now,
         updatedAt: now,
       })
@@ -530,7 +572,92 @@ export async function applyReviewOutcome(
     }
   }
 
+  // Study Bible layer: what the reader just answered, and when it comes back. The mirror
+  // columns exist so the engine can skip a node that is already scheduled without joining
+  // this table; ReviewItems above stays the authority on the schedule itself.
+  void recordReviewOutcomeNodes(userId, item, outcome, attempt, next, now);
+
   return { item: updated, nextReturnDays: next.intervalDays };
+}
+
+/**
+ * The node(s) an answered item is about.
+ *
+ * Kind by kind, because a review item and a node are addressed differently: a `verse` item
+ * carries a display reference that has to be expanded back into verses, a `highlight` item
+ * may or may not have one, and a `connection` is two notes plus the link between them.
+ */
+async function recordReviewOutcomeNodes(
+  userId: string,
+  item: ReviewItemRow,
+  outcome: ReviewOutcome,
+  attempt: string | null,
+  next: { dueAt: Date; recallState: RecallState },
+  now: Date,
+): Promise<void> {
+  const mirror = { lastReviewedAt: now, nextReviewAt: next.dueAt, recallState: next.recallState };
+  const touches: NodeTouch[] = [];
+
+  if (item.scriptureReference) {
+    const { verses, chapters } = verseNodesForReference(item.scriptureReference);
+    for (const touch of verseTouches({
+      verses,
+      chapters,
+      signal: 'review',
+      at: now,
+      sourceLabel: REVIEWED_SOURCE,
+      translation: item.translation,
+    })) {
+      // Only the verses carry the mirror; the chapter above them is not what was asked about.
+      touches.push(touch.kind === 'verse' ? { ...touch, reviewMirror: mirror } : touch);
+    }
+  }
+
+  if ((item.kind === 'note' || item.kind === 'highlight') && item.noteId) {
+    touches.push({
+      ...noteTouch({ noteId: item.noteId, signal: 'review', at: now, sourceLabel: REVIEWED_SOURCE }),
+      reviewMirror: mirror,
+    });
+  }
+
+  if (item.kind === 'connection' && item.noteId && item.secondaryNoteId) {
+    const [a, b] = [item.noteId, item.secondaryNoteId].sort();
+    touches.push({
+      key: nodeKey.connection(item.noteId, item.secondaryNoteId),
+      kind: 'connection',
+      signal: 'review',
+      at: now,
+      noteId: a,
+      secondaryNoteId: b,
+      sourceLabel: REVIEWED_SOURCE,
+      reviewMirror: mirror,
+    });
+  }
+
+  if (item.kind === 'thread' && item.noteId) {
+    touches.push({
+      key: nodeKey.thread(item.noteId),
+      kind: 'thread',
+      signal: 'review',
+      at: now,
+      noteId: item.noteId,
+      sourceLabel: REVIEWED_SOURCE,
+      reviewMirror: mirror,
+    });
+    // Answering "what is this cluster forming?" in your own words is synthesis — the only
+    // one the app can observe deterministically outside of naming a Thread.
+    if (attempt?.trim() && outcome !== 'revealed') {
+      touches.push({
+        key: nodeKey.thread(item.noteId),
+        kind: 'thread',
+        signal: 'synthesis',
+        at: now,
+        noteId: item.noteId,
+      });
+    }
+  }
+
+  await touchNodes(userId, touches);
 }
 
 export async function deferReviewItem(
@@ -578,6 +705,75 @@ export interface ReviewRevealPayload {
   verseText?: string | null;
   cloze?: VerseCloze | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
+  /** The ordering puzzle, without its answer key — see verse-ladder-exercises.ts. */
+  sequence?: { phrases: string[] } | null;
+  /** The four references, without which one is right. */
+  locate?: { phrase: string; options: string[] } | null;
+}
+
+/**
+ * The reader's own references, as distractors for the locate rung.
+ *
+ * Their passages rather than a canned list: telling Romans 8 from Ephesians 2 is a real
+ * distinction when you have worked in both, and a stranger reference is not a distractor at
+ * all. Falls back to well-known references inside `buildVerseLocate` when the layer is thin.
+ */
+async function listUserVerseReferences(userId: string, exclude: string): Promise<string[]> {
+  try {
+    const rows = await db
+      .select({ nodeKey: UserNodeStates.nodeKey, label: UserNodeStates.label })
+      .from(UserNodeStates)
+      .where(
+        and(
+          eq(UserNodeStates.userId, userId),
+          eq(UserNodeStates.nodeKind, 'verse'),
+          eq(UserNodeStates.status, 'active'),
+        ),
+      )
+      .orderBy(desc(UserNodeStates.lastSeenAt))
+      .limit(40);
+    const excluded = exclude.trim().toLowerCase();
+    return rows
+      .map((row) => row.label?.trim() ?? '')
+      .filter((label) => label && label.toLowerCase() !== excluded);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Rebuild a graded rung's answer key from the item, and mark the reader's answer against it.
+ *
+ * Recomputed rather than stored: the puzzle is a pure function of `${item.id}:${ladderStep}`
+ * and the verse text, so there is nothing to keep and nothing to go stale. It also means the
+ * key never travels to the client, which is the point — a `verse.locate` whose answer sits in
+ * the page's memory is a multiple choice with the answer written on the back.
+ */
+export async function gradeVerseAnswer(
+  userId: string,
+  item: ReviewItemRow,
+  answer: { order?: number[]; option?: string },
+): Promise<ReviewOutcome | null> {
+  if (item.kind !== 'verse' || !item.scriptureReference) return null;
+  const isSequence = item.ladderStep === VERSE_SEQUENCE_STEP && Array.isArray(answer.order);
+  const isLocate = item.ladderStep === VERSE_LOCATE_STEP && typeof answer.option === 'string';
+  if (!isSequence && !isLocate) return null;
+
+  const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
+  if (!html) return null;
+  const text = stripHtml(html);
+  const seed = `${item.id}:${item.ladderStep}`;
+
+  if (isSequence) {
+    const exercise = buildVerseSequence(text, seed);
+    if (!exercise) return null;
+    return gradeVerseSequence(exercise, answer.order!) ? 'recalled' : 'almost';
+  }
+
+  const pool = await listUserVerseReferences(userId, item.scriptureReference);
+  const exercise = buildVerseLocate(item.scriptureReference, text, pool, seed);
+  if (!exercise) return null;
+  return gradeVerseLocate(exercise, answer.option!) ? 'recalled' : 'almost';
 }
 
 /** What the reader sees after they answer, or after they give up and open it. */
@@ -591,8 +787,26 @@ export async function buildReviewReveal(
     if (item.scriptureReference) {
       const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
       payload.verseText = html || null;
-      if (item.kind === 'verse' && item.ladderStep === VERSE_REBUILD_STEP && html) {
-        payload.cloze = buildVerseCloze(stripHtml(html), `${item.id}:${item.ladderStep}`);
+      if (item.kind === 'verse' && html) {
+        const text = stripHtml(html);
+        const seed = `${item.id}:${item.ladderStep}`;
+        if (item.ladderStep === VERSE_REBUILD_STEP) {
+          payload.cloze = buildVerseCloze(text, seed);
+        }
+        if (item.ladderStep === VERSE_SEQUENCE_STEP) {
+          const exercise = buildVerseSequence(text, seed);
+          // Phrases only. `order` is the answer, and stays here — as does the verse itself,
+          // which is the same information in one line.
+          payload.sequence = exercise ? { phrases: exercise.phrases } : null;
+          if (exercise) payload.verseText = null;
+        }
+        if (item.ladderStep === VERSE_LOCATE_STEP) {
+          const pool = await listUserVerseReferences(userId, item.scriptureReference);
+          const exercise = buildVerseLocate(item.scriptureReference, text, pool, seed);
+          payload.locate = exercise ? { phrase: exercise.phrase, options: exercise.options } : null;
+          // The verse text itself would give the answer away on this rung.
+          payload.verseText = null;
+        }
       }
     }
   }
@@ -624,84 +838,6 @@ export async function buildReviewReveal(
   }
 
   return payload;
-}
-
-/**
- * The cold-start seed: three notes worth returning to, chosen rather than guessed.
- *
- * Ranking lives in `review-seed-selection.ts`; this is the query that feeds it. The join is
- * on NoteFingerprints because `meaningWeight` is the only honest signal for "worth reviewing"
- * that does not require asking the reader. Without fingerprints there is no fallback that is
- * better than nothing here — a database with no fingerprints is one where the memory layer
- * has not run, and seeding on recency alone would pick the notes the reader still remembers.
- */
-export async function seedReviewItems(
-  userId: string,
-  now: Date = new Date(),
-): Promise<ReviewItemRow[]> {
-  const rows = await db
-    .select({
-      noteId: Notes.id,
-      meaningWeight: NoteFingerprints.meaningWeight,
-      updatedAt: Notes.updatedAt,
-      lastVisited: Notes.lastVisited,
-      lastRecallEngagedAt: NoteFingerprints.lastRecallEngagedAt,
-    })
-    .from(Notes)
-    .innerJoin(NoteFingerprints, eq(NoteFingerprints.noteId, Notes.id))
-    .where(and(eq(Notes.userId, userId), countableUserNotesWhere()))
-    .orderBy(desc(NoteFingerprints.meaningWeight))
-    .limit(40);
-
-  if (rows.length === 0) return [];
-
-  const existing = await db
-    .select({ noteId: ReviewItems.noteId })
-    .from(ReviewItems)
-    .where(eq(ReviewItems.userId, userId));
-  const taken = new Set(existing.map((r) => r.noteId).filter(Boolean) as string[]);
-
-  const ranked = rankSeedCandidates(
-    rows
-      .filter((r) => !taken.has(r.noteId))
-      .map((r) => ({
-        noteId: r.noteId,
-        meaningWeight: r.meaningWeight ?? 0,
-        lastTouchedAt: latestDate([r.lastVisited, r.updatedAt, r.lastRecallEngagedAt]),
-      })),
-    now,
-    REVIEW_SEED_MAX,
-  );
-
-  const created: ReviewItemRow[] = [];
-  for (const candidate of ranked) {
-    const result = await createReviewItem(
-      userId,
-      { kind: 'note', noteId: candidate.noteId, origin: 'seed' },
-      now,
-    );
-    if ('item' in result && result.created) created.push(result.item);
-  }
-  return created;
-}
-
-function latestDate(dates: (Date | null | undefined)[]): Date | null {
-  let latest: Date | null = null;
-  for (const d of dates) {
-    if (!d) continue;
-    if (!latest || d.getTime() > latest.getTime()) latest = d;
-  }
-  return latest;
-}
-
-/** Whether the seed offer is worth showing at all. */
-export async function countCountableNotes(userId: string): Promise<number> {
-  const rows = await db
-    .select({ id: Notes.id })
-    .from(Notes)
-    .where(and(eq(Notes.userId, userId), countableUserNotesWhere()))
-    .limit(50);
-  return rows.length;
 }
 
 /**

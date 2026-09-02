@@ -18,7 +18,6 @@ import { handleAPIError } from '@/utils/error-handling';
 import { isReviewTableMissing } from '../utils/pg-undefined-relation';
 import {
   REVIEW_INBOX_MAX_ROWS,
-  REVIEW_SEED_MIN_NOTES,
   REVIEW_SESSION_CAP,
   isReviewItemKind,
   isReviewItemStatus,
@@ -27,18 +26,18 @@ import {
 import { describeNextReturn } from '@/utils/review-scheduling';
 import {
   applyReviewOutcome,
+  gradeVerseAnswer,
   buildReviewItemViews,
   buildReviewReveal,
-  countCountableNotes,
   createReviewItem,
   deferReviewItem,
   getReviewItem,
   listDueReviewItems,
   listReviewItems,
   recordReviewEvent,
-  seedReviewItems,
   setReviewItemStatus,
 } from '../utils/review-service';
+import { refillReviewQueue } from '../utils/review-opportunities';
 
 const route = new Hono();
 
@@ -57,23 +56,20 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
     const auth = getAuthenticatedAuth(c);
     const now = new Date();
 
+    // Top up from the reader's own study before listing, capped per rolling day. Lazy on
+    // purpose: no cron, no guessed timezone, and nothing accumulates while they are away.
+    await refillReviewQueue(auth.userId, now);
+
     // One extra row, purely to answer `hasMore` without a second count query.
     const due = await listDueReviewItems(auth.userId, REVIEW_INBOX_MAX_ROWS + 1, now);
     const shown = due.slice(0, REVIEW_INBOX_MAX_ROWS);
     const items = await buildReviewItemViews(auth.userId, shown);
 
-    // The seed offer only makes sense for someone with study to return to and no queue yet.
-    let canSeed = false;
-    if (due.length === 0) {
-      const all = await listReviewItems(auth.userId);
-      canSeed = all.length === 0 && (await countCountableNotes(auth.userId)) >= REVIEW_SEED_MIN_NOTES;
-    }
-
-    return c.json({ success: true, items, hasMore: due.length > REVIEW_INBOX_MAX_ROWS, canSeed });
+    return c.json({ success: true, items, hasMore: due.length > REVIEW_INBOX_MAX_ROWS });
   } catch (error) {
     // A database without the tables yet is an empty inbox, not a broken Activity page.
     if (isReviewTableMissing(error)) {
-      return c.json({ success: true, items: [], hasMore: false, canSeed: false });
+      return c.json({ success: true, items: [], hasMore: false });
     }
     const standardError = handleAPIError(error, { endpoint: '/api/review/inbox', action: 'review_inbox' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -111,6 +107,7 @@ route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('r
 route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature('review'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+    await refillReviewQueue(auth.userId);
     const rows = await listDueReviewItems(auth.userId, REVIEW_SESSION_CAP);
     const items = await buildReviewItemViews(auth.userId, rows);
     for (const row of rows) await recordReviewEvent(auth.userId, row, 'shown');
@@ -193,10 +190,29 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
     const attempt =
       typeof body?.attempt === 'string' ? body.attempt.slice(0, MAX_ATTEMPT_LENGTH) : null;
 
+    /*
+     * Two rungs of the verse ladder have a right answer, and on those the reader's own verdict
+     * is not the input — the arrangement or the option they chose is. Marked here rather than
+     * in the page, because a puzzle whose answer key reached the client is not a puzzle.
+     *
+     * Every other rung stays exactly as it was: an open question, judged by the person who
+     * wrote the note, with nothing stored to compare it against.
+     */
+    const answer =
+      body?.answer && typeof body.answer === 'object'
+        ? {
+            order: Array.isArray(body.answer.order)
+              ? body.answer.order.filter((v: unknown) => Number.isInteger(v)).slice(0, 12)
+              : undefined,
+            option: typeof body.answer.option === 'string' ? body.answer.option : undefined,
+          }
+        : null;
+    const graded = answer ? await gradeVerseAnswer(auth.userId, item, answer) : null;
+
     const { item: updated, nextReturnDays } = await applyReviewOutcome(
       auth.userId,
       item,
-      outcome,
+      graded ?? outcome,
       attempt,
     );
 
@@ -250,27 +266,6 @@ route.post('/api/review/items/:id/status', requireAuth, rateLimit('write'), requ
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/status', action: 'review_status' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
-  }
-});
-
-/**
- * Cold start: pick three notes worth returning to and put them in the queue.
- *
- * Idempotent by construction — `createReviewItem` dedupes on `sourceKey`, so a double tap
- * adds nothing twice, and a second call once the queue exists returns nothing new.
- */
-route.post('/api/review/seed', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
-  try {
-    const auth = getAuthenticatedAuth(c);
-    const created = await seedReviewItems(auth.userId);
-    const items = await buildReviewItemViews(auth.userId, created);
-    return c.json({ success: true, items });
-  } catch (error) {
-    if (isReviewTableMissing(error)) {
-      return c.json({ error: 'Review is not available yet', code: 'REVIEW_UNAVAILABLE' }, 503);
-    }
-    const standardError = handleAPIError(error, { endpoint: '/api/review/seed', action: 'review_seed' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

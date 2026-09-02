@@ -35,13 +35,15 @@ export interface ReviewItemView {
   scriptureReference: string | null;
   noteId: string | null;
   challengeId: string | null;
+  /** Why this row is here, in the reader's words. Null on items they added themselves. */
+  sourceLabel: string | null;
+  sourceAt: string | null;
 }
 
 export interface ReviewInboxResponse {
   items: ReviewItemView[];
   /** A boolean, never a count — see the route's docblock. */
   hasMore: boolean;
-  canSeed: boolean;
 }
 
 export interface ReviewRevealResponse {
@@ -49,6 +51,10 @@ export interface ReviewRevealResponse {
   secondaryNote?: { id: string; title: string | null; content: string } | null;
   verseText?: string | null;
   cloze?: VerseCloze | null;
+  /** The ordering rung's phrases, shuffled. The order they belong in stays on the server. */
+  sequence?: { phrases: string[] } | null;
+  /** The locate rung's fragment and four references. Which one is right stays on the server. */
+  locate?: { phrase: string; options: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
 }
 
@@ -58,6 +64,17 @@ export const reviewSessionQueryKey = ['review', 'session'] as const;
 export const reviewItemsQueryKey = (status?: ReviewItemStatus) =>
   ['review', 'items', status ?? 'all'] as const;
 
+/*
+ * Called unconditionally, then combined — never `authReady && useAccess()`.
+ *
+ * `&&` short-circuits, so the access hook is skipped while auth is still resolving and called
+ * once it settles. That changes the number of hooks between two renders of the same component,
+ * which is a Rules of Hooks violation, and React tears the tree down with an error that names
+ * neither this file nor the real cause.
+ *
+ * It only fires on the false-to-true auth transition, so every signed-out path looks fine —
+ * which is exactly how it reached a signed-in browser. Keep the call on its own line.
+ */
 /**
  * Holds the key and is a real account — the half of the gate that is not session readiness.
  *
@@ -75,12 +92,14 @@ function useReviewAccess(): boolean {
 /** True when Review is worth asking the server about at all. */
 export function useReviewEnabled(): boolean {
   const authReady = useAuthReady();
-  return authReady && useReviewAccess();
+  const access = useReviewAccess();
+  return authReady && access;
 }
 
 export function useReviewInbox() {
   const authReady = useAuthReady();
-  const enabled = authReady && useReviewAccess();
+  const access = useReviewAccess();
+  const enabled = authReady && access;
   return useQuery({
     queryKey: reviewInboxQueryKey,
     enabled,
@@ -89,12 +108,15 @@ export function useReviewInbox() {
   });
 }
 
-export function useReviewItems(status?: ReviewItemStatus) {
+export function useReviewItems(status?: ReviewItemStatus, options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
-  const enabled = authReady && useReviewAccess();
+  const access = useReviewAccess();
+  const enabled = authReady && access;
   return useQuery({
     queryKey: reviewItemsQueryKey(status),
-    enabled,
+    // The caller's `enabled` narrows, never widens: the dock only wants this list when the
+    // session cannot answer, and no caller may bypass the auth/entitlement gate.
+    enabled: enabled && options?.enabled !== false,
     queryFn: () =>
       api.get<{ items: ReviewItemView[] }>(
         status ? `/api/review/items?status=${encodeURIComponent(status)}` : '/api/review/items',
@@ -112,7 +134,8 @@ export function useReviewItems(status?: ReviewItemStatus) {
  */
 export function useReviewSession(options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
-  const enabled = authReady && useReviewAccess();
+  const access = useReviewAccess();
+  const enabled = authReady && access;
   return useQuery({
     queryKey: reviewSessionQueryKey,
     enabled: enabled && options?.enabled !== false,
@@ -130,7 +153,8 @@ export function useReviewSession(options?: { enabled?: boolean }) {
  */
 export function useReviewReveal(itemId: string | null, options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
-  const featureEnabled = authReady && useReviewAccess();
+  const access = useReviewAccess();
+  const featureEnabled = authReady && access;
   return useQuery({
     queryKey: ['review', 'reveal', itemId ?? 'none'] as const,
     enabled: featureEnabled && Boolean(itemId) && options?.enabled === true,

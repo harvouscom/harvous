@@ -24,7 +24,7 @@ import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
 import PrototypeWhatsNewPill from './PrototypeWhatsNewPill';
 import PrototypeDailyPassagePill from './PrototypeDailyPassagePill';
 import PrototypeRecallCarousel from './PrototypeRecallCarousel';
-import PrototypeStudyInbox from './PrototypeStudyInbox';
+import PrototypeReviewSection from './PrototypeReviewSection';
 import PrototypeStrengthenThreadRow from './PrototypeStrengthenThreadRow';
 import { continueReadingEyebrow, continueReadingMeta } from '@/utils/prototype-home-trends';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
@@ -139,7 +139,7 @@ export default function PrototypeStudyFeedToday({
       ) : null}
 
       {/*
-        * The Study Inbox, between what you were doing and what is coming.
+        * The Review section, between what you were doing and what is coming.
         *
         * Above Following because it is about your own study rather than about something
         * arriving from elsewhere, and below Continue because Continue is where you already
@@ -150,7 +150,7 @@ export default function PrototypeStudyFeedToday({
         * guest renders null, free renders one dismissible line, Plus with nothing due renders
         * null and the section collapses.
         */}
-      <PrototypeStudyInbox />
+      <PrototypeReviewSection />
 
       {/* Both of these decide for themselves whether they have anything to show, so the
           section wrapper is theirs to fill or collapse — the same contract Home relies on. */}

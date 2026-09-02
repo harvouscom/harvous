@@ -15,6 +15,8 @@ import {
   type RecallSuppressionAction,
 } from '@/utils/recall-opportunity-kinds';
 import { isRecallEventsTableMissing } from './pg-undefined-relation';
+import { noteTouch, touchNodes } from './study-bible-layer';
+import { RESURFACED_SOURCE } from '@/utils/study-bible-source-copy';
 import { recordNoteRecallEngaged } from './note-recall-state';
 
 export type RecordRecallEventInput = {
@@ -109,6 +111,16 @@ export async function recordRecallEvent(userId: string, input: RecordRecallEvent
     // is one the suggestion actually led you to write or connect, not merely one you looked at.
     if ((input.action === 'open' || input.action === 'complete') && input.noteId) {
       await recordNoteRecallEngaged(userId, input.noteId);
+      // Arriving through a Home suggestion is still a return, and worth telling apart from
+      // one the reader navigated to themselves when the row later explains why it is there.
+      void touchNodes(userId, [
+        noteTouch({
+          noteId: input.noteId,
+          signal: 'revisit',
+          at: new Date(),
+          sourceLabel: RESURFACED_SOURCE,
+        }),
+      ]);
     }
 
     return true;
