@@ -64,7 +64,14 @@
   // on hostname (src/lib/status-page-host.ts, spa/src/router.tsx buildStatusHostRoutes).
   // Same build, same Worker. It is also the reason legacyRedirect() is host-gated — see
   // cloudflare/worker.ts; /prototype is a LIVE route on the status host.
-  "routes": [{ "pattern": "app.harvous.com", "custom_domain": true }],
+  "routes": [
+    { "pattern": "app.harvous.com", "custom_domain": true },
+    // status.harvous.com is the same build and the same Worker — a Netlify domain alias
+    // historically, with isStatusHost() (src/lib/status-page-host.ts) making the SPA render
+    // the status page at /. It is NOT in DEDICATED_PROTOTYPE_HOSTS, which is why
+    // legacyRedirect() in cloudflare/worker.ts is host-gated: /prototype is a live route here.
+    { "pattern": "status.harvous.com", "custom_domain": true }
+  ],
 
   "env": {
     // Mirrors netlify.toml's [context.staging]: dev Clerk key, production DB.
