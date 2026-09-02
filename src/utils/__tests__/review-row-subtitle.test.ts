@@ -23,8 +23,16 @@ describe('reviewRowSubtitle', () => {
     ).toBeNull();
   });
 
-  it('falls back to the passage a nameless note cites', () => {
-    // The server resolves this: an untitled note is identified by what it is about.
+  it('takes whatever identity the server resolved — an opening line, or a passage', () => {
+    expect(
+      reviewRowSubtitle(
+        {
+          prompt: 'What in the text itself led you to write this note?',
+          noteLabel: 'The first book Lets type more content here.',
+        },
+        NOW,
+      ),
+    ).toBe('The first book Lets type more content here.');
     expect(
       reviewRowSubtitle(
         { prompt: 'What in the text itself led you to write this note?', noteLabel: 'Romans 8:15' },
@@ -33,7 +41,7 @@ describe('reviewRowSubtitle', () => {
     ).toBe('Romans 8:15');
   });
 
-  it('places a note in time when nothing else names it', () => {
+  it('places a note in time only when nothing else names it at all', () => {
     // The regression this file exists for: a row about "Untitled Note 4" said "this note"
     // and nothing more, and the reader could not tell which note it meant.
     expect(

@@ -16,15 +16,16 @@ import { NOTE_WRITTEN_SOURCE } from '@/utils/study-bible-source-copy';
  * So: the subtitle is only ever suppressed when the question *actually contains* the identity,
  * and there is always an identity to fall back to.
  *
- * Never a snippet of the note body. Previewing what someone wrote partly answers the question
- * being asked, which is the one thing a review row must not do.
+ * The identity itself is resolved server-side (`noteLabel`): the note's title, else its opening
+ * line, else the first passage it cites. A date is the last resort here and only that — it says
+ * when, not what, and "Written Jul 10" turned out to be no more use than saying nothing.
  */
 
 const WRITTEN_PREFIX = 'Written ';
 
 export interface ReviewRowSubtitleInput {
   prompt: string;
-  /** Title, else the first passage the note cites. Null when it has neither. */
+  /** Server-resolved: title, else the note's opening line, else the passage it cites. */
   noteLabel?: string | null;
   noteTitle?: string | null;
   scriptureReference?: string | null;

@@ -25,6 +25,7 @@ import {
   ReviewItems,
   StudyThreadEntries,
   UserNodeStates,
+  sql,
   first,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
@@ -56,6 +57,7 @@ import {
 } from '@/utils/verse-ladder-exercises';
 import { buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
 import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
 import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
@@ -131,6 +133,37 @@ export interface ReviewItemView {
   sourceAt: string | null;
 }
 
+/**
+ * How much stored body to fetch for one line of context. The same `left()` cap the note list
+ * uses, trimmed hard: this becomes ~64 characters on screen.
+ */
+const REVIEW_EXCERPT_SOURCE_CHARS = 600;
+/**
+ * Enough to recognise your own note, not enough to read it.
+ *
+ * The meta line shares its width with the reason ("· You wrote this"), so a longer excerpt
+ * buys nothing: it only pushes the reason out of view. Recognition happens in the first few
+ * words anyway — these are the reader's own sentences.
+ */
+const REVIEW_EXCERPT_CHARS = 48;
+
+/**
+ * A note's opening line, as the note lists already render it.
+ *
+ * This was deliberately withheld at first, on the reasoning that previewing what someone wrote
+ * partly answers the question being asked. That was wrong twice over. A row the reader cannot
+ * identify is useless, and uselessness is a worse failure than a partial cue — Review is a
+ * prompt to return to your study, not an exam: outcomes are self-reported, nothing is graded,
+ * and the strategy doc is explicit that reading a note you could not remember is a perfectly
+ * good outcome. It was also inconsistent, since a *titled* note has always shown its title,
+ * which is the reader's own summary of the very same content.
+ */
+function noteExcerpt(html: string | null | undefined): string | null {
+  if (!html) return null;
+  const preview = stripHtmlForListPreview(html, REVIEW_EXCERPT_CHARS).trim();
+  return preview || null;
+}
+
 function displayTitle(title: string | null | undefined): string | null {
   const cleaned = stripServerAutoUntitledNoteTitleForDisplay((title ?? '').trim());
   return cleaned || null;
@@ -145,6 +178,8 @@ function displayTitle(title: string | null | undefined): string | null {
 interface NoteLabelRow {
   title: string | null;
   writtenAt: Date | null;
+  /** The note's own opening line, for a note with no title of its own. */
+  excerpt: string | null;
   /** First passage the note cites, filled in only for notes with no usable title. */
   passage: string | null;
 }
@@ -153,26 +188,37 @@ async function loadTitles(userId: string, noteIds: string[]): Promise<Map<string
   const unique = [...new Set(noteIds.filter(Boolean))];
   if (unique.length === 0) return new Map();
   const rows = await db
-    .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
+    .select({
+      id: Notes.id,
+      title: Notes.title,
+      createdAt: Notes.createdAt,
+      // A prefix, not the body: this is for one line of context, and the same `left()` cap
+      // the note list uses. An encrypted body is ciphertext and is never previewed.
+      contentPrefix: sql<string>`left(${Notes.content}, ${REVIEW_EXCERPT_SOURCE_CHARS})`,
+      contentEncrypted: Notes.contentEncrypted,
+    })
     .from(Notes)
     .where(and(eq(Notes.userId, userId), inArray(Notes.id, unique)));
 
   const byId = new Map<string, NoteLabelRow>(
-    rows.map((r) => [r.id, { title: displayTitle(r.title), writtenAt: r.createdAt, passage: null }]),
+    rows.map((r) => [
+      r.id,
+      {
+        title: displayTitle(r.title),
+        writtenAt: r.createdAt,
+        excerpt: r.contentEncrypted ? null : noteExcerpt(r.contentPrefix),
+        passage: null,
+      },
+    ]),
   );
 
   /*
-   * A note with no name is identified by what it is about.
+   * The passage a nameless note cites, for the ones whose body gives nothing away either.
    *
-   * The server auto-titles empty notes "Untitled Note 4", which `displayTitle` strips — so a
-   * row about one of them said "this note" and nothing else, and there was no way to tell which
-   * of them it meant. The first passage it cites is the strongest honest answer: it names the
-   * subject the way a title would, and gives nothing of what the reader wrote about it away.
-   *
-   * Only queried for the notes that need it, and through both joins, because a pill points at
-   * the canonical scripture child rather than at the reader's own note.
+   * Queried only for the notes that still need it after the excerpt, and through both joins,
+   * because a pill points at the canonical scripture child rather than at the reader's own note.
    */
-  const unnamed = [...byId.entries()].filter(([, v]) => !v.title).map(([id]) => id);
+  const unnamed = [...byId.entries()].filter(([, v]) => !v.title && !v.excerpt).map(([id]) => id);
   if (unnamed.length > 0) {
     const [viaChild, viaOwn] = await Promise.all([
       db
@@ -271,7 +317,7 @@ export async function buildReviewItemViews(
       scriptureReference: row.scriptureReference,
       noteId: row.noteId,
       challengeId: row.challengeId,
-      noteLabel: noteTitle ?? primary?.passage ?? null,
+      noteLabel: noteTitle ?? primary?.excerpt ?? primary?.passage ?? null,
       noteWrittenAt: primary?.writtenAt?.toISOString() ?? null,
       sourceLabel: row.sourceLabel,
       sourceAt: row.sourceAt?.toISOString() ?? null,
