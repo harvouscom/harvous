@@ -52,10 +52,17 @@ jobs:
           # indistinguishable from today's, and a var Netlify leaves unset is a var this
           # build must leave unset too.
           #
-          # Notably ABSENT on purpose, though the code reads them:
-          #   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — unset in production, so
-          #     isSupabaseRealtimeConfigured() is false and the app runs on HTTP polling.
-          #     Setting them here would switch realtime ON only on Cloudflare.
+          # VITE_SUPABASE_* were deliberately absent during the cutover, to keep the bundle
+          # byte-identical to Netlify's. Added 2026-09-02, after the cutover, to TURN REALTIME
+          # ON — it has never run in production because these two were the only missing piece.
+          # Everything else was already in place: the RLS policies and
+          # harvous_realtime_topic_allowed() exist in the production database, and Fly has
+          # SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY, so the server could always broadcast —
+          # there were simply no subscribers. The anon key is public by design; it ships in
+          # the browser bundle and RLS on realtime.messages is what actually enforces access.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Still ABSENT on purpose, though the code reads them:
           #   VITE_API_BASE_URL — unset, so the SPA calls its own origin. Correct, since the
           #     Worker proxies /api/* to Fly.
           #   VITE_PUBLIC_POSTHOG_KEY — the code reads it, production never sets it;
