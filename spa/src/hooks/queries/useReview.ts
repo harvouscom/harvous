@@ -102,13 +102,15 @@ export function useReviewInbox() {
   });
 }
 
-export function useReviewItems(status?: ReviewItemStatus) {
+export function useReviewItems(status?: ReviewItemStatus, options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
   const access = useReviewAccess();
   const enabled = authReady && access;
   return useQuery({
     queryKey: reviewItemsQueryKey(status),
-    enabled,
+    // The caller's `enabled` narrows, never widens: the dock only wants this list when the
+    // session cannot answer, and no caller may bypass the auth/entitlement gate.
+    enabled: enabled && options?.enabled !== false,
     queryFn: () =>
       api.get<{ items: ReviewItemView[] }>(
         status ? `/api/review/items?status=${encodeURIComponent(status)}` : '/api/review/items',

@@ -3,6 +3,7 @@ import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path
 import {
   buildNoteDockOrigin,
   buildRecallCardStackOrigin,
+  buildReviewCardStackOrigin,
   buildRevisitCardStackOrigin,
   morphFromIfStillPlaced,
   noteDockReturnSearch,
@@ -203,5 +204,58 @@ describe('morphFromIfStillPlaced', () => {
 
   it('passes through the no-morph case', () => {
     expect(morphFromIfStillPlaced(undefined, placement)).toBeUndefined();
+  });
+});
+
+describe('buildReviewCardStackOrigin', () => {
+  const item = (extra: Record<string, unknown> = {}) => ({
+    id: 'review_1',
+    prompt: 'Before opening it, what did you observe in My journey?',
+    noteTitle: 'My journey',
+    secondaryNoteTitle: null,
+    scriptureReference: null,
+    ...extra,
+  });
+
+  it('carries the item and the attempt, which is what the edge answers with', () => {
+    const origin = buildReviewCardStackOrigin(item(), { attempted: true, attempt: 'adoption' }, { to: '/' });
+    expect(origin.kind).toBe('reviewCard');
+    expect(origin.review).toEqual({ itemId: 'review_1', attempted: true, attempt: 'adoption' });
+  });
+
+  it('titles the card with the question, not the note', () => {
+    // The edge is asking something; naming the note would make it a breadcrumb instead.
+    const origin = buildReviewCardStackOrigin(item(), { attempted: false }, { to: '/' });
+    expect(origin.base.type === 'originCard' && origin.base.title).toBe(
+      'Before opening it, what did you observe in My journey?',
+    );
+  });
+
+  it('names both notes for a connection', () => {
+    const origin = buildReviewCardStackOrigin(
+      item({ noteTitle: 'Adoption', secondaryNoteTitle: 'Abba in Galatians' }),
+      { attempted: false },
+      { to: '/' },
+    );
+    expect(origin.base.type === 'originCard' && origin.base.meta).toBe('Adoption · Abba in Galatians');
+  });
+
+  it('falls back to the reference when there is no note title', () => {
+    const origin = buildReviewCardStackOrigin(
+      item({ noteTitle: null, scriptureReference: 'John 15:5' }),
+      { attempted: false },
+      { to: '/' },
+    );
+    expect(origin.base.type === 'originCard' && origin.base.meta).toBe('John 15:5');
+  });
+
+  it('never carries a server auto-untitled name through to the edge', () => {
+    const origin = buildReviewCardStackOrigin(
+      item({ noteTitle: 'Untitled Note' }),
+      { attempted: false },
+      { to: '/' },
+    );
+    const meta = origin.base.type === 'originCard' ? origin.base.meta : 'x';
+    expect(meta === undefined || !/Untitled/.test(meta)).toBe(true);
   });
 });

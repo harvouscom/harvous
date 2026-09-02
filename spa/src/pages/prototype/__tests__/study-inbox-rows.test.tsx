@@ -42,8 +42,13 @@ vi.mock('../../../hooks/mutations/useReviewMutations', () => ({
   useSetReviewStatus: () => ({ mutate: vi.fn(), isPending: false }),
   useSeedReviews: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+const navigate = vi.fn();
+const openReviewDock = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
+}));
+vi.mock('../../../layouts/proto-shell-context', () => ({
+  useProtoShell: () => ({ openReviewDock }),
 }));
 
 const PrototypeStudyInbox = (await import('../PrototypeStudyInbox')).default;
@@ -87,6 +92,8 @@ function challenge(id: string) {
 }
 
 beforeEach(() => {
+  navigate.mockClear();
+  openReviewDock.mockClear();
   identity.isGuest = false;
   features.review = { has: true, ready: true };
   features.challenges = { has: true, ready: true };
@@ -182,5 +189,24 @@ describe('what it shows a subscriber', () => {
     inbox.data = { items: [], hasMore: false, canSeed: true };
     render(<PrototypeStudyInbox />);
     expect(screen.getByText('Start reviewing')).toBeInTheDocument();
+  });
+});
+
+describe('opening a question', () => {
+  it('opens the dock where you are, rather than navigating to a session page', () => {
+    /*
+     * The whole point of the redesign: a question about a note is answered beside your study,
+     * not on a page you have to leave it for. If this ever navigates again, Review has quietly
+     * become a destination a second time.
+     */
+    inbox.data = {
+      items: [reviewItem('r1', 'What did you observe?')],
+      hasMore: false,
+      canSeed: false,
+    };
+    render(<PrototypeStudyInbox />);
+    screen.getByText('What did you observe?').click();
+    expect(openReviewDock).toHaveBeenCalledWith('r1');
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

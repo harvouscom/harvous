@@ -39,6 +39,20 @@ const homeOrigin: PaperStackOrigin = {
   base: { type: 'originCard', title: 'A note', icon: 'arrow-rotate-left' },
 };
 
+const reviewOrigin: PaperStackOrigin = {
+  kind: 'reviewCard',
+  review: { itemId: 'review_1', attempted: true, attempt: 'something about adoption' },
+  label: 'Review',
+  icon: 'arrows-rotate',
+  returnTo: { to: '/' },
+  base: {
+    type: 'originCard',
+    eyebrow: 'Review',
+    title: 'Before opening it, what did you observe in My journey?',
+    icon: 'arrows-rotate',
+  },
+};
+
 const noteDockOrigin: PaperStackOrigin = {
   kind: 'noteDock',
   label: 'Grace and law',
@@ -186,5 +200,38 @@ describe('resolvePaperStackAfterNavigation', () => {
       expect(resolvePaperStackAfterNavigation(stacked(noteDockOrigin, 'abc'), '/', helpers)).toBe('clear');
       expect(resolvePaperStackAfterNavigation(stacked(noteDockOrigin, 'abc'), '/settings', helpers)).toBe('clear');
     });
+  });
+});
+
+describe('reviewCard', () => {
+  const stack = (noteId?: string): PaperStackState => ({
+    origin: reviewOrigin,
+    noteId,
+    open: true,
+  });
+
+  it('keeps the edge on the note the question is about', () => {
+    expect(resolvePaperStackAfterNavigation(stack('a'), '/note-a', helpers)).toBe('keep');
+  });
+
+  it('clears on any other note', () => {
+    expect(resolvePaperStackAfterNavigation(stack('a'), '/note-b', helpers)).toBe('clear');
+  });
+
+  it('clears everywhere that is not a note', () => {
+    for (const path of ['/', '/read/John/15', '/review', '/settings']) {
+      expect(resolvePaperStackAfterNavigation(stack('a'), path, helpers)).toBe('clear');
+    }
+  });
+
+  it('does not adopt an unresolvable note path the way a draft origin would', () => {
+    /*
+     * The generic branch keeps on a note path with no id so a saving compose draft can adopt it.
+     * A review card only ever stacks a note that already exists, so an unresolvable path means
+     * the reader has gone somewhere else — and a verdict edge over an unrelated page is worse
+     * than no edge, because it invites an answer to a question about something off screen.
+     */
+    const draftLike: PaperStackPathHelpers = { ...helpers, noteIdAt: () => null };
+    expect(resolvePaperStackAfterNavigation(stack('a'), '/note-a', draftLike)).toBe('clear');
   });
 });

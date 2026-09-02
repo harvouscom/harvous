@@ -348,7 +348,7 @@ export type PaperStackMorphFrom = {
 };
 
 export type PaperStackOrigin = {
-  kind: 'reader' | 'homeCard' | 'noteDock';
+  kind: 'reader' | 'homeCard' | 'noteDock' | 'reviewCard';
   /** See `PaperStackMorphFrom`. Absent means "no morph" — the sheet just arrives. */
   morphFrom?: PaperStackMorphFrom;
   /** Sub-kind for `homeCard` (a RecallOpportunityKind or 'revisit'). Telemetry only. */
@@ -362,6 +362,17 @@ export type PaperStackOrigin = {
    * nothing proposed them — so their edge stays a plain way back.
    */
   suggestion?: { id: string; kind: string };
+  /**
+   * The review item this sheet is the answer to.
+   *
+   * A `reviewCard` origin means the note on screen was opened to answer a question about it, so
+   * the edge stops being a way back and becomes the verdict: "I almost had it" / "I recalled it".
+   * `attempted` decides which verdicts are offered — someone who wrote something, or said they
+   * had it in mind, is judging a real retrieval; someone who revealed cold is not, and gets the
+   * single honest answer instead. Snapshotted here rather than read from the dock because the
+   * edge renders in the layout, and a keystroke in the dock must not re-render the shell.
+   */
+  review?: { itemId: string; attempted: boolean; attempt?: string };
   label: string;
   icon: string;
   returnTo: PaperStackReturnTo;
@@ -399,6 +410,24 @@ export type PaperStackState = {
    * is `clearPaperStack`.
    */
   open: boolean;
+};
+
+/**
+ * The Review dock's own state, which is the reason Review is not a page.
+ *
+ * It lives here rather than in a route or in the dock component because the card has to outlive
+ * both: you can be asked about a note on Activity, open the note, read a chapter, and come back
+ * without the question being lost. The host renders outside the router's Outlet, so the card
+ * itself never unmounts; this is what tells it which item to show and whether it is open.
+ *
+ * Deliberately does NOT hold the attempt text. The context value is one large memo, so a
+ * keystroke here would re-render every consumer in the shell; the dock keeps its own draft and
+ * hands a snapshot to `PaperStackOrigin.review` when it reveals.
+ */
+export type ReviewDockState = {
+  /** Which item is being asked. Null means "whatever is next in the session". */
+  itemId: string | null;
+  expanded: boolean;
 };
 
 /** Bottom chrome on note routes — format bar, scripture dock, etc. */
@@ -600,6 +629,17 @@ type ProtoShellContextValue = {
    */
   composeSeed: PrototypeComposeSeed | null;
   /** Non-null while a sheet is stacked over an origin paper (reader, Home card, note). */
+  /**
+   * The Review dock — one question, floating at the foot of the pane on every view.
+   *
+   * Null when closed. `openReviewDock()` with no id means "ask whatever is next".
+   */
+  reviewDock: ReviewDockState | null;
+  openReviewDock: (itemId?: string | null, options?: { expanded?: boolean }) => void;
+  closeReviewDock: () => void;
+  setReviewDockExpanded: (expanded: boolean) => void;
+  /** Move the dock to another item — used when the current one is answered and leaves the queue. */
+  setReviewDockItem: (itemId: string | null) => void;
   paperStack: PaperStackState | null;
   /** Stack a sheet over an origin. Replaces any existing stack — there is exactly one edge. */
   stackNote: (origin: PaperStackOrigin, noteId?: string) => void;
@@ -672,6 +712,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   drawerOpenRef.current = drawerOpen;
   const threadPanelExpandedRef = useRef(threadPanelExpanded);
   threadPanelExpandedRef.current = threadPanelExpanded;
+  const [reviewDock, setReviewDock] = useState<ReviewDockState | null>(null);
   const [expandedSidebarTool, setExpandedSidebarTool] = useState<string | null>(null);
   const [expandedSidebarExiting, setExpandedSidebarExiting] = useState(false);
   /**
@@ -1555,6 +1596,30 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    */
   const composeSeed = resolveComposeSeed(composeSeedState, composeSessionEpoch);
 
+  /*
+   * Opening with no id keeps whichever item was already up, so the toolbar and a row on the
+   * Inbox can both open the dock without one of them silently changing the question.
+   *
+   * No history entry, unlike `openExpandedSidebar`. The dock is not a place you navigated to —
+   * Back should leave the surface you are on, not close a card that is following you around.
+   */
+  const openReviewDock = useCallback(
+    (itemId?: string | null, options?: { expanded?: boolean }) => {
+      setReviewDock((current) => ({
+        itemId: itemId !== undefined ? itemId : (current?.itemId ?? null),
+        expanded: options?.expanded ?? true,
+      }));
+    },
+    [],
+  );
+  const closeReviewDock = useCallback(() => setReviewDock(null), []);
+  const setReviewDockExpanded = useCallback((expanded: boolean) => {
+    setReviewDock((current) => (current ? { ...current, expanded } : current));
+  }, []);
+  const setReviewDockItem = useCallback((itemId: string | null) => {
+    setReviewDock((current) => (current ? { ...current, itemId } : current));
+  }, []);
+
   const stackNote = useCallback((origin: PaperStackOrigin, noteId?: string) => {
     setPaperStack({ origin, noteId, open: true });
   }, []);
@@ -1690,6 +1755,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,
       beginPrototypeComposeSession,
+      reviewDock,
+      openReviewDock,
+      closeReviewDock,
+      setReviewDockExpanded,
+      setReviewDockItem,
       paperStack,
       stackNote,
       setStackSheetOpen,
@@ -1786,6 +1856,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,
       beginPrototypeComposeSession,
+      reviewDock,
+      openReviewDock,
+      closeReviewDock,
+      setReviewDockExpanded,
+      setReviewDockItem,
       paperStack,
       stackNote,
       setStackSheetOpen,

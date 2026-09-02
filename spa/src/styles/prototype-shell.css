@@ -137,6 +137,29 @@
 }
 
 /*
+ * The Review slot — a second slot in the same band, before the note's carousel.
+ *
+ * It carries the shared `__slot` class deliberately rather than a class of its own. That one
+ * name is keyed by ten rules in this file (pointer-events, the empty collapse, the drawer and
+ * inspector reserves, and four breakpoints), and a parallel class would have meant restating
+ * every one of them and keeping them in step forever. The modifier below is only what actually
+ * differs.
+ *
+ * What differs is the offset: a lone card portalled into a slot is centred by the rule above,
+ * but the carousel centres its own track on the paper. The review card is a bare card, so it
+ * takes the carousel's offset explicitly and lines up with the note whether or not the note's
+ * own docks are open beside it.
+ */
+.proto-shell__study-dock-layer__slot--review > .study-dock-card {
+  transform: translateX(var(--proto-study-dock-center-offset, 0px));
+}
+
+/* Two cards in one band need air between them; one card must not gain a stray gap. */
+.proto-shell__study-dock-layer__slot--review:not(:empty) + .proto-shell__study-dock-layer__slot:not(:empty) {
+  margin-top: 4px;
+}
+
+/*
  * Clear the sidebar for a bare card only.
  *
  * Deliberately not extended to the carousel, which the reader now portals here as well: the
@@ -664,7 +687,14 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
   }
 
-  html[data-proto-keyboard-open] .proto-shell__study-dock-layer {
+  /*
+   * The band gets out of the keyboard's way — unless what is being typed into is in it.
+   *
+   * The Review dock has a textarea for writing down what you remember. Hiding the band while
+   * someone is mid-sentence would take the card away at the one moment it must not move.
+   */
+  html[data-proto-keyboard-open]
+    .proto-shell__study-dock-layer:not(:has(.proto-review-dock :focus-within)) {
     display: none;
   }
 

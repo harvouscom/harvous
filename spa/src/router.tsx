@@ -12,6 +12,7 @@ import {
   isReservedPrototypeSegment,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
+  prototypeReviewRouteTo,
   prototypeSettingsAccountRouteTo,
 } from '@/lib/prototype-path';
 import { isStatusHost } from '@/lib/status-page-host';
@@ -430,10 +431,18 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReviewPage')),
   });
 
+  /*
+   * `review/session` is retired — Review is a dock now, not a destination.
+   *
+   * Kept as a redirect rather than deleted: the URL was live, and a bookmark or a stale tab
+   * should land on the list rather than on nothing. The question itself is opened from a row.
+   */
   const prototypeReviewSessionRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'review/session',
-    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReviewSessionPage')),
+    beforeLoad: () => {
+      throw redirect({ to: prototypeReviewRouteTo(), replace: true });
+    },
   });
 
   const prototypeChallengesRoute = createRoute({

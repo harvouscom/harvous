@@ -26,6 +26,7 @@ import {
 } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   PLUS_BADGE_COPY,
   REVIEW_EMPTY_COPY,
@@ -36,11 +37,7 @@ import {
   REVIEW_SEED_TITLE,
 } from './proto-review-copy';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
-import {
-  prototypeChallengeRouteTo,
-  prototypeHomeRouteTo,
-  prototypeReviewSessionRouteTo,
-} from '@/lib/prototype-path';
+import { prototypeChallengeRouteTo, prototypeHomeRouteTo } from '@/lib/prototype-path';
 
 function rowMeta(item: ReviewItemView): (string | null)[] {
   const subject = item.noteTitle ?? item.scriptureReference;
@@ -53,6 +50,7 @@ function rowMeta(item: ReviewItemView): (string | null)[] {
 
 export default function PrototypeReviewPage() {
   const navigate = useNavigate();
+  const { openReviewDock } = useProtoShell();
   const { isGuest } = useHarvousIdentity();
   const review = useHasFeature('review');
   const itemsQuery = useReviewItems();
@@ -160,7 +158,7 @@ export default function PrototypeReviewPage() {
                   icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
                   title={item.prompt}
                   meta={rowMeta(item)}
-                  onOpen={() => void navigate({ to: prototypeReviewSessionRouteTo() })}
+                  onOpen={() => openReviewDock(item.id)}
                   actions={reviewRowActions({
                     onDefer: () => defer.mutate(item.id),
                     onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
@@ -202,7 +200,7 @@ export default function PrototypeReviewPage() {
                   meta={[
                     item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
                   ]}
-                  onOpen={() => void navigate({ to: prototypeReviewSessionRouteTo() })}
+                  onOpen={() => openReviewDock(item.id)}
                   actions={reviewRowActions({
                     onDefer: () => defer.mutate(item.id),
                     onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),

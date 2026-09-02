@@ -7,7 +7,11 @@ import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path
 import { recallKindDisplayLabel } from '@/utils/recall-opportunity-kinds';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
-import type { PaperStackMorphFrom, PaperStackOrigin } from '../../layouts/proto-shell-context';
+import type {
+  PaperStackMorphFrom,
+  PaperStackOrigin,
+  PaperStackReturnTo,
+} from '../../layouts/proto-shell-context';
 import { noteParamSlug } from './proto-route-slugs';
 
 /**
@@ -80,6 +84,55 @@ export function buildRecallCardStackOrigin(op: RecallCardLike): PaperStackOrigin
       title,
       meta: op.meta?.trim() || undefined,
       icon: op.iconName,
+    },
+  };
+}
+
+/**
+ * The origin for a note opened to answer a review question.
+ *
+ * The difference from every other origin is what the edge is *for*. A recall card's edge is a
+ * way back with an answer attached; a chapter's edge is a way back and nothing else. This one
+ * has nowhere to go back to — the dock that asked is still on screen — so the edge is only the
+ * verdict, and `PrototypePaperStack` renders its label as static text rather than a button.
+ *
+ * The attempt is carried on the origin rather than read from the dock when the verdict is
+ * pressed. The handler lives in the layout, and reaching into the dock's local draft from there
+ * would either put keystrokes in shell state or race the reveal. A snapshot is enough: what is
+ * being recorded is whether a retrieval happened before the note was opened, and that is
+ * settled at the moment of opening.
+ */
+export function buildReviewCardStackOrigin(
+  item: {
+    id: string;
+    prompt: string;
+    noteTitle: string | null;
+    secondaryNoteTitle: string | null;
+    scriptureReference: string | null;
+  },
+  reveal: { attempted: boolean; attempt?: string },
+  returnTo: PaperStackReturnTo,
+): PaperStackOrigin {
+  const primary =
+    stripServerAutoUntitledNoteTitleForDisplay(item.noteTitle?.trim() ?? '') ||
+    item.scriptureReference?.trim() ||
+    undefined;
+  const secondary =
+    stripServerAutoUntitledNoteTitleForDisplay(item.secondaryNoteTitle?.trim() ?? '') || undefined;
+  return {
+    kind: 'reviewCard',
+    review: { itemId: item.id, attempted: reveal.attempted, attempt: reveal.attempt },
+    label: 'Review',
+    icon: 'arrows-rotate',
+    returnTo,
+    base: {
+      type: 'originCard',
+      eyebrow: 'Review',
+      // The question, not the note's name: it is what the edge is asking you to answer.
+      title: item.prompt,
+      // Both ends for a connection — the question names them, and so should the card.
+      meta: secondary && primary ? `${primary} · ${secondary}` : primary,
+      icon: 'arrows-rotate',
     },
   };
 }

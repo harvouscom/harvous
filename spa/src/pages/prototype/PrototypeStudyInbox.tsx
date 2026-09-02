@@ -34,6 +34,7 @@ import {
 } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   PLUS_BADGE_COPY,
   REVIEW_PLUS_META,
@@ -43,11 +44,7 @@ import {
   REVIEW_SEE_ALL_COPY,
   STUDY_INBOX_TITLE,
 } from './proto-review-copy';
-import {
-  prototypeChallengeRouteTo,
-  prototypeReviewRouteTo,
-  prototypeReviewSessionRouteTo,
-} from '@/lib/prototype-path';
+import { prototypeChallengeRouteTo, prototypeReviewRouteTo } from '@/lib/prototype-path';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 
@@ -66,6 +63,7 @@ function rowSubtitle(item: { prompt: string; noteTitle: string | null; scripture
 
 export default function PrototypeStudyInbox() {
   const navigate = useNavigate();
+  const { openReviewDock } = useProtoShell();
   const { isGuest } = useHarvousIdentity();
   const review = useHasFeature('review');
   const challengesFeature = useHasFeature('challenges');
@@ -132,7 +130,8 @@ export default function PrototypeStudyInbox() {
   const hasRows = reviewRows.length > 0 || Boolean(challengeRow) || canSeed;
   if (!hasRows) return null;
 
-  const openSession = () => void navigate({ to: prototypeReviewSessionRouteTo() });
+  // The question opens where you are, not on a page of its own — see PrototypeReviewDock.
+  const openInDock = (itemId: string) => openReviewDock(itemId);
 
   return (
     <PrototypeHomeSection title={STUDY_INBOX_TITLE}>
@@ -147,7 +146,7 @@ export default function PrototypeStudyInbox() {
             // row that is by definition being asked for the first time.
             item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
           ]}
-          onOpen={openSession}
+          onOpen={() => openInDock(item.id)}
           actions={reviewRowActions({
             onDefer: () => defer.mutate(item.id),
             onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
