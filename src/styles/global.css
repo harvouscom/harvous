@@ -242,8 +242,6 @@ nav a,
 .btn-action,
 .btn-cta,
 .btn-chonk,
-.tab-btn,
-.tab-nav__button,
 .badge-count,
 .toggle,
 .close-icon,
@@ -690,16 +688,41 @@ button:active[class*="bg-[var(--color-stone-grey)]"] {
   box-shadow: var(--shadow-small);
 }
 
-/* Remove focus borders from all input fields */
-input:focus,
+/*
+  House keyboard focus ring for form fields (WCAG 2.4.7).
+
+  This replaced a blanket `outline/border/box-shadow: none !important` on every
+  focused field, which left keyboard users with no visible focus anywhere in the
+  app and made any field with a resting border jump 2px on click as the border
+  was stripped.
+
+  `outline` is the mechanism on purpose: unlike `border`, it is painted outside
+  the border box and takes part in no layout, so a field can gain a ring without
+  moving itself or anything sizing to it. It is also what the rest of the app
+  already uses for focus (navigation.css, cards.css, panels.css, spotlight.css),
+  so fields now match every other focusable thing.
+
+  No `!important`: components are meant to override this with their own focus
+  treatment, and several already do (`.proto-inspector-input`,
+  `.harvous-auth-form__input`, the OTP fields). The old rule's `!important` was
+  what defeated them.
+
+  `:focus-visible` rather than `:focus` follows the browser's own heuristic, but
+  note what that heuristic actually does, because it is not "keyboard only":
+  text inputs, textareas and `select` match on a plain mouse click too (verified
+  in Chromium), since a clicked field is about to receive typing. Checkboxes,
+  radios and buttons match only on keyboard focus. So a clicked text field does
+  show this ring — the same as it would in any browser default, and the reason
+  not to chase a click-free variant is that hiding it costs the indicator for
+  anyone who clicks in and then keeps navigating by keyboard.
+*/
 input:focus-visible,
-textarea:focus,
 textarea:focus-visible,
-select:focus,
 select:focus-visible {
-  outline: none !important;
-  border: none !important;
-  box-shadow: none !important;
+  /* Prototype surfaces carry a theme-aware ring that flips in dark mode; the
+     legacy token is the fallback for pages that don't load prototype-tokens.css. */
+  outline: var(--focus-ring-width) solid var(--pds-accent-focus-ring, var(--focus-ring-color));
+  outline-offset: var(--focus-ring-offset);
 }
 
 .color-selection button[style*="background-color"] {
@@ -762,35 +785,20 @@ button[disabled] {
 */
 
 /* ==========================================================================
-   TabNav & Menu Styles
+   Menu Styles
    ========================================================================== */
-.tab-nav-container,
-.tab-nav-container > div,
-.tab-nav-container *,
-.tab-nav-container button,
-.tab-nav-container button *,
-.tab-nav-container button[data-tab-button],
-[data-tab-button] {
-  border: none !important;
-  box-shadow: none !important;
-  outline: none !important;
-  background: transparent !important;
-  background-color: transparent !important;
-  -webkit-tap-highlight-color: transparent !important;
-}
-
 /* Menu container - applies drop shadow to all menus */
 .menu {
   box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
 }
 
-.context-more-menu button,
-.more-menu button,
-.context-more-menu-item,
-.more-menu-item,
+/*
+  `outline` is deliberately not in this reset: it only paints on `:focus-visible`,
+  so stripping it here just meant a keyboard user arrowing through a menu could
+  not see which row they were on. The ring is on `.menu-item:focus-visible` below.
+*/
 .menu-item {
   border: none !important;
-  outline: none !important;
   box-shadow: none !important;
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
@@ -1620,6 +1628,22 @@ button .menu-item__label {
   background-color: oklch(var(--lch-snow-white) / 0.5);
 }
 
+/*
+  A menu row had a hover state but no focus state, so arrowing through a menu
+  with the keyboard showed nothing at all.
+
+  The ring is inset (negative offset) rather than sitting outside the row: menu
+  rows are flush against each other and against the menu's rounded, clipped
+  edge, so an outset ring would overlap its neighbours and be shaved off at the
+  container. Same treatment as the list rows in navigation.css. Hover stays a
+  background wash, so the two states remain tellable apart when both are on the
+  same row.
+*/
+.menu-item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
 .menu-item--disabled {
   opacity: 0.6;
   color: var(--color-pebble-grey);
@@ -1664,23 +1688,6 @@ button .menu-item__label {
 .space-btn p,
 .space-btn * {
   font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif !important;
-  font-weight: 700 !important;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Tab navigation buttons */
-.tab-nav__button {
-  font-family: var(--font-sans) !important;
-  font-weight: 700 !important;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  touch-action: manipulation; /* eliminates iOS 300ms double-tap delay */
-}
-
-.tab-nav__button span,
-.tab-nav__button * {
-  font-family: var(--font-sans) !important;
   font-weight: 700 !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

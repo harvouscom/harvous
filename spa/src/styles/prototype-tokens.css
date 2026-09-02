@@ -1362,12 +1362,6 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   font-family: var(--pds-font-body) !important;
 }
 
-.proto-shell .tab-nav__button,
-.proto-shell .tab-nav__button span,
-.proto-shell .tab-nav__button * {
-  font-family: var(--pds-font-body) !important;
-}
-
 .proto-shell .offline-indicator--chip,
 .proto-shell .offline-indicator--chip * {
   font-family: var(--pds-font-body) !important;

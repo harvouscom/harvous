@@ -103,7 +103,7 @@ const renderIcon = (icon: any, action: string) => {
     iconKey = 'book';
   } else if (action.includes('Note')) {
     iconKey = 'note-sticky';
-  } else if (action === 'viewSpace' || action.includes('seeDetails') || action.includes('Details')) {
+  } else if (action.includes('seeDetails') || action.includes('Details')) {
     iconKey = 'circle-info';
   } else if (action === 'leaveSpace') {
     iconKey = 'right-from-bracket';
@@ -298,74 +298,11 @@ export default function Menu({
       closeMenu();
     } else if (action.includes('erase')) {
       await performErase(action);
-    } else if (action === 'openNoteDetailsThreads') {
-      // Handle Threads shortcut action for notes
-      try {
-        window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
-          detail: { contentId, contentType, tab: 'threads' }
-        }));
-      } catch (error) {
-        console.error('Error opening note details panel (threads):', error);
-      }
-    } else if (action === 'openNoteDetailsTags') {
-      // Handle Tags shortcut action for notes
-      try {
-        window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
-          detail: { contentId, contentType, tab: 'tags' }
-        }));
-      } catch (error) {
-        console.error('Error opening note details panel (tags):', error);
-      }
-    } else if (action === 'openNoteDetailsNotes') {
-      // Handle Notes shortcut action for scripture notes
-      try {
-        window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
-          detail: { contentId, contentType, tab: 'notes' }
-        }));
-      } catch (error) {
-        console.error('Error opening note details panel (notes):', error);
-      }
     } else if (action === 'compareScriptureNote') {
       try {
         window.dispatchEvent(new CustomEvent('openScriptureComparePanel', { detail: { contentId } }));
       } catch (error) {
         console.error('Error opening scripture compare panel:', error);
-      }
-    } else if (action === 'editThread') {
-      // Handle Edit Thread action
-      try {
-        window.dispatchEvent(new CustomEvent('openEditThreadPanel', {
-          detail: { contentId, contentType }
-        }));
-      } catch (error) {
-        console.error('Error opening edit thread panel:', error);
-      }
-    } else if (action === 'editSpace') {
-      // Handle Edit Space action
-      try {
-        window.dispatchEvent(new CustomEvent('openEditSpacePanel', {
-          detail: { contentId, contentType }
-        }));
-      } catch (error) {
-        console.error('Error opening edit space panel:', error);
-      }
-    } else if (action === 'openEditSpacePanelPeople') {
-      // Handle People action - open Edit Space People panel
-      try {
-        window.dispatchEvent(new CustomEvent('openEditSpacePeoplePanel', {
-          detail: { contentId, contentType }
-        }));
-      } catch (error) {
-        console.error('Error opening edit space people panel:', error);
-      }
-    } else if (action === 'viewSpace') {
-      // Handle Space details (members see People list; same panel as edit)
-      try {
-        window.dispatchEvent(new CustomEvent('openEditSpacePanel', {
-          detail: { contentId, contentType }
-        }));
-      } catch (error) {
-        console.error('Error opening edit space panel:', error);
       }
     } else if (action === 'leaveSpace') {
       // Leave space: DELETE member, redirect to dashboard (confirmation handled by dialog)
@@ -381,13 +318,6 @@ export default function Menu({
         }
       } catch {
         alert('Could not leave space.');
-      }
-    } else if (action === 'openNewThreadPanel') {
-      // Handle Add Thread action
-      try {
-        window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
-      } catch (error) {
-        console.error('Error dispatching openNewThreadPanel event:', error);
       }
     } else if (action === 'openNewNotePanel') {
       try {

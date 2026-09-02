@@ -3,14 +3,11 @@ import Menu from './Menu';
 import { getMenuOptions } from "@/utils/menu-options";
 
 // Icon references for Menu component (Menu.tsx handles rendering internally)
-const ThreadIcon = { src: 'layer-group' };
 const NewspaperIcon = { src: 'newspaper' };
 const NoteStickyIcon = { src: 'note-sticky' };
 const EditIcon = { src: 'pen-to-square' };
 const EraseIcon = { src: 'eraser' };
-const CircleInfoIcon = { src: 'circle-info' };
 const LeaveSpaceIcon = { src: 'right-from-bracket' };
-const TagIcon = { src: 'tag' };
 const LockIcon = { src: 'lock' };
 const UnlockIcon = { src: 'unlock' };
 const HashtagIcon = { src: 'hashtag' };
@@ -92,7 +89,6 @@ export default function SquareButton({
   const getMenuOptionsData = () => {
     if (variant === "Add") {
       return [
-        { action: "openNewThreadPanel", label: "Add Thread", icon: ThreadIcon },
         {
           action: "openNewNotePanel",
           label: "Add Note",
@@ -117,13 +113,6 @@ export default function SquareButton({
       return options.map(option => {
         let icon;
         switch (option.action) {
-          case "editThread":
-          case "editSpace":
-            icon = EditIcon;
-            break;
-          case "viewSpace":
-            icon = CircleInfoIcon;
-            break;
           case "leaveSpace":
             icon = LeaveSpaceIcon;
             break;
@@ -132,15 +121,6 @@ export default function SquareButton({
           case "eraseNote":
           case "eraseSpace":
             icon = EraseIcon;
-            break;
-          case "openNoteDetailsNotes":
-            icon = NoteStickyIcon;
-            break;
-          case "openNoteDetailsThreads":
-            icon = ThreadIcon;
-            break;
-          case "openNoteDetailsTags":
-            icon = TagIcon;
             break;
           case "compareScriptureNote":
             icon = BookIcon;

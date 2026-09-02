@@ -100,7 +100,6 @@ export function getMenuOptions(
         ];
       }
       return [
-        { action: "editThread", label: "Edit Thread" },
         { action: "shareThread", label: "Share" },
         { action: "eraseThread", label: "Erase Thread" },
         { action: "eraseThreadAndNotes", label: "Erase Thread and Notes" },
@@ -109,16 +108,6 @@ export function getMenuOptions(
       // Welcome thread only contains pack notes; thread id is enough (addedBy may be missing from seeded cache).
       const isOnboardingPackNote = !!noteThreadId?.startsWith('thread_onboarding_');
       const options = [];
-
-      // Notes tab: scripture (backlinks) or default note created from highlighted text in another note
-      if (noteType === 'scripture' || (noteType === 'default' && linkedFromNoteId)) {
-        options.push({ action: "openNoteDetailsNotes", label: "Notes" });
-      }
-
-      options.push(
-        { action: "openNoteDetailsThreads", label: "Threads" },
-        { action: "openNoteDetailsTags", label: "Tags" }
-      );
 
       if (noteType === 'scripture') {
         options.push({ action: "compareScriptureNote", label: "Compare" });
@@ -148,24 +137,12 @@ export function getMenuOptions(
     }
     case "space":
       if (spaceRole === 'member') {
-        const memberOptions = [
-          { action: "viewSpace", label: "About Space" },
-        ];
-        if (spaceIsShared) {
-          memberOptions.push({ action: "openEditSpacePanelPeople", label: "People" });
-        }
-        memberOptions.push({ action: "leaveSpace", label: "Leave Space" });
-        return memberOptions;
+        return [{ action: "leaveSpace", label: "Leave Space" }];
       }
-      const spaceOptions = [
-        { action: "editSpace", label: "Edit Space" },
+      return [
         { action: "shareSpace", label: "Share" },
+        { action: "eraseSpace", label: "Erase Space" },
       ];
-      if (spaceIsShared) {
-        spaceOptions.push({ action: "openEditSpacePanelPeople", label: "People" });
-      }
-      spaceOptions.push({ action: "eraseSpace", label: "Erase Space" });
-      return spaceOptions;
     case "dashboard":
     case "profile":
     default:

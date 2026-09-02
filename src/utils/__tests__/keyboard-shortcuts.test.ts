@@ -349,11 +349,6 @@ describe('classic app shortcuts', () => {
     expectEvent('openNewNotePanel', () => press({ key: "'", code: 'Quote', meta: true }));
   });
 
-  it('Mod+; → new thread panel', () => {
-    setPath('/');
-    expectEvent('openNewThreadPanel', () => press({ key: ';', code: 'Semicolon', meta: true }));
-  });
-
   it('Esc with a panel open → dismiss top layer', () => {
     setPath('/');
     window.localStorage.setItem('showNewNotePanel', 'true');
@@ -364,11 +359,6 @@ describe('classic app shortcuts', () => {
     setPath('/note/note_abc');
     press({ key: 'h', code: 'KeyH', meta: true, shift: true });
     expect(appNavigate).toHaveBeenCalledWith('/');
-  });
-
-  it('Mod+Shift+D on a note → note details panel', () => {
-    setPath('/note/note_abc');
-    expectEvent('openNoteDetailsPanel', () => press({ key: 'd', code: 'KeyD', meta: true, shift: true }));
   });
 
   it('Mod+Shift+S on a note → share panel', () => {
