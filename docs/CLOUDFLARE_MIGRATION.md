@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: STAGE 4 IN PROGRESS — new.harvous.com is on Cloudflare and verified. app.harvous.com has NOT moved.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 4 COMPLETE — app.harvous.com and new.harvous.com serve the Worker; authenticated smoke test passed. Next: freeze Netlify auto-publish, soak one week, then cleanup (CSRF first).** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -609,6 +609,38 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
   On `new` that is nothing; on `app` it is a live outage window measured in however long the
   deploy takes. Do them back-to-back, with the rollback CNAME value in hand
   (`app → harvouscom.netlify.app`), and do not start unless able to finish.
+
+- 2026-09-02 (**STAGE 4 COMPLETE — app.harvous.com is on Cloudflare**) — Traffic moved.
+  Cloudflare serves `index-BzUzz5zc.js`, byte-identical to what Netlify was serving at the
+  moment of the switch, with the live Clerk key. Verified on the real domain: HSTS,
+  `/assets/*` immutable, `/api/health` 200 through the proxy to Fly,
+  `/prototype/dashboard` → 302, stale asset → 404, and the site-inspired sign-in rendering
+  with zero console errors. **The authenticated gate passed: signed in and created a note.**
+  That is the check that failed all three Fly cutovers, and it passed first attempt here —
+  because the artifact was already proven byte-identical to production before it was routed.
+
+  **The dashboard could not do this, and that is worth recording.** Workers → Domains →
+  "Connect domain" reported *"No zones match app.harvous.com"* while the zone was demonstrably
+  live and serving; "Find similar" then opened a domain **purchase** screen offering
+  `appharvous.com` and `app-harvous.com`. The attach succeeded from the CLI:
+
+      npx wrangler triggers deploy
+
+  which applies route/domain changes **without rebuilding**. That property was not a
+  convenience — it was the safety requirement. A local `wrangler deploy` from this worktree
+  would have rebuilt with no `.env`, inlined no Clerk key, and pushed a bundle that cannot
+  boot straight to production at the exact moment traffic was moving.
+
+  **The outage window is real and was measured.** Between deleting the `app` CNAME and the
+  attach, public resolvers returned NO RECORD on both 1.1.1.1 and 8.8.8.8 while a stale local
+  cache still answered 200 — which is exactly how this looks fine from the operator's machine
+  and broken for everyone else. Verify a cutover with `dig @1.1.1.1` and `--resolve`, never
+  with a plain `curl` from the machine that has been hitting the old host all day. Recovery
+  is asymmetric too: the NXDOMAIN negative cache outlived the record's own 300s TTL.
+
+  Remaining: `status.harvous.com` is still on Netlify (separate attach, and the last thing
+  pinning the Netlify site).
+
 
   Also worth expecting: local resolvers cache the old CNAME for its TTL (15 min here), so the
   domain can appear to still serve Netlify well after the cutover succeeded. Verify with
