@@ -50,16 +50,35 @@ export interface ReviewPromptContext {
   threadTitle?: string | null;
   /** A distinctive fragment of the verse, for the recognize rung. */
   cue?: string | null;
+
 }
 
-/** Falls back rather than rendering "undefined" — every prompt must read as a sentence. */
-function subject(ctx: ReviewPromptContext): string {
-  return (
-    ctx.reference?.trim() ||
-    ctx.noteTitle?.trim() ||
-    ctx.threadTitle?.trim() ||
-    'this note'
-  );
+/**
+ * The name the question can use, or null when the note has none.
+ *
+ * Never "this note", which was the old fallback and named nothing at all. A nameless note gets
+ * the bare form of the question instead, and the row names it on the line below.
+ */
+function subjectName(ctx: ReviewPromptContext): string | null {
+  return ctx.reference?.trim() || ctx.noteTitle?.trim() || ctx.threadTitle?.trim() || null;
+}
+
+/**
+ * Build a question two ways round: a named subject sits inside the sentence, and a note with
+ * no name gets the bare form, because the row prints its opening words directly underneath.
+ *
+ * The note's own words were briefly spliced into the sentence itself, which read as one very
+ * long question and left nothing for the line below. The scripture row had it right all along:
+ * the question on top, what it is about beneath.
+ */
+function ask(ctx: ReviewPromptContext, inside: (s: string) => string, bare: string): string {
+  const name = subjectName(ctx);
+  return name ? inside(name) : bare;
+}
+
+/** For prompts that only ever name a Thread or a passage, which always have one. */
+function subjectText(ctx: ReviewPromptContext): string {
+  return subjectName(ctx) ?? 'this';
 }
 
 function threadName(ctx: ReviewPromptContext): string {
@@ -71,13 +90,24 @@ function threadName(ctx: ReviewPromptContext): string {
  * cluster of connected notes, and `npm run check:thread-terminology` enforces it.
  */
 export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) => string> = {
-  'note.observe': (ctx) => `Before opening it, what did you observe in ${subject(ctx)}?`,
-  'note.central': (ctx) => `What is the central idea of your note on ${subject(ctx)}?`,
-  'note.carry': (ctx) => `What did you intend to carry forward from ${subject(ctx)}?`,
-  'note.phrase': (ctx) => `What in the text itself led you to write ${subject(ctx)}?`,
-  'note.unclear': (ctx) => `What has become clearer since you wrote ${subject(ctx)} — and what has not?`,
-  'highlight.why': (ctx) => `You marked this in ${subject(ctx)}. What made it worth keeping?`,
-  'highlight.detail': (ctx) => `What detail in ${subject(ctx)} led you to mark this passage?`,
+  /*
+   * Second person, and short.
+   *
+   * These read like a worksheet before — "what is the central idea of your note on X", "what in
+   * the text itself led you to write this note". Two problems in one sentence: they addressed
+   * the note as an object rather than the reader as someone who wrote it, and "this note" named
+   * nothing when the note had no title.
+   */
+  'note.observe': (ctx) => ask(ctx, (s) => `What did you see in ${s}?`, 'What did you see here?'),
+  'note.central': (ctx) =>
+    ask(ctx, (s) => `What were you working out in ${s}?`, 'What were you working out here?'),
+  'note.carry': (ctx) =>
+    ask(ctx, (s) => `What stuck with you from ${s}?`, 'What stuck with you here?'),
+  'note.phrase': (ctx) => ask(ctx, (s) => `What made you write ${s}?`, 'What made you write this?'),
+  'note.unclear': (ctx) =>
+    ask(ctx, (s) => `What is clearer to you in ${s} now?`, 'What is clearer to you now?'),
+  'highlight.why': (ctx) => `You marked this in ${subjectText(ctx)}. What made it worth keeping?`,
+  'highlight.detail': (ctx) => `What detail in ${subjectText(ctx)} led you to mark this passage?`,
   'connection.why': (ctx) =>
     `Why did you connect ${ctx.noteTitle?.trim() || 'these notes'} and ${
       ctx.secondaryNoteTitle?.trim() || 'the other'
@@ -98,15 +128,15 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     `If your ${threadName(ctx)} Thread had one sentence at its centre, what would it be?`,
   'verse.recognize': (ctx) =>
     ctx.cue?.trim()
-      ? `${subject(ctx)} — "${ctx.cue.trim()}…" What comes next?`
-      : `${subject(ctx)} — what does this verse say?`,
-  'verse.rebuild': (ctx) => `Fill in what is missing from ${subject(ctx)}.`,
-  'verse.recall': (ctx) => `${subject(ctx)} — write it as you remember it.`,
-  'verse.contextualize': (ctx) => `What happens just before or after ${subject(ctx)}?`,
-  'verse.sequence': (ctx) => `Put ${subject(ctx)} back in order.`,
+      ? `${subjectText(ctx)} — "${ctx.cue.trim()}…" What comes next?`
+      : `${subjectText(ctx)} — what does this verse say?`,
+  'verse.rebuild': (ctx) => `Fill in what is missing from ${subjectText(ctx)}.`,
+  'verse.recall': (ctx) => `${subjectText(ctx)} — write it as you remember it.`,
+  'verse.contextualize': (ctx) => `What happens just before or after ${subjectText(ctx)}?`,
+  'verse.sequence': (ctx) => `Put ${subjectText(ctx)} back in order.`,
   'verse.locate': () => 'Where is this from?',
   'verse.connect': (ctx) =>
-    `What note or passage did you connect to ${subject(ctx)}, and why?`,
+    `What note or passage did you connect to ${subjectText(ctx)}, and why?`,
 };
 
 /**

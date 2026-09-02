@@ -123,3 +123,39 @@ describe('a fresh queue does not ask the same question three times', () => {
     expect(pickPromptKey('verse', 5, 2, 'review_v')).toBe(VERSE_LADDER[2]);
   });
 });
+
+describe('note questions speak to the reader, not about the note', () => {
+  const noteKeys = REVIEW_PROMPT_KEYS.filter((k) => k.startsWith('note.'));
+
+  it('never falls back to "this note", which named nothing', () => {
+    for (const key of noteKeys) {
+      const rendered = fillReviewPrompt(key, {});
+      expect(rendered).not.toMatch(/this note/i);
+    }
+  });
+
+  it('drops the worksheet vocabulary', () => {
+    for (const key of noteKeys) {
+      const rendered = fillReviewPrompt(key, { noteTitle: 'Adoption' });
+      expect(rendered).not.toMatch(/central idea|carry forward|the text itself|your note on/i);
+      expect(rendered).toMatch(/\byou\b/i);
+    }
+  });
+
+  it('puts a named subject inside the sentence', () => {
+    expect(fillReviewPrompt('note.observe', { noteTitle: 'Romans 8' })).toBe(
+      'What did you see in Romans 8?',
+    );
+  });
+
+  it('asks the bare question when the note has no name, and stays short', () => {
+    // The row prints the note's own opening words underneath, the way a verse row carries a
+    // fragment of the verse. Splicing them into the sentence made one very long question and
+    // left the line below with nothing to say.
+    expect(fillReviewPrompt('note.observe', {})).toBe('What did you see here?');
+    expect(fillReviewPrompt('note.phrase', {})).toBe('What made you write this?');
+    for (const key of noteKeys) {
+      expect(fillReviewPrompt(key, {}).length).toBeLessThan(46);
+    }
+  });
+});

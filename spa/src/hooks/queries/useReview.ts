@@ -32,6 +32,12 @@ export interface ReviewItemView {
   ladderStep: number;
   noteTitle: string | null;
   secondaryNoteTitle: string | null;
+  /** Title, else the first passage the note cites — the short answer to "which note?". */
+  noteLabel: string | null;
+  /** The note's own opening words, shown on the row's context line. */
+  noteContext: string | null;
+  /** Last resort for a note with neither, formatted client-side where the zone is known. */
+  noteWrittenAt: string | null;
   scriptureReference: string | null;
   noteId: string | null;
   challengeId: string | null;
