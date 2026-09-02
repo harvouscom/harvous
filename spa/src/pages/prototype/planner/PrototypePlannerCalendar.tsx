@@ -31,6 +31,7 @@ import type {
 import { spaceIconAccentHex, type SpaceCoverPickerColor } from '@/utils/space-cover';
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../../lib/prototype-background';
 import { localTodayIso, sermonTimeLabel } from '../../../lib/church-services';
+import { formatServiceDate } from '../PrototypeSermonEditorFields';
 import {
   addMonths,
   buildProtoDatePickerMonth,
@@ -59,6 +60,7 @@ function DayCell({
   gridColumn,
   bandLanes,
   canDrop,
+  itemNoun,
   onAdd,
   children,
 }: {
@@ -86,6 +88,8 @@ function DayCell({
   /** Band lines above this row's cells; their height is reserved as padding. */
   bandLanes: number;
   canDrop: boolean;
+  /** The plan's noun. This said "sermon" on every plan, including a room's. */
+  itemNoun: string;
   onAdd?: () => void;
   children: React.ReactNode;
 }) {
@@ -109,7 +113,10 @@ function DayCell({
           <button
             type="button"
             className="proto-planner-day__add"
-            aria-label={`Add a sermon on ${iso}`}
+            /* Spoken, not the raw ISO a screen reader would read digit by
+               digit — and the plan's own noun, which used to be "sermon" even
+               on a room that has none. */
+            aria-label={`New ${itemNoun} on ${formatServiceDate(iso)}`}
             title="Add here"
             onClick={onAdd}
           >
@@ -127,6 +134,8 @@ export default function PrototypePlannerCalendar({
   serviceTimes,
   accentFor,
   canWrite,
+  readOnlyMessage,
+  itemNoun,
   selection,
   onSelect,
   onMoveToDate,
@@ -136,6 +145,10 @@ export default function PrototypePlannerCalendar({
   /** Shared with the board and list so one run is one colour everywhere. */
   accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   canWrite: boolean;
+  /** The resolved sentence, or null when the viewer may write. */
+  readOnlyMessage: string | null;
+  /** The plan's noun — sermon / gathering / entry. From `planVocabulary`. */
+  itemNoun: string;
   selection: PlannerSelection;
   onSelect: (selection: PlannerSelection) => void;
   onMoveToDate: (serviceId: string, iso: string | null) => void;
@@ -269,6 +282,7 @@ export default function PrototypePlannerCalendar({
                 gridRow={Math.floor(index / 7) + 1}
                 gridColumn={(index % 7) + 1}
                 bandLanes={bandLanes[Math.floor(index / 7)] ?? 0}
+                itemNoun={itemNoun}
                 iso={cell.iso}
                 day={cell.day}
                 inMonth={cell.inMonth}
@@ -308,6 +322,14 @@ export default function PrototypePlannerCalendar({
           onSelect={onSelect}
         />
       </div>
+
+      {/* This view was never given a reason at all: a read-only viewer watched
+          every plus button and drag handle vanish with nothing saying why. */}
+      {readOnlyMessage ? (
+        <p className="proto-caption proto-planner__readonly" role="status">
+          {readOnlyMessage}
+        </p>
+      ) : null}
 
       {typeof document !== 'undefined'
         ? createPortal(

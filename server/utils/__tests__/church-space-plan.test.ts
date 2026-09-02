@@ -273,11 +273,35 @@ describe('granted leader — the P5 boundary', () => {
       spaceRows.mockResolvedValue([CHURCHLESS]);
     });
 
-    it('lets any member read the plan', async () => {
-      // It is the group's own schedule; `coming-up` already hands them a slice.
+    it('refuses a plain member the read', async () => {
+      /*
+        **Narrowed Sep 2026.** This used to assert the opposite — "it is the
+        group's own schedule" — and the trouble was that the church lane says
+        `sermon_tools`, so two rooms of identical shape answered a member
+        differently depending on whether a church sat behind one of them.
+
+        What the member keeps is `coming-up`, gated on membership alone and
+        never returning an undated backlog row. That endpoint existing
+        separately from this one is what makes the narrowing cost them nothing.
+      */
       requireSpaceAccess.mockResolvedValue({ role: 'member', space: CHURCHLESS });
       canManageSpaceStructure.mockReturnValue(false);
       expect(await assertCanViewSpaceTeachingPlan('user_member', 'space_x')).toMatchObject({
+        ok: false,
+        status: 403,
+        code: 'PLAN_SPACE_ROLE_REQUIRED',
+      });
+    });
+
+    it('lets whoever runs the room read it', async () => {
+      /*
+        Only meaningful because granted leadership reached churchless rooms in
+        the same change: before that, "owner or leader" here meant "owner",
+        since such a room could not have a leader at all.
+      */
+      requireSpaceAccess.mockResolvedValue({ role: 'leader', space: CHURCHLESS });
+      canManageSpaceStructure.mockReturnValue(true);
+      expect(await assertCanViewSpaceTeachingPlan('user_leader', 'space_x')).toMatchObject({
         ok: true,
         lane: 'space',
         church: null,

@@ -16,7 +16,7 @@ The foundation branch is **architecturally launch-ready** but **product-position
 - Create shared space, invite links, join preview/redeem, people/settings hub
 - **Native compose in shared space** (not just copy-in) — any member authors notes directly
 - Merged notes list with author chips; foreign notes read-only for other members
-- Dedicated shared-space dashboard (`spa/src/pages/prototype/PrototypeSidebarSharedSpaceView.tsx`)
+- Dedicated shared-space dashboard (`spa/src/pages/prototype/PrototypeSpaceHub.tsx`)
 - Copy-in from personal notes (`POST /api/spaces/:spaceId/copy-notes`)
 
 **Why it still *feels* like "copy to shared space":**
@@ -133,8 +133,26 @@ Ship paid Shared Spaces only after the product answers *"How do we study Philipp
 
 ## Tier 1 — implementation order
 
-1. **Shared highlight annotations** — foreign-note selection, cross-user `StudyThreadEntry`, overlay render, moderation
-2. **Group study threads** — dashboard create + pin spotlight, compose thread picker, shared-space thread/note union queries
+> **Corrected Sep 2026 — items 1 and 2 are built.** This list still reads as the plan, and it
+> is now a record of one. Verified against the branch:
+>
+> - **Shared highlight annotations (1) shipped.** `server/utils/shared-study-thread-access.ts`
+>   holds the whole gate; `server/routes/study-threads.ts` unions every member's entries when
+>   the parent note is in a shared or public space (`unioned = parentCtx.isShared`) and
+>   attributes them through `mapUnionedRows`. The moderation rule landed exactly as specified
+>   above — annotator, note author, or space owner (`canModerateStudyThreadEntry`).
+>   `StudyThreadEntries` carries `spaceId` and `actorDisplayNameSnapshot`, so an annotation
+>   survives its author leaving the room.
+> - **Group study threads (2) shipped**, as real `Threads` rows with `spaceId` set, one pinned
+>   per space (`Threads_onePinnedPerSpace`), plus the sequence/study-plan layer on top of them.
+>
+> So the stated launch posture — *hold until 1–2 small-group differentiators ship* — has been
+> met for a while. The remaining question is positioning, not build. See
+> `SHARED_SPACE_STUDY_TOOLS.md` for what a shared space actually gives each role today, and
+> the ranked gaps that are genuinely still open.
+
+1. ~~**Shared highlight annotations**~~ — built
+2. ~~**Group study threads**~~ — built
 3. **Activity polish** — dashboard unseen copy + switcher dot
 4. **Billing webhook + Clerk setup** (parallel)
 5. **Docs, release notes, e2e, merge prep**

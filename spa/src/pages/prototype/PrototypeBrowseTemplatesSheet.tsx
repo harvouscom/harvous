@@ -109,7 +109,8 @@ function TemplateListRow({
   onToggleMenu: () => void;
   onCloseMenu: () => void;
   onApply: (template: BrowseTemplateRow) => void;
-  onEdit: (template: BrowseTemplateRow) => void;
+  /** Absent where there is no note to load a template into — Edit then hides. */
+  onEdit?: (template: BrowseTemplateRow) => void;
   onRequestDelete: (template: BrowseTemplateRow, anchorRect: DOMRect) => void;
 }) {
   const description = template.description?.trim() || '';
@@ -194,6 +195,7 @@ function TemplateListRow({
               aria-label={`${template.name} actions`}
             >
               <div className="proto-menu-section" role="group">
+                {onEdit ? (
                 <button
                   type="button"
                   role="menuitem"
@@ -208,6 +210,7 @@ function TemplateListRow({
                   </span>
                   <span className="proto-menu-item__label">Edit</span>
                 </button>
+                ) : null}
                 <button
                   type="button"
                   role="menuitem"
@@ -430,7 +433,13 @@ export default function PrototypeBrowseTemplatesSheet({
   };
 
   const rowCanShowActions = (template: BrowseTemplateRow) => {
-    if (!onEdit) return false;
+    /*
+      Not gated on `onEdit` any more. Editing loads a template's body into an
+      open note editor, so a caller with no note — the space hub's Tools row —
+      cannot supply one; requiring it here took Delete away with it, and a
+      surface for managing a room's templates that cannot remove one is not
+      managing them. Edit hides itself below instead.
+    */
     if (template.section === 'personal') return true;
     if (template.section === 'space') return canManageSpaceTemplates;
     if (template.section === 'org') return canManageChurchTemplates;

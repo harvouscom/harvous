@@ -31,9 +31,11 @@ import {
   formatSeriesRun,
   localTodayIso,
   planVocabulary,
+  rhythmDates,
   sermonTimeLabel,
   seriesRunsByServiceRows,
 } from '../../lib/church-services';
+import { cadenceIntervalDays, parsePublishCadence } from '@/utils/channel-publish-cadence';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoServiceDateTile from './ProtoServiceDateTile';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
@@ -139,7 +141,14 @@ export default function PrototypeChurchTeachingPlanSection({
   const actions = onSpacePlan ? spaceActions : churchActions;
   /* Server-decided; a channel plans content, everything else gathers. */
   const planKind = onSpacePlan ? spacePlan.data?.planKind : undefined;
-  const vocab = planVocabulary({ onSpacePlan, planKind });
+  /*
+    `hasChurch` matters here for the same reason it does in the expanded
+    planner: without it this pane told a churchless book club "Plan what this
+    ministry studies" while the expanded view said "this group" about the very
+    same plan.
+  */
+  const hasChurch = onSpacePlan ? spacePlan.data?.church !== null : true;
+  const vocab = planVocabulary({ onSpacePlan, planKind, hasChurch });
 
   const today = localTodayIso();
   /*
@@ -236,9 +245,28 @@ export default function PrototypeChurchTeachingPlanSection({
     series, passage, times, starter, resources, notes, repeat) never fit a
     sidebar-width modal without becoming a scroll well.
   */
+  /*
+    A create lands on the plan's next slot, not on no date at all. The button
+    says "New gathering"; an undated row is backlog that `coming-up` never
+    returns, so the label named something the click did not do. Same rule and
+    same helper as the expanded planner, so the two entry points agree.
+  */
+  const nextPlanDate =
+    rhythmDates(
+      planKind === 'content'
+        ? {
+            meetingDay: null,
+            intervalDays: cadenceIntervalDays(
+              parsePublishCadence(spacePlan.data?.space.publishCadence),
+            ),
+            count: 1,
+          }
+        : { meetingDay: defaultDay, intervalDays: 7, count: 1 },
+    )[0] ?? localTodayIso();
+
   const openEditor = (service: TeachingPlanSermon | null) => {
     markPendingPlannerIntent(
-      service ? { mode: 'edit', serviceId: service.id } : { mode: 'create', date: null },
+      service ? { mode: 'edit', serviceId: service.id } : { mode: 'create', date: nextPlanDate },
     );
     openExpandedSidebar('planner');
   };

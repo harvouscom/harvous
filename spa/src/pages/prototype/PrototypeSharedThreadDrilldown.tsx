@@ -35,6 +35,7 @@ import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
+import PrototypeThreadPlanProgress from './PrototypeThreadPlanProgress';
 import PrototypeSidebarRowMenuPopover, {
   TRIGGER_ANCHOR_MIN_WIDTH,
 } from './PrototypeSidebarRowMenuPopover';
@@ -165,6 +166,18 @@ export default function PrototypeSharedThreadDrilldown({
   /* Present only when the server decided this viewer may see it — a member's
      payload has no pulse at all, so there is nothing here to conditionally hide. */
   const pulse = firstPage?.pulse ?? null;
+  /*
+    The viewer's own half of the same question. Everybody gets these, an owner
+    included: closing the run and finishing it yourself are two facts about two
+    different subjects, and a leader who walked the plan finished it as surely
+    as anyone else did.
+  */
+  const viewerCompletedAt = firstPage?.viewerCompletedAt ?? null;
+  const viewerOpenedNoteIds = useMemo(
+    () => firstPage?.viewerOpenedNoteIds ?? [],
+    [firstPage?.viewerOpenedNoteIds],
+  );
+  const viewerOpened = useMemo(() => new Set(viewerOpenedNoteIds), [viewerOpenedNoteIds]);
   /*
     The server already returned the notes in authored order, so their position
     here IS the plan. Reading the order off the rendered list rather than a
@@ -583,6 +596,20 @@ export default function PrototypeSharedThreadDrilldown({
           </p>
         ) : null}
 
+        {/*
+          The viewer's own standing in the plan. Above the compose actions, and
+          outside the menu that holds "Close this run" — that one is the room's
+          statement about the study, this one is the reader's about themselves,
+          and an owner legitimately makes both.
+        */}
+        <PrototypeThreadPlanProgress
+          threadId={thread.id}
+          isSequence={isSequence}
+          total={sequenceInfo?.total ?? 0}
+          viewerOpenedNoteIds={viewerOpenedNoteIds}
+          viewerCompletedAt={viewerCompletedAt}
+        />
+
         {showComposeActions ? (
           <div className="proto-shared-thread-drilldown__actions">
             <button type="button" className="proto-shared-thread-action" onClick={() => setAddExistingOpen(true)}>
@@ -719,6 +746,13 @@ export default function PrototypeSharedThreadDrilldown({
                             sends this to owner/leader. */}
                         {stepPulse ? (
                           <span className="proto-shared-thread-step__pulse">{stepPulse}</span>
+                        ) : null}
+                        {/* The viewer's own trace on this step, so the meta line
+                            says something to a member as well as to a leader.
+                            A word, not a count: one person opening one step is
+                            not a measurement of anything. */}
+                        {isSequence && viewerOpened.has(note.id) ? (
+                          <span className="proto-shared-thread-step__opened">Opened</span>
                         ) : null}
                       </div>
                     </button>

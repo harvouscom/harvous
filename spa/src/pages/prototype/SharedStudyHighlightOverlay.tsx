@@ -19,7 +19,10 @@ type EditorLike = {
 
 export type SharedHighlightOverlayRect = {
   id: string;
-  /** Every response anchored to this span, newest first — for the dock carousel. */
+  /**
+   * Every response anchored to this span, **oldest first** — for the dock
+   * carousel, which steps through them as the conversation they are.
+   */
   entryIds: string[];
   top: number;
   left: number;
@@ -100,12 +103,27 @@ export default function SharedStudyHighlightOverlay({
         else groups.push([item]);
       }
 
+      /*
+        Oldest first — a group on one span is a conversation, and a conversation
+        reads forward.
+
+        The incoming list is recency-ordered, which is right for a list of
+        *everything on the note* and wrong here: stepping through the dock
+        carousel then walked backwards through an exchange, and the span was
+        painted in the accent of the last reply rather than of the annotation
+        that started it. Sorted rather than reversed, because the two entries
+        can arrive in either order once replies stop being a strict append.
+      */
+      for (const group of groups) {
+        group.sort((a, b) => String(a.entry.createdAt).localeCompare(String(b.entry.createdAt)));
+      }
+
       const containerBox = containerEl.getBoundingClientRect();
       const next: SharedHighlightOverlayRect[] = [];
 
       for (const group of groups) {
-        // Widest range in the group defines the painted span; newest entry (the
-        // list is already recency-ordered) is the click/accent representative.
+        // Widest range in the group defines the painted span; the entry that
+        // started the conversation is the click/accent representative.
         const span = group.reduce(
           (acc, m) => ({ from: Math.min(acc.from, m.range.from), to: Math.max(acc.to, m.range.to) }),
           { from: Infinity, to: -Infinity },

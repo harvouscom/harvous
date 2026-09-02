@@ -47,8 +47,10 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoDatePicker from './ProtoDatePicker';
 import ProtoSelectMenu from './ProtoSelectMenu';
+import PrototypeStarterPreview from './planner/PrototypeStarterPreview';
 import ProtoNoteSearch from './ProtoNoteSearch';
 import { isPresentableServerMessage } from '../../lib/error-copy';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
 
 export interface PrototypeSermonEditorFieldsProps {
   orgId: string | null;
@@ -93,6 +95,12 @@ export interface PrototypeSermonEditorFieldsProps {
    * would let staff set something that is silently discarded.
    */
   planKind?: 'gathering' | 'content';
+  /**
+   * Whether a church stands behind this plan — its own, or a room it hosts.
+   * Gates whether the church's note templates are offered as starters. Defaults
+   * true, which is the church plan's own answer.
+   */
+  hasChurch?: boolean;
   /**
    * The rhythm this room already declares, offered as dates instead of an empty
    * field. `meetingDay` anchors a room that meets; `intervalDays` is 7 for
@@ -156,6 +164,7 @@ export default function PrototypeSermonEditorFields({
   createDefaultDate,
   allowNullDate = false,
   planKind,
+  hasChurch = true,
   trailingFields,
   onDone,
   onNavigateAway,
@@ -185,7 +194,13 @@ export default function PrototypeSermonEditorFields({
   const churchActions = useChurchSermonActions(orgId);
   const spaceActions = useChurchSpaceSermonActions(planSpaceId);
   const actions = planSpaceId ? spaceActions : churchActions;
-  const { data: templates } = useNoteTemplates();
+  /*
+    Scoped to the plan's own room. Called bare, this asked for no space and then
+    read only `templates.org` — so a churchless life group was offered its
+    *owner's church's* templates and none of its own, while `NoteTemplates`
+    had carried a `spaceId` scope the whole time.
+  */
+  const { data: templates } = useNoteTemplates(planSpaceId);
   const datePickerRef = useRef<HTMLDivElement | null>(null);
 
   /*
@@ -351,7 +366,49 @@ export default function PrototypeSermonEditorFields({
     onLayoutChange?.();
   }, [onLayoutChange, serviceDate, title, datePickerOpen, showSeriesList, historyNotes.length]);
 
-  const orgTemplates = templates?.org ?? [];
+  /*
+    The church's templates belong to a plan the church is behind — its own, or a
+    room it hosts. A churchless life group was being offered them purely because
+    its owner happens to be connected to a church, which is nobody's idea of
+    "this room's templates".
+  */
+  const orgTemplates = hasChurch ? (templates?.org ?? []) : [];
+  const spaceTemplates = templates?.space ?? [];
+  /*
+    Space first, then church. Personal templates are deliberately absent: this
+    hands a copy to everyone who writes about the entry, so offering one saved
+    as private would publish it — and leave a co-leader looking at a starter
+    they cannot open, edit or explain.
+  */
+  const starterTemplates = [...spaceTemplates, ...orgTemplates];
+
+  /* Same shape from either scope — a tile does not care which list it came from,
+     only the caption above it does. */
+  const toStarterChoice = (template: (typeof starterTemplates)[number]) => ({
+    id: template.id,
+    name: template.name,
+    content: template.content,
+    iconColor: template.iconColor,
+  });
+  const selectedStarter = starterTemplateId
+    ? (orgTemplates.find((template) => template.id === starterTemplateId) ?? null)
+    : null;
+  /*
+    What the congregation will actually be handed, in the template author's own
+    words where they wrote any.
+
+    `description` first because it is the human explanation the browse sheet
+    already shows; the stripped opening of the template second, because a shape
+    with no description still has a first line, and seeing "Big idea · What
+    stood out" answers "what does this do" better than any sentence about it
+    could. Short — this sits under a select in a 420px rail, not in a preview
+    pane — and quoted by the caller rather than here, so an empty template
+    degrades to a sentence that still reads.
+  */
+  const starterPreview = selectedStarter
+    ? (selectedStarter.description?.trim() ||
+       stripHtmlForListPreview(selectedStarter.content ?? '', 60).trim())
+    : '';
 
   /*
     Which of the pastor's own notes this sermon *is*.
@@ -903,67 +960,131 @@ export default function PrototypeSermonEditorFields({
           the feature invisible to exactly the person who could create one. Tell
           them it exists and where it lives; congregants still see nothing.
         */}
-        {orgTemplates.length === 0 && canManageChurchTemplates && onOpenStarters ? (
+        {starterTemplates.length === 0 ? (
           <>
             {/* Same label as the populated field below — a church with no
                 templates yet should learn what the setting is, not meet a
                 different name for it once they have one. */}
             <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
-              When someone takes notes
+              Their notes start with
             </label>
+            {/*
+              The label opens the sentence and this finishes it, exactly as the
+              tiles do once there is something to choose.
+
+              Shown to *every* plan with no templates, not only a church that can
+              write them. Gating the whole block on `canManageChurchTemplates`
+              meant a churchless room — which cannot have church templates by
+              definition — lost the field entirely and never learned starters
+              existed. The second sentence is the part that varies: only a church
+              gets a button, so everyone else is told where its templates come
+              from instead.
+            */}
             <p className="proto-caption proto-service-editor__starter-hint">
-              They get the passage and a blank page. Save a template to give everyone a
-              shape to write into.
+              The passage and a blank page.{' '}
+              {canManageChurchTemplates && onOpenStarters
+                ? 'Save a template to give everyone a shape to write into.'
+                : 'Templates saved to this space appear here.'}
             </p>
             {/* The app's secondary action pill — same control as Add a sermon and
                 New space. Noticeable without competing with Save, which is the
                 only blue thing in this sheet. */}
-            <button
-              type="button"
-              className="proto-glass-surface proto-glass-surface--control proto-glass-action proto-service-editor__starter-action"
-              onClick={() => {
-                (onNavigateAway ?? onDone)();
-                onOpenStarters();
-              }}
-            >
-              <Icon name="list-check" size={12} aria-hidden />
-              <span className="proto-glass-action__label">Note templates</span>
-            </button>
+            {canManageChurchTemplates && onOpenStarters ? (
+              <button
+                type="button"
+                className="proto-glass-surface proto-glass-surface--control proto-glass-action proto-service-editor__starter-action"
+                onClick={() => {
+                  (onNavigateAway ?? onDone)();
+                  onOpenStarters();
+                }}
+              >
+                <Icon name="list-check" size={12} aria-hidden />
+                <span className="proto-glass-action__label">Note templates</span>
+              </button>
+            ) : null}
           </>
         ) : null}
 
-        {orgTemplates.length > 0 ? (
+        {starterTemplates.length > 0 ? (
           <>
             {/*
-              Named for the outcome, not the mechanism. "Notes start from"
-              described the field's own plumbing and never said whose notes it
-              shapes — a pastor reasonably read it as a setting for their own
-              sermon prep. It is the page the congregation lands on when they
-              tap Take notes on this week, so the label says that and the hint
-              says what the current choice actually gives them.
+              Named for the object, not the trigger.
+
+              This has now been wrong in both directions. "Notes start from"
+              described the plumbing and never said *whose* notes, so a pastor
+              read it as a setting for their own prep. "When someone takes
+              notes" fixed the whose and lost the what: a bare subordinate
+              clause among five one-word labels, naming the moment this applies
+              and never the thing being chosen — and the options then had to
+              carry the verb, which produced "Start from Here we go" for any
+              template whose name is not a noun phrase.
+
+              So: the label is the sentence's opening, the options finish it,
+              and the hint below shows what the congregation actually receives
+              rather than restating who they are.
             */}
             <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
-              <span>When someone takes notes</span>
+              <span>Their notes start with</span>
               <span className="proto-service-editor__optional">optional</span>
             </label>
-            <ProtoSelectMenu
-              label="What a congregant's notes on this week start with"
+            {/*
+              Tiles, not a select. A name in a dropdown could not answer the one
+              question the field is asked — what does picking this do — and the
+              app already had the answer's shape in two places: the appearance
+              picker draws the theme it is offering, and the browse sheet gives
+              every template a colour of its own.
+
+              The bare names stay as the labels underneath. The verb belongs to
+              the field's label, and gluing one on made each option read as a
+              fragment of a sentence the template's author never wrote.
+            */}
+            <PrototypeStarterPreview
+              label={`What a congregant's notes on this ${noun} start with`}
               value={starterTemplateId}
+              hasPassage={Boolean(reference.trim())}
               disabled={actions.isPending}
               onChange={setStarterTemplateId}
-              options={[
-                { value: '', label: 'Start with just the passage' },
-                ...orgTemplates.map((template) => ({
-                  value: template.id,
-                  label: `Start from ${template.name}`,
-                })),
+              groups={[
+                /* No caption on the head: "Just the passage" is not a scope, and
+                   naming it would invent a category to balance the others. */
+                { label: null, choices: [{ id: '', name: 'Just the passage' }] },
+                ...(spaceTemplates.length > 0
+                  ? [{ label: 'This space', choices: spaceTemplates.map(toStarterChoice) }]
+                  : []),
+                ...(orgTemplates.length > 0
+                  ? [{ label: 'From your church', choices: orgTemplates.map(toStarterChoice) }]
+                  : []),
               ]}
             />
+            {/*
+              What they get, not who they are. The old hint spent both its
+              clauses on the audience — which the label already names — and left
+              "this template" to do all the explaining, so the one question the
+              field could not answer was what picking it would actually do.
+
+              A template's own description is the author's explanation of it, and
+              is what the browse sheet shows; falling back to the opening of the
+              template itself is the next most honest thing, because that is
+              literally the page the congregation lands on.
+            */}
             <p className="proto-caption proto-service-editor__starter-hint">
-              {starterTemplateId
-                ? 'Everyone who takes notes on this week gets this template to write into.'
-                : 'Everyone who takes notes on this week gets the passage and a blank page.'}
+              {selectedStarter
+                ? `Everyone who writes about this ${noun} starts from this template, under the passage.`
+                : `Everyone who writes about this ${noun} gets the passage and a blank page.`}
             </p>
+            {/*
+              The preview is its own line, not a clause inside the sentence
+              above. Both things it can hold are free text an author wrote for
+              some other purpose — a description is a sentence about the
+              template, a content preview is the template's own first words —
+              and neither slots into "…then X to write into" without breaking:
+              the first draft of this read "then Lets see this to write into."
+            */}
+            {starterPreview ? (
+              <p className="proto-caption proto-service-editor__starter-preview">
+                {starterPreview}
+              </p>
+            ) : null}
           </>
         ) : null}
 

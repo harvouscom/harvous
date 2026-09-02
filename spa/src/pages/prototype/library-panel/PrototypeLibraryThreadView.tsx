@@ -30,6 +30,7 @@ import {
   ProtoThreadTrailSortableRow,
 } from '../ProtoThreadTrailSortable';
 import { PrototypeSidebarNoteRow } from '../sidebar-rows';
+import PrototypeThreadPlanProgress from '../PrototypeThreadPlanProgress';
 import { usePrototypeStudyThread } from '../../../hooks/queries/usePrototypeStudyThread';
 import { useThreadNotes } from '../../../hooks/queries/useThreadNotes';
 import { useStudyThreadMemberDragReorder } from '../../../hooks/useStudyThreadMemberDragReorder';
@@ -65,15 +66,23 @@ export default function PrototypeLibraryThreadView({ threadId }: { threadId: str
  */
 function LibraryThreadTrail({
   dragging,
+  header,
   children,
 }: {
   dragging: boolean;
+  /**
+   * Anything that belongs to the Thread as a whole rather than to one of its
+   * rows — today the plan-progress line. Outside the card, because the card is
+   * the trail's spine and a row that is not a step must not sit on it.
+   */
+  header?: ReactNode;
   children: ReactNode;
 }) {
   return (
     /* Same grouped-row card the note-page trail wears, so a Thread reads the same
        whichever way it was opened. */
     <div className="proto-thread-trail proto-thread-trail--carded">
+      {header}
       <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-thread-trail__card">
         <ul
           className={`proto-shared-thread-note-list proto-thread-trail__spine proto-thread-trail__spine--fill${
@@ -216,6 +225,10 @@ function SharedThreadMembers({ threadId, data }: { threadId: string; data: Libra
     [notesQuery.data?.pages],
   );
 
+  /* Mode, step count and the viewer's own progress describe the Thread, not the
+     page of it in hand — the same reading the drilldown takes. */
+  const firstPage = notesQuery.data?.pages?.[0];
+
   /*
     Reordering is not the same act as making a study plan: `orderedNoteIds` is accepted
     on its own by the sequence endpoint, which writes the order and leaves `mode` alone.
@@ -326,7 +339,28 @@ function SharedThreadMembers({ threadId, data }: { threadId: string; data: Libra
   const showDragHandle = canReorder && !notesQuery.hasNextPage && displayNotes.length > 1;
 
   return (
-    <LibraryThreadTrail dragging={Boolean(draggingId)}>
+    <LibraryThreadTrail
+      dragging={Boolean(draggingId)}
+      /*
+        Where the viewer stands in this plan, and the one control that changes
+        it. The exception this view already makes for order applies again: this
+        is a fact about reading the Thread, not administration of it, so it is
+        not the set-current / mode-toggle / delete surface the panel withholds.
+
+        And this is the only place a **personal** reading plan is ever drawn —
+        the drilldown only opens from a space hub — so without it a plan you
+        finished could never leave Home, which drops completed plans.
+      */
+      header={
+        <PrototypeThreadPlanProgress
+          threadId={threadId}
+          isSequence={firstPage?.mode === 'sequence'}
+          total={firstPage?.sequence?.total ?? 0}
+          viewerOpenedNoteIds={firstPage?.viewerOpenedNoteIds ?? []}
+          viewerCompletedAt={firstPage?.viewerCompletedAt ?? null}
+        />
+      }
+    >
       <ProtoThreadTrailSortableList
         items={displayOrderedIds}
         onDragStart={setDraggingId}

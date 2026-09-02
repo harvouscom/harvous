@@ -70,6 +70,45 @@
   overflow: visible;
 }
 
+/*
+  Reply — on someone else's annotation, and the one control a read-only card
+  offers. Borrows `__respond-trigger`'s weight rather than inventing a second
+  quiet-action look: they sit in the same slot at the foot of the card and only
+  one of them is ever present.
+*/
+.highlight-dock-web__reply {
+  margin-top: 4px;
+}
+
+.highlight-dock-web__reply-trigger {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 4px 0 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: var(--pds-font-body, inherit) !important;
+  font-size: 11px;
+  font-weight: 500 !important;
+  color: var(--pds-text-tertiary, rgba(29, 29, 31, 0.4)) !important;
+}
+
+.highlight-dock-web__reply-trigger span,
+.highlight-dock-web__reply-trigger * {
+  font-family: var(--pds-font-body, inherit) !important;
+  font-weight: 500 !important;
+  color: var(--pds-text-tertiary, rgba(29, 29, 31, 0.4)) !important;
+}
+
+.highlight-dock-web__reply-trigger:hover,
+.highlight-dock-web__reply-trigger:hover span,
+.highlight-dock-web__reply-trigger:hover * {
+  color: var(--pds-text-secondary, rgba(29, 29, 31, 0.5)) !important;
+}
+
 .highlight-dock-web__respond-trigger {
   display: flex;
   flex-direction: row;
