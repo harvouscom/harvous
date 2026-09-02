@@ -33,8 +33,18 @@ CAA: **none** — nothing restricts which CA may issue, so Cloudflare certs are 
 | `@` | TXT | `hey-verification:RyipH6toMcmCKjBzte1wkdd8` |
 | `_dmarc` | TXT | `v=DMARC1; p=none;` |
 
-Mail is **HEY for Work**. No `hey1`/`hey2` DKIM selectors exist — HEY signs via the SPF
-include. If MX or that SPF record fails to import, inbound mail dies with no error anywhere.
+| `heymail._domainkey` | CNAME | `heymail._domainkey.hey.com` | **CORRECTED 2026-09-02** |
+
+Mail is **HEY for Work**. If MX or the SPF record fails to import, inbound mail dies with no
+error anywhere; if the DKIM CNAME is missed, outbound mail fails DKIM and quietly loses
+deliverability (DMARC is `p=none`, so nothing bounces — it just degrades).
+
+> **Correction.** This file originally claimed "No `hey1`/`hey2` DKIM selectors exist — HEY
+> signs via the SPF include." That was wrong, and wrong in an instructive way: `dig` was
+> probed for the selector names I *guessed*, and a conclusion was drawn from their absence.
+> HEY's selector is **`heymail`**. The record was found only by reading Hover's own panel —
+> the exact fallback this file's Limitation section names. Absence of a guessed record is
+> not evidence that no record exists.
 
 ## Other TXT at apex (domain verifications — losing one silently un-verifies a service)
 
@@ -53,8 +63,14 @@ blast radius. Leave both DNS-only.
 
 ## Confirmed absent
 
-`smtp`, `ftp`, `help`, `docs`, `blog`, `api`, `cdn`, `hey1._domainkey`, `hey2._domainkey`,
-and any CAA record.
+`smtp`, `ftp`, `help`, `docs`, `blog`, `api`, `cdn`, and any CAA record.
+
+`hey1._domainkey` / `hey2._domainkey` are also absent — but see the correction above: their
+absence meant the selector was named something else, not that DKIM was unused.
+
+**Also present on Hover and missed by this capture:** a TXT record whose name Hover's UI
+truncates to `subdomain-…`, value `1a6b81fc06c1398b663610a095caaa80`. Purpose unidentified;
+resolve the full name from Hover's edit view before relying on this list.
 
 ## Limitation — read this before trusting the table
 
