@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: STAGE 4 COMPLETE — app.harvous.com and new.harvous.com serve the Worker; authenticated smoke test passed. Next: freeze Netlify auto-publish, soak one week, then cleanup (CSRF first).** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 4 COMPLETE — all three hosts (app, new, status) serve the Worker; authenticated smoke test passed; Netlify serves nothing. Next: freeze Netlify auto-publish, soak one week, then cleanup (CSRF first).** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -722,3 +722,25 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
 
 
 
+
+- 2026-09-02 (**status.harvous.com attached — Netlify now serves nothing**) — All three hosts
+  are on the Worker. `/api/status/public` proxies to Fly correctly, so the status page's data
+  path is intact.
+
+  **The host gate is now proven live, on the host that motivated it:**
+
+  | path | `app.harvous.com` (dedicated) | `status.harvous.com` (not) |
+  |---|---|---|
+  | `/prototype/dashboard` | **302** → `/dashboard` | **200** — correctly not stripped |
+  | `/thread_abc123` | **301** → `/thread/abc123` | **301** → `/thread/abc123` |
+
+  Without the gate, `/prototype` — a live route on the status host — would have been stripped
+  and broken it the moment the domain attached.
+
+  **A false alarm worth recording, because this file already warned about it.** Right after
+  the attach, a plain `curl https://app.harvous.com/thread_abc123` returned 200 instead of 301
+  and looked like a regression. The response carried `server: Netlify`: this machine's
+  resolver still held the pre-cutover CNAME, and the checks that had passed minutes earlier
+  used `--resolve` while these did not. The stale-DNS caveat in the stage-4 entry above was
+  written and then walked into within the hour. **Never verify a cutover with a plain curl
+  from the machine that has been hitting the old host all day** — pin the IP, every time.
