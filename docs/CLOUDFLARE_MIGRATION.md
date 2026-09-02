@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: STAGE 2 COMPLETE — CI deploys a byte-identical artifact, 20/20 parity, no DNS touched. Next: staging auth test, then stage 3.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 3 COMPLETE — zone on Cloudflare, no app traffic moved. Next: attach custom domains (stage 4), staging first.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -629,6 +629,40 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
   - The live-key sign-in necessarily happens at **stage 4, immediately after attaching
     app.harvous.com**, with the DNS rollback standing by. Treat it as the first action after
     attach, not a later step.
+
+- 2026-09-02 (**stage 3 complete — zone is on Cloudflare**) — Nameservers moved from
+  `ns1/ns2.hover.com` to `lennox.ns.cloudflare.com` / `sara.ns.cloudflare.com`. Delegation
+  propagated within minutes; Google, Cloudflare and Quad9 resolvers all see the new pair.
+  Every record verified through 1.1.1.1 afterwards, and the live surfaces are unchanged:
+  `app.harvous.com` 200 (still Netlify), `/api/health` 200 (still proxying to Fly),
+  `clerk.harvous.com` 200, `www` 301. **No app traffic moved.**
+
+  **Cloudflare's zone scan missed SEVEN records.** Switching on its import alone would have
+  broken authentication and email:
+
+  - `clerk`, `accounts` — auth. `clerk.harvous.com` failing to resolve takes down sign-in
+    for every user, on Netlify, instantly.
+  - `clkmail`, `clk._domainkey`, `clk2._domainkey` — Clerk transactional mail + DKIM.
+  - `heymail._domainkey` — **HEY's DKIM.** Outbound mail from @harvous.com would have failed
+    DKIM; with DMARC at `p=none` nothing bounces, deliverability just quietly degrades.
+  - `subdomain-owner-verification` TXT — purpose unidentified, preserved anyway.
+
+  It also defaulted **six** records to Proxied that had to be forced back to DNS-only: the
+  apex A, `www`, `app`, `new`, `status`, and `mail` — the last of which would have put
+  Hover's IMAP/SMTP behind an HTTP proxy.
+
+  **The method lesson, worth more than the record list.** The `dig` snapshot committed the
+  day before asserted "no hey1/hey2 DKIM selectors exist — HEY signs via the SPF include."
+  That was wrong: the selector is `heymail`, and the conclusion came from probing *guessed*
+  names and treating their absence as evidence. The first verification pass then reported
+  "16 of 16 match, zero differences" — true, but comparing Cloudflare against the same
+  incomplete list, so both sides agreed while both were missing the same records. **The
+  registrar's own panel caught it.** A zone diff is only as good as its more complete side;
+  compare against the registrar, never against your own capture.
+
+  Final gate before the switch: 18 records diffed against **both** Cloudflare nameservers,
+  0 failing.
+
 
 
 
