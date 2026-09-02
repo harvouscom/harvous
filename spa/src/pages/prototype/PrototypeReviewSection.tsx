@@ -1,5 +1,5 @@
 /**
- * The Study Inbox — at most three things worth returning to, on Activity.
+ * Review — at most three things worth returning to, on Activity.
  *
  * A calm curated stack, not a task manager. The cap is three (`REVIEW_INBOX_MAX_ROWS`), the
  * server never sends a count of what it is not showing, and there is no badge anywhere: the
@@ -17,21 +17,18 @@
  *   company than an empty state.
  * - **Plus with something due** gets the rows, each with an overflow, and a way to see the rest.
  *
- * A cold-start reader with study but no queue gets the seed offer instead: three notes chosen
- * by meaning and fade rather than recency, so the first questions are ones they might actually
- * have forgotten.
+ * Nobody has to fill it. The engine reads the reader's own Study Bible layer and adds a few
+ * a day — a verse they highlighted, a link they drew, a Thread that has grown — and each row
+ * says where it came from, so the section reads as their study coming back rather than as work
+ * assigned to them.
  */
 import { useNavigate } from '@tanstack/react-router';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
-import PrototypeStudyInboxRow, { reviewRowActions } from './PrototypeStudyInboxRow';
+import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
 import { useReviewInbox } from '../../hooks/queries/useReview';
 import { useChallenges } from '../../hooks/queries/useChallenges';
-import {
-  useDeferReview,
-  useSeedReviews,
-  useSetReviewStatus,
-} from '../../hooks/mutations/useReviewMutations';
+import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useProtoShell } from '../../layouts/proto-shell-context';
@@ -39,10 +36,8 @@ import {
   PLUS_BADGE_COPY,
   REVIEW_PLUS_META,
   REVIEW_PLUS_TITLE,
-  REVIEW_SEED_META,
-  REVIEW_SEED_TITLE,
   REVIEW_SEE_ALL_COPY,
-  STUDY_INBOX_TITLE,
+  REVIEW_SECTION_TITLE,
 } from './proto-review-copy';
 import { prototypeChallengeRouteTo, prototypeReviewRouteTo } from '@/lib/prototype-path';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
@@ -61,7 +56,7 @@ function rowSubtitle(item: { prompt: string; noteTitle: string | null; scripture
   return item.prompt.includes(subject) ? null : subject;
 }
 
-export default function PrototypeStudyInbox() {
+export default function PrototypeReviewSection() {
   const navigate = useNavigate();
   const { openReviewDock } = useProtoShell();
   const { isGuest } = useHarvousIdentity();
@@ -73,7 +68,6 @@ export default function PrototypeStudyInbox() {
   const challengesQuery = useChallenges('active');
   const defer = useDeferReview();
   const setStatus = useSetReviewStatus();
-  const seed = useSeedReviews();
 
   // A guest has nothing to upgrade and no queue to hold. Nothing at all.
   if (isGuest) return null;
@@ -85,14 +79,14 @@ export default function PrototypeStudyInbox() {
     if (!review.ready) return null;
     if (plusPromptDismissed) return null;
     return (
-      <PrototypeHomeSection title={STUDY_INBOX_TITLE}>
+      <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
         <PrototypeHomeRow
           icon="arrows-rotate"
           title={REVIEW_PLUS_TITLE}
           meta={[REVIEW_PLUS_META]}
           onClick={() => void navigate({ to: '/upgrade' })}
           trailing={
-            <span className="proto-study-inbox__plus">
+            <span className="proto-review-section__plus">
               <span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>
               <button
                 type="button"
@@ -114,7 +108,6 @@ export default function PrototypeStudyInbox() {
 
   const items = inboxQuery.data?.items ?? [];
   const activeChallenges = challengesQuery.data?.challenges ?? [];
-  const canSeed = Boolean(inboxQuery.data?.canSeed);
 
   /*
    * Reviews first, then one challenge, and the cap applies to the whole stack.
@@ -127,21 +120,24 @@ export default function PrototypeStudyInbox() {
   const reviewRowCount = challengeRow ? Math.max(0, 3 - 1) : 3;
   const reviewRows = items.slice(0, reviewRowCount);
 
-  const hasRows = reviewRows.length > 0 || Boolean(challengeRow) || canSeed;
+  const hasRows = reviewRows.length > 0 || Boolean(challengeRow);
   if (!hasRows) return null;
 
   // The question opens where you are, not on a page of its own — see PrototypeReviewDock.
   const openInDock = (itemId: string) => openReviewDock(itemId);
 
   return (
-    <PrototypeHomeSection title={STUDY_INBOX_TITLE}>
+    <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
       {reviewRows.map((item) => (
-        <PrototypeStudyInboxRow
+        <PrototypeReviewRow
           key={item.id}
           icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
           title={item.prompt}
           meta={[
             rowSubtitle(item),
+            // Where it came from — "Highlighted while reading John 15". Null on rows the
+            // reader added themselves, who do not need telling.
+            item.sourceLabel,
             // The recall state as a word, never a percentage. "New" says nothing useful on a
             // row that is by definition being asked for the first time.
             item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
@@ -170,16 +166,6 @@ export default function PrototypeStudyInbox() {
               params: { challengeId: challengeRow.id },
             })
           }
-        />
-      ) : null}
-
-      {canSeed ? (
-        <PrototypeHomeRow
-          icon="arrows-rotate"
-          title={REVIEW_SEED_TITLE}
-          meta={[REVIEW_SEED_META]}
-          disabled={seed.isPending}
-          onClick={() => seed.mutate()}
         />
       ) : null}
 

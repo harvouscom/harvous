@@ -1,7 +1,7 @@
 /**
  * `/review` — everything in Review, and the way into a sitting.
  *
- * The counterpart to the Study Inbox's three rows: this is where the rest lives, and where a
+ * The counterpart to the Review section's three rows: this is where the rest lives, and where a
  * reader manages what they have added. Deliberately a page rather than a panel, because
  * managing a queue is a different posture from being offered three things on the way past.
  *
@@ -16,14 +16,10 @@ import Icon from '@/components/react/Icon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
-import PrototypeStudyInboxRow, { reviewRowActions } from './PrototypeStudyInboxRow';
+import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
 import { useReviewItems, type ReviewItemView } from '../../hooks/queries/useReview';
 import { useChallenges } from '../../hooks/queries/useChallenges';
-import {
-  useDeferReview,
-  useSeedReviews,
-  useSetReviewStatus,
-} from '../../hooks/mutations/useReviewMutations';
+import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useProtoShell } from '../../layouts/proto-shell-context';
@@ -33,8 +29,6 @@ import {
   REVIEW_PLUS_META,
   REVIEW_PLUS_TITLE,
   REVIEW_RESUME_COPY,
-  REVIEW_SEED_META,
-  REVIEW_SEED_TITLE,
 } from './proto-review-copy';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
 import { prototypeChallengeRouteTo, prototypeHomeRouteTo } from '@/lib/prototype-path';
@@ -42,8 +36,9 @@ import { prototypeChallengeRouteTo, prototypeHomeRouteTo } from '@/lib/prototype
 function rowMeta(item: ReviewItemView): (string | null)[] {
   const subject = item.noteTitle ?? item.scriptureReference;
   return [
-    // Omitted when the question already names it — see PrototypeStudyInbox's `rowSubtitle`.
+    // Omitted when the question already names it — see PrototypeReviewSection's `rowSubtitle`.
     subject && !item.prompt.includes(subject) ? subject : null,
+    item.sourceLabel,
     item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
   ];
 }
@@ -57,7 +52,6 @@ export default function PrototypeReviewPage() {
   const challengesQuery = useChallenges('active');
   const defer = useDeferReview();
   const setStatus = useSetReviewStatus();
-  const seed = useSeedReviews();
 
   const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
   const now = Date.now();
@@ -135,25 +129,15 @@ export default function PrototypeReviewPage() {
         </header>
 
         <div className="proto-feed-sheet__body">
-          {nothingAtAll ? (
-            <>
-              <p className="proto-feed-sheet__rest">{REVIEW_EMPTY_COPY}</p>
-              <PrototypeHomeSection title="Start">
-                <PrototypeHomeRow
-                  icon="arrows-rotate"
-                  title={REVIEW_SEED_TITLE}
-                  meta={[REVIEW_SEED_META]}
-                  disabled={seed.isPending}
-                  onClick={() => seed.mutate()}
-                />
-              </PrototypeHomeSection>
-            </>
-          ) : null}
+          {/* No offer to "start reviewing": the engine fills the queue from what the reader
+              has already studied, so an empty page means it found nothing quiet enough to ask
+              about yet, not that they forgot to switch something on. */}
+          {nothingAtAll ? <p className="proto-feed-sheet__rest">{REVIEW_EMPTY_COPY}</p> : null}
 
           {waiting.length > 0 ? (
             <PrototypeHomeSection title="Waiting">
               {waiting.map((item) => (
-                <PrototypeStudyInboxRow
+                <PrototypeReviewRow
                   key={item.id}
                   icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
                   title={item.prompt}
@@ -193,7 +177,7 @@ export default function PrototypeReviewPage() {
           {scheduled.length > 0 ? (
             <PrototypeHomeSection title="Coming back later">
               {scheduled.map((item) => (
-                <PrototypeStudyInboxRow
+                <PrototypeReviewRow
                   key={item.id}
                   icon={item.kind === 'verse' ? 'book-open' : 'arrows-rotate'}
                   title={item.noteTitle ?? item.scriptureReference ?? 'A note'}

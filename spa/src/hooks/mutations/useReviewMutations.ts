@@ -109,13 +109,3 @@ export function useSetReviewStatus() {
     },
   });
 }
-
-export function useSeedReviews() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.post<{ items: ReviewItemView[] }>('/api/review/seed', {}),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
-    },
-  });
-}

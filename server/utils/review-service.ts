@@ -26,7 +26,6 @@ import {
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
 import {
-  REVIEW_SEED_MAX,
   type ReviewEventAction,
   type ReviewItemKind,
   type ReviewItemOrigin,
@@ -41,7 +40,6 @@ import {
 } from '@/utils/review-scheduling';
 import { reviewPromptFor, VERSE_LADDER_MAX_STEP, VERSE_REBUILD_STEP } from '@/utils/review-prompts';
 import { buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
-import { rankSeedCandidates } from '@/utils/review-seed-selection';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { collectStudyThreadGraph } from './study-thread-graph';
 import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
@@ -79,6 +77,8 @@ export interface ReviewItemRow {
   ladderStep: number;
   origin: string;
   challengeId: string | null;
+  sourceLabel: string | null;
+  sourceAt: Date | null;
   createdAt: Date;
   updatedAt: Date | null;
 }
@@ -101,6 +101,9 @@ export interface ReviewItemView {
   scriptureReference: string | null;
   noteId: string | null;
   challengeId: string | null;
+  /** Why this row is here, in the reader's words. Null on items they added themselves. */
+  sourceLabel: string | null;
+  sourceAt: string | null;
 }
 
 function displayTitle(title: string | null | undefined): string | null {
@@ -195,6 +198,8 @@ export async function buildReviewItemViews(
       scriptureReference: row.scriptureReference,
       noteId: row.noteId,
       challengeId: row.challengeId,
+      sourceLabel: row.sourceLabel,
+      sourceAt: row.sourceAt?.toISOString() ?? null,
     });
   }
   return views;
@@ -267,6 +272,9 @@ export interface CreateReviewItemInput {
   translation?: string | null;
   origin?: ReviewItemOrigin;
   challengeId?: string | null;
+  /** Engine only: why this is here, in the reader's words. See study-bible-source-copy.ts. */
+  sourceLabel?: string | null;
+  sourceAt?: Date | null;
 }
 
 export function reviewSourceKey(input: {
@@ -362,10 +370,19 @@ export async function createReviewItem(
     if (!edge) return { error: 'These notes are not connected' };
   }
 
-  if (input.kind === 'highlight' && input.studyThreadEntryId) {
+  // A verse item made from a highlight inherits that highlight's reference and translation:
+  // without it the row has no subject at all, since `verse` is keyed by reference.
+  let scriptureReference = input.scriptureReference?.trim() || null;
+  let translation = input.translation?.trim() || null;
+
+  if ((input.kind === 'highlight' || input.kind === 'verse') && input.studyThreadEntryId) {
     const entry = first(
       await db
-        .select({ id: StudyThreadEntries.id, reference: StudyThreadEntries.scriptureReference })
+        .select({
+          id: StudyThreadEntries.id,
+          reference: StudyThreadEntries.scriptureReference,
+          translation: StudyThreadEntries.scripturePassageTranslation,
+        })
         .from(StudyThreadEntries)
         .where(
           and(
@@ -376,9 +393,11 @@ export async function createReviewItem(
         .limit(1),
     );
     if (!entry) return { error: 'Highlight not found' };
+    scriptureReference = scriptureReference ?? entry.reference ?? null;
+    translation = translation ?? entry.translation ?? null;
   }
 
-  const sourceKey = reviewSourceKey({ ...input, noteId, secondaryNoteId });
+  const sourceKey = reviewSourceKey({ ...input, noteId, secondaryNoteId, scriptureReference });
   if (!sourceKey) return { error: 'Not enough to review' };
 
   const existing = first(
@@ -415,8 +434,8 @@ export async function createReviewItem(
         noteId,
         secondaryNoteId,
         studyThreadEntryId: input.studyThreadEntryId?.trim() || null,
-        scriptureReference: input.scriptureReference?.trim() || null,
-        translation: input.translation?.trim() || null,
+        scriptureReference,
+        translation,
         status: 'active',
         recallState: 'new',
         intervalDays: 1,
@@ -426,6 +445,8 @@ export async function createReviewItem(
         ladderStep: 0,
         origin: input.origin ?? 'user',
         challengeId: input.challengeId ?? null,
+        sourceLabel: input.sourceLabel?.trim() || null,
+        sourceAt: input.sourceAt ?? null,
         createdAt: now,
         updatedAt: now,
       })
@@ -717,84 +738,6 @@ export async function buildReviewReveal(
   }
 
   return payload;
-}
-
-/**
- * The cold-start seed: three notes worth returning to, chosen rather than guessed.
- *
- * Ranking lives in `review-seed-selection.ts`; this is the query that feeds it. The join is
- * on NoteFingerprints because `meaningWeight` is the only honest signal for "worth reviewing"
- * that does not require asking the reader. Without fingerprints there is no fallback that is
- * better than nothing here — a database with no fingerprints is one where the memory layer
- * has not run, and seeding on recency alone would pick the notes the reader still remembers.
- */
-export async function seedReviewItems(
-  userId: string,
-  now: Date = new Date(),
-): Promise<ReviewItemRow[]> {
-  const rows = await db
-    .select({
-      noteId: Notes.id,
-      meaningWeight: NoteFingerprints.meaningWeight,
-      updatedAt: Notes.updatedAt,
-      lastVisited: Notes.lastVisited,
-      lastRecallEngagedAt: NoteFingerprints.lastRecallEngagedAt,
-    })
-    .from(Notes)
-    .innerJoin(NoteFingerprints, eq(NoteFingerprints.noteId, Notes.id))
-    .where(and(eq(Notes.userId, userId), countableUserNotesWhere()))
-    .orderBy(desc(NoteFingerprints.meaningWeight))
-    .limit(40);
-
-  if (rows.length === 0) return [];
-
-  const existing = await db
-    .select({ noteId: ReviewItems.noteId })
-    .from(ReviewItems)
-    .where(eq(ReviewItems.userId, userId));
-  const taken = new Set(existing.map((r) => r.noteId).filter(Boolean) as string[]);
-
-  const ranked = rankSeedCandidates(
-    rows
-      .filter((r) => !taken.has(r.noteId))
-      .map((r) => ({
-        noteId: r.noteId,
-        meaningWeight: r.meaningWeight ?? 0,
-        lastTouchedAt: latestDate([r.lastVisited, r.updatedAt, r.lastRecallEngagedAt]),
-      })),
-    now,
-    REVIEW_SEED_MAX,
-  );
-
-  const created: ReviewItemRow[] = [];
-  for (const candidate of ranked) {
-    const result = await createReviewItem(
-      userId,
-      { kind: 'note', noteId: candidate.noteId, origin: 'seed' },
-      now,
-    );
-    if ('item' in result && result.created) created.push(result.item);
-  }
-  return created;
-}
-
-function latestDate(dates: (Date | null | undefined)[]): Date | null {
-  let latest: Date | null = null;
-  for (const d of dates) {
-    if (!d) continue;
-    if (!latest || d.getTime() > latest.getTime()) latest = d;
-  }
-  return latest;
-}
-
-/** Whether the seed offer is worth showing at all. */
-export async function countCountableNotes(userId: string): Promise<number> {
-  const rows = await db
-    .select({ id: Notes.id })
-    .from(Notes)
-    .where(and(eq(Notes.userId, userId), countableUserNotesWhere()))
-    .limit(50);
-  return rows.length;
 }
 
 /**

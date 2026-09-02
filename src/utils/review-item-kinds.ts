@@ -95,8 +95,14 @@ export const RECALL_STATE_LABELS: Record<RecallState, string> = {
   durable: 'Holding',
 };
 
-/** Where a review item came from, so a seeded queue stays legible as such. */
-export const REVIEW_ITEM_ORIGINS = ['user', 'seed', 'challenge'] as const;
+/**
+ * Where a review item came from, so the queue stays legible as such.
+ *
+ * `engine` is the reader's own Study Bible layer noticing something worth returning to —
+ * a verse they highlighted, a link they drew, a Thread that has grown. `seed` is the retired
+ * cold-start batch, kept in the union because rows written by it are still in the database.
+ */
+export const REVIEW_ITEM_ORIGINS = ['user', 'seed', 'challenge', 'engine'] as const;
 
 export type ReviewItemOrigin = (typeof REVIEW_ITEM_ORIGINS)[number];
 
@@ -184,8 +190,12 @@ export const REVIEW_INBOX_MAX_ROWS = 3;
 /** One sitting, not a queue to clear. Deliberately below what a keen reader could manage. */
 export const REVIEW_SESSION_CAP = 10;
 
-/** How many items a cold-start seed creates. Enough to show the loop, few enough to finish. */
-export const REVIEW_SEED_MAX = 3;
-
-/** Below this the seed offer stays hidden — there is nothing worth returning to yet. */
-export const REVIEW_SEED_MIN_NOTES = 5;
+/**
+ * How many items the engine may add in a rolling day. Three, for the same reason the inbox
+ * shows three: a queue that grows faster than a person can answer it becomes a debt.
+ *
+ * Rolling 24 hours rather than a calendar day, because the server has no timezone for the
+ * reader — the study feed route refuses to guess one, and this follows it.
+ */
+export const REVIEW_ENGINE_DAILY_CAP = 3;
+export const REVIEW_ENGINE_WINDOW_HOURS = 24;

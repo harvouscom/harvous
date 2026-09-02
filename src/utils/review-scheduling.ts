@@ -16,6 +16,7 @@
 
 import {
   type RecallState,
+  type ReviewItemOrigin,
   type ReviewOutcome,
 } from './review-item-kinds';
 
@@ -170,14 +171,15 @@ export function deferReview(
  * asking immediately would be asking about something still on screen — a trick question, and
  * the fastest way to teach someone the feature is not serious.
  *
- * An item the app **seeded** is due at once. The reader tapped "Start reviewing" to try
- * Review, and the seed deliberately picks notes untouched for at least two weeks
- * (`SEED_MIN_AGE_DAYS`), so there is nothing on screen to read the answer off. Making them
- * wait a day to see the thing they just opted into meant tapping the offer and watching the
- * whole section vanish, which is what it did in the first preview.
+ * An item the **engine** added is due at once, and so is a legacy seeded one. The reader did
+ * not ask for it, so there is nothing on screen to read the answer off; and a section that
+ * fills itself but shows nothing until tomorrow reads as a feature that does not work, which
+ * is exactly what the seed did in the first preview.
  */
-export function firstDueAt(now: Date = new Date(), origin: 'user' | 'seed' | 'challenge' = 'user'): Date {
-  return origin === 'seed' ? new Date(now.getTime()) : addDays(now, 1);
+export function firstDueAt(now: Date = new Date(), origin: ReviewItemOrigin = 'user'): Date {
+  // Seeded and engine-added items are due immediately: the reader did not ask for them, so a
+  // section that stays empty until tomorrow reads as a feature that does not work.
+  return origin === 'seed' || origin === 'engine' ? new Date(now.getTime()) : addDays(now, 1);
 }
 
 /** Human phrasing for the next return, for the one line the session shows after an answer. */

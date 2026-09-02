@@ -21703,7 +21703,7 @@ button.proto-feed-sheet__stat:hover {
 
 /* ─── Review and Challenges ──────────────────────────────────────────────────
  *
- * Two surfaces and one row, all wearing chrome that already exists. The Study Inbox is a
+ * Two surfaces and one row, all wearing chrome that already exists. The Review section is a
  * `.proto-home-section` of `PrototypeHomeRow`s, so it needs no styling at all beyond its
  * overflow anchor; the session and challenge pages sit inside `.proto-feed-sheet`, the same
  * paper Activity's day sheets use. What is below is only what those two pages add: a prompt
@@ -21712,14 +21712,14 @@ button.proto-feed-sheet__stat:hover {
 
 /* Anchors the portaled overflow, exactly as `.proto-recall-row__more` does for the shelf.
    The menu itself is portaled to the body, so this element only ever holds the trigger. */
-.proto-study-inbox-row__more {
+.proto-review-row__more {
   position: relative;
   display: inline-flex;
   align-items: center;
 }
 
 /* The Plus badge and its dismiss, side by side in a row's trailing slot. */
-.proto-study-inbox__plus {
+.proto-review-section__plus {
   display: inline-flex;
   align-items: center;
   gap: var(--pds-space-2);

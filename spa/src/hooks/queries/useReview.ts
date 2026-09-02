@@ -35,13 +35,15 @@ export interface ReviewItemView {
   scriptureReference: string | null;
   noteId: string | null;
   challengeId: string | null;
+  /** Why this row is here, in the reader's words. Null on items they added themselves. */
+  sourceLabel: string | null;
+  sourceAt: string | null;
 }
 
 export interface ReviewInboxResponse {
   items: ReviewItemView[];
   /** A boolean, never a count — see the route's docblock. */
   hasMore: boolean;
-  canSeed: boolean;
 }
 
 export interface ReviewRevealResponse {

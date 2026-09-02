@@ -61,7 +61,7 @@ export default function PrototypeStrengthenThreadRow() {
   }, [threadsQuery.data, activeQuery.data, pausedQuery.data]);
 
   // No offer to a guest, to a free account, or before the answer is known — an upsell for
-  // Challenges already has its one row in the Study Inbox above, and two would be two.
+  // Challenges already has its one row in the Review section above, and two would be two.
   if (isGuest || !ready || !has || !candidate) return null;
 
   const title = candidate.title?.trim() || candidate.suggestedTitle?.trim() || 'this Thread';

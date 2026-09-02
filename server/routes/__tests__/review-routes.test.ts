@@ -49,6 +49,24 @@ describe('every Review route is gated', () => {
   });
 });
 
+describe('the queue fills itself from the reader\'s own study', () => {
+  it('tops up before listing, on both reads that show items', () => {
+    const text = review();
+    const inbox = text.slice(text.indexOf("'/api/review/inbox'"), text.indexOf("'/api/review/items'"));
+    const session = text.slice(text.indexOf("'/api/review/session'"), text.indexOf("'/api/review/items/:id/reveal'"));
+    expect(inbox).toContain('refillReviewQueue');
+    expect(session).toContain('refillReviewQueue');
+  });
+
+  it('has no cold-start seed left to offer', () => {
+    // The seed only ever made `note` items, which is why every question looked the same.
+    const text = review();
+    expect(text).not.toContain('/api/review/seed');
+    expect(text).not.toContain('canSeed');
+    expect(service()).not.toContain('seedReviewItems');
+  });
+});
+
 describe('the inbox stays calm', () => {
   it('never sends a count of what it is not showing', () => {
     const text = review();

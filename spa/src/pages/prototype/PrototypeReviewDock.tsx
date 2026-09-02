@@ -36,7 +36,12 @@ import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
-import { useReviewItems, useReviewReveal, useReviewSession } from '../../hooks/queries/useReview';
+import {
+  useReviewItems,
+  useReviewReveal,
+  useReviewSession,
+  type ReviewItemView,
+} from '../../hooks/queries/useReview';
 import { useReviewOutcome } from '../../hooks/mutations/useReviewMutations';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { buildReviewCardStackOrigin } from './paper-stack-origins';
@@ -46,7 +51,9 @@ import {
   REVIEW_EMPTY_COPY,
   REVIEW_RECALLED_COPY,
   REVIEW_REVEALED_ACK_COPY,
+  REVIEW_REVEAL_CONNECTION_COPY,
   REVIEW_REVEAL_COPY,
+  REVIEW_REVEAL_THREAD_COPY,
   REVIEW_REVEAL_VERSE_COPY,
 } from './proto-review-copy';
 
@@ -54,6 +61,25 @@ import {
 function revealsElsewhere(kind: string, noteId: string | null): boolean {
   if (kind === 'thread') return true;
   return (kind === 'note' || kind === 'connection' || kind === 'highlight') && Boolean(noteId);
+}
+
+/**
+ * What the reveal button says, which is where it takes you.
+ *
+ * A verse opens the passage, a Thread opens the Thread, a connection opens both notes. Naming
+ * the destination is also the honest thing: this button no longer shows a panel, it navigates.
+ */
+function revealLabelFor(kind: ReviewItemView['kind']): string {
+  switch (kind) {
+    case 'verse':
+      return REVIEW_REVEAL_VERSE_COPY;
+    case 'thread':
+      return REVIEW_REVEAL_THREAD_COPY;
+    case 'connection':
+      return REVIEW_REVEAL_CONNECTION_COPY;
+    default:
+      return REVIEW_REVEAL_COPY;
+  }
 }
 
 export default function PrototypeReviewDock() {
@@ -277,7 +303,7 @@ export default function PrototypeReviewDock() {
                   else setRevealed(true);
                 }}
               >
-                {isVerse ? REVIEW_REVEAL_VERSE_COPY : REVIEW_REVEAL_COPY}
+                {revealLabelFor(item.kind)}
               </button>
             </div>
           </>

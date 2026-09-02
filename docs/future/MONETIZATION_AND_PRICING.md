@@ -95,7 +95,7 @@ consider hosting one. That is the trial, and it is already built. The consequenc
   [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md), which is superseded.
 - **Transparent schedule:** revealed → 1 day, almost → 4 days, recalled → 14, compounding ×1.8
   from the third consecutive recall, capped at 180. Every interval can be said in a sentence.
-- Surfaces: a max-three-row **Study Inbox** on Activity, a review session, and a manage page.
+- Surfaces: a max-three-row **Review** section on Activity, a review session, and a manage page.
   No counts, no badges, no overdue language anywhere.
 - Each subscriber's Review is tied to **their account only** — not shareable via Group Sharing
   or church org.
@@ -255,7 +255,7 @@ providers — see [entitlements.ts](../../server/utils/entitlements.ts).
 | Feature key | Gates | Granted by |
 |---|---|---|
 | `shared_spaces` | Owning shared spaces (`canCreateSharedSpace`) | Plus |
-| `review` | Study Inbox, review sessions, adding items — **live in 3.0** | Plus |
+| `review` | The Review section, review sessions, adding items — **live in 3.0** | Plus |
 | `challenges` | Personal challenge paths — **live in 3.0**; seasons later | Plus |
 | `connector` | Connector API key, MCP OAuth, `/api/connector/*` + `/mcp` reads | Connector (separate product) |
 

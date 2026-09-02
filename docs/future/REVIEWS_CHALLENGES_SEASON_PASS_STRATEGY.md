@@ -15,7 +15,9 @@
 > | Authored prompts, verse ladder, cloze | `src/utils/review-prompts.ts`, `src/utils/verse-cloze.ts` |
 > | Transparent scheduling (1 / 4 / 14, ×1.8 from the third recall, 180 cap) | `src/utils/review-scheduling.ts` |
 > | `I recalled it` / `I almost had it` / reveal | `PrototypeReviewDock.tsx`, and the paper stack's edge |
-> | Study Inbox, max three rows, no counts | `PrototypeStudyInbox.tsx` on Activity |
+> | Review section, max three rows, no counts | `PrototypeReviewSection.tsx` on Activity |
+> | Personal Study Bible layer (`UserNodeState` below) | `UserNodeStates`, `server/utils/study-bible-layer.ts`, `src/utils/study-bible-nodes.ts` |
+> | The engine that fills the queue from it, ≤3 a rolling day | `server/utils/review-opportunities.ts`, `src/utils/review-opportunity-scoring.ts` |
 > | Personal challenges (4 templates) | `src/utils/challenge-templates.ts`, `server/utils/challenge-service.ts` |
 > | Plus gating on `review` / `challenges` | `server/middleware/require-feature.ts`, `useHasFeature` |
 >
@@ -26,12 +28,12 @@
 >   doc stands; the `challenges` feature key already covers it, and there is deliberately no
 >   `season_pass` key.
 > - **A suggestion-shaped Study Dock** (Harvous proposing an exercise unprompted inside a note).
->   The dock *surface* now exists and is where Review lives — one shell-owned card in the study
->   band, following you across Activity, notes and the reader (`PrototypeReviewDock.tsx`). What
->   is not built is the unprompted half: nothing decides on its own that this note, right now,
->   deserves a card. The dock only ever shows what the reader asked for, from the Inbox or a
->   row, which is why the rules about not appearing on create and suppressing after dismissals
->   have nothing yet to govern.
+>   The dock *surface* exists and is where Review lives — one shell-owned card in the study
+>   band, following you across Activity, notes and the reader (`PrototypeReviewDock.tsx`). Half
+>   the unprompted behaviour now exists too: the engine adds questions nobody asked for, drawn
+>   from the reader's own Study Bible layer. What is still missing is the *in-note* half —
+>   nothing decides that this note, open right now, deserves a card — so the rules about not
+>   appearing on create and suppressing after dismissals still have nothing to govern.
 > - **Escalation between surfaces** (dock → inbox), which only matters once the dock exists.
 > - **XP or streaks** on review activity. The tables exist and are untouched; a streak on a
 >   spiritual practice is the "spiritual competition" this doc's own language section rules out.
@@ -137,6 +139,21 @@ It must not treat an inferred relationship as an established fact, or an establi
 ## The Study Bible Profile
 
 The Study Bible Profile is not a doctrine score or a claim that Harvous knows what the user believes. It is a transparent, user-owned representation of what they have studied, written, linked, revisited, clarified, and left unresolved.
+
+**Built, September 2026** as the `UserNodeStates` table. The sketch below is what shipped, with
+three changes worth naming:
+
+- `nodeId` became `nodeKind` plus a namespaced `nodeKey` of the form `${kind}:${id}` —
+  `verse:John|15|5`, `theme:adoption`, `connection:<a>|<b>` sorted. Eight key shapes for these
+  concepts already existed in the codebase and none of them spanned kinds.
+- `priority` was dropped. Nothing sets it, and a column nobody writes is a claim the product
+  does not make.
+- `lastReviewedAt` / `nextReviewAt` / `recallState` are a **mirror**, written by
+  `applyReviewOutcome`. `ReviewItems` remains canonical for scheduling; these exist so the
+  engine and Home can rank without a join.
+
+Node kinds tracked: verse, chapter, note, Thread, connection, theme, person, place. Every
+activity path writes through `touchNodes` in `server/utils/study-bible-layer.ts`.
 
 Possible internal state per user and node:
 

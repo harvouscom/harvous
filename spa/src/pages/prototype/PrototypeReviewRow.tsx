@@ -1,5 +1,5 @@
 /**
- * One row of the Study Inbox: a question waiting, or a path to continue.
+ * One row of the Review section: a question waiting, or a path to continue.
  *
  * The overflow is the recall shelf's, deliberately — same portal, same measurement, same
  * flip-when-it-does-not-fit. What differs is what the answers mean. A recall card's menu ends
@@ -21,7 +21,7 @@ import {
   REVIEW_REMOVE_COPY,
 } from './proto-review-copy';
 
-/** Matches `.proto-study-inbox-row__menu`; used only until the real popover can be measured. */
+/** Matches `.proto-review-row__menu`; used only until the real popover can be measured. */
 const MENU_WIDTH = 200;
 const MENU_FALLBACK_HEIGHT = 124;
 
@@ -32,7 +32,7 @@ export interface StudyInboxRowAction {
   onSelect: () => void;
 }
 
-export default function PrototypeStudyInboxRow({
+export default function PrototypeReviewRow({
   icon,
   title,
   meta,
@@ -96,7 +96,7 @@ export default function PrototypeStudyInboxRow({
       onClick={onOpen}
       trailing={
         actions.length > 0 ? (
-          <span className="proto-study-inbox-row__more" ref={menuRef}>
+          <span className="proto-review-row__more" ref={menuRef}>
             <button
               ref={triggerRef}
               type="button"
@@ -112,7 +112,7 @@ export default function PrototypeStudyInboxRow({
               ? createPortal(
                   <div
                     ref={popoverRef}
-                    className="proto-menu__popover proto-menu__popover--list-view proto-study-inbox-row__menu"
+                    className="proto-menu__popover proto-menu__popover--list-view proto-review-row__menu"
                     role="menu"
                     aria-label={`${REVIEW_MORE_COPY} — ${title}`}
                     /* Off-screen until measured, so the first paint is never in the wrong place. */
