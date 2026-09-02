@@ -388,7 +388,7 @@ export default function PrototypeReviewDock() {
                 <li key={`${index}-${position}`}>
                   <button
                     type="button"
-                    className="proto-review-chip proto-review-chip--placed"
+                    className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
                     onClick={() => setPlaced((current) => current.filter((_, i) => i !== position))}
                   >
                     {sequenceExercise.phrases[index]}
@@ -402,7 +402,7 @@ export default function PrototypeReviewDock() {
                   <button
                     key={index}
                     type="button"
-                    className="proto-review-chip"
+                    className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
                     onClick={() => setPlaced((current) => [...current, index])}
                   >
                     {phrase}
@@ -430,7 +430,7 @@ export default function PrototypeReviewDock() {
                 <button
                   key={option}
                   type="button"
-                  className="proto-review-chip"
+                  className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
                   disabled={outcome.isPending}
                   onClick={() => answer('almost', { option })}
                 >
