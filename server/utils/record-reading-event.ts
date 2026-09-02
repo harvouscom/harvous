@@ -12,10 +12,13 @@ import {
 } from '@/utils/scripture-chapter-target';
 import {
   isReadingDwellBucket,
+  readingDwellCountsAsRead,
   readingDwellStrength,
   type ReadingDwellBucket,
 } from '@/utils/reading-event-kinds';
 import { isReadingEventsTableMissing } from './pg-undefined-relation';
+import { chapterTouch, touchNodes } from './study-bible-layer';
+import { readChapterSource } from '@/utils/study-bible-source-copy';
 
 export type RecordReadingEventInput = {
   book: string;
@@ -121,6 +124,18 @@ export async function recordReadingEvent(
       dwellBucket: input.dwellBucket,
       createdAt: nowISO(),
     });
+    // The reader's Study Bible layer: a chapter turned to is the coarsest node there is, and
+    // the only granularity reading gives us — nothing here knows which verse they were on.
+    const at = new Date();
+    void touchNodes(userId, [
+      chapterTouch({
+        chapter: { book: input.book, chapter: input.chapter },
+        signal: readingDwellCountsAsRead(input.dwellBucket) ? 'revisit' : 'exposure',
+        at,
+        sourceLabel: readChapterSource(input.book, input.chapter),
+        translation: input.translation,
+      }),
+    ]);
     return true;
   } catch (error) {
     if (isReadingEventsTableMissing(error)) {

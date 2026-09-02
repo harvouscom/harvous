@@ -51,8 +51,96 @@ import {
 } from '../utils/durable-note-anchor';
 import { ensureAnchorableCurrentNoteVersion } from '../utils/note-version-service';
 import { retireReviewForStudyThreadEntry } from '../utils/review-service';
+import {
+  connectionTouches,
+  noteTouch,
+  scriptureTouches,
+  threadTouchForNote,
+  touchNodes,
+} from '../utils/study-bible-layer';
+import {
+  highlightSource,
+  noteHighlightSource,
+  LINKED_NOTES_SOURCE,
+} from '@/utils/study-bible-source-copy';
 
 const route = new Hono();
+
+/**
+ * Record a reader-made highlight in the Study Bible layer.
+ *
+ * Fire-and-forget from the route: the highlight itself is already saved, and a node write
+ * that failed must never turn a successful mark into an error the reader sees.
+ */
+async function recordHighlightNodes(
+  userId: string,
+  reference: string,
+  translation: string | null,
+  at: Date,
+): Promise<void> {
+  const touches = await scriptureTouches({
+    reference,
+    signal: 'exposure',
+    at,
+    sourceLabel: highlightSource(reference),
+    translation,
+  });
+  await touchNodes(userId, touches);
+}
+
+/** The layer side of a study-thread entry: an annotation, a scripture mark, or a link. */
+async function recordNoteAnchoredEntryNodes(
+  userId: string,
+  input: {
+    parentNoteId: string;
+    parentTitle: string | null;
+    entryKind: string;
+    linkedNoteId: string | null;
+    scriptureReference: string | null;
+    translation: string | null;
+    at: Date;
+  },
+): Promise<void> {
+  const touches = [];
+
+  if (input.scriptureReference) {
+    touches.push(
+      ...(await scriptureTouches({
+        reference: input.scriptureReference,
+        signal: 'expansion',
+        at: input.at,
+        sourceLabel: noteHighlightSource(input.scriptureReference),
+        translation: input.translation,
+      })),
+      noteTouch({
+        noteId: input.parentNoteId,
+        title: input.parentTitle,
+        signal: 'expansion',
+        at: input.at,
+        sourceLabel: noteHighlightSource(input.scriptureReference),
+      }),
+    );
+  }
+
+  if (
+    input.entryKind === 'linkedNote' &&
+    input.linkedNoteId &&
+    input.linkedNoteId !== input.parentNoteId
+  ) {
+    touches.push(
+      ...connectionTouches({
+        fromNoteId: input.parentNoteId,
+        toNoteId: input.linkedNoteId,
+        at: input.at,
+        sourceLabel: LINKED_NOTES_SOURCE,
+        fromTitle: input.parentTitle,
+      }),
+      ...(await threadTouchForNote(userId, input.parentNoteId, 'connection', input.at, LINKED_NOTES_SOURCE)),
+    );
+  }
+
+  await touchNodes(userId, touches);
+}
 
 const ENTRY_KINDS = new Set(['workspace', 'miniNote', 'linkedNote', 'scriptureLink', 'reference']);
 
@@ -572,6 +660,18 @@ route.post('/api/notes/:parentNoteId/study-threads', requireAuth, rateLimit('wri
     await touchParentNoteEditedAt(parentNoteId, requireParentNote(parentCtx).userId, auth.userId);
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
 
+    // Marking a passage inside your own writing is a deeper signal than marking it in the
+    // reader — you were already thinking about it — so this side registers as an expansion.
+    void recordNoteAnchoredEntryNodes(auth.userId, {
+      parentNoteId,
+      parentTitle: requireParentNote(parentCtx).title,
+      entryKind,
+      linkedNoteId: resolvedLinkedNoteId,
+      scriptureReference: row?.scriptureReference ?? null,
+      translation: row?.scripturePassageTranslation ?? null,
+      at: now,
+    });
+
     const mapped = row ? mapStudyRow(row) : null;
     if (mapped && parentCtx.isShared) {
       const authorMap = await batchAuthorAttribution([auth.userId]);
@@ -1046,6 +1146,8 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
           .where(eq(StudyThreadEntries.id, existing.id))
           .returning(),
       );
+      // Re-marking a verse is still contact with it, so both exits touch the layer.
+      void recordHighlightNodes(auth.userId, norm, translation, now);
       return c.json({ success: true, highlight: updated ? mapStudyRow(updated) : null });
     }
 
@@ -1073,6 +1175,7 @@ route.post('/api/scripture/highlights', requireAuth, rateLimit('write'), async (
         .returning(),
     );
 
+    void recordHighlightNodes(auth.userId, norm, translation, now);
     return c.json({ success: true, highlight: row ? mapStudyRow(row) : null });
   } catch (error: any) {
     const e = handleAPIError(error, {

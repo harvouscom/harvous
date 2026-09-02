@@ -1616,8 +1616,18 @@ export const ReviewItems = pgTable('ReviewItems', {
   reviewCount: integer('reviewCount').notNull().default(0),
   /** Verse ladder position 0..4 (recognize → rebuild → recall → contextualize → connect). */
   ladderStep: integer('ladderStep').notNull().default(0),
-  /** user | seed | challenge — where the row came from, so cold-start seeds stay legible. */
+  /** user | seed | challenge | engine — where the row came from, so the queue stays legible. */
   origin: text('origin').notNull().default('user'),
+  /**
+   * Why this is here, in the reader's words: "Highlighted while reading John 15".
+   *
+   * Copied from the UserNodeStates row at the moment the engine adds the item, not read
+   * live, so a row's stated reason never changes under someone mid-sitting. Null on items
+   * the reader added themselves — they know why it is there.
+   */
+  sourceLabel: text('sourceLabel'),
+  /** When that source signal happened. Orders the queue by what is actually recent. */
+  sourceAt: ts('sourceAt'),
   /** Set when a challenge created this item, so completing the challenge can advance it. */
   challengeId: text('challengeId'),
   createdAt: ts('createdAt').notNull(),
@@ -1660,6 +1670,87 @@ export const ReviewEvents = pgTable('ReviewEvents', {
   index('ReviewEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('ReviewEvents_reviewItemId_createdAtIndex').on(table.reviewItemId, table.createdAt),
   index('ReviewEvents_noteIdIndex').on(table.noteId),
+]);
+
+// ─── UserNodeStates (the reader's own Study Bible layer) ──────────────────────
+// The personal counterpart to the curated scripture knowledge layer. That layer is the
+// terrain — topics, cross-references, people, places, all of it shared and none of it
+// keyed to a person. This table is one reader's path across it: which verses they have
+// marked, which notes they keep coming back to, which themes their study actually runs
+// through, and when each of those last happened.
+//
+// One row per (user, node). A node is anything study can be *about*, addressed by a
+// `nodeKey` of the form `${kind}:${id}` — see src/utils/study-bible-nodes.ts, which owns
+// every key shape and is the only place allowed to build them.
+//
+// Why persisted rather than derived on read: the Home arcs already tried the derived
+// version and gave up in public. Every one of them bails with `if (hasMoreNotes) return
+// undefined`, because counting honestly needs the whole note set in the browser and a
+// paginated reader never has it. Counts that accumulate as activity happens do not have
+// that problem, and they are also the only way "you keep returning to this" can mean
+// anything after the first page.
+//
+// **Not a second source of truth.** ReviewItems still owns scheduling (dueAt, recallState,
+// ladderStep, streak) and NoteFingerprints still owns the passive-resurfacing stability.
+// The mirror columns here are written by applyReviewOutcome so the engine and Home can rank
+// without joining ReviewItems, and nothing reads them back as authority.
+//
+// The six counters are deliberately orthogonal — a signal increments exactly one of them —
+// so a scorer can weigh "returned to it" differently from "linked it to something", which
+// is the whole difference between attention and intent.
+
+export const UserNodeStates = pgTable('UserNodeStates', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** note | verse | chapter | theme | person | place | thread | connection. */
+  nodeKind: text('nodeKind').notNull(),
+  /** `${kind}:${id}` — unique per reader. Built only by src/utils/study-bible-nodes.ts. */
+  nodeKey: text('nodeKey').notNull(),
+  /** Display text: note title, "John 15:5", topic label, person name, Thread title. */
+  label: text('label'),
+  /** note / thread rep / connection from-note. Lets the note cascade find rows without parsing keys. */
+  noteId: text('noteId'),
+  /** `connection` only — the to-note. */
+  secondaryNoteId: text('secondaryNoteId'),
+  /** Saw it: opened, read, highlighted, cited. */
+  exposureCount: integer('exposureCount').notNull().default(0),
+  /** Came back to it deliberately, after a dwell long enough to mean something. */
+  revisitCount: integer('revisitCount').notNull().default(0),
+  /** Linked it to something themselves. The strongest signal a reader gives without typing. */
+  explicitConnectionCount: integer('explicitConnectionCount').notNull().default(0),
+  /** Wrote more about it: a later save, an annotation on a highlight. */
+  expansionCount: integer('expansionCount').notNull().default(0),
+  /** Named a Thread, summarized a cluster — said what the whole thing is. */
+  synthesisCount: integer('synthesisCount').notNull().default(0),
+  /** Answered a review about it. */
+  reviewCount: integer('reviewCount').notNull().default(0),
+  firstStudiedAt: ts('firstStudiedAt').notNull(),
+  lastSeenAt: ts('lastSeenAt').notNull(),
+  /** Mirror of the latest ReviewItems outcome for this node. ReviewItems stays canonical. */
+  lastReviewedAt: ts('lastReviewedAt'),
+  /** Mirror of the item's dueAt, so the engine can skip what is already scheduled. */
+  nextReviewAt: ts('nextReviewAt'),
+  /** Mirror of the item's recallState; 'new' until a review touches this node. */
+  recallState: text('recallState').notNull().default('new'),
+  /** exposure | revisit | connection | expansion | synthesis | review — the most recent. */
+  lastSignal: text('lastSignal').notNull(),
+  /** Reader-facing provenance: "Highlighted while reading John 15". Review rows show this. */
+  lastSourceLabel: text('lastSourceLabel'),
+  lastSourceAt: ts('lastSourceAt').notNull(),
+  /** active | archived. The note cascade archives cross-note nodes it cannot delete outright. */
+  status: text('status').notNull().default('active'),
+  /** JSON: { translation?, topicId?, slug?, book?, chapter?, verse? }. Small and stable — it is replaced, not merged. */
+  meta: text('meta'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt').notNull(),
+}, (table) => [
+  // The upsert target. Every writer goes through touchNodes, which conflicts on this.
+  uniqueIndex('UserNodeStates_userId_nodeKeyIndex').on(table.userId, table.nodeKey),
+  // The engine's read (kinds it reviews, most recent first) and Home's (themes, people).
+  index('UserNodeStates_userId_nodeKind_lastSeenAtIndex').on(table.userId, table.nodeKind, table.lastSeenAt),
+  // The cascade filters, for the same reason ReviewItems carries both.
+  index('UserNodeStates_noteIdIndex').on(table.noteId),
+  index('UserNodeStates_secondaryNoteIdIndex').on(table.secondaryNoteId),
 ]);
 
 // ─── Challenges (Plus: a bounded path through study you already have) ─────────

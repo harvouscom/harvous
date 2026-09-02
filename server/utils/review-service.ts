@@ -49,6 +49,14 @@ import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
 import { fetchVerseText } from './fetch-verse-text';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
+import {
+  noteTouch,
+  touchNodes,
+  verseTouches,
+  type NodeTouch,
+} from './study-bible-layer';
+import { nodeKey, verseNodesForReference } from '@/utils/study-bible-nodes';
+import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
 
 export interface ReviewItemRow {
   id: string;
@@ -530,7 +538,92 @@ export async function applyReviewOutcome(
     }
   }
 
+  // Study Bible layer: what the reader just answered, and when it comes back. The mirror
+  // columns exist so the engine can skip a node that is already scheduled without joining
+  // this table; ReviewItems above stays the authority on the schedule itself.
+  void recordReviewOutcomeNodes(userId, item, outcome, attempt, next, now);
+
   return { item: updated, nextReturnDays: next.intervalDays };
+}
+
+/**
+ * The node(s) an answered item is about.
+ *
+ * Kind by kind, because a review item and a node are addressed differently: a `verse` item
+ * carries a display reference that has to be expanded back into verses, a `highlight` item
+ * may or may not have one, and a `connection` is two notes plus the link between them.
+ */
+async function recordReviewOutcomeNodes(
+  userId: string,
+  item: ReviewItemRow,
+  outcome: ReviewOutcome,
+  attempt: string | null,
+  next: { dueAt: Date; recallState: RecallState },
+  now: Date,
+): Promise<void> {
+  const mirror = { lastReviewedAt: now, nextReviewAt: next.dueAt, recallState: next.recallState };
+  const touches: NodeTouch[] = [];
+
+  if (item.scriptureReference) {
+    const { verses, chapters } = verseNodesForReference(item.scriptureReference);
+    for (const touch of verseTouches({
+      verses,
+      chapters,
+      signal: 'review',
+      at: now,
+      sourceLabel: REVIEWED_SOURCE,
+      translation: item.translation,
+    })) {
+      // Only the verses carry the mirror; the chapter above them is not what was asked about.
+      touches.push(touch.kind === 'verse' ? { ...touch, reviewMirror: mirror } : touch);
+    }
+  }
+
+  if ((item.kind === 'note' || item.kind === 'highlight') && item.noteId) {
+    touches.push({
+      ...noteTouch({ noteId: item.noteId, signal: 'review', at: now, sourceLabel: REVIEWED_SOURCE }),
+      reviewMirror: mirror,
+    });
+  }
+
+  if (item.kind === 'connection' && item.noteId && item.secondaryNoteId) {
+    const [a, b] = [item.noteId, item.secondaryNoteId].sort();
+    touches.push({
+      key: nodeKey.connection(item.noteId, item.secondaryNoteId),
+      kind: 'connection',
+      signal: 'review',
+      at: now,
+      noteId: a,
+      secondaryNoteId: b,
+      sourceLabel: REVIEWED_SOURCE,
+      reviewMirror: mirror,
+    });
+  }
+
+  if (item.kind === 'thread' && item.noteId) {
+    touches.push({
+      key: nodeKey.thread(item.noteId),
+      kind: 'thread',
+      signal: 'review',
+      at: now,
+      noteId: item.noteId,
+      sourceLabel: REVIEWED_SOURCE,
+      reviewMirror: mirror,
+    });
+    // Answering "what is this cluster forming?" in your own words is synthesis — the only
+    // one the app can observe deterministically outside of naming a Thread.
+    if (attempt?.trim() && outcome !== 'revealed') {
+      touches.push({
+        key: nodeKey.thread(item.noteId),
+        kind: 'thread',
+        signal: 'synthesis',
+        at: now,
+        noteId: item.noteId,
+      });
+    }
+  }
+
+  await touchNodes(userId, touches);
 }
 
 export async function deferReviewItem(

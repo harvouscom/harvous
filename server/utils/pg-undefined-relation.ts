@@ -83,6 +83,10 @@ export function isReviewEventsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'ReviewEvents');
 }
 
+export function isUserNodeStatesTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'UserNodeStates');
+}
+
 export function isChallengesTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'Challenges');
 }

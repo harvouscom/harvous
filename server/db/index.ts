@@ -52,6 +52,7 @@ export {
   ReviewItems,
   ReviewEvents,
   Challenges,
+  UserNodeStates,
   SupportTickets,
   SupportTicketNotes,
   DiagnosticEvents,

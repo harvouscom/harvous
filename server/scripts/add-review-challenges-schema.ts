@@ -87,11 +87,48 @@ export const ADDITIVE_REVIEW_CHALLENGES_DDL = [
   `CREATE INDEX IF NOT EXISTS "Challenges_userId_statusIndex" ON "Challenges" ("userId", "status")`,
   `CREATE INDEX IF NOT EXISTS "Challenges_sourceNoteIdIndex" ON "Challenges" ("sourceNoteId")`,
   `CREATE INDEX IF NOT EXISTS "Challenges_sourceSecondaryNoteIdIndex" ON "Challenges" ("sourceSecondaryNoteId")`,
+  // Added after the first apply: the engine writes a reader-facing reason onto each row.
+  `ALTER TABLE "ReviewItems" ADD COLUMN IF NOT EXISTS "sourceLabel" text`,
+  `ALTER TABLE "ReviewItems" ADD COLUMN IF NOT EXISTS "sourceAt" timestamptz`,
+  // The reader's own Study Bible layer — one row per (user, node). See server/db/schema.ts.
+  `CREATE TABLE IF NOT EXISTS "UserNodeStates" (
+    "id" text PRIMARY KEY,
+    "userId" text NOT NULL,
+    "nodeKind" text NOT NULL,
+    "nodeKey" text NOT NULL,
+    "label" text,
+    "noteId" text,
+    "secondaryNoteId" text,
+    "exposureCount" integer NOT NULL DEFAULT 0,
+    "revisitCount" integer NOT NULL DEFAULT 0,
+    "explicitConnectionCount" integer NOT NULL DEFAULT 0,
+    "expansionCount" integer NOT NULL DEFAULT 0,
+    "synthesisCount" integer NOT NULL DEFAULT 0,
+    "reviewCount" integer NOT NULL DEFAULT 0,
+    "firstStudiedAt" timestamptz NOT NULL,
+    "lastSeenAt" timestamptz NOT NULL,
+    "lastReviewedAt" timestamptz,
+    "nextReviewAt" timestamptz,
+    "recallState" text NOT NULL DEFAULT 'new',
+    "lastSignal" text NOT NULL,
+    "lastSourceLabel" text,
+    "lastSourceAt" timestamptz NOT NULL,
+    "status" text NOT NULL DEFAULT 'active',
+    "meta" text,
+    "createdAt" timestamptz NOT NULL,
+    "updatedAt" timestamptz NOT NULL
+  )`,
+  // The upsert target every writer conflicts on.
+  `CREATE UNIQUE INDEX IF NOT EXISTS "UserNodeStates_userId_nodeKeyIndex" ON "UserNodeStates" ("userId", "nodeKey")`,
+  `CREATE INDEX IF NOT EXISTS "UserNodeStates_userId_nodeKind_lastSeenAtIndex" ON "UserNodeStates" ("userId", "nodeKind", "lastSeenAt")`,
+  `CREATE INDEX IF NOT EXISTS "UserNodeStates_noteIdIndex" ON "UserNodeStates" ("noteId")`,
+  `CREATE INDEX IF NOT EXISTS "UserNodeStates_secondaryNoteIdIndex" ON "UserNodeStates" ("secondaryNoteId")`,
   // Matches scripts/run-enable-rls.ts, so a fresh apply leaves no window where the tables
-  // exist unprotected. These three hold the reader's own words about their own study.
+  // exist unprotected. These four hold the reader's own words about their own study.
   `ALTER TABLE "ReviewItems" ENABLE ROW LEVEL SECURITY`,
   `ALTER TABLE "ReviewEvents" ENABLE ROW LEVEL SECURITY`,
   `ALTER TABLE "Challenges" ENABLE ROW LEVEL SECURITY`,
+  `ALTER TABLE "UserNodeStates" ENABLE ROW LEVEL SECURITY`,
 ] as const;
 
 export async function runAddReviewChallengesSchema(
