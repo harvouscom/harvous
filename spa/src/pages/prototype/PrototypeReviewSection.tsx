@@ -22,11 +22,13 @@
  * says where it came from, so the section reads as their study coming back rather than as work
  * assigned to them.
  */
+import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import Icon from '@/components/react/Icon';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
-import { useReviewInbox } from '../../hooks/queries/useReview';
+import { useReviewInbox, useReviewItems, type ReviewItemView } from '../../hooks/queries/useReview';
 import { useChallenges } from '../../hooks/queries/useChallenges';
 import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
@@ -37,13 +39,40 @@ import {
   REVIEW_PLUS_META,
   REVIEW_PLUS_TITLE,
   REVIEW_SEE_ALL_COPY,
+  REVIEW_SEE_LESS_COPY,
   REVIEW_SECTION_TITLE,
 } from './proto-review-copy';
-import { prototypeChallengeRouteTo, prototypeReviewRouteTo } from '@/lib/prototype-path';
-import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
+import { prototypeChallengeRouteTo } from '@/lib/prototype-path';
+import { RECALL_STATE_LABELS, type ReviewItemKind } from '@/utils/review-item-kinds';
 import { reviewRowSource, reviewRowSubtitle } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
+
+/**
+ * Kinds that are about a note, and kinds that are about a passage.
+ *
+ * `highlight` sits with the passages because that is what the reader marked, and `connection`
+ * and `thread` sit with the notes because both are questions about their own writing.
+ */
+const PASSAGE_KINDS = new Set<ReviewItemKind>(['verse', 'highlight']);
+
+/**
+ * One of each, closed: a note and a passage.
+ *
+ * Three of anything invites scanning; one of each invites answering, and it guarantees the two
+ * halves of the feature are both visible rather than three notes crowding the verse out. The
+ * rest is one tap away and nothing is hidden — see the fold below.
+ */
+function collapsedReviewRows(items: readonly ReviewItemView[]): ReviewItemView[] {
+  const note = items.find((item) => !PASSAGE_KINDS.has(item.kind));
+  const passage = items.find((item) => PASSAGE_KINDS.has(item.kind));
+  return items.filter((item) => item === note || item === passage);
+}
+
+/** "3 more" once the full list is known, and "See all" while it is not. */
+function foldedLabel(folded: number | null): string {
+  return folded !== null && folded > 0 ? `${folded} more` : REVIEW_SEE_ALL_COPY;
+}
 
 export default function PrototypeReviewSection() {
   const navigate = useNavigate();
@@ -53,7 +82,14 @@ export default function PrototypeReviewSection() {
   const challengesFeature = useHasFeature('challenges');
   const { dismissed: plusPromptDismissed, dismiss: dismissPlusPrompt } = useDismissiblePlusPrompt();
 
+  const [expanded, setExpanded] = useState(false);
   const inboxQuery = useReviewInbox();
+  /*
+   * The full list, fetched only once the reader asks for it. The inbox read is capped at three
+   * and cannot answer "show me the rest", and paying for every waiting item on every Activity
+   * load would be a cost nobody asked for.
+   */
+  const allQuery = useReviewItems('active', { enabled: expanded });
   const challengesQuery = useChallenges('active');
   const defer = useDeferReview();
   const setStatus = useSetReviewStatus();
@@ -95,7 +131,10 @@ export default function PrototypeReviewSection() {
     );
   }
 
-  const items = inboxQuery.data?.items ?? [];
+  const inboxItems = inboxQuery.data?.items ?? [];
+  // While the expanded list is still in flight, keep showing the three we already have rather
+  // than collapsing to nothing and back.
+  const items = expanded ? (allQuery.data?.items ?? inboxItems) : inboxItems;
   const activeChallenges = challengesQuery.data?.challenges ?? [];
 
   /*
@@ -106,8 +145,23 @@ export default function PrototypeReviewSection() {
    * on the Review page.
    */
   const challengeRow = activeChallenges[0];
-  const reviewRowCount = challengeRow ? Math.max(0, 3 - 1) : 3;
-  const reviewRows = items.slice(0, reviewRowCount);
+  const reviewRows = expanded ? items : collapsedReviewRows(items);
+  /*
+   * How many are folded away, or null when that is not known.
+   *
+   * The inbox read is capped at three and reports `hasMore` as a boolean, deliberately — a
+   * number in that payload is a number that eventually gets rendered as "27 due". So until the
+   * full list has been fetched once, the count behind the fold is genuinely unknown, and the
+   * label says "See all" rather than guessing. Guessing printed "1 more" over two items.
+   */
+  const fullList = allQuery.data?.items ?? null;
+  const folded =
+    fullList !== null
+      ? Math.max(0, fullList.length - reviewRows.length)
+      : inboxQuery.data?.hasMore
+        ? null
+        : Math.max(0, items.length - reviewRows.length);
+  const moreThanShown = folded === null || folded > 0;
 
   const hasRows = reviewRows.length > 0 || Boolean(challengeRow);
   if (!hasRows) return null;
@@ -158,12 +212,22 @@ export default function PrototypeReviewSection() {
         />
       ) : null}
 
-      {reviewRows.length > 0 || activeChallenges.length > 1 ? (
-        <PrototypeHomeRow
-          icon="list-check"
-          title={REVIEW_SEE_ALL_COPY}
-          onClick={() => void navigate({ to: prototypeReviewRouteTo() })}
-        />
+      {/*
+        * The study feed's own fold, not a list row.
+        *
+        * A row with a chevron is how you say "this goes somewhere". This goes nowhere — it
+        * unfolds what is already here — which is exactly what `.proto-feed-part__more` above
+        * the Review section already means, a few centimetres up the same page.
+        */}
+      {(moreThanShown || expanded) && reviewRows.length > 0 ? (
+        <button
+          type="button"
+          className="proto-feed-part__more"
+          onClick={() => setExpanded((open) => !open)}
+        >
+          <span>{expanded ? REVIEW_SEE_LESS_COPY : foldedLabel(folded)}</span>
+          <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
+        </button>
       ) : null}
     </PrototypeHomeSection>
   );

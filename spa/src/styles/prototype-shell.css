@@ -192,6 +192,25 @@
   padding-left: 0;
 }
 
+/*
+ * ...and the same reset on the LAYER, which is where the bare-card reserve actually lands.
+ *
+ * The two rules above clear the slot and the one below clears the carousel track, but the
+ * sidebar offset for a bare card sits on the layer itself (see the `:has()` rule further up).
+ * So with the sidebar retired, a dock portalled straight into a slot kept a 304px reserve for
+ * a column that is not there, and sat 152px right of centre on every route — most visibly the
+ * Review dock on Activity, where the feed sheet is centred in the full width.
+ *
+ * The selector repeats the `:has()` deliberately: without it this is less specific than the
+ * rule it has to undo, and loses.
+ */
+.proto-shell--no-sidebar
+  .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card),
+.proto-shell--sidebar-collapsed
+  .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card) {
+  padding-left: 0;
+}
+
 /* The sidebar-clearance offset actually lives on the carousel TRACK (study-dock-carousel.css), not
    the slot — so the slot resets above are no-ops against it. Drop the track offset too whenever the
    sidebar isn't occupying its grid column, otherwise the dock band stays pushed right and squeezed

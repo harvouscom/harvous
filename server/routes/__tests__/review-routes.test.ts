@@ -85,10 +85,27 @@ describe('the two graded rungs are marked on the server', () => {
     expect(reveal).not.toContain('answerIndex');
   });
 
-  it('withholds the verse text on the rungs where it would be the answer', () => {
+  it('withholds the verse text on each rung where it would be the answer', () => {
+    /*
+     * Asserted per rung, not as a count. This was `toBe(2)`, and a test whose maintenance is
+     * "bump the number" gets bumped without anyone asking whether the new rung withholds.
+     */
     const text = service();
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
-    expect(reveal.match(/payload\.verseText = null/g)?.length).toBe(2);
+    for (const step of ['VERSE_SEQUENCE_STEP', 'VERSE_LOCATE_STEP']) {
+      const guard = reveal.slice(reveal.indexOf(`item.ladderStep === ${step}`));
+      const rung = guard.slice(0, guard.indexOf('\n        }'));
+      expect(rung).toContain('payload.verseText = null');
+    }
+  });
+
+  it('never previews an encrypted note body', () => {
+    // The server holds ciphertext for a locked note; `loadTitles` always guarded this and the
+    // reveal did not, so the encrypted bytes shipped to whatever asked.
+    const text = service();
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    expect(reveal).toContain('contentEncrypted');
+    expect(reveal).toMatch(/contentEncrypted \? '' :/);
   });
 });
 

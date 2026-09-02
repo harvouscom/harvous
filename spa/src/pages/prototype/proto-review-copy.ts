@@ -37,7 +37,15 @@ export const REVIEW_SECTION_TITLE = 'Review';
  */
 export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
 
+/*
+ * Both halves of one toggle, not a link.
+ *
+ * "See all" used to navigate to a Review page, which is the thing this feature spent a whole
+ * redesign getting away from: a question about your study belongs beside your study, not on a
+ * destination you have to come back from. It opens the rest of the list where it already is.
+ */
 export const REVIEW_SEE_ALL_COPY = 'See all';
+export const REVIEW_SEE_LESS_COPY = 'Show fewer';
 
 /* The note's ⋯ menu is the one place this is offered. The Review card briefly carried a `+`
    for it too, which was disabled everywhere the card usually sits and explained itself to

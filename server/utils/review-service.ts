@@ -935,18 +935,30 @@ export async function buildReviewReveal(
   const noteIds = [item.noteId, item.secondaryNoteId].filter((id): id is string => Boolean(id));
   if (noteIds.length > 0 && item.kind !== 'thread') {
     const rows = await db
-      .select({ id: Notes.id, title: Notes.title, content: Notes.content })
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        contentEncrypted: Notes.contentEncrypted,
+      })
       .from(Notes)
       .where(and(eq(Notes.userId, userId), inArray(Notes.id, noteIds)));
     const byId = new Map(rows.map((r) => [r.id, r]));
     const primary = item.noteId ? byId.get(item.noteId) : undefined;
     const secondary = item.secondaryNoteId ? byId.get(item.secondaryNoteId) : undefined;
-    payload.note = primary
-      ? { id: primary.id, title: displayTitle(primary.title), content: primary.content }
-      : null;
-    payload.secondaryNote = secondary
-      ? { id: secondary.id, title: displayTitle(secondary.title), content: secondary.content }
-      : null;
+    /*
+     * A locked note's body is ciphertext the server cannot read, so there is nothing here worth
+     * sending and every reason not to. `loadTitles` above has always guarded this; the reveal
+     * did not, and shipped the encrypted bytes to whatever asked. The reader still gets the
+     * item — its title and the question — and opening the note is where the key lives.
+     */
+    const revealBody = (row: { id: string; title: string | null; content: string; contentEncrypted: boolean }) => ({
+      id: row.id,
+      title: displayTitle(row.title),
+      content: row.contentEncrypted ? '' : row.content,
+    });
+    payload.note = primary ? revealBody(primary) : null;
+    payload.secondaryNote = secondary ? revealBody(secondary) : null;
   }
 
   if (item.kind === 'thread' && item.noteId) {

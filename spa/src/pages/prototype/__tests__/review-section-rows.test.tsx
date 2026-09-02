@@ -31,8 +31,11 @@ vi.mock('../../../hooks/useHarvousIdentity', () => ({
 vi.mock('../../../hooks/useHasFeature', () => ({
   useHasFeature: (key: string) => features[key] ?? { has: false, ready: true },
 }));
+const allItems = { data: undefined as undefined | { items: unknown[] } };
 vi.mock('../../../hooks/queries/useReview', () => ({
   useReviewInbox: () => inbox,
+  // Fetched only once the reader unfolds the section.
+  useReviewItems: () => allItems,
 }));
 vi.mock('../../../hooks/queries/useChallenges', () => ({
   useChallenges: () => challenges,
@@ -99,6 +102,7 @@ beforeEach(() => {
   features.review = { has: true, ready: true };
   features.challenges = { has: true, ready: true };
   inbox.data = { items: [], hasMore: false };
+  allItems.data = undefined;
   challenges.data = { challenges: [] };
 });
 
@@ -144,25 +148,65 @@ describe('what it shows a subscriber', () => {
     ).toBeInTheDocument();
   });
 
-  it('never shows more than three rows of work', () => {
+  it('shows one note and one passage closed, whatever the queue is made of', () => {
+    /*
+     * Not "the first two". Three notes in a row would crowd the verse out entirely, and the two
+     * halves of the feature are the point — a thing you wrote, and a thing you read.
+     */
     inbox.data = {
-      items: ['a', 'b', 'c', 'd', 'e'].map((id) => reviewItem(id, `Question ${id}`)),
-      hasMore: true
+      items: [
+        reviewItem('a', 'Question a'),
+        reviewItem('b', 'Question b'),
+        { ...reviewItem('c', 'Question c'), kind: 'verse' },
+      ],
+      hasMore: false,
     };
     render(<PrototypeReviewSection />);
-    const questions = screen.queryAllByText(/^Question /);
-    expect(questions.length).toBeLessThanOrEqual(3);
+    const questions = screen.queryAllByText(/^Question /).map((n) => n.textContent);
+    expect(questions).toEqual(['Question a', 'Question c']);
   });
 
-  it('gives up a review row for the challenge continuation, keeping the cap', () => {
+  it('treats a highlight as a passage and a Thread as a note', () => {
+    inbox.data = {
+      items: [
+        { ...reviewItem('a', 'Question a'), kind: 'thread' },
+        { ...reviewItem('b', 'Question b'), kind: 'highlight' },
+      ],
+      hasMore: false,
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.queryAllByText(/^Question /).length).toBe(2);
+  });
+
+  it('leaves room for the challenge continuation beside them', () => {
     inbox.data = {
       items: ['a', 'b', 'c', 'd'].map((id) => reviewItem(id, `Question ${id}`)),
-      hasMore: true
+      hasMore: true,
     };
     challenges.data = { challenges: [challenge('c1')] };
     render(<PrototypeReviewSection />);
-    expect(screen.queryAllByText(/^Question /).length).toBe(2);
+    // All four are notes, so only one qualifies for the closed state.
+    expect(screen.queryAllByText(/^Question /).length).toBe(1);
     expect(screen.getByText('Strengthen Covenant')).toBeInTheDocument();
+  });
+
+  it('will not guess how many are folded away before it knows', () => {
+    // The inbox reports `hasMore` as a boolean on purpose, so a closed section cannot count.
+    // Guessing printed "1 more" over two items.
+    inbox.data = {
+      items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)),
+      hasMore: true,
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText('See all')).toBeInTheDocument();
+    expect(screen.queryByText(/\d+ more/)).not.toBeInTheDocument();
+  });
+
+  it('counts them once the full list is in hand', () => {
+    inbox.data = { items: ['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)), hasMore: false };
+    allItems.data = { items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)) };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText('2 more')).toBeInTheDocument();
   });
 
   it('says where a challenge is as a position, never as a count of what is left', () => {
