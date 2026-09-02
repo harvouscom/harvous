@@ -254,7 +254,7 @@ export default function PrototypeReviewDock() {
               placeholder={REVIEW_ATTEMPT_PLACEHOLDER}
               value={attempt}
               onChange={(event) => setAttempt(event.target.value)}
-              rows={3}
+              rows={2}
             />
             {/*
               * One action, because there was only ever one.

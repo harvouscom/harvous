@@ -21787,17 +21787,53 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
- * Where the reader writes what they remember.
+ * Where the reader writes what they remember — paper, not a form field.
  *
- * Roomy on purpose, and never focused on open. A single line would say "type the answer" —
- * there is no answer, and nothing here is checked against anything.
+ * This was a bordered, padded, grey-filled input, and it was wrong twice. It was the only boxed
+ * control in a card family whose own write-in area (`.highlight-dock-web__mini-note`) is bare,
+ * so it read as furniture borrowed from a settings page. And its 12px of padding pushed the
+ * placeholder 13px right of the question directly above it, giving a three-line card three
+ * different left edges — icon, question, then answer, each stepping further in.
+ *
+ * Bare fixes both at once: the text you write starts exactly under the question you are
+ * answering, and the card stops looking like a form. It also ends the layout shift for good
+ * rather than by force — `global.css` strips `border`, `outline` and `box-shadow` from focused
+ * fields with `!important`, and a field with none of them has nothing left to lose. The caret
+ * is the focus indicator, which is the same bargain every other dock here already makes.
  */
-.proto-review-dock__attempt,
+.proto-review-dock__attempt {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  min-height: 60px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.proto-review-dock__attempt::placeholder {
+  color: var(--pds-text-tertiary);
+}
+
+/*
+ * The challenge page keeps its box, and is not folded into the rule above.
+ *
+ * Bare paper works in a dock because the card *is* the paper — its edges are right there giving
+ * the writing area its shape. On a full-page sheet there is no such frame within reach, and a
+ * borderless field in the middle of one reads as nothing at all. This becomes moot when
+ * challenge steps move into the dock; until then the two contexts want different things.
+ */
 .proto-challenge__response {
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
-  min-height: 64px;
+  min-height: 96px;
   padding: var(--pds-space-2) var(--pds-space-3);
   border: 1px solid var(--pds-border-control);
   border-radius: var(--pds-radius-row);
@@ -21806,27 +21842,6 @@ button.proto-feed-sheet__stat:hover {
   font-family: var(--pds-font-body);
   font-size: 14px;
   line-height: 1.5;
-}
-
-/*
- * The border is restated on focus, and it has to shout to be heard.
- *
- * `src/styles/global.css` carries a blanket rule — every `input`/`textarea`/`select` on focus
- * gets `outline: none !important; border: none !important; box-shadow: none !important`. The
- * lost 1px top and bottom is what made this card shrink 2px and step down under the caret at
- * the exact moment someone clicked in to write. Nothing without `!important` can win against
- * it, which is why this rule carries one.
- *
- * The blanket rule is a bigger problem than this symptom: it removes the focus indicator from
- * every field in the app, which is a keyboard-accessibility failure rather than a style choice.
- * Not fixed here — it touches every input and this is launch week — but the accent border below
- * is a real indicator for this field, so the dock does not inherit that failure.
- */
-.proto-review-dock__attempt:focus,
-.proto-review-dock__attempt:focus-visible,
-.proto-challenge__response:focus,
-.proto-challenge__response:focus-visible {
-  border: 1px solid var(--pds-accent) !important;
 }
 
 .proto-review-dock__actions,
