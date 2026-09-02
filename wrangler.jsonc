@@ -78,9 +78,11 @@
       "name": "harvous-app-staging",
       "observability": { "enabled": true },
       "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
-      "workers_dev": true
-      // STAGE 4 ONLY — same reasoning as the production route above.
-      // "routes": [{ "pattern": "new.harvous.com", "custom_domain": true }]
+      "workers_dev": true,
+      // ATTACHED 2026-09-02 (stage 4, staging half). new.harvous.com now serves this Worker
+      // instead of Netlify's branch deploy. Rollback is re-pointing the DNS record.
+      // app.harvous.com is still commented out below — production has not moved.
+      "routes": [{ "pattern": "new.harvous.com", "custom_domain": true }]
     }
   }
 }
