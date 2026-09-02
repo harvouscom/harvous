@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: STAGE 2 CLEAR — deployed to the real Cloudflare account, 20/20 parity, no DNS touched.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 4 COMPLETE — all three hosts (app, new, status) serve the Worker; authenticated smoke test passed; Netlify serves nothing. Next: freeze Netlify auto-publish, soak one week, then cleanup (CSRF first).** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -592,5 +592,155 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
   So **three** custom domains attach at stage 4, not one: `app.harvous.com` and
   `status.harvous.com` on production, `new.harvous.com` on `--env staging`.
 
+- 2026-09-02 (**stage 4, staging half — new.harvous.com is on Cloudflare**) — Attached to
+  `harvous-app-staging`. Verified on the real domain: `server: cloudflare`, HSTS, the
+  `_headers` cache tiers, staging bundle `index-OS4t3bEc.js` carrying **pk_test_**, the
+  `clerk.accounts.dev` CSP widening, `/api/health` 200 through the proxy, stale asset 404,
+  and `/prototype/dashboard` → **302** `/dashboard`. That last one confirms the host-gated
+  redirect works in both directions — no strip on `*.workers.dev`, strip on a dedicated host.
+
+  **The rehearsal paid for itself: the attach failed the first time.**
+  `Hostname 'new.harvous.com' already has externally managed DNS records ... Delete them
+  first [code: 100117]` — Cloudflare will not overwrite a DNS record you manage. The existing
+  `new → harvous-new.netlify.app` CNAME had to be deleted first.
+
+  **This will happen again on `app.harvous.com`, and there it matters.** The sequence is
+  *delete the CNAME, then attach*, and between those two steps the hostname does not resolve.
+  On `new` that is nothing; on `app` it is a live outage window measured in however long the
+  deploy takes. Do them back-to-back, with the rollback CNAME value in hand
+  (`app → harvouscom.netlify.app`), and do not start unless able to finish.
+
+- 2026-09-02 (**STAGE 4 COMPLETE — app.harvous.com is on Cloudflare**) — Traffic moved.
+  Cloudflare serves `index-BzUzz5zc.js`, byte-identical to what Netlify was serving at the
+  moment of the switch, with the live Clerk key. Verified on the real domain: HSTS,
+  `/assets/*` immutable, `/api/health` 200 through the proxy to Fly,
+  `/prototype/dashboard` → 302, stale asset → 404, and the site-inspired sign-in rendering
+  with zero console errors. **The authenticated gate passed: signed in and created a note.**
+  That is the check that failed all three Fly cutovers, and it passed first attempt here —
+  because the artifact was already proven byte-identical to production before it was routed.
+
+  **The dashboard could not do this, and that is worth recording.** Workers → Domains →
+  "Connect domain" reported *"No zones match app.harvous.com"* while the zone was demonstrably
+  live and serving; "Find similar" then opened a domain **purchase** screen offering
+  `appharvous.com` and `app-harvous.com`. The attach succeeded from the CLI:
+
+      npx wrangler triggers deploy
+
+  which applies route/domain changes **without rebuilding**. That property was not a
+  convenience — it was the safety requirement. A local `wrangler deploy` from this worktree
+  would have rebuilt with no `.env`, inlined no Clerk key, and pushed a bundle that cannot
+  boot straight to production at the exact moment traffic was moving.
+
+  **The outage window is real and was measured.** Between deleting the `app` CNAME and the
+  attach, public resolvers returned NO RECORD on both 1.1.1.1 and 8.8.8.8 while a stale local
+  cache still answered 200 — which is exactly how this looks fine from the operator's machine
+  and broken for everyone else. Verify a cutover with `dig @1.1.1.1` and `--resolve`, never
+  with a plain `curl` from the machine that has been hitting the old host all day. Recovery
+  is asymmetric too: the NXDOMAIN negative cache outlived the record's own 300s TTL.
+
+  Remaining: `status.harvous.com` is still on Netlify (separate attach, and the last thing
+  pinning the Netlify site).
 
 
+  Also worth expecting: local resolvers cache the old CNAME for its TTL (15 min here), so the
+  domain can appear to still serve Netlify well after the cutover succeeded. Verify with
+  `curl --resolve` against the Cloudflare IP rather than trusting a stale local answer.
+
+
+- 2026-09-01 (stage 2 complete, one gate re-ordered) — **CI now builds and deploys the real
+  artifact, and it is byte-identical to Netlify's.** `harvous-app.harvous.workers.dev` serves
+  `/assets/index-DTnuXr7O.js` at 2,718,358 bytes — the *same content hash and same bytes* as
+  app.harvous.com. That is the strongest available proof the env reconciliation is right: had
+  any of `VITE_SUPABASE_*`, `VITE_API_BASE_URL` or the rest been set, the hash would differ.
+  Live Clerk key inlined (6 occurrences), zero Supabase project URLs, `sw.js` cache name now
+  carries its commit sha (`harvous-cache-v2-87-2-5c3aeaec`), parity 20/20.
+
+  **Two CI bugs found by checking rather than trusting the green tick:**
+
+  1. The first run went green and deployed **nothing to production**. `deploy --env staging`
+     executed on `main`, putting a live-Clerk build on the staging Worker while production
+     kept serving a manual upload. Cause: GitHub's `A && B || C` is short-circuiting, not a
+     ternary — an empty-string true-branch is falsy and falls through, so
+     `ref_name == 'main' && '' || '--env staging'` sends *every* ref to staging. The
+     non-empty value must sit in the TRUE position. Fixed by negating the condition.
+  2. `wrangler.jsonc` cannot carry the custom-domain routes before the zone exists (already
+     recorded above) — worth restating because it is the same class: config that reads
+     correctly and behaves otherwise.
+
+  **GATE RE-ORDERED — the authenticated smoke test cannot run on `*.workers.dev`.** Clerk
+  production instances are domain-locked: loading the deployed app there fails with
+  *"Production Keys are only allowed for domain harvous.com"*, and the page stays blank. The
+  plan's ordering (smoke-test on workers.dev, then move DNS) is therefore impossible as
+  written. Revised:
+
+  - The **wrong-key failure mode that killed all three Fly cutovers is structurally ruled
+    out here**, in a way it never was on Fly: the bundle is byte-identical to the one
+    production serves today, so the key inside it is definitionally the working one. What
+    remains untested is not the credential but whether Clerk works *through the Worker* —
+    an Origin/proxy question, not a secrets question.
+  - Exercise that on **staging with the dev Clerk key**: development instances are not
+    domain-locked, so `harvous-app-staging.harvous.workers.dev` can be signed into and will
+    exercise Clerk → Worker proxy → Fly → DB end to end. Do this before stage 3.
+  - The live-key sign-in necessarily happens at **stage 4, immediately after attaching
+    app.harvous.com**, with the DNS rollback standing by. Treat it as the first action after
+    attach, not a later step.
+
+- 2026-09-02 (**stage 3 complete — zone is on Cloudflare**) — Nameservers moved from
+  `ns1/ns2.hover.com` to `lennox.ns.cloudflare.com` / `sara.ns.cloudflare.com`. Delegation
+  propagated within minutes; Google, Cloudflare and Quad9 resolvers all see the new pair.
+  Every record verified through 1.1.1.1 afterwards, and the live surfaces are unchanged:
+  `app.harvous.com` 200 (still Netlify), `/api/health` 200 (still proxying to Fly),
+  `clerk.harvous.com` 200, `www` 301. **No app traffic moved.**
+
+  **Cloudflare's zone scan missed SEVEN records.** Switching on its import alone would have
+  broken authentication and email:
+
+  - `clerk`, `accounts` — auth. `clerk.harvous.com` failing to resolve takes down sign-in
+    for every user, on Netlify, instantly.
+  - `clkmail`, `clk._domainkey`, `clk2._domainkey` — Clerk transactional mail + DKIM.
+  - `heymail._domainkey` — **HEY's DKIM.** Outbound mail from @harvous.com would have failed
+    DKIM; with DMARC at `p=none` nothing bounces, deliverability just quietly degrades.
+  - `subdomain-owner-verification` TXT — purpose unidentified, preserved anyway.
+
+  It also defaulted **six** records to Proxied that had to be forced back to DNS-only: the
+  apex A, `www`, `app`, `new`, `status`, and `mail` — the last of which would have put
+  Hover's IMAP/SMTP behind an HTTP proxy.
+
+  **The method lesson, worth more than the record list.** The `dig` snapshot committed the
+  day before asserted "no hey1/hey2 DKIM selectors exist — HEY signs via the SPF include."
+  That was wrong: the selector is `heymail`, and the conclusion came from probing *guessed*
+  names and treating their absence as evidence. The first verification pass then reported
+  "16 of 16 match, zero differences" — true, but comparing Cloudflare against the same
+  incomplete list, so both sides agreed while both were missing the same records. **The
+  registrar's own panel caught it.** A zone diff is only as good as its more complete side;
+  compare against the registrar, never against your own capture.
+
+  Final gate before the switch: 18 records diffed against **both** Cloudflare nameservers,
+  0 failing.
+
+
+
+
+
+
+- 2026-09-02 (**status.harvous.com attached — Netlify now serves nothing**) — All three hosts
+  are on the Worker. `/api/status/public` proxies to Fly correctly, so the status page's data
+  path is intact.
+
+  **The host gate is now proven live, on the host that motivated it:**
+
+  | path | `app.harvous.com` (dedicated) | `status.harvous.com` (not) |
+  |---|---|---|
+  | `/prototype/dashboard` | **302** → `/dashboard` | **200** — correctly not stripped |
+  | `/thread_abc123` | **301** → `/thread/abc123` | **301** → `/thread/abc123` |
+
+  Without the gate, `/prototype` — a live route on the status host — would have been stripped
+  and broken it the moment the domain attached.
+
+  **A false alarm worth recording, because this file already warned about it.** Right after
+  the attach, a plain `curl https://app.harvous.com/thread_abc123` returned 200 instead of 301
+  and looked like a regression. The response carried `server: Netlify`: this machine's
+  resolver still held the pre-cutover CNAME, and the checks that had passed minutes earlier
+  used `--resolve` while these did not. The stale-DNS caveat in the stage-4 entry above was
+  written and then walked into within the hour. **Never verify a cutover with a plain curl
+  from the machine that has been hitting the old host all day** — pin the IP, every time.

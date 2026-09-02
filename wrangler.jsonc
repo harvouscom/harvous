@@ -64,10 +64,14 @@
   // on hostname (src/lib/status-page-host.ts, spa/src/router.tsx buildStatusHostRoutes).
   // Same build, same Worker. It is also the reason legacyRedirect() is host-gated — see
   // cloudflare/worker.ts; /prototype is a LIVE route on the status host.
-  // "routes": [
-  //   { "pattern": "app.harvous.com", "custom_domain": true },
-  //   { "pattern": "status.harvous.com", "custom_domain": true }
-  // ],
+  "routes": [
+    { "pattern": "app.harvous.com", "custom_domain": true },
+    // status.harvous.com is the same build and the same Worker — a Netlify domain alias
+    // historically, with isStatusHost() (src/lib/status-page-host.ts) making the SPA render
+    // the status page at /. It is NOT in DEDICATED_PROTOTYPE_HOSTS, which is why
+    // legacyRedirect() in cloudflare/worker.ts is host-gated: /prototype is a live route here.
+    { "pattern": "status.harvous.com", "custom_domain": true }
+  ],
 
   "env": {
     // Mirrors netlify.toml's [context.staging]: dev Clerk key, production DB.
@@ -78,9 +82,11 @@
       "name": "harvous-app-staging",
       "observability": { "enabled": true },
       "vars": { "API_ORIGIN": "https://harvous.fly.dev" },
-      "workers_dev": true
-      // STAGE 4 ONLY — same reasoning as the production route above.
-      // "routes": [{ "pattern": "new.harvous.com", "custom_domain": true }]
+      "workers_dev": true,
+      // ATTACHED 2026-09-02 (stage 4, staging half). new.harvous.com now serves this Worker
+      // instead of Netlify's branch deploy. Rollback is re-pointing the DNS record.
+      // app.harvous.com is still commented out below — production has not moved.
+      "routes": [{ "pattern": "new.harvous.com", "custom_domain": true }]
     }
   }
 }
