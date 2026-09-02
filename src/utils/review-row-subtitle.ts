@@ -16,9 +16,15 @@ import { NOTE_WRITTEN_SOURCE } from '@/utils/study-bible-source-copy';
  * So: the subtitle is only ever suppressed when the question *actually contains* the identity,
  * and there is always an identity to fall back to.
  *
- * The identity itself is resolved server-side (`noteLabel`): the note's title, else its opening
- * line, else the first passage it cites. A date is the last resort here and only that — it says
- * when, not what, and "Written Jul 10" turned out to be no more use than saying nothing.
+ * What it shows, in order:
+ *
+ * 1. **The note's own opening words** (`noteContext`), which is the line the scripture row has
+ *    always had — the reference on top, a fragment of the verse beneath. A note deserves the
+ *    same, and this is the most context per character available without opening it.
+ * 2. Its title or the passage it cites, when there is no body to quote and the question has
+ *    not already named it.
+ * 3. The date it was written. Last resort and only that: it says when, not what, and "Written
+ *    Jul 10" turned out to be no more use than saying nothing.
  */
 
 const WRITTEN_PREFIX = 'Written ';
@@ -27,6 +33,8 @@ export interface ReviewRowSubtitleInput {
   prompt: string;
   /** Server-resolved: title, else the note's opening line, else the passage it cites. */
   noteLabel?: string | null;
+  /** The note's own opening words. Preferred over everything else — it is the context line. */
+  noteContext?: string | null;
   noteTitle?: string | null;
   scriptureReference?: string | null;
   /** ISO date, the last resort for a note with no name and no passage. */
@@ -54,6 +62,10 @@ export function reviewRowSubtitle(
   item: ReviewRowSubtitleInput,
   now: Date = new Date(),
 ): string | null {
+  // The note's own words win outright: the question above names the note, this shows it.
+  const context = item.noteContext?.trim();
+  if (context) return context;
+
   const identity =
     item.noteLabel?.trim() || item.noteTitle?.trim() || item.scriptureReference?.trim() || null;
 
@@ -74,9 +86,12 @@ export function reviewRowSubtitle(
 /**
  * The "why is this here" line, dropped when the identity line already said it.
  *
- * A note with no name and no passage is placed in time — "Written 10 Jul" — and its reason for
- * being in the queue is that the reader wrote it. Printing both gives "Written 10 Jul · You
- * wrote this", which is one fact wearing two labels on a row that was meant to get shorter.
+ * "You wrote this" earns its place on a row that would otherwise say nothing about where the
+ * question came from. Beside the note's own sentence it says nothing at all — the reader can
+ * see whose words those are — and beside "Written 10 Jul" it is the same fact twice.
+ *
+ * Every other reason survives, because each says something the context line does not: "Marked
+ * Romans 1:7 in a note", "You linked these notes", "You opened this again".
  */
 export function reviewRowSource(
   item: { sourceLabel?: string | null },
@@ -84,5 +99,5 @@ export function reviewRowSource(
 ): string | null {
   const source = item.sourceLabel?.trim() || null;
   if (!source || !subtitle) return source;
-  return subtitle.startsWith(WRITTEN_PREFIX) && source === NOTE_WRITTEN_SOURCE ? null : source;
+  return source === NOTE_WRITTEN_SOURCE ? null : source;
 }

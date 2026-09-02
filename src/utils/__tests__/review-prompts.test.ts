@@ -148,22 +148,14 @@ describe('note questions speak to the reader, not about the note', () => {
     );
   });
 
-  it('lets the note own words lead instead, since a fragment cannot follow "in"', () => {
-    expect(
-      fillReviewPrompt('note.observe', { notePhrase: 'God chose us before the foundation' }),
-    ).toBe('God chose us before the foundation — what did you see?');
-  });
-
-  it('prefers a name over the note own words when it has one', () => {
-    expect(
-      fillReviewPrompt('note.central', { noteTitle: 'Adoption', notePhrase: 'God chose us' }),
-    ).toBe('What were you working out in Adoption?');
-  });
-
-  it('does not run two stops together when joining a phrase', () => {
-    // The excerpt ends wherever the sentence did.
-    expect(fillReviewPrompt('note.phrase', { notePhrase: 'He wept for the city.' })).toBe(
-      'He wept for the city — what made you write it?',
-    );
+  it('asks the bare question when the note has no name, and stays short', () => {
+    // The row prints the note's own opening words underneath, the way a verse row carries a
+    // fragment of the verse. Splicing them into the sentence made one very long question and
+    // left the line below with nothing to say.
+    expect(fillReviewPrompt('note.observe', {})).toBe('What did you see here?');
+    expect(fillReviewPrompt('note.phrase', {})).toBe('What made you write this?');
+    for (const key of noteKeys) {
+      expect(fillReviewPrompt(key, {}).length).toBeLessThan(46);
+    }
   });
 });

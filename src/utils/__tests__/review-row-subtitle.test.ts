@@ -4,6 +4,19 @@ import { reviewRowSource, reviewRowSubtitle, writtenAtLabel } from '@/utils/revi
 const NOW = new Date('2026-09-02T12:00:00Z');
 
 describe('reviewRowSubtitle', () => {
+  it('shows the note own words first, the way a verse row shows a fragment of the verse', () => {
+    expect(
+      reviewRowSubtitle(
+        {
+          prompt: 'What is clearer to you in Adoption now?',
+          noteTitle: 'Adoption',
+          noteContext: 'God chose us before the foundation',
+        },
+        NOW,
+      ),
+    ).toBe('God chose us before the foundation');
+  });
+
   it('names the note when the question does not', () => {
     expect(
       reviewRowSubtitle(
@@ -101,18 +114,15 @@ describe('writtenAtLabel', () => {
 });
 
 describe('reviewRowSource', () => {
-  it('drops the reason when the identity line already gave it', () => {
-    // "Written 10 Jul · You wrote this" is one fact wearing two labels.
+  it('drops "You wrote this" beside the reader own sentence, which already says so', () => {
+    expect(reviewRowSource({ sourceLabel: 'You wrote this' }, 'God chose us before')).toBeNull();
     expect(reviewRowSource({ sourceLabel: 'You wrote this' }, 'Written 10 Jul')).toBeNull();
   });
 
-  it('keeps a reason that says something the identity does not', () => {
-    expect(reviewRowSource({ sourceLabel: 'You opened this again' }, 'Written 10 Jul')).toBe(
-      'You opened this again',
-    );
-    expect(reviewRowSource({ sourceLabel: 'You wrote this' }, 'This is cool')).toBe(
-      'You wrote this',
-    );
+  it('keeps every reason that says something the context line does not', () => {
+    for (const source of ['You opened this again', 'Marked Romans 1:7 in a note', 'You linked these notes']) {
+      expect(reviewRowSource({ sourceLabel: source }, 'God chose us before')).toBe(source);
+    }
   });
 
   it('passes a reason through when there is no identity line at all', () => {

@@ -123,6 +123,11 @@ export interface ReviewItemView {
    * being asked, which is the one thing a review row must not do.
    */
   noteLabel: string | null;
+  /**
+   * The note's own opening words — the row's context line, the way a verse row carries its cue.
+   * Present whether or not the note has a title, because a title names it and this shows it.
+   */
+  noteContext: string | null;
   /** When the note was written, for a reader to place a note that has no name of its own. */
   noteWrittenAt: string | null;
   scriptureReference: string | null;
@@ -305,9 +310,6 @@ export async function buildReviewItemViews(
         secondaryNoteTitle,
         threadTitle,
         cue,
-        // The note's own words, so a note with no title still gets a specific question
-        // rather than one about "this note".
-        notePhrase: primary?.excerpt ?? null,
       },
     );
 
@@ -328,6 +330,7 @@ export async function buildReviewItemViews(
       noteId: row.noteId,
       challengeId: row.challengeId,
       noteLabel: noteTitle ?? primary?.excerpt ?? primary?.passage ?? null,
+      noteContext: primary?.excerpt ?? null,
       noteWrittenAt: primary?.writtenAt?.toISOString() ?? null,
       sourceLabel: row.sourceLabel,
       sourceAt: row.sourceAt?.toISOString() ?? null,

@@ -50,43 +50,35 @@ export interface ReviewPromptContext {
   threadTitle?: string | null;
   /** A distinctive fragment of the verse, for the recognize rung. */
   cue?: string | null;
-  /** The note's own opening words, when it has no title to be named by. */
-  notePhrase?: string | null;
+
 }
 
 /**
- * What the question is about, and whether it is a *name* or the note's own words.
+ * The name the question can use, or null when the note has none.
  *
- * The distinction decides the sentence shape. "What did you see in Romans 8?" is fine, and
- * "What did you see in The first book Lets type more content here?" is not — an excerpt is a
- * fragment of prose, not a noun you can put after a preposition. Those lead instead:
- * "The first book Lets type more content here — what did you see?"
- *
- * Never "this note", which was the old fallback and named nothing at all.
+ * Never "this note", which was the old fallback and named nothing at all. A nameless note gets
+ * the bare form of the question instead, and the row names it on the line below.
  */
-function subject(ctx: ReviewPromptContext): { text: string; isPhrase: boolean } {
-  const name = ctx.reference?.trim() || ctx.noteTitle?.trim() || ctx.threadTitle?.trim();
-  if (name) return { text: name, isPhrase: false };
-  const phrase = ctx.notePhrase?.trim();
-  if (phrase) return { text: phrase, isPhrase: true };
-  return { text: 'this', isPhrase: false };
+function subjectName(ctx: ReviewPromptContext): string | null {
+  return ctx.reference?.trim() || ctx.noteTitle?.trim() || ctx.threadTitle?.trim() || null;
 }
 
 /**
- * Build a question two ways round: named subjects sit inside the sentence, the note's own
- * words lead it. `tail` is the phrase-led form, with the subject already spoken for.
+ * Build a question two ways round: a named subject sits inside the sentence, and a note with
+ * no name gets the bare form, because the row prints its opening words directly underneath.
+ *
+ * The note's own words were briefly spliced into the sentence itself, which read as one very
+ * long question and left nothing for the line below. The scripture row had it right all along:
+ * the question on top, what it is about beneath.
  */
-function ask(ctx: ReviewPromptContext, inside: (s: string) => string, tail: string): string {
-  const { text, isPhrase } = subject(ctx);
-  if (!isPhrase) return inside(text);
-  // Trailing punctuation is already trimmed where the excerpt is built, so that the label and
-  // the question hold the same string; this is belt and braces for any other caller.
-  return `${text.replace(/[.,;:—–-]+$/, '').trim()} — ${tail}`;
+function ask(ctx: ReviewPromptContext, inside: (s: string) => string, bare: string): string {
+  const name = subjectName(ctx);
+  return name ? inside(name) : bare;
 }
 
-/** The old shape, for prompts that only ever name a Thread or a passage. */
+/** For prompts that only ever name a Thread or a passage, which always have one. */
 function subjectText(ctx: ReviewPromptContext): string {
-  return subject(ctx).text;
+  return subjectName(ctx) ?? 'this';
 }
 
 function threadName(ctx: ReviewPromptContext): string {
@@ -106,13 +98,14 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
    * the note as an object rather than the reader as someone who wrote it, and "this note" named
    * nothing when the note had no title.
    */
-  'note.observe': (ctx) => ask(ctx, (s) => `What did you see in ${s}?`, 'what did you see?'),
+  'note.observe': (ctx) => ask(ctx, (s) => `What did you see in ${s}?`, 'What did you see here?'),
   'note.central': (ctx) =>
-    ask(ctx, (s) => `What were you working out in ${s}?`, 'what were you working out?'),
-  'note.carry': (ctx) => ask(ctx, (s) => `What stuck with you from ${s}?`, 'what stuck with you?'),
-  'note.phrase': (ctx) => ask(ctx, (s) => `What made you write ${s}?`, 'what made you write it?'),
+    ask(ctx, (s) => `What were you working out in ${s}?`, 'What were you working out here?'),
+  'note.carry': (ctx) =>
+    ask(ctx, (s) => `What stuck with you from ${s}?`, 'What stuck with you here?'),
+  'note.phrase': (ctx) => ask(ctx, (s) => `What made you write ${s}?`, 'What made you write this?'),
   'note.unclear': (ctx) =>
-    ask(ctx, (s) => `What is clearer to you in ${s} now?`, 'what is clearer to you now?'),
+    ask(ctx, (s) => `What is clearer to you in ${s} now?`, 'What is clearer to you now?'),
   'highlight.why': (ctx) => `You marked this in ${subjectText(ctx)}. What made it worth keeping?`,
   'highlight.detail': (ctx) => `What detail in ${subjectText(ctx)} led you to mark this passage?`,
   'connection.why': (ctx) =>
