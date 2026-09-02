@@ -1336,6 +1336,74 @@ export function deriveStudyArcs(notes: StudyArcNoteInput[], options: StudyArcOpt
   return arcs.slice(0, Math.max(0, limit));
 }
 
+/** One theme node from the reader's Study Bible layer, as an arc input. */
+export interface StudyArcThemeNode {
+  label: string | null;
+  /** How many times study has touched this theme, however it happened. */
+  exposureCount: number;
+  expansionCount: number;
+  firstStudiedAt: string | Date;
+  lastSeenAt: string | Date;
+}
+
+const toMs = (value: string | Date): number =>
+  value instanceof Date ? value.getTime() : new Date(value).getTime();
+
+/**
+ * The same arcs, from server-side counts rather than the notes in the browser.
+ *
+ * `deriveStudyArcs` above needs every note the reader has, which is why it gives up whenever
+ * the list is paginated — a count of three that is really thirty is worse than saying nothing.
+ * The Study Bible layer counts as study happens, so this can answer for a reader with two
+ * thousand notes and a first page of twenty.
+ *
+ * Same thresholds and the same denylist, deliberately: an arc should mean the same thing
+ * whichever path produced it. `noteIds` is left to the caller, which has the fingerprints and
+ * can match the label back to notes it holds — the layer knows the theme was studied, not
+ * which of the reader's notes are currently on screen.
+ */
+export function deriveStudyArcsFromNodes(
+  nodes: readonly StudyArcThemeNode[],
+  options: StudyArcOptions,
+): StudyArc[] {
+  const { nowMs, windowMs = ARC_WINDOW_MS, minNotes = 3, minSpanDays = 21, limit = 1 } = options;
+  const windowStart = nowMs - windowMs;
+
+  const arcs: StudyArc[] = [];
+  for (const node of nodes) {
+    const label = node.label?.trim();
+    if (!label || ARC_THEME_DENYLIST.has(label.toLowerCase())) continue;
+
+    const lastMs = toMs(node.lastSeenAt);
+    const firstMs = Math.max(toMs(node.firstStudiedAt), windowStart);
+    if (!Number.isFinite(lastMs) || !Number.isFinite(firstMs)) continue;
+    if (lastMs < windowStart || lastMs > nowMs) continue;
+
+    // Writing about a theme counts alongside meeting it: an arc is study, not exposure.
+    const touches = node.exposureCount + node.expansionCount;
+    if (touches < minNotes) continue;
+
+    const spanDays = (lastMs - firstMs) / DAY_MS;
+    if (spanDays < minSpanDays) continue;
+
+    arcs.push({
+      theme: label,
+      noteCount: touches,
+      firstMs,
+      lastMs,
+      spanDays,
+      // Tone lives on note fingerprints, not on the theme node.
+      dominantTone: null,
+      noteIds: [],
+    });
+  }
+
+  arcs.sort(
+    (a, b) => b.noteCount - a.noteCount || b.spanDays - a.spanDays || a.theme.localeCompare(b.theme),
+  );
+  return arcs.slice(0, Math.max(0, limit));
+}
+
 // ─── Section study arcs (canon section over time) ────────────────────────────────
 
 export interface SectionArcNoteInput {

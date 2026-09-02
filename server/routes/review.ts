@@ -26,6 +26,7 @@ import {
 import { describeNextReturn } from '@/utils/review-scheduling';
 import {
   applyReviewOutcome,
+  gradeVerseAnswer,
   buildReviewItemViews,
   buildReviewReveal,
   createReviewItem,
@@ -189,10 +190,29 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
     const attempt =
       typeof body?.attempt === 'string' ? body.attempt.slice(0, MAX_ATTEMPT_LENGTH) : null;
 
+    /*
+     * Two rungs of the verse ladder have a right answer, and on those the reader's own verdict
+     * is not the input — the arrangement or the option they chose is. Marked here rather than
+     * in the page, because a puzzle whose answer key reached the client is not a puzzle.
+     *
+     * Every other rung stays exactly as it was: an open question, judged by the person who
+     * wrote the note, with nothing stored to compare it against.
+     */
+    const answer =
+      body?.answer && typeof body.answer === 'object'
+        ? {
+            order: Array.isArray(body.answer.order)
+              ? body.answer.order.filter((v: unknown) => Number.isInteger(v)).slice(0, 12)
+              : undefined,
+            option: typeof body.answer.option === 'string' ? body.answer.option : undefined,
+          }
+        : null;
+    const graded = answer ? await gradeVerseAnswer(auth.userId, item, answer) : null;
+
     const { item: updated, nextReturnDays } = await applyReviewOutcome(
       auth.userId,
       item,
-      outcome,
+      graded ?? outcome,
       attempt,
     );
 

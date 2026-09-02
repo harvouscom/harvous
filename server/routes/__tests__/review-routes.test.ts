@@ -67,6 +67,31 @@ describe('the queue fills itself from the reader\'s own study', () => {
   });
 });
 
+describe('the two graded rungs are marked on the server', () => {
+  it('marks the answer rather than trusting the reader\'s verdict', () => {
+    const text = review();
+    const outcome = text.slice(text.indexOf("'/api/review/items/:id/outcome'"));
+    expect(outcome).toContain('gradeVerseAnswer');
+    // `graded ?? outcome` — the client's claim is the fallback, not the input.
+    expect(outcome).toMatch(/graded \?\? outcome/);
+  });
+
+  it('never sends the answer key with the puzzle', () => {
+    const text = service();
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    // The payload carries phrases and options; `order` and `answerIndex` stay here.
+    expect(reveal).toContain('phrases: exercise.phrases');
+    expect(reveal).not.toContain('order: exercise.order');
+    expect(reveal).not.toContain('answerIndex');
+  });
+
+  it('withholds the verse text on the rungs where it would be the answer', () => {
+    const text = service();
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    expect(reveal.match(/payload\.verseText = null/g)?.length).toBe(2);
+  });
+});
+
 describe('the inbox stays calm', () => {
   it('never sends a count of what it is not showing', () => {
     const text = review();

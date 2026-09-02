@@ -35,6 +35,8 @@ export const REVIEW_PROMPT_KEYS = [
   'verse.rebuild',
   'verse.recall',
   'verse.contextualize',
+  'verse.sequence',
+  'verse.locate',
   'verse.connect',
 ] as const;
 
@@ -101,15 +103,21 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
   'verse.rebuild': (ctx) => `Fill in what is missing from ${subject(ctx)}.`,
   'verse.recall': (ctx) => `${subject(ctx)} — write it as you remember it.`,
   'verse.contextualize': (ctx) => `What happens just before or after ${subject(ctx)}?`,
+  'verse.sequence': (ctx) => `Put ${subject(ctx)} back in order.`,
+  'verse.locate': () => 'Where is this from?',
   'verse.connect': (ctx) =>
     `What note or passage did you connect to ${subject(ctx)}, and why?`,
 };
 
 /**
- * The verse ladder, in order. The rungs are positions 0..4 on `ReviewItems.ladderStep`, and a
- * clean recall moves the reader up one — so the same verse is asked a different way each time
- * rather than the same way forever, which is the difference between varied retrieval and
- * rereading.
+ * The verse ladder, in order. The rungs are positions on `ReviewItems.ladderStep`, and a clean
+ * recall moves the reader up one — so the same verse is asked a different way each time rather
+ * than the same way forever, which is the difference between varied retrieval and rereading.
+ *
+ * The last two were appended rather than inserted, so an item mid-ladder keeps the rung it is
+ * on. `sequence` and `locate` are also the only two rungs anything grades: they have one right
+ * answer that comes from the text itself. Every other rung is an open question the reader
+ * judges for themselves, and that asymmetry is deliberate — see verse-ladder-exercises.ts.
  */
 export const VERSE_LADDER: readonly ReviewPromptKey[] = [
   'verse.recognize',
@@ -117,12 +125,18 @@ export const VERSE_LADDER: readonly ReviewPromptKey[] = [
   'verse.recall',
   'verse.contextualize',
   'verse.connect',
+  'verse.sequence',
+  'verse.locate',
 ];
 
 export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
 
 /** The rung whose prompt hides part of the verse. The page renders a cloze only here. */
 export const VERSE_REBUILD_STEP = 1;
+
+/** The two graded rungs. The client's own verdict is ignored on these — the server marks them. */
+export const VERSE_SEQUENCE_STEP = 5;
+export const VERSE_LOCATE_STEP = 6;
 
 const ROTATIONS: Record<Exclude<ReviewItemKind, 'verse'>, readonly ReviewPromptKey[]> = {
   note: ['note.observe', 'note.central', 'note.carry', 'note.phrase', 'note.unclear'],

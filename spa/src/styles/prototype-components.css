@@ -21836,6 +21836,76 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-accent);
 }
 
+/*
+ * The two graded rungs: phrases to arrange, or four references to choose between.
+ *
+ * Chips rather than drag handles. A drag library for a puzzle of four pieces is a dependency
+ * and a touch-target problem; tap to place and tap again to take it back works with one finger
+ * and reads the same on a phone and a desktop.
+ */
+.proto-review-dock__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Where the placed phrases gather. Numbered, so the order the reader built is visible. */
+.proto-review-dock__chips--placed {
+  counter-reset: proto-review-chip;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.proto-review-dock__chips--placed li {
+  counter-increment: proto-review-chip;
+  display: flex;
+  align-items: baseline;
+  gap: var(--pds-space-2);
+}
+
+.proto-review-dock__chips--placed li::before {
+  content: counter(proto-review-chip);
+  flex: none;
+  width: 1.2em;
+  font-family: var(--pds-font-body);
+  font-size: 12px;
+  color: var(--pds-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-review-chip {
+  padding: var(--pds-space-2) var(--pds-space-3);
+  border: 1px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-button);
+  background: var(--pds-bg-input);
+  color: var(--pds-text-primary);
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proto-review-chip:hover:not(:disabled) {
+  border-color: var(--pds-border-control-strong);
+  background: var(--pds-bg-row-hover);
+}
+
+.proto-review-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* A placed phrase reads as part of the sentence being rebuilt, not as an option any more. */
+.proto-review-chip--placed {
+  flex: 1;
+  border-color: transparent;
+  background: var(--pds-bg-row-hover);
+}
+
 .proto-review-dock__empty,
 .proto-review-dock__handoff {
   margin: 0;

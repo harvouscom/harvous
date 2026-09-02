@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { UNIVERSAL_BIBLE_ENTITIES } from '@/utils/universal-bible-entities';
 import {
+  deriveStudyArcsFromNodes,
   computeActivityRhythm,
   computeLastActivityTime,
   countWeeklyActivityDays,
@@ -2236,5 +2238,51 @@ describe('deriveReflectionPrompt', () => {
 
   it('returns undefined with no season or theme', () => {
     expect(deriveReflectionPrompt({})).toBeUndefined();
+  });
+});
+
+describe('deriveStudyArcsFromNodes', () => {
+  const NOW = new Date('2026-09-01T12:00:00Z').getTime();
+  const daysAgo = (days: number) => new Date(NOW - days * 86400000).toISOString();
+
+  const themeNode = (label: string, overrides: Partial<Parameters<typeof deriveStudyArcsFromNodes>[0][number]> = {}) => ({
+    label,
+    exposureCount: 5,
+    expansionCount: 0,
+    firstStudiedAt: daysAgo(60),
+    lastSeenAt: daysAgo(2),
+    ...overrides,
+  });
+
+  it('answers for a reader whose notes are paginated, which the note-side derive cannot', () => {
+    const arcs = deriveStudyArcsFromNodes([themeNode('Adoption')], { nowMs: NOW, limit: 1 });
+    expect(arcs[0]?.theme).toBe('Adoption');
+    expect(arcs[0]?.noteCount).toBe(5);
+  });
+
+  it('holds the same thresholds as the note-side derive', () => {
+    // Too few touches, and too short a span, are each on their own a reason not to claim an arc.
+    expect(deriveStudyArcsFromNodes([themeNode('Adoption', { exposureCount: 2 })], { nowMs: NOW })).toEqual([]);
+    expect(
+      deriveStudyArcsFromNodes([themeNode('Adoption', { firstStudiedAt: daysAgo(4) })], { nowMs: NOW }),
+    ).toEqual([]);
+  });
+
+  it('counts writing about a theme alongside meeting it', () => {
+    const arcs = deriveStudyArcsFromNodes(
+      [themeNode('Covenant', { exposureCount: 2, expansionCount: 2 })],
+      { nowMs: NOW },
+    );
+    expect(arcs[0]?.noteCount).toBe(4);
+  });
+
+  it('drops the universal entities the note-side derive drops', () => {
+    const denied = [...UNIVERSAL_BIBLE_ENTITIES][0];
+    expect(deriveStudyArcsFromNodes([themeNode(denied)], { nowMs: NOW })).toEqual([]);
+  });
+
+  it('ignores a theme not touched inside the window', () => {
+    const stale = themeNode('Adoption', { firstStudiedAt: daysAgo(900), lastSeenAt: daysAgo(700) });
+    expect(deriveStudyArcsFromNodes([stale], { nowMs: NOW })).toEqual([]);
   });
 });

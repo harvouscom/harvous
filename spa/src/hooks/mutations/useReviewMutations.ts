@@ -38,6 +38,11 @@ export interface ReviewOutcomeInput {
   itemId: string;
   outcome: ReviewOutcome;
   attempt?: string;
+  /**
+   * The two graded rungs of the verse ladder. When present the server marks the answer and
+   * ignores `outcome` — the page has no answer key to check against, by design.
+   */
+  answer?: { order?: number[]; option?: string };
 }
 
 export interface ReviewOutcomeResponse {
@@ -56,10 +61,11 @@ export interface ReviewOutcomeResponse {
 export function useReviewOutcome() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ itemId, outcome, attempt }: ReviewOutcomeInput) =>
+    mutationFn: ({ itemId, outcome, attempt, answer }: ReviewOutcomeInput) =>
       api.post<ReviewOutcomeResponse>(`/api/review/items/${encodeURIComponent(itemId)}/outcome`, {
         outcome,
         attempt,
+        answer,
       }),
     onMutate: async ({ itemId }) => {
       await queryClient.cancelQueries({ queryKey: reviewSessionQueryKey });

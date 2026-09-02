@@ -69,8 +69,8 @@ function reviewItem(id: string, prompt: string) {
     scriptureReference: 'Romans 8:15',
     noteId: 'note_1',
     challengeId: null,
-    sourceLabel: null,
-    sourceAt: null,
+    sourceLabel: null as string | null,
+    sourceAt: null as string | null,
   };
 }
 
@@ -136,8 +136,7 @@ describe('what it shows a subscriber', () => {
   it('renders the questions themselves, not the note titles', () => {
     inbox.data = {
       items: [reviewItem('r1', 'Before opening it, what did you observe in Romans 8:15?')],
-      hasMore: false,
-      canSeed: false,
+      hasMore: false
     };
     render(<PrototypeReviewSection />);
     expect(
@@ -148,8 +147,7 @@ describe('what it shows a subscriber', () => {
   it('never shows more than three rows of work', () => {
     inbox.data = {
       items: ['a', 'b', 'c', 'd', 'e'].map((id) => reviewItem(id, `Question ${id}`)),
-      hasMore: true,
-      canSeed: false,
+      hasMore: true
     };
     render(<PrototypeReviewSection />);
     const questions = screen.queryAllByText(/^Question /);
@@ -159,8 +157,7 @@ describe('what it shows a subscriber', () => {
   it('gives up a review row for the challenge continuation, keeping the cap', () => {
     inbox.data = {
       items: ['a', 'b', 'c', 'd'].map((id) => reviewItem(id, `Question ${id}`)),
-      hasMore: true,
-      canSeed: false,
+      hasMore: true
     };
     challenges.data = { challenges: [challenge('c1')] };
     render(<PrototypeReviewSection />);
@@ -178,8 +175,7 @@ describe('what it shows a subscriber', () => {
   it('never renders a count of what it is not showing', () => {
     inbox.data = {
       items: ['a', 'b', 'c', 'd', 'e'].map((id) => reviewItem(id, `Question ${id}`)),
-      hasMore: true,
-      canSeed: false,
+      hasMore: true
     };
     const { container } = render(<PrototypeReviewSection />);
     // The named failure mode: an escalating badge like "27 due".
@@ -210,8 +206,7 @@ describe('opening a question', () => {
      */
     inbox.data = {
       items: [reviewItem('r1', 'What did you observe?')],
-      hasMore: false,
-      canSeed: false,
+      hasMore: false
     };
     render(<PrototypeReviewSection />);
     screen.getByText('What did you observe?').click();

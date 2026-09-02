@@ -73,6 +73,9 @@ export const REVIEW_OUTCOME_ACK_COPY: Record<'recalled' | 'almost' | 'revealed',
   revealed: 'Read again.',
 };
 
+/** The graded rungs: the reader has arranged or chosen, and asks the app to mark it. */
+export const REVIEW_CHECK_COPY = 'Check it';
+
 /** Said once, on the answer that moves something into durable recall. Never a score. */
 export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
 export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';

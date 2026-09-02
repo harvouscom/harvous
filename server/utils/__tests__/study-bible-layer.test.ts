@@ -62,6 +62,8 @@ describe('activity paths write to the layer', () => {
     'server/routes/study-threads.ts',
     'server/routes/notes.ts',
     'server/utils/review-service.ts',
+    'server/utils/challenge-service.ts',
+    'server/routes/sync.ts',
   ];
 
   for (const path of paths) {

@@ -22,6 +22,7 @@ import {
   ReviewEvents,
   ReviewItems,
   StudyThreadEntries,
+  UserNodeStates,
   first,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
@@ -38,7 +39,19 @@ import {
   firstDueAt,
   nextReviewAfter,
 } from '@/utils/review-scheduling';
-import { reviewPromptFor, VERSE_LADDER_MAX_STEP, VERSE_REBUILD_STEP } from '@/utils/review-prompts';
+import {
+  reviewPromptFor,
+  VERSE_LADDER_MAX_STEP,
+  VERSE_LOCATE_STEP,
+  VERSE_REBUILD_STEP,
+  VERSE_SEQUENCE_STEP,
+} from '@/utils/review-prompts';
+import {
+  buildVerseLocate,
+  buildVerseSequence,
+  gradeVerseLocate,
+  gradeVerseSequence,
+} from '@/utils/verse-ladder-exercises';
 import { buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { collectStudyThreadGraph } from './study-thread-graph';
@@ -692,6 +705,75 @@ export interface ReviewRevealPayload {
   verseText?: string | null;
   cloze?: VerseCloze | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
+  /** The ordering puzzle, without its answer key — see verse-ladder-exercises.ts. */
+  sequence?: { phrases: string[] } | null;
+  /** The four references, without which one is right. */
+  locate?: { phrase: string; options: string[] } | null;
+}
+
+/**
+ * The reader's own references, as distractors for the locate rung.
+ *
+ * Their passages rather than a canned list: telling Romans 8 from Ephesians 2 is a real
+ * distinction when you have worked in both, and a stranger reference is not a distractor at
+ * all. Falls back to well-known references inside `buildVerseLocate` when the layer is thin.
+ */
+async function listUserVerseReferences(userId: string, exclude: string): Promise<string[]> {
+  try {
+    const rows = await db
+      .select({ nodeKey: UserNodeStates.nodeKey, label: UserNodeStates.label })
+      .from(UserNodeStates)
+      .where(
+        and(
+          eq(UserNodeStates.userId, userId),
+          eq(UserNodeStates.nodeKind, 'verse'),
+          eq(UserNodeStates.status, 'active'),
+        ),
+      )
+      .orderBy(desc(UserNodeStates.lastSeenAt))
+      .limit(40);
+    const excluded = exclude.trim().toLowerCase();
+    return rows
+      .map((row) => row.label?.trim() ?? '')
+      .filter((label) => label && label.toLowerCase() !== excluded);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Rebuild a graded rung's answer key from the item, and mark the reader's answer against it.
+ *
+ * Recomputed rather than stored: the puzzle is a pure function of `${item.id}:${ladderStep}`
+ * and the verse text, so there is nothing to keep and nothing to go stale. It also means the
+ * key never travels to the client, which is the point — a `verse.locate` whose answer sits in
+ * the page's memory is a multiple choice with the answer written on the back.
+ */
+export async function gradeVerseAnswer(
+  userId: string,
+  item: ReviewItemRow,
+  answer: { order?: number[]; option?: string },
+): Promise<ReviewOutcome | null> {
+  if (item.kind !== 'verse' || !item.scriptureReference) return null;
+  const isSequence = item.ladderStep === VERSE_SEQUENCE_STEP && Array.isArray(answer.order);
+  const isLocate = item.ladderStep === VERSE_LOCATE_STEP && typeof answer.option === 'string';
+  if (!isSequence && !isLocate) return null;
+
+  const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
+  if (!html) return null;
+  const text = stripHtml(html);
+  const seed = `${item.id}:${item.ladderStep}`;
+
+  if (isSequence) {
+    const exercise = buildVerseSequence(text, seed);
+    if (!exercise) return null;
+    return gradeVerseSequence(exercise, answer.order!) ? 'recalled' : 'almost';
+  }
+
+  const pool = await listUserVerseReferences(userId, item.scriptureReference);
+  const exercise = buildVerseLocate(item.scriptureReference, text, pool, seed);
+  if (!exercise) return null;
+  return gradeVerseLocate(exercise, answer.option!) ? 'recalled' : 'almost';
 }
 
 /** What the reader sees after they answer, or after they give up and open it. */
@@ -705,8 +787,26 @@ export async function buildReviewReveal(
     if (item.scriptureReference) {
       const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
       payload.verseText = html || null;
-      if (item.kind === 'verse' && item.ladderStep === VERSE_REBUILD_STEP && html) {
-        payload.cloze = buildVerseCloze(stripHtml(html), `${item.id}:${item.ladderStep}`);
+      if (item.kind === 'verse' && html) {
+        const text = stripHtml(html);
+        const seed = `${item.id}:${item.ladderStep}`;
+        if (item.ladderStep === VERSE_REBUILD_STEP) {
+          payload.cloze = buildVerseCloze(text, seed);
+        }
+        if (item.ladderStep === VERSE_SEQUENCE_STEP) {
+          const exercise = buildVerseSequence(text, seed);
+          // Phrases only. `order` is the answer, and stays here — as does the verse itself,
+          // which is the same information in one line.
+          payload.sequence = exercise ? { phrases: exercise.phrases } : null;
+          if (exercise) payload.verseText = null;
+        }
+        if (item.ladderStep === VERSE_LOCATE_STEP) {
+          const pool = await listUserVerseReferences(userId, item.scriptureReference);
+          const exercise = buildVerseLocate(item.scriptureReference, text, pool, seed);
+          payload.locate = exercise ? { phrase: exercise.phrase, options: exercise.options } : null;
+          // The verse text itself would give the answer away on this rung.
+          payload.verseText = null;
+        }
       }
     }
   }

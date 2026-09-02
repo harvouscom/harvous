@@ -837,6 +837,30 @@ route.patch('/api/study-threads/:id', requireAuth, rateLimit('write'), async (c)
       broadcastInvalidation(existing.userId, { type: 'note:updated', id: existing.parentNoteId });
     }
 
+    // Study Bible layer: writing something about a highlight for the first time is the reader
+    // deepening a passage, not merely having marked it. A recolour is neither, and emits nothing.
+    const annotationAdded =
+      !(existing.notesBody?.trim() || existing.miniNoteBody?.trim()) &&
+      Boolean(row?.notesBody?.trim() || row?.miniNoteBody?.trim());
+    if (annotationAdded && row?.scriptureReference) {
+      void (async () => {
+        const at = new Date();
+        const label = noteHighlightSource(row.scriptureReference!);
+        await touchNodes(auth.userId, [
+          ...(await scriptureTouches({
+            reference: row.scriptureReference!,
+            signal: 'expansion',
+            at,
+            sourceLabel: label,
+            translation: row.scripturePassageTranslation,
+          })),
+          ...(row.parentNoteId
+            ? [noteTouch({ noteId: row.parentNoteId, signal: 'expansion', at, sourceLabel: label })]
+            : []),
+        ]);
+      })();
+    }
+
     return c.json({ success: true, studyThread: row ? mapStudyRow(row) : null });
   } catch (error: any) {
     const e = handleAPIError(error, { endpoint: '/api/study-threads/[id]', action: 'patch_study_thread' });

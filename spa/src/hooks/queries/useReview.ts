@@ -51,6 +51,10 @@ export interface ReviewRevealResponse {
   secondaryNote?: { id: string; title: string | null; content: string } | null;
   verseText?: string | null;
   cloze?: VerseCloze | null;
+  /** The ordering rung's phrases, shuffled. The order they belong in stays on the server. */
+  sequence?: { phrases: string[] } | null;
+  /** The locate rung's fragment and four references. Which one is right stays on the server. */
+  locate?: { phrase: string; options: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
 }
 

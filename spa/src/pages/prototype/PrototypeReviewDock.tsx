@@ -35,6 +35,7 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PROTO_REVIEW_RESULT_DWELL_MS } from '../../layouts/proto-motion';
+import { VERSE_LOCATE_STEP, VERSE_SEQUENCE_STEP } from '@/utils/review-prompts';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import {
@@ -52,6 +53,7 @@ import {
   REVIEW_EMPTY_COPY,
   REVIEW_RECALLED_COPY,
   REVIEW_REVEALED_ACK_COPY,
+  REVIEW_CHECK_COPY,
   REVIEW_CROSSED_TO_HOLDING_COPY,
   REVIEW_OUTCOME_ACK_COPY,
   REVIEW_REVEAL_CONNECTION_COPY,
@@ -134,6 +136,8 @@ export default function PrototypeReviewDock() {
 
   const [attempt, setAttempt] = useState('');
   const [revealed, setRevealed] = useState(false);
+  /** Display indices the reader has placed, in the order they placed them. */
+  const [placed, setPlaced] = useState<number[]>([]);
   /*
    * What this sitting came to, counted only as it happens.
    *
@@ -143,7 +147,15 @@ export default function PrototypeReviewDock() {
    */
   const [sitting, setSitting] = useState({ answered: 0, holding: 0 });
 
-  const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed });
+  /*
+   * The two graded rungs fetch without being revealed, because on those the puzzle *is* the
+   * question — there is nothing to write first. Neither payload carries an answer key, and the
+   * locate rung's payload deliberately withholds the verse text as well.
+   */
+  const isGradedRung =
+    item?.kind === 'verse' &&
+    (item.ladderStep === VERSE_SEQUENCE_STEP || item.ladderStep === VERSE_LOCATE_STEP);
+  const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed || isGradedRung });
   const outcome = useReviewOutcome();
 
   const lastResult = reviewDock?.lastResult ?? null;
@@ -165,6 +177,7 @@ export default function PrototypeReviewDock() {
   useEffect(() => {
     setAttempt('');
     setRevealed(false);
+    setPlaced([]);
   }, [item?.id]);
 
   /*
@@ -183,10 +196,16 @@ export default function PrototypeReviewDock() {
   }, [item, reviewDock?.itemId, sessionItems, setReviewDockItem]);
 
   const answer = useCallback(
-    (value: 'recalled' | 'almost' | 'revealed') => {
+    (value: 'recalled' | 'almost' | 'revealed', graded?: { order?: number[]; option?: string }) => {
       if (!item) return;
       outcome.mutate(
-        { itemId: item.id, outcome: value, attempt: attempt.trim() || undefined },
+        {
+          itemId: item.id,
+          outcome: value,
+          attempt: attempt.trim() || undefined,
+          // On a graded rung the server decides; `value` is only the fallback if it cannot.
+          answer: graded,
+        },
         {
           onSuccess: (data) => {
             const crossedToDurable =
@@ -252,6 +271,14 @@ export default function PrototypeReviewDock() {
     () => (reveal.data?.verseText ? { __html: reveal.data.verseText } : null),
     [reveal.data?.verseText],
   );
+
+  /*
+   * The two rungs the app can mark. They arrive with the reveal because the puzzle *is* the
+   * question here — there is nothing to write first, so the reader taps rather than judging
+   * themselves afterwards. Neither payload carries its answer; the server marks the tap.
+   */
+  const sequenceExercise = reveal.data?.sequence ?? null;
+  const locateExercise = reveal.data?.locate ?? null;
 
   if (!reviewDock || isGuest || !review.has) return null;
 
@@ -348,6 +375,70 @@ export default function PrototypeReviewDock() {
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats
              repeating the prompt down here, where it would read as a second, separate ask. */
           <p className="proto-review-dock__handoff">Answer at the top of your note.</p>
+        ) : sequenceExercise ? (
+          /*
+           * Put the phrases back in order. Tap to place, tap a placed one to take it back —
+           * no drag library, which would be a dependency and a touch-target problem for a
+           * puzzle of four chips.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            <ol className="proto-review-dock__chips proto-review-dock__chips--placed">
+              {placed.map((index, position) => (
+                <li key={`${index}-${position}`}>
+                  <button
+                    type="button"
+                    className="proto-review-chip proto-review-chip--placed"
+                    onClick={() => setPlaced((current) => current.filter((_, i) => i !== position))}
+                  >
+                    {sequenceExercise.phrases[index]}
+                  </button>
+                </li>
+              ))}
+            </ol>
+            <div className="proto-review-dock__chips">
+              {sequenceExercise.phrases.map((phrase, index) =>
+                placed.includes(index) ? null : (
+                  <button
+                    key={index}
+                    type="button"
+                    className="proto-review-chip"
+                    onClick={() => setPlaced((current) => [...current, index])}
+                  >
+                    {phrase}
+                  </button>
+                ),
+              )}
+            </div>
+            <div className="proto-review-dock__actions">
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--compact"
+                disabled={outcome.isPending || placed.length !== sequenceExercise.phrases.length}
+                onClick={() => answer('almost', { order: placed })}
+              >
+                {REVIEW_CHECK_COPY}
+              </button>
+            </div>
+          </>
+        ) : locateExercise ? (
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            <p className="proto-review-dock__verse">“{locateExercise.phrase}…”</p>
+            <div className="proto-review-dock__chips">
+              {locateExercise.options.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="proto-review-chip"
+                  disabled={outcome.isPending}
+                  onClick={() => answer('almost', { option })}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </>
         ) : !revealed ? (
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>

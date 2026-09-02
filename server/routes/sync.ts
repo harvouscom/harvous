@@ -96,6 +96,29 @@ import { resolveCreateThreadAttachment } from '../utils/space-note-associations'
 
 const app = new Hono();
 
+/**
+ * The Study Bible layer side of a link that arrived through sync.
+ *
+ * Titles are looked up rather than passed in: a note pushed from an offline device may be the
+ * far end of a link whose other end this handler never saw. Fire-and-forget — the link is
+ * already committed, and the layer is never worth failing a sync over.
+ */
+async function recordSyncedConnectionNodes(
+  userId: string,
+  fromNoteId: string,
+  toNoteId: string,
+): Promise<void> {
+  const { connectionTouches, threadTouchForNote, touchNodes } = await import(
+    '../utils/study-bible-layer'
+  );
+  const { LINKED_NOTES_SOURCE } = await import('@/utils/study-bible-source-copy');
+  const at = new Date();
+  await touchNodes(userId, [
+    ...connectionTouches({ fromNoteId, toNoteId, at, sourceLabel: LINKED_NOTES_SOURCE }),
+    ...(await threadTouchForNote(userId, fromNoteId, 'connection', at, LINKED_NOTES_SOURCE)),
+  ]);
+}
+
 // In-memory cache for processed clientMutationIds (TTL: 5 minutes)
 const processedMutations = new Map<string, { serverId: string; data?: any; timestamp: number }>();
 const MUTATION_CACHE_TTL = 5 * 60 * 1000;
@@ -639,6 +662,8 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
           spaceId: spaceGate.spaceId,
           createdAt: nowISO(),
         });
+        // Study Bible layer: a link made offline is still a link the reader drew.
+        void recordSyncedConnectionNodes(userId, resolvedLinkedFromNoteId, newNote.id);
       } catch {
         // Duplicate — already connected, safe to ignore.
       }

@@ -71,6 +71,7 @@ import {
   deriveSubjectConnections,
   derivePassageConnections,
   deriveStudyArcs,
+  deriveStudyArcsFromNodes,
   deriveSectionArcs,
   sectionArcCopy,
   deriveTopBooks,
@@ -137,6 +138,8 @@ import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
 /** Force Home to present even if an auxiliary query never settles. */
 const HOME_PRESENTATION_DEADLINE_MS = 2500;
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
+import { useStudyBibleNodes } from '../../hooks/queries/useStudyBibleNodes';
+import type { NodeKind } from '@/utils/study-bible-nodes';
 import { deletedNoteIds, isNoteDeleted, subscribeDeletedNotes } from './proto-deleted-notes';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { useSearchEvents } from '../../hooks/queries/useSearchEvents';
@@ -247,6 +250,9 @@ export type HomeSurfaceInput = {
   destinations: HomeSurfaceDestinations;
 };
 
+/** Only themes, for now. People and places are tracked but nothing on Home reads them yet. */
+const STUDY_ARC_NODE_KINDS: readonly NodeKind[] = ['theme'];
+
 export function useHomeSurfaceData({
   homeSpaceId,
   notes,
@@ -270,6 +276,9 @@ export function useHomeSurfaceData({
   // greeting line rewrites itself a beat later — one more thing moving after first paint.
   const { isLoaded: clerkLoaded } = useUser();
   const fingerprintsQuery = useNoteFingerprints();
+  // Themes from the reader's own Study Bible layer, which counts server-side and so can answer
+  // for someone whose notes are paginated. See the study arc below.
+  const studyBibleNodesQuery = useStudyBibleNodes(STUDY_ARC_NODE_KINDS);
   const recallHistoryQuery = useRecallEventHistory();
   const readingHistoryQuery = useReadingHistory();
   // Declared up here, above the presentation gate, because the gate reads their settled state.
@@ -305,6 +314,9 @@ export function useHomeSurfaceData({
     fingerprintsQuery.isPending,
     fingerprintsQuery.data != null,
   );
+  const studyBibleSettled =
+    isQuerySettled(studyBibleNodesQuery.isPending, studyBibleNodesQuery.data != null) ||
+    Boolean(studyBibleNodesQuery.isError);
   const connectionsSettled =
     isQuerySettled(crossRefConnectionsQuery.isPending, crossRefConnectionsQuery.data != null) &&
     isQuerySettled(
@@ -365,6 +377,7 @@ export function useHomeSurfaceData({
     churchSermonsSettled,
     churchFeedSettled,
     readingPositionSettled,
+    studyBibleSettled,
   });
 
   // Backstop: a disabled query stays `isPending` forever in React Query v5, so without a
@@ -723,6 +736,32 @@ export function useHomeSurfaceData({
   // (Workstream A) with its timestamp; needs the full note set to count honestly. Tapping opens the
   // thread-review dialog listing notes in the arc.
   const studyArc = useMemo(() => {
+    const nowMs = Date.now();
+
+    /*
+     * The layer's counts first, because they are the only ones that survive pagination.
+     *
+     * The note-side derive below can only count the notes currently in the browser, so it
+     * refuses to answer at all once there are more — a reader with two thousand notes and a
+     * first page of twenty would be told "3 notes on adoption" when the truth is thirty. The
+     * Study Bible layer counted as the study happened, so it has no such limit.
+     */
+    const themeNodes = studyBibleNodesQuery.data?.nodes ?? [];
+    const fromLayer = themeNodes.length
+      ? deriveStudyArcsFromNodes(themeNodes, { nowMs, limit: 1 })[0]
+      : undefined;
+    if (fromLayer) {
+      // The layer knows the theme was studied; the notes on screen are what the arc can open.
+      const noteIds = notes
+        .filter((n) =>
+          (fingerprintsById.get(n.id)?.themes ?? []).some(
+            (theme) => theme.trim().toLowerCase() === fromLayer.theme.toLowerCase(),
+          ),
+        )
+        .map((n) => n.id);
+      return { ...fromLayer, noteIds };
+    }
+
     if (hasMoreNotes) return undefined;
     const arcNotes: StudyArcNoteInput[] = notes.map((n) => {
       const fp = fingerprintsById.get(n.id);
@@ -734,8 +773,8 @@ export function useHomeSurfaceData({
         emotionalTone: fp?.emotionalTone ?? null,
       };
     });
-    return deriveStudyArcs(arcNotes, { nowMs: Date.now(), limit: 1 })[0];
-  }, [notes, fingerprintsById, hasMoreNotes]);
+    return deriveStudyArcs(arcNotes, { nowMs, limit: 1 })[0];
+  }, [notes, fingerprintsById, hasMoreNotes, studyBibleNodesQuery.data]);
 
   const sectionArc = useMemo(() => {
     if (hasMoreNotes || studyArc) return undefined;

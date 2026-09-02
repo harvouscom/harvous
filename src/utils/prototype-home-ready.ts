@@ -29,6 +29,8 @@ export interface PrototypeHomePresentationReadyInput {
   /** Clerk `useUser().isLoaded` — enough for the hello first name. */
   clerkLoaded: boolean;
   fingerprintsSettled: boolean;
+  /** The reader's Study Bible layer, which the study arc prefers over the note-side count. */
+  studyBibleSettled: boolean;
   tagsSettled: boolean;
   threadsSettled: boolean;
   scriptureSettled: boolean;
@@ -89,6 +91,7 @@ export function isPrototypeHomePresentationReady(input: PrototypeHomePresentatio
     input.recallHistorySettled &&
     input.churchSermonsSettled &&
     input.churchFeedSettled &&
-    input.readingPositionSettled
+    input.readingPositionSettled &&
+    input.studyBibleSettled
   );
 }
