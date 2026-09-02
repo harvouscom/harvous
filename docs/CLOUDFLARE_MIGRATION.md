@@ -1,6 +1,6 @@
 # Phase A: Netlify → Cloudflare (app.harvous.com)
 
-**Status: STAGE 3 COMPLETE — zone on Cloudflare, no app traffic moved. Next: attach custom domains (stage 4), staging first.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
+**Status: STAGE 4 IN PROGRESS — new.harvous.com is on Cloudflare and verified. app.harvous.com has NOT moved.** Drafted 2026-08-27. Part of [INFRA_ENDGAME.md](INFRA_ENDGAME.md).
 
 Moves everything Netlify still does for app.harvous.com onto Cloudflare Workers:
 static SPA hosting, the `/api/*` → Fly proxy, headers/CSP, the crawler OG rewrite,
@@ -591,6 +591,29 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
 
   So **three** custom domains attach at stage 4, not one: `app.harvous.com` and
   `status.harvous.com` on production, `new.harvous.com` on `--env staging`.
+
+- 2026-09-02 (**stage 4, staging half — new.harvous.com is on Cloudflare**) — Attached to
+  `harvous-app-staging`. Verified on the real domain: `server: cloudflare`, HSTS, the
+  `_headers` cache tiers, staging bundle `index-OS4t3bEc.js` carrying **pk_test_**, the
+  `clerk.accounts.dev` CSP widening, `/api/health` 200 through the proxy, stale asset 404,
+  and `/prototype/dashboard` → **302** `/dashboard`. That last one confirms the host-gated
+  redirect works in both directions — no strip on `*.workers.dev`, strip on a dedicated host.
+
+  **The rehearsal paid for itself: the attach failed the first time.**
+  `Hostname 'new.harvous.com' already has externally managed DNS records ... Delete them
+  first [code: 100117]` — Cloudflare will not overwrite a DNS record you manage. The existing
+  `new → harvous-new.netlify.app` CNAME had to be deleted first.
+
+  **This will happen again on `app.harvous.com`, and there it matters.** The sequence is
+  *delete the CNAME, then attach*, and between those two steps the hostname does not resolve.
+  On `new` that is nothing; on `app` it is a live outage window measured in however long the
+  deploy takes. Do them back-to-back, with the rollback CNAME value in hand
+  (`app → harvouscom.netlify.app`), and do not start unless able to finish.
+
+  Also worth expecting: local resolvers cache the old CNAME for its TTL (15 min here), so the
+  domain can appear to still serve Netlify well after the cutover succeeded. Verify with
+  `curl --resolve` against the Cloudflare IP rather than trusting a stale local answer.
+
 
 - 2026-09-01 (stage 2 complete, one gate re-ordered) — **CI now builds and deploys the real
   artifact, and it is byte-identical to Netlify's.** `harvous-app.harvous.workers.dev` serves
