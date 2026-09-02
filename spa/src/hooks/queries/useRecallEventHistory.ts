@@ -8,7 +8,8 @@ interface RecallEventHistoryResponse {
   events: ServerRecallHistoryEntry[];
 }
 
-export const recallEventHistoryQueryKey = ['recall', 'events', 'recent'] as const;
+export const recallEventHistoryQueryKey = (spaceId?: string | null) =>
+  ['recall', 'events', 'recent', spaceId ?? 'home'] as const;
 
 /**
  * Recent recall opens/snoozes for this user, so a card acted on or dismissed on one
@@ -18,12 +19,19 @@ export const recallEventHistoryQueryKey = ['recall', 'events', 'recent'] as cons
  *
  * The endpoint degrades to an empty list on a pre-migration database, so a failure here
  * only means "no cross-device history", never a broken Home.
+ *
+ * Asked per room, matching the cooldown store it is merged into. The key carries the space so
+ * two rooms cannot serve each other a cached answer — which would be the same cross-space leak
+ * the column was added to close, reintroduced one layer up.
  */
-export function useRecallEventHistory() {
+export function useRecallEventHistory(spaceId?: string | null) {
   const authReady = useAuthReady();
   return useQuery({
-    queryKey: recallEventHistoryQueryKey,
-    queryFn: () => api.get<RecallEventHistoryResponse>('/api/recall/events/recent'),
+    queryKey: recallEventHistoryQueryKey(spaceId),
+    queryFn: () =>
+      api.get<RecallEventHistoryResponse>(
+        spaceId ? `/api/recall/events/recent?spaceId=${encodeURIComponent(spaceId)}` : '/api/recall/events/recent',
+      ),
     enabled: authReady,
     // History moves slowly and a stale read only risks showing one extra card.
     staleTime: 5 * 60_000,

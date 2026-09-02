@@ -86,14 +86,26 @@ the service; the service does not point at a room.**
 `listGroupStudyThreadsForSpace` shows members only the **pinned** Thread, which is correct
 for a channel: a broadcast room hands out the current study, not a library of past ones.
 
-`ThreadProgress` records which steps a person has opened. Two limits are deliberate and
-still true:
+`ThreadProgress` records which steps a person has opened.
 
-- **Only opened.** There is no completion state — no `completedAt`, for a person or a
-  cohort. A plan has no finish.
-- **Only the leader reads the aggregate**, and a member cannot see their own progress
-  summarised. "Review is never shared" is the governing rule; the surface that would show
-  a person their own trail has not been built.
+> **Corrected Sep 2026.** This section used to say "there is no completion state — no
+> `completedAt`, for a person or a cohort" and that "a member cannot see their own progress
+> summarised", directly contradicting the *Completion* section below it in the same file.
+> Both statements were true when written and neither is now. What follows is what exists.
+
+- **Opened is not finished, and both are recorded.** `openedNoteIds` is written when a step
+  is opened; `completedAt` only when the member says so. See *Completion* below for why
+  neither may be derived from the other.
+- **The leader reads an aggregate; the member reads themselves.** `readTogetherPulse` is
+  resolved only for owner/leader, so a member's payload never carries the room's numbers at
+  all. Their own row comes back to them beside it as `viewerCompletedAt` and
+  `viewerOpenedNoteIds` (`GET /api/threads/:threadId/notes`), narrowed server-side to the
+  steps still in the plan so the count and `sequence.total` agree.
+  **"Review is never shared" is untouched by this**: it guards a person's study from *other
+  people*, and reading it back to the person it belongs to was never what it was for.
+- **Where it renders.** `PrototypeThreadPlanProgress` — one component, on the space hub's
+  drilldown and in the Library panel's Thread view, which is the only surface a *personal*
+  reading plan is ever drawn on.
 
 Progress rows are deleted with their Thread and with an expired space
 (`shared-space-lifecycle.ts`). They outlived both cleanup paths until Aug 2026.
@@ -119,11 +131,24 @@ page never mints one.
 
 ---
 
-## Completion — built Aug 2026
+## Completion — server Aug 2026, member's client Sep 2026
 
 `POST /api/threads/:threadId/complete` (the member) and `POST /api/threads/:threadId/close`
 (the leader). A contract suite — `server/routes/__tests__/study-plan-completion.test.ts` —
 asserts the property the whole design rests on: **each route touches only its own column.**
+
+> **The two halves did not ship together.** `/close` was wired to the drilldown menu in
+> August; `/complete` shipped with **no client at all** and `viewerCompletedAt` was fetched,
+> parsed by `useThreadNotes`, and rendered nowhere. So for a month a leader could close a run
+> and nobody could say they had finished one — and because `GET /api/threads/reading-plans`
+> drops completed plans, a personal reading plan could never leave Home either. The member's
+> control landed Sep 2026 (`useCompleteThreadPlan`, named a month earlier by
+> `useCloseThreadRun`'s own docblock, which pointed at a hook that did not exist).
+>
+> A client-side contract now holds the line the server contract holds:
+> `spa/src/pages/prototype/__tests__/thread-plan-completion-contract.test.ts` asserts the
+> progress row receives no role at all — a component that never learns whether you manage the
+> Thread cannot be quietly gated on it — and that it never consults `closedAt`.
 
 
 **Two completions, and they are different facts.** A person finishing their own walk through

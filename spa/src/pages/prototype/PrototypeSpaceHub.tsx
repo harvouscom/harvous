@@ -8,7 +8,7 @@
  * sheet's head and `.proto-sidebar-scroll` onto its scrolling body, so a 1100-line view with
  * four exit points changed frame without changing a single one of them.
  */
-import { useMemo, useRef, useState, useEffect, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { useAuth, useUser } from '@clerk/clerk-react';
@@ -35,6 +35,18 @@ import {
   useSharedSpaceActivityPreview,
   useSharedSpaceLastVisit,
 } from '../../hooks/useSharedSpaceVisit';
+import { useSpacePresence } from '@/hooks/useSpacePresence';
+import { useRecallEventHistory } from '../../hooks/queries/useRecallEventHistory';
+import { recordRecallOpportunityEvent } from './proto-recall-events';
+import {
+  activeCooldownIds,
+  dismissedRecallIds,
+  mergeServerRecallHistoryIntoCooldowns,
+  notifyRecallCooldownChanged,
+  recallRestoredAt,
+  recordRecallSnoozed,
+  subscribeRecallCooldownChanged,
+} from './proto-recall-cooldown';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import type { SidebarListMode } from '../../layouts/proto-shell-context';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -55,6 +67,8 @@ import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import { companionToolRow } from '../../lib/space-companion';
 import { spaceLibraryMeta, useSpaceLibrary } from '../../hooks/queries/useSpaceLibrary';
+import { useNoteTemplates } from '../../hooks/queries/useNoteTemplates';
+import PrototypeBrowseTemplatesSheet from './PrototypeBrowseTemplatesSheet';
 import { useChurchSpacePlan } from '../../hooks/queries/useChurchSpacePlan';
 import {
   spaceStudySuggestionsToolMeta,
@@ -75,6 +89,7 @@ import {
   buildSharedSpaceSocialIntro,
   groupSharedSpaceNoteCardSlots,
   selectTopSharedPassage,
+  sharedPassageOpportunityId,
   sharedSpacePeopleHeaderLabel,
   sharedThreadNoteCountPreview,
   formatSharedSpaceActivityWho,
@@ -366,6 +381,28 @@ function PrototypeSpaceHubLive() {
     type: ministryMeta.type,
     orgId: ministryMeta.orgId,
   });
+
+  /*
+    Who else is in the room right now.
+
+    The hook has existed, complete, since the foundation branch and was never
+    mounted — this component passed `presenceOthers={[]}`, which made the
+    greeting's `presentOther` branch dead code at runtime. It is turned on here
+    rather than earlier because the locked v1.2 ordering puts realtime
+    invalidation first, and that has been live for a while.
+
+    **Only a room that gathers.** A ministry channel is a broadcast to a
+    congregation, so "3 people studying" there is both meaningless and a
+    presence channel with a congregation on it.
+
+    Self is passed as primitives the hook already keys its effect on, so a fresh
+    object each render costs nothing.
+  */
+  const selfPresenceColor = members.find((m) => m.userId === authUserId)?.userColor ?? 'blue';
+  const presenceOthers = useSpacePresence(
+    ministryMeta.type === 'shared' ? activeSpaceId : null,
+    { displayName: selfDisplayName, color: selfPresenceColor },
+  );
   /*
     A space's Tools card, sharing the church hub's row chrome via
     `proto-tools-registry`. When per-space enablement lands it filters this
@@ -379,6 +416,14 @@ function PrototypeSpaceHubLive() {
     enabled: ministryMeta.type !== 'personal',
   });
   const spaceLibraryCount = spaceLibrary.data?.items.length ?? 0;
+  /*
+    The room's own note templates. Scoped to this space, so a churchless group
+    sees the templates it curated rather than its owner's church's — the same
+    correction the planner's starter field needed.
+  */
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const spaceTemplates = useNoteTemplates(activeSpaceId ?? null, ministryMeta.type !== 'personal');
+  const spaceTemplateCount = spaceTemplates.data?.space?.length ?? 0;
   const canManageSpaceLibrary = spaceLibrary.data?.canManage ?? false;
 
   /*
@@ -386,9 +431,18 @@ function PrototypeSpaceHubLive() {
     an ordinary answer here — a member of a church room without `sermon_tools`
     is told no, and the row simply does not appear — so `isError` is read rather
     than surfaced.
+
+    Not asked at all in a churchless room the viewer does not run. Since the
+    space lane's read narrowed to owner/leader, a plain member's request is a
+    round trip whose only possible answer is 403, on every visit to the room.
+    The church lane keeps asking, because there the client cannot know: staff
+    status is a server verdict, not a membership role.
+
+    This is an optimisation, never the permission — `assertCanViewSpaceTeachingPlan`
+    is still what decides, and this predicate agreeing with it is a convenience.
   */
   const spacePlan = useChurchSpacePlan(activeSpaceId ?? null, {
-    enabled: ministryMeta.type !== 'personal',
+    enabled: ministryMeta.type !== 'personal' && (Boolean(ministryMeta.orgId) || canManageThreads),
   });
   const spacePlanCount = spacePlan.data?.services.length ?? 0;
   const canManageSpacePlan = spacePlan.data?.viewer?.canManage ?? false;
@@ -478,6 +532,29 @@ function PrototypeSpaceHubLive() {
         },
       });
     }
+    /*
+      The room's note templates — the shape everyone here writes into.
+
+      Same bargain as the shelf and the planner above: offered to every member
+      once there is something to see, and to whoever curates them while the list
+      is still empty, so the one person who could write the first template is
+      not the one person who cannot find where.
+
+      Not on a channel. A broadcast room's material is written by staff from the
+      church's own templates, and a follower has nothing to start.
+    */
+    if (!isMinistryChannel && (spaceTemplateCount > 0 || canManageThreads)) {
+      rows.push({
+        key: 'space-templates',
+        icon: 'list-check',
+        title: 'Note templates',
+        meta:
+          spaceTemplateCount > 0
+            ? `${spaceTemplateCount} shared with everyone here`
+            : 'Shared with everyone here',
+        onSelect: () => setTemplatesOpen(true),
+      });
+    }
     /* Offered to every member once the room has turned it on — suggesting is
        the member's half, and the row is how they find it. */
     if (studyPlanningOn) {
@@ -495,6 +572,8 @@ function PrototypeSpaceHubLive() {
     suggestionsMeta,
     spaceLibraryCount,
     canManageSpaceLibrary,
+    spaceTemplateCount,
+    canManageThreads,
     spaceLibrary.data?.items,
     isMinistryChannel,
     spacePlanCount,
@@ -598,9 +677,60 @@ function PrototypeSpaceHubLive() {
     [groupThreads, isSpaceOwner, canManageThreads],
   );
 
+  /*
+    The room's own recall, and the only place `RecallEvents.spaceId` is read.
+
+    This card used to be frozen: one passage, forever, for everyone in the room,
+    with no way to say "not that one". It is a resurfacing suggestion like Home's
+    own, so it rests like one — through the same two stores Home uses, keyed by
+    this space rather than by the reader's Home. The local store has always been
+    space-keyed; the server half only became space-correct when the column landed.
+  */
+  const recallHistoryQuery = useRecallEventHistory(activeSpaceId ?? null);
+  const [recallTick, setRecallTick] = useState(0);
+  useEffect(() => subscribeRecallCooldownChanged(() => setRecallTick((t) => t + 1)), []);
+  const passageDayIndex = Math.floor(Date.now() / 86_400_000);
+  const suppressedPassageIds = useMemo(
+    () =>
+      mergeServerRecallHistoryIntoCooldowns(
+        // Two local stores, because the two answers have different lifetimes: a rest
+        // expires by window, "not interested" never does.
+        new Set([
+          ...activeCooldownIds(activeSpaceId, passageDayIndex),
+          ...dismissedRecallIds(activeSpaceId),
+        ]),
+        recallHistoryQuery.data?.events,
+        new Date(),
+        undefined,
+        recallRestoredAt(activeSpaceId),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recallTick re-reads the store after a rest.
+    [activeSpaceId, passageDayIndex, recallHistoryQuery.data?.events, recallTick],
+  );
   const topPassage = useMemo(
-    () => selectTopSharedPassage(scriptureQuery.data ?? []),
-    [scriptureQuery.data],
+    () => selectTopSharedPassage(scriptureQuery.data ?? [], suppressedPassageIds),
+    [scriptureQuery.data, suppressedPassageIds],
+  );
+
+  /*
+    "Not now" on the room's passage. Local first so the card moves on the tap,
+    then the server row so it is still rested on another device — the same order
+    and the same reasoning as Home's carousel.
+  */
+  const restPassage = useCallback(
+    (passageKey: string) => {
+      if (!activeSpaceId) return;
+      const opportunityId = sharedPassageOpportunityId(passageKey);
+      recordRecallSnoozed(activeSpaceId, opportunityId, passageDayIndex);
+      notifyRecallCooldownChanged();
+      recordRecallOpportunityEvent({
+        opportunityId,
+        kind: 'passage',
+        action: 'snooze',
+        spaceId: activeSpaceId,
+      });
+    },
+    [activeSpaceId, passageDayIndex],
   );
 
   const groupThreadsSettled = isQuerySettled(groupThreadsQuery.isPending, groupThreadsQuery.data != null);
@@ -1084,7 +1214,7 @@ function PrototypeSpaceHubLive() {
               <SharedSpaceSocialGreeting
                 selfFirstName={selfDisplayName}
                 intro={contributorIntro}
-                presenceOthers={[]}
+                presenceOthers={presenceOthers}
                 onOpenNotes={goToNotesList}
                 onOpenPeople={
                   isMinistryChannel && !canModerateChannel ? undefined : () => openPeopleSheet('letter')
@@ -1221,7 +1351,21 @@ function PrototypeSpaceHubLive() {
           ) : (
             <>
               {topPassage ? (
-                <div className="proto-home-section">
+                <div className="proto-home-section proto-space-passage">
+                  {/*
+                    "Not now" sits outside the card rather than inside it: the card
+                    is one big button, and a control nested in a button is neither
+                    reachable by keyboard nor valid markup. Same reason the Coming
+                    up row gained a sibling rather than an inner control.
+                  */}
+                  <button
+                    type="button"
+                    className="proto-space-passage__rest"
+                    aria-label={`Not now — rest ${topPassage.displayRef}`}
+                    onClick={() => restPassage(topPassage.passageKey)}
+                  >
+                    Not now
+                  </button>
                   <button
                     type="button"
                     className="proto-glass-surface proto-glass-surface--panel proto-home-card proto-home-card--tappable"
@@ -1330,9 +1474,56 @@ function PrototypeSpaceHubLive() {
         viewerIsOwner={isSpaceOwner}
         viewerCanModerate={canModerateChannel}
         ministryChannel={isMinistryChannel}
+        /*
+          Two lanes, matching the server gate.
+
+          A church room asks the church: an admin who manages the roster, or the
+          room's own owner. A Shared Space with no church behind it asks only
+          its owner — the `leader` role has always ranked correctly and every
+          capability helper has always honoured it, but nothing outside a church
+          org could create one, so in a life group the owner was the single
+          point of failure for invites, pinning and starting a Thread.
+
+          Never offered on a personal space: there is nobody to lead.
+        */
         canGrantLeadership={
-          Boolean(ministryMeta.orgId) && (canChurchForSpace('manage_staff') || isSpaceOwner)
+          ministryMeta.orgId
+            ? canChurchForSpace('manage_staff') || isSpaceOwner
+            : ministryMeta.type === 'shared' && isSpaceOwner
         }
+      />
+      {/*
+        The room's templates, in the sheet that already knows how to show them —
+        it groups by scope, names this space's tab after the space, and carries
+        its own delete. `onEdit` is deliberately not passed: editing a template
+        loads its body into an open note editor, and there is no note open here,
+        so offering an Edit row would open nothing.
+      */}
+      <PrototypeBrowseTemplatesSheet
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        spaceId={activeSpaceId ?? null}
+        spaceTitle={space?.title ?? null}
+        showSpaceSection
+        canManageSpaceTemplates={canManageThreads}
+        onApply={(template) => {
+          if (!activeSpaceId) return;
+          setTemplatesOpen(false);
+          if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+          /* Applying from here has no note to apply *to*, so it starts one —
+             in this room, seeded with the template, the same shape the Coming
+             up card uses when a gathering names a starter. */
+          beginPrototypeComposeSession({
+            targetSpaceId: activeSpaceId,
+            seed: {
+              title: template.title ?? '',
+              contentHtml: template.content ?? '',
+              startedFromTemplateId: template.id,
+              startedFromTemplateName: template.name,
+            },
+          });
+          navigate({ to: prototypeHomeRouteTo() });
+        }}
       />
       {studyPlanningOn && activeSpaceId ? (
         <PrototypeSpaceStudySuggestionsSheet

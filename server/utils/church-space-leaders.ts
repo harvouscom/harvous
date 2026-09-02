@@ -27,7 +27,21 @@ import { isChurchOrgSpaceRow } from './channel-publish-cadence';
 export type SpaceRow = typeof Spaces.$inferSelect;
 
 export type GrantGateResult =
-  | { ok: true; church: Extract<ChurchOrgAccessResult, { ok: true }>['church']; space: SpaceRow }
+  | {
+      ok: true;
+      /**
+       * Which set of rules answered, named the same way `SpacePlanGateResult`
+       * names it. `'church'` is the original lane — a church room, decided by
+       * the church's ordering. `'space'` is a Shared Space with no church
+       * behind it, where the room's own owner decides.
+       *
+       * Branch on this rather than on `church === null`: a lane is a policy, a
+       * church is a row.
+       */
+      lane: 'church' | 'space';
+      church: Extract<ChurchOrgAccessResult, { ok: true }>['church'] | null;
+      space: SpaceRow;
+    }
   | Extract<ChurchOrgAccessResult, { ok: false }>;
 
 /** The value that marks a membership row as an explicit grant, not a projection. */
@@ -56,13 +70,20 @@ export async function isGrantedSpaceLeader(userId: string, spaceId: string): Pro
 /**
  * May this user hand out leadership of this space?
  *
- * Two ways in, and no third: the church's own admin (`manage_staff` — the
- * people who already manage the roster), or the space's owner. Granting
- * publish rights over a room the whole congregation follows is a real
- * escalation, so it sits with the same people who manage who is on staff.
+ * **Two lanes**, mirroring the space plan's. In a church room: the church's own
+ * admin (`manage_staff` — the people who already manage the roster), or the
+ * space's owner. In a Shared Space with no church behind it: the owner, and
+ * nobody else.
  *
- * Note what is *not* here: a granted leader cannot grant. Leadership does not
- * propagate, or one volunteer could quietly staff a channel.
+ * Granting publish rights over a room a congregation follows is a real
+ * escalation, which is why the church lane sits with the people who manage who
+ * is on staff. The space lane is the same act at a smaller scale — a life group
+ * naming a second person who can invite, pin and start a study — and the person
+ * who pays to host the room is the one who says.
+ *
+ * Note what is *not* here, in **either** lane: a granted leader cannot grant.
+ * Leadership does not propagate, or one volunteer could quietly staff a channel
+ * — and one co-leader could quietly take over a group.
  */
 export async function assertCanGrantSpaceLeadership(
   userId: string,
@@ -80,8 +101,26 @@ export async function assertCanGrantSpaceLeadership(
       .where(and(eq(Spaces.id, id), isNull(Spaces.deletedAt)))
       .limit(1),
   );
-  if (!space || !space.isActive || !isChurchOrgSpaceRow(space) || !space.orgId) {
+  if (!space || !space.isActive) {
     return { ok: false, status: 404, code: 'SPACE_NOT_FOUND', error: 'Space not found' };
+  }
+
+  /*
+    The space lane: no church to consult, so the room answers for itself.
+
+    `space.userId` rather than a membership row with `role === 'owner'`, matching
+    the church lane's own owner exception below — the canonical column is the one
+    that cannot be handed out, and this is the gate that hands things out.
+
+    A personal space gets no lane at all: there is nobody to lead. 404 rather
+    than 403 throughout, so a probe cannot tell "not yours" from "does not
+    exist" — the same discipline `resolveSpacePlanAccess` keeps.
+  */
+  if (!isChurchOrgSpaceRow(space) || !space.orgId) {
+    if (space.type !== 'shared' || space.userId !== userId) {
+      return { ok: false, status: 404, code: 'SPACE_NOT_FOUND', error: 'Space not found' };
+    }
+    return { ok: true, lane: 'space', church: null, space };
   }
 
   /*
@@ -98,7 +137,7 @@ export async function assertCanGrantSpaceLeadership(
     sponsorshipGated: true,
   });
 
-  if (access.ok) return { ok: true, church: access.church, space };
+  if (access.ok) return { ok: true, lane: 'church', church: access.church, space };
 
   // The owner exception: only over the capability refusal, never over an
   // inactive church, a non-staff caller, or a lapsed plan.
@@ -110,7 +149,7 @@ export async function assertCanGrantSpaceLeadership(
       roleError: 'You cannot grant leadership here',
       sponsorshipGated: true,
     });
-    if (asOwner.ok) return { ok: true, church: asOwner.church, space };
+    if (asOwner.ok) return { ok: true, lane: 'church', church: asOwner.church, space };
     return asOwner;
   }
 

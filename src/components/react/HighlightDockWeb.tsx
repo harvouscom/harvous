@@ -60,6 +60,20 @@ export interface HighlightDockWebProps {
   autoFocusMiniNote?: boolean;
   /** Fired once the focus above has been honoured (or declined) — the opener disarms it. */
   onMiniNoteFocused?: () => void;
+  /**
+   * Answer this annotation.
+   *
+   * Supplied only where replying means something — another member's annotation
+   * inside a shared space — and the caller does the work: it creates a new
+   * annotation on the *same* span and opens it with the caret in the note
+   * field. Nothing about this card changes, because a reply is a new response
+   * beside this one rather than an edit of it.
+   *
+   * Before this, answering someone meant finding and re-selecting the exact text
+   * they had highlighted. The overlay has always grouped everyone on one span
+   * into a single dock; nothing ever put two people there on purpose.
+   */
+  onReply?: () => void;
 }
 
 function patchStudyThread(
@@ -117,6 +131,7 @@ export default function HighlightDockWeb({
   animateEnter = true,
   autoFocusMiniNote = false,
   onMiniNoteFocused,
+  onReply,
 }: HighlightDockWebProps) {
   const resolvedInitialTitle = focusTitleProp.trim() || deriveHighlightFocusTitle(excerpt);
   const [focusTitle, setFocusTitle] = useState(resolvedInitialTitle);
@@ -522,6 +537,34 @@ export default function HighlightDockWeb({
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {/*
+        Answer this.
+
+        Deliberately **not** gated on `!readOnly`. Read-only is exactly the state
+        this button is for — someone else's annotation, whose text you may not
+        edit and whose point you may want to take up. Behind the same flag as the
+        editable fields is how "you can annotate Sarah's note and she cannot
+        answer" would have survived the fix.
+
+        Shown only on a foreign annotation, by the same test that draws the
+        author's name: replying to yourself is just writing more, and the note
+        field above already is that.
+      */}
+      {onReply && showAuthorAttribution ? (
+        <div className="highlight-dock-web__reply">
+          <button
+            type="button"
+            className="highlight-dock-web__reply-trigger"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onReply}
+            aria-label={`Reply to ${authorDisplayName}`}
+          >
+            <Icon name="reply" size={10} aria-hidden />
+            <span>Reply</span>
+          </button>
         </div>
       ) : null}
     </StudyDockCardShell>

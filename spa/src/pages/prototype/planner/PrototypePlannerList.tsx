@@ -80,7 +80,8 @@ export default function PrototypePlannerList({
   serviceTimes,
   accentFor,
   canWrite,
-  readOnlyReason,
+  readOnlyMessage,
+  itemNoun,
   emptyWritable,
   selection,
   onSelect,
@@ -90,7 +91,10 @@ export default function PrototypePlannerList({
   /** Shared with the board and calendar so one run is one colour everywhere. */
   accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   canWrite: boolean;
-  readOnlyReason: 'lapsed' | 'role' | null;
+  /** The resolved sentence, or null when the viewer may write. */
+  readOnlyMessage: string | null;
+  /** The plan's noun — sermon / gathering / entry. From `planVocabulary`. */
+  itemNoun: string;
   /** Scope-aware empty copy — a channel does not "add a sermon". */
   emptyWritable?: string;
   selection: PlannerSelection;
@@ -144,8 +148,10 @@ export default function PrototypePlannerList({
         description={
           canWrite
             ? (emptyWritable ??
-              'Add a sermon, or drop an idea in the board to come back to.')
-            : 'A pastor or admin plans the sermons here.'
+              `Plan a ${itemNoun}, or drop an idea in the board to come back to.`)
+            : /* Not "the sermons" — this view renders a room's plan too, and a
+                 room has neither sermons nor a pastor. */
+              (readOnlyMessage ?? `Someone else plans the ${itemNoun}s here.`)
         }
       />
     );
@@ -159,11 +165,9 @@ export default function PrototypePlannerList({
         {group('Past', past, true)}
       </div>
 
-      {readOnlyReason ? (
+      {readOnlyMessage ? (
         <p className="proto-caption proto-planner__readonly" role="status">
-          {readOnlyReason === 'lapsed'
-            ? 'This plan is read-only while the church pilot is paused.'
-            : 'A pastor or admin changes what is planned here.'}
+          {readOnlyMessage}
         </p>
       ) : null}
     </div>

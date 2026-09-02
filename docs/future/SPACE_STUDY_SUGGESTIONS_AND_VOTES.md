@@ -21,8 +21,11 @@ before building phase 2:
   pins a Thread, so it follows the rule that already governs the room's Threads.
 - A member may withdraw their own suggestion while it is open. A leaving member's open
   suggestions leave with them; reviewed ones stay as the room's record.
-- Built on `main`, where the Sep 2 role fixes recorded in `SHARED_SPACE_STUDY_TOOLS.md` had not
-  landed: in a churchless room only the owner reviews until granted leadership reaches it.
+- Built on `main` before the Sep 2 role fixes recorded in `SHARED_SPACE_STUDY_TOOLS.md` were on it,
+  so for a few hours a churchless room's only reviewer was its owner. Those fixes were then
+  cherry-picked onto the same branch, which is what makes the two-role table above true here: a
+  granted leader of a Shared Space reviews suggestions, and `canManageSpaceThreadStructure` was
+  already written to honour the role.
 
 A room needs a way to answer "what should we study after this?" without it falling to whoever
 speaks first. Three moves, in order: **members suggest**, a **leader builds a slate** from those

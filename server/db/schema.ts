@@ -1502,10 +1502,27 @@ export const RecallEvents = pgTable('RecallEvents', {
   kind: text('kind').notNull(),
   action: text('action').notNull(),
   noteId: text('noteId'),
+  /**
+   * Which room the reader was standing in when they said it.
+   *
+   * The client's cooldown store has always been keyed by space
+   * (`proto-recall-cooldown.ts`), while this table was user-scoped only — so the
+   * local half of suppression was space-correct and the cross-device half was
+   * not. Dismissing a suggestion on a laptop would have hidden it in every room
+   * on a phone. That was harmless only because recall ran in one space; it is
+   * the blocker the route's own comment named for running it anywhere else.
+   *
+   * **NULL means the reader's personal Home**, which is where every row written
+   * before this column existed came from. That is what makes adding it a
+   * no-backfill change, and the read treats NULL and the personal space as the
+   * same bucket rather than pretending the old rows are space-less.
+   */
+  spaceId: text('spaceId'),
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   index('RecallEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('RecallEvents_kind_action_createdAtIndex').on(table.kind, table.action, table.createdAt),
+  index('RecallEvents_userId_spaceId_createdAtIndex').on(table.userId, table.spaceId, table.createdAt),
 ]);
 
 // ─── ReadingEvents (append-only log of chapters read) ──────────────────────────

@@ -13,6 +13,8 @@ type RecallEventPayload = {
   kind: RecallOpportunityKind;
   action: RecallEventAction;
   noteId?: string;
+  /** The room this was said in; absent means personal Home. */
+  spaceId?: string;
 };
 
 /**
@@ -53,9 +55,15 @@ export function recordRecallOpportunityEvent(input: {
   kind: RecallOpportunityKind;
   action: RecallEventAction;
   noteId?: string | null;
+  /**
+   * The room this was said in — the same id the localStorage cooldown store is keyed by, so
+   * the local and cross-device halves of suppression partition the same way. Omitted means
+   * personal Home, which is what every row written before the column existed came from.
+   */
+  spaceId?: string | null;
   onSynced?: () => void;
 }): void {
-  const { opportunityId, kind, action, noteId, onSynced } = input;
+  const { opportunityId, kind, action, noteId, spaceId, onSynced } = input;
   if (!opportunityId || !kind || !action) return;
 
   const payload: RecallEventPayload = {
@@ -63,6 +71,9 @@ export function recordRecallOpportunityEvent(input: {
     kind,
     action,
     ...(noteId ? { noteId } : {}),
+    /* Batched impressions carry it too — `validateRecallEventInput` reads each
+       row of the batch with the same validator the single endpoint uses. */
+    ...(spaceId ? { spaceId } : {}),
   };
 
   if (action === 'impression') {

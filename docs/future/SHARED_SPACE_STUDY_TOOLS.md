@@ -2,12 +2,6 @@
 
 **Status: a map of what exists (Sep 2026), plus a ranked list of what does not.**
 
-> **Read with care on `main`.** This doc and the six gap fixes it describes as closed landed on the
-> `new` branch in commit `2f05f597b` (Sep 2 2026), which was never merged to `main`. On `main` the
-> gaps marked ~~fixed~~ below are still open — in particular gap 3, so "owner or leader" in a
-> churchless room still means "owner". The suggestions doc it links to was built on `main` with
-> that in mind. Merge the commit, or re-do the fixes, before trusting the capability table here.
-
 Fifteen docs in this folder describe pieces of shared spaces. None of them answers the
 question a person actually asks — *what can I do in this room, and what can the person who
 runs it do that I cannot?* — so the same audit keeps being run from scratch, and three
