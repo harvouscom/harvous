@@ -9,6 +9,7 @@ import {
   insertScriptureQuoteAt,
   quoteReferencesAlign,
   resolveScriptureQuoteInsertPos,
+  scriptureQuoteReferenceValue,
   shouldOmitScriptureQuoteAttribution,
 } from '@/utils/insert-scripture-quote';
 
@@ -276,6 +277,53 @@ describe('quote insert block structure', () => {
       } finally {
         editor.destroy();
       }
+    }
+  });
+});
+
+/**
+ * The shape below is the real one, from note_1783229089806 ("The first book"): a rendered
+ * scripture pill sitting inside `data-scripture-quote-reference`. Its inner double quotes end the
+ * attribute early, so the parser renders the rest of the blockquote tag as visible text and the
+ * reader sees a stray `Genesis 1:1-2" data-scripture-quote-translation="NLT">` under the quote.
+ */
+describe('scriptureQuoteReferenceValue', () => {
+  const PILL_MARKUP =
+    '<span data-scripture-reference="Genesis 1:1-2" data-note-id="note_1782013851464" data-scripture-translation="NLT" class="scripture-pill scripture-pill-clickable">Genesis 1:1-2</span>';
+
+  it('reduces rendered pill markup to the reference it labels', () => {
+    expect(scriptureQuoteReferenceValue(PILL_MARKUP)).toBe('Genesis 1:1-2');
+  });
+
+  it('drops the truncated tag a corrupted attribute parses back into', () => {
+    // What `getAttribute` returns once a browser has parsed the damaged markup above.
+    expect(scriptureQuoteReferenceValue('<span data-scripture-reference=')).toBeNull();
+  });
+
+  it('leaves a plain reference alone', () => {
+    expect(scriptureQuoteReferenceValue('Genesis 1:1-2')).toBe('Genesis 1:1-2');
+  });
+
+  it('inserts a quote with a clean attribute even when handed pill markup', () => {
+    const editor = new Editor({ extensions, content: '<p>Before</p>' });
+    try {
+      insertScriptureQuoteAt(editor, {
+        excerpt: 'In the beginning God created the heavens and the earth.',
+        reference: PILL_MARKUP,
+        translation: 'NLT',
+        sourceNoteId: 'note_1782013851464',
+      });
+      const html = editor.getHTML();
+      expect(html).toContain('data-scripture-quote-reference="Genesis 1:1-2"');
+      expect(html).not.toMatch(/data-scripture-quote-reference="[^"]*<span/);
+      // The tag has to survive a parse, which is the property the corruption broke.
+      const parsed = new DOMParser().parseFromString(html, 'text/html');
+      const quote = parsed.querySelector('blockquote');
+      expect(quote?.getAttribute('data-scripture-quote-reference')).toBe('Genesis 1:1-2');
+      expect(quote?.getAttribute('data-scripture-quote-translation')).toBe('NLT');
+      expect(parsed.body.textContent).not.toContain('data-scripture-quote-translation');
+    } finally {
+      editor.destroy();
     }
   });
 });
