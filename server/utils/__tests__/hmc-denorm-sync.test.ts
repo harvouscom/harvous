@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  clampHmcSyncSince,
   coalesceHmcChurchChanges,
   defaultHmcSyncSince,
   drainHmcChurchChangeFeed,
+  runHmcDenormSync,
   HMC_SYNC_DEFAULT_LOOKBACK_MS,
+  HMC_SYNC_MAX_LOOKBACK_MS,
 } from '../hmc-denorm-sync';
 import type { HmcChurchChange, HmcChurchChangesPage } from '../hmc-partner';
 
@@ -34,6 +37,105 @@ describe('defaultHmcSyncSince', () => {
     expect(defaultHmcSyncSince(now)).toBe(
       new Date(now - HMC_SYNC_DEFAULT_LOOKBACK_MS).toISOString(),
     );
+  });
+});
+
+describe('clampHmcSyncSince', () => {
+  const now = Date.parse('2026-09-03T06:00:00.000Z');
+
+  it('passes a fresh cursor through untouched', () => {
+    const stored = new Date(now - 2 * 60 * 60 * 1000).toISOString();
+    expect(clampHmcSyncSince(stored, now)).toEqual({ since: stored, clampedFrom: null });
+  });
+
+  it('falls back to the default lookback when there is no cursor yet', () => {
+    expect(clampHmcSyncSince(null, now)).toEqual({
+      since: defaultHmcSyncSince(now),
+      clampedFrom: null,
+    });
+  });
+
+  /*
+   * The deadlock this exists to prevent, with the real numbers from it.
+   *
+   * The stored cursor read 2026-07-29 while the cron ran on 2026-09-03 — 36 days, past the
+   * feed's 30-day window. Every poll came back 400, and since the cursor is only written
+   * after a successful drain, no amount of retrying could advance it. Unclamped, this is a
+   * job that cannot succeed again without someone editing the database by hand.
+   */
+  it('pulls a cursor older than the feed window up to the floor', () => {
+    const stuck = '2026-07-29T02:48:00.645Z';
+    const result = clampHmcSyncSince(stuck, now);
+    expect(result.clampedFrom).toBe(stuck);
+    expect(Date.parse(result.since)).toBe(now - HMC_SYNC_MAX_LOOKBACK_MS);
+  });
+
+  it('keeps the floor inside the 30 days the feed actually allows', () => {
+    // Sitting exactly on 30 days would leave request latency and clock skew to decide
+    // whether the call is legal when it lands.
+    expect(HMC_SYNC_MAX_LOOKBACK_MS).toBeLessThan(30 * 24 * 60 * 60 * 1000);
+    expect(HMC_SYNC_MAX_LOOKBACK_MS).toBeGreaterThan(29 * 24 * 60 * 60 * 1000);
+  });
+
+  it('treats an unparseable cursor as no cursor, and says it did', () => {
+    const result = clampHmcSyncSince('not-a-date', now);
+    expect(result).toEqual({ since: defaultHmcSyncSince(now), clampedFrom: 'not-a-date' });
+  });
+});
+
+describe('runHmcDenormSync uses the clamped cursor', () => {
+  /*
+   * The clamp is only worth anything if the sync actually asks with it. Testing the pure
+   * function alone would have passed just as happily with the helper written, exported,
+   * covered — and never called.
+   */
+  it('asks the feed for the floor, not the stale cursor it had stored', async () => {
+    const now = Date.parse('2026-09-03T06:00:00.000Z');
+    const stuck = '2026-07-29T02:48:00.645Z';
+    const asked: string[] = [];
+    const written: string[] = [];
+
+    const result = await runHmcDenormSync({
+      cursorStore: {
+        get: async () => stuck,
+        set: async (cursor: string) => {
+          written.push(cursor);
+        },
+      },
+      fetchChanges: async ({ since }) => {
+        asked.push(since);
+        // An empty page that advances: nothing dirty, so no database is touched.
+        return { changes: [], nextSince: new Date(now).toISOString(), hasMore: false };
+      },
+      getChurchById: async () => null,
+      now: () => now,
+    });
+
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).not.toBe(stuck);
+    expect(Date.parse(asked[0]!)).toBe(now - HMC_SYNC_MAX_LOOKBACK_MS);
+    expect(result.clampedFrom).toBe(stuck);
+    // And the run un-sticks the watermark, which is the whole point.
+    expect(written).toEqual([new Date(now).toISOString()]);
+  });
+
+  it('leaves a healthy cursor alone and reports no clamp', async () => {
+    const now = Date.parse('2026-09-03T06:00:00.000Z');
+    const fresh = new Date(now - 90 * 60 * 1000).toISOString();
+    const asked: string[] = [];
+
+    const result = await runHmcDenormSync({
+      cursorStore: { get: async () => fresh, set: async () => {} },
+      fetchChanges: async ({ since }) => {
+        asked.push(since);
+        return { changes: [], nextSince: new Date(now).toISOString(), hasMore: false };
+      },
+      getChurchById: async () => null,
+      now: () => now,
+    });
+
+    expect(asked).toEqual([fresh]);
+    expect(result.clampedFrom).toBeNull();
   });
 });
 
