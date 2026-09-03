@@ -169,10 +169,14 @@ export function reviewRowSubject(
 export function rungIdentityIsTheAnswer(item: {
   kind?: string | null;
   ladderStep?: number | null;
+  /** The resolved rung, when the caller has it. A step alone can only name the family default. */
+  promptKey?: string | null;
 }): boolean {
   // "Which of your notes says this?" — the note's identity is the whole answer.
   if (item.kind === 'note') return item.ladderStep === NOTE_RECOGNIZE_STEP;
-  // "Where is this from?" — so is the reference. Resolved rather than compared against the
-  // step, so the rung still hides its answer when it comes round on a maintenance pass.
-  return item.kind === 'verse' && verseRungFor(item.ladderStep ?? 0).key === 'verse.locate';
+  if (item.kind !== 'verse') return false;
+  // "Where is this from?" — so is the reference. The server's resolved rung wins: with families a
+  // step can wear several rungs, and only the one that was actually asked is the truth.
+  const key = item.promptKey ?? verseRungFor(item.ladderStep ?? 0).key;
+  return key === 'verse.locate';
 }

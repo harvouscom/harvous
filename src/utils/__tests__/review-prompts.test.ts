@@ -19,6 +19,8 @@ import {
   VERSE_MAINTENANCE,
   verseRungFor,
   reviewTaskFor,
+  VERSE_FAMILIES,
+  VERSE_MAINTENANCE_FAMILIES,
 } from '../review-prompts';
 
 const CTX = {
@@ -228,9 +230,11 @@ describe('the verse ladder after "what comes next" arrived', () => {
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_NEXT_STEP })).toBe(true);
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_SEQUENCE_STEP })).toBe(true);
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_LOCATE_STEP })).toBe(true);
-    // The open rungs, where the reader judges themselves.
+    // The open rungs, where the reader judges themselves: recognising a cue and writing the
+    // verse from memory. The context step (4) was the last open one and is graded now.
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 0 })).toBe(false);
-    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4 })).toBe(false);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 2 })).toBe(false);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4 })).toBe(true);
     // Every note rung is a multiple choice.
     expect(reviewRungIsGraded({ kind: 'note', ladderStep: 2 })).toBe(true);
     expect(reviewRungIsGraded({ kind: 'thread', ladderStep: 0 })).toBe(false);
@@ -306,9 +310,10 @@ describe('the kinds Review no longer asks about', () => {
     }
   });
 
-  it('keeps every remaining key on one of the two ladders', () => {
-    const laddered = new Set([...NOTE_LADDER, ...VERSE_LADDER]);
-    for (const key of REVIEW_PROMPT_KEYS) expect(laddered.has(key)).toBe(true);
+  it('keeps every remaining key in a verse family or on the note ladder', () => {
+    // A step is a family now; a key that belongs to none of them can never be reached.
+    const reachable = new Set([...NOTE_LADDER, ...VERSE_FAMILIES.flat()]);
+    for (const key of REVIEW_PROMPT_KEYS) expect(reachable.has(key)).toBe(true);
   });
 
   it('still names all five kinds, because rows for the retired ones exist', () => {
@@ -317,5 +322,65 @@ describe('the kinds Review no longer asks about', () => {
     expect(REVIEW_ASKABLE_KINDS).toEqual(['note', 'verse']);
     expect(isReviewAskableKind('thread')).toBe(false);
     expect(isReviewAskableKind('verse')).toBe(true);
+  });
+});
+
+describe('rung families', () => {
+  const rich = { citedInNotes: 2, themeCount: 3, personCount: 1, crossRefCount: 2 };
+  const bare = { citedInNotes: 0, themeCount: 0, personCount: 0, crossRefCount: 0 };
+
+  it('resolves to the family default with no seed, exactly as before families existed', () => {
+    for (let step = 0; step < VERSE_FAMILIES.length; step++) {
+      expect(verseRungFor(step).key).toBe(VERSE_FAMILIES[step][0]);
+    }
+    expect(VERSE_LADDER).toEqual(VERSE_FAMILIES.map((f) => f[0]));
+  });
+
+  it('picks the same member for the same seed, so the list, the reveal and the grader agree', () => {
+    const a = verseRungFor(4, 'review_x:4', rich);
+    const b = verseRungFor(4, 'review_x:4', rich);
+    expect(a.key).toBe(b.key);
+    expect(VERSE_FAMILIES[4]).toContain(a.key);
+  });
+
+  it('spreads different items across a family', () => {
+    const seen = new Set(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((id) => verseRungFor(4, `${id}:4`, rich).key),
+    );
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it('never asks what the verse has no material for', () => {
+    /*
+     * A verse no note cites is never asked which note cites it, however the seed falls; a verse
+     * with no themes is never asked for one. The pick falls forward within the family.
+     */
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const key = verseRungFor(4, `${id}:4`, bare).key;
+      expect(key).toBe('verse.connect'); // the default, which always builds
+    }
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const key = verseRungFor(4, `${id}:4`, { ...bare, themeCount: 2 }).key;
+      expect(['verse.connect', 'verse.theme']).toContain(key);
+    }
+  });
+
+  it('cycles families on maintenance, and never the two learning rungs', () => {
+    const first = VERSE_FAMILIES.length;
+    for (let i = 0; i < VERSE_MAINTENANCE_FAMILIES.length * 2; i++) {
+      const rung = verseRungFor(first + i, `m:${first + i}`, rich);
+      expect(rung.family).toBe(VERSE_MAINTENANCE_FAMILIES[i % VERSE_MAINTENANCE_FAMILIES.length]);
+      expect(['verse.recognize', 'verse.recall']).not.toContain(rung.key);
+      expect(rung.pass).toBe(1 + Math.floor(i / VERSE_MAINTENANCE_FAMILIES.length));
+    }
+  });
+
+  it('marks every context-step member and hides nothing on it', () => {
+    for (const key of VERSE_FAMILIES[4]) {
+      expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4, promptKey: key })).toBe(true);
+    }
+    // A caller that knows the resolved rung is believed over the step's default.
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 0, promptKey: 'verse.theme' })).toBe(true);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4, promptKey: 'verse.recall' })).toBe(false);
   });
 });

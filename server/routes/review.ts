@@ -306,7 +306,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
      * item as it was asked, not as it now is — the outcome has already moved it to the next
      * rung, and the verse owed is the one just answered about.
      */
-    const truth = await verseTruthFor(item);
+    const truth = await verseTruthFor(item, auth.userId);
 
     return c.json({
       success: true,

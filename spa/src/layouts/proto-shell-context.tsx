@@ -460,6 +460,8 @@ export type ReviewDockResult = {
    * verse comes back instead.
    */
   correctAnswer?: string | null;
+  /** True when that answer is the curated index's reading rather than the text's or the reader's. */
+  fromIndex?: boolean;
   /** Set fresh on each answer so the dock's dwell timer restarts. */
   at: number;
 };

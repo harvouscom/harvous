@@ -34,6 +34,9 @@ export const REVIEW_PROMPT_KEYS = [
   'verse.recall',
   'verse.next',
   'verse.altered',
+  'verse.theme',
+  'verse.person',
+  'verse.crossref',
   'verse.sequence',
   'verse.locate',
   'verse.connect',
@@ -146,11 +149,27 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Put ${s} back in order.`, 'Put the verse back in order.'),
   // Never names the passage: the reference is the answer.
   'verse.locate': () => 'Say where this is from.',
+  /*
+   * Graded now. "Say what you connected to it, and why" was the last open rung on the verse
+   * ladder — the reader judging themselves on a question with a right answer sitting in the
+   * table. The notes that cite this verse are the key; any of them is correct.
+   */
   'verse.connect': (ctx) =>
+    named(ctx, (s) => `Pick the note you cited ${s} in.`, 'Pick the note you cited this in.'),
+  /*
+   * The three rungs whose answer key is the curated scripture knowledge layer — editorial data
+   * about Scripture, never a machine's reading of the reader's notes. See
+   * verse-knowledge-exercises.ts for what that permits and what it must never do.
+   */
+  'verse.theme': (ctx) =>
+    named(ctx, (s) => `Pick the theme ${s} carries.`, 'Pick the theme this verse carries.'),
+  'verse.person': (ctx) =>
+    named(ctx, (s) => `Pick who ${s} is about.`, 'Pick who this verse is about.'),
+  'verse.crossref': (ctx) =>
     named(
       ctx,
-      (s) => `Say what you connected to ${s}, and why.`,
-      'Say what you connected to this verse, and why.',
+      (s) => `Pick the passage ${s} is cross-referenced with.`,
+      'Pick the passage this verse is cross-referenced with.',
     ),
 };
 
@@ -176,7 +195,10 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'verse.altered': 'Find the changed word',
   'verse.sequence': 'Put it back in order',
   'verse.locate': 'Say where it is from',
-  'verse.connect': 'Say what you connected to it',
+  'verse.connect': 'Pick the note you cited it in',
+  'verse.theme': 'Pick the theme it carries',
+  'verse.person': 'Pick who it is about',
+  'verse.crossref': 'Pick its cross-reference',
 };
 
 export function reviewTaskFor(key: ReviewPromptKey): string {
@@ -234,13 +256,79 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
  * months ago is a question with no work in it. What remains gets harder instead: each pass
  * through this list hides more of the text than the last.
  */
-export const VERSE_MAINTENANCE: readonly ReviewPromptKey[] = [
-  'verse.rebuild',
-  'verse.next',
-  'verse.altered',
-  'verse.sequence',
-  'verse.locate',
+/**
+ * What a verse can be asked, as far as the rung families care.
+ *
+ * Counts only. The server holds the actual themes, people and cross-references and builds the
+ * exercise from them; this is the pure, client-safe summary that decides which member of a family
+ * *can* be asked. An absent material (the client never has one) means "the default member",
+ * which is exactly the behaviour every existing caller relied on.
+ */
+export interface VerseMaterial {
+  /** Notes of the reader's that cite this verse. */
+  citedInNotes: number;
+  /** Curated topics on this verse at or above the relevance floor. */
+  themeCount: number;
+  /** Curated people on this verse. */
+  personCount: number;
+  /** Cross-reference targets at or above the vote floor, with text available. */
+  crossRefCount: number;
+}
+
+/**
+ * The exercises a step can wear.
+ *
+ * A stored `ladderStep` is live data, so a new exercise cannot be a new step in the middle of the
+ * ladder without moving every reader who is already on one. So a step stays a step, and names a
+ * *family* instead: the first member is the default and must always build; the rest are chosen
+ * by seed and by what material the verse has. Two readers on step 4 see different exercises, and
+ * the same reader sees a different one on each maintenance pass. This is where variety comes
+ * from without touching a single stored step.
+ */
+export const VERSE_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
+  ['verse.recognize'],
+  ['verse.rebuild'],
+  ['verse.recall'],
+  ['verse.next'],
+  // The context step: what this verse is connected to, by the reader or by the index.
+  ['verse.connect', 'verse.theme', 'verse.person', 'verse.crossref'],
+  ['verse.sequence'],
+  ['verse.locate'],
+  ['verse.altered'],
 ];
+
+/**
+ * The families that come round again once the ladder is climbed.
+ *
+ * Recognising and recalling are how a verse is learned, not how it is kept, so families 0 and 2
+ * do not repeat. Everything else gets harder each pass, and draws a fresh member each time.
+ */
+export const VERSE_MAINTENANCE_FAMILIES: readonly number[] = [1, 3, 4, 5, 6, 7];
+
+/** The maintenance cycle by its default members — what a caller with no seed sees. */
+export const VERSE_MAINTENANCE: readonly ReviewPromptKey[] = VERSE_MAINTENANCE_FAMILIES.map(
+  (family) => VERSE_FAMILIES[family][0],
+);
+
+/** Can this member be asked of a verse with this material? The default member always can. */
+export function verseFamilyMemberAvailable(
+  key: ReviewPromptKey,
+  material: VerseMaterial | undefined,
+): boolean {
+  if (!material) return VERSE_FAMILIES.some((family) => family[0] === key);
+  switch (key) {
+    case 'verse.connect':
+      return material.citedInNotes >= 1;
+    case 'verse.theme':
+      return material.themeCount >= 1;
+    case 'verse.person':
+      return material.personCount >= 1;
+    case 'verse.crossref':
+      return material.crossRefCount >= 1;
+    default:
+      return true;
+  }
+}
 
 /** The rung a verse is on, and how many times it has been round the maintenance cycle. */
 export interface VerseRung {
@@ -252,19 +340,44 @@ export interface VerseRung {
    * ten "almost"s would hand someone a mostly-blank verse they have never once recalled.
    */
   pass: number;
+  /** Which family the rung came from, so a caller can tell a maintenance locate from a first one. */
+  family: number;
 }
 
-export function verseRungFor(step: number): VerseRung {
+/**
+ * Which rung a step resolves to.
+ *
+ * Without a seed: the family's default, which is exactly what this returned before families
+ * existed. With a seed, a member is picked by hash and the pick **falls forward within the
+ * family** to the first member the material allows, then to the default — so a verse no note
+ * cites is never asked which note cites it. The list, the reveal and the grader must all pass
+ * the same seed and material, or they resolve different rungs from one step; that is the drift
+ * `rungIdentityIsTheAnswer` and `reviewRungIsGraded` guard by resolving through here too.
+ */
+export function verseRungFor(step: number, seed?: string, material?: VerseMaterial): VerseRung {
   const clamped = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) : 0;
-  if (clamped < VERSE_LADDER.length) return { key: VERSE_LADDER[clamped], pass: 0 };
-  const offset = clamped - VERSE_LADDER.length;
-  return {
-    key: VERSE_MAINTENANCE[offset % VERSE_MAINTENANCE.length],
-    pass: 1 + Math.floor(offset / VERSE_MAINTENANCE.length),
-  };
+  let family: number;
+  let pass: number;
+  if (clamped < VERSE_FAMILIES.length) {
+    family = clamped;
+    pass = 0;
+  } else {
+    const offset = clamped - VERSE_FAMILIES.length;
+    family = VERSE_MAINTENANCE_FAMILIES[offset % VERSE_MAINTENANCE_FAMILIES.length];
+    pass = 1 + Math.floor(offset / VERSE_MAINTENANCE_FAMILIES.length);
+  }
+
+  const members = VERSE_FAMILIES[family];
+  if (!seed || members.length === 1) return { key: members[0], pass, family };
+
+  const start = hashSeed(seed) % members.length;
+  for (let i = 0; i < members.length; i++) {
+    const key = members[(start + i) % members.length];
+    if (verseFamilyMemberAvailable(key, material)) return { key, pass, family };
+  }
+  return { key: members[0], pass, family };
 }
 
-/** The rung whose prompt hides part of the verse. The page renders a cloze only here. */
 export const VERSE_REBUILD_STEP = 1;
 
 /** Rung 0 of the note ladder, where the note's own identity is the answer. */
@@ -288,6 +401,10 @@ export const VERSE_LOCATE_STEP = 6;
 const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>([
   'verse.rebuild',
   'verse.next',
+  'verse.connect',
+  'verse.theme',
+  'verse.person',
+  'verse.crossref',
   'verse.altered',
   'verse.sequence',
   'verse.locate',
@@ -296,12 +413,16 @@ const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>([
 export function reviewRungIsGraded(item: {
   kind?: string | null;
   ladderStep?: number | null;
+  /** The resolved rung, when the caller has it. Otherwise the family default is judged. */
+  promptKey?: string | null;
 }): boolean {
   // Every note rung is a multiple choice now.
   if (item.kind === 'note') return true;
   if (item.kind !== 'verse') return false;
-  // Resolved rather than compared against the step, so a rung reached on a maintenance pass is
-  // the same rung it was the first time round.
+  // The rung the server actually resolved wins; a step alone can only name the family default.
+  if (item.promptKey && REVIEW_PROMPT_KEYS.includes(item.promptKey as ReviewPromptKey)) {
+    return GRADED_VERSE_KEYS.has(item.promptKey as ReviewPromptKey);
+  }
   return GRADED_VERSE_KEYS.has(verseRungFor(item.ladderStep ?? 0).key);
 }
 
@@ -334,9 +455,12 @@ export function pickPromptKey(
   reviewCount: number,
   ladderStep = 0,
   itemId?: string | null,
+  material?: VerseMaterial,
 ): ReviewPromptKey {
   // Past the top the ladder wraps into maintenance rather than stopping — see `verseRungFor`.
-  if (kind === 'verse') return verseRungFor(ladderStep).key;
+  if (kind === 'verse') {
+    return verseRungFor(ladderStep, itemId ? `${itemId}:${ladderStep}` : undefined, material).key;
+  }
   /*
    * The *nominal* rung for a note. What it can actually be asked depends on whether it has a
    * body to quote, a passage to name or a link to recall — see `resolveNoteRung`, which the
@@ -357,9 +481,17 @@ export function reviewPromptFor(
     reviewCount: number;
     ladderStep?: number | null;
     id?: string | null;
+    /** What the verse can be asked; decides which family member the step resolves to. */
+    material?: VerseMaterial;
   },
   ctx: ReviewPromptContext,
 ): { key: ReviewPromptKey; prompt: string } {
-  const key = pickPromptKey(item.kind, item.reviewCount, item.ladderStep ?? 0, item.id ?? null);
+  const key = pickPromptKey(
+    item.kind,
+    item.reviewCount,
+    item.ladderStep ?? 0,
+    item.id ?? null,
+    item.material,
+  );
   return { key, prompt: fillReviewPrompt(key, ctx) };
 }

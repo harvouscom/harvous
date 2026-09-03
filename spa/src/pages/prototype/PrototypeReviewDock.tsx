@@ -66,6 +66,7 @@ import {
   REVIEW_TRUTH_LABEL,
   REVIEW_TRY_AGAIN_COPY,
   REVIEW_ANSWER_LABEL,
+  REVIEW_INDEX_ANSWER_LABEL,
 } from './proto-review-copy';
 
 /** Kinds whose answer is another surface: the note itself, or the Thread beside you. */
@@ -118,6 +119,9 @@ function revealLabelFor(kind: ReviewItemView['kind']): string {
  * cannot know.
  */
 const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+
+/** The rungs whose answer key is the curated index rather than the text or the reader. */
+const INDEX_KEYED_RUNGS = new Set(['verse.theme', 'verse.person', 'verse.crossref']);
 
 /**
  * The options on a multiple-choice rung.
@@ -362,6 +366,7 @@ export default function PrototypeReviewDock() {
               // leaves the reader holding four shuffled phrases and no verse.
               verseText: data.truth?.verseText ?? null,
               correctAnswer: data.correctAnswer ?? null,
+              fromIndex: INDEX_KEYED_RUNGS.has(item.promptKey),
               at: Date.now(),
             });
             setSitting((current) => ({
@@ -429,6 +434,7 @@ export default function PrototypeReviewDock() {
   const noteChoice = reveal.data?.noteChoice ?? null;
   const nextExercise = reveal.data?.next ?? null;
   const alteredExercise = reveal.data?.altered ?? null;
+  const contextChoice = reveal.data?.choice ?? null;
   const clozeExercise = reveal.data?.cloze ?? null;
 
   if (!reviewDock || isGuest || !review.has) return null;
@@ -507,7 +513,9 @@ export default function PrototypeReviewDock() {
             {lastResult.correctAnswer ? (
               <>
                 <p className="proto-caption proto-review-dock__truth-label">
-                  {REVIEW_ANSWER_LABEL}
+                  {/* A miss on a curated rung is a disagreement with the index, not a lapse of
+                      memory, and the label says whose reading this is. */}
+                  {lastResult.fromIndex ? REVIEW_INDEX_ANSWER_LABEL : REVIEW_ANSWER_LABEL}
                 </p>
                 <p className="proto-review-dock__verse">{lastResult.correctAnswer}</p>
               </>
@@ -718,6 +726,28 @@ export default function PrototypeReviewDock() {
                 ))}
               </p>
             </div>
+          </>
+        ) : contextChoice ? (
+          /*
+           * The context step: which note cites this, which theme it carries, who it is about,
+           * what it is cross-referenced with. The verse stays on screen — it is the question —
+           * and the options are the whole exercise.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {verseMarkup ? (
+              <p className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
+            ) : null}
+            {attemptNumber > 1 ? (
+              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
+            ) : null}
+            <ReviewChoiceChips
+              options={contextChoice.options}
+              disabled={outcome.isPending}
+              missed={missed}
+              opening={contextChoice.opening}
+              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+            />
           </>
         ) : nextExercise ? (
           /*

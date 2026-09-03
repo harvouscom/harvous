@@ -103,6 +103,13 @@ export const REVIEW_TRY_AGAIN_COPY = 'Not that one. One more go.';
 /** Above the answer, after the last go. */
 export const REVIEW_ANSWER_LABEL = 'The answer';
 
+/**
+ * The same slot on the rungs keyed to the curated index. A miss there means the reader disagreed
+ * with the index, not that they forgot something they knew, and the label says whose reading it
+ * is rather than calling it the answer.
+ */
+export const REVIEW_INDEX_ANSWER_LABEL = 'The index has this as';
+
 /** Said once, on the answer that moves something into durable recall. Never a score. */
 export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
 export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';

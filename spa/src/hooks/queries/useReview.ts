@@ -77,6 +77,11 @@ export interface ReviewRevealResponse {
   next?: { options: string[] } | null;
   /** The altered verse. Which word was changed stays on the server. */
   altered?: { tokens: string[] } | null;
+  /**
+   * The context-step rungs: which note cites this, which theme, who, which cross-reference.
+   * Four options; `opening` when they are the first words of passages and should trail off.
+   */
+  choice?: { options: string[]; opening: boolean } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
 }
 

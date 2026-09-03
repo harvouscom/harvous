@@ -29,6 +29,8 @@ import {
   UserNodeStates,
   sql,
   first,
+  ScriptureTopics,
+  BiblePeople,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
 import {
@@ -52,6 +54,7 @@ import {
   reviewTaskFor,
   type ReviewPromptKey,
   verseRungFor,
+  type VerseMaterial,
 } from '@/utils/review-prompts';
 import {
   buildVerseLocate,
@@ -73,7 +76,17 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
 import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
 import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
-import { formatVerseAddress, neighbourVerseAddresses, nextVerseAddress } from '@/utils/verse-adjacency';
+import { formatVerseAddress, lastVerseOf, neighbourVerseAddresses, nextVerseAddress } from '@/utils/verse-adjacency';
+import {
+  CROSSREF_MIN_VOTES,
+  VERSE_THEME_MIN_RELEVANCE,
+  buildVerseCrossref,
+  buildVersePerson,
+  buildVerseTheme,
+} from '@/utils/verse-knowledge-exercises';
+import { getKnowledgeForReference } from './scripture-knowledge';
+import { curatedTopicLabelForDisplay } from '@/utils/prototype-home-trends';
+import { gradeChoiceExercise } from '@/utils/choice-exercise';
 import { fetchVerseText } from './fetch-verse-text';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
@@ -540,6 +553,18 @@ export async function buildReviewItemViews(
     rows.filter((r) => r.kind === 'note').map((r) => r.noteId).filter((id): id is string => Boolean(id)),
   );
 
+  // One probe per passage per build, however many rows share it.
+  const materialCache = new Map<string, Promise<VerseKnowledgeMaterial>>();
+  const materialFor = (reference: string, translation: string) => {
+    const key = `${reference.toLowerCase()}|${translation}`;
+    let pending = materialCache.get(key);
+    if (!pending) {
+      pending = loadVerseMaterial(userId, reference, translation);
+      materialCache.set(key, pending);
+    }
+    return pending;
+  };
+
   const views: ReviewItemView[] = [];
   for (const row of rows) {
     const kind = row.kind as ReviewItemKind;
@@ -587,8 +612,18 @@ export async function buildReviewItemViews(
      */
     if (!isReviewAskableKind(kind)) continue;
 
+    const verseMaterial =
+      kind === 'verse' && row.scriptureReference
+        ? await materialFor(row.scriptureReference, row.translation ?? 'NET')
+        : undefined;
     const { key, prompt } = reviewPromptFor(
-      { kind, reviewCount: row.reviewCount, ladderStep: row.ladderStep, id: row.id },
+      {
+        kind,
+        reviewCount: row.reviewCount,
+        ladderStep: row.ladderStep,
+        id: row.id,
+        material: verseMaterial,
+      },
       {
         reference: row.scriptureReference,
         noteTitle,
@@ -1136,6 +1171,11 @@ export interface ReviewRevealPayload {
    */
   next?: { options: string[] } | null;
   /**
+   * The context-step rungs — which note cites this, which theme, who, which cross-reference.
+   * Four options, and whether they are openings to trail off. Never which one is right.
+   */
+  choice?: { options: string[]; opening: boolean } | null;
+  /**
    * The altered verse, and nothing else.
    *
    * `alteredIndex`, `original` and `substitute` stay on the server — a puzzle whose answer is in
@@ -1184,6 +1224,255 @@ async function listUserVerseReferences(userId: string, exclude: string): Promise
  * the page's memory is a multiple choice with the answer written on the back.
  */
 /**
+ * What a verse can be asked, with the material behind each answer.
+ *
+ * The pure `VerseMaterial` carries counts and decides which family member a step resolves to;
+ * this carries the labels and texts the builders need. One load per verse per request, cached by
+ * reference inside a view build so ten rows on one passage cost one probe.
+ *
+ * Bounded on purpose: at most three cross-reference texts are fetched, and the reader's *other*
+ * verses — the distractor source — are sampled, not enumerated.
+ */
+interface VerseKnowledgeMaterial extends VerseMaterial {
+  reference: string;
+  /** Curated topics at or above the relevance floor, as display labels. */
+  themes: string[];
+  /** Every topic on the verse at any relevance — barred as a distractor. */
+  allThemeLabels: string[];
+  people: string[];
+  /** Cross-reference targets above the vote floor whose text could be fetched. */
+  crossRefs: { reference: string; text: string }[];
+  /** Distinguishing labels of the reader's notes that cite this verse. */
+  citingNoteLabels: string[];
+}
+
+const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
+  reference: '',
+  citedInNotes: 0,
+  themeCount: 0,
+  personCount: 0,
+  crossRefCount: 0,
+  themes: [],
+  allThemeLabels: [],
+  people: [],
+  crossRefs: [],
+  citingNoteLabels: [],
+};
+
+const CROSSREF_TEXT_FETCHES = 3;
+
+async function loadVerseMaterial(
+  userId: string,
+  reference: string | null,
+  translation: string,
+): Promise<VerseKnowledgeMaterial> {
+  const ref = reference?.trim();
+  if (!ref) return EMPTY_VERSE_MATERIAL;
+  const at = lastVerseOf(ref);
+  if (!at) return { ...EMPTY_VERSE_MATERIAL, reference: ref };
+
+  const [knowledge, citing] = await Promise.all([
+    getKnowledgeForReference(at.book, at.chapter, at.verse, {
+      minRelevance: 0,
+      minVotes: CROSSREF_MIN_VOTES,
+      crossRefLimit: 8,
+      themeLimit: 16,
+    }).catch(() => null),
+    loadNotesCitingVerse(userId, at),
+  ]);
+
+  const themesAbove = (knowledge?.themes ?? []).filter(
+    (t) => t.relevance >= VERSE_THEME_MIN_RELEVANCE,
+  );
+  const label = (t: { label: string }) => curatedTopicLabelForDisplay(t.label);
+
+  // Single-verse targets first: a whole-chapter cross-reference has no one opening to show.
+  const targets = (knowledge?.crossReferences ?? [])
+    .filter((c) => c.chapterStart === c.chapterEnd)
+    .slice(0, CROSSREF_TEXT_FETCHES);
+  const crossRefs: { reference: string; text: string }[] = [];
+  for (const c of targets) {
+    const targetRef = `${c.book} ${c.chapterStart}:${c.verseStart}`;
+    const html = await fetchVerseText(targetRef, translation);
+    if (html) crossRefs.push({ reference: targetRef, text: stripHtml(html) });
+  }
+
+  return {
+    reference: ref,
+    citedInNotes: citing.length,
+    themeCount: themesAbove.length,
+    personCount: knowledge?.people.length ?? 0,
+    crossRefCount: crossRefs.length,
+    themes: themesAbove.map(label),
+    allThemeLabels: (knowledge?.themes ?? []).map(label),
+    people: (knowledge?.people ?? []).map((p) => p.name),
+    crossRefs,
+    citingNoteLabels: citing,
+  };
+}
+
+/** Distinguishing labels of the reader's notes that cite this verse, via either join. */
+async function loadNotesCitingVerse(
+  userId: string,
+  at: { book: string; chapter: number; verse: number },
+): Promise<string[]> {
+  const meta = await db
+    .select({ noteId: ScriptureMetadata.noteId })
+    .from(ScriptureMetadata)
+    .where(
+      and(
+        eq(ScriptureMetadata.book, at.book),
+        eq(ScriptureMetadata.chapter, at.chapter),
+        eq(ScriptureMetadata.verse, at.verse),
+      ),
+    );
+  if (!meta.length) return [];
+  const scriptureNoteIds = meta.map((m) => m.noteId);
+  const viaPill = await db
+    .select({ noteId: NoteScriptureReferences.noteId })
+    .from(NoteScriptureReferences)
+    .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureNoteIds));
+  const candidates = [...new Set([...scriptureNoteIds, ...viaPill.map((r) => r.noteId)])];
+  const owned = await db
+    .select({ id: Notes.id })
+    .from(Notes)
+    .where(
+      and(
+        eq(Notes.userId, userId),
+        inArray(Notes.id, candidates),
+        ne(Notes.noteType, 'scripture'),
+        countableUserNotesWhere(),
+      ),
+    );
+  if (!owned.length) return [];
+  const labels = await loadNoteSubjectLabels(
+    userId,
+    owned.map((r) => r.id),
+  );
+  const out = new Set<string>();
+  for (const { label, distinguishing } of labels.values()) if (distinguishing) out.add(label);
+  return [...out];
+}
+
+/**
+ * The context-step rungs, built once for both the question and the marking.
+ *
+ * `acceptable` is what the grader marks against; `exercise.options` is all the client ever sees.
+ * Distractors are the reader's own study first — themes and people from passages they have
+ * cited — and the wider index only when that runs short, because an option someone has never
+ * met is noise rather than a distractor.
+ */
+async function buildVerseContextFor(
+  userId: string,
+  item: ReviewItemRow,
+  rungKey: ReviewPromptKey,
+  material: VerseKnowledgeMaterial,
+  seed: string,
+): Promise<{ exercise: ChoiceExercise; acceptable: string[]; opening: boolean } | null> {
+  if (!item.scriptureReference) return null;
+
+  if (rungKey === 'verse.connect') {
+    if (!material.citingNoteLabels.length) return null;
+    const pool = (await loadNoteLabelPool(userId)).distinguishing.filter(
+      (label) => !material.citingNoteLabels.includes(label),
+    );
+    const exercise = buildNoteChoice({ acceptable: material.citingNoteLabels, poolLabels: pool, seed });
+    return exercise ? { exercise, acceptable: material.citingNoteLabels, opening: false } : null;
+  }
+
+  // The reader's other passages, sampled, for distractors that are things they have met.
+  const otherRefs = (await listUserVerseReferences(userId, item.scriptureReference)).slice(0, 5);
+  const others = await Promise.all(
+    otherRefs.map(async (ref) => {
+      const at = lastVerseOf(ref);
+      if (!at) return null;
+      const k = await getKnowledgeForReference(at.book, at.chapter, at.verse, {
+        minRelevance: VERSE_THEME_MIN_RELEVANCE,
+        themeLimit: 6,
+        crossRefLimit: 0,
+      }).catch(() => null);
+      return k ? { ref, themes: k.themes.map((t) => curatedTopicLabelForDisplay(t.label)), people: k.people.map((p) => p.name) } : null;
+    }),
+  );
+
+  if (rungKey === 'verse.theme') {
+    if (!material.themes.length) return null;
+    const pool = others.flatMap((o) => o?.themes ?? []);
+    const fallback = await sampleTopicLabels(seed);
+    const exercise = buildVerseTheme({
+      answers: material.themes,
+      onVerse: material.allThemeLabels,
+      pool,
+      fallbackPool: fallback,
+      seed,
+    });
+    return exercise ? { exercise, acceptable: material.themes, opening: false } : null;
+  }
+
+  if (rungKey === 'verse.person') {
+    if (!material.people.length) return null;
+    const pool = others.flatMap((o) => o?.people ?? []);
+    const fallback = await samplePeopleNames(seed);
+    const exercise = buildVersePerson({
+      answers: material.people,
+      onVerse: material.people,
+      pool,
+      fallbackPool: fallback,
+      seed,
+    });
+    return exercise ? { exercise, acceptable: material.people, opening: false } : null;
+  }
+
+  if (rungKey === 'verse.crossref') {
+    if (!material.crossRefs.length) return null;
+    const answer = material.crossRefs[hashSeed(seed) % material.crossRefs.length];
+    const barred = new Set(material.crossRefs.map((c) => c.reference.toLowerCase()));
+    const distractorTexts: string[] = [];
+    for (const ref of otherRefs) {
+      if (barred.has(ref.toLowerCase())) continue;
+      const html = await fetchVerseText(ref, item.translation ?? 'NET');
+      if (html) distractorTexts.push(stripHtml(html));
+    }
+    const exercise = buildVerseCrossref({ answerText: answer.text, distractorTexts, seed });
+    return exercise
+      ? { exercise, acceptable: [exercise.options[exercise.answerIndex]], opening: true }
+      : null;
+  }
+
+  return null;
+}
+
+/** A dozen topics from the index, offset by seed so the fallback is not the same dozen every time. */
+async function sampleTopicLabels(seed: string): Promise<string[]> {
+  const rows = await db
+    .select({ label: ScriptureTopics.label })
+    .from(ScriptureTopics)
+    .orderBy(ScriptureTopics.id)
+    .limit(12)
+    .offset(hashSeed(seed) % 6000)
+    .catch(() => []);
+  return rows.map((r) => curatedTopicLabelForDisplay(r.label));
+}
+
+async function samplePeopleNames(seed: string): Promise<string[]> {
+  const rows = await db
+    .select({ name: BiblePeople.name })
+    .from(BiblePeople)
+    .orderBy(BiblePeople.id)
+    .limit(12)
+    .offset(hashSeed(seed) % 3000)
+    .catch(() => []);
+  return rows.map((r) => r.name);
+}
+
+const VERSE_CONTEXT_KEYS = new Set<ReviewPromptKey>([
+  'verse.connect',
+  'verse.theme',
+  'verse.person',
+  'verse.crossref',
+]);
+
+/**
  * The "what comes after this?" rung, built once for both the question and the marking.
  *
  * Over-fetches neighbours: a verse whose text is missing from the cache contributes no option,
@@ -1227,9 +1516,12 @@ async function buildVerseAlteredFor(item: ReviewItemRow): Promise<VerseAlteredEx
 /** A wide net, because most candidate words are barred by one list or another. */
 const VERSE_ALTERED_NEIGHBOURS = 8;
 
-export async function verseTruthFor(item: ReviewItemRow): Promise<string | null> {
+export async function verseTruthFor(item: ReviewItemRow, userId?: string): Promise<string | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
-  const rung = verseRungFor(item.ladderStep);
+  const material = userId
+    ? await loadVerseMaterial(userId, item.scriptureReference, item.translation ?? 'NET')
+    : undefined;
+  const rung = verseRungFor(item.ladderStep, `${item.id}:${item.ladderStep}`, material);
   // `verse.altered` most of all: leaving someone with a falsified line and no correction is the
   // one ending this rung must never have.
   if (
@@ -1275,7 +1567,21 @@ export async function gradeVerseAnswer(
   answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[] },
 ): Promise<GradedAnswer | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
-  const rung = verseRungFor(item.ladderStep);
+  const seedForRung = `${item.id}:${item.ladderStep}`;
+  const material = await loadVerseMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+  const rung = verseRungFor(item.ladderStep, seedForRung, material);
+
+  if (VERSE_CONTEXT_KEYS.has(rung.key) && typeof answer.option === 'string') {
+    const built = await buildVerseContextFor(userId, item, rung.key, material, seedForRung);
+    if (!built) return null;
+    return {
+      correct: built.opening
+        ? gradeVerseNext(built.exercise as VerseNextExercise, answer.option)
+        : gradeChoiceExercise(built.exercise, answer.option, built.acceptable),
+      correctAnswer: built.exercise.options[built.exercise.answerIndex] ?? null,
+    };
+  }
+
   const isSequence = rung.key === 'verse.sequence' && Array.isArray(answer.order);
   const isLocate = rung.key === 'verse.locate' && typeof answer.option === 'string';
   const isNext = rung.key === 'verse.next' && typeof answer.option === 'string';
@@ -1662,7 +1968,13 @@ export async function buildReviewReveal(
          * the ladder the same rungs come round again on a maintenance pass, and every branch
          * below has to recognise them when they do.
          */
-        const rung = verseRungFor(item.ladderStep);
+        const material = await loadVerseMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+        const rung = verseRungFor(item.ladderStep, seed, material);
+        if (VERSE_CONTEXT_KEYS.has(rung.key)) {
+          const built = await buildVerseContextFor(userId, item, rung.key, material, seed);
+          // Options only. The verse stays on screen: it is the question, not the answer.
+          payload.choice = built ? { options: built.exercise.options, opening: built.opening } : null;
+        }
         if (rung.key === 'verse.rebuild') {
           // A later pass hides more, and the seed carries the step, so it hides a different set.
           const cloze = buildVerseCloze(text, seed, verseClozeRatio(rung.pass));

@@ -313,7 +313,9 @@ describe('the ladder wrap and the truth restore', () => {
      * recognising its own rung the moment a verse wrapped.
      */
     const text = service();
-    expect(text).toContain('verseRungFor(item.ladderStep)');
+    // Every branch resolves the rung — now with the item's seed and material, since a step is a
+    // family — and none compares the step to a constant.
+    expect(text).toMatch(/verseRungFor\(item\.ladderStep,/);
     expect(text).not.toMatch(/ladderStep === VERSE_(LOCATE|SEQUENCE|NEXT|REBUILD)_STEP/);
   });
 
@@ -339,10 +341,11 @@ describe('the ladder wrap and the truth restore', () => {
     // answered about.
     const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
     const outcome = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
-    const call = outcome.indexOf('verseTruthFor(item)');
+    // The user goes along so the truth resolves the same family member the reveal did.
+    const call = outcome.indexOf('verseTruthFor(item, auth.userId)');
     expect(call).toBeGreaterThan(-1);
     expect(outcome.slice(0, call)).toContain('applyReviewOutcome');
-    expect(outcome).not.toContain('verseTruthFor(updated)');
+    expect(outcome).not.toContain('verseTruthFor(updated');
   });
 });
 
@@ -492,5 +495,46 @@ describe('a wrong answer gets another go', () => {
     expect(at).toBeGreaterThan(-1);
     // Guarded on the answer having been wrong — a correct answer needs no answer shown.
     expect(outcome.slice(Math.max(0, at - 160), at)).toContain('!graded.correct');
+  });
+});
+
+describe('the context-step rungs', () => {
+  it('ships four options and never which one, nor any id the index keys on', () => {
+    /*
+     * A topic id, an entity id or a cross-reference target reference would let the client work
+     * out the answer without the reader. The payload is the labels and whether they trail off.
+     */
+    const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf('VERSE_CONTEXT_KEYS.has(rung.key)'));
+    const block = branch.slice(0, branch.indexOf("rung.key === 'verse.rebuild'"));
+    expect(block).toContain('options: built.exercise.options');
+    expect(block).not.toContain('answerIndex');
+    expect(block).not.toContain('acceptable');
+    expect(block).not.toContain('topicId');
+    expect(block).not.toContain('entityId');
+  });
+
+  it('resolves the rung with the same seed and material on the list, the reveal and the grader', () => {
+    /*
+     * With families a step can wear several rungs. If any one of the three resolved without the
+     * seed it would land on the family default while the others landed on a member — the same
+     * drift a step-number comparison caused before, wearing a new face.
+     */
+    const text = service();
+    const grader = text.slice(text.indexOf('export async function gradeVerseAnswer'));
+    expect(grader).toMatch(/verseRungFor\(item\.ladderStep, seedForRung, material\)/);
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    expect(reveal).toMatch(/verseRungFor\(item\.ladderStep, seed, material\)/);
+    const truth = text.slice(text.indexOf('export async function verseTruthFor'));
+    expect(truth.slice(0, 600)).toMatch(/verseRungFor\(item\.ladderStep, `\$\{item\.id\}:\$\{item\.ladderStep\}`, material\)/);
+    const list = text.slice(text.indexOf('export async function buildReviewItemViews'));
+    expect(list).toContain('material: verseMaterial');
+  });
+
+  it('builds and marks every context rung from one function', () => {
+    const text = service();
+    expect(text).toContain('async function buildVerseContextFor');
+    const grader = text.slice(text.indexOf('export async function gradeVerseAnswer'));
+    expect(grader).toContain('buildVerseContextFor');
   });
 });
