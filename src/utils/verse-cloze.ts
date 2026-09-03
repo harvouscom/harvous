@@ -17,7 +17,8 @@
  * "the" removed tests typing, not memory — and blanking them makes the verse unreadable as a
  * cue, which defeats the rung.
  */
-const STOPWORDS = new Set([
+/** Words too common to be a fair thing to recall. Shared by every text-keyed rung. */
+export const STOPWORDS = new Set([
   'the', 'and', 'for', 'but', 'not', 'you', 'your', 'his', 'her', 'him', 'she', 'they',
   'them', 'their', 'this', 'that', 'these', 'those', 'with', 'from', 'into', 'unto',
   'shall', 'will', 'have', 'has', 'had', 'was', 'were', 'are', 'been', 'being', 'who',
@@ -26,7 +27,7 @@ const STOPWORDS = new Set([
 ]);
 
 /** Below this a word is too small to be worth retrieving. */
-const MIN_BLANK_LENGTH = 4;
+export const MIN_BLANK_LENGTH = 4;
 
 /** Never blank the opening words — the reader needs a way in. */
 const LEAD_IN_WORDS = 2;
@@ -66,7 +67,7 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-function bareWord(token: string): string {
+export function bareWord(token: string): string {
   return token.replace(/[^\p{L}\p{N}'-]/gu, '');
 }
 

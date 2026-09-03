@@ -240,6 +240,9 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
               : undefined,
             // The words filled into a cloze's gaps. Bounded on both axes: a verse never has
             // more blanks than this, and no single missing word is this long.
+            // What the reader wrote back from the first letters. Bounded; graded, never stored
+            // as the answer — `attempt` is the stored copy, and that is bounded separately.
+            text: typeof body.answer.text === 'string' ? body.answer.text.slice(0, MAX_ATTEMPT_LENGTH) : undefined,
             words: Array.isArray(body.answer.words)
               ? body.answer.words
                   .filter((w: unknown) => typeof w === 'string')

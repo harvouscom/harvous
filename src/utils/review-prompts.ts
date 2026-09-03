@@ -31,14 +31,18 @@ export const REVIEW_PROMPT_KEYS = [
   'note.annotation',
   'verse.recognize',
   'verse.rebuild',
+  'verse.initials',
   'verse.recall',
+  'verse.keywords',
   'verse.next',
+  'verse.before',
   'verse.altered',
   'verse.theme',
   'verse.person',
   'verse.crossref',
   'verse.sequence',
   'verse.locate',
+  'verse.book',
   'verse.connect',
 ] as const;
 
@@ -130,8 +134,25 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Fill in the missing words of ${s}.`, 'Fill in the missing words.'),
   'verse.recall': (ctx) =>
     named(ctx, (s) => `Write ${s} from memory.`, 'Write this verse from memory.'),
+  // The classic memory-verse aid: the first letter of every word, and nothing else.
+  'verse.initials': (ctx) =>
+    named(
+      ctx,
+      (s) => `Write ${s} from its first letters.`,
+      'Write the verse from its first letters.',
+    ),
+  // Free recall, the lightest rung: any three words that are actually in it.
+  'verse.keywords': (ctx) =>
+    named(ctx, (s) => `Name three words from ${s}.`, 'Name three words from this verse.'),
   'verse.next': (ctx) =>
     named(ctx, (s) => `Pick the verse that follows ${s}.`, 'Pick the verse that follows.'),
+  // Names the chapter, never the verse: "in John 15", because the verse number is the answer.
+  'verse.before': (ctx) =>
+    named(
+      ctx,
+      (s) => `Pick which comes first in ${s.replace(/:\d.*$/, '')}.`,
+      'Pick which comes first.',
+    ),
   /*
    * The most important line of copy in this feature.
    *
@@ -149,6 +170,8 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Put ${s} back in order.`, 'Put the verse back in order.'),
   // Never names the passage: the reference is the answer.
   'verse.locate': () => 'Say where this is from.',
+  // Nor here: the book is the answer.
+  'verse.book': () => 'Pick the book this is from.',
   /*
    * Graded now. "Say what you connected to it, and why" was the last open rung on the verse
    * ladder — the reader judging themselves on a question with a right answer sitting in the
@@ -190,11 +213,15 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'note.annotation': 'Pick the passage you wrote this on',
   'verse.recognize': 'Finish the verse',
   'verse.rebuild': 'Fill in the missing words',
+  'verse.initials': 'Write it from first letters',
   'verse.recall': 'Write it from memory',
+  'verse.keywords': 'Name three of its words',
   'verse.next': 'Pick what comes next',
+  'verse.before': 'Pick which comes first',
   'verse.altered': 'Find the changed word',
   'verse.sequence': 'Put it back in order',
   'verse.locate': 'Say where it is from',
+  'verse.book': 'Pick the book',
   'verse.connect': 'Pick the note you cited it in',
   'verse.theme': 'Pick the theme it carries',
   'verse.person': 'Pick who it is about',
@@ -273,7 +300,14 @@ export interface VerseMaterial {
   personCount: number;
   /** Cross-reference targets at or above the vote floor, with text available. */
   crossRefCount: number;
+  /** Other references of the reader's own that could stand beside this one on locate. */
+  locateRivals?: number;
+  /** Content words in the verse, for the rungs that ask for them. */
+  contentWordCount?: number;
 }
+
+/** Below this many rivals of the reader's own, "where is this from?" is a coin toss. */
+export const LOCATE_MIN_RIVALS = 3;
 
 /**
  * The exercises a step can wear.
@@ -287,13 +321,15 @@ export interface VerseMaterial {
  */
 export const VERSE_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
   ['verse.recognize'],
-  ['verse.rebuild'],
-  ['verse.recall'],
-  ['verse.next'],
+  ['verse.rebuild', 'verse.initials'],
+  ['verse.recall', 'verse.keywords'],
+  ['verse.next', 'verse.before'],
   // The context step: what this verse is connected to, by the reader or by the index.
   ['verse.connect', 'verse.theme', 'verse.person', 'verse.crossref'],
   ['verse.sequence'],
-  ['verse.locate'],
+  // The book is the easier locate, and is only *available* while the reader's own reference
+  // pool is too thin for a fair one — see `verseFamilyMemberAvailable`.
+  ['verse.locate', 'verse.book'],
   ['verse.altered'],
 ];
 
@@ -325,6 +361,12 @@ export function verseFamilyMemberAvailable(
       return material.personCount >= 1;
     case 'verse.crossref':
       return material.crossRefCount >= 1;
+    case 'verse.book':
+      return (material.locateRivals ?? LOCATE_MIN_RIVALS) < LOCATE_MIN_RIVALS;
+    case 'verse.keywords':
+      return (material.contentWordCount ?? 3) >= 3;
+    case 'verse.initials':
+      return (material.contentWordCount ?? 4) >= 4;
     default:
       return true;
   }
@@ -400,7 +442,11 @@ export const VERSE_LOCATE_STEP = 6;
  */
 const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>([
   'verse.rebuild',
+  'verse.initials',
+  'verse.keywords',
   'verse.next',
+  'verse.before',
+  'verse.book',
   'verse.connect',
   'verse.theme',
   'verse.person',

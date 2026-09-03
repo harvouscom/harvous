@@ -112,6 +112,9 @@ export const REVIEW_INDEX_ANSWER_LABEL = 'The index has this as';
 
 /** Said once, on the answer that moves something into durable recall. Never a score. */
 export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
+/** The first-letters rung asks for the whole verse, not a note about it. */
+export const REVIEW_INITIALS_PLACEHOLDER = 'Write the verse out';
+
 export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';
 
 export const CHALLENGE_STEP_DONE_COPY = 'Done';

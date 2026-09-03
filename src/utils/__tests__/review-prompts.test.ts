@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { REVIEW_ASKABLE_KINDS, REVIEW_ITEM_KINDS, isReviewAskableKind } from '../review-item-kinds';
+import { rungIdentityIsTheAnswer } from '../review-row-subtitle';
 import {
   NOTE_LADDER,
   NOTE_LADDER_MAX_STEP,
@@ -382,5 +383,47 @@ describe('rung families', () => {
     // A caller that knows the resolved rung is believed over the step's default.
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 0, promptKey: 'verse.theme' })).toBe(true);
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4, promptKey: 'verse.recall' })).toBe(false);
+  });
+});
+
+describe('the text-keyed families', () => {
+  const rich = { citedInNotes: 2, themeCount: 3, personCount: 1, crossRefCount: 2, locateRivals: 9, contentWordCount: 12 };
+
+  it('pairs each learning step with its easier twin', () => {
+    expect(VERSE_FAMILIES[1]).toEqual(['verse.rebuild', 'verse.initials']);
+    expect(VERSE_FAMILIES[2]).toEqual(['verse.recall', 'verse.keywords']);
+    expect(VERSE_FAMILIES[3]).toEqual(['verse.next', 'verse.before']);
+  });
+
+  it('offers the book only while the reader own reference pool is thin', () => {
+    /*
+     * With enough of the reader's own references, locate is a fair question and the book is not
+     * offered at all; below the floor the seed may pick either, and the canned references keep
+     * locate buildable.
+     */
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+      expect(verseRungFor(6, `${id}:6`, rich).key).toBe('verse.locate');
+    }
+    const thin = { ...rich, locateRivals: 1 };
+    const seen = new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => verseRungFor(6, `${id}:6`, thin).key));
+    expect(seen.has('verse.book')).toBe(true);
+  });
+
+  it('never asks for three words of a verse that has not got them', () => {
+    for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      expect(verseRungFor(2, `${id}:2`, { ...rich, contentWordCount: 2 }).key).toBe('verse.recall');
+    }
+  });
+
+  it('hides the subject on the book rung, since the book is the answer', () => {
+    expect(rungIdentityIsTheAnswer({ kind: 'verse', ladderStep: 6, promptKey: 'verse.book' })).toBe(true);
+    expect(rungIdentityIsTheAnswer({ kind: 'verse', ladderStep: 6, promptKey: 'verse.locate' })).toBe(true);
+    expect(rungIdentityIsTheAnswer({ kind: 'verse', ladderStep: 3, promptKey: 'verse.before' })).toBe(false);
+  });
+
+  it('names the chapter and never the verse on "which comes first"', () => {
+    const text = fillReviewPrompt('verse.before', { reference: 'John 15:5' });
+    expect(text).toContain('John 15');
+    expect(text).not.toContain('15:5');
   });
 });

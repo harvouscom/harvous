@@ -68,6 +68,7 @@ import {
   REVIEW_TRY_AGAIN_COPY,
   REVIEW_ANSWER_LABEL,
   REVIEW_INDEX_ANSWER_LABEL,
+  REVIEW_INITIALS_PLACEHOLDER,
 } from './proto-review-copy';
 
 /** Kinds whose answer is another surface: the note itself, or the Thread beside you. */
@@ -332,6 +333,7 @@ export default function PrototypeReviewDock() {
         promptKey?: string;
         wordIndex?: number;
         words?: string[];
+        text?: string;
       },
     ) => {
       if (!item) return;
@@ -436,6 +438,9 @@ export default function PrototypeReviewDock() {
   const nextExercise = reveal.data?.next ?? null;
   const alteredExercise = reveal.data?.altered ?? null;
   const contextChoice = reveal.data?.choice ?? null;
+  const initialsExercise = reveal.data?.initials ?? null;
+  const keywordsExercise = reveal.data?.keywords ?? null;
+  const beforeExercise = reveal.data?.before ?? null;
   const clozeExercise = reveal.data?.cloze ?? null;
 
   if (!reviewDock || isGuest || !review.has) return null;
@@ -728,6 +733,94 @@ export default function PrototypeReviewDock() {
                 ))}
               </p>
             </div>
+          </>
+        ) : initialsExercise ? (
+          /*
+           * The classic memory-verse aid: the first letter of every word, and the reader writes
+           * the verse back. Graded on the content words, in order — connectives and case are
+           * forgiven, because "the" for "a" is not forgetting.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            <p className="proto-challenge__cloze">{initialsExercise.initials}</p>
+            <textarea
+              className="proto-review-dock__attempt"
+              placeholder={REVIEW_INITIALS_PLACEHOLDER}
+              value={attempt}
+              onChange={(event) => setAttempt(event.target.value)}
+              rows={3}
+            />
+            <div className="proto-review-dock__actions">
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                disabled={outcome.isPending || !attempt.trim()}
+                onClick={() => answer('almost', { text: attempt, promptKey: item.promptKey })}
+              >
+                {REVIEW_CHECK_COPY}
+              </button>
+            </div>
+          </>
+        ) : keywordsExercise ? (
+          /* Free recall, the lightest rung: any three words that are actually in the verse. */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            <p className="proto-challenge__cloze">
+              {Array.from({ length: keywordsExercise.count }, (_, index) => (
+                <Fragment key={index}>
+                  {index > 0 ? ' ' : null}
+                  <input
+                    type="text"
+                    className="proto-review-dock__blank"
+                    style={{ width: '10ch' }}
+                    value={blanks[index] ?? ''}
+                    onChange={(event) => {
+                      const next = [...blanks];
+                      next[index] = event.target.value;
+                      setBlanks(next);
+                    }}
+                    aria-label={`Word ${index + 1}`}
+                    autoComplete="off"
+                    spellCheck={false}
+                    disabled={outcome.isPending}
+                  />
+                </Fragment>
+              ))}
+            </p>
+            <div className="proto-review-dock__actions">
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                disabled={
+                  outcome.isPending ||
+                  Array.from({ length: keywordsExercise.count }).some((_, i) => !blanks[i]?.trim())
+                }
+                onClick={() =>
+                  answer('almost', {
+                    words: Array.from({ length: keywordsExercise.count }, (_, i) => blanks[i] ?? ''),
+                    promptKey: item.promptKey,
+                  })
+                }
+              >
+                {REVIEW_CHECK_COPY}
+              </button>
+            </div>
+          </>
+        ) : beforeExercise ? (
+          /* Two openings from the same chapter; the verse itself is one of them, so it stays off
+             screen. */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {attemptNumber > 1 ? (
+              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
+            ) : null}
+            <ReviewChoiceChips
+              options={beforeExercise.options}
+              disabled={outcome.isPending}
+              missed={missed}
+              opening
+              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+            />
           </>
         ) : contextChoice ? (
           /*

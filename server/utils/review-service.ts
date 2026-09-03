@@ -65,6 +65,14 @@ import {
   buildVerseSequence,
   gradeVerseLocate,
   gradeVerseSequence,
+  buildVerseInitials,
+  gradeVerseInitials,
+  buildVerseKeywords,
+  gradeVerseKeywords,
+  buildVerseBefore,
+  gradeVerseBefore,
+  buildVerseBook,
+  contentWords,
 } from '@/utils/verse-ladder-exercises';
 import {
   buildVerseAltered,
@@ -1261,6 +1269,12 @@ export interface ReviewRevealPayload {
    * Four options, and whether they are openings to trail off. Never which one is right.
    */
   choice?: { options: string[]; opening: boolean } | null;
+  /** First letters of every word, and how many words. The verse itself is never sent. */
+  initials?: { initials: string; wordCount: number } | null;
+  /** How many words to name. Nothing about which. */
+  keywords?: { count: number } | null;
+  /** Two openings from the same chapter; which comes first stays here. */
+  before?: { options: string[] } | null;
   /**
    * The altered verse, and nothing else.
    *
@@ -1332,6 +1346,8 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   crossRefTotal: number;
   /** Distinguishing labels of the reader's notes that cite this verse. */
   citingNoteLabels: string[];
+  /** The verse's own text, stripped, so the text-keyed gates can count its words once. */
+  text: string;
 }
 
 const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
@@ -1346,6 +1362,7 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   crossRefs: [],
   crossRefTotal: 0,
   citingNoteLabels: [],
+  text: '',
 };
 
 const CROSSREF_TEXT_FETCHES = 3;
@@ -1360,7 +1377,7 @@ async function loadVerseMaterial(
   const at = lastVerseOf(ref);
   if (!at) return { ...EMPTY_VERSE_MATERIAL, reference: ref };
 
-  const [knowledge, citing] = await Promise.all([
+  const [knowledge, citing, ownHtml, rivals] = await Promise.all([
     getKnowledgeForReference(at.book, at.chapter, at.verse, {
       minRelevance: 0,
       minVotes: CROSSREF_MIN_VOTES,
@@ -1369,7 +1386,10 @@ async function loadVerseMaterial(
       themeLimit: 16,
     }).catch(() => null),
     loadNotesCitingVerse(userId, at),
+    fetchVerseText(ref, translation),
+    listUserVerseReferences(userId, ref),
   ]);
+  const text = ownHtml ? stripHtml(ownHtml) : '';
 
   const themesAbove = (knowledge?.themes ?? []).filter(
     (t) => t.relevance >= VERSE_THEME_MIN_RELEVANCE,
@@ -1399,6 +1419,9 @@ async function loadVerseMaterial(
     crossRefs,
     crossRefTotal: knowledge?.crossReferences.length ?? 0,
     citingNoteLabels: citing,
+    text,
+    locateRivals: rivals.length,
+    contentWordCount: contentWords(text).length,
   };
 }
 
@@ -1615,13 +1638,17 @@ export async function verseTruthFor(item: ReviewItemRow, userId?: string): Promi
   const rung = verseRungFor(item.ladderStep, `${item.id}:${item.ladderStep}`, material);
   // `verse.altered` most of all: leaving someone with a falsified line and no correction is the
   // one ending this rung must never have.
-  if (
-    rung.key !== 'verse.sequence' &&
-    rung.key !== 'verse.locate' &&
-    rung.key !== 'verse.altered' &&
-    rung.key !== 'verse.rebuild'
-  )
-    return null;
+  const withheld = new Set<ReviewPromptKey>([
+    'verse.sequence',
+    'verse.locate',
+    'verse.book',
+    'verse.altered',
+    'verse.rebuild',
+    'verse.initials',
+    'verse.keywords',
+    'verse.before',
+  ]);
+  if (!withheld.has(rung.key)) return null;
   const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
   return html || null;
 }
@@ -1649,13 +1676,55 @@ async function buildVerseNextFor(item: ReviewItemRow): Promise<VerseNextExercise
   });
 }
 
+/**
+ * "Which comes first": this verse against another from the same chapter, never adjacent.
+ *
+ * Adjacent would make it a question about a digit. The partner is seeded from the non-adjacent
+ * neighbours so the reveal and the grader pick the same one.
+ */
+async function buildVerseBeforeFor(item: ReviewItemRow, text: string, seed: string) {
+  if (!item.scriptureReference) return null;
+  const at = lastVerseOf(item.scriptureReference);
+  if (!at) return null;
+  const partners = neighbourVerseAddresses(item.scriptureReference, 8).filter(
+    (n) => Math.abs(n.verse - at.verse) >= 2,
+  );
+  if (!partners.length) return null;
+  const partner = partners[hashSeed(seed) % partners.length];
+  const html = await fetchVerseText(formatVerseAddress(partner), item.translation ?? 'NET');
+  if (!html) return null;
+  return buildVerseBefore({
+    verse: { number: at.verse, text },
+    other: { number: partner.verse, text: stripHtml(html) },
+    seed,
+  });
+}
+
+/** The books behind a list of references, deduplicated, for the book rung's pool. */
+function booksOf(references: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const ref of references) {
+    const at = lastVerseOf(ref);
+    if (at) out.add(at.book);
+  }
+  return [...out];
+}
+
+/** The same middle fragment locate shows, so the book rung reads as its easier twin. */
+function locateFragmentOf(text: string): string {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (words.length < 6) return words.join(' ');
+  const start = Math.min(2, Math.max(0, words.length - 8));
+  return words.slice(start, start + 8).join(' ');
+}
+
 /** Five asked for, three needed — see `buildVerseNextFor`. */
 const VERSE_NEXT_NEIGHBOURS = 5;
 
 export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
-  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[] },
+  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string },
 ): Promise<GradedAnswer | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const seedForRung = `${item.id}:${item.ladderStep}`;
@@ -1670,6 +1739,33 @@ export async function gradeVerseAnswer(
         ? gradeVerseNext(built.exercise as VerseNextExercise, answer.option)
         : gradeChoiceExercise(built.exercise, answer.option, built.acceptable),
       correctAnswer: built.exercise.options[built.exercise.answerIndex] ?? null,
+    };
+  }
+
+  if (rung.key === 'verse.initials' && typeof answer.text === 'string') {
+    return { correct: gradeVerseInitials(material.text, answer.text), correctAnswer: null };
+  }
+  if (rung.key === 'verse.keywords' && Array.isArray(answer.words)) {
+    return { correct: gradeVerseKeywords(material.text, answer.words), correctAnswer: null };
+  }
+  if (rung.key === 'verse.before' && typeof answer.option === 'string') {
+    const exercise = await buildVerseBeforeFor(item, material.text, seedForRung);
+    if (!exercise) return null;
+    return {
+      correct: gradeVerseBefore(exercise, answer.option),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+    };
+  }
+  if (rung.key === 'verse.book' && typeof answer.option === 'string') {
+    const exercise = buildVerseBook({
+      book: lastVerseOf(item.scriptureReference)?.book ?? '',
+      poolBooks: booksOf(await listUserVerseReferences(userId, item.scriptureReference)),
+      seed: seedForRung,
+    });
+    if (!exercise) return null;
+    return {
+      correct: gradeChoiceExercise(exercise, answer.option, [exercise.options[exercise.answerIndex]]),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
     };
   }
 
@@ -2065,6 +2161,32 @@ export async function buildReviewReveal(
           const built = await buildVerseContextFor(userId, item, rung.key, material, seed);
           // Options only. The verse stays on screen: it is the question, not the answer.
           payload.choice = built ? { options: built.exercise.options, opening: built.opening } : null;
+        }
+        if (rung.key === 'verse.initials') {
+          payload.initials = buildVerseInitials(text);
+          // The letters are the question; the verse would be the answer.
+          if (payload.initials) payload.verseText = null;
+        }
+        if (rung.key === 'verse.keywords') {
+          payload.keywords = buildVerseKeywords(text);
+          if (payload.keywords) payload.verseText = null;
+        }
+        if (rung.key === 'verse.before') {
+          const exercise = await buildVerseBeforeFor(item, text, seed);
+          payload.before = exercise ? { options: exercise.options } : null;
+          // One of the two openings is this verse; showing it would mark the pair.
+          if (exercise) payload.verseText = null;
+        }
+        if (rung.key === 'verse.book') {
+          const exercise = buildVerseBook({
+            book: lastVerseOf(item.scriptureReference)?.book ?? '',
+            poolBooks: booksOf(await listUserVerseReferences(userId, item.scriptureReference)),
+            seed,
+          });
+          payload.locate = exercise
+            ? { phrase: locateFragmentOf(text), options: exercise.options }
+            : null;
+          payload.verseText = null;
         }
         if (rung.key === 'verse.rebuild') {
           // A later pass hides more, and the seed carries the step, so it hides a different set.

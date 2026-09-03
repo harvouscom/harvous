@@ -44,7 +44,15 @@ export interface ReviewOutcomeInput {
    * The two graded rungs of the verse ladder. When present the server marks the answer and
    * ignores `outcome` — the page has no answer key to check against, by design.
    */
-  answer?: { order?: number[]; option?: string; promptKey?: string; wordIndex?: number; words?: string[] };
+  answer?: {
+    order?: number[];
+    option?: string;
+    promptKey?: string;
+    wordIndex?: number;
+    words?: string[];
+    /** The verse written back from its first letters. */
+    text?: string;
+  };
 }
 
 export interface ReviewOutcomeResponse {

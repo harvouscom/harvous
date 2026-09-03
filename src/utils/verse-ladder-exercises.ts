@@ -13,8 +13,8 @@
  * Pure. `verse-cloze.ts` next door does the same job for the rebuild rung.
  */
 
-import { hashSeed, mulberry32, verseCue } from '@/utils/verse-cloze';
-import { buildChoiceExercise, gradeChoiceExercise } from '@/utils/choice-exercise';
+import { MIN_BLANK_LENGTH, STOPWORDS, bareWord, hashSeed, mulberry32, verseCue } from '@/utils/verse-cloze';
+import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
 
 // ─── Sequence: put the phrases back in order ─────────────────────────────────
 
@@ -237,6 +237,135 @@ export function gradeVerseNext(exercise: VerseNextExercise, answer: string): boo
   const shown = exercise.options[exercise.answerIndex];
   if (!shown) return false;
   return gradeChoiceExercise(exercise, answer, [shown]);
+}
+
+// ─── Text-keyed rungs: first letters, key words, which comes first, the book ─────────
+
+/** The words in a verse worth recalling: not stopwords, not too short, in order. */
+export function contentWords(text: string): string[] {
+  return text
+    .trim()
+    .split(/\s+/)
+    .map((token) => bareWord(token))
+    .filter((word) => word.length >= MIN_BLANK_LENGTH && !STOPWORDS.has(word.toLowerCase()));
+}
+
+const normaliseWord = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+/** "I a t v; y a t b." — the classic memory-verse aid, punctuation kept where it was. */
+export interface VerseInitialsExercise {
+  initials: string;
+  wordCount: number;
+}
+
+export function buildVerseInitials(text: string): VerseInitialsExercise | null {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 4) return null;
+  let wordCount = 0;
+  const initials = tokens
+    .map((token) => {
+      const word = bareWord(token);
+      if (!word) return token;
+      wordCount += 1;
+      const at = token.indexOf(word);
+      const leading = at > 0 ? token.slice(0, at) : '';
+      const trailing = token.slice(at + word.length);
+      return `${leading}${word.charAt(0)}${trailing}`;
+    })
+    .join(' ');
+  return wordCount >= 4 ? { initials, wordCount } : null;
+}
+
+/**
+ * Did the reader write the verse back from its first letters?
+ *
+ * Every content word must appear, in order, in what they wrote — a subsequence match, so
+ * "the/a/and" slips and a paraphrased connective are not marked as forgetting. Case and
+ * punctuation are forgiven for the same reason the cloze forgives them.
+ */
+export function gradeVerseInitials(text: string, attempt: string): boolean {
+  const wanted = contentWords(text).map(normaliseWord);
+  if (!wanted.length) return false;
+  const written = attempt.trim().split(/\s+/).map(normaliseWord).filter(Boolean);
+  let i = 0;
+  for (const word of written) {
+    if (word === wanted[i]) i += 1;
+    if (i === wanted.length) return true;
+  }
+  return false;
+}
+
+/** "Name three words from this verse." Free recall: the lightest rung on the ladder. */
+export interface VerseKeywordsExercise {
+  count: number;
+}
+
+export const VERSE_KEYWORDS_COUNT = 3;
+
+export function buildVerseKeywords(text: string): VerseKeywordsExercise | null {
+  const distinct = new Set(contentWords(text).map(normaliseWord));
+  return distinct.size >= VERSE_KEYWORDS_COUNT ? { count: VERSE_KEYWORDS_COUNT } : null;
+}
+
+/** Each typed word is a distinct content word of the verse, in any order. */
+export function gradeVerseKeywords(text: string, words: readonly string[]): boolean {
+  const wanted = new Set(contentWords(text).map(normaliseWord));
+  const given = new Set(words.map(normaliseWord).filter(Boolean));
+  if (given.size < VERSE_KEYWORDS_COUNT) return false;
+  for (const word of given) if (!wanted.has(word)) return false;
+  return true;
+}
+
+/**
+ * "Pick which comes first in John 15." Two openings from the same chapter, one of them the
+ * verse in question; the answer is the lower verse number. The caller must never pass an
+ * adjacent verse — "which comes first, 15:5 or 15:6" is a question about a digit.
+ */
+export interface VerseBeforeExercise {
+  options: string[];
+  answerIndex: number;
+}
+
+export function buildVerseBefore(input: {
+  verse: { number: number; text: string };
+  other: { number: number; text: string };
+  seed: string;
+}): VerseBeforeExercise | null {
+  if (Math.abs(input.verse.number - input.other.number) < 2) return null;
+  const a = verseCue(input.verse.text, VERSE_NEXT_CUE_WORDS);
+  const b = verseCue(input.other.text, VERSE_NEXT_CUE_WORDS);
+  if (!a || !b || a === b) return null;
+  const earlier = input.verse.number < input.other.number ? a : b;
+  const swap = hashSeed(input.seed) % 2 === 1;
+  const options = swap ? [b, a] : [a, b];
+  return { options, answerIndex: options.indexOf(earlier) };
+}
+
+export function gradeVerseBefore(exercise: VerseBeforeExercise, option: string): boolean {
+  return gradeChoiceExercise(exercise, option, [exercise.options[exercise.answerIndex]]);
+}
+
+/**
+ * "Pick the book this is from." The easier locate, offered when the reader's own reference pool
+ * is too thin for a fair locate — see `verseFamilyMemberAvailable`. Options are books the reader
+ * has cited, topped up from a fixed list of well-known ones.
+ */
+const WELL_KNOWN_BOOKS = ['Genesis', 'Psalms', 'Isaiah', 'Matthew', 'John', 'Romans', 'Hebrews', 'Revelation'];
+
+export function buildVerseBook(input: {
+  book: string;
+  poolBooks: readonly string[];
+  seed: string;
+}): ChoiceExercise | null {
+  const book = input.book.trim();
+  if (!book) return null;
+  return buildChoiceExercise({
+    answers: [book],
+    pool: input.poolBooks,
+    fallbackPool: WELL_KNOWN_BOOKS,
+    optionCount: LOCATE_OPTION_COUNT,
+    seed: input.seed,
+  });
 }
 
 /** A middle fragment, so the opening words do not give the reference away. */

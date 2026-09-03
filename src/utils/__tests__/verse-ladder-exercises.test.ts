@@ -9,6 +9,13 @@ import {
   buildVerseNext,
   gradeVerseNext,
   VERSE_NEXT_CUE_WORDS,
+  buildVerseInitials,
+  gradeVerseInitials,
+  buildVerseKeywords,
+  gradeVerseKeywords,
+  buildVerseBefore,
+  gradeVerseBefore,
+  buildVerseBook,
 } from '@/utils/verse-ladder-exercises';
 
 const JOHN_15_5 =
@@ -199,5 +206,92 @@ describe('buildVerseNext', () => {
   it('rejects a right-looking answer that was never offered', () => {
     const ex = buildVerseNext({ answerText, neighbourTexts: neighbours, seed: 'b' })!;
     expect(gradeVerseNext(ex, 'Something the client made up')).toBe(false);
+  });
+});
+
+describe('the text-keyed rungs', () => {
+  const JOHN = 'I am the vine; you are the branches. The one who remains in me bears much fruit, because apart from me you can accomplish nothing.';
+
+  describe('first letters', () => {
+    it('keeps the first letter of every word and the punctuation around it', () => {
+      const ex = buildVerseInitials(JOHN)!;
+      expect(ex.initials.startsWith('I a t v; y a t b.')).toBe(true);
+      expect(ex.wordCount).toBe(JOHN.split(/\s+/).length);
+      // Never a whole word.
+      for (const piece of ex.initials.split(/\s+/)) expect(piece.replace(/[^\p{L}]/gu, '').length).toBe(1);
+    });
+
+    it('accepts the verse written back, forgiving case, punctuation and a slipped connective', () => {
+      expect(gradeVerseInitials(JOHN, JOHN)).toBe(true);
+      expect(gradeVerseInitials(JOHN, JOHN.toUpperCase().replace(/[;,.]/g, ''))).toBe(true);
+      // "a vine" for "the vine": the stopword is not the memory being tested.
+      expect(gradeVerseInitials(JOHN, JOHN.replace('the vine', 'a vine'))).toBe(true);
+    });
+
+    it('rejects a content word missing or out of order', () => {
+      expect(gradeVerseInitials(JOHN, JOHN.replace('branches', ''))).toBe(false);
+      expect(gradeVerseInitials(JOHN, JOHN.replace('vine', 'branches').replace(/branches\./, 'vine.'))).toBe(false);
+      expect(gradeVerseInitials(JOHN, '')).toBe(false);
+    });
+
+    it('refuses a verse too short to be an exercise', () => {
+      expect(buildVerseInitials('Jesus wept.')).toBeNull();
+    });
+  });
+
+  describe('key words', () => {
+    it('asks for three, and accepts any three that are in the verse', () => {
+      expect(buildVerseKeywords(JOHN)).toEqual({ count: 3 });
+      expect(gradeVerseKeywords(JOHN, ['vine', 'branches', 'fruit'])).toBe(true);
+      expect(gradeVerseKeywords(JOHN, ['FRUIT', 'remains', 'accomplish'])).toBe(true);
+    });
+
+    it('rejects a stopword, a repeat, or a word that is not there', () => {
+      // "the" is in the verse and is not a memory of it.
+      expect(gradeVerseKeywords(JOHN, ['the', 'vine', 'fruit'])).toBe(false);
+      expect(gradeVerseKeywords(JOHN, ['vine', 'vine', 'fruit'])).toBe(false);
+      expect(gradeVerseKeywords(JOHN, ['vine', 'fruit', 'olive'])).toBe(false);
+      expect(gradeVerseKeywords(JOHN, ['vine', 'fruit'])).toBe(false);
+    });
+
+    it('refuses a verse with fewer than three words worth naming', () => {
+      expect(buildVerseKeywords('Jesus wept and they saw it')).toBeNull();
+    });
+  });
+
+  describe('which comes first', () => {
+    const verse = { number: 5, text: JOHN };
+    const other = { number: 8, text: 'My Father is honored by this, that you bear much fruit and become my disciples.' };
+
+    it('offers two openings and knows which is earlier', () => {
+      const ex = buildVerseBefore({ verse, other, seed: 'a' })!;
+      expect(ex.options).toHaveLength(2);
+      expect(ex.options[ex.answerIndex].startsWith('I am the vine')).toBe(true);
+      expect(gradeVerseBefore(ex, ex.options[ex.answerIndex])).toBe(true);
+      expect(gradeVerseBefore(ex, ex.options[1 - ex.answerIndex])).toBe(false);
+    });
+
+    it('never offers an adjacent verse, which is a question about a digit', () => {
+      expect(buildVerseBefore({ verse, other: { number: 6, text: other.text }, seed: 'a' })).toBeNull();
+      expect(buildVerseBefore({ verse, other: { number: 4, text: other.text }, seed: 'a' })).toBeNull();
+    });
+
+    it('shuffles by seed', () => {
+      const orders = new Set(['a', 'b', 'c', 'd', 'e', 'f'].map((seed) => buildVerseBefore({ verse, other, seed })!.answerIndex));
+      expect(orders.size).toBe(2);
+    });
+  });
+
+  describe('the book', () => {
+    it('offers the book among books the reader has cited, topping up from well-known ones', () => {
+      const ex = buildVerseBook({ book: 'John', poolBooks: ['Romans', 'Psalms'], seed: 'a' })!;
+      expect(ex.options).toHaveLength(4);
+      expect(ex.options[ex.answerIndex]).toBe('John');
+      expect(ex.options).toContain('Romans');
+    });
+
+    it('refuses with no book', () => {
+      expect(buildVerseBook({ book: '', poolBooks: [], seed: 'a' })).toBeNull();
+    });
   });
 });

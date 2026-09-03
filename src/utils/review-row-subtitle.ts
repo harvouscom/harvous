@@ -178,5 +178,6 @@ export function rungIdentityIsTheAnswer(item: {
   // "Where is this from?" — so is the reference. The server's resolved rung wins: with families a
   // step can wear several rungs, and only the one that was actually asked is the truth.
   const key = item.promptKey ?? verseRungFor(item.ladderStep ?? 0).key;
-  return key === 'verse.locate';
+  // The reference, or the book: either names the answer.
+  return key === 'verse.locate' || key === 'verse.book';
 }

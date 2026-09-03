@@ -538,3 +538,42 @@ describe('the context-step rungs', () => {
     expect(grader).toContain('buildVerseContextFor');
   });
 });
+
+describe('the text-keyed rungs withhold the verse', () => {
+  const revealBlock = (key: string, until: string) => {
+    const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf(`rung.key === '${key}'`));
+    return branch.slice(0, branch.indexOf(until));
+  };
+
+  it('sends first letters and a count, never the words', () => {
+    const block = revealBlock('verse.initials', "rung.key === 'verse.keywords'");
+    expect(block).toContain('buildVerseInitials(text)');
+    expect(block).toContain('payload.verseText = null');
+  });
+
+  it('sends only how many words to name', () => {
+    const block = revealBlock('verse.keywords', "rung.key === 'verse.before'");
+    expect(block).toContain('buildVerseKeywords(text)');
+    expect(block).toContain('payload.verseText = null');
+  });
+
+  it('sends two openings and not which is first', () => {
+    const block = revealBlock('verse.before', "rung.key === 'verse.book'");
+    expect(block).toContain('options: exercise.options');
+    expect(block).not.toContain('answerIndex');
+    expect(block).toContain('payload.verseText = null');
+  });
+
+  it('hands every one of them the verse back once answered', () => {
+    const fn = service().slice(service().indexOf('export async function verseTruthFor'));
+    for (const key of ['verse.initials', 'verse.keywords', 'verse.before', 'verse.book']) {
+      expect(fn.slice(0, 900)).toContain(`'${key}'`);
+    }
+  });
+
+  it('bounds the text written back from first letters', () => {
+    const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+    expect(route).toMatch(/text: typeof body\.answer\.text === 'string' \? body\.answer\.text\.slice\(0, MAX_ATTEMPT_LENGTH\)/);
+  });
+});

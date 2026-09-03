@@ -85,6 +85,12 @@ export interface ReviewRevealResponse {
    * Four options; `opening` when they are the first words of passages and should trail off.
    */
   choice?: { options: string[]; opening: boolean } | null;
+  /** First letters of every word, and how many words. The verse itself is never sent. */
+  initials?: { initials: string; wordCount: number } | null;
+  /** How many words to name. Nothing about which. */
+  keywords?: { count: number } | null;
+  /** Two openings from the same chapter; which comes first stays on the server. */
+  before?: { options: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
 }
 
