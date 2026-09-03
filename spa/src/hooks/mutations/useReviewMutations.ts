@@ -68,6 +68,8 @@ export interface ReviewOutcomeResponse {
   attemptsLeft?: number;
   /** The option that was right, sent only once the question is over and only where it is one. */
   correctAnswer?: string;
+  /** This miss made it a leech: the dock offers a step back a rung instead of a fifth go. */
+  leech?: boolean;
   item: ReviewItemView;
   next: { intervalDays: number; dueAt: string; recallState: string; label: string };
   /**
@@ -136,6 +138,18 @@ export function useDeferReview() {
   return useMutation({
     mutationFn: (itemId: string) =>
       api.post<{ dueAt: string }>(`/api/review/items/${encodeURIComponent(itemId)}/defer`, {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
+    },
+  });
+}
+
+/** A leech steps back a rung, at the reader's request. Refused by the server on anything else. */
+export function useStepBackReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId }: { itemId: string }) =>
+      api.post<{ item: ReviewItemView }>(`/api/review/items/${encodeURIComponent(itemId)}/step-back`, {}),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
     },

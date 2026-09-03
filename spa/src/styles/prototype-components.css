@@ -21639,10 +21639,27 @@ button.proto-feed-sheet__stat:hover {
  * reader choose which one to read.
  */
 .proto-review-dock__result {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--pds-space-2);
+  display: grid;
+  gap: 10px;
   animation: proto-review-result-in 0.24s ease both;
+}
+
+/* A label and the text it names, kept together as one block. */
+.proto-review-dock__answer {
+  display: grid;
+  gap: 4px;
+}
+
+.proto-review-dock__answer > .proto-review-dock__truth-label,
+.proto-review-dock__answer > .proto-review-dock__verse {
+  margin: 0;
+}
+
+/* The check and the verdict on one line, the icon centred on the text. */
+.proto-review-dock__verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
 }
 
 @keyframes proto-review-result-in {
@@ -21807,6 +21824,14 @@ button.proto-feed-sheet__stat:hover {
 .proto-review-dock__retry {
   margin: 0;
   color: var(--pds-text-secondary);
+}
+
+/* A leech's way down: the line, then the two offers, set off from the verdict above. */
+/* A leech's way down, indented to the verdict's text rather than its icon. */
+.proto-review-dock__slipping {
+  display: grid;
+  gap: 8px;
+  padding-left: calc(22px + 6px + var(--pds-space-2));
 }
 
 .proto-review-dock__choice-key {

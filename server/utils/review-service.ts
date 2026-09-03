@@ -44,9 +44,11 @@ import {
   isReviewAskableKind,
 } from '@/utils/review-item-kinds';
 import {
+  REVIEW_LEECH_LAPSES,
   deferReview,
   firstDueAt,
   nextReviewAfter,
+  stepBackRung,
 } from '@/utils/review-scheduling';
 import {
   fillReviewPrompt,
@@ -144,6 +146,9 @@ export interface ReviewItemRow {
   successStreak: number;
   reviewCount: number;
   ladderStep: number;
+  /** Absent on a row read before the column was applied; treat as 0. */
+  lapseCount?: number;
+  lastRungKey?: string | null;
   origin: string;
   challengeId: string | null;
   sourceLabel: string | null;
@@ -1034,6 +1039,8 @@ export async function recordReviewEvent(
 export interface ReviewOutcomeResult {
   item: ReviewItemRow;
   nextReturnDays: number;
+  /** This miss made the item a leech: the dock offers a step back rather than a fifth go. */
+  leech: boolean;
 }
 
 /**
@@ -1051,6 +1058,8 @@ export async function applyReviewOutcome(
   outcome: ReviewOutcome,
   attempt: string | null,
   now: Date = new Date(),
+  /** The rung actually answered. Decides the weight of a recall and whether a miss can lapse. */
+  rungKey: string | null = null,
 ): Promise<ReviewOutcomeResult> {
   const next = nextReviewAfter(
     outcome,
@@ -1059,6 +1068,8 @@ export async function applyReviewOutcome(
       successStreak: item.successStreak,
       reviewCount: item.reviewCount,
       lastOutcome: (item.lastOutcome as ReviewOutcome | null) ?? null,
+      lapseCount: item.lapseCount ?? 0,
+      rungKey,
     },
     now,
   );
@@ -1083,6 +1094,8 @@ export async function applyReviewOutcome(
         lastOutcome: outcome,
         lastReviewedAt: now,
         ladderStep,
+        lapseCount: next.lapseCount,
+        lastRungKey: rungKey,
         updatedAt: now,
       })
       .where(and(eq(ReviewItems.id, item.id), eq(ReviewItems.userId, userId)))
@@ -1106,7 +1119,34 @@ export async function applyReviewOutcome(
   // this table; ReviewItems above stays the authority on the schedule itself.
   void recordReviewOutcomeNodes(userId, item, outcome, attempt, next, now);
 
-  return { item: updated, nextReturnDays: next.intervalDays };
+  return { item: updated, nextReturnDays: next.intervalDays, leech: next.leech };
+}
+
+/**
+ * The way down for a leech, at the reader's request: one rung easier, lapses forgiven.
+ *
+ * Refused unless the item is actually slipping. Stepping back is not a general control — the
+ * engine is not the reader's to tune — it is the one offer Review makes when its own asking
+ * has stopped working.
+ */
+export async function stepBackReviewItem(
+  userId: string,
+  item: ReviewItemRow,
+  now: Date = new Date(),
+): Promise<ReviewItemRow | null> {
+  if ((item.lapseCount ?? 0) < REVIEW_LEECH_LAPSES) return null;
+  const back = stepBackRung({
+    ladderStep: item.ladderStep,
+    reviewCount: item.reviewCount,
+    successStreak: item.successStreak,
+  });
+  return first(
+    await db
+      .update(ReviewItems)
+      .set({ ...back, updatedAt: now })
+      .where(and(eq(ReviewItems.id, item.id), eq(ReviewItems.userId, userId)))
+      .returning(),
+  ) as ReviewItemRow;
 }
 
 /**

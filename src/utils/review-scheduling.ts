@@ -19,6 +19,7 @@ import {
   type ReviewItemOrigin,
   type ReviewOutcome,
 } from './review-item-kinds';
+import type { ReviewPromptKey } from './review-prompts';
 
 /**
  * The three base intervals.
@@ -59,6 +60,65 @@ export const MAX_REVIEW_INTERVAL_DAYS = 180;
 /** A deferral is a day, not a snooze ladder — "not now" means today, not this month. */
 export const REVIEW_DEFER_DAYS = 1;
 
+/**
+ * What a clean recall on each rung is worth, as a multiple of the 14-day base.
+ *
+ * Recognising a cue and naming a reference from a fragment are not the same feat and should
+ * not buy the same fortnight. The numbers are a judgement, not a measurement: below 1 for the
+ * rungs where the answer is on the screen in some form (a choice among four, three words of
+ * a verse), above 1 where the reader produced the text or its address from nothing. Retune
+ * the table, not the arithmetic.
+ */
+export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
+  'note.recognize': 0.9,
+  'note.passage': 1.0,
+  'note.connect': 1.0,
+  'note.annotation': 1.0,
+  'verse.recognize': 0.6,
+  'verse.rebuild': 1.0,
+  'verse.initials': 1.1,
+  'verse.recall': 1.2,
+  'verse.keywords': 0.7,
+  'verse.next': 1.0,
+  'verse.before': 0.9,
+  'verse.connect': 0.9,
+  'verse.theme': 0.9,
+  'verse.person': 0.9,
+  'verse.crossref': 1.1,
+  'verse.sequence': 1.0,
+  'verse.locate': 1.2,
+  'verse.book': 0.7,
+  'verse.altered': 1.1,
+};
+
+/**
+ * Lapses: losing something you held.
+ *
+ * A first-ever miss is learning; a miss on an item that was recalled the last time it was
+ * asked is a lapse, and each one slows the interval's growth afterwards — an item that keeps
+ * slipping should not keep racing away. `verse.theme` never lapses: its key is the index's
+ * reading of the verse, not the reader's, and a disagreement with an editor is not forgetting.
+ *
+ * At four the item is a leech. Asking it a fifth time the same way is the definition of not
+ * working, so the outcome says so and the reader is offered a step back down the ladder.
+ */
+export const REVIEW_LEECH_LAPSES = 4;
+/** How much each lapse slows compounding: 15% per lapse, never below half speed. */
+export const LAPSE_DAMPING_PER_LAPSE = 0.15;
+export const LAPSE_DAMPING_FLOOR = 0.5;
+export const NEVER_LAPSES: ReadonlySet<ReviewPromptKey> = new Set(['verse.theme']);
+
+export function lapseDamping(lapseCount: number): number {
+  return Math.max(LAPSE_DAMPING_FLOOR, 1 - LAPSE_DAMPING_PER_LAPSE * Math.max(0, lapseCount));
+}
+
+/** Weight for a rung the scheduler was not told about: the base, unchanged. */
+const DEFAULT_RUNG_WEIGHT = 1;
+
+export function rungWeight(key: ReviewPromptKey | string | null | undefined): number {
+  return (key && (REVIEW_RUNG_WEIGHT as Record<string, number>)[key]) || DEFAULT_RUNG_WEIGHT;
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function addDays(from: Date, days: number): Date {
@@ -70,6 +130,10 @@ export interface ReviewScheduleState {
   successStreak: number;
   reviewCount: number;
   lastOutcome?: ReviewOutcome | null;
+  /** Misses on something once held. Absent on rows from before the column existed. */
+  lapseCount?: number;
+  /** The rung that was actually answered — decides the weight, and whether a miss can lapse. */
+  rungKey?: ReviewPromptKey | string | null;
 }
 
 export interface ReviewScheduleResult {
@@ -79,6 +143,9 @@ export interface ReviewScheduleResult {
   reviewCount: number;
   recallState: RecallState;
   lastOutcome: ReviewOutcome;
+  lapseCount: number;
+  /** This answer made it a leech, or it already was one and slipped again. */
+  leech: boolean;
 }
 
 /**
@@ -94,8 +161,13 @@ export function deriveRecallState(state: {
   reviewCount: number;
   successStreak: number;
   lastOutcome?: ReviewOutcome | null;
+  lapseCount?: number;
 }): RecallState {
   if (state.reviewCount <= 0) return 'new';
+  // A leech reads as slipping until it is held again, or stepped back (which resets lapses).
+  if ((state.lapseCount ?? 0) >= REVIEW_LEECH_LAPSES && state.successStreak < STREAK_MULTIPLIER_FROM) {
+    return 'slipping';
+  }
   if (state.successStreak <= 0) return 'fragile';
   if (state.successStreak < STREAK_MULTIPLIER_FROM) return 'forming';
   return 'durable';
@@ -114,9 +186,17 @@ export function nextReviewAfter(
   now: Date = new Date(),
 ): ReviewScheduleResult {
   const reviewCount = Math.max(0, state.reviewCount) + 1;
-  const base = REVIEW_INTERVAL_DAYS[outcome];
+  const priorLapses = Math.max(0, state.lapseCount ?? 0);
 
   if (outcome !== 'recalled') {
+    const base = REVIEW_INTERVAL_DAYS[outcome];
+    // Losing something held the last time it was asked. "Almost" is not a lapse: something was
+    // retrieved. And on the index-keyed rung, a miss is a disagreement, never forgetting.
+    const lapsed =
+      outcome === 'revealed' &&
+      state.successStreak > 0 &&
+      !NEVER_LAPSES.has(state.rungKey as ReviewPromptKey);
+    const lapseCount = priorLapses + (lapsed ? 1 : 0);
     return {
       intervalDays: base,
       dueAt: addDays(now, base),
@@ -124,17 +204,23 @@ export function nextReviewAfter(
       // toward compounding — it is the signal that the last interval was already too long.
       successStreak: 0,
       reviewCount,
-      recallState: deriveRecallState({ reviewCount, successStreak: 0, lastOutcome: outcome }),
+      recallState: deriveRecallState({ reviewCount, successStreak: 0, lastOutcome: outcome, lapseCount }),
       lastOutcome: outcome,
+      lapseCount,
+      leech: lapsed && lapseCount >= REVIEW_LEECH_LAPSES,
     };
   }
 
+  // A clean recall earns the base scaled by the rung: recognising a cue is not the same feat as
+  // naming the reference from a fragment, and should not buy the same fortnight.
+  const base = REVIEW_INTERVAL_DAYS.recalled * rungWeight(state.rungKey);
   const successStreak = Math.max(0, state.successStreak) + 1;
   const previous = Number.isFinite(state.intervalDays) && state.intervalDays > 0
     ? state.intervalDays
     : base;
+  // Every lapse on record slows compounding: an item that keeps slipping must not race away.
   const grown = successStreak >= STREAK_MULTIPLIER_FROM
-    ? Math.max(base, previous) * STREAK_MULTIPLIER
+    ? Math.max(base, previous) * STREAK_MULTIPLIER * lapseDamping(priorLapses)
     : base;
   const intervalDays = Math.min(MAX_REVIEW_INTERVAL_DAYS, Math.round(grown * 10) / 10);
 
@@ -143,8 +229,30 @@ export function nextReviewAfter(
     dueAt: addDays(now, intervalDays),
     successStreak,
     reviewCount,
-    recallState: deriveRecallState({ reviewCount, successStreak, lastOutcome: outcome }),
+    recallState: deriveRecallState({ reviewCount, successStreak, lastOutcome: outcome, lapseCount: priorLapses }),
     lastOutcome: outcome,
+    lapseCount: priorLapses,
+    leech: false,
+  };
+}
+
+/**
+ * The way down for a leech: one rung easier, lapses forgiven, the schedule otherwise untouched.
+ *
+ * Stepping back is the reader's call, offered once the item is slipping. The count resets
+ * because the point is a fresh start on an easier ask, not the same ask with a warning
+ * attached; the interval and streak stay, since the item is due tomorrow anyway.
+ */
+export function stepBackRung(state: { ladderStep: number; reviewCount: number; successStreak: number }): {
+  ladderStep: number;
+  lapseCount: number;
+  recallState: RecallState;
+} {
+  const ladderStep = Math.max(0, Math.trunc(state.ladderStep) - 1);
+  return {
+    ladderStep,
+    lapseCount: 0,
+    recallState: deriveRecallState({ ...state, lapseCount: 0 }),
   };
 }
 

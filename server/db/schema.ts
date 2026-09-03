@@ -1616,6 +1616,10 @@ export const ReviewItems = pgTable('ReviewItems', {
   reviewCount: integer('reviewCount').notNull().default(0),
   /** Verse ladder position 0..4 (recognize → rebuild → recall → contextualize → connect). */
   ladderStep: integer('ladderStep').notNull().default(0),
+  /** Misses on something once held. Four makes a leech; stepping back a rung resets it. */
+  lapseCount: integer('lapseCount').notNull().default(0),
+  /** The rung actually asked last time, since a family can wear several per step. */
+  lastRungKey: text('lastRungKey'),
   /** user | seed | challenge | engine — where the row came from, so the queue stays legible. */
   origin: text('origin').notNull().default('user'),
   /**

@@ -454,6 +454,12 @@ export type ReviewDockResult = {
    */
   verseText?: string | null;
   /**
+   * Missed four times after being held. The one moment Review says a thing is not working
+   * rather than asking again, so the result carries the item to act on.
+   */
+  leech?: boolean;
+  itemId?: string;
+  /**
    * The option that was right, after the last go was spent on a wrong one.
    *
    * Only on the rungs whose answer is one of the options: where the answer is the verse, the

@@ -577,3 +577,42 @@ describe('the text-keyed rungs withhold the verse', () => {
     expect(route).toMatch(/text: typeof body\.answer\.text === 'string' \? body\.answer\.text\.slice\(0, MAX_ATTEMPT_LENGTH\)/);
   });
 });
+
+describe('a scheduler that remembers', () => {
+  const route = () => readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+  const outcome = () => route().slice(route().indexOf("'/api/review/items/:id/outcome'"));
+
+  it('weighs the rung the server resolved, never the one the page claims', () => {
+    /*
+     * The client sends `answer.promptKey` so the grader knows which exercise it is marking, but
+     * the schedule must not take the page's word for which rung was asked — a `verse.locate`
+     * claim on a recognize card would buy a fortnight for a four-option tap.
+     */
+    const at = outcome().indexOf('applyReviewOutcome(');
+    const before = outcome().slice(Math.max(0, at - 400), at);
+    expect(before).toContain('buildReviewItemViews(auth.userId, [item])');
+    expect(before).toMatch(/promptKey \?\? null/);
+    expect(outcome()).not.toMatch(/applyReviewOutcome\([^)]*answer\.promptKey/);
+  });
+
+  it('says so only when this miss made the item a leech', () => {
+    expect(outcome()).toMatch(/\.\.\.\(leech \? \{ leech: true \} : \{\}\)/);
+  });
+
+  it('refuses a step back on anything that is not slipping', () => {
+    const stepBack = route().slice(route().indexOf("'/api/review/items/:id/step-back'"));
+    expect(stepBack).toContain('REVIEW_NOT_SLIPPING');
+    // No body is read: the only thing the reader can say here is "yes".
+    expect(stepBack.slice(0, stepBack.indexOf('export default'))).not.toContain('req.json');
+  });
+
+  it('orders the sitting rather than serving it by the clock', () => {
+    const session = route().slice(route().indexOf("'/api/review/session'"));
+    const listAt = session.indexOf('listDueReviewItems');
+    const orderAt = session.indexOf('interleaveSession');
+    expect(orderAt).toBeGreaterThan(-1);
+    // Ordered before the views are built, so what is dropped as unaskable does not reshuffle it.
+    expect(orderAt).toBeLessThan(session.indexOf('buildReviewItemViews'));
+    expect(listAt).toBeGreaterThan(orderAt);
+  });
+});

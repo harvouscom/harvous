@@ -47,7 +47,7 @@ import {
   useReviewSession,
   type ReviewItemView,
 } from '../../hooks/queries/useReview';
-import { useReviewOutcome } from '../../hooks/mutations/useReviewMutations';
+import { useReviewOutcome, useSetReviewStatus, useStepBackReview } from '../../hooks/mutations/useReviewMutations';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { buildReviewCardStackOrigin } from './paper-stack-origins';
 import {
@@ -58,6 +58,10 @@ import {
   REVIEW_REVEALED_ACK_COPY,
   REVIEW_CHECK_COPY,
   REVIEW_CROSSED_TO_HOLDING_COPY,
+  REVIEW_PAUSE_COPY,
+  REVIEW_SLIPPING_COPY,
+  REVIEW_STEP_BACK_COPY,
+  REVIEW_STEPPED_BACK_COPY,
   REVIEW_OUTCOME_ACK_COPY,
   REVIEW_REVEAL_CONNECTION_COPY,
   REVIEW_REVEAL_COPY,
@@ -283,6 +287,10 @@ export default function PrototypeReviewDock() {
   const isGradedRung = item ? reviewRungIsGraded(item) : false;
   const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed || isGradedRung });
   const outcome = useReviewOutcome();
+  const stepBack = useStepBackReview();
+  const setStatus = useSetReviewStatus();
+  // What the reader chose for a slipping item, so the offer is made once and answered once.
+  const [leechAction, setLeechAction] = useState<'stepped' | 'paused' | null>(null);
 
   const lastResult = reviewDock?.lastResult ?? null;
 
@@ -295,9 +303,12 @@ export default function PrototypeReviewDock() {
    */
   useEffect(() => {
     if (!lastResult) return;
+    // A leech's result carries an offer, and an offer on a timer is a trap: it holds until the
+    // reader has stepped back or paused, and only then takes its beat and moves on.
+    if (lastResult.leech && !leechAction) return;
     const timer = setTimeout(() => setReviewDockResult(null), PROTO_REVIEW_RESULT_DWELL_MS);
     return () => clearTimeout(timer);
-  }, [lastResult, setReviewDockResult]);
+  }, [lastResult, leechAction, setReviewDockResult]);
 
   // A new question is a clean slate; the previous attempt must not sit under it.
   useEffect(() => {
@@ -370,8 +381,11 @@ export default function PrototypeReviewDock() {
               verseText: data.truth?.verseText ?? null,
               correctAnswer: data.correctAnswer ?? null,
               fromIndex: INDEX_KEYED_RUNGS.has(item.promptKey),
+              leech: data.leech === true,
+              itemId: item.id,
               at: Date.now(),
             });
+            setLeechAction(null);
             setSitting((current) => ({
               answered: current.answered + 1,
               holding: current.holding + (data.next.recallState === 'durable' ? 1 : 0),
@@ -518,38 +532,77 @@ export default function PrototypeReviewDock() {
             {/* The verse first, the verdict under it: what the reader came back for is the
                 text, not the bookkeeping. */}
             {lastResult.correctAnswer ? (
-              <>
+              <div className="proto-review-dock__answer">
                 <p className="proto-caption proto-review-dock__truth-label">
                   {/* A miss on a curated rung is a disagreement with the index, not a lapse of
                       memory, and the label says whose reading this is. */}
                   {lastResult.fromIndex ? REVIEW_INDEX_ANSWER_LABEL : REVIEW_ANSWER_LABEL}
                 </p>
                 <p className="proto-review-dock__verse">{lastResult.correctAnswer}</p>
-              </>
+              </div>
             ) : null}
             {lastResult.verseText ? (
-              <>
+              <div className="proto-review-dock__answer">
                 <p className="proto-caption proto-review-dock__truth-label">{REVIEW_TRUTH_LABEL}</p>
                 <p
                   className="proto-review-dock__verse proto-review-dock__verse--scripture"
                   dangerouslySetInnerHTML={{ __html: lastResult.verseText }}
                 />
-              </>
+              </div>
             ) : null}
-            <span className="proto-dock-check" aria-hidden>
-              <Icon name="check" size={12} />
-            </span>
-            <p className="proto-review-dock__result-text">
-              <span className="proto-review-dock__result-outcome">
-                {REVIEW_OUTCOME_ACK_COPY[lastResult.outcome]}
+            <div className="proto-review-dock__verdict">
+              <span className="proto-dock-check" aria-hidden>
+                <Icon name="check" size={12} />
               </span>
-              <span className="proto-review-dock__result-next">{lastResult.label}.</span>
-              {lastResult.crossedToDurable ? (
-                <span className="proto-review-dock__result-crossed">
-                  {REVIEW_CROSSED_TO_HOLDING_COPY}
+              <p className="proto-review-dock__result-text">
+                <span className="proto-review-dock__result-outcome">
+                  {REVIEW_OUTCOME_ACK_COPY[lastResult.outcome]}
                 </span>
-              ) : null}
-            </p>
+                <span className="proto-review-dock__result-next">{lastResult.label}.</span>
+                {lastResult.crossedToDurable ? (
+                  <span className="proto-review-dock__result-crossed">
+                    {REVIEW_CROSSED_TO_HOLDING_COPY}
+                  </span>
+                ) : null}
+              </p>
+            </div>
+            {lastResult.leech && lastResult.itemId ? (
+              /* Four misses since it was last held. The one place Review says a thing is not
+                 working rather than asking again, and it offers the way down, not a lecture. */
+              <div className="proto-review-dock__slipping">
+                {leechAction ? (
+                  <p className="proto-caption proto-review-dock__retry">
+                    {leechAction === 'stepped' ? REVIEW_STEPPED_BACK_COPY : REVIEW_PAUSE_COPY}
+                  </p>
+                ) : (
+                  <>
+                    <p className="proto-caption proto-review-dock__retry">{REVIEW_SLIPPING_COPY}</p>
+                    <div className="proto-review-dock__actions">
+                      <button
+                        type="button"
+                        className="proto-settings-btn proto-settings-btn--compact"
+                        onClick={() => {
+                          setLeechAction('stepped');
+                          stepBack.mutate({ itemId: lastResult.itemId! });
+                        }}
+                      >
+                        {REVIEW_STEP_BACK_COPY}
+                      </button>
+                      <button
+                        type="button"
+                        className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                        onClick={() => {
+                          setLeechAction('paused');
+                          setStatus.mutate({ itemId: lastResult.itemId!, status: 'paused' });
+                        }}
+                      >
+                        {REVIEW_PAUSE_COPY}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
           </div>
         ) : !item ? (
           <>

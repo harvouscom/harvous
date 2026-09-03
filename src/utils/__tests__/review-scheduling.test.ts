@@ -2,6 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   MAX_REVIEW_INTERVAL_DAYS,
   REVIEW_INTERVAL_DAYS,
+  REVIEW_LEECH_LAPSES,
+  REVIEW_RUNG_WEIGHT,
+  lapseDamping,
+  rungWeight,
+  stepBackRung,
   STREAK_MULTIPLIER,
   STREAK_MULTIPLIER_FROM,
   addDays,
@@ -11,6 +16,7 @@ import {
   firstDueAt,
   nextReviewAfter,
 } from '../review-scheduling';
+import { REVIEW_PROMPT_KEYS } from '../review-prompts';
 
 const NOW = new Date('2026-09-01T12:00:00.000Z');
 const fresh = { intervalDays: 1, successStreak: 0, reviewCount: 0 };
@@ -111,5 +117,102 @@ describe('describeNextReturn', () => {
     expect(describeNextReturn(4)).toBe('Back in 4 days');
     expect(describeNextReturn(14)).toBe('Back in 2 weeks');
     expect(describeNextReturn(180)).toBe('Back in 6 months');
+  });
+});
+
+describe('rung weight', () => {
+  const held = { intervalDays: 14, successStreak: 0, reviewCount: 1 };
+
+  it('scales a clean recall by the rung, and nothing else', () => {
+    expect(nextReviewAfter('recalled', { ...held, rungKey: 'verse.recognize' }, NOW).intervalDays).toBeCloseTo(8.4);
+    expect(nextReviewAfter('recalled', { ...held, rungKey: 'verse.locate' }, NOW).intervalDays).toBeCloseTo(16.8);
+    // A miss is a day whatever the rung: nothing was retrieved, so there is nothing to weigh.
+    expect(nextReviewAfter('revealed', { ...held, rungKey: 'verse.locate' }, NOW).intervalDays).toBe(1);
+    expect(nextReviewAfter('almost', { ...held, rungKey: 'verse.locate' }, NOW).intervalDays).toBe(4);
+  });
+
+  it('treats an unknown or absent rung as the plain base', () => {
+    expect(nextReviewAfter('recalled', held, NOW).intervalDays).toBe(14);
+    expect(nextReviewAfter('recalled', { ...held, rungKey: 'verse.nope' }, NOW).intervalDays).toBe(14);
+    expect(rungWeight(null)).toBe(1);
+  });
+
+  it('names every rung, so a new exercise cannot silently weigh one', () => {
+    for (const key of REVIEW_PROMPT_KEYS) expect(REVIEW_RUNG_WEIGHT[key]).toBeGreaterThan(0);
+  });
+});
+
+describe('lapses', () => {
+  it('does not count a first-ever miss, or a miss on something never held', () => {
+    expect(nextReviewAfter('revealed', fresh, NOW).lapseCount).toBe(0);
+    expect(
+      nextReviewAfter('revealed', { intervalDays: 1, successStreak: 0, reviewCount: 3, lapseCount: 0 }, NOW).lapseCount,
+    ).toBe(0);
+  });
+
+  it('counts a miss on something held the last time it was asked', () => {
+    const heldOnce = { intervalDays: 14, successStreak: 1, reviewCount: 2 };
+    const missed = nextReviewAfter('revealed', heldOnce, NOW);
+    expect(missed.lapseCount).toBe(1);
+    expect(missed.leech).toBe(false);
+    // "Almost" retrieved something; it ends the streak but is not a lapse.
+    expect(nextReviewAfter('almost', heldOnce, NOW).lapseCount).toBe(0);
+  });
+
+  it('never lapses on the theme rung, whose key is the index and not the reader', () => {
+    const heldOnce = { intervalDays: 14, successStreak: 1, reviewCount: 2, lapseCount: 3 };
+    expect(nextReviewAfter('revealed', { ...heldOnce, rungKey: 'verse.theme' }, NOW).lapseCount).toBe(3);
+    expect(nextReviewAfter('revealed', { ...heldOnce, rungKey: 'verse.person' }, NOW).lapseCount).toBe(4);
+  });
+
+  it('damps compounding by 15% a lapse, never below half', () => {
+    const compounding = { intervalDays: 14, successStreak: 2, reviewCount: 5 };
+    const clean = nextReviewAfter('recalled', compounding, NOW).intervalDays;
+    const lapsedOnce = nextReviewAfter('recalled', { ...compounding, lapseCount: 1 }, NOW).intervalDays;
+    const lapsedTen = nextReviewAfter('recalled', { ...compounding, lapseCount: 10 }, NOW).intervalDays;
+    expect(clean).toBeCloseTo(14 * STREAK_MULTIPLIER, 1);
+    expect(lapsedOnce).toBeCloseTo(clean * 0.85, 1);
+    expect(lapsedTen).toBeCloseTo(clean * 0.5, 1);
+    expect(lapseDamping(0)).toBe(1);
+    // Lapses stay on the record through a recall; a clean answer does not forgive them.
+    expect(nextReviewAfter('recalled', { ...compounding, lapseCount: 2 }, NOW).lapseCount).toBe(2);
+  });
+
+  it('does not damp below the base on the first recalls', () => {
+    const early = { intervalDays: 1, successStreak: 0, reviewCount: 4, lapseCount: 3 };
+    expect(nextReviewAfter('recalled', early, NOW).intervalDays).toBe(14);
+  });
+});
+
+describe('leeches', () => {
+  const slippingSoon = { intervalDays: 14, successStreak: 1, reviewCount: 8, lapseCount: REVIEW_LEECH_LAPSES - 1 };
+
+  it('flags the fourth lapse, and reads as slipping', () => {
+    const result = nextReviewAfter('revealed', slippingSoon, NOW);
+    expect(result.leech).toBe(true);
+    expect(result.lapseCount).toBe(REVIEW_LEECH_LAPSES);
+    expect(result.recallState).toBe('slipping');
+  });
+
+  it('is not flagged again by a miss that did not lapse', () => {
+    // Missed while never re-held since: still slipping, but no new leech moment to announce.
+    const stillDown = { ...slippingSoon, successStreak: 0, lapseCount: REVIEW_LEECH_LAPSES };
+    const result = nextReviewAfter('revealed', stillDown, NOW);
+    expect(result.leech).toBe(false);
+    expect(result.recallState).toBe('slipping');
+  });
+
+  it('stops reading as slipping once it is held again', () => {
+    expect(deriveRecallState({ reviewCount: 9, successStreak: 1, lapseCount: 4 })).toBe('slipping');
+    expect(deriveRecallState({ reviewCount: 9, successStreak: STREAK_MULTIPLIER_FROM, lapseCount: 4 })).toBe('durable');
+  });
+
+  it('steps back one rung and forgives the lapses, and nothing else', () => {
+    expect(stepBackRung({ ladderStep: 5, reviewCount: 9, successStreak: 0 })).toEqual({
+      ladderStep: 4,
+      lapseCount: 0,
+      recallState: 'fragile',
+    });
+    expect(stepBackRung({ ladderStep: 0, reviewCount: 9, successStreak: 0 }).ladderStep).toBe(0);
   });
 });

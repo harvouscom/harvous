@@ -10,6 +10,7 @@
  * stored and never graded. See docs/future/REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md.
  */
 
+import { interleaveSession } from '@/utils/review-session-order';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { requireFeature } from '../middleware/require-feature';
@@ -41,6 +42,7 @@ import {
   listReviewItems,
   recordReviewEvent,
   setReviewItemStatus,
+  stepBackReviewItem,
 } from '../utils/review-service';
 import { refillReviewQueue } from '../utils/review-opportunities';
 
@@ -131,7 +133,12 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
   try {
     const auth = getAuthenticatedAuth(c);
     await refillReviewQueue(auth.userId);
-    const rows = await listDueReviewItems(auth.userId, REVIEW_SESSION_CAP);
+    const rows = interleaveSession(
+      (await listDueReviewItems(auth.userId, REVIEW_SESSION_CAP)).map((row) => ({
+        ...row,
+        groupKey: row.scriptureReference?.trim().toLowerCase() || row.noteId || null,
+      })),
+    );
     const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
     for (const row of rows) await recordReviewEvent(auth.userId, row, 'shown');
     return c.json({ success: true, items });
@@ -297,11 +304,15 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         : 'revealed'
       : null;
 
-    const { item: updated, nextReturnDays } = await applyReviewOutcome(
+    // The rung that was asked, resolved the way the list resolved it — not the client's claim.
+    const asked = (await buildReviewItemViews(auth.userId, [item]))[0]?.promptKey ?? null;
+    const { item: updated, nextReturnDays, leech } = await applyReviewOutcome(
       auth.userId,
       item,
       verdict ?? outcome,
       attempt,
+      new Date(),
+      asked,
     );
 
     /*
@@ -330,6 +341,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         : {}),
       item: (await buildReviewItemViews(auth.userId, [updated]))[0],
       ...(truth ? { truth: { verseText: truth } } : {}),
+      ...(leech ? { leech: true } : {}),
       next: {
         intervalDays: nextReturnDays,
         dueAt: updated.dueAt.toISOString(),
@@ -377,6 +389,27 @@ route.post('/api/review/items/:id/status', requireAuth, rateLimit('write'), requ
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/status', action: 'review_status' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * The one offer Review makes when its own asking has stopped working: a leech steps back a rung.
+ * Refused on anything that is not slipping — this is not a way to pick the rung.
+ */
+route.post('/api/review/items/:id/step-back', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
+    if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
+    const updated = await stepBackReviewItem(auth.userId, item);
+    if (!updated) return c.json({ error: 'This item is not slipping', code: 'REVIEW_NOT_SLIPPING' }, 400);
+    return c.json({
+      success: true,
+      item: (await buildReviewItemViews(auth.userId, [updated]))[0],
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/step-back', action: 'review_step_back' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

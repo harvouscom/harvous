@@ -111,6 +111,13 @@ export const REVIEW_ANSWER_LABEL = 'The answer';
 export const REVIEW_INDEX_ANSWER_LABEL = 'The index has this as';
 
 /** Said once, on the answer that moves something into durable recall. Never a score. */
+/**
+ * A leech. Said once, plainly, with a way down: the ladder has been asking this one the same
+ * way four times since it was last held, and a fifth is not going to work.
+ */
+export const REVIEW_SLIPPING_COPY = 'This one keeps slipping. An easier ask next time?';
+export const REVIEW_STEP_BACK_COPY = 'Step back a rung';
+export const REVIEW_STEPPED_BACK_COPY = 'Stepped back. It comes back easier.';
 export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
 /** The first-letters rung asks for the whole verse, not a note about it. */
 export const REVIEW_INITIALS_PLACEHOLDER = 'Write the verse out';

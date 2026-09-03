@@ -100,7 +100,13 @@ export function isReviewItemStatus(value: string): value is ReviewItemStatus {
  * retention" is a score, and scoring someone's grasp of Scripture is exactly what this
  * product does not do.
  */
-export const RECALL_STATES = ['new', 'fragile', 'forming', 'durable'] as const;
+/**
+ * `slipping` is the fifth, and the one place Review says a thing is not working rather than
+ * asking it again: an item missed four times after being held. It is derived, like the rest,
+ * from the lapse count in `review-scheduling.ts`, and it clears when the reader steps the
+ * item back a rung or holds it again.
+ */
+export const RECALL_STATES = ['new', 'fragile', 'forming', 'durable', 'slipping'] as const;
 
 export type RecallState = (typeof RECALL_STATES)[number];
 
@@ -113,6 +119,7 @@ export const RECALL_STATE_LABELS: Record<RecallState, string> = {
   fragile: 'Still fragile',
   forming: 'Forming',
   durable: 'Holding',
+  slipping: 'Slipping',
 };
 
 /**
