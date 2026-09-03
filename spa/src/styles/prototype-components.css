@@ -21686,6 +21686,32 @@ button.proto-feed-sheet__stat:hover {
   list-style: none;
 }
 
+/*
+ * A lettered option, which is what makes a row of buttons read as a question.
+ *
+ * The keycap is the toolbar's own `.proto-kbd`, not a new lozenge: the letters are real
+ * shortcuts, and a key that looks like a key everywhere else in the app should look like one
+ * here. `--compact` is the size that fits inside a 28px control without setting its height.
+ */
+.proto-review-dock__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  /* Tighter on the key side than the label side, so the cap reads as belonging to the option
+     rather than floating between two of them. */
+  padding-left: 6px;
+}
+
+.proto-review-dock__choice-key {
+  flex-shrink: 0;
+  /* Dimmer than the answer it points at: the letter is a way in, not part of the reading. */
+  color: var(--pds-text-secondary);
+}
+
+.proto-review-dock__choice:disabled .proto-review-dock__choice-key {
+  opacity: 0.5;
+}
+
 /* Where the placed phrases gather, numbered so the order the reader built is visible. */
 .proto-review-dock__chips--placed {
   flex-direction: column;

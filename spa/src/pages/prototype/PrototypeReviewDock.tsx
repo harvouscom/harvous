@@ -24,7 +24,7 @@
  * textarea has no autofocus, because a card that appears while you are typing and takes the
  * caret is the interruption this whole feature is supposed not to be.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
@@ -36,6 +36,7 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PROTO_REVIEW_RESULT_DWELL_MS } from '../../layouts/proto-motion';
+import { isTypingInInput } from '@/utils/keyboard-shortcuts';
 import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
@@ -112,6 +113,25 @@ function revealLabelFor(kind: ReviewItemView['kind']): string {
  * key and must not appear to: sending `recalled` here would be the page asserting something it
  * cannot know.
  */
+const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+
+/**
+ * The options on a multiple-choice rung.
+ *
+ * One component for four rungs. It was three copies of the same eleven lines before `verse.next`
+ * would have made a fourth, and they had already begun to differ — one passed `promptKey` back
+ * with the answer and the others did not.
+ *
+ * Every rung sends `almost` as its outcome and lets the server decide. The client has no answer
+ * key and must not appear to: sending `recalled` here would be the page asserting something it
+ * cannot know.
+ *
+ * The letters are real. A keycap that shows "A" and does nothing when you press A is a lie, so
+ * the bare letters are bound while a choice is on screen — guarded by `isTypingInInput`, since
+ * the dock stays open over a note and a review must never eat a keystroke meant for the page.
+ * Bare rather than the toolbar's Cmd+Shift chord: these are the only controls on the card, and
+ * a quiz that needs a chord to answer is not a quiz.
+ */
 function ReviewChoiceChips({
   options,
   disabled,
@@ -129,17 +149,42 @@ function ReviewChoiceChips({
    */
   opening?: boolean;
 }) {
+  const pick = useRef(onPick);
+  pick.current = onPick;
+
+  useEffect(() => {
+    if (disabled) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isTypingInInput()) return;
+      const index = CHOICE_LETTERS.indexOf(
+        event.key.toUpperCase() as (typeof CHOICE_LETTERS)[number],
+      );
+      if (index < 0 || index >= options.length) return;
+      event.preventDefault();
+      pick.current(options[index]);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [options, disabled]);
+
   return (
     <div className="proto-review-dock__chips">
-      {options.map((option) => (
+      {options.map((option, index) => (
         <button
           key={option}
           type="button"
-          className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+          className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
           disabled={disabled}
-          onClick={() => onPick(option)}
+          onClick={() => pick.current(option)}
         >
-          {opening ? `${option}…` : option}
+          {/* aria-hidden: the letter is a way to reach the button, not part of what it says. */}
+          <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
+            {CHOICE_LETTERS[index]}
+          </kbd>
+          <span className="proto-review-dock__choice-label">
+            {opening ? `${option}…` : option}
+          </span>
         </button>
       ))}
     </div>
