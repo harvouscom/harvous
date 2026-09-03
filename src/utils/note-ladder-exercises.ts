@@ -69,6 +69,11 @@ export function resolveNoteRung(step: number, material: NoteMaterial): ReviewPro
 export interface NoteRecognizeExercise extends ChoiceExercise {
   /** The fragment of the reader's own writing that the question quotes. */
   fragment: string;
+  /**
+   * The same words as a marked span with its run-up, when the fragment is one the reader
+   * highlighted rather than one the app picked. `fragment` stays as the flattened text.
+   */
+  span?: NoteSpan;
 }
 
 const OPTION_COUNT = 4;
@@ -140,6 +145,8 @@ const MONTHS = new Set([
  */
 export function buildNoteRecognize(input: {
   fragment: string;
+  /** Set when the fragment is a span the reader marked; the quote is emphasised in place. */
+  span?: NoteSpan | null;
   answerLabel: string;
   poolLabels: readonly string[];
   seed: string;
@@ -155,14 +162,19 @@ export function buildNoteRecognize(input: {
   });
   if (!choice) return null;
 
-  const haystack = fragment.toLowerCase().replace(/\s+/g, ' ');
+  /*
+   * Everything the stem puts on screen, not just the quote: the context either side is shown
+   * too, and an option hiding in the run-up answers the question just as well.
+   */
+  const shown = input.span ? noteSpanText(input.span) : fragment;
+  const haystack = shown.toLowerCase().replace(/\s+/g, ' ');
   const selfAnswering = choice.options.some((option) => {
     const needle = option.toLowerCase().replace(/\s+/g, ' ').trim();
     return needle.length > 0 && (haystack.includes(needle) || needle.includes(haystack));
   });
   if (selfAnswering) return null;
 
-  return { ...choice, fragment };
+  return { ...choice, fragment, ...(input.span ? { span: input.span } : {}) };
 }
 
 /**
@@ -238,6 +250,47 @@ export function buildNoteChoice(input: {
     seed: input.seed,
   });
 }
+
+/**
+ * Build "pick the passage you wrote this on".
+ *
+ * The stem is the reader's own annotation — the words they typed on a highlight — and the answer
+ * is the passage they typed them on. Both ends are theirs: this is the rung that comes closest
+ * to asking about their study rather than about their filing.
+ *
+ * Returns null when the annotation names its own passage, which is common: people write "Romans
+ * 8 is about..." on a highlight of Romans 8. A stem containing its answer is not a question.
+ */
+export function buildNoteAnnotation(input: {
+  annotation: string;
+  reference: string;
+  poolReferences: readonly string[];
+  seed: string;
+}): NoteRecognizeExercise | null {
+  const annotation = input.annotation.replace(/\s+/g, ' ').trim();
+  const reference = input.reference.trim();
+  if (!annotation || !reference) return null;
+  if (annotation.split(' ').filter(Boolean).length < MIN_ANNOTATION_WORDS) return null;
+
+  const haystack = annotation.toLowerCase();
+  // The reference itself, and the book alone — "Romans 8:28" and "Romans" both give it away.
+  const book = reference.replace(/\s*\d+[:\d\-–,\s]*$/, '').trim().toLowerCase();
+  if (haystack.includes(reference.toLowerCase())) return null;
+  if (book.length > 2 && haystack.includes(book)) return null;
+
+  const choice = buildChoiceExercise({
+    answers: [reference],
+    pool: input.poolReferences,
+    optionCount: OPTION_COUNT,
+    seed: input.seed,
+  });
+  if (!choice) return null;
+
+  return { ...choice, fragment: annotation };
+}
+
+/** Below this an annotation is a word or two, which says nothing about which passage it is on. */
+const MIN_ANNOTATION_WORDS = 3;
 
 /** True when the reader picked any of the answers that are genuinely right. */
 export function gradeNoteChoice(

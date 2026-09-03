@@ -67,7 +67,7 @@ import {
   gradeVerseAltered,
   type VerseAlteredExercise,
 } from '@/utils/verse-altered';
-import { clozeSegments, gradeVerseRebuild, verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
+import { clozeSegments, gradeVerseRebuild, hashSeed, verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
@@ -92,6 +92,9 @@ import {
   noteFragment,
   resolveNoteRung,
   type NoteMaterial,
+  buildNoteSpan,
+  buildNoteAnnotation,
+  type NoteSpan,
 } from '@/utils/note-ladder-exercises';
 import type { ChoiceExercise } from '@/utils/choice-exercise';
 import { getNotePassages } from './scripture-knowledge';
@@ -269,6 +272,16 @@ async function loadNoteLabelPool(
   return { distinguishing, byId };
 }
 
+/**
+ * The words a reader typed on a highlight.
+ *
+ * `miniNoteBody` first — the note written on the highlight itself — then `notesBody`. Both the
+ * probe and the builder read through here so they cannot disagree about which field is the one.
+ */
+function annotationTextOf(row: { miniNoteBody?: string | null; notesBody?: string | null }): string {
+  return (row.miniNoteBody?.trim() || row.notesBody?.trim() || '').replace(/\s+/g, ' ');
+}
+
 async function loadNoteMaterial(
   userId: string,
   noteIds: readonly string[],
@@ -277,7 +290,7 @@ async function loadNoteMaterial(
   const out = new Map<string, NoteMaterial>();
   if (!unique.length) return out;
 
-  const [bodies, viaPill, ownPassage, links, quotes, pool, labels] = await Promise.all([
+  const [bodies, viaPill, ownPassage, links, quotes, annotated, pool, labels] = await Promise.all([
     db
       .select({
         id: Notes.id,
@@ -329,9 +342,36 @@ async function loadNoteMaterial(
           isNotNull(StudyThreadEntries.anchorQuote),
         ),
       ),
+    /*
+     * Highlights in these notes that carry words the reader typed, on a passage that can be
+     * named. Both ends have to be theirs for the annotation rung to have a question: the stem
+     * is what they wrote, the answer is where they wrote it.
+     */
+    db
+      .select({
+        parentNoteId: StudyThreadEntries.parentNoteId,
+        reference: StudyThreadEntries.scriptureReference,
+        miniNoteBody: StudyThreadEntries.miniNoteBody,
+        notesBody: StudyThreadEntries.notesBody,
+      })
+      .from(StudyThreadEntries)
+      .where(
+        and(
+          eq(StudyThreadEntries.userId, userId),
+          inArray(StudyThreadEntries.parentNoteId, unique),
+          isNotNull(StudyThreadEntries.scriptureReference),
+        ),
+      ),
     loadNoteLabelPool(userId),
     loadNoteSubjectLabels(userId, unique),
   ]);
+
+  const withAnnotation = new Set(
+    annotated
+      .filter((row) => annotationTextOf(row).split(/\s+/).filter(Boolean).length >= 3)
+      .map((row) => row.parentNoteId)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   const withPassage = new Set([...viaPill, ...ownPassage].map((row) => row.noteId));
   const withLink = new Set<string>();
@@ -365,8 +405,7 @@ async function loadNoteMaterial(
         ((row.length ?? 0) >= MIN_QUIZZABLE_BODY_CHARS || withQuote.has(row.id)),
       canPassage: withPassage.has(row.id),
       canConnect: withLink.has(row.id),
-      // Probed in the annotation rung's own change; false until then, which skips it.
-      canAnnotation: false,
+      canAnnotation: withAnnotation.has(row.id),
     });
   }
   return out;
@@ -1083,7 +1122,12 @@ export interface ReviewRevealPayload {
    * `fragment` is present only on `note.recognize`, where the question quotes the reader's own
    * writing back at them. The other two rungs name the note in the row and ask about it.
    */
-  noteChoice?: { fragment: string | null; options: string[] } | null;
+  noteChoice?: {
+    fragment: string | null;
+    /** Present when the stem is a span the reader marked: the quote, and the words either side. */
+    span?: { before: string; quote: string; after: string } | null;
+    options: string[];
+  } | null;
   /**
    * The four openings on "what comes after this?", and never the next verse's reference.
    *
@@ -1422,7 +1466,14 @@ const MIN_NOTE_DISTRACTORS = 3;
 async function buildNoteExercise(
   userId: string,
   item: ReviewItemRow,
-): Promise<{ rung: ReviewPromptKey; exercise: ChoiceExercise; fragment: string | null; acceptable: string[] } | null> {
+): Promise<{
+  rung: ReviewPromptKey;
+  exercise: ChoiceExercise;
+  fragment: string | null;
+  /** The marked span behind `fragment`, where the reader highlighted rather than the app chose. */
+  span: NoteSpan | null;
+  acceptable: string[];
+} | null> {
   if (item.kind !== 'note' || !item.noteId) return null;
 
   const material = (await loadNoteMaterial(userId, [item.noteId])).get(item.noteId);
@@ -1441,9 +1492,21 @@ async function buildNoteExercise(
       .limit(1);
     if (!note || note.contentEncrypted) return null;
 
-    // A span the reader selected themselves beats a fragment we chose for them.
-    const [quoted] = await db
-      .select({ quote: StudyThreadEntries.anchorQuote })
+    /*
+     * A span the reader marked beats a fragment the app chose, and it comes with the words
+     * either side: a quote that starts mid-clause is a puzzle about grammar before it is one
+     * about study.
+     *
+     * Ordered and picked by seed. This was `limit(1)` with no `orderBy`, so a note with several
+     * highlights could hand the reveal one row and the grader another — the same seed, a
+     * different question.
+     */
+    const quoted = await db
+      .select({
+        quote: StudyThreadEntries.anchorQuote,
+        prefix: StudyThreadEntries.anchorPrefixContext,
+        suffix: StudyThreadEntries.anchorSuffixContext,
+      })
       .from(StudyThreadEntries)
       .where(
         and(
@@ -1453,10 +1516,14 @@ async function buildNoteExercise(
           isNotNull(StudyThreadEntries.anchorQuote),
         ),
       )
-      .limit(1);
+      .orderBy(StudyThreadEntries.createdAt, StudyThreadEntries.id);
 
-    const fragment =
-      quoted?.quote?.trim() || noteFragment(stripHtml(note.content ?? ''), seed);
+    const marked = quoted.length ? quoted[hashSeed(seed) % quoted.length] : null;
+    const span = marked?.quote
+      ? buildNoteSpan({ quote: marked.quote, prefix: marked.prefix, suffix: marked.suffix })
+      : null;
+
+    const fragment = span?.quote || noteFragment(stripHtml(note.content ?? ''), seed);
     if (!fragment) return null;
 
     // An answer nobody could name is not an answer. Falls through to the passage rung.
@@ -1464,11 +1531,14 @@ async function buildNoteExercise(
 
     const exercise = buildNoteRecognize({
       fragment,
+      span,
       answerLabel: labels.own,
       poolLabels: labels.others,
       seed,
     });
-    return exercise ? { rung, exercise, fragment: exercise.fragment, acceptable: [labels.own] } : null;
+    return exercise
+      ? { rung, exercise, fragment: exercise.fragment, span: span ?? null, acceptable: [labels.own] }
+      : null;
   }
 
   if (rung === 'note.passage') {
@@ -1478,7 +1548,47 @@ async function buildNoteExercise(
     // Generous pool: every acceptable answer is also barred as a distractor.
     const pool = await listUserVerseReferences(userId, '');
     const exercise = buildNoteChoice({ acceptable, poolLabels: pool, seed });
-    return exercise ? { rung, exercise, fragment: null, acceptable } : null;
+    return exercise ? { rung, exercise, fragment: null, span: null, acceptable } : null;
+  }
+
+  if (rung === 'note.annotation') {
+    /*
+     * The words the reader typed on a highlight, and the passage they typed them on. Ordered and
+     * seeded for the same reason the marked span is: the reveal and the grader must build the
+     * same question from the same inputs.
+     */
+    const rows = await db
+      .select({
+        reference: StudyThreadEntries.scriptureReference,
+        miniNoteBody: StudyThreadEntries.miniNoteBody,
+        notesBody: StudyThreadEntries.notesBody,
+      })
+      .from(StudyThreadEntries)
+      .where(
+        and(
+          eq(StudyThreadEntries.userId, userId),
+          eq(StudyThreadEntries.parentNoteId, item.noteId),
+          isNotNull(StudyThreadEntries.scriptureReference),
+        ),
+      )
+      .orderBy(StudyThreadEntries.createdAt, StudyThreadEntries.id);
+
+    const usable = rows.filter(
+      (row) => annotationTextOf(row).split(/\s+/).filter(Boolean).length >= 3 && row.reference,
+    );
+    if (!usable.length) return null;
+
+    const chosen = usable[hashSeed(seed) % usable.length];
+    const reference = chosen.reference!.trim();
+    const exercise = buildNoteAnnotation({
+      annotation: annotationTextOf(chosen),
+      reference,
+      poolReferences: await listUserVerseReferences(userId, reference),
+      seed,
+    });
+    return exercise
+      ? { rung, exercise, fragment: exercise.fragment, span: null, acceptable: [reference] }
+      : null;
   }
 
   const neighbours: string[] = await loadConnectedNoteLabels(userId, item.noteId);
@@ -1488,7 +1598,7 @@ async function buildNoteExercise(
     poolLabels: labels.others.filter((label) => !neighbours.includes(label)),
     seed,
   });
-  return exercise ? { rung, exercise, fragment: null, acceptable: neighbours } : null;
+  return exercise ? { rung, exercise, fragment: null, span: null, acceptable: neighbours } : null;
 }
 
 /**
@@ -1584,7 +1694,12 @@ export async function buildReviewReveal(
   if (item.kind === 'note') {
     const built = await buildNoteExercise(userId, item);
     payload.noteChoice = built
-      ? { fragment: built.fragment, options: built.exercise.options }
+      ? {
+          fragment: built.fragment,
+          // `span` only where the reader marked one; `answerIndex` never.
+          span: built.span,
+          options: built.exercise.options,
+        }
       : null;
   }
 

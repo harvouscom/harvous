@@ -67,7 +67,12 @@ export interface ReviewRevealResponse {
   /** The locate rung's fragment and four references. Which one is right stays on the server. */
   locate?: { phrase: string; options: string[] } | null;
   /** A note rung's own material and four options. Which is right stays on the server. */
-  noteChoice?: { fragment: string | null; options: string[] } | null;
+  noteChoice?: {
+    fragment: string | null;
+    /** The marked span with its run-up, when the stem is one the reader highlighted. */
+    span?: { before: string; quote: string; after: string } | null;
+    options: string[];
+  } | null;
   /** Four openings on "what comes after this?". The next verse's reference is never sent. */
   next?: { options: string[] } | null;
   /** The altered verse. Which word was changed stays on the server. */

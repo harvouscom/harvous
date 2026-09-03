@@ -510,7 +510,16 @@ export default function PrototypeReviewDock() {
                 sentence when it has a name, and say nothing when it does not — this is the line
                 that answers "which note?" for a nameless one. */}
             {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            {noteChoice.fragment ? (
+            {noteChoice.span ? (
+              /* The span the reader marked, with the words either side of it. The run-up is
+                 what stops a quote that begins mid-clause reading as a grammar puzzle; the
+                 marked words stay the emphasis. */
+              <p className="proto-review-dock__verse">
+                {noteChoice.span.before ? <span>{noteChoice.span.before} </span> : null}
+                <strong>{noteChoice.span.quote}</strong>
+                {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
+              </p>
+            ) : noteChoice.fragment ? (
               <p className="proto-review-dock__verse">“{noteChoice.fragment}”</p>
             ) : null}
             <ReviewChoiceChips

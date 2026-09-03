@@ -7,6 +7,8 @@ import {
   noteFragment,
   resolveNoteRung,
   type NoteMaterial,
+  buildNoteSpan,
+  buildNoteAnnotation,
 } from '@/utils/note-ladder-exercises';
 
 const ALL: NoteMaterial = { canRecognize: true, canPassage: true, canConnect: true, canAnnotation: true };
@@ -215,5 +217,116 @@ describe('labelNamesWhat and chapter references', () => {
     for (const label of ['Ruth 3', 'John 15', 'Psalm 23', 'Acts 2', 'Mark 1']) {
       expect(labelNamesWhat(label)).toBe(true);
     }
+  });
+});
+
+describe('buildNoteSpan', () => {
+  it('keeps a running start and a tail, trimmed to whole words', () => {
+    const span = buildNoteSpan({
+      quote: 'not because we had done anything to deserve it',
+      prefix: 'God chose us before the foundation of the world, and he did so',
+      suffix: 'but because it pleased him to do so, and that is the whole ground of adoption',
+    })!;
+    expect(span.quote).toBe('not because we had done anything to deserve it');
+    expect(span.before.split(' ').length).toBeLessThanOrEqual(8);
+    expect(span.after.split(' ').length).toBeLessThanOrEqual(8);
+    // The run-up is the words nearest the quote, not the start of the paragraph.
+    expect(span.before.endsWith('he did so')).toBe(true);
+    expect(span.after.startsWith('but because')).toBe(true);
+  });
+
+  it('is fine with no context at all', () => {
+    const span = buildNoteSpan({ quote: 'the ground of adoption' })!;
+    expect(span).toEqual({ before: '', quote: 'the ground of adoption', after: '' });
+  });
+
+  it('refuses an empty quote', () => {
+    expect(buildNoteSpan({ quote: '   ', prefix: 'a', suffix: 'b' })).toBeNull();
+  });
+});
+
+describe('buildNoteRecognize with a marked span', () => {
+  const poolLabels = ['Adoption, not slavery', 'Covenant and kingship', 'Ruth 3', 'Acts 2'];
+
+  it('checks the whole stem for its own answer, not just the quote', () => {
+    /*
+     * The context either side is on screen too, so an option hiding in the run-up answers the
+     * question just as surely as one hiding in the quote.
+     */
+    const span = buildNoteSpan({
+      quote: 'not because we had done anything',
+      prefix: 'I wrote about Covenant and kingship here, and',
+      suffix: 'to deserve it',
+    })!;
+    const ex = buildNoteRecognize({
+      fragment: span.quote,
+      span,
+      answerLabel: 'The ground of adoption',
+      poolLabels: ['Covenant and kingship', 'Ruth 3', 'Acts 2'],
+      seed: 'a',
+    });
+    expect(ex).toBeNull();
+  });
+
+  it('carries the span through when nothing gives the answer away', () => {
+    const span = buildNoteSpan({
+      quote: 'not because we had done anything to deserve it',
+      prefix: 'God chose us',
+      suffix: 'but because it pleased him',
+    })!;
+    const ex = buildNoteRecognize({
+      fragment: span.quote,
+      span,
+      answerLabel: 'The ground of adoption',
+      poolLabels,
+      seed: 'a',
+    })!;
+    expect(ex.span).toEqual(span);
+    expect(ex.fragment).toBe(span.quote);
+  });
+});
+
+describe('buildNoteAnnotation', () => {
+  const pool = ['Romans 8:28', 'Psalm 23:1', '1 Peter 2:9', 'Genesis 1:1', 'Hebrews 11:1'];
+
+  it('asks which passage the reader wrote their words on', () => {
+    const ex = buildNoteAnnotation({
+      annotation: 'This is the clearest promise in the whole letter',
+      reference: 'John 15:5',
+      poolReferences: pool,
+      seed: 'a',
+    })!;
+    expect(ex.fragment).toContain('clearest promise');
+    expect(ex.options).toContain('John 15:5');
+    expect(ex.options[ex.answerIndex]).toBe('John 15:5');
+  });
+
+  it('refuses when the annotation names its own passage', () => {
+    /*
+     * Common, not hypothetical: people write "Romans 8 is about..." on a highlight of Romans 8.
+     * The book alone gives it away as surely as the full reference.
+     */
+    expect(
+      buildNoteAnnotation({
+        annotation: 'John 15:5 is the clearest promise here',
+        reference: 'John 15:5',
+        poolReferences: pool,
+        seed: 'a',
+      }),
+    ).toBeNull();
+    expect(
+      buildNoteAnnotation({
+        annotation: 'the whole of John turns on this',
+        reference: 'John 15:5',
+        poolReferences: pool,
+        seed: 'a',
+      }),
+    ).toBeNull();
+  });
+
+  it('refuses a scribble too short to be about anything', () => {
+    expect(
+      buildNoteAnnotation({ annotation: 'yes!', reference: 'John 15:5', poolReferences: pool, seed: 'a' }),
+    ).toBeNull();
   });
 });
