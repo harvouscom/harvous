@@ -336,10 +336,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   border-radius: var(--pds-shell-frame-radius) var(--pds-shell-frame-radius) 0 0;
 }
 
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format {
   padding-left: var(--proto-format-toolbar-paper-inset, 0px);
   padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
 }
@@ -351,11 +348,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   .proto-editor-bottom-bar__format {
   padding-left: var(--proto-format-toolbar-overhang);
   padding-right: var(--proto-format-toolbar-overhang);
-}
-
-/* Inspector column (when open on desktop) */
-.proto-shell--inspector-open {
-  grid-template-columns: var(--proto-sidebar-w-clamped) minmax(0, 1fr) var(--pds-inspector-w);
 }
 
 /* No footer (search route) — note routes add a chrome row via --note-chrome instead. */
@@ -575,9 +567,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 .proto-shell--no-sidebar .proto-shell__main-cell {
   grid-column: 1;
 }
-.proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__main-cell {
-  grid-column: 1;
-}
 
 /* ─── Sidebar root ───────────────────────────────────────────────────────── */
 .proto-sidebar-root {
@@ -726,10 +715,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   html[data-proto-keyboard-open] .proto-editor-scroll {
     overscroll-behavior: contain;
     background: var(--pds-paper-sheet);
-  }
-
-  .proto-shell--inspector-open {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
@@ -1331,9 +1316,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   @media (prefers-reduced-motion: reduce) {
     .proto-shell,
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
     .proto-shell__study-dock-layer__slot:not(:empty),
     .proto-shell-drawer-sidebar--exiting .proto-sidebar-root,
     .proto-sidebar-expanded-panel,
@@ -2160,7 +2142,6 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   transition: opacity calc(var(--pds-duration-morph) / 2) linear;
 }
 
-
 /* The chip holds its box while the panel is out — the toolbar must not reflow under a panel
    that is animating out of that exact spot. `visibility` preserves layout where `display`
    would not; it is declared with the crossfade above, so the two cannot disagree. */
@@ -2450,7 +2431,6 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   cursor: default;
   opacity: 0.6;
 }
-
 
 /* ─── Guest mode ─────────────────────────────────────────────────────────── */
 

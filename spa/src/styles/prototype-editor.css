@@ -22,17 +22,6 @@
   transition: margin-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
 }
 
-/* The inspector's reserve is no longer taken out of the editor here — it is taken out of
-   the shell's main pane (`prototype-shell.css`, `.proto-shell__main-inner`), so that a
-   paper-stack's back layer shifts by the same amount as the sheet in front of it. Reserving
-   inside the note pane moved the editor and left the chapter behind it sitting under the
-   panel. The `--inspector-open` class is still what says "docked"; it just says it to the
-   shell now. */
-
-.proto-note-pane-row--thread-docked .proto-editor-surface {
-  margin-right: var(--pds-inspector-reserve-w);
-}
-
 .proto-note-pane-row--thread-expanded .proto-editor-surface {
   margin-right: clamp(368px, min(728px, calc(60vw + 8px)), 728px);
 }
@@ -121,8 +110,7 @@
  * of hoisted, for the same reason: each has to be read inside its own pane's container.
  */
 @container proto-editor-scroll (min-width: 832px) {
-  .proto-editor-content-wrap,
-  .proto-editor-loading-wrap {
+  .proto-editor-content-wrap {
     --pds-paper-column: clamp(
       var(--pds-paper-column-min),
       100cqi - 2 * var(--pds-paper-column-gutter),
@@ -177,7 +165,6 @@
   }
 
   .proto-editor-surface .card-full-editable__title,
-  .proto-editor-surface .card-full-editable__title-input,
   .proto-editor-surface [data-proto-note-title] {
     font-size: 1.25rem !important;
   }
@@ -197,17 +184,6 @@
   }
 }
 
-/* ─── Note metadata / date strip ─────────────────────────────────────────── */
-.proto-editor-date {
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--pds-text-tertiary);
-  letter-spacing: 0.01em;
-  margin-bottom: 20px;
-  display: block;
-}
-
 /* ─── Loading skeleton ───────────────────────────────────────────────────── */
 .proto-editor-loading {
   flex: 1;
@@ -216,22 +192,6 @@
   flex-direction: column;
   container-type: inline-size;
   container-name: proto-editor-scroll;
-}
-
-.proto-editor-loading-wrap {
-  flex: 1;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  /* Same column as the real paper above, or the sheet changes width as the note loads. */
-  max-width: min(
-    var(--pds-paper-column),
-    100% - 2 * var(--pds-paper-column-gutter-narrow)
-  );
-  margin: 0 auto;
-  width: 100%;
-  padding: var(--pds-editor-paper-inset-top) 0 0;
 }
 
 .proto-editor-loading-inner {
@@ -246,49 +206,14 @@
 }
 
 @container proto-editor-scroll (max-width: 640px) {
-  .proto-editor-loading-inner {
-    padding: var(--pds-editor-paper-padding-top-narrow)
-      var(--pds-editor-paper-padding-x-narrow)
-      var(--pds-editor-paper-padding-bottom);
-  }
 }
 
 @container proto-editor-scroll (max-width: 480px) {
-  .proto-editor-loading-inner {
-    padding: var(--pds-editor-paper-padding-top-narrow)
-      var(--pds-editor-paper-padding-x-compact)
-      var(--pds-editor-paper-padding-bottom);
-  }
-}
-
-.proto-editor-loading-line {
-  height: 16px;
-  border-radius: 4px;
-  background: var(--pds-bg-chip);
-  animation: proto-shimmer 1.4s ease-in-out infinite;
-}
-
-.proto-editor-loading-line--title {
-  height: 22px;
-  width: 55%;
-  margin-bottom: 8px;
-}
-
-.proto-editor-loading-line--short {
-  width: 40%;
 }
 
 @keyframes proto-shimmer {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.45; }
-}
-
-/* ─── Not found / error states ───────────────────────────────────────────── */
-.proto-editor-error {
-  padding: 32px;
-  font-family: var(--pds-font-body);
-  font-size: 15px;
-  color: var(--pds-text-secondary);
 }
 
 /* ─── Scripture pill (prototype editor) — native mac geometry; accent surface in scripture-pill-accent.css ─ */
@@ -344,39 +269,12 @@
   user-select: text !important;
 }
 
-/* Inline ✓ confirm button rendered as a widget at the draft's trailing edge —
-   blue gradient + white icon, matching the daily passage modal FAB. */
-.proto-editor-surface .scripture-pill-draft__confirm {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin: 0 1px 0 4px;
-  padding: 0;
-  vertical-align: baseline;
-  border: none;
-  border-radius: 50%;
-  background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent);
-  box-shadow: var(--pds-shadow-accent-button);
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  line-height: 0;
-  transition: filter 0.1s;
-}
-
 /* Beat global.css `button *`, .proto-shell button path, and prototype-route-overrides fill rules. */
 html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confirm > svg,
 html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confirm svg path {
   color: var(--pds-on-accent) !important;
   stroke: var(--pds-on-accent) !important;
   fill: none !important;
-}
-
-.proto-editor-surface .scripture-pill-draft__confirm:hover {
-  filter: brightness(1.06);
 }
 .proto-editor-surface .scripture-pill-draft__confirm:active {
   filter: brightness(0.95);
@@ -387,11 +285,6 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
     background: var(--pds-selection-bg);
     box-shadow: none;
   }
-}
-
-:root[data-color-scheme='dark'] .proto-editor-surface .scripture-pill-draft__confirm {
-  background: var(--pds-selection-bg);
-  box-shadow: none;
 }
 
 /* Translation suffix (e.g. NET) — smaller, shares baseline with reference */
@@ -452,8 +345,7 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
 
 /* Force SF body stack across card surface to prevent inherited Reddit Sans. */
 .proto-editor-surface .card-full-editable__content-html,
-.proto-editor-surface .card-full-editable__content-html *,
-.proto-editor-surface .card-full-editable__date {
+.proto-editor-surface .card-full-editable__content-html *{
   font-family: var(--pds-font-body) !important;
 }
 
@@ -815,14 +707,6 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   padding-bottom: 0;
 }
 
-.proto-editor-bottom-bar__highlight {
-  width: 100%;
-}
-
-.proto-editor-bottom-bar__reference {
-  width: 100%;
-}
-
 /* Dock roots in the shell bottom bar — transparent; floating docks live in `.proto-shell__study-dock-layer`. */
 .proto-editor-bottom-bar__scripture .scripture-pill-chrome,
 .proto-editor-bottom-bar__highlight .highlight-dock-web,
@@ -904,13 +788,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 .proto-editor-surface .scripture-ref-cluster .harvous-menu-pill__trigger:hover,
 .proto-editor-surface .scripture-ref-cluster .harvous-menu-pill__trigger[aria-expanded='true'] {
   background: var(--pds-bg-chip);
-}
-
-/* Connect / linked-note strip (note-actions mode) */
-.proto-editor-bottom-bar__note-actions-stack {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
 }
 
 .proto-editor-bottom-bar__note-actions-stack > .proto-note-action-bar {

@@ -1032,17 +1032,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   line-height: 1.2;
 }
 
-.proto-toolbar-folder-chip__extra {
-  flex-shrink: 0;
-  color: var(--pds-text-secondary);
-  font-size: var(--pds-toolbar-folder-chip-font-size);
-  font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation-toolbar-chip);
-  line-height: 1.2;
-}
-
 .proto-toolbar-folder-chip__label,
-.proto-toolbar-folder-chip__extra,
 .proto-toolbar-folder-chip__icon {
   font-family: inherit !important;
 }
@@ -1334,7 +1324,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 
 /* Icon-only orbs — kill font strut so SVG glyphs center in the circle (iOS Safari). */
 .proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)),
-.proto-daily-passage-pill__orb,
 .proto-appearance-preview__check-orb {
   line-height: 0;
 }
@@ -1345,10 +1334,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   align-items: center;
   justify-content: center;
   line-height: 0;
-}
-.proto-daily-passage-pill__orb svg {
-  flex-shrink: 0;
-  display: block;
 }
 
 .proto-toolbar-icon-btn:hover {
@@ -2047,7 +2032,6 @@ html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger[aria-expand
   flex-shrink: 0;
   padding: 8px 14px 8px;
 }
-
 
 .proto-sidebar-back-row + .proto-sidebar-search {
   padding-top: 2px;
@@ -5465,25 +5449,6 @@ html.harvous-prototype-route
   overscroll-behavior: contain;
 }
 
-.proto-settings__nav-footer {
-  flex-shrink: 0;
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 0.5px solid var(--pds-border);
-}
-
-.proto-settings__admin-shortcut {
-  align-items: flex-start;
-}
-
-.proto-settings__admin-shortcut-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
 .proto-settings__admin-shortcut-sub {
   font-family: var(--pds-font-body);
   font-size: 0.75rem;
@@ -6562,7 +6527,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   text-align: left;
 }
 
-
 .proto-lock-pin-settings__body {
   padding: 16px;
 }
@@ -7142,11 +7106,6 @@ button.proto-home-card--tappable:focus-visible {
   gap: 4px;
   min-width: 0;
   max-width: 100%;
-}
-
-.proto-home-card__meta-sep {
-  color: var(--pds-text-tertiary);
-  user-select: none;
 }
 
 /*
@@ -7821,7 +7780,6 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
   overflow-y: auto;
   padding: 20px;
 }
-
 
 .proto-votd-sheet__html {
   font-family: var(--pds-font-body);
@@ -8661,7 +8619,6 @@ button.proto-appearance-hero__card {
   --proto-trail-spine-color: oklch(from var(--pds-text-primary) l c h / 0.26);
 }
 
-
 :root[data-color-scheme='dark'] .proto-thread-trail {
   --proto-trail-dot-surface: color-mix(in oklch, var(--pds-bg-card, var(--pds-bg-page)) 86%, white 14%);
 }
@@ -8672,7 +8629,6 @@ button.proto-appearance-hero__card {
   :root:not([data-color-scheme='light']) .proto-thread-trail__spine {
     --proto-trail-spine-color: oklch(from var(--pds-text-primary) l c h / 0.26);
   }
-
 
   :root:not([data-color-scheme='light']) .proto-thread-trail {
     --proto-trail-dot-surface: color-mix(in oklch, var(--pds-bg-card, var(--pds-bg-page)) 86%, white 14%);
@@ -8773,12 +8729,6 @@ button.proto-appearance-hero__card {
 .proto-thread-trail__step:hover .proto-side-panel__disconnect-row-btn,
 .proto-thread-trail__step:focus-within .proto-side-panel__disconnect-row-btn {
   opacity: 1;
-}
-
-.proto-thread-trail__also {
-  margin-top: 6px;
-  padding-top: 8px;
-  border-top: 0.5px solid var(--pds-border-control);
 }
 
 /* ── Thread trail inside the tool-group card ─────────────────────────────────
@@ -8924,25 +8874,8 @@ button.proto-appearance-hero__card {
   }
 }
 
-/* Sits in the scrolling list, so it needs the gutter the rows used to have. */
-
-.proto-thread-trail__also-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.proto-thread-trail__also .proto-thread-trail__step {
-  grid-template-columns: 1fr;
-  padding-left: 0;
-}
-
 .proto-thread-trail__also .proto-thread-trail__orb {
   display: none;
-}
-
-.proto-thread-trail__also .proto-thread-trail__step-body:hover {
-  background: var(--pds-bg-row-hover);
 }
 
 .proto-sidebar-thread-trail {
@@ -9051,34 +8984,6 @@ button.proto-appearance-hero__card {
 
 .proto-thread-trail__drag-handle:active {
   cursor: grabbing;
-}
-
-/* Connect action */
-.proto-side-panel__connect {
-  padding: 4px 8px 8px;
-  border-top: 0.5px solid var(--pds-border-control);
-  margin-top: 8px;
-}
-
-.proto-side-panel__connect-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
-  border-radius: var(--pds-radius-row);
-  border: none;
-  background: transparent;
-  color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.1s ease, color 0.1s ease;
-}
-
-.proto-side-panel__connect-btn:hover {
-  background: var(--pds-bg-row-hover);
-  color: var(--pds-text-primary);
 }
 
 /* Disconnect button on a note row.
@@ -12838,19 +12743,6 @@ p.proto-teaching-plan__divider {
   border: 1.5px solid var(--pds-bg-popover-solid);
 }
 
-.proto-create-shared-space__edit-badge svg {
-  width: 10px;
-  height: 10px;
-  display: block;
-  overflow: visible;
-  color: var(--pds-text-primary);
-  fill: var(--pds-text-primary) !important;
-}
-
-.proto-create-shared-space__edit-badge path {
-  fill: var(--pds-text-primary) !important;
-}
-
 /* Top-left on hero — clear of close (top-right) and letter overlap (bottom). */
 .proto-create-shared-space__hero-hit .proto-create-shared-space__edit-badge {
   top: 10px;
@@ -12859,22 +12751,12 @@ p.proto-teaching-plan__divider {
   height: 24px;
 }
 
-.proto-create-shared-space__hero-hit .proto-create-shared-space__edit-badge svg {
-  width: 11px;
-  height: 11px;
-}
-
 /* Inset on the color tile so scroll containers can't clip it. */
 .proto-create-shared-space__icon-hit .proto-create-shared-space__edit-badge {
   right: 1px;
   bottom: 1px;
   width: 18px;
   height: 18px;
-}
-
-.proto-create-shared-space__icon-hit .proto-create-shared-space__edit-badge svg {
-  width: 9px;
-  height: 9px;
 }
 
 .proto-create-shared-space__title-input {
@@ -13824,18 +13706,6 @@ html.harvous-prototype-route
   background: transparent;
 }
 
-/* Shared HTML5 drag ghost base: see src/styles/html5-drag-preview.css */
-
-.proto-space-switcher__drag-preview {
-  display: flex;
-  align-items: stretch;
-  min-width: 0;
-}
-
-.proto-space-switcher__drag-preview .proto-space-switcher__drag-handle {
-  opacity: 0.7;
-}
-
 .proto-space-switcher__drag-preview .proto-space-switcher__row-item {
   background: transparent;
 }
@@ -13922,10 +13792,6 @@ html.harvous-prototype-route
   background: transparent !important;
 }
 
-.proto-space-switcher__drop-tail {
-  height: 8px;
-}
-
 .proto-space-switcher__footer {
   padding: 8px 12px 10px;
   border-top: 0.5px solid var(--pds-border);
@@ -13938,48 +13804,12 @@ html.harvous-prototype-route
   color: var(--pds-text-primary);
 }
 
-/* Create form — a highlighted inset that previews the space as a list row. */
-.proto-space-switcher__create-form {
-  margin: 4px 6px 6px;
-  padding: 10px;
-  border-radius: 8px;
-  background: var(--pds-bg-input);
-  border: 0.5px solid var(--pds-border);
-  min-width: 0;
-  overflow: hidden;
-}
-
 /* Live preview row — mirrors the list item (icon tile + title). */
 .proto-space-switcher__preview {
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 0 2px 8px;
-}
-
-.proto-space-switcher__preview-title {
-  flex: 1;
-  min-width: 0;
-}
-
-.proto-space-switcher__create-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 7px 9px;
-  border-radius: 8px;
-  border: 1px solid var(--pds-border);
-  background: var(--pds-bg-popover-solid, var(--site-card));
-  font: inherit;
-  font-size: 13px;
-  color: var(--pds-text-primary);
-  outline: none;
-}
-
-.proto-space-switcher__create-input:focus,
-.proto-space-switcher__create-input:focus-visible {
-  outline: none;
-  border-color: var(--pds-accent);
-  box-shadow: inset 0 0 0 1px var(--pds-accent);
 }
 
 .proto-space-switcher__create-colors {
@@ -14866,7 +14696,6 @@ html.harvous-prototype-route
 
 /* Role for a pending invite. Sized to its content so the email field keeps the
    room — the address is the part that needs space. */
-
 
 /* Role select — same treatment as `.hmc-church-picker__select`: the native
    chevron differs per browser, so it is suppressed and redrawn. */
@@ -16794,7 +16623,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   border-radius: 2px;
   background: color-mix(in oklab, var(--pds-text-primary) 13%, transparent);
 }
-
 
 .proto-import-drop__title {
   margin: 0;
@@ -19556,7 +19384,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   flex: 0 0 auto;
 }
 
-
 /* Verse numbers off — the locator goes away, the prose does not reflow, because the
    number keeps its box. Hiding it entirely would shift every verse's first word. */
 .harvous-reader-hide-verse-nums .pds-reader-verse-num {
@@ -19629,7 +19456,6 @@ html.harvous-prototype-route button[class*='proto-'] .proto-appearance-preview__
 html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexic'] {
   font-family: var(--pds-font-choice-dyslexic) !important;
 }
-
 
 /* Face tiles inside the reader inspector — the settings carousel at panel scale. It already
    scrolls horizontally, so five tiles in a 300px panel need no wrapping or shrinking. */
@@ -21328,7 +21154,6 @@ button.proto-feed-sheet__stat:hover {
   justify-content: center;
 }
 
-
 /* ─── Highlight kinds, in the search panel ────────────────────────────────────
  *
  * The sidebar filters highlights with a chip row. The panel uses the switch instead —
@@ -21395,7 +21220,6 @@ button.proto-feed-sheet__stat:hover {
   outline: 2px solid var(--pds-accent);
   outline-offset: -2px;
 }
-
 
 /* ─── The day arriving ────────────────────────────────────────────────────────
  *
@@ -21710,7 +21534,6 @@ button.proto-feed-sheet__stat:hover {
   box-shadow: none;
   backdrop-filter: none;
 }
-
 
 /* ─── Review and Challenges ──────────────────────────────────────────────────
  *
