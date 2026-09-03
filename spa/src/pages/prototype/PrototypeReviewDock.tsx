@@ -497,7 +497,7 @@ export default function PrototypeReviewDock() {
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
             {verseMarkup ? (
-              <p className="proto-review-dock__verse" dangerouslySetInnerHTML={verseMarkup} />
+              <p className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
             ) : null}
             <ReviewChoiceChips
               options={nextExercise.options}
@@ -509,7 +509,7 @@ export default function PrototypeReviewDock() {
         ) : locateExercise ? (
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
-            <p className="proto-review-dock__verse">“{locateExercise.phrase}…”</p>
+            <p className="proto-review-dock__verse proto-review-dock__verse--scripture">“{locateExercise.phrase}…”</p>
             <ReviewChoiceChips
               options={locateExercise.options}
               disabled={outcome.isPending}
@@ -563,7 +563,7 @@ export default function PrototypeReviewDock() {
             ) : reveal.isPending ? (
               <p className="proto-caption">Fetching…</p>
             ) : verseMarkup ? (
-              <div className="proto-review-dock__verse" dangerouslySetInnerHTML={verseMarkup} />
+              <div className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
             ) : null}
             {verdictRow}
           </>

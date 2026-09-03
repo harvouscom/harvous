@@ -21967,12 +21967,53 @@ button.proto-feed-sheet__stat:hover {
   gap: var(--pds-space-2);
 }
 
+/*
+ * The thing the question is about, set apart from the question.
+ *
+ * A quoted verse used to sit as bare text between the prompt and the options, so a rung read as
+ * one continuous paragraph and the reader had to work out which part they were being asked
+ * about. The panel is the same recipe as `.scripture-pill-chrome__attribution` — 3% of the text
+ * colour, not a grey of its own — so it holds up in either theme and against the shell's
+ * gradient, which a fixed grey would not.
+ */
 .proto-review-dock__verse,
 .proto-challenge__verse {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--pds-radius-row);
+  background: color-mix(in srgb, var(--pds-text-primary) 3%, transparent);
   font-family: var(--pds-font-body);
   font-size: 14px;
   line-height: 1.6;
   color: var(--pds-text-primary);
+}
+
+/*
+ * Scripture reads in the reading face, as it does everywhere else it is quoted.
+ *
+ * Only on the quotes that are actually scripture. `note.recognize` puts the reader's own prose
+ * in this same slot, and dressing someone's notes as scripture is the one thing this treatment
+ * must not do.
+ *
+ * The size is the dock's, not the reader's: `--pds-reader-font-size` is a reading preference
+ * that goes up to a size meant for a full column, and a card three lines tall is not that.
+ * What carries over is the face and its variation settings, which is what makes it *read* as
+ * scripture.
+ */
+.proto-review-dock__verse--scripture,
+.proto-challenge__verse--scripture {
+  font-family: var(--pds-font-reading);
+  font-variation-settings: var(--pds-font-reading-variation);
+  font-synthesis: weight;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* The inline locator stays on the body face, exactly as the reader keeps its own. */
+.proto-review-dock__verse--scripture sup.verse-num,
+.proto-challenge__verse--scripture sup.verse-num {
+  font-family: var(--pds-font-body);
+  color: var(--pds-text-tertiary);
 }
 
 /*

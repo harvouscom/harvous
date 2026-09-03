@@ -154,7 +154,7 @@ export default function PrototypeChallengePage() {
           ) : null}
 
           {verseMarkup ? (
-            <div className="proto-challenge__verse" dangerouslySetInnerHTML={verseMarkup} />
+            <div className="proto-challenge__verse proto-challenge__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
           ) : null}
           {context?.cloze ? (
             <p className="proto-challenge__cloze">{context.cloze.display}</p>
