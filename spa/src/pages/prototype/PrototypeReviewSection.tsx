@@ -28,6 +28,7 @@
  * says where it came from, so the section reads as their study coming back rather than as work
  * assigned to them.
  */
+import { reviewWeekCaption, type ReviewDayCounts } from '@/utils/review-activity-summary';
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -81,7 +82,12 @@ function foldedLabel(folded: number | null): string {
   return folded !== null && folded > 0 ? `${folded} more` : REVIEW_SEE_ALL_COPY;
 }
 
-export default function PrototypeReviewSection() {
+export default function PrototypeReviewSection({
+  weekReviews,
+}: {
+  /** The rolling week's answers, counted by the page that already has them. */
+  weekReviews?: ReviewDayCounts | null;
+} = {}) {
   const navigate = useNavigate();
   const { openReviewDock } = useProtoShell();
   const { isGuest } = useHarvousIdentity();
@@ -90,6 +96,7 @@ export default function PrototypeReviewSection() {
   const { dismissed: plusPromptDismissed, dismiss: dismissPlusPrompt } = useDismissiblePlusPrompt();
 
   const [expanded, setExpanded] = useState(false);
+  const weekCaption = weekReviews ? reviewWeekCaption(weekReviews) : null;
   const inboxQuery = useReviewInbox();
   /*
    * The full list, fetched only once the reader asks for it. The inbox read is capped at three
@@ -239,6 +246,14 @@ export default function PrototypeReviewSection() {
           <span>{expanded ? REVIEW_SEE_LESS_COPY : foldedLabel(folded)}</span>
           <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
         </button>
+      ) : null}
+      {/*
+        * How the week went, under the fold and nowhere else. Collapsed, the section is three
+        * things to do and a count would be a fourth thing to read; unfolded, the reader has
+        * asked to see the whole of it, and this is the whole of it.
+        */}
+      {expanded && weekCaption ? (
+        <p className="proto-caption proto-review-section__week">{weekCaption}</p>
       ) : null}
     </PrototypeHomeSection>
   );

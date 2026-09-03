@@ -11,6 +11,7 @@
  * by what it is, and what happened to it is said once, quietly, over the group.
  */
 
+import { reviewDayChipLabels, type ReviewDayCounts } from '@/utils/review-activity-summary';
 import type { IconName } from '@/components/react/Icon';
 import { studyFeedItemWeight, type StudyFeedItem, type StudyFeedSubject } from '@/utils/study-feed-items';
 
@@ -215,9 +216,14 @@ function plural(n: number, one: string, many: string): string {
  */
 export function summarizeStudyFeedDay(
   items: StudyFeedItem[],
-  options: { isToday: boolean; partsCount: number },
+  options: { isToday: boolean; partsCount: number; reviews?: ReviewDayCounts | null },
 ): StudyFeedDaySummary | null {
-  if (items.length === 0) return null;
+  /*
+   * A day of reviews and nothing else is still a day of study, and it is the shape the reader
+   * on a busy week is most likely to have. The first cut bailed here on an empty item list and
+   * the chip never appeared on exactly those days.
+   */
+  if (items.length === 0 && !(options.reviews?.answered ?? 0)) return null;
 
   const written = items.filter((i) => studyFeedItemWeight(i.kind) === 'card');
   const marks = items.filter(
@@ -235,6 +241,14 @@ export function summarizeStudyFeedDay(
   }
   if (reads.length > 0) {
     stats.push({ key: 'reads', label: plural(reads.length, 'passage', 'passages') });
+  }
+  /*
+   * Reviews come before "notes revisited" and can push it out. Answering a question about
+   * something is a stronger account of the day than opening it again, and the cap of three
+   * holds either way — a sentence with four chips in it stops being a sentence.
+   */
+  for (const label of reviewDayChipLabels(options.reviews)) {
+    if (stats.length < 3) stats.push({ key: 'reviews', label });
   }
   if (returns.length > 0 && stats.length < 3) {
     stats.push({ key: 'returns', label: `${plural(returns.length, 'note', 'notes')} revisited` });

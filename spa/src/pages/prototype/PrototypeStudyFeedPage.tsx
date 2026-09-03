@@ -16,6 +16,7 @@
  * exists because Home's recall shelf rotates modulo its candidate count, so a late query
  * reshuffles the deck under the reader. Nothing here rotates — days are days.
  */
+import { reviewCountsByDay, reviewWeekCounts } from '@/utils/review-activity-summary';
 import PrototypeStudyFeedDateJump from './PrototypeStudyFeedDateJump';
 import { studyFeedJumpStep } from '@/utils/study-feed-date-jump';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -104,7 +105,8 @@ const JUMP_FLOOR_KEY = '2020-01-01';
 export default function PrototypeStudyFeedPage() {
   const navigate = useNavigate();
   const [scope, setScope] = useState<StudyFeedScope>(STUDY_FEED_SCOPE_ALL);
-  const { items, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } = useStudyFeed(scope);
+  const { items, reviewAnswers, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useStudyFeed(scope);
 
   const libraryNav = useLibraryPanelNav();
   const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
@@ -247,6 +249,13 @@ export default function PrototypeStudyFeedPage() {
   // `now` is read once per render pass, not per item: day labels have to agree with each
   // other, and "Today" computed twice across a midnight boundary would disagree.
   const days = useMemo(() => buildStudyFeedDays(items, new Date()), [items]);
+
+  /*
+   * How the reader did, bucketed the same way the days are. Local, because the server sends
+   * timestamps and only this side knows the zone.
+   */
+  const reviewCountsForDay = useMemo(() => reviewCountsByDay(reviewAnswers), [reviewAnswers]);
+  const weekReviews = useMemo(() => reviewWeekCounts(reviewAnswers, new Date()), [reviewAnswers]);
 
   /** Index into `days`, newest first. 0 is today. */
   const [index, setIndex] = useState(0);
@@ -440,6 +449,7 @@ export default function PrototypeStudyFeedPage() {
   const summary = summarizeStudyFeedDay(day.parts.flatMap((part) => part.items), {
     isToday: safeIndex === 0,
     partsCount: day.parts.length,
+    reviews: reviewCountsForDay.get(day.dayKey) ?? null,
   });
   const showGreeting = safeIndex === 0 && greeting.ready && home.countForLogic > 0;
 
@@ -692,7 +702,11 @@ export default function PrototypeStudyFeedPage() {
             {/* Home's own order: what you were doing, then what is coming, then what is
                 offered, and only then the record of the day itself. */}
             {safeIndex === 0 && greeting.ready ? (
-              <PrototypeStudyFeedToday notes={greeting.notes} home={home} />
+              <PrototypeStudyFeedToday
+                notes={greeting.notes}
+                home={home}
+                weekReviews={weekReviews}
+              />
             ) : null}
 
             {onboardingLeads ? null : onboardingDock}

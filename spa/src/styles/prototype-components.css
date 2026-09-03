@@ -21826,6 +21826,13 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
 }
 
+/* The week, under an expanded Review section. A caption, not a scoreboard. */
+.proto-review-section__week {
+  margin: 2px 0 0;
+  padding: 0 var(--pds-space-3);
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
 /* A leech's way down: the line, then the two offers, set off from the verdict above. */
 /* A leech's way down, indented to the verdict's text rather than its icon. */
 .proto-review-dock__slipping {

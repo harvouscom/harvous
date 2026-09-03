@@ -3,6 +3,7 @@ import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import {
   mergeStudyFeedPages,
+  mergeStudyFeedReviewAnswers,
   serializeStudyFeedScope,
   STUDY_FEED_SCOPE_ALL,
   type StudyFeedItem,
@@ -46,5 +47,9 @@ export function useStudyFeed(scope: StudyFeedScope = STUDY_FEED_SCOPE_ALL) {
     query.data?.pages.map((page) => page.items ?? []) ?? [],
   );
 
-  return { ...query, items };
+  const reviewAnswers = mergeStudyFeedReviewAnswers(
+    query.data?.pages.map((page) => page.reviewAnswers) ?? [],
+  );
+
+  return { ...query, items, reviewAnswers };
 }

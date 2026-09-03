@@ -29,6 +29,7 @@ import {
   NoteVersions,
   NoteVisitEvents,
   ReadingEvents,
+  ReviewEvents,
   SpaceMemberships,
   SpaceNotes,
   Spaces,
@@ -46,6 +47,7 @@ import {
 import {
   isNoteVisitEventsTableMissing,
   isReadingEventsTableMissing,
+  isReviewTableMissing,
   isStudyThreadEntriesTableMissing,
   isSyncDeletedEntitiesTableMissing,
 } from '../utils/pg-undefined-relation';
@@ -59,6 +61,7 @@ import {
   type NoteUpdateSpan,
 } from '../utils/study-feed-collapse';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
+import { REVIEW_OUTCOMES } from '@/utils/review-item-kinds';
 import {
   parseStudyFeedScope,
   studyFeedItemNoteId,
@@ -81,6 +84,8 @@ const FEED_WINDOW_DAYS = 180;
 const SOURCE_ROW_CAP = 300;
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
+/** A hard stop on the answer aggregate: the daily engine cap makes this months of study. */
+const REVIEW_ANSWER_LIMIT = 2000;
 
 /**
  * Run one source; if its table has not been migrated yet, contribute nothing.
@@ -478,7 +483,36 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
      */
     const nextCursor = items.length > limit && page.length > 0 ? page[page.length - 1].at : null;
 
-    const body: StudyFeedResponse = { success: true, items: page, nextCursor };
+    /*
+     * How the reader did, for the day's sentence and the week caption — timestamps and a flag,
+     * never an item id or a typed attempt. `shown` is not an answer and is left out.
+     */
+    const reviewAnswers = await source(
+      () =>
+        db
+          .select({ at: ReviewEvents.createdAt, action: ReviewEvents.action })
+          .from(ReviewEvents)
+          .where(
+            and(
+              eq(ReviewEvents.userId, auth.userId),
+              inArray(ReviewEvents.action, [...REVIEW_OUTCOMES]),
+              ...windowed(ReviewEvents.createdAt),
+            ),
+          )
+          .limit(REVIEW_ANSWER_LIMIT),
+      isReviewTableMissing,
+      'review answers',
+    );
+
+    const body: StudyFeedResponse = {
+      success: true,
+      items: page,
+      nextCursor,
+      reviewAnswers: reviewAnswers.map((row) => ({
+        at: row.at.toISOString(),
+        held: row.action === 'recalled',
+      })),
+    };
     return c.json(body);
   } catch (error) {
     const standardError = handleAPIError(error, {

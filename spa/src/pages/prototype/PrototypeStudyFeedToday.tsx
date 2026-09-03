@@ -15,6 +15,7 @@
  * the same three Continue slots and the same recall rows rather than a subset — it takes the
  * whole thing as one prop so a value added there cannot go unnoticed here.
  */
+import type { ReviewDayCounts } from '@/utils/review-activity-summary';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
@@ -61,9 +62,12 @@ function ContinueNoteRow({
 export default function PrototypeStudyFeedToday({
   notes,
   home,
+  weekReviews,
 }: {
   notes: SpaceNoteRow[];
   home: ReturnType<typeof useHomeSurfaceData>;
+  /** The rolling week, for the one caption under an expanded Review section. */
+  weekReviews?: ReviewDayCounts | null;
 }) {
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const scriptureQuery = usePrototypeSpaceScriptureIndex(homeSpaceId ?? undefined);
@@ -150,7 +154,7 @@ export default function PrototypeStudyFeedToday({
         * guest renders null, free renders one dismissible line, Plus with nothing due renders
         * null and the section collapses.
         */}
-      <PrototypeReviewSection />
+      <PrototypeReviewSection weekReviews={weekReviews} />
 
       {/* Both of these decide for themselves whether they have anything to show, so the
           section wrapper is theirs to fill or collapse — the same contract Home relies on. */}
