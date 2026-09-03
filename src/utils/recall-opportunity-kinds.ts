@@ -15,6 +15,7 @@ export const RECALL_OPPORTUNITY_KINDS = [
   'crossrefGap',
   'connectNotes',
   'searchGap',
+  'markNote',
 ] as const;
 
 export type RecallOpportunityKind = (typeof RECALL_OPPORTUNITY_KINDS)[number];
@@ -122,6 +123,7 @@ export const RECALL_KIND_LABELS: Record<RecallOpportunityKind, string> = {
   crossrefGap: 'Cross-ref gap',
   connectNotes: 'Connect notes',
   searchGap: 'Unanswered search',
+  markNote: 'Mark a note',
 };
 
 export function recallKindDisplayLabel(kind: string): string {

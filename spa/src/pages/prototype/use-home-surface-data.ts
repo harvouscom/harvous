@@ -100,6 +100,7 @@ import {
   type HomeSubjectPassageInput,
   type HomePassageConnectionInput,
   type StudyArcNoteInput,
+  pickMarkNoteCandidate,
 } from '@/utils/prototype-home-trends';
 import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
@@ -1093,10 +1094,40 @@ export function useHomeSurfaceData({
     return hasNoteAnsweringGap(gap, notes.map((row) => row.title)) ? null : gap;
   }, [searchEventsQuery.data, recallDayIndex, notes]);
 
+  /*
+   * A note to go back into and mark, which is where the five reflective review prompts landed.
+   *
+   * `markedNoteIds` is only what is loaded — highlights arrive a page at a time — so this can
+   * suggest a note that already has marks somewhere out of memory. `pickMarkNoteCandidate`
+   * takes that trade knowingly and prefers the oldest note; the cost is a wasted card, and the
+   * alternative is never suggesting anything until every highlight is in hand.
+   */
+  const markNoteCandidate = useMemo(() => {
+    const marked = new Set<string>();
+    for (const highlight of highlightsWithRecency) {
+      if (highlight.parentNoteId) marked.add(highlight.parentNoteId);
+    }
+    // Everything Home is already pointing at, so one note is never two cards.
+    const spokenFor = new Set<string>(
+      [continueNote?.id, revisitNote?.id, revisitOnHome?.id, ...deletedIdList].filter(
+        (id): id is string => Boolean(id),
+      ),
+    );
+    return pickMarkNoteCandidate(notes, marked, spokenFor);
+  }, [notes, highlightsWithRecency, continueNote, revisitNote, revisitOnHome, deletedIdList]);
+
+  const handleOpenMarkNote = useCallback(
+    // No card stack: the invitation is to work inside the note, not to keep a trail back.
+    (row: SpaceNoteRow) => handleOpenRevisitNote(row, { stack: false }),
+    [handleOpenRevisitNote],
+  );
+
   const recallCandidates = useMemo<RecallOpportunity[]>(
     () =>
       buildRecallCandidates({
         searchGap,
+        markNote: markNoteCandidate,
+        handleOpenMarkNote,
         deletedNoteKey,
         continueNote,
         revisitNote,
@@ -1172,6 +1203,8 @@ export function useHomeSurfaceData({
       startDraftNote,
       openCrossRefGap,
       handleRecallCompleted,
+      markNoteCandidate,
+      handleOpenMarkNote,
     ],
   );
 

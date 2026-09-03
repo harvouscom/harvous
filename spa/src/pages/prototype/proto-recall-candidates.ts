@@ -18,6 +18,8 @@
  * them against.
  */
 import type { RecallOpportunity } from './PrototypeRecallCarousel';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
+import { noteMarkPrompt } from '@/utils/note-mark-prompts';
 import { RECALL_KIND_ICONS } from './recall-kind-icons';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { isNoteDeleted } from './proto-deleted-notes';
@@ -92,7 +94,13 @@ export interface RecallCandidateInput {
   openCrossRefGap: any;
   handleRecallCompleted: any;
   searchGap: { query: string } | null | undefined;
+  /** A note worth going back into and marking. See `pickMarkNoteCandidate`. */
+  markNote: SpaceNoteRow | null | undefined;
+  handleOpenMarkNote: (note: SpaceNoteRow) => boolean | void;
 }
+
+/** Enough of a nameless note's opening to tell it from the next one, without wrapping. */
+const MARK_NOTE_TITLE_CHARS = 60;
 
 function pushAnnotateHighlightRecallCard(
   out: RecallOpportunity[],
@@ -143,6 +151,8 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
     deletedNoteKey,
     continueNote,
     revisitNote,
+    markNote,
+    handleOpenMarkNote,
     revisitOnHome,
     spotlightHighlight,
     studyArc,
@@ -488,6 +498,41 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
             handleRecallCompleted(connectId, 'connectNotes', topConnectSuggestion.noteAId),
         });
       },
+    });
+  }
+
+  /*
+   * The five questions that used to be note reviews.
+   *
+   * They are here rather than in Review because none of them has a right answer — "what stuck
+   * with you?" is not something the app can mark you on, and asking it as a review made Review
+   * look like it was grading your reasons for writing. What the question actually wants is for
+   * you to go back into the note and mark the part that answers it, which is a suggestion.
+   *
+   * Last, and low-scored, because it is an invitation rather than a thread being picked up.
+   */
+  if (markNote && !out.some((o) => o.noteId === markNote.id)) {
+    out.push({
+      id: `mark:${markNote.id}`,
+      kind: 'markNote',
+      noteId: markNote.id,
+      prefetchNoteId: markNote.id,
+      score: 0.4,
+      eyebrow: 'Worth marking',
+      /*
+       * Its opening words when it has no name, not "New Note".
+       *
+       * The title is the only thing on this card that says *which* note, and a picker that
+       * prefers long-untouched notes will keep landing on untitled ones — a shelf of cards all
+       * reading "New Note" identifies nothing. Same reasoning as the review row's context line.
+       */
+      title:
+        stripServerAutoUntitledNoteTitleForDisplay(markNote.title?.trim() ?? '') ||
+        stripHtmlForListPreview(markNote.content ?? '').trim().slice(0, MARK_NOTE_TITLE_CHARS) ||
+        'New Note',
+      meta: noteMarkPrompt(markNote.id),
+      iconName: RECALL_KIND_ICONS.markNote,
+      onOpen: () => handleOpenMarkNote(markNote),
     });
   }
 

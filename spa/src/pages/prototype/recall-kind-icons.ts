@@ -50,6 +50,9 @@ export const RECALL_KIND_ICONS: Record<RecallOpportunityKind, IconName> = {
    */
   highlight: 'note-sticky',
   reflection: 'pen-to-square',
+  /* Marking, not composing: `pen-to-square` is the toolbar's new-note button, and this card
+     asks you to go into a note you already have. */
+  markNote: 'highlighter',
 };
 
 export function recallKindIcon(kind: RecallOpportunityKind): IconName {
