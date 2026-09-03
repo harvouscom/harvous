@@ -13,13 +13,15 @@ import {
   inArray,
   Notes,
   NoteConnections,
+  NoteScriptureReferences,
   ScriptureMetadata,
   ScriptureTopics,
 } from '../db';
 import {
+  getRelatedNoteCandidates,
   getRelatedNotesForPassages,
-  getNotePassages,
   type RelatedNote,
+  type VerseKey,
 } from './scripture-knowledge';
 import { isNoteConnectionsTableMissing } from './pg-undefined-relation';
 
@@ -139,6 +141,79 @@ async function resolveSharedThemeLabels(pairs: RankedPair[]): Promise<ConnectSug
 }
 
 /**
+ * Every candidate's passages in two queries instead of two per candidate.
+ *
+ * `getNotePassages` is the single-note version and stays the right call for a single note.
+ * Here it was being awaited once per candidate inside a serial loop, so twenty candidates
+ * cost forty round trips before the ranking had even started — and the ranking then paid for
+ * more of its own. Same rows, same dedupe, one pass.
+ */
+async function getNotePassagesBatch(noteIds: string[]): Promise<Map<string, VerseKey[]>> {
+  const out = new Map<string, VerseKey[]>();
+  if (!noteIds.length) return out;
+
+  // A note's passages are its own scripture metadata plus that of every scripture note it
+  // links to, so the linked ids have to be resolved before the metadata can be asked for.
+  const links = await db
+    .select({ noteId: NoteScriptureReferences.noteId, sid: NoteScriptureReferences.scriptureNoteId })
+    .from(NoteScriptureReferences)
+    .where(inArray(NoteScriptureReferences.noteId, noteIds));
+
+  const linkedByNote = new Map<string, string[]>();
+  for (const l of links) {
+    const list = linkedByNote.get(l.noteId);
+    if (list) list.push(l.sid);
+    else linkedByNote.set(l.noteId, [l.sid]);
+  }
+
+  const metadataIds = [...new Set([...noteIds, ...links.map((l) => l.sid)])];
+  const rows = await db
+    .select({
+      noteId: ScriptureMetadata.noteId,
+      book: ScriptureMetadata.book,
+      chapter: ScriptureMetadata.chapter,
+      verse: ScriptureMetadata.verse,
+    })
+    .from(ScriptureMetadata)
+    .where(inArray(ScriptureMetadata.noteId, metadataIds));
+
+  const rowsByNote = new Map<string, VerseKey[]>();
+  for (const r of rows) {
+    const list = rowsByNote.get(r.noteId);
+    const key = { book: r.book, chapter: r.chapter, verse: r.verse };
+    if (list) list.push(key);
+    else rowsByNote.set(r.noteId, [key]);
+  }
+
+  for (const noteId of noteIds) {
+    const seen = new Set<string>();
+    const passages: VerseKey[] = [];
+    for (const sourceId of [noteId, ...(linkedByNote.get(noteId) ?? [])]) {
+      for (const v of rowsByNote.get(sourceId) ?? []) {
+        const k = `${v.book}|${v.chapter}|${v.verse}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        passages.push(v);
+      }
+    }
+    out.set(noteId, passages);
+  }
+
+  return out;
+}
+
+/**
+ * How many candidates are ranked at once.
+ *
+ * Each ranking pass is four dependent queries, so running them one candidate at a time made
+ * the endpoint as slow as twenty of those chains end to end. Four at a time is the useful
+ * part of that win without turning one dashboard request into twenty concurrent connections:
+ * the Supabase session pooler caps clients per process, and exhausting it surfaces as
+ * unrelated requests failing rather than as this one being slow.
+ */
+const RANKING_CONCURRENCY = 4;
+
+/**
  * Find the strongest pair of the user's notes that are related (by passage/cross-ref/theme) but
  * not yet connected via NoteConnections. Checks the top N notes by meaning weight (from fingerprints)
  * to keep the query bounded. Returns at most `limit` suggestions.
@@ -189,31 +264,53 @@ export async function getConnectSuggestions(
   const usedPairs = new Set<string>();
   const candidates = noteIds.slice(0, candidateLimit);
 
-  for (const noteId of candidates) {
-    if (out.length >= limit) break;
-    const passages = await getNotePassages(noteId);
-    if (!passages.length) continue;
+  // Fetched once for the whole run. Every ranking pass below scans the same set — the user's
+  // scripture-tagged notes — and differs only by which single note it excludes, so leaving the
+  // scan inside the pass meant running it twenty times for twenty one-row differences.
+  const [passagesByNote, relatedCandidates] = await Promise.all([
+    getNotePassagesBatch(candidates),
+    getRelatedNoteCandidates(userId),
+  ]);
+  // A candidate with no passages has nothing to match on, so it never reaches the ranker.
+  // Dropping those here rather than inside the loop means the concurrency below is spent
+  // entirely on candidates that can actually produce a pair.
+  const rankable = candidates.filter((noteId) => (passagesByNote.get(noteId) ?? []).length > 0);
 
-    const related = await getRelatedNotesForPassages(userId, passages, {
-      excludeNoteId: noteId,
-      limit: 10,
-    });
-
-    const linkedIds = linkedByNote.get(noteId) ?? new Set();
-    const best = pickBestUnlinkedPair(
-      noteId,
-      titleById.get(noteId) ?? 'Untitled note',
-      related,
-      linkedIds,
-      titleById,
+  /*
+   * Ranked a few at a time, still stopping as soon as there are enough suggestions.
+   *
+   * The early exit is what makes the chunking worth keeping over a plain `Promise.all`: a user
+   * whose first four notes yield three pairs pays for one wave, not twenty candidates' worth of
+   * queries. The order candidates are considered in is unchanged, and so is the result — the
+   * chunk's outcomes are folded back in list order, not completion order, so two runs over the
+   * same data still produce the same suggestions in the same sequence.
+   */
+  for (let i = 0; i < rankable.length && out.length < limit; i += RANKING_CONCURRENCY) {
+    const chunk = rankable.slice(i, i + RANKING_CONCURRENCY);
+    const ranked = await Promise.all(
+      chunk.map(async (noteId) => {
+        const related = await getRelatedNotesForPassages(userId, passagesByNote.get(noteId)!, {
+          excludeNoteId: noteId,
+          limit: 10,
+          candidates: relatedCandidates,
+        });
+        return pickBestUnlinkedPair(
+          noteId,
+          titleById.get(noteId) ?? 'Untitled note',
+          related,
+          linkedByNote.get(noteId) ?? new Set(),
+          titleById,
+        );
+      }),
     );
 
-    if (best) {
+    for (const best of ranked) {
+      if (out.length >= limit) break;
+      if (!best) continue;
       const pairKey = [best.noteAId, best.noteBId].sort().join('|');
-      if (!usedPairs.has(pairKey)) {
-        usedPairs.add(pairKey);
-        out.push(best);
-      }
+      if (usedPairs.has(pairKey)) continue;
+      usedPairs.add(pairKey);
+      out.push(best);
     }
   }
 
