@@ -445,6 +445,14 @@ export type ReviewDockResult = {
   recallState: string;
   /** True when this answer is what moved it into "Holding" — worth marking, once. */
   crossedToDurable: boolean;
+  /**
+   * The verse a rung withheld while asking, shown once the answer is in.
+   *
+   * Null on every rung that had the verse on screen all along. Putting the words back in order
+   * and naming the reference are the two that hide it, and leaving the reader with four
+   * shuffled phrases and no verse is not how a review should end.
+   */
+  verseText?: string | null;
   /** Set fresh on each answer so the dock's dwell timer restarts. */
   at: number;
 };

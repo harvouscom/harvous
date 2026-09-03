@@ -29,6 +29,7 @@ import {
   applyReviewOutcome,
   gradeNoteAnswer,
   gradeVerseAnswer,
+  verseTruthFor,
   buildReviewItemViews,
   buildReviewReveal,
   createReviewItem,
@@ -238,9 +239,17 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       attempt,
     );
 
+    /*
+     * The verse a rung withheld, handed back now that the question is answered. Read from the
+     * item as it was asked, not as it now is — the outcome has already moved it to the next
+     * rung, and the verse owed is the one just answered about.
+     */
+    const truth = await verseTruthFor(item);
+
     return c.json({
       success: true,
       item: (await buildReviewItemViews(auth.userId, [updated]))[0],
+      ...(truth ? { truth: { verseText: truth } } : {}),
       next: {
         intervalDays: nextReturnDays,
         dueAt: updated.dueAt.toISOString(),

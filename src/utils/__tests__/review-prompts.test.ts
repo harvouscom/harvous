@@ -16,6 +16,8 @@ import {
   reviewRungIsGraded,
   VERSE_SEQUENCE_STEP,
   VERSE_LOCATE_STEP,
+  VERSE_MAINTENANCE,
+  verseRungFor,
 } from '../review-prompts';
 
 const CTX = {
@@ -88,8 +90,10 @@ describe('pickPromptKey', () => {
     expect(pickPromptKey('verse', 0, 2)).toBe(VERSE_LADDER[2]);
   });
 
-  it('clamps a ladder step past the top rung', () => {
-    expect(pickPromptKey('verse', 0, 99)).toBe(VERSE_LADDER[VERSE_LADDER_MAX_STEP]);
+  it('wraps a verse past the top rung and clamps it below the first', () => {
+    // Past the top the ladder cycles into maintenance rather than stopping — see the wrap
+    // tests below. Below zero there is nowhere to go but the first rung.
+    expect(pickPromptKey('verse', 0, VERSE_LADDER.length)).toBe(VERSE_MAINTENANCE[0]);
     expect(pickPromptKey('verse', 0, -3)).toBe(VERSE_LADDER[0]);
   });
 });
@@ -181,9 +185,13 @@ describe('ladder advancement', () => {
     expect(nextLadderStep('thread', 5)).toBe(5);
   });
 
-  it('stops at the top of each ladder', () => {
+  it('stops a note at its top rung, and lets a verse carry on', () => {
+    /*
+     * The note ladder ends: its three rungs are everything the app can ask about a note. The
+     * verse ladder does not, because a memorised verse still needs keeping.
+     */
     expect(nextLadderStep('note', NOTE_LADDER_MAX_STEP)).toBe(NOTE_LADDER_MAX_STEP);
-    expect(nextLadderStep('verse', VERSE_LADDER_MAX_STEP)).toBe(VERSE_LADDER_MAX_STEP);
+    expect(nextLadderStep('verse', VERSE_LADDER_MAX_STEP)).toBe(VERSE_LADDER_MAX_STEP + 1);
   });
 
   it('knows which kinds have a ladder at all', () => {
@@ -222,5 +230,55 @@ describe('the verse ladder after "what comes next" arrived', () => {
     // Every note rung is a multiple choice.
     expect(reviewRungIsGraded({ kind: 'note', ladderStep: 2 })).toBe(true);
     expect(reviewRungIsGraded({ kind: 'thread', ladderStep: 0 })).toBe(false);
+  });
+});
+
+describe('the ladder wraps rather than ending', () => {
+  /*
+   * The top rung used to be terminal: a verse someone had worked all the way up asked "where is
+   * this from?" every time it came round, forever, so the passage they knew best was the one
+   * the app had nothing left to say about.
+   */
+  it('keeps climbing past the top instead of clamping', () => {
+    expect(nextLadderStep('verse', VERSE_LADDER_MAX_STEP)).toBe(VERSE_LADDER_MAX_STEP + 1);
+    expect(nextLadderStep('verse', 47)).toBe(48);
+  });
+
+  it('cycles the rungs worth repeating, and only those', () => {
+    const first = VERSE_LADDER.length;
+    const cycle = VERSE_MAINTENANCE.map((_, i) => verseRungFor(first + i).key);
+    expect(cycle).toEqual([...VERSE_MAINTENANCE]);
+    // Learning rungs do not come back: "what does this verse say?" of something memorised
+    // months ago is a question with no work in it.
+    expect(VERSE_MAINTENANCE).not.toContain('verse.recognize');
+    expect(VERSE_MAINTENANCE).not.toContain('verse.recall');
+  });
+
+  it('raises the pass each time round, and never before', () => {
+    const first = VERSE_LADDER.length;
+    for (let i = 0; i < VERSE_MAINTENANCE.length; i++) {
+      expect(verseRungFor(first + i).pass).toBe(1);
+    }
+    expect(verseRungFor(first + VERSE_MAINTENANCE.length).pass).toBe(2);
+    expect(verseRungFor(first + VERSE_MAINTENANCE.length * 3).pass).toBe(4);
+    // Still climbing: pass 0 is the ladder itself.
+    for (let step = 0; step <= VERSE_LADDER_MAX_STEP; step++) {
+      expect(verseRungFor(step).pass).toBe(0);
+    }
+  });
+
+  it('asks the same rung the same way whether climbing or maintaining', () => {
+    // A maintenance `locate` is a locate: graded, and it still hides the reference.
+    const maintenanceLocate = VERSE_LADDER.length + VERSE_MAINTENANCE.indexOf('verse.locate');
+    expect(verseRungFor(maintenanceLocate).key).toBe('verse.locate');
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: maintenanceLocate })).toBe(true);
+    const maintenanceRebuild = VERSE_LADDER.length + VERSE_MAINTENANCE.indexOf('verse.rebuild');
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: maintenanceRebuild })).toBe(false);
+  });
+
+  it('tolerates a nonsense step', () => {
+    expect(verseRungFor(-4).key).toBe(VERSE_LADDER[0]);
+    expect(verseRungFor(Number.NaN).key).toBe(VERSE_LADDER[0]);
+    expect(verseRungFor(1e6).pass).toBeGreaterThan(0);
   });
 });

@@ -1,5 +1,5 @@
 import { NOTE_WRITTEN_SOURCE } from '@/utils/study-bible-source-copy';
-import { NOTE_RECOGNIZE_STEP, VERSE_LOCATE_STEP } from '@/utils/review-prompts';
+import { NOTE_RECOGNIZE_STEP, verseRungFor } from '@/utils/review-prompts';
 
 /**
  * The line under a review question that says *which* thing is being asked about.
@@ -130,6 +130,7 @@ export function rungIdentityIsTheAnswer(item: {
 }): boolean {
   // "Which of your notes says this?" — the note's identity is the whole answer.
   if (item.kind === 'note') return item.ladderStep === NOTE_RECOGNIZE_STEP;
-  // "Where is this from?" — so is the reference.
-  return item.kind === 'verse' && item.ladderStep === VERSE_LOCATE_STEP;
+  // "Where is this from?" — so is the reference. Resolved rather than compared against the
+  // step, so the rung still hides its answer when it comes round on a maintenance pass.
+  return item.kind === 'verse' && verseRungFor(item.ladderStep ?? 0).key === 'verse.locate';
 }

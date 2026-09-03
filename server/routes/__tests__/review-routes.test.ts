@@ -129,8 +129,8 @@ describe('the two graded rungs are marked on the server', () => {
      */
     const text = service();
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
-    for (const step of ['VERSE_SEQUENCE_STEP', 'VERSE_LOCATE_STEP']) {
-      const guard = reveal.slice(reveal.indexOf(`item.ladderStep === ${step}`));
+    for (const key of ['verse.sequence', 'verse.locate']) {
+      const guard = reveal.slice(reveal.indexOf(`rung.key === '${key}'`));
       const rung = guard.slice(0, guard.indexOf('\n        }'));
       expect(rung).toContain('payload.verseText = null');
     }
@@ -280,8 +280,8 @@ describe('the "what comes next" rung', () => {
      * question about what you remember into one about what number comes after seven.
      */
     const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
-    const branch = reveal.slice(reveal.indexOf('VERSE_NEXT_STEP'));
-    const block = branch.slice(0, branch.indexOf('VERSE_LOCATE_STEP'));
+    const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.next'"));
+    const block = branch.slice(0, branch.indexOf("rung.key === 'verse.locate'"));
     expect(block).toContain('options: exercise.options');
     expect(block).not.toContain('reference');
     expect(block).not.toContain('answerIndex');
@@ -291,5 +291,46 @@ describe('the "what comes next" rung', () => {
     const grader = service().slice(service().indexOf('export async function gradeVerseAnswer'));
     expect(grader).toContain('gradeVerseNext');
     expect(grader.slice(0, 900)).toMatch(/isNext/);
+  });
+});
+
+describe('the ladder wrap and the truth restore', () => {
+  it('decides every verse branch by the rung, not by the step number', () => {
+    /*
+     * Past the top the same rungs come round again on a maintenance pass, at step numbers that
+     * match no constant. A branch comparing `ladderStep === VERSE_LOCATE_STEP` would stop
+     * recognising its own rung the moment a verse wrapped.
+     */
+    const text = service();
+    expect(text).toContain('verseRungFor(item.ladderStep)');
+    expect(text).not.toMatch(/ladderStep === VERSE_(LOCATE|SEQUENCE|NEXT|REBUILD)_STEP/);
+  });
+
+  it('erodes the cloze by the pass, never by how many times it was answered', () => {
+    // `reviewCount` rises on every answer, so ten near misses would hand someone a
+    // mostly-blank verse they have never once recalled.
+    const text = service();
+    expect(text).toContain('verseClozeRatio(rung.pass)');
+    expect(text).not.toContain('verseClozeRatio(item.reviewCount');
+  });
+
+  it('hands back the verse a rung withheld, once it has been answered', () => {
+    const text = service();
+    expect(text).toContain('export async function verseTruthFor');
+    const fn = text.slice(text.indexOf('export async function verseTruthFor'));
+    // Only the two rungs that hide it; everything else showed the verse all along.
+    expect(fn.slice(0, 500)).toContain("'verse.sequence'");
+    expect(fn.slice(0, 500)).toContain("'verse.locate'");
+  });
+
+  it('reads the truth from the item as it was asked, not as the outcome left it', () => {
+    // `applyReviewOutcome` has already advanced the rung; the verse owed is the one just
+    // answered about.
+    const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+    const outcome = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
+    const call = outcome.indexOf('verseTruthFor(item)');
+    expect(call).toBeGreaterThan(-1);
+    expect(outcome.slice(0, call)).toContain('applyReviewOutcome');
+    expect(outcome).not.toContain('verseTruthFor(updated)');
   });
 });

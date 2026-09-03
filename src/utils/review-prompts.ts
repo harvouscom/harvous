@@ -178,6 +178,47 @@ export const VERSE_LADDER: readonly ReviewPromptKey[] = [
 
 export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
 
+/**
+ * What a verse is asked once it has climbed the whole ladder.
+ *
+ * Without this the top rung is terminal: a verse someone has worked all the way up asks "where
+ * is this from?" every time it comes round, forever, and the one passage they know best is the
+ * one the app has nothing left to say about.
+ *
+ * Only the rungs worth repeating. `verse.recognize` and `verse.recall` are how a verse is
+ * learned, not how it is kept — asking "what does this verse say?" of something memorised
+ * months ago is a question with no work in it. What remains gets harder instead: each pass
+ * through this list hides more of the text than the last.
+ */
+export const VERSE_MAINTENANCE: readonly ReviewPromptKey[] = [
+  'verse.rebuild',
+  'verse.next',
+  'verse.sequence',
+  'verse.locate',
+];
+
+/** The rung a verse is on, and how many times it has been round the maintenance cycle. */
+export interface VerseRung {
+  key: ReviewPromptKey;
+  /**
+   * 0 while climbing, then 1, 2, 3… once wrapped.
+   *
+   * Drives how much of the verse is hidden. Not `reviewCount`, which rises on every answer —
+   * ten "almost"s would hand someone a mostly-blank verse they have never once recalled.
+   */
+  pass: number;
+}
+
+export function verseRungFor(step: number): VerseRung {
+  const clamped = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) : 0;
+  if (clamped < VERSE_LADDER.length) return { key: VERSE_LADDER[clamped], pass: 0 };
+  const offset = clamped - VERSE_LADDER.length;
+  return {
+    key: VERSE_MAINTENANCE[offset % VERSE_MAINTENANCE.length],
+    pass: 1 + Math.floor(offset / VERSE_MAINTENANCE.length),
+  };
+}
+
 /** The rung whose prompt hides part of the verse. The page renders a cloze only here. */
 export const VERSE_REBUILD_STEP = 1;
 
@@ -199,6 +240,8 @@ export const VERSE_LOCATE_STEP = 6;
  * subtitle rule and the outcome route — and a rung added to two of them is a rung that asks a
  * question nobody can answer, or marks one nobody was asked.
  */
+const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>(['verse.next', 'verse.sequence', 'verse.locate']);
+
 export function reviewRungIsGraded(item: {
   kind?: string | null;
   ladderStep?: number | null;
@@ -206,11 +249,9 @@ export function reviewRungIsGraded(item: {
   // Every note rung is a multiple choice now.
   if (item.kind === 'note') return true;
   if (item.kind !== 'verse') return false;
-  return (
-    item.ladderStep === VERSE_NEXT_STEP ||
-    item.ladderStep === VERSE_SEQUENCE_STEP ||
-    item.ladderStep === VERSE_LOCATE_STEP
-  );
+  // Resolved rather than compared against the step, so a rung reached on a maintenance pass is
+  // the same rung it was the first time round.
+  return GRADED_VERSE_KEYS.has(verseRungFor(item.ladderStep ?? 0).key);
 }
 
 /**
@@ -234,9 +275,12 @@ export function ladderMaxStepFor(kind: ReviewItemKind): number | null {
 
 /** The next rung after a clean recall, clamped to the ladder's top. */
 export function nextLadderStep(kind: ReviewItemKind, step: number): number {
+  const current = Math.max(0, Math.trunc(Number.isFinite(step) ? step : 0));
+  // A verse keeps climbing past the top of the ladder, into the maintenance cycle.
+  if (kind === 'verse') return current + 1;
   const max = ladderMaxStepFor(kind);
   if (max === null) return step;
-  return Math.min(max, Math.max(0, Math.trunc(step)) + 1);
+  return Math.min(max, current + 1);
 }
 
 /**
@@ -257,10 +301,8 @@ export function pickPromptKey(
   ladderStep = 0,
   itemId?: string | null,
 ): ReviewPromptKey {
-  if (kind === 'verse') {
-    const step = Math.min(Math.max(0, Math.trunc(ladderStep)), VERSE_LADDER_MAX_STEP);
-    return VERSE_LADDER[step];
-  }
+  // Past the top the ladder wraps into maintenance rather than stopping — see `verseRungFor`.
+  if (kind === 'verse') return verseRungFor(ladderStep).key;
   /*
    * The *nominal* rung for a note. What it can actually be asked depends on whether it has a
    * body to quote, a passage to name or a link to recall — see `resolveNoteRung`, which the

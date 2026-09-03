@@ -49,10 +49,7 @@ import {
   nextLadderStep,
   reviewPromptFor,
   type ReviewPromptKey,
-  VERSE_LOCATE_STEP,
-  VERSE_NEXT_STEP,
-  VERSE_REBUILD_STEP,
-  VERSE_SEQUENCE_STEP,
+  verseRungFor,
 } from '@/utils/review-prompts';
 import {
   buildVerseLocate,
@@ -63,7 +60,7 @@ import {
   gradeVerseLocate,
   gradeVerseSequence,
 } from '@/utils/verse-ladder-exercises';
-import { buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
+import { verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
@@ -1126,6 +1123,23 @@ async function listUserVerseReferences(userId: string, exclude: string): Promise
  * Over-fetches neighbours: a verse whose text is missing from the cache contributes no option,
  * and three distractors is the difference between a question and a coin toss.
  */
+/**
+ * The verse itself, for after an answer on a rung that withheld it.
+ *
+ * `verse.sequence` and `verse.locate` both hide the text — one because the words are the
+ * puzzle, the other because they name the reference. That is right while the question stands,
+ * and wrong the moment it is answered: the reader is left holding four shuffled phrases and no
+ * verse, which is the one thing they came to review. Returns null for rungs that showed it all
+ * along, so the client has nothing extra to render.
+ */
+export async function verseTruthFor(item: ReviewItemRow): Promise<string | null> {
+  if (item.kind !== 'verse' || !item.scriptureReference) return null;
+  const rung = verseRungFor(item.ladderStep);
+  if (rung.key !== 'verse.sequence' && rung.key !== 'verse.locate') return null;
+  const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
+  return html || null;
+}
+
 async function buildVerseNextFor(item: ReviewItemRow): Promise<VerseNextExercise | null> {
   if (!item.scriptureReference) return null;
 
@@ -1158,9 +1172,10 @@ export async function gradeVerseAnswer(
   answer: { order?: number[]; option?: string },
 ): Promise<ReviewOutcome | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
-  const isSequence = item.ladderStep === VERSE_SEQUENCE_STEP && Array.isArray(answer.order);
-  const isLocate = item.ladderStep === VERSE_LOCATE_STEP && typeof answer.option === 'string';
-  const isNext = item.ladderStep === VERSE_NEXT_STEP && typeof answer.option === 'string';
+  const rung = verseRungFor(item.ladderStep);
+  const isSequence = rung.key === 'verse.sequence' && Array.isArray(answer.order);
+  const isLocate = rung.key === 'verse.locate' && typeof answer.option === 'string';
+  const isNext = rung.key === 'verse.next' && typeof answer.option === 'string';
   if (!isSequence && !isLocate && !isNext) return null;
 
   if (isNext) {
@@ -1432,22 +1447,29 @@ export async function buildReviewReveal(
       if (item.kind === 'verse' && html) {
         const text = stripHtml(html);
         const seed = `${item.id}:${item.ladderStep}`;
-        if (item.ladderStep === VERSE_REBUILD_STEP) {
-          payload.cloze = buildVerseCloze(text, seed);
+        /*
+         * Which rung this is, rather than which number the step happens to be. Past the top of
+         * the ladder the same rungs come round again on a maintenance pass, and every branch
+         * below has to recognise them when they do.
+         */
+        const rung = verseRungFor(item.ladderStep);
+        if (rung.key === 'verse.rebuild') {
+          // A later pass hides more, and the seed carries the step, so it hides a different set.
+          payload.cloze = buildVerseCloze(text, seed, verseClozeRatio(rung.pass));
         }
-        if (item.ladderStep === VERSE_SEQUENCE_STEP) {
+        if (rung.key === 'verse.sequence') {
           const exercise = buildVerseSequence(text, seed);
           // Phrases only. `order` is the answer, and stays here — as does the verse itself,
           // which is the same information in one line.
           payload.sequence = exercise ? { phrases: exercise.phrases } : null;
           if (exercise) payload.verseText = null;
         }
-        if (item.ladderStep === VERSE_NEXT_STEP) {
+        if (rung.key === 'verse.next') {
           const exercise = await buildVerseNextFor(item);
           // The verse asked about stays: it is the question, not the answer.
           payload.next = exercise ? { options: exercise.options } : null;
         }
-        if (item.ladderStep === VERSE_LOCATE_STEP) {
+        if (rung.key === 'verse.locate') {
           const pool = await listUserVerseReferences(userId, item.scriptureReference);
           const exercise = buildVerseLocate(item.scriptureReference, text, pool, seed);
           payload.locate = exercise ? { phrase: exercise.phrase, options: exercise.options } : null;

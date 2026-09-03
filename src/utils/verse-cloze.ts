@@ -82,6 +82,23 @@ function bareWord(token: string): string {
 const MAX_BLANK_SHARE = 0.6;
 
 /**
+ * How much of a verse to hide on a given maintenance pass.
+ *
+ * A verse that has been round the ladder does not need the same gaps back; it needs bigger
+ * ones. Three steps and then a ceiling, because `verse.recall` — write it from memory — is
+ * already the 100% rung, and a cloze that hides more than three content words in five stops
+ * being a prompt and becomes that rung with extra steps.
+ *
+ * Driven by the pass, never by `reviewCount`: the count rises on every answer, so ten near
+ * misses would hand someone a mostly-blank verse they have never once recalled.
+ */
+export function verseClozeRatio(pass: number): number {
+  const steps = [0.3, 0.45, 0.6];
+  const index = Math.min(steps.length - 1, Math.max(0, Math.trunc(Number.isFinite(pass) ? pass : 0)));
+  return Math.min(MAX_BLANK_SHARE, steps[index]);
+}
+
+/**
  * Build the exercise.
  *
  * `ratio` is the share of *content words* hidden, not of the whole verse. Sharing out of all
@@ -104,6 +121,15 @@ export function buildVerseCloze(text: string, seed: string, ratio = 0.3): VerseC
     const word = bareWord(tokens[i]);
     if (word.length < MIN_BLANK_LENGTH) continue;
     if (STOPWORDS.has(word.toLowerCase())) continue;
+    /*
+     * Only tokens whose word sits contiguously inside them.
+     *
+     * `me—and` is one whitespace-delimited token holding two words, and `bareWord` strips the
+     * em-dash from the middle to give `meand` — a string the token does not contain. Blanking
+     * it printed `_____nd`, eating the dash and half the second word. Rare enough to skip
+     * rather than to re-tokenise around, and skipping is what keeps the verse readable.
+     */
+    if (!tokens[i].includes(word)) continue;
     eligible.push(i);
   }
 
@@ -134,9 +160,13 @@ export function buildVerseCloze(text: string, seed: string, ratio = 0.3): VerseC
     .map((token, i) => {
       if (!blankSet.has(i)) return token;
       const word = bareWord(token);
-      // Keep trailing punctuation outside the gap so the sentence still scans.
-      const trailing = token.slice(token.lastIndexOf(word) + word.length);
-      return `${'_'.repeat(Math.max(3, word.length))}${trailing}`;
+      // Punctuation stays outside the gap, on both sides, so the sentence still scans: an
+      // opening quote or bracket belongs to the verse, not to the word being recalled.
+      const at = token.indexOf(word);
+      if (at < 0) return '_'.repeat(Math.max(3, word.length));
+      const leading = token.slice(0, at);
+      const trailing = token.slice(at + word.length);
+      return `${leading}${'_'.repeat(Math.max(3, word.length))}${trailing}`;
     })
     .join(' ');
 

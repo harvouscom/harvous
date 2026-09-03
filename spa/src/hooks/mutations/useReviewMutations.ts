@@ -48,6 +48,13 @@ export interface ReviewOutcomeInput {
 export interface ReviewOutcomeResponse {
   item: ReviewItemView;
   next: { intervalDays: number; dueAt: string; recallState: string; label: string };
+  /**
+   * The verse a rung withheld while it was asking, handed back now the question is answered.
+   *
+   * Only present on the rungs that hid it — putting the words back in order, and naming the
+   * reference. Absent everywhere else, including where the verse was on screen all along.
+   */
+  truth?: { verseText: string } | null;
 }
 
 /**

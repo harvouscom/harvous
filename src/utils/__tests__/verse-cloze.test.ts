@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildVerseCloze, verseCue } from '../verse-cloze';
+import { buildVerseCloze, verseClozeRatio, verseCue } from '../verse-cloze';
 
 const JOHN_15_5 =
   'I am the vine; you are the branches. Whoever abides in me and I in him, he it is that bears much fruit, for apart from me you can do nothing.';
@@ -80,5 +80,57 @@ describe('verseCue', () => {
 
   it('is empty for empty text', () => {
     expect(verseCue('')).toBe('');
+  });
+});
+
+describe('verseClozeRatio', () => {
+  it('hides more each time a verse comes back round', () => {
+    expect(verseClozeRatio(0)).toBeLessThan(verseClozeRatio(1));
+    expect(verseClozeRatio(1)).toBeLessThan(verseClozeRatio(2));
+  });
+
+  it('stops rising, because writing it from memory is already a rung', () => {
+    /*
+     * `verse.recall` asks for the whole verse. A cloze that hides more than three content words
+     * in five stops being a prompt and becomes that rung with extra steps.
+     */
+    expect(verseClozeRatio(3)).toBe(verseClozeRatio(2));
+    expect(verseClozeRatio(99)).toBeLessThanOrEqual(0.6);
+  });
+
+  it('tolerates a nonsense pass', () => {
+    expect(verseClozeRatio(-2)).toBe(verseClozeRatio(0));
+    expect(verseClozeRatio(Number.NaN)).toBe(verseClozeRatio(0));
+  });
+
+  it('actually blanks more of a verse at a higher pass', () => {
+    const text =
+      'I am the vine you are the branches the one who remains in me and I in him bears much fruit because apart from me you can accomplish nothing';
+    const low = buildVerseCloze(text, 'seed:1', verseClozeRatio(0));
+    const high = buildVerseCloze(text, 'seed:2', verseClozeRatio(2));
+    expect(high.blanks.length).toBeGreaterThan(low.blanks.length);
+  });
+});
+
+describe('a blank never mangles the words around it', () => {
+  it('leaves a hyphen-joined pair alone rather than eating the dash', () => {
+    /*
+     * Found by walking a later erosion pass, where more blanks meant a better chance of
+     * hitting one. `me—and` is a single whitespace-delimited token holding two words; the
+     * dash is stripped from the middle to give `meand`, which the token does not contain, and
+     * the gap printed `_____nd`.
+     */
+    const text = 'The one who remains in me—and I in him—bears much fruit today always';
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const cloze = buildVerseCloze(text, seed, 0.6);
+      expect(cloze.display).toContain('me—and');
+      expect(cloze.display).not.toMatch(/_nd\b/);
+    }
+  });
+
+  it('keeps punctuation on both sides of the gap', () => {
+    const cloze = buildVerseCloze('“Rejoice always, pray continually, everywhere”', 'a', 0.6);
+    expect(cloze.display.startsWith('“')).toBe(true);
+    expect(cloze.display.trimEnd().endsWith('”')).toBe(true);
   });
 });

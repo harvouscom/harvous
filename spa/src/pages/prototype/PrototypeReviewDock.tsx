@@ -262,6 +262,9 @@ export default function PrototypeReviewDock() {
               label: data.next.label,
               recallState: data.next.recallState,
               crossedToDurable,
+              // The verse the rung withheld. Without it, answering "put these back in order"
+              // leaves the reader holding four shuffled phrases and no verse.
+              verseText: data.truth?.verseText ?? null,
               at: Date.now(),
             });
             setSitting((current) => ({
@@ -400,6 +403,14 @@ export default function PrototypeReviewDock() {
            * on the answer that earns it — that it is holding now.
            */
           <div className="proto-review-dock__result">
+            {/* The verse first, the verdict under it: what the reader came back for is the
+                text, not the bookkeeping. */}
+            {lastResult.verseText ? (
+              <p
+                className="proto-review-dock__verse proto-review-dock__verse--scripture"
+                dangerouslySetInnerHTML={{ __html: lastResult.verseText }}
+              />
+            ) : null}
             <span className="proto-dock-check" aria-hidden>
               <Icon name="check" size={12} />
             </span>
