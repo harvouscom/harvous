@@ -123,6 +123,133 @@ function stabilityDaysForNode(node: ReviewCandidateNode): number {
 }
 
 /**
+ * How long a node must have existed before Review will ask about it.
+ *
+ * A node created this morning is not a memory yet. The engine had no age gate at all: something
+ * touched once, twenty-five hours ago, and never returned to was fully eligible — and because
+ * the learning-need term measures time since `lastSeenAt`, an abandoned node kept *climbing*
+ * the queue the longer it was ignored.
+ */
+export const ENGINE_MIN_NODE_AGE_DAYS = 3;
+
+/**
+ * How many distinct deliberate acts a node needs before it is worth asking about.
+ *
+ * Two, from different acts — not two of the same. Seeing a thing repeatedly is not the same as
+ * doing something with it, which is why exposure can contribute at most one point however high
+ * it climbs.
+ */
+export const ENGINE_MIN_COMMITTED_SIGNALS = 2;
+
+/**
+ * How much study an account needs before the engine offers anything at all.
+ *
+ * The cold start the strategy doc asks for: "do not fake personalization when a user has little
+ * study activity". Three review cards on someone's first afternoon are not a memory aid, they
+ * are a demo of a feature.
+ */
+export const ENGINE_COLD_START_MIN_READY = 5;
+
+/**
+ * The `meaningWeight` a note must clear.
+ *
+ * From `computeMeaningWeight`: a 200-character body is 0.10, one cited passage 0.05, one
+ * highlight 0.067, and each of pinned / deliberately filed / linked is 0.125. So 0.2 is roughly
+ * "a real paragraph plus one deliberate act", and it excludes the two things that made the
+ * queue feel arbitrary — a note holding a single scripture pill, and a two-line jotting.
+ *
+ * Notes only. A verse has no fingerprint and needs none: citing it *is* the deliberate act.
+ */
+export const NOTE_MEANING_WEIGHT_FLOOR = 0.2;
+
+/** Why a node is not ready, so a diagnostic can say which gate turned it away. */
+export type NodeReadiness = 'ready' | 'too-new' | 'too-few-signals' | 'too-thin';
+
+/**
+ * Distinct deliberate acts recorded against a node.
+ *
+ * `reviewCount` is deliberately absent: a node that has been reviewed already has an item, and
+ * counting it would let the engine argue for something it has already offered.
+ *
+ * **Exposure means different things to a note and to a verse**, which the counter's name hides.
+ * A note is exposed by being opened, which happens by accident; every other counter is where its
+ * deliberate acts land. A verse node is only ever touched by *citing it in your own writing or
+ * marking it while reading* — both writers record `exposure` (`process-scripture-references.ts`,
+ * `study-threads.ts`) — so for a passage each exposure is already a deliberate act, and passive
+ * reading lands on a `chapter` node, which Review never asks about.
+ *
+ * Counting them the same way was checked against a real account and would have retired scripture
+ * review entirely: of 51 verse nodes, 39 had no other signal at all and none had two.
+ */
+export function countCommittedSignals(node: ReviewCandidateNode): number {
+  let signals = 0;
+  if (node.revisitCount > 0) signals += 1;
+  if (node.explicitConnectionCount > 0) signals += 1;
+  if (node.expansionCount > 0) signals += 1;
+  if (node.synthesisCount > 0) signals += 1;
+
+  if (node.nodeKind === 'verse') {
+    // Two separate occasions of citing or marking this passage, which is two deliberate acts.
+    signals += Math.min(2, Math.max(0, node.exposureCount));
+  } else if (node.exposureCount >= 2) {
+    // Opening a note twice is a signal; opening it thirty times is still one.
+    signals += 1;
+  }
+  return signals;
+}
+
+/**
+ * Is this node worth asking about yet?
+ *
+ * Separate from `scoreNode`, which answers "how much" — this answers "at all". The two gates in
+ * `scoreNode` are about timing (asked already, seen just now); these are about whether the
+ * reader has done enough with the thing for a question to be about their study rather than
+ * about a page they once opened.
+ */
+export function nodeReadiness(
+  node: ReviewCandidateNode,
+  now: Date,
+  meaningWeight: number | null,
+): NodeReadiness {
+  if (daysBetween(node.firstStudiedAt, now) < ENGINE_MIN_NODE_AGE_DAYS) return 'too-new';
+  if (countCommittedSignals(node) < ENGINE_MIN_COMMITTED_SIGNALS) return 'too-few-signals';
+  if (node.nodeKind === 'note' && (meaningWeight ?? 0) < NOTE_MEANING_WEIGHT_FLOOR) {
+    return 'too-thin';
+  }
+  return 'ready';
+}
+
+export function nodeIsReady(
+  node: ReviewCandidateNode,
+  now: Date,
+  meaningWeight: number | null,
+): boolean {
+  return nodeReadiness(node, now, meaningWeight) === 'ready';
+}
+
+/**
+ * Does this account have enough worked-on study for the engine to run?
+ *
+ * Counted across every candidate regardless of whether Review has already asked about it: a node
+ * already in the queue still says the account is one someone has been studying in.
+ */
+export function engineHasEnoughReady(
+  nodes: readonly ReviewCandidateNode[],
+  now: Date,
+  meaningWeightByNoteId: ReadonlyMap<string, number>,
+): boolean {
+  let ready = 0;
+  for (const node of nodes) {
+    const weight = node.noteId ? meaningWeightByNoteId.get(node.noteId) ?? null : null;
+    if (nodeIsReady(node, now, weight)) {
+      ready += 1;
+      if (ready >= ENGINE_COLD_START_MIN_READY) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * The score. Higher is more worth asking about. Zero means "not now", for a stated reason.
  */
 export function scoreNode(node: ReviewCandidateNode, now: Date): number {
@@ -154,6 +281,14 @@ export interface SelectReviewBatchOptions {
   existingSourceKeys: ReadonlySet<string>;
   limit?: number;
   perKindCap?: number;
+  /**
+   * `NoteFingerprints.meaningWeight` by note id, for the readiness floor.
+   *
+   * Passed in rather than read here because this module is pure. An empty map means no note
+   * clears the floor, which is the safe direction: the engine offers nothing rather than
+   * offering everything.
+   */
+  meaningWeightByNoteId?: ReadonlyMap<string, number>;
 }
 
 /**
@@ -171,8 +306,14 @@ export function selectReviewBatch(
   const perKindCap = options.perKindCap ?? ENGINE_PER_KIND_CAP;
   if (limit <= 0) return [];
 
+  const weights = options.meaningWeightByNoteId ?? new Map<string, number>();
+
   const scored = nodes
     .filter((node) => ENGINE_NODE_KINDS.includes(node.nodeKind))
+    // Worth asking about at all, before worth asking about now.
+    .filter((node) =>
+      nodeIsReady(node, options.now, node.noteId ? weights.get(node.noteId) ?? null : null),
+    )
     .filter((node) => {
       const sourceKey = reviewSourceKeyForNode(node);
       return sourceKey != null && !options.existingSourceKeys.has(sourceKey);

@@ -16,7 +16,10 @@
  * query around it.
  */
 
-import { db, UserNodeStates, ReviewItems, eq, and, gt, desc, inArray } from '../db';
+import { db, UserNodeStates, ReviewItems, eq, and, gt, desc, inArray,
+  NoteFingerprints,
+} from '../db';
+import { isNoteFingerprintsTableMissing } from './pg-undefined-relation';
 import {
   REVIEW_ENGINE_DAILY_CAP,
   REVIEW_ENGINE_WINDOW_HOURS,
@@ -25,6 +28,7 @@ import {
   ENGINE_NODE_KINDS,
   ENGINE_PER_KIND_CAP,
   engineDailyRoom,
+  engineHasEnoughReady,
   selectReviewBatch,
   type ReviewCandidateNode,
 } from '@/utils/review-opportunity-scoring';
@@ -67,6 +71,18 @@ function parseTranslation(meta: string | null): string | null {
 /**
  * Top up the reader's queue from their own study, and return whatever it added.
  *
+ * **Waits before it offers anything.** A node has to be a few days old, carry two distinct
+ * deliberate acts, and — for a note — hold enough study to clear `NOTE_MEANING_WEIGHT_FLOOR`;
+ * and the account itself has to have `ENGINE_COLD_START_MIN_READY` such nodes before the engine
+ * runs at all. Before this the only gate was a 24-hour quiet rule, so anything opened once and
+ * abandoned was eligible — and because learning need is measured from `lastSeenAt`, the longer
+ * it was ignored the higher it climbed. Against a real account the gate takes 86 candidates down
+ * to 14.
+ *
+ * A new account therefore sees no engine reviews for at least a few days. That is the intent:
+ * three cards on someone's first afternoon are a demo of a feature, not a memory aid. Items the
+ * reader adds by hand, and items a challenge creates, are untouched — those are them asking.
+ *
  * Never throws: it runs at the top of a read the reader is waiting on, and an empty section is
  * a better outcome than a failed one.
  */
@@ -92,7 +108,7 @@ export async function refillReviewQueue(
     const room = engineDailyRoom(recent.length);
     if (room <= 0) return [];
 
-    const [nodes, existing] = await Promise.all([
+    const [nodes, existing, fingerprints] = await Promise.all([
       db
         .select()
         .from(UserNodeStates)
@@ -111,7 +127,26 @@ export async function refillReviewQueue(
         .select({ sourceKey: ReviewItems.sourceKey })
         .from(ReviewItems)
         .where(eq(ReviewItems.userId, userId)),
+      /*
+       * How much study each note holds, for the readiness floor.
+       *
+       * The app's richest "does this matter" number was computed on every save, indexed, and
+       * never read by Review — the engine had its own node-local guess instead. A missing table
+       * yields an empty map, which keeps notes out rather than letting them all through.
+       */
+      db
+        .select({ noteId: NoteFingerprints.noteId, meaningWeight: NoteFingerprints.meaningWeight })
+        .from(NoteFingerprints)
+        .where(eq(NoteFingerprints.userId, userId))
+        .catch((error: unknown) => {
+          if (isNoteFingerprintsTableMissing(error)) return [];
+          throw error;
+        }),
     ]);
+
+    const meaningWeightByNoteId = new Map<string, number>(
+      fingerprints.map((row) => [row.noteId, row.meaningWeight ?? 0]),
+    );
 
     const candidates: ReviewCandidateNode[] = nodes.map((row) => ({
       nodeKind: row.nodeKind as NodeKind,
@@ -140,8 +175,19 @@ export async function refillReviewQueue(
      * has gone, a kind with no question — and without the slack a skip would silently cost the
      * reader one of their three.
      */
+    /*
+     * Nothing at all until the account has enough worked-on study to be worth resurfacing.
+     *
+     * Three cards on someone's first afternoon are a demo of a feature, not a memory aid. A new
+     * account therefore sees no engine reviews for at least `ENGINE_MIN_NODE_AGE_DAYS` and until
+     * `ENGINE_COLD_START_MIN_READY` nodes have been worked on. Adding an item by hand, and the
+     * items a challenge creates, are unaffected — those are the reader asking.
+     */
+    if (!engineHasEnoughReady(candidates, now, meaningWeightByNoteId)) return [];
+
     const picks = selectReviewBatch(candidates, {
       now,
+      meaningWeightByNoteId,
       existingSourceKeys: new Set(existing.map((row) => row.sourceKey)),
       limit: room * OVERFETCH,
       perKindCap: ENGINE_PER_KIND_CAP * OVERFETCH,
