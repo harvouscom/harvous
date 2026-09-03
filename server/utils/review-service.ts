@@ -1273,7 +1273,7 @@ export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
   answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[] },
-): Promise<ReviewOutcome | null> {
+): Promise<GradedAnswer | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const rung = verseRungFor(item.ladderStep);
   const isSequence = rung.key === 'verse.sequence' && Array.isArray(answer.order);
@@ -1291,19 +1291,22 @@ export async function gradeVerseAnswer(
       `${item.id}:${item.ladderStep}`,
       verseClozeRatio(rung.pass),
     );
-    return gradeVerseRebuild(cloze, answer.words!) ? 'recalled' : 'almost';
+    return { correct: gradeVerseRebuild(cloze, answer.words!), correctAnswer: null };
   }
 
   if (isAltered) {
     const exercise = await buildVerseAlteredFor(item);
     if (!exercise) return null;
-    return gradeVerseAltered(exercise, answer.wordIndex!) ? 'recalled' : 'almost';
+    return { correct: gradeVerseAltered(exercise, answer.wordIndex!), correctAnswer: null };
   }
 
   if (isNext) {
     const exercise = await buildVerseNextFor(item);
     if (!exercise) return null;
-    return gradeVerseNext(exercise, answer.option!) ? 'recalled' : 'almost';
+    return {
+      correct: gradeVerseNext(exercise, answer.option!),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+    };
   }
 
   const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
@@ -1314,13 +1317,16 @@ export async function gradeVerseAnswer(
   if (isSequence) {
     const exercise = buildVerseSequence(text, seed);
     if (!exercise) return null;
-    return gradeVerseSequence(exercise, answer.order!) ? 'recalled' : 'almost';
+    return { correct: gradeVerseSequence(exercise, answer.order!), correctAnswer: null };
   }
 
   const pool = await listUserVerseReferences(userId, item.scriptureReference);
   const exercise = buildVerseLocate(item.scriptureReference, text, pool, seed);
   if (!exercise) return null;
-  return gradeVerseLocate(exercise, answer.option!) ? 'recalled' : 'almost';
+  return {
+    correct: gradeVerseLocate(exercise, answer.option!),
+    correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+  };
 }
 
 /**
@@ -1608,17 +1614,33 @@ async function buildNoteExercise(
  * deleted the link they were about to be asked about, say. `graded ?? outcome` in the route
  * then falls back to their own verdict, which is the safe failure.
  */
+/**
+ * Whether an answer was right, and what the right answer was.
+ *
+ * The second half is only filled in for the rungs where the answer is one of the options on
+ * screen. On the rungs built out of the verse itself — put it back in order, fill the gaps, find
+ * the changed word — the correct answer *is* the verse, and `verseTruthFor` already hands that
+ * back once the question is done with.
+ */
+export interface GradedAnswer {
+  correct: boolean;
+  correctAnswer: string | null;
+}
+
 export async function gradeNoteAnswer(
   userId: string,
   item: ReviewItemRow,
   answer: { option?: string; promptKey?: string },
-): Promise<ReviewOutcome | null> {
+): Promise<GradedAnswer | null> {
   if (typeof answer.option !== 'string') return null;
   const built = await buildNoteExercise(userId, item);
   if (!built) return null;
   // The client tells us which question it was shown; disagreement means the material moved.
   if (answer.promptKey && answer.promptKey !== built.rung) return null;
-  return gradeNoteChoice(built.exercise, answer.option, built.acceptable) ? 'recalled' : 'almost';
+  return {
+    correct: gradeNoteChoice(built.exercise, answer.option, built.acceptable),
+    correctAnswer: built.exercise.options[built.exercise.answerIndex] ?? null,
+  };
 }
 
 /** What the reader sees after they answer, or after they give up and open it. */

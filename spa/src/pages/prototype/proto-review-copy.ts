@@ -97,6 +97,12 @@ export const REVIEW_OUTCOME_ACK_COPY: Record<'recalled' | 'almost' | 'revealed',
 /** The graded rungs: the reader has arranged or chosen, and asks the app to mark it. */
 export const REVIEW_CHECK_COPY = 'Check it';
 
+/** Said after a wrong answer that still has a go left. No scolding, no exclamation. */
+export const REVIEW_TRY_AGAIN_COPY = 'Not that one. One more go.';
+
+/** Above the answer, after the last go. */
+export const REVIEW_ANSWER_LABEL = 'The answer';
+
 /** Said once, on the answer that moves something into durable recall. Never a score. */
 export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
 export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';

@@ -205,6 +205,15 @@ export function isChallengeStepKind(value: string): value is ChallengeStepKind {
  * fits under the Continue shelf without pushing the day's record off the first screen, and it
  * means the inbox can never be the biggest thing on Activity.
  */
+/**
+ * How many goes a graded rung allows before it shows the answer.
+ *
+ * Two. Being told "back in 4 days" the instant you slip teaches nothing; trying again while the
+ * question is still in front of you is where the repetition does its work. How many goes it took
+ * is what sets the interval, so the schedule still reflects how well it went.
+ */
+export const REVIEW_MAX_ATTEMPTS = 2;
+
 export const REVIEW_INBOX_MAX_ROWS = 3;
 
 /**

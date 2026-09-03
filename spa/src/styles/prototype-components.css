@@ -21798,6 +21798,17 @@ button.proto-feed-sheet__stat:hover {
   padding-left: 6px;
 }
 
+/* An option already tried and wrong: still readable, plainly spent. */
+.proto-review-dock__choice[data-missed] {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.proto-review-dock__retry {
+  margin: 0;
+  color: var(--pds-text-secondary);
+}
+
 .proto-review-dock__choice-key {
   flex-shrink: 0;
   /* Dimmer than the answer it points at: the letter is a way in, not part of the reading. */

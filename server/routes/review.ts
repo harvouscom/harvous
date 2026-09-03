@@ -23,6 +23,8 @@ import {
   isReviewItemKind,
   isReviewItemStatus,
   isReviewOutcome,
+  REVIEW_MAX_ATTEMPTS,
+  type ReviewOutcome,
 } from '@/utils/review-item-kinds';
 import { describeNextReturn } from '@/utils/review-scheduling';
 import {
@@ -211,6 +213,11 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
     const attempt =
       typeof body?.attempt === 'string' ? body.attempt.slice(0, MAX_ATTEMPT_LENGTH) : null;
 
+    /** Which go this is, 1-based. Bounded so a page cannot ask for unlimited tries. */
+    const attemptNumber = Number.isInteger(body?.attemptNumber)
+      ? Math.max(1, Math.min(REVIEW_MAX_ATTEMPTS, body.attemptNumber))
+      : 1;
+
     /*
      * Two rungs of the verse ladder have a right answer, and on those the reader's own verdict
      * is not the input — the arrangement or the option they chose is. Marked here rather than
@@ -250,10 +257,47 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         : await gradeVerseAnswer(auth.userId, item, answer)
       : null;
 
+    /*
+     * A wrong first answer is not a verdict yet.
+     *
+     * Getting one wrong and being told "back in 4 days" teaches nothing — the whole point of
+     * spaced repetition is that trying again *now*, and then seeing the right answer, is where
+     * the learning happens. So a graded rung gets two goes, and how many it took is what decides
+     * the interval:
+     *
+     *   right first time   → recalled  (a fortnight)
+     *   right on the second → almost   (a few days)
+     *   wrong twice         → revealed (tomorrow), with the answer shown
+     *
+     * Nothing is written on a non-final attempt: no outcome, no schedule, no event. The reader
+     * is looking at the same question they were looking at a second ago.
+     *
+     * `attempt` comes from the page, which is the only thing that knows how many goes this has
+     * had. A page that always claimed its first attempt would be giving itself a longer interval,
+     * which is a way of asking to be shown a verse less often — not an exploit worth a round trip
+     * to defend against.
+     */
+    if (graded && !graded.correct && attemptNumber < REVIEW_MAX_ATTEMPTS) {
+      return c.json({
+        success: true,
+        correct: false,
+        finalized: false,
+        attemptsLeft: REVIEW_MAX_ATTEMPTS - attemptNumber,
+      });
+    }
+
+    const verdict: ReviewOutcome | null = graded
+      ? graded.correct
+        ? attemptNumber > 1
+          ? 'almost'
+          : 'recalled'
+        : 'revealed'
+      : null;
+
     const { item: updated, nextReturnDays } = await applyReviewOutcome(
       auth.userId,
       item,
-      graded ?? outcome,
+      verdict ?? outcome,
       attempt,
     );
 
@@ -273,7 +317,14 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
        * then told the reader "Almost." whichever way the marking went — a right answer on every
        * graded rung read as a near miss.
        */
-      outcome: graded ?? outcome,
+      outcome: verdict ?? outcome,
+      correct: graded ? graded.correct : undefined,
+      finalized: true,
+      // Shown only once the question is over, and only where the answer was one of the options:
+      // the rungs built out of the verse hand back the verse itself instead.
+      ...(graded && !graded.correct && graded.correctAnswer
+        ? { correctAnswer: graded.correctAnswer }
+        : {}),
       item: (await buildReviewItemViews(auth.userId, [updated]))[0],
       ...(truth ? { truth: { verseText: truth } } : {}),
       next: {

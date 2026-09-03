@@ -64,6 +64,8 @@ import {
   REVIEW_REVEAL_VERSE_COPY,
   REVIEW_ALTERED_CAPTION,
   REVIEW_TRUTH_LABEL,
+  REVIEW_TRY_AGAIN_COPY,
+  REVIEW_ANSWER_LABEL,
 } from './proto-review-copy';
 
 /** Kinds whose answer is another surface: the note itself, or the Thread beside you. */
@@ -139,10 +141,13 @@ function ReviewChoiceChips({
   disabled,
   onPick,
   opening = false,
+  missed = [],
 }: {
   options: readonly string[];
   disabled: boolean;
   onPick: (option: string) => void;
+  /** Options already tried and wrong. Struck through, and not offered again. */
+  missed?: readonly string[];
   /**
    * These options are the *first words* of something longer, so they trail off.
    *
@@ -153,6 +158,8 @@ function ReviewChoiceChips({
 }) {
   const pick = useRef(onPick);
   pick.current = onPick;
+  const missedRef = useRef(missed);
+  missedRef.current = missed;
 
   useEffect(() => {
     if (disabled) return;
@@ -163,6 +170,8 @@ function ReviewChoiceChips({
         event.key.toUpperCase() as (typeof CHOICE_LETTERS)[number],
       );
       if (index < 0 || index >= options.length) return;
+      // A key for an option already ruled out does nothing, as its chip does.
+      if (missedRef.current.includes(options[index])) return;
       event.preventDefault();
       pick.current(options[index]);
     };
@@ -177,7 +186,8 @@ function ReviewChoiceChips({
           key={option}
           type="button"
           className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
-          disabled={disabled}
+          data-missed={missed.includes(option) ? '' : undefined}
+          disabled={disabled || missed.includes(option)}
           onClick={() => pick.current(option)}
         >
           {/* aria-hidden: the letter is a way to reach the button, not part of what it says. */}
@@ -231,6 +241,23 @@ export default function PrototypeReviewDock() {
   const [revealed, setRevealed] = useState(false);
   /** One string per gap on the cloze rung. Keyed to the item so a new question starts empty. */
   const [blanks, setBlanks] = useState<string[]>([]);
+  /*
+   * Which go this is, and what was already tried.
+   *
+   * A graded rung gets two: being told "back in 4 days" the instant you slip teaches nothing,
+   * and trying again while the question is still in front of you is where the repetition works.
+   */
+  const [attemptNumber, setAttemptNumber] = useState(1);
+  const [missed, setMissed] = useState<string[]>([]);
+  /*
+   * Read through a ref inside `answer`.
+   *
+   * The callback is memoised on the item and the typed attempt, and adding the go number to its
+   * dependencies would rebuild it — and the keyboard handler bound to it — on every miss. Sent
+   * from state instead, it went out as 1 both times and the second miss never finalised.
+   */
+  const attemptNumberRef = useRef(1);
+  attemptNumberRef.current = attemptNumber;
   /** Display indices the reader has placed, in the order they placed them. */
   const [placed, setPlaced] = useState<number[]>([]);
   /*
@@ -272,6 +299,8 @@ export default function PrototypeReviewDock() {
     setRevealed(false);
     setPlaced([]);
     setBlanks([]);
+    setAttemptNumber(1);
+    setMissed([]);
   }, [item?.id]);
 
   /*
@@ -305,12 +334,22 @@ export default function PrototypeReviewDock() {
         {
           itemId: item.id,
           outcome: value,
+          attemptNumber: attemptNumberRef.current,
           attempt: attempt.trim() || undefined,
           // On a graded rung the server decides; `value` is only the fallback if it cannot.
           answer: graded,
         },
         {
           onSuccess: (data) => {
+            /*
+             * Wrong, but not out of goes: keep the question up, mark what was tried, and say so.
+             * Nothing was recorded, so there is no result to show and no next question yet.
+             */
+            if (data.finalized === false) {
+              setAttemptNumber((n) => n + 1);
+              if (graded?.option) setMissed((m) => [...m, graded.option!]);
+              return;
+            }
             const crossedToDurable =
               item.recallState !== 'durable' && data.next.recallState === 'durable';
             setReviewDockResult({
@@ -322,6 +361,7 @@ export default function PrototypeReviewDock() {
               // The verse the rung withheld. Without it, answering "put these back in order"
               // leaves the reader holding four shuffled phrases and no verse.
               verseText: data.truth?.verseText ?? null,
+              correctAnswer: data.correctAnswer ?? null,
               at: Date.now(),
             });
             setSitting((current) => ({
@@ -464,6 +504,14 @@ export default function PrototypeReviewDock() {
           <div className="proto-review-dock__result">
             {/* The verse first, the verdict under it: what the reader came back for is the
                 text, not the bookkeeping. */}
+            {lastResult.correctAnswer ? (
+              <>
+                <p className="proto-caption proto-review-dock__truth-label">
+                  {REVIEW_ANSWER_LABEL}
+                </p>
+                <p className="proto-review-dock__verse">{lastResult.correctAnswer}</p>
+              </>
+            ) : null}
             {lastResult.verseText ? (
               <>
                 <p className="proto-caption proto-review-dock__truth-label">{REVIEW_TRUTH_LABEL}</p>
@@ -522,9 +570,13 @@ export default function PrototypeReviewDock() {
             ) : noteChoice.fragment ? (
               <p className="proto-review-dock__verse">“{noteChoice.fragment}”</p>
             ) : null}
+            {attemptNumber > 1 ? (
+              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
+            ) : null}
             <ReviewChoiceChips
               options={noteChoice.options}
               disabled={outcome.isPending}
+              missed={missed}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
           </>
@@ -678,9 +730,13 @@ export default function PrototypeReviewDock() {
             {verseMarkup ? (
               <p className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
             ) : null}
+            {attemptNumber > 1 ? (
+              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
+            ) : null}
             <ReviewChoiceChips
               options={nextExercise.options}
               disabled={outcome.isPending}
+              missed={missed}
               opening
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
@@ -689,9 +745,13 @@ export default function PrototypeReviewDock() {
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
             <p className="proto-review-dock__verse proto-review-dock__verse--scripture">“{locateExercise.phrase}…”</p>
+            {attemptNumber > 1 ? (
+              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
+            ) : null}
             <ReviewChoiceChips
               options={locateExercise.options}
               disabled={outcome.isPending}
+              missed={missed}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
           </>

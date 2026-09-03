@@ -35,6 +35,8 @@ export function useAddReviewItem() {
 }
 
 export interface ReviewOutcomeInput {
+  /** Which go this is, 1-based. Decides the interval, and whether a miss is final. */
+  attemptNumber?: number;
   itemId: string;
   outcome: ReviewOutcome;
   attempt?: string;
@@ -48,6 +50,16 @@ export interface ReviewOutcomeInput {
 export interface ReviewOutcomeResponse {
   /** What the server recorded. On a graded rung this is its verdict, not what the page sent. */
   outcome?: 'recalled' | 'almost' | 'revealed';
+  /** Whether the answer was right, where the server marked one. */
+  correct?: boolean;
+  /**
+   * False when a wrong answer still has a go left: nothing was written and the question stands.
+   * Absent on the ungraded rungs, which finalize immediately.
+   */
+  finalized?: boolean;
+  attemptsLeft?: number;
+  /** The option that was right, sent only once the question is over and only where it is one. */
+  correctAnswer?: string;
   item: ReviewItemView;
   next: { intervalDays: number; dueAt: string; recallState: string; label: string };
   /**
@@ -70,10 +82,11 @@ export interface ReviewOutcomeResponse {
 export function useReviewOutcome() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ itemId, outcome, attempt, answer }: ReviewOutcomeInput) =>
+    mutationFn: ({ itemId, outcome, attempt, attemptNumber, answer }: ReviewOutcomeInput) =>
       api.post<ReviewOutcomeResponse>(`/api/review/items/${encodeURIComponent(itemId)}/outcome`, {
         outcome,
         attempt,
+        attemptNumber,
         answer,
       }),
     onMutate: async ({ itemId }) => {
@@ -88,6 +101,16 @@ export function useReviewOutcome() {
     },
     onError: (_err, _input, context) => {
       if (context?.previous) queryClient.setQueryData(reviewSessionQueryKey, context.previous);
+    },
+    onSuccess: (data, _input, context) => {
+      /*
+       * A wrong answer with a go left is not an answer yet. `onMutate` has already taken the item
+       * out of the session so the next question can appear instantly on the common path, so a
+       * non-final attempt has to put it back — the reader is still looking at it.
+       */
+      if (data.finalized === false && context?.previous) {
+        queryClient.setQueryData(reviewSessionQueryKey, context.previous);
+      }
     },
     onSettled: () => {
       // Not the session: refetching it mid-sitting would pull in items answered on another

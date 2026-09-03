@@ -72,14 +72,14 @@ describe('the two graded rungs are marked on the server', () => {
     const text = review();
     const outcome = text.slice(text.indexOf("'/api/review/items/:id/outcome'"));
     expect(outcome).toContain('gradeVerseAnswer');
-    // `graded ?? outcome` — the client's claim is the fallback, not the input.
-    expect(outcome).toMatch(/graded \?\? outcome/);
+    // The server's verdict decides; the client's claim is only the fallback where it cannot mark.
+    expect(outcome).toMatch(/verdict \?\? outcome/);
   });
 
   it('marks a note rung on the server too, not just the verse ones', () => {
     const outcome = review().slice(review().indexOf("'/api/review/items/:id/outcome'"));
     expect(outcome).toContain('gradeNoteAnswer');
-    expect(outcome).toMatch(/graded \?\? outcome/);
+    expect(outcome).toMatch(/verdict \?\? outcome/);
   });
 
   it('builds a note rung and marks it from one function, so the two cannot drift', () => {
@@ -456,6 +456,41 @@ describe('what the reader is told after a graded rung', () => {
      */
     const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
     const outcomeRoute = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
-    expect(outcomeRoute).toMatch(/outcome: graded \?\? outcome/);
+    expect(outcomeRoute).toMatch(/outcome: verdict \?\? outcome/);
+  });
+});
+
+describe('a wrong answer gets another go', () => {
+  const route = () => readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+
+  it('writes nothing when a miss still has a go left', () => {
+    /*
+     * Being told "back in 4 days" the instant you slip teaches nothing. The retry happens while
+     * the question is still up, so the non-final path must return before anything is applied —
+     * no outcome, no schedule, no event.
+     */
+    const outcome = route().slice(route().indexOf("'/api/review/items/:id/outcome'"));
+    const early = outcome.indexOf('finalized: false');
+    expect(early).toBeGreaterThan(-1);
+    expect(early).toBeLessThan(outcome.indexOf('applyReviewOutcome'));
+  });
+
+  it('lets how many goes it took set the interval', () => {
+    // Right first time is a fortnight; right on the second is a few days; twice wrong is tomorrow.
+    const outcome = route().slice(route().indexOf("'/api/review/items/:id/outcome'"));
+    expect(outcome).toMatch(/attemptNumber > 1\s*\?\s*'almost'\s*:\s*'recalled'/);
+    expect(outcome).toContain(": 'revealed'");
+  });
+
+  it('bounds the attempt count the page claims', () => {
+    expect(route()).toMatch(/Math\.min\(REVIEW_MAX_ATTEMPTS, body\.attemptNumber\)/);
+  });
+
+  it('shows the right option only once the question is over', () => {
+    const outcome = route().slice(route().indexOf("'/api/review/items/:id/outcome'"));
+    const at = outcome.indexOf('correctAnswer: graded.correctAnswer');
+    expect(at).toBeGreaterThan(-1);
+    // Guarded on the answer having been wrong — a correct answer needs no answer shown.
+    expect(outcome.slice(Math.max(0, at - 160), at)).toContain('!graded.correct');
   });
 });

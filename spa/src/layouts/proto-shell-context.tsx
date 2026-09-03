@@ -453,6 +453,13 @@ export type ReviewDockResult = {
    * shuffled phrases and no verse is not how a review should end.
    */
   verseText?: string | null;
+  /**
+   * The option that was right, after the last go was spent on a wrong one.
+   *
+   * Only on the rungs whose answer is one of the options: where the answer is the verse, the
+   * verse comes back instead.
+   */
+  correctAnswer?: string | null;
   /** Set fresh on each answer so the dock's dwell timer restarts. */
   at: number;
 };
