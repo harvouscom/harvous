@@ -125,6 +125,28 @@ jobs:
             console.log("staging CSP: added *.clerk.accounts.dev to script-src and frame-src");
           '
 
+      # A staging install must not be able to pass for the production app on a home screen.
+      # public/manifest.json is one shared file: same name, same icon, start_url "/", so the
+      # two installs are indistinguishable once added — and staging's carries `url_handlers`
+      # for app.harvous.com plus handle_links "preferred", i.e. it ASKS to capture production
+      # links. Production's .well-known/web-app-origin-association should refuse that, but the
+      # request should not be made at all from a build signed with the dev Clerk key.
+      - name: Name the staging PWA distinctly (staging only)
+        if: github.ref_name != 'main'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const f = "dist-spa/manifest.json";
+            const m = JSON.parse(fs.readFileSync(f, "utf8"));
+            m.name = "Harvous (Staging)";
+            m.short_name = "Harvous Staging";
+            m.description = "Harvous staging — development Clerk instance";
+            delete m.url_handlers;
+            delete m.handle_links;
+            fs.writeFileSync(f, JSON.stringify(m, null, 2) + "\n");
+            console.log("staging manifest:", m.name, "| url_handlers removed");
+          '
+
       # Guards the one regression this migration is most likely to ship. See the ordering
       # note in cloudflare/_headers.
       - name: Assert the two deploy-breaking invariants
@@ -153,3 +175,81 @@ jobs:
           # staging` executed on main, putting a live-Clerk build on the staging Worker).
           # Keep the non-empty value in the TRUE position.
           command: deploy ${{ github.ref_name != 'main' && '--env staging' || '' }}
+
+      # Assert what the WORLD sees, not what the deploy claims. Nothing before this point
+      # can catch a wrong-Clerk-key build reaching a real host: the key is inlined at build
+      # time, so a mis-scoped secret or a hand-run `wrangler deploy` from a worktree with a
+      # dev .env produces a bundle that deploys, boots, and signs users into the development
+      # Clerk instance. One did reach an installed PWA after the cutover, and the service
+      # worker then pinned it there — `/assets/*` is cache-first with no revalidation, so the
+      # only cure was deleting the home-screen install. spa/src/main.tsx now self-heals that
+      # on the client; this is the half that stops it being shipped in the first place.
+      - name: Verify the live host serves this build, with the right Clerk instance
+        env:
+          HOST: ${{ github.ref_name == 'main' && 'app.harvous.com' || 'new.harvous.com' }}
+          EXPECT: ${{ github.ref_name == 'main' && 'pk_live_' || 'pk_test_' }}
+          FORBID: ${{ github.ref_name == 'main' && 'pk_test_' || 'pk_live_' }}
+        run: |
+          set -uo pipefail
+
+          EXPECTED_BUNDLE=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' dist-spa/index.html | head -1)
+          if [ -z "$EXPECTED_BUNDLE" ]; then
+            echo "::error::no assets/index-*.js reference in dist-spa/index.html"; exit 1
+          fi
+          SHA8=$(printf '%s' "$GITHUB_SHA" | cut -c1-8)
+
+          # Pin the IP from a public resolver. A runner holds no stale cache, but the lesson
+          # from the cutover (docs/CLOUDFLARE_MIGRATION.md) is to verify against what public
+          # DNS answers, never against whatever the local box happens to have. If dig is
+          # unavailable the checks still run, just unpinned.
+          CURL=(curl -fsS --max-time 30 -H 'Cache-Control: no-cache')
+          IP=$(dig +short "$HOST" @1.1.1.1 2>/dev/null | grep -E '^[0-9.]+$' | head -1)
+          if [ -n "$IP" ]; then
+            CURL+=(--resolve "$HOST:443:$IP")
+            echo "pinned $HOST to $IP"
+          else
+            echo "dig returned nothing for $HOST — falling back to the runner's resolver"
+          fi
+
+          # The edge can answer `/` from cache for a moment after a deploy, so retry rather
+          # than fail on a race. `/` is no-cache/must-revalidate, so this settles quickly.
+          # Every fetch lands in a file before it is read. A `curl … | grep -q` pipeline
+          # looks equivalent and is not: grep exits at the first match, curl takes SIGPIPE,
+          # and pipefail then reports a passing check as a failure — intermittently, since
+          # it depends on whether curl finished writing first.
+          SERVED=""
+          for attempt in 1 2 3 4 5 6; do
+            "${CURL[@]}" "https://$HOST/" -o served.html || true
+            SERVED=$(grep -o 'assets/index-[A-Za-z0-9_-]*\.js' served.html | head -1)
+            [ "$SERVED" = "$EXPECTED_BUNDLE" ] && break
+            echo "attempt $attempt: serving '${SERVED:-nothing}', want '$EXPECTED_BUNDLE'"
+            sleep 10
+          done
+          if [ "$SERVED" != "$EXPECTED_BUNDLE" ]; then
+            echo "::error::$HOST never served $EXPECTED_BUNDLE from this deploy"; exit 1
+          fi
+
+          "${CURL[@]}" "https://$HOST/$SERVED" -o bundle.js || { echo "::error::could not fetch $SERVED"; exit 1; }
+
+          # A trailing run of key characters is what separates a real key from the badge's own
+          # `startsWith("pk_test_")` literal, which is present in EVERY build by design.
+          # Forbidden first: a bundle carrying the other instance's key is the failure this
+          # step exists for, and it deserves the actionable message rather than the generic
+          # "no key found" one it would otherwise trip on.
+          if grep -qE "${FORBID}[A-Za-z0-9]{20,}" bundle.js; then
+            echo "::error::$HOST is serving a ${FORBID} Clerk key — WRONG INSTANCE, roll back"; exit 1
+          fi
+          if ! grep -qE "${EXPECT}[A-Za-z0-9]{20,}" bundle.js; then
+            echo "::error::$HOST is serving a bundle with no ${EXPECT} Clerk key"; exit 1
+          fi
+          rm -f bundle.js
+
+          # A byte-identical sw.js means the browser never re-runs install/activate, so the
+          # previous deploy's cache is never dropped. The build id is what prevents that.
+          "${CURL[@]}" "https://$HOST/sw.js" -o sw.js || { echo "::error::could not fetch /sw.js"; exit 1; }
+          if ! grep -q "CACHE_NAME = 'harvous-cache-.*-${SHA8}'" sw.js; then
+            echo "::error::$HOST /sw.js does not carry this build's id (${SHA8}) — stale caches will persist"; exit 1
+          fi
+
+          rm -f served.html sw.js
+          echo "$HOST serves $SERVED with a ${EXPECT} key, sw.js pinned to ${SHA8}"

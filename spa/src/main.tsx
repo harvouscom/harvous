@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { initDiagnosticCapture } from '@/utils/diagnostics-client';
 import { clearAppCachesThen, showPrototypeAppUpdateNotice } from '@/utils/prototype-app-update-notice';
+import { enforceProductionClerkKey } from '@/utils/production-clerk-key-guard';
 import {
   REDUCE_MOTION_APP_PREFERENCE_ENABLED,
   REDUCE_MOTION_STORAGE_KEY,
@@ -49,7 +50,7 @@ window.addEventListener('vite:preloadError', () => {
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F7F7F6;padding:16px">
           <div style="text-align:center;padding:32px;max-width:400px;background:#fff;border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,.08)">
             <p style="color:#4a473d;font-size:17px;margin:0 0 20px">Harvous was updated. Please reload to continue.</p>
-            <button onclick="sessionStorage.clear();window.location.reload()" style="background:#4a473d;color:#fff;border:none;padding:14px 28px;border-radius:12px;font-size:16px;cursor:pointer;font-family:inherit">Reload App</button>
+            <button onclick="sessionStorage.clear();window.location.reload()" style="background:#4a473d;color:#fff !important;-webkit-text-fill-color:#fff;border:none;padding:14px 28px;border-radius:12px;font-size:16px;cursor:pointer">Reload App</button>
           </div>
         </div>`;
     }
@@ -109,6 +110,11 @@ if (REDUCE_MOTION_APP_PREFERENCE_ENABLED) {
   });
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <App />
-);
+// Never boot a development-Clerk bundle on a production host. Returns true when it has
+// started a reload or shown the recovery screen, in which case nothing else may mount:
+// rendering <App /> would sign the user into the wrong Clerk instance.
+if (!enforceProductionClerkKey()) {
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <App />
+  );
+}

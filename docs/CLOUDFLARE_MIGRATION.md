@@ -744,3 +744,48 @@ section — the account has been on Pro since the Aug 2026 pause) as you go.
   used `--resolve` while these did not. The stale-DNS caveat in the stage-4 entry above was
   written and then walked into within the hour. **Never verify a cutover with a plain curl
   from the machine that has been hitting the old host all day** — pin the IP, every time.
+
+- 2026-09-03 (**a DEV MODE badge on an installed PWA — audited clean, then guarded**) — An
+  installed home-screen app, added from `app.harvous.com` and never from staging, came up
+  showing DEV MODE and authenticating against the Clerk **development** instance. Deleting
+  and re-adding the install cleared it.
+
+  **Every server-side path was audited and none of them served that bundle.** Netlify's
+  production context has published nothing but `main` since Aug 4 and its production
+  `VITE_CLERK_PUBLISHABLE_KEY` is `pk_live_`; Cloudflare's own deployment list for
+  `harvous-app` shows two local uploads on Aug 31 — *before any domain was attached* — and
+  CI-only deploys since; all four manual `workflow_dispatch` runs went to
+  `harvous-app-staging`, whose logs say `deploy --env staging` every time. The live host,
+  pinned through 1.1.1.1, serves the bundle the latest CI run built, carrying `pk_live_`
+  and no dev key. **The exact moment that device acquired a dev build was not reconstructed**
+  and is recorded as unexplained rather than guessed at.
+
+  **What is not in doubt is why it persisted.** `public/sw.js` serves `/`
+  stale-while-revalidate and `/assets/*` **cache-first with no revalidation at all**, and
+  `service-worker-manager.js` shows a notice rather than reloading on the app shell,
+  throttled further on iOS standalone. Whatever a device caches once, it keeps. The Clerk
+  key is inlined at build time, so a cached bundle *is* a cached identity provider.
+
+  Two guards were added, on the theory that "we could not reproduce it" is not a fix:
+
+  - **`src/utils/production-clerk-key-guard.ts`**, called from `spa/src/main.tsx` before
+    anything mounts. A `pk_test_` key on `app.harvous.com` or `status.harvous.com` now
+    unregisters every worker, drops every cache and reloads **once**; a second failure shows
+    a plain reload screen instead of looping or signing the user into the wrong instance.
+    This only helps devices that have already picked up a build containing it — code cannot
+    be retrofitted into a bundle that is already cached.
+  - **A post-deploy step in `cloudflare-deploy.yml`** that fetches the real host through a
+    public resolver and asserts the served bundle carries the right Clerk key, that it is
+    *this* build's bundle, and that `/sw.js` carries this build's id. Deploy logs said
+    "success" throughout the window in question; nothing checked what the world received.
+
+  Two things worth keeping from building it. The key-matching pattern requires **20+ trailing
+  key characters**, because the DEV MODE badge's own `startsWith("pk_test_")` literal ships
+  in *every* build and a naive `grep pk_test_` flags production. And `curl … | grep -q`
+  under `pipefail` **fails intermittently**: grep exits at the first match, curl takes
+  SIGPIPE, and a passing check reports as a failure. Fetch to a file, then grep it. That one
+  cost a debugging cycle and looked exactly like a real regression.
+
+  Also fixed in passing: the recovery screens' "Reload App" button rendered dark-on-dark.
+  `global.css` carries `button { color: var(--color-deep-grey) !important }`, which beats a
+  plain inline colour — the pre-existing chunk-error screen in `main.tsx` had the same defect.
