@@ -1301,29 +1301,59 @@ button.translation-dropdown-trigger {
   height: 4px;
   border-radius: 50%;
   background-color: var(--color-stone-grey);
-  animation: load-more-pulse 1.4s ease-in-out infinite;
+  /* Falls back for pages that load this sheet without prototype-tokens.css on :root. */
+  animation: load-more-pulse 1.5s var(--pds-ease-standard, cubic-bezier(0.32, 0.72, 0.24, 1)) infinite;
 }
 
+/* A shorter step than the old 0.2s. The three dots are 4px apart, so a long gap reads as
+   three things blinking in turn rather than as one movement passing along them. */
 .load-more-indicator__dot:nth-child(1) {
   animation-delay: 0s;
 }
 
 .load-more-indicator__dot:nth-child(2) {
-  animation-delay: 0.2s;
+  animation-delay: 0.14s;
 }
 
 .load-more-indicator__dot:nth-child(3) {
-  animation-delay: 0.4s;
+  animation-delay: 0.28s;
 }
 
+/*
+  A wave that lifts along the row, rather than three dots throbbing.
+
+  The previous version scaled 0.8 → 1 against an opacity floor of 0.3, which at 4px is a
+  dot visibly changing size and most of the way to disappearing between beats — busy, and
+  slightly anxious, for a mark whose whole job is to say "still here" while someone waits.
+  This keeps the size fixed and moves it a single pixel, so what reads is the travel from
+  left to right and not the individual dots. The floor comes up to 0.4 so the row never
+  half-vanishes, and the cycle rests at the end: the long tail from 70% to 100% is what
+  makes it a pulse with a pause rather than a continuous shimmer.
+*/
 @keyframes load-more-pulse {
-  0%, 80%, 100% {
-    opacity: 0.3;
-    transform: scale(0.8);
+  0%, 70%, 100% {
+    opacity: 0.4;
+    transform: translateY(0);
   }
-  40% {
+  35% {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(-1px);
+  }
+}
+
+/*
+  Reduced motion gets a static row, not a slower one.
+
+  There was no guard here at all, so the one mark that is on screen for the entire length of
+  every wait — and repeats forever — was also the one piece of motion the setting could not
+  turn off. Held at the bright end so the dots still read as present rather than as three
+  disabled specks.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .load-more-indicator__dot {
+    animation: none;
+    opacity: 0.75;
+    transform: none;
   }
 }
 

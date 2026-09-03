@@ -146,7 +146,7 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
         {sermonEyebrow(gathering)}
         {rhythm ? ` · ${rhythm}` : ''}
       </p>
-      <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+      <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-home-cascade">
         <button
           type="button"
           className="proto-church-tools__row"
