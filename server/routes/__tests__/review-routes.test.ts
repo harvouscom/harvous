@@ -24,18 +24,27 @@ function registrations(text: string): string[] {
 }
 
 describe('every Review route is gated', () => {
-  const lines = registrations(review());
+  const all = registrations(review());
+  /*
+   * The one deliberate exception, named so it cannot grow by accident: the sample exists to
+   * show the feature to an account that has not paid for it. Everything else is gated.
+   */
+  const SAMPLE_ROUTES = ["'/api/review/sample'", "'/api/review/sample/answer'"];
+  const isSample = (line: string) => SAMPLE_ROUTES.some((path) => line.includes(path));
+  const lines = all.filter((line) => !isSample(line));
 
   it('registers the routes the client needs', () => {
     expect(lines.length).toBeGreaterThanOrEqual(8);
   });
 
   it('requires authentication before anything else', () => {
-    for (const line of lines) expect(line).toContain('requireAuth');
+    for (const line of all) expect(line).toContain('requireAuth');
   });
 
-  it('requires the paid feature key on every single route', () => {
+  it('requires the paid feature key on every single route but the sample pair', () => {
     for (const line of lines) expect(line).toContain("requireFeature('review')");
+    expect(all.filter(isSample)).toHaveLength(2);
+    expect(all.filter((line) => !line.includes("requireFeature('review')"))).toEqual(all.filter(isSample));
   });
 
   it('puts the feature gate after requireAuth, which it reads from', () => {
@@ -45,7 +54,7 @@ describe('every Review route is gated', () => {
   });
 
   it('rate-limits every route', () => {
-    for (const line of lines) expect(line).toMatch(/rateLimit\('(read|write)'\)/);
+    for (const line of all) expect(line).toMatch(/rateLimit\('(read|write)'\)/);
   });
 });
 
@@ -600,10 +609,11 @@ describe('a scheduler that remembers', () => {
   });
 
   it('refuses a step back on anything that is not slipping', () => {
-    const stepBack = route().slice(route().indexOf("'/api/review/items/:id/step-back'"));
+    const from = route().indexOf("'/api/review/items/:id/step-back'");
+    const stepBack = route().slice(from, route().indexOf('route.', from + 1));
     expect(stepBack).toContain('REVIEW_NOT_SLIPPING');
     // No body is read: the only thing the reader can say here is "yes".
-    expect(stepBack.slice(0, stepBack.indexOf('export default'))).not.toContain('req.json');
+    expect(stepBack).not.toContain('req.json');
   });
 
   it('orders the sitting rather than serving it by the clock', () => {
@@ -614,5 +624,43 @@ describe('a scheduler that remembers', () => {
     // Ordered before the views are built, so what is dropped as unaskable does not reshuffle it.
     expect(orderAt).toBeLessThan(session.indexOf('buildReviewItemViews'));
     expect(listAt).toBeGreaterThan(orderAt);
+  });
+});
+
+describe('the sample, for an account without Review', () => {
+  const route = () => source('server/routes/review.ts');
+  const sampleRoutes = () => route().slice(route().indexOf("route.get('/api/review/sample'"));
+
+  it('is the one pair of routes deliberately not behind the feature gate', () => {
+    /*
+     * The point is to show the thing to someone who has not paid for it. Auth and a rate limit
+     * stay; `requireFeature` must not appear on either route, and must still be on everything
+     * above them.
+     */
+    const block = sampleRoutes().slice(0, sampleRoutes().indexOf('function sampleDayFrom'));
+    expect(block).toContain("route.get('/api/review/sample', requireAuth, rateLimit('read'), async");
+    expect(block).toContain("route.post('/api/review/sample/answer', requireAuth, rateLimit('write'), async");
+    expect(block).not.toContain('requireFeature');
+    expect(route().slice(0, route().indexOf("'/api/review/sample'"))).toContain("requireFeature('review')");
+  });
+
+  it('reads and marks, and never writes', () => {
+    // No item, no event, no schedule: a free account must not accumulate queue state.
+    const block = sampleRoutes();
+    for (const writer of ['applyReviewOutcome', 'recordReviewEvent', 'createReviewItem', 'refillReviewQueue']) {
+      expect(block).not.toContain(writer);
+    }
+  });
+
+  it('keeps the two-attempt rule and bounds what the page sends', () => {
+    const block = sampleRoutes();
+    expect(block).toContain('attemptNumber < REVIEW_MAX_ATTEMPTS');
+    expect(block).toContain('finalized: false');
+    expect(block).toContain('.slice(0, MAX_CLOZE_BLANKS)');
+    expect(block).toContain('w.slice(0, MAX_CLOZE_WORD_LENGTH)');
+  });
+
+  it('accepts only a calendar day from the page, and falls back rather than trusting it', () => {
+    expect(sampleRoutes()).toMatch(/\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(raw\)/);
   });
 });

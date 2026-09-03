@@ -36,6 +36,9 @@ vi.mock('../../../hooks/queries/useReview', () => ({
   useReviewInbox: () => inbox,
   // Fetched only once the reader unfolds the section.
   useReviewItems: () => allItems,
+  // The sample is for an account without the feature; these rows all have it.
+  useReviewSample: () => ({ data: undefined, isPending: false }),
+  reviewSampleDayKey: () => '2026-09-03',
 }));
 vi.mock('../../../hooks/queries/useChallenges', () => ({
   useChallenges: () => challenges,
@@ -43,6 +46,7 @@ vi.mock('../../../hooks/queries/useChallenges', () => ({
 vi.mock('../../../hooks/mutations/useReviewMutations', () => ({
   useDeferReview: () => ({ mutate: vi.fn(), isPending: false }),
   useSetReviewStatus: () => ({ mutate: vi.fn(), isPending: false }),
+  useAnswerReviewSample: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 const navigate = vi.fn();
 const openReviewDock = vi.fn();

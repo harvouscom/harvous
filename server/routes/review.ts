@@ -43,6 +43,8 @@ import {
   recordReviewEvent,
   setReviewItemStatus,
   stepBackReviewItem,
+  buildReviewSample,
+  gradeReviewSample,
 } from '../utils/review-service';
 import { refillReviewQueue } from '../utils/review-opportunities';
 
@@ -413,5 +415,64 @@ route.post('/api/review/items/:id/step-back', requireAuth, rateLimit('write'), r
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+
+/**
+ * The sample, for an account without Review. Authenticated, rate-limited, and deliberately
+ * not behind `requireFeature`: the point is to show the thing to someone who has not paid for
+ * it. It reads and marks; it never writes — no item, no event, no schedule.
+ *
+ * `day` is the reader's local day, sent by the page: the seed is per reader per day, and the
+ * server cannot know which day it is where they are.
+ */
+route.get('/api/review/sample', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const day = sampleDayFrom(c.req.query('day'));
+    const sample = await buildReviewSample(auth.userId, day);
+    return c.json({ success: true, sample });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/review/sample', action: 'review_sample' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+route.post('/api/review/sample/answer', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const day = sampleDayFrom(typeof body?.day === 'string' ? body.day : undefined);
+    const attemptNumber = Number.isInteger(body?.attemptNumber)
+      ? Math.max(1, Math.min(REVIEW_MAX_ATTEMPTS, body.attemptNumber))
+      : 1;
+    const words = Array.isArray(body?.words)
+      ? body.words
+          .filter((w: unknown) => typeof w === 'string')
+          .slice(0, MAX_CLOZE_BLANKS)
+          .map((w: string) => w.slice(0, MAX_CLOZE_WORD_LENGTH))
+      : [];
+    const graded = await gradeReviewSample(auth.userId, day, words);
+    if (!graded) return c.json({ error: 'No sample today', code: 'REVIEW_SAMPLE_UNAVAILABLE' }, 404);
+    // Same two-attempt rule as the real thing: a miss with a go left keeps the question up
+    // and shows nothing; only the final answer brings the verse out.
+    if (!graded.correct && attemptNumber < REVIEW_MAX_ATTEMPTS) {
+      return c.json({ success: true, correct: false, finalized: false, attemptsLeft: REVIEW_MAX_ATTEMPTS - attemptNumber });
+    }
+    return c.json({
+      success: true,
+      correct: graded.correct,
+      finalized: true,
+      reference: graded.reference,
+      verseText: graded.verseText,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/review/sample/answer', action: 'review_sample_answer' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/** `YYYY-MM-DD` from the page, or today in UTC when it is missing or malformed. */
+function sampleDayFrom(raw: string | undefined): string {
+  return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : new Date().toISOString().slice(0, 10);
+}
 
 export default route;

@@ -198,3 +198,41 @@ export function useReviewReveal(itemId: string | null, options?: { enabled?: boo
     staleTime: 5 * 60_000,
   });
 }
+
+
+// ─── The sample, for an account without Review ─────────────────────────────────
+
+export interface ReviewSampleView {
+  reference: string;
+  /** Whose verse it is: the reader's own study, or a well-known one because nothing of theirs fit. */
+  source: 'yours' | 'well-known';
+  cloze: { segments: string[]; blankLengths: number[] };
+  blankCount: number;
+}
+
+/** The reader's local calendar day, which is the seed's half the server cannot know. */
+export function reviewSampleDayKey(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Fetched only for a signed-in account *without* the feature: a subscriber has the real
+ * thing, and a guest has no account to attach an upgrade to. Auth-gated like every query
+ * here, and off until the entitlement is known so nobody is shown a sample for a beat
+ * before their real queue.
+ */
+export function useReviewSample(options: { enabled: boolean }) {
+  const authReady = useAuthReady();
+  const access = useReviewAccess();
+  const day = reviewSampleDayKey();
+  return useQuery({
+    queryKey: ['review', 'sample', day] as const,
+    enabled: authReady && !access && options.enabled,
+    queryFn: () =>
+      api.get<{ sample: ReviewSampleView | null }>(`/api/review/sample?day=${encodeURIComponent(day)}`),
+    staleTime: 5 * 60_000,
+  });
+}

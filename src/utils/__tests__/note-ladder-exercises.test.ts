@@ -9,6 +9,7 @@ import {
   type NoteMaterial,
   buildNoteSpan,
   buildNoteAnnotation,
+  NOTE_SPAN_MIN_WORDS,
 } from '@/utils/note-ladder-exercises';
 
 const ALL: NoteMaterial = { canRecognize: true, canPassage: true, canConnect: true, canAnnotation: true };
@@ -328,5 +329,15 @@ describe('buildNoteAnnotation', () => {
     expect(
       buildNoteAnnotation({ annotation: 'yes!', reference: 'John 15:5', poolReferences: pool, seed: 'a' }),
     ).toBeNull();
+  });
+});
+
+describe('buildNoteSpan floor', () => {
+  it('refuses a span too short to recognise a note by', () => {
+    // Real rows on the owner's account: "box", "kids" — derived reference words, not lines.
+    expect(buildNoteSpan({ quote: 'box' })).toBeNull();
+    expect(buildNoteSpan({ quote: 'two words' })).toBeNull();
+    expect(buildNoteSpan({ quote: 'a relationship with God' })?.quote).toBe('a relationship with God');
+    expect(NOTE_SPAN_MIN_WORDS).toBe(3);
   });
 });

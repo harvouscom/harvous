@@ -9,6 +9,15 @@
  */
 
 import {
+  buildSampleExercise,
+  gradeSampleAnswer,
+  pickSampleReference,
+  sampleSeed,
+  type ReviewSampleSpec,
+  type SampleSource,
+} from '@/utils/review-sample';
+import type { VerseClozeSegments } from '@/utils/verse-cloze';
+import {
   db,
   and,
   desc,
@@ -367,15 +376,18 @@ async function loadNoteMaterial(
         ),
       ),
     // A span the reader selected themselves. `resolved` matters: a detached anchor holds a
-    // quote that is no longer anywhere in the note.
+    // quote that is no longer anywhere in the note. `miniNote` matters too: a derived
+    // reference or scripture link carries an anchor without anyone having marked it, and a
+    // one-word "kids" is not a line to recognise a note by. The floor is the builder's.
     db
-      .select({ parentNoteId: StudyThreadEntries.parentNoteId })
+      .select({ parentNoteId: StudyThreadEntries.parentNoteId, quote: StudyThreadEntries.anchorQuote })
       .from(StudyThreadEntries)
       .where(
         and(
           eq(StudyThreadEntries.userId, userId),
           inArray(StudyThreadEntries.parentNoteId, unique),
           eq(StudyThreadEntries.anchorStatus, 'resolved'),
+          eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
           isNotNull(StudyThreadEntries.anchorQuote),
         ),
       ),
@@ -416,8 +428,12 @@ async function loadNoteMaterial(
     withLink.add(edge.from);
     withLink.add(edge.to);
   }
+  // The same floor the reveal applies, so the probe never promises a span the reveal refuses.
   const withQuote = new Set(
-    quotes.map((row) => row.parentNoteId).filter((id): id is string => Boolean(id)),
+    quotes
+      .filter((row) => buildNoteSpan({ quote: row.quote ?? '' }) !== null)
+      .map((row) => row.parentNoteId)
+      .filter((id): id is string => Boolean(id)),
   );
 
   for (const row of bodies) {
@@ -1341,7 +1357,7 @@ export interface ReviewRevealPayload {
  * distinction when you have worked in both, and a stranger reference is not a distractor at
  * all. Falls back to well-known references inside `buildVerseLocate` when the layer is thin.
  */
-async function listUserVerseReferences(userId: string, exclude: string): Promise<string[]> {
+export async function listUserVerseReferences(userId: string, exclude: string): Promise<string[]> {
   try {
     const rows = await db
       .select({ nodeKey: UserNodeStates.nodeKey, label: UserNodeStates.label })
@@ -2100,15 +2116,17 @@ async function buildNoteExercise(
           eq(StudyThreadEntries.userId, userId),
           eq(StudyThreadEntries.parentNoteId, item.noteId),
           eq(StudyThreadEntries.anchorStatus, 'resolved'),
+          eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
           isNotNull(StudyThreadEntries.anchorQuote),
         ),
       )
       .orderBy(StudyThreadEntries.createdAt, StudyThreadEntries.id);
 
-    const marked = quoted.length ? quoted[hashSeed(seed) % quoted.length] : null;
-    const span = marked?.quote
-      ? buildNoteSpan({ quote: marked.quote, prefix: marked.prefix, suffix: marked.suffix })
-      : null;
+    // Only spans that clear the floor are in the draw, so a short one cannot win the seed.
+    const spans = quoted
+      .map((row) => (row.quote ? buildNoteSpan({ quote: row.quote, prefix: row.prefix, suffix: row.suffix }) : null))
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+    const span = spans.length ? spans[hashSeed(seed) % spans.length] : null;
 
     const fragment = span?.quote || noteFragment(stripHtml(note.content ?? ''), seed);
     if (!fragment) return null;
@@ -2415,4 +2433,53 @@ export async function retireReviewForStudyThreadEntry(
         inArray(ReviewItems.status, ['active', 'paused']),
       ),
     );
+}
+
+
+// ─── The sample: one marked question for an account without Review ───────────────
+
+/**
+ * See `src/utils/review-sample.ts` for what the sample is and is not. This is the I/O half:
+ * which passages the reader has been around, and the text of the one chosen. Nothing is written.
+ */
+export async function buildReviewSample(
+  userId: string,
+  dayKey: string,
+): Promise<{
+  reference: string;
+  source: SampleSource;
+  cloze: VerseClozeSegments;
+  blankCount: number;
+} | null> {
+  const seed = sampleSeed(userId, dayKey);
+  const own = await listUserVerseReferences(userId, '');
+  // Try the reader's own passages in order and fall back rather than give up: a verse of
+  // theirs may be too short to hide anything in, and the next may not be.
+  const candidates: ReviewSampleSpec[] = own.map((reference) => ({ reference, source: 'yours' }));
+  candidates.push(pickSampleReference({ ownReferences: [], seed }));
+  for (const candidate of candidates) {
+    const html = await fetchVerseText(candidate.reference, 'NET');
+    if (!html) continue;
+    const exercise = buildSampleExercise(stripHtml(html), seed);
+    if (!exercise) continue;
+    return { reference: candidate.reference, source: candidate.source, ...exercise };
+  }
+  return null;
+}
+
+/** Mark the sample against the same cloze the page was shown; the verse comes back with it. */
+export async function gradeReviewSample(
+  userId: string,
+  dayKey: string,
+  words: readonly string[],
+): Promise<{ correct: boolean; reference: string; verseText: string } | null> {
+  const sample = await buildReviewSample(userId, dayKey);
+  if (!sample) return null;
+  const html = await fetchVerseText(sample.reference, 'NET');
+  if (!html) return null;
+  return {
+    correct: gradeSampleAnswer(stripHtml(html), sampleSeed(userId, dayKey), words),
+    reference: sample.reference,
+    verseText: html,
+  };
 }

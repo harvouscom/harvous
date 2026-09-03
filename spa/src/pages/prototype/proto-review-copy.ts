@@ -135,6 +135,16 @@ export const CHALLENGE_START_COPY = 'Start';
 export const CHALLENGE_RETIRED_COPY = 'The note this path was built on is gone.';
 
 /** Plus prompts. One line, no exclamation, no urgency. */
+/**
+ * The sample. One real question for an account that does not have Review, so the paywall row
+ * has a thing above it to have tried. Eyebrows say whose verse it is — the reader's own study
+ * where anything of theirs fits, a well-known one otherwise — because "a verse from your study"
+ * over John 3:16 they never cited would be a lie in the first line.
+ */
+export const REVIEW_SAMPLE_EYEBROW_YOURS = 'From your own study';
+export const REVIEW_SAMPLE_EYEBROW_WELL_KNOWN = 'A verse to try it on';
+export const REVIEW_SAMPLE_PROMPT = 'Fill in the gaps.';
+export const REVIEW_SAMPLE_AFTER = 'That is Review. It brings a verse back just before you would forget it.';
 export const REVIEW_PLUS_TITLE = 'Return to your study with Review';
 export const REVIEW_PLUS_META = 'Come back to your own notes on a schedule';
 export const PLUS_BADGE_COPY = 'Plus';

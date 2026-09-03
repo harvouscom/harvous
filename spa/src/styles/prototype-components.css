@@ -21826,6 +21826,17 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
 }
 
+/* The sample: one question in the section, for an account without the feature. */
+.proto-review-sample {
+  display: grid;
+  gap: 8px;
+  padding: var(--pds-space-3) var(--pds-space-3) var(--pds-space-2);
+}
+
+.proto-review-sample__eyebrow {
+  margin: 0;
+}
+
 /* The week, under an expanded Review section. A caption, not a scoreboard. */
 .proto-review-section__week {
   margin: 2px 0 0;

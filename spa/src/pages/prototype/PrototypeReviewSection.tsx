@@ -35,7 +35,16 @@ import Icon from '@/components/react/Icon';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
-import { useReviewInbox, useReviewItems, type ReviewItemView } from '../../hooks/queries/useReview';
+import {
+  reviewSampleDayKey,
+  useReviewInbox,
+  useReviewItems,
+  useReviewSample,
+  type ReviewItemView,
+} from '../../hooks/queries/useReview';
+import { useAnswerReviewSample } from '../../hooks/mutations/useReviewMutations';
+import { REVIEW_MAX_ATTEMPTS } from '@/utils/review-item-kinds';
+import PrototypeReviewSample from './PrototypeReviewSample';
 import { useChallenges } from '../../hooks/queries/useChallenges';
 import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
@@ -105,6 +114,9 @@ export default function PrototypeReviewSection({
    */
   const allQuery = useReviewItems('active', { enabled: expanded });
   const challengesQuery = useChallenges('active');
+  // The sample: fetched only for an account that lacks the feature (the hook gates on that).
+  const hasAnyFeature = review.has || challengesFeature.has;
+  const sampleQuery = useReviewSample({ enabled: review.ready && !hasAnyFeature && !plusPromptDismissed });
   const defer = useDeferReview();
   const setStatus = useSetReviewStatus();
 
@@ -119,6 +131,14 @@ export default function PrototypeReviewSection({
     if (plusPromptDismissed) return null;
     return (
       <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
+        {/* The thing to have tried, above the row that says what it costs. */}
+        {sampleQuery.data?.sample ? (
+          <PrototypeReviewSample
+            sample={sampleQuery.data.sample}
+            day={reviewSampleDayKey()}
+            maxAttempts={REVIEW_MAX_ATTEMPTS}
+          />
+        ) : null}
         <PrototypeHomeRow
           icon="arrows-rotate"
           title={REVIEW_PLUS_TITLE}

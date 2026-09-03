@@ -196,6 +196,13 @@ export interface NoteSpan {
 
 const SPAN_CONTEXT_WORDS = 8;
 
+/**
+ * A marked span has to be a few words to be a stem. "box" is a bookmark; showing it as the
+ * line to recognise a note by is a question nobody could answer. Same floor as the verse side
+ * (`READER_SPAN_MIN_WORDS`), kept separate so each file states its own rule.
+ */
+export const NOTE_SPAN_MIN_WORDS = 3;
+
 function tailWords(text: string, count: number): string {
   const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
   return words.slice(Math.max(0, words.length - count)).join(' ');
@@ -213,6 +220,7 @@ export function buildNoteSpan(input: {
 }): NoteSpan | null {
   const quote = input.quote.replace(/\s+/g, ' ').trim();
   if (!quote) return null;
+  if (quote.split(' ').length < NOTE_SPAN_MIN_WORDS) return null;
   return {
     before: tailWords(input.prefix ?? '', SPAN_CONTEXT_WORDS),
     quote,

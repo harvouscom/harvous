@@ -169,3 +169,20 @@ export function useSetReviewStatus() {
     },
   });
 }
+
+
+/** Answer the sample. Writes nothing on the server, so there is nothing to invalidate. */
+export interface ReviewSampleAnswerResponse {
+  correct: boolean;
+  finalized: boolean;
+  attemptsLeft?: number;
+  reference?: string;
+  verseText?: string;
+}
+
+export function useAnswerReviewSample() {
+  return useMutation({
+    mutationFn: ({ day, words, attemptNumber }: { day: string; words: string[]; attemptNumber: number }) =>
+      api.post<ReviewSampleAnswerResponse>('/api/review/sample/answer', { day, words, attemptNumber }),
+  });
+}
