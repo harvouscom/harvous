@@ -16,6 +16,8 @@ import {
   buildVerseBefore,
   gradeVerseBefore,
   buildVerseBook,
+  readerSpanFragment,
+  READER_SPAN_MAX_WORDS,
 } from '@/utils/verse-ladder-exercises';
 
 const JOHN_15_5 =
@@ -293,5 +295,54 @@ describe('the text-keyed rungs', () => {
     it('refuses with no book', () => {
       expect(buildVerseBook({ book: '', poolBooks: [], seed: 'a' })).toBeNull();
     });
+  });
+});
+
+describe('readerSpanFragment', () => {
+  const verse =
+    'I am the vine; you are the branches. The one who remains in me and I in him bears much fruit.';
+
+  it('takes a span the reader marked, when it is long enough and really in the verse', () => {
+    expect(readerSpanFragment('the one who remains in me', verse)).toBe('the one who remains in me');
+    // Case and spacing are the renderer's business, not the reader's.
+    expect(readerSpanFragment('  I AM   the vine  ', verse)).toBe('I AM the vine');
+  });
+
+  it('refuses a bookmark', () => {
+    // Real spans on the owner's account include "bribes" — a word, not a fragment to ask about.
+    expect(readerSpanFragment('bribes', verse)).toBeNull();
+    expect(readerSpanFragment('', verse)).toBeNull();
+    expect(readerSpanFragment(null, verse)).toBeNull();
+    expect(readerSpanFragment(undefined, verse)).toBeNull();
+  });
+
+  it('refuses a span this translation does not contain', () => {
+    /*
+     * A span is marked against whatever translation was on screen. Showing "abide in me" over a
+     * NET verse that says "remains in me" would ask where a line is from that is not there.
+     */
+    expect(readerSpanFragment('he who abides in me', verse)).toBeNull();
+  });
+
+  it('cuts a long span down to a fragment', () => {
+    const whole = readerSpanFragment(verse, verse);
+    expect(whole).not.toBeNull();
+    expect(whole!.split(' ')).toHaveLength(READER_SPAN_MAX_WORDS);
+    expect(verse).toContain(whole!);
+  });
+});
+
+describe('buildVerseLocate with a reader span', () => {
+  const verse = 'I am the vine; you are the branches. The one who remains in me bears much fruit.';
+  const pool = ['Romans 8:15', 'Psalm 23:1', 'Genesis 1:1', 'Ephesians 2:8'];
+
+  it('shows the reader their own marked words rather than the middle of the verse', () => {
+    const mine = buildVerseLocate('John 15:5', verse, pool, 'seed', 'you are the branches');
+    expect(mine?.phrase).toBe('you are the branches');
+    const theirs = buildVerseLocate('John 15:5', verse, pool, 'seed');
+    expect(theirs?.phrase).not.toBe('you are the branches');
+    // Same options either way: the span changes the question's stem, not its answer.
+    expect(mine?.options).toEqual(theirs?.options);
+    expect(mine?.answerIndex).toBe(theirs?.answerIndex);
   });
 });

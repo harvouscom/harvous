@@ -60,21 +60,22 @@ import {
   type VerseMaterial,
 } from '@/utils/review-prompts';
 import {
+  buildVerseBefore,
+  buildVerseBook,
+  buildVerseInitials,
+  buildVerseKeywords,
   buildVerseLocate,
   buildVerseNext,
-  gradeVerseNext,
-  type VerseNextExercise,
   buildVerseSequence,
-  gradeVerseLocate,
-  gradeVerseSequence,
-  buildVerseInitials,
-  gradeVerseInitials,
-  buildVerseKeywords,
-  gradeVerseKeywords,
-  buildVerseBefore,
-  gradeVerseBefore,
-  buildVerseBook,
   contentWords,
+  gradeVerseBefore,
+  gradeVerseInitials,
+  gradeVerseKeywords,
+  gradeVerseLocate,
+  gradeVerseNext,
+  gradeVerseSequence,
+  readerSpanFragment,
+  type VerseNextExercise,
 } from '@/utils/verse-ladder-exercises';
 import {
   buildVerseAltered,
@@ -608,7 +609,10 @@ export async function buildReviewItemViews(
       : Promise.resolve([]),
     references.length
       ? db
-          .select({ reference: StudyThreadEntries.scriptureReference })
+          .select({
+            reference: StudyThreadEntries.scriptureReference,
+            excerpt: StudyThreadEntries.scripturePassageExcerpt,
+          })
           .from(StudyThreadEntries)
           .where(
             and(
@@ -621,6 +625,7 @@ export async function buildReviewItemViews(
   ]);
   const nodeByKey = new Map(nodes.map((n) => [n.nodeKey, n]));
   const markedReferences = new Set(marks.map((m) => m.reference?.trim().toLowerCase()).filter(Boolean));
+  const readerSpans = readerSpansByReference(marks);
 
   // One probe per passage per build, however many rows share it.
   const materialCache = new Map<string, Promise<VerseKnowledgeMaterial>>();
@@ -650,7 +655,11 @@ export async function buildReviewItemViews(
     let cue: string | null = null;
     if (kind === 'verse' && row.ladderStep === 0 && row.scriptureReference) {
       const text = await fetchVerseText(row.scriptureReference, row.translation ?? 'NET');
-      cue = text ? verseCue(stripHtml(text)) : null;
+      // The words the reader marked while reading, where they marked any; the opening otherwise.
+      const span = text
+        ? readerSpanFragment(readerSpans.get(row.scriptureReference.trim().toLowerCase()), stripHtml(text))
+        : null;
+      cue = text ? verseCue(span ?? stripHtml(text)) : null;
     }
 
     /*
@@ -1750,6 +1759,45 @@ function booksOf(references: readonly string[]): string[] {
   return [...out];
 }
 
+/**
+ * The longest span the reader marked on each passage, keyed by reference.
+ *
+ * Longest, because a reader who marked "hate the light" and later the whole sentence around it
+ * has told us which one carries the thought. Whether a span *fits* is decided at the point of
+ * use by `readerSpanFragment`, since only there is the translation known.
+ */
+function readerSpansByReference(
+  marks: readonly { reference: string | null; excerpt: string | null }[],
+): Map<string, string> {
+  const spans = new Map<string, string>();
+  for (const mark of marks) {
+    const key = mark.reference?.trim().toLowerCase();
+    const excerpt = mark.excerpt?.trim();
+    if (!key || !excerpt) continue;
+    const current = spans.get(key);
+    if (!current || excerpt.length > current.length) spans.set(key, excerpt);
+  }
+  return spans;
+}
+
+/** One passage's reader-marked span, for the reveal, which builds one item at a time. */
+async function loadReaderSpan(userId: string, reference: string): Promise<string | null> {
+  const marks = await db
+    .select({
+      reference: StudyThreadEntries.scriptureReference,
+      excerpt: StudyThreadEntries.scripturePassageExcerpt,
+    })
+    .from(StudyThreadEntries)
+    .where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        isNull(StudyThreadEntries.parentNoteId),
+        eq(StudyThreadEntries.scriptureReference, reference),
+      ),
+    );
+  return readerSpansByReference(marks).get(reference.trim().toLowerCase()) ?? null;
+}
+
 /** The same middle fragment locate shows, so the book rung reads as its easier twin. */
 function locateFragmentOf(text: string): string {
   const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
@@ -2224,7 +2272,12 @@ export async function buildReviewReveal(
             seed,
           });
           payload.locate = exercise
-            ? { phrase: locateFragmentOf(text), options: exercise.options }
+            ? {
+                phrase:
+                  readerSpanFragment(await loadReaderSpan(userId, item.scriptureReference), text) ??
+                  locateFragmentOf(text),
+                options: exercise.options,
+              }
             : null;
           payload.verseText = null;
         }
@@ -2264,7 +2317,14 @@ export async function buildReviewReveal(
         }
         if (rung.key === 'verse.locate') {
           const pool = await listUserVerseReferences(userId, item.scriptureReference);
-          const exercise = buildVerseLocate(item.scriptureReference, text, pool, seed);
+          // The reader's own marked span, where one fits; the verse's middle otherwise.
+          const exercise = buildVerseLocate(
+            item.scriptureReference,
+            text,
+            pool,
+            seed,
+            readerSpanFragment(await loadReaderSpan(userId, item.scriptureReference), text),
+          );
           payload.locate = exercise ? { phrase: exercise.phrase, options: exercise.options } : null;
           // The verse text itself would give the answer away on this rung.
           payload.verseText = null;

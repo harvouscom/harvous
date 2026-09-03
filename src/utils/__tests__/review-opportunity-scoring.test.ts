@@ -46,6 +46,9 @@ function node(overrides: Partial<ReviewCandidateNode> & Pick<ReviewCandidateNode
 const verse = (key: string, overrides: Partial<ReviewCandidateNode> = {}) =>
   node({ nodeKind: 'verse', nodeKey: key, ...overrides });
 
+const noteNode = (id: string, overrides: Partial<ReviewCandidateNode> = {}) =>
+  node({ nodeKind: 'note', nodeKey: nodeKey.note(id), noteId: id, ...overrides });
+
 const emptyKeys = new Set<string>();
 
 describe('intentScore', () => {
@@ -336,5 +339,36 @@ describe('engineHasEnoughReady', () => {
       verse(k, { exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(1) }),
     );
     expect(engineHasEnoughReady(newish, NOW, new Map())).toBe(false);
+  });
+});
+
+describe('a tag the reader applied by hand', () => {
+  it('counts as one signal on a note, however many tags there are', () => {
+    /*
+     * Filing a note under a tag is a deliberate act about that note — the readiness gate's whole
+     * question. Three tags is still one decision to file it, so it does not buy three signals.
+     */
+    const filed = noteNode('n', { exposureCount: 0, revisitCount: 0, manualTagCount: 1 });
+    expect(countCommittedSignals(filed)).toBe(1);
+    expect(countCommittedSignals({ ...filed, manualTagCount: 3 })).toBe(1);
+    expect(countCommittedSignals({ ...filed, manualTagCount: 0 })).toBe(0);
+  });
+
+  it('can be the signal that makes a note ready, alongside one other', () => {
+    const opened = noteNode('n', {
+      firstStudiedAt: daysAgo(30),
+      exposureCount: 2,
+      revisitCount: 0,
+      manualTagCount: 0,
+    });
+    // A real meaning weight, since the thinness gate is a separate question from this one.
+    expect(nodeReadiness(opened, NOW, 0.6)).toBe('too-few-signals');
+    expect(nodeReadiness({ ...opened, manualTagCount: 2 }, NOW, 0.6)).toBe('ready');
+  });
+
+  it('says nothing about a passage, which has no tags of its own', () => {
+    // Tags live on notes. A verse node carrying one would be a bug, not a signal.
+    const cited = verse('v', { exposureCount: 1, revisitCount: 0, manualTagCount: 5 });
+    expect(countCommittedSignals(cited)).toBe(1);
   });
 });

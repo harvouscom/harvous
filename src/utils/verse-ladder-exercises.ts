@@ -162,13 +162,36 @@ const FALLBACK_REFERENCES = [
  * a different subject. What stays here is what is genuinely about scripture: the fragment, and
  * the canned references for a reader who has not marked enough passages of their own.
  */
+/**
+ * A span the reader marked while reading, fit to be the fragment a rung shows.
+ *
+ * "Prefer what the reader marked" is the rule the note rungs already follow; this is its verse
+ * half. The span has to be at least a few words — "bribes" is a bookmark, not a fragment — and
+ * has to actually occur in the verse as this translation reads it, or the rung would be asking
+ * where a line is from that the text does not contain. A long span is cut to the first dozen
+ * words: past that it is the verse, not a fragment of it.
+ */
+export const READER_SPAN_MIN_WORDS = 3;
+export const READER_SPAN_MAX_WORDS = 12;
+
+export function readerSpanFragment(excerpt: string | null | undefined, verseText: string): string | null {
+  const words = (excerpt ?? '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (words.length < READER_SPAN_MIN_WORDS) return null;
+  const span = words.slice(0, READER_SPAN_MAX_WORDS).join(' ');
+  const normalise = (s: string) => s.replace(/\s+/g, ' ').toLowerCase();
+  if (!normalise(verseText).includes(normalise(span))) return null;
+  return span;
+}
+
 export function buildVerseLocate(
   reference: string,
   text: string,
   poolReferences: readonly string[],
   seed: string,
+  /** A fragment the reader marked themselves, preferred over the middle of the verse. */
+  readerPhrase: string | null = null,
 ): VerseLocateExercise | null {
-  const phrase = locatePhrase(text);
+  const phrase = readerPhrase ?? locatePhrase(text);
   if (!phrase) return null;
 
   const answer = reference.trim();

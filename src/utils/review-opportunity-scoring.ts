@@ -44,6 +44,8 @@ export interface ReviewCandidateNode {
   explicitConnectionCount: number;
   expansionCount: number;
   synthesisCount: number;
+  /** Tags the reader applied by hand (never the auto-generated ones). Notes only. */
+  manualTagCount?: number;
   reviewCount: number;
   firstStudiedAt: Date;
   lastSeenAt: Date;
@@ -198,6 +200,9 @@ export function countCommittedSignals(node: ReviewCandidateNode): number {
     // Opening a note twice is a signal; opening it thirty times is still one.
     signals += 1;
   }
+  // Filing a note under a tag by hand is a deliberate act about *this* note. One signal however
+  // many tags: the decision was to file it, not how many drawers.
+  if (node.nodeKind === 'note' && (node.manualTagCount ?? 0) > 0) signals += 1;
   return signals;
 }
 
