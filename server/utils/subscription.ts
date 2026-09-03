@@ -12,7 +12,6 @@ import {
 } from './tier-limits';
 import { getActiveEntitlements, limitsForUser } from './entitlements';
 import {
-  isFoundingProductId,
   planForProductId,
   type FeatureKey,
   type PlanKey,
@@ -57,6 +56,26 @@ export async function getReferralBonusNotes(userId: string): Promise<number> {
   } catch (error) {
     console.error('Error getting referral bonus notes:', error);
     return 0;
+  }
+}
+
+/**
+ * When this user claimed the founding offer, or null.
+ *
+ * Never cleared, so it survives cancellation and the first renewal onto the
+ * list price — the badge is recognition, not an entitlement.
+ */
+export async function getFoundingClaimedAt(userId: string): Promise<Date | null> {
+  try {
+    const row = first(await db
+      .select({ foundingClaimedAt: UserMetadata.foundingClaimedAt })
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, userId))
+      .limit(1));
+    return row?.foundingClaimedAt ?? null;
+  } catch (error) {
+    console.error('Error getting founding claim:', error);
+    return null;
   }
 }
 
@@ -155,6 +174,7 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     limits,
     billingProductIds,
     canManageBilling,
+    foundingClaimedAt,
   ] = await Promise.all([
     hasUnlimitedNotes(auth),
     hasSharedSpacesAddOn(auth),
@@ -165,6 +185,7 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     limitsForUser(userId),
     softRead('activeBillingProductIds', () => activeBillingProductIds(userId), [] as string[]),
     softRead('hasBillingManagedEntitlement', () => hasBillingManagedEntitlement(userId), false),
+    softRead('foundingClaimedAt', () => getFoundingClaimedAt(userId), null as Date | null),
   ]);
 
   const planKey = resolvePlanKeyFromProducts(billingProductIds);
@@ -177,11 +198,15 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     /** Connector is a separate product with its own subscription. */
     hasConnector: (entitlements as FeatureKey[]).includes('connector'),
     /**
-     * On the capped founding price ($30/yr, first 99) — drives the "Founding"
-     * badge. Read from the product actually purchased, never from the plan key,
-     * because founding and standard Plus share `key: 'plus'`.
+     * Claimed the founding offer (first 99) — drives the "Founding" badge.
+     *
+     * Read from the stamped claim, never from the product: founding is a
+     * `duration: once` discount on the standard annual product, so a founder's
+     * subscription is indistinguishable from anyone else's. The stamp also has
+     * to outlive the first renewal, when the discount is gone but the person is
+     * still a founder.
      */
-    isFounding: billingProductIds.some((id) => isFoundingProductId(id)),
+    isFounding: Boolean(foundingClaimedAt),
     entitlements: entitlements as FeatureKey[],
     planKey,
     /** Polar checkout exists — in-app manage + payment portal. False for admin_grant / trial. */

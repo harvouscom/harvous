@@ -4,9 +4,9 @@ import {
   FOUNDING_CAP,
   UNLIMITED,
   featuresForProductId,
-  foundingPlan,
+  foundingOffer,
+  FOUNDING_FIRST_YEAR_CENTS,
   getPlans,
-  isFoundingProductId,
   isUnlimited,
   limitsForFeatures,
   listedPlans,
@@ -65,33 +65,34 @@ describe('billing-plans registry', () => {
 
 describe('pricing model', () => {
   const plans = getPlans();
-  const plus = (interval: 'month' | 'year', founding = false) =>
-    plans.find((p) => p.key === 'plus' && p.interval === interval && Boolean(p.founding) === founding);
+  const plus = (interval: 'month' | 'year') =>
+    plans.find((p) => p.key === 'plus' && p.interval === interval);
   const connector = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'connector' && p.interval === interval);
   const church = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'church' && p.interval === interval);
 
-  it('prices Plus at $5/mo; standard annual stays unlisted at $45', () => {
-    expect(plus('month')?.amountCents).toBe(500);
+  it('prices Plus at $7/mo and $49/yr, both listed', () => {
+    expect(plus('month')?.amountCents).toBe(700);
     expect(plus('month')?.listed).toBe(true);
-    expect(plus('year')?.amountCents).toBe(4500);
-    expect(plus('year')?.listed).toBe(false);
+    expect(plus('year')?.amountCents).toBe(4900);
+    expect(plus('year')?.listed).toBe(true);
   });
 
-  it('prices founding at $30/yr, annual only', () => {
-    const founder = plus('year', true);
-    expect(founder?.amountCents).toBe(3000);
-    expect(founder?.interval).toBe('year');
-    expect(founder?.listed).toBe(true);
-    expect(plans.filter((p) => p.founding && p.interval === 'month')).toHaveLength(0);
+  it('has exactly one Plus row per interval — founding is a discount, not a product', () => {
+    expect(plans.filter((p) => p.key === 'plus')).toHaveLength(2);
   });
 
-  it('Founding annual is cheaper than twelve months of Plus', () => {
-    const monthly = plus('month')!.amountCents * 12;
-    const founding = plus('year', true)!.amountCents;
-    expect(founding).toBeLessThan(monthly);
-    expect(founding).toBeLessThan(plus('year')!.amountCents);
+  it('discounts annual hard enough to be the obvious choice', () => {
+    // Polar takes 5% + 50c, so the flat fee alone is 7% of a $7 charge and 1% of
+    // a $49 one. Annual must stay well under twelve months for that to pay off.
+    const twelveMonths = plus('month')!.amountCents * 12;
+    expect(plus('year')!.amountCents).toBeLessThan(twelveMonths * 0.65);
+  });
+
+  it('prices the founding first year below the annual list price', () => {
+    expect(FOUNDING_FIRST_YEAR_CENTS).toBe(3500);
+    expect(FOUNDING_FIRST_YEAR_CENTS).toBeLessThan(plus('year')!.amountCents);
   });
 
   it('prices Connector at $5/mo with NO annual discount', () => {
@@ -131,7 +132,7 @@ describe('pricing model', () => {
 
 describe('founding vs standard product resolution', () => {
   const ENV_KEYS = [
-    'POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL',
+    'POLAR_PLUS_FOUNDING_DISCOUNT_ID',
     'POLAR_PLUS_PRODUCT_MONTHLY',
     'POLAR_PLUS_PRODUCT_ANNUAL',
     'POLAR_CONNECTOR_PRODUCT_MONTHLY',
@@ -153,27 +154,24 @@ describe('founding vs standard product resolution', () => {
     }
   });
 
-  it('founding resolves to the $30 annual product', () => {
-    const founder = foundingPlan();
-    expect(founder?.amountCents).toBe(3000);
-    expect(founder?.productId).toBe('prod_polar_plus_product_founding_annual');
-    expect(isFoundingProductId(founder!.productId)).toBe(true);
+  it('the founding offer rides the annual product, not one of its own', () => {
+    const offer = foundingOffer();
+    expect(offer?.plan.productId).toBe(planFor('plus', 'year')!.productId);
+    expect(offer?.plan.amountCents).toBe(4900);
+    expect(offer?.firstYearCents).toBe(3500);
+    expect(offer?.discountId).toBe('prod_polar_plus_founding_discount_id');
   });
 
-  it('planFor never returns founding or the unlisted $45 annual — only listed monthly', () => {
-    expect(planFor('plus', 'year')).toBeNull();
-    const standardMonth = planFor('plus', 'month');
-    expect(standardMonth?.amountCents).toBe(500);
-    expect(standardMonth?.founding).toBeUndefined();
-    expect(isFoundingProductId(standardMonth!.productId)).toBe(false);
+  it('has no founding offer when the discount id is unset', () => {
+    delete process.env.POLAR_PLUS_FOUNDING_DISCOUNT_ID;
+    expect(foundingOffer()).toBeNull();
+    // The annual plan is still perfectly sellable at list.
+    expect(planFor('plus', 'year')?.amountCents).toBe(4900);
   });
 
-  it('standard Plus products are not mistaken for founding', () => {
-    expect(isFoundingProductId(planFor('plus', 'month')!.productId)).toBe(false);
-    const connectorMonth = getPlans().find((p) => p.key === 'connector' && p.interval === 'month');
-    expect(isFoundingProductId(connectorMonth!.productId)).toBe(false);
-    expect(isFoundingProductId('prod_unknown')).toBe(false);
-    expect(isFoundingProductId(null)).toBe(false);
+  it('planFor returns both listed Plus intervals', () => {
+    expect(planFor('plus', 'month')?.amountCents).toBe(700);
+    expect(planFor('plus', 'year')?.amountCents).toBe(4900);
   });
 
   it('keeps Connector in the registry but unlisted until it ships', () => {
@@ -182,8 +180,8 @@ describe('founding vs standard product resolution', () => {
     expect(planFor('connector', 'month')).toBeNull();
   });
 
-  it('the founding product grants the same features as standard Plus', () => {
-    expect(featuresForProductId(foundingPlan()!.productId)).toEqual(
+  it('a founder buys the same features as anyone else on Plus', () => {
+    expect(featuresForProductId(foundingOffer()!.plan.productId)).toEqual(
       featuresForProductId(planFor('plus', 'month')!.productId),
     );
   });

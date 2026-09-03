@@ -1261,6 +1261,21 @@ export const UserMetadata = pgTable('UserMetadata', {
   tier: text('tier').notNull().default('free'),
   /** Polar customer id for portal sessions and subscription sync. */
   polarCustomerId: text('polarCustomerId'),
+  /**
+   * When this user claimed the founding offer. `null` = never.
+   *
+   * Founding is a Polar `duration: once` discount on the annual plan, not a
+   * product, so a founder's subscription looks like any other annual one and
+   * this cannot be derived from `Entitlements.productId`. Stamped by the Polar
+   * webhook when a discounted checkout completes, and never cleared — the
+   * promise is "the first 99 people", so a founder who cancels keeps their
+   * claim rather than freeing the slot, and the badge outlives the first
+   * renewal onto the list price.
+   *
+   * Not an entitlement: founding grants no capability a normal Plus
+   * subscription doesn't. It is identity, so it lives here.
+   */
+  foundingClaimedAt: ts('foundingClaimedAt'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [

@@ -93,6 +93,8 @@
     "space-plans:schema": "tsx server/scripts/add-space-owned-plans-schema.ts",
     "space-plans:schema:apply": "tsx server/scripts/add-space-owned-plans-schema.ts --apply",
     "series:schema": "tsx server/scripts/add-series-presentation-schema.ts",
+    "founding:schema": "tsx server/scripts/add-founding-claim-schema.ts",
+    "founding:schema:apply": "tsx server/scripts/add-founding-claim-schema.ts --apply",
     "series:schema:apply": "tsx server/scripts/add-series-presentation-schema.ts --apply",
     "shared-spaces:schema:additive": "tsx server/scripts/add-shared-spaces-schema.ts",
     "shared-spaces:preflight": "tsx server/scripts/preflight-canonical-space-notes.ts",
