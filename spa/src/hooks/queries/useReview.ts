@@ -23,6 +23,8 @@ export interface ReviewItemView {
   id: string;
   kind: ReviewItemKind;
   prompt: string;
+  /** The instruction with the subject removed — the row's meta line. */
+  task: string;
   promptKey: string;
   recallState: RecallState;
   status: ReviewItemStatus;

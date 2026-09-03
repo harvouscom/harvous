@@ -8,10 +8,17 @@
  * prompts are personal because their *inputs* are personal — your reference, your Thread's
  * title, the two passages you chose to link.
  *
- * They are also all open questions with no correct answer stored anywhere. Review never grades
- * what the reader writes; it records only whether they said they had it. That is what keeps
- * this a study aid rather than a quiz, and it is why `attempt` text is never compared to
- * anything.
+ * **They are instructions, not questions.** "Pick the verse that follows John 15:5." rather than
+ * "What comes after John 15:5?" — a review is a thing to do, and phrasing it as a question made
+ * the app sound like it was wondering aloud. Every prompt ends in a full stop for that reason.
+ *
+ * **Each key also has a `task`**: the same instruction with the subject stripped out, for the row
+ * on Activity, which leads with *what* is being reviewed and puts the doing underneath. The
+ * prompt names the subject because it stands alone in the dock; the task never does, because the
+ * title above it already did.
+ *
+ * Where a rung is graded the answer key is the reader's own material or the Scripture text, never
+ * their prose: `attempt` text is still never compared to anything.
  */
 
 import type { ReviewItemKind } from './review-item-kinds';
@@ -63,25 +70,31 @@ function subjectName(ctx: ReviewPromptContext): string | null {
 }
 
 /**
- * Build a question two ways round: a named subject sits inside the sentence, and a note with
- * no name gets the bare form, because the row prints its opening words directly underneath.
+ * Build an instruction two ways round: a named subject sits inside the sentence, and anything
+ * nameless gets a hand-written bare form.
  *
- * The note's own words were briefly spliced into the sentence itself, which read as one very
- * long question and left nothing for the line below. The scripture row had it right all along:
- * the question on top, what it is about beneath.
+ * The bare forms are written out rather than spliced. Splicing produced "your this Thread" and
+ * "You marked this in this." — a fallback string dropped into a slot that assumed a name.
  */
-function ask(ctx: ReviewPromptContext, inside: (s: string) => string, bare: string): string {
+function named(ctx: ReviewPromptContext, inside: (s: string) => string, bare: string): string {
   const name = subjectName(ctx);
   return name ? inside(name) : bare;
 }
 
-/** For prompts that only ever name a Thread or a passage, which always have one. */
-function subjectText(ctx: ReviewPromptContext): string {
-  return subjectName(ctx) ?? 'this';
-}
-
-function threadName(ctx: ReviewPromptContext): string {
-  return ctx.threadTitle?.trim() || ctx.noteTitle?.trim() || 'this';
+/**
+ * The same, for the prompts that name a Thread.
+ *
+ * `subjectName` prefers `reference`, which is right for a verse rung and wrong here: a thread
+ * item carries whatever reference its representative note cites, and reading it through the
+ * general resolver produced "your Romans 8:15 Thread".
+ */
+function namedThread(
+  ctx: ReviewPromptContext,
+  inside: (s: string) => string,
+  bare: string,
+): string {
+  const name = ctx.threadTitle?.trim() || ctx.noteTitle?.trim() || null;
+  return name ? inside(name) : bare;
 }
 
 /**
@@ -90,52 +103,78 @@ function threadName(ctx: ReviewPromptContext): string {
  */
 export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) => string> = {
   /*
-   * Three questions about the note, not about its wording.
+   * Three instructions about the note, not about its wording.
    *
    * These replaced five open reflective prompts — "what made you write this?", "what is clearer
    * to you now?" — which turned out not to be review questions at all. They were invitations to
    * go and mark something, and that is where they went: Home, as a suggestion.
    *
-   * What is left can be marked, because the answer is something the reader committed. The
-   * fragment, the options and the reference all ship with the reveal, so these carry no context.
+   * `note.recognize` never names the note, because the note *is* the answer.
    */
-  'note.recognize': () => 'Which of your notes says this?',
-  'note.passage': () => 'Which of these did you cite here?',
-  'note.connect': () => 'What did you link this to?',
-  'highlight.why': (ctx) => `You marked this in ${subjectText(ctx)}. What made it worth keeping?`,
-  'highlight.detail': (ctx) => `What detail in ${subjectText(ctx)} led you to mark this passage?`,
+  'note.recognize': () => 'Pick the note this line is from.',
+  'note.passage': (ctx) =>
+    named(ctx, (s) => `Pick a passage you cited in ${s}.`, 'Pick a passage you cited here.'),
+  'note.connect': (ctx) =>
+    named(ctx, (s) => `Pick a note you linked to ${s}.`, 'Pick a note you linked to this one.'),
+  'highlight.why': (ctx) =>
+    named(ctx, (s) => `Say what made ${s} worth keeping.`, 'Say what made this worth keeping.'),
+  'highlight.detail': (ctx) =>
+    named(ctx, (s) => `Say what in ${s} led you to mark it.`, 'Say what led you to mark this.'),
   'connection.why': (ctx) =>
-    `Why did you connect ${ctx.noteTitle?.trim() || 'these notes'} and ${
-      ctx.secondaryNoteTitle?.trim() || 'the other'
-    }?`,
+    named(
+      ctx,
+      (s) => `Say why you connected ${s} to the other note.`,
+      'Say why you connected these two notes.',
+    ),
   'connection.distinct': (ctx) =>
-    `${ctx.noteTitle?.trim() || 'One note'} and ${
-      ctx.secondaryNoteTitle?.trim() || 'the other'
-    } sit together in your study. What is similar, and what is distinct?`,
+    named(
+      ctx,
+      (s) => `Say what ${s} shares with the note beside it, and where they differ.`,
+      'Say what these two notes share, and where they differ.',
+    ),
   'connection.tension': (ctx) =>
-    `Where do ${ctx.noteTitle?.trim() || 'these notes'} and ${
-      ctx.secondaryNoteTitle?.trim() || 'the other'
-    } pull against each other?`,
+    named(
+      ctx,
+      (s) => `Say where ${s} and the note beside it pull against each other.`,
+      'Say where these two notes pull against each other.',
+    ),
   'thread.central': (ctx) =>
-    `What central idea is taking shape across your ${threadName(ctx)} Thread?`,
+    namedThread(
+      ctx,
+      (s) => `Say what central idea is taking shape across your ${s} Thread.`,
+      'Say what central idea is taking shape across this Thread.',
+    ),
   'thread.unresolved': (ctx) =>
-    `What is still unresolved in your ${threadName(ctx)} Thread?`,
+    namedThread(
+      ctx,
+      (s) => `Say what is still unresolved in your ${s} Thread.`,
+      'Say what is still unresolved in this Thread.',
+    ),
   'thread.backbone': (ctx) =>
-    `If your ${threadName(ctx)} Thread had one sentence at its centre, what would it be?`,
+    namedThread(
+      ctx,
+      (s) => `Put your ${s} Thread into one sentence.`,
+      'Put this Thread into one sentence.',
+    ),
   /*
-   * "How does the rest go?", not "What comes next?".
-   *
-   * This rung asks you to finish the verse in front of you; `verse.next` asks what follows it.
-   * Two questions one word apart, and the same phrase on both would make the ladder feel like
-   * it was asking the same thing twice while marking only one of them.
+   * "Finish it", not "what comes next" — that phrase belongs to `verse.next`, which asks for the
+   * verse *after* this one. Two rungs one word apart is how the ladder starts to feel like it is
+   * asking the same thing twice while marking only one of them.
    */
   'verse.recognize': (ctx) =>
     ctx.cue?.trim()
-      ? `${subjectText(ctx)} — "${ctx.cue.trim()}…" How does the rest go?`
-      : `${subjectText(ctx)} — what does this verse say?`,
-  'verse.rebuild': (ctx) => `Fill in what is missing from ${subjectText(ctx)}.`,
-  'verse.recall': (ctx) => `${subjectText(ctx)} — write it as you remember it.`,
-  'verse.next': (ctx) => `What comes after ${subjectText(ctx)}?`,
+      ? named(
+          ctx,
+          (s) => `Finish ${s} from "${ctx.cue!.trim()}…".`,
+          `Finish the verse from "${ctx.cue!.trim()}…".`,
+        )
+      : named(ctx, (s) => `Say what ${s} says.`, 'Say what this verse says.'),
+  'verse.rebuild': (ctx) =>
+    named(ctx, (s) => `Fill in the missing words of ${s}.`, 'Fill in the missing words.'),
+  'verse.recall': (ctx) =>
+    named(ctx, (s) => `Write ${s} from memory.`, 'Write this verse from memory.'),
+  'verse.next': (ctx) =>
+    named(ctx, (s) => `Pick the verse that follows ${s}.`, 'Pick the verse that follows.'),
   /*
    * The most important line of copy in this feature.
    *
@@ -144,14 +183,58 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
    * flatly and first: no "can you spot", no game-show framing around someone's Scripture.
    */
   'verse.altered': (ctx) =>
-    ctx.reference?.trim()
-      ? `One word in ${ctx.reference.trim()} has been changed. Which one?`
-      : 'One word in this verse has been changed. Which one?',
-  'verse.sequence': (ctx) => `Put ${subjectText(ctx)} back in order.`,
-  'verse.locate': () => 'Where is this from?',
+    named(
+      ctx,
+      (s) => `One word in ${s} has been changed. Find it.`,
+      'One word in this verse has been changed. Find it.',
+    ),
+  'verse.sequence': (ctx) =>
+    named(ctx, (s) => `Put ${s} back in order.`, 'Put the verse back in order.'),
+  // Never names the passage: the reference is the answer.
+  'verse.locate': () => 'Say where this is from.',
   'verse.connect': (ctx) =>
-    `What note or passage did you connect to ${subjectText(ctx)}, and why?`,
+    named(
+      ctx,
+      (s) => `Say what you connected to ${s}, and why.`,
+      'Say what you connected to this verse, and why.',
+    ),
 };
+
+/**
+ * The same instruction with the subject taken out, for the row on Activity.
+ *
+ * The row leads with *what* is being reviewed — the reference, or the note's name — and puts the
+ * doing underneath, which is how Home has always read ("A passage you keep returning to · Across
+ * 5 of your notes"). Review had it the other way round: the question was the title and the thing
+ * it was about was demoted to the line below, so a shelf of rows all read as questions with no
+ * subject. A task must therefore never contain a reference or a title; the title above it has
+ * already said which.
+ */
+export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
+  'note.recognize': 'Pick the note this is from',
+  'note.passage': 'Pick a passage you cited',
+  'note.connect': 'Pick a note you linked',
+  'highlight.why': 'Say what made it worth keeping',
+  'highlight.detail': 'Say what led you to mark it',
+  'connection.why': 'Say why you connected them',
+  'connection.distinct': 'Say what they share',
+  'connection.tension': 'Say where they pull apart',
+  'thread.central': 'Say what is taking shape',
+  'thread.unresolved': 'Say what is unresolved',
+  'thread.backbone': 'Put it into one sentence',
+  'verse.recognize': 'Finish the verse',
+  'verse.rebuild': 'Fill in the missing words',
+  'verse.recall': 'Write it from memory',
+  'verse.next': 'Pick what comes next',
+  'verse.altered': 'Find the changed word',
+  'verse.sequence': 'Put it back in order',
+  'verse.locate': 'Say where it is from',
+  'verse.connect': 'Say what you connected to it',
+};
+
+export function reviewTaskFor(key: ReviewPromptKey): string {
+  return REVIEW_TASKS[key] ?? REVIEW_TASKS['verse.recall'];
+}
 
 /**
  * The verse ladder, in order. The rungs are positions on `ReviewItems.ladderStep`, and a clean

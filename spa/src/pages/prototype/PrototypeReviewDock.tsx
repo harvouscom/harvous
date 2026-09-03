@@ -495,6 +495,10 @@ export default function PrototypeReviewDock() {
            */
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {/* Which note is being asked about. `note.passage` and `note.connect` name it in the
+                sentence when it has a name, and say nothing when it does not — this is the line
+                that answers "which note?" for a nameless one. */}
+            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
             {noteChoice.fragment ? (
               <p className="proto-review-dock__verse">“{noteChoice.fragment}”</p>
             ) : null}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { reviewRowSource, reviewRowSubtitle, writtenAtLabel } from '@/utils/review-row-subtitle';
+import { reviewRowSource, reviewRowSubtitle, writtenAtLabel, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { VERSE_LOCATE_STEP, VERSE_SEQUENCE_STEP } from '@/utils/review-prompts';
 
 const NOW = new Date('2026-09-02T12:00:00Z');
@@ -163,5 +163,53 @@ describe('which rungs hide the identity line', () => {
     expect(reviewRowSubtitle({ ...verse, prompt: 'Put these back in order', ladderStep: VERSE_SEQUENCE_STEP })).toBe(
       'John 15:5',
     );
+  });
+});
+
+describe('reviewRowSubject', () => {
+  it('leads with the reference on a verse and the name on a note', () => {
+    expect(reviewRowSubject({ prompt: 'x', kind: 'verse', scriptureReference: 'John 15:5', ladderStep: 1 })).toBe(
+      'John 15:5',
+    );
+    expect(
+      reviewRowSubject({ prompt: 'x', kind: 'note', noteLabel: 'Adoption, not slavery', ladderStep: 1 }),
+    ).toBe('Adoption, not slavery');
+  });
+
+  it('says only what kind of thing it is where the subject is the answer', () => {
+    /*
+     * "Pick the note this line is from" printed above the note's own name is not a question.
+     * Same for "Say where this is from" above the reference.
+     */
+    expect(
+      reviewRowSubject({ prompt: 'x', kind: 'note', noteLabel: 'Adoption', ladderStep: 0 }),
+    ).toBe('One of your notes');
+    expect(
+      reviewRowSubject({
+        prompt: 'x',
+        kind: 'verse',
+        scriptureReference: 'John 15:5',
+        ladderStep: VERSE_LOCATE_STEP,
+      }),
+    ).toBe('One of your passages');
+  });
+
+  it('falls back to when it was written, and never to nothing', () => {
+    // Day and month order is the runtime's, not ours — `writtenAtLabel` formats by locale.
+    const written = reviewRowSubject(
+      { prompt: 'x', kind: 'note', noteWrittenAt: '2026-08-09T10:00:00Z', ladderStep: 1 },
+      NOW,
+    );
+    expect(written.startsWith('Written ')).toBe(true);
+    expect(written).toContain('Aug');
+    expect(written).toContain('9');
+    expect(reviewRowSubject({ prompt: 'x', kind: 'note', ladderStep: 1 })).toBe('One of your notes');
+  });
+
+  it('drops a verse reason that names the verse on the rung asking for it', () => {
+    // "Marked Romans 1:7 in a note" beneath "Say where this is from" is the answer.
+    const item = { sourceLabel: 'Marked John 15:5 in a note', kind: 'verse' };
+    expect(reviewRowSource({ ...item, ladderStep: VERSE_LOCATE_STEP }, null)).toBeNull();
+    expect(reviewRowSource({ ...item, ladderStep: 1 }, null)).toBe('Marked John 15:5 in a note');
   });
 });

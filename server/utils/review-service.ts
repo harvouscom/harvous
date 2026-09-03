@@ -48,6 +48,7 @@ import {
   fillReviewPrompt,
   nextLadderStep,
   reviewPromptFor,
+  reviewTaskFor,
   type ReviewPromptKey,
   verseRungFor,
 } from '@/utils/review-prompts';
@@ -127,6 +128,14 @@ export interface ReviewItemView {
   id: string;
   kind: ReviewItemKind;
   prompt: string;
+  /**
+   * The instruction with the subject removed, for the row's meta line.
+   *
+   * The row leads with what is being reviewed and puts the doing underneath; the dock, where the
+   * card stands alone, keeps the full `prompt`. Additive rather than a replacement so every
+   * existing consumer of `prompt` keeps working.
+   */
+  task: string;
   promptKey: string;
   recallState: RecallState;
   status: ReviewItemStatus;
@@ -542,7 +551,12 @@ export async function buildReviewItemViews(
     views.push({
       id: row.id,
       kind,
-      prompt: noteRung ? fillReviewPrompt(noteRung, {}) : prompt,
+      // Real context on the note rungs too: `fillReviewPrompt(noteRung, {})` was throwing the
+      // note's own name away, so every note prompt rendered in its nameless form.
+      prompt: noteRung
+        ? fillReviewPrompt(noteRung, { reference: row.scriptureReference, noteTitle, threadTitle })
+        : prompt,
+      task: reviewTaskFor(noteRung ?? key),
       promptKey: noteRung ?? key,
       recallState: row.recallState as RecallState,
       status: row.status as ReviewItemStatus,

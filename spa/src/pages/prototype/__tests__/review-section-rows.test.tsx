@@ -55,18 +55,19 @@ vi.mock('../../../layouts/proto-shell-context', () => ({
 
 const PrototypeReviewSection = (await import('../PrototypeReviewSection')).default;
 
-function reviewItem(id: string, prompt: string) {
+function reviewItem(id: string, prompt: string, task = 'Pick a passage you cited') {
   return {
     id,
     kind: 'note',
     prompt,
-    promptKey: 'note.observe',
+    task,
+    promptKey: 'note.passage',
     recallState: 'fragile',
     status: 'active',
     origin: 'user',
     dueAt: new Date().toISOString(),
     reviewCount: 1,
-    ladderStep: 0,
+    ladderStep: 1,
     noteTitle: 'Adoption, not slavery',
     secondaryNoteTitle: null,
     scriptureReference: 'Romans 8:15',
@@ -137,15 +138,39 @@ describe('who sees the Review section', () => {
 });
 
 describe('what it shows a subscriber', () => {
-  it('renders the questions themselves, not the note titles', () => {
+  it('leads with what is being reviewed, and puts the doing underneath', () => {
+    /*
+     * The inverse of what this asserted before. The question used to be the title, which left a
+     * shelf of rows all asking things with no visible subject; Home has always read the other
+     * way round, and Review now matches it. The full instruction is in the dock.
+     */
     inbox.data = {
-      items: [reviewItem('r1', 'Before opening it, what did you observe in Romans 8:15?')],
-      hasMore: false
+      items: [reviewItem('r1', 'Pick a passage you cited in Adoption, not slavery.')],
+      hasMore: false,
     };
     render(<PrototypeReviewSection />);
+    expect(screen.getByText('Adoption, not slavery')).toBeInTheDocument();
+    expect(screen.getByText(/Pick a passage you cited/)).toBeInTheDocument();
     expect(
-      screen.getByText('Before opening it, what did you observe in Romans 8:15?'),
-    ).toBeInTheDocument();
+      screen.queryByText('Pick a passage you cited in Adoption, not slavery.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('names only the kind of thing on a rung whose answer is the subject', () => {
+    // "Pick the note this line is from" — printing the note's name would answer it on the row.
+    inbox.data = {
+      items: [
+        {
+          ...reviewItem('r1', 'Pick the note this line is from.'),
+          promptKey: 'note.recognize',
+          ladderStep: 0,
+        },
+      ],
+      hasMore: false,
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText('One of your notes')).toBeInTheDocument();
+    expect(screen.queryByText('Adoption, not slavery')).not.toBeInTheDocument();
   });
 
   it('shows one note and one passage closed, whatever the queue is made of', () => {
@@ -155,38 +180,38 @@ describe('what it shows a subscriber', () => {
      */
     inbox.data = {
       items: [
-        reviewItem('a', 'Question a'),
-        reviewItem('b', 'Question b'),
-        { ...reviewItem('c', 'Question c'), kind: 'verse' },
+        reviewItem('a', 'Question a', 'Task a'),
+        reviewItem('b', 'Question b', 'Task b'),
+        { ...reviewItem('c', 'Question c', 'Task c'), kind: 'verse' },
       ],
       hasMore: false,
     };
     render(<PrototypeReviewSection />);
-    const questions = screen.queryAllByText(/^Question /).map((n) => n.textContent);
-    expect(questions).toEqual(['Question a', 'Question c']);
+    const tasks = screen.queryAllByText(/^Task /).map((n) => n.textContent);
+    expect(tasks).toEqual(['Task a', 'Task c']);
   });
 
   it('treats a highlight as a passage and a Thread as a note', () => {
     inbox.data = {
       items: [
-        { ...reviewItem('a', 'Question a'), kind: 'thread' },
-        { ...reviewItem('b', 'Question b'), kind: 'highlight' },
+        { ...reviewItem('a', 'Question a', 'Task a'), kind: 'thread' },
+        { ...reviewItem('b', 'Question b', 'Task b'), kind: 'highlight' },
       ],
       hasMore: false,
     };
     render(<PrototypeReviewSection />);
-    expect(screen.queryAllByText(/^Question /).length).toBe(2);
+    expect(screen.queryAllByText(/^Task /).length).toBe(2);
   });
 
   it('leaves room for the challenge continuation beside them', () => {
     inbox.data = {
-      items: ['a', 'b', 'c', 'd'].map((id) => reviewItem(id, `Question ${id}`)),
+      items: ['a', 'b', 'c', 'd'].map((id) => reviewItem(id, `Question ${id}`, `Task ${id}`)),
       hasMore: true,
     };
     challenges.data = { challenges: [challenge('c1')] };
     render(<PrototypeReviewSection />);
     // All four are notes, so only one qualifies for the closed state.
-    expect(screen.queryAllByText(/^Question /).length).toBe(1);
+    expect(screen.queryAllByText(/^Task /).length).toBe(1);
     expect(screen.getByText('Strengthen Covenant')).toBeInTheDocument();
   });
 
@@ -249,11 +274,12 @@ describe('opening a question', () => {
      * become a destination a second time.
      */
     inbox.data = {
-      items: [reviewItem('r1', 'What did you observe?')],
-      hasMore: false
+      items: [reviewItem('r1', 'Pick a passage you cited in Adoption.', 'Pick a passage you cited')],
+      hasMore: false,
     };
     render(<PrototypeReviewSection />);
-    screen.getByText('What did you observe?').click();
+    // The row's title is the subject now; tapping it is what opens the dock.
+    screen.getByText('Adoption, not slavery').click();
     expect(openReviewDock).toHaveBeenCalledWith('r1');
     expect(navigate).not.toHaveBeenCalled();
   });

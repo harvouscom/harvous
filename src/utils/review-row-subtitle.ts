@@ -109,12 +109,54 @@ export function reviewRowSubtitle(
  * Romans 1:7 in a note", "You linked these notes", "You opened this again".
  */
 export function reviewRowSource(
-  item: { sourceLabel?: string | null },
+  item: { sourceLabel?: string | null; kind?: string | null; ladderStep?: number | null },
   subtitle: string | null,
 ): string | null {
   const source = item.sourceLabel?.trim() || null;
-  if (!source || !subtitle) return source;
+  if (!source) return null;
+  /*
+   * A verse's reason names the verse — "Marked Romans 1:7 in a note" — and on the rung that asks
+   * where a fragment is from, that is the answer printed under the question. The identity line is
+   * already suppressed there; the reason has to go with it.
+   */
+  if (item.kind === 'verse' && rungIdentityIsTheAnswer(item)) return null;
+  if (!subtitle) return source;
   return source === NOTE_WRITTEN_SOURCE ? null : source;
+}
+
+/** When the subject is the answer, the row says which *kind* of thing it is and no more. */
+export const REVIEW_SUBJECT_HIDDEN_NOTE = 'One of your notes';
+export const REVIEW_SUBJECT_HIDDEN_VERSE = 'One of your passages';
+
+/**
+ * What the row leads with: the thing being reviewed, not the question about it.
+ *
+ * Home has always read this way — "A passage you keep returning to · Across 5 of your notes" —
+ * and Review had it inverted, with the question as the title and the subject demoted underneath,
+ * so a shelf of rows read as questions about nothing in particular.
+ *
+ * On the two rungs whose answer *is* the subject, this says only what kind of thing it is. Naming
+ * it there would print the answer on the row.
+ */
+export function reviewRowSubject(
+  item: ReviewRowSubtitleInput & { kind?: string | null },
+  now: Date = new Date(),
+): string {
+  if (rungIdentityIsTheAnswer(item)) {
+    return item.kind === 'verse' ? REVIEW_SUBJECT_HIDDEN_VERSE : REVIEW_SUBJECT_HIDDEN_NOTE;
+  }
+
+  const reference = item.scriptureReference?.trim();
+  if (item.kind === 'verse' && reference) return reference;
+
+  const named = item.noteLabel?.trim() || item.noteTitle?.trim() || reference;
+  if (named) return named;
+
+  // Last resort, and only that: it says when, not what.
+  const written = item.noteWrittenAt ? writtenAtLabel(item.noteWrittenAt, now) : null;
+  if (written) return `${WRITTEN_PREFIX}${written}`;
+
+  return REVIEW_SUBJECT_HIDDEN_NOTE;
 }
 
 /**

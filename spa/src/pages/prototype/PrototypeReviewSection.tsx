@@ -44,7 +44,7 @@ import {
 } from './proto-review-copy';
 import { prototypeChallengeRouteTo } from '@/lib/prototype-path';
 import { RECALL_STATE_LABELS, type ReviewItemKind } from '@/utils/review-item-kinds';
-import { reviewRowSource, reviewRowSubtitle } from '@/utils/review-row-subtitle';
+import { reviewRowSource, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 
@@ -175,12 +175,16 @@ export default function PrototypeReviewSection() {
         <PrototypeReviewRow
           key={item.id}
           icon={reviewKindIcon(item.kind)}
-          title={item.prompt}
+          /*
+           * The subject on top, what to do underneath — the way Home reads. The question used to
+           * be the title, which left a shelf of rows all asking things with no visible subject.
+           * The full question is in the dock, where the card stands alone.
+           */
+          title={reviewRowSubject(item)}
           meta={[
-            // Which note, then why it is here — and the second is dropped when the first
-            // already said it. See review-row-subtitle.ts.
-            reviewRowSubtitle(item),
-            reviewRowSource(item, reviewRowSubtitle(item)),
+            item.task,
+            // Why it is here, dropped when the subject above already said it.
+            reviewRowSource(item, reviewRowSubject(item)),
             // The recall state as a word, never a percentage. "New" says nothing useful on a
             // row that is by definition being asked for the first time.
             item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],

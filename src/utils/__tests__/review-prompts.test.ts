@@ -18,6 +18,7 @@ import {
   VERSE_LOCATE_STEP,
   VERSE_MAINTENANCE,
   verseRungFor,
+  reviewTaskFor,
 } from '../review-prompts';
 
 const CTX = {
@@ -60,10 +61,46 @@ describe('REVIEW_PROMPTS', () => {
     }
   });
 
-  it('asks open questions rather than stating conclusions', () => {
+  it('gives an instruction rather than asking a question', () => {
+    /*
+     * A review is a thing to do. Phrasing it as a question made the app sound like it was
+     * wondering aloud — "What comes after John 15:5?" — where "Pick the verse that follows"
+     * says what the reader is being asked for.
+     */
     for (const key of REVIEW_PROMPT_KEYS) {
       const text = fillReviewPrompt(key, CTX);
-      expect(text.endsWith('?') || text.endsWith('.')).toBe(true);
+      expect(text.endsWith('.')).toBe(true);
+      expect(text).not.toContain('?');
+    }
+  });
+
+  it('never splices a bare "this" into a slot that wanted a name', () => {
+    /*
+     * The old fallback dropped the word into a slot built for a proper name: "your this Thread",
+     * "You marked this in this." Written-out bare forms are the fix, so what this guards is the
+     * shape of a splice — a possessive or preposition with "this" where a name belongs — not the
+     * word itself, which is fine English in "Pick the note this line is from."
+     */
+    for (const key of REVIEW_PROMPT_KEYS) {
+      const bare = fillReviewPrompt(key, {});
+      // A possessive followed by the fallback: "your this Thread".
+      expect(bare).not.toMatch(/\byour this\b/);
+      // The word twice in one instruction: "You marked this in this." One is fine English —
+      // "this verse", "this Thread" — and is what the written-out bare forms use.
+      expect((bare.match(/\bthis\b/g) ?? []).length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('gives every key a task with no subject in it', () => {
+    /*
+     * The task sits under a title that already names the verse or the note, so a reference in
+     * the task would print the same thing twice.
+     */
+    for (const key of REVIEW_PROMPT_KEYS) {
+      const task = reviewTaskFor(key);
+      expect(task.length).toBeGreaterThan(4);
+      expect(task).not.toMatch(/\d+:\d+/);
+      expect(task.endsWith('.')).toBe(false);
     }
   });
 });
@@ -102,6 +139,7 @@ describe('reviewPromptFor', () => {
   it('returns the key alongside the rendered question', () => {
     const result = reviewPromptFor({ kind: 'thread', reviewCount: 0 }, CTX);
     expect(result.key).toBe('thread.central');
+    // The Thread's own name, not the reference its representative note happens to cite.
     expect(result.prompt).toContain('Covenant Thread');
   });
 
@@ -161,13 +199,18 @@ describe('the note ladder', () => {
     expect(pickPromptKey('note', 0, -3)).toBe('note.recognize');
   });
 
-  it('asks questions with an answer, not questions about motive', () => {
+  it('instructs rather than asking about motive', () => {
     for (const key of NOTE_LADDER) {
       const rendered = fillReviewPrompt(key, {});
-      expect(rendered).toMatch(/\?$/);
+      expect(rendered).toMatch(/\.$/);
       // No "why did you", no "what made you" — those are the ones that left.
       expect(rendered).not.toMatch(/why did you|what made you|clearer/i);
     }
+  });
+
+  it('never names the note on the rung whose answer is the note', () => {
+    const named = fillReviewPrompt('note.recognize', { noteTitle: 'Adoption, not slavery' });
+    expect(named).not.toContain('Adoption');
   });
 
   it('every rung of every ladder has a prompt behind it', () => {
@@ -215,9 +258,10 @@ describe('the verse ladder after "what comes next" arrived', () => {
      */
     const recognize = fillReviewPrompt('verse.recognize', { reference: 'John 15:5', cue: 'I am the vine' });
     const next = fillReviewPrompt('verse.next', { reference: 'John 15:5' });
-    expect(next).toContain('What comes after');
-    expect(recognize).not.toContain('What comes next');
-    expect(recognize).not.toContain('What comes after');
+    // One finishes the verse in front of you; the other asks for the verse after it.
+    expect(recognize).toContain('Finish');
+    expect(next).toContain('follows');
+    expect(recognize).not.toContain('follows');
   });
 
   it('knows which rungs the server marks, so three surfaces cannot disagree', () => {
