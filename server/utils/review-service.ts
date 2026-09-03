@@ -31,6 +31,7 @@ import {
   first,
   ScriptureTopics,
   BiblePeople,
+  isNull,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
 import {
@@ -87,6 +88,9 @@ import {
 import { getKnowledgeForReference } from './scripture-knowledge';
 import { curatedTopicLabelForDisplay } from '@/utils/prototype-home-trends';
 import { gradeChoiceExercise } from '@/utils/choice-exercise';
+import { reviewFraming, type ReviewFramingSpec } from '@/utils/review-framing';
+import { rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
+import { nodeKey as studyNodeKey } from '@/utils/study-bible-nodes';
 import { fetchVerseText } from './fetch-verse-text';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
@@ -153,6 +157,12 @@ export interface ReviewItemView {
    * existing consumer of `prompt` keeps working.
    */
   task: string;
+  /**
+   * One line saying why this is here or what it connects to, or null. A template and its
+   * arguments rather than text, because the month in it belongs in the reader's zone — the
+   * client renders it with `fillFraming`.
+   */
+  framing: ReviewFramingSpec | null;
   promptKey: string;
   recallState: RecallState;
   status: ReviewItemStatus;
@@ -553,6 +563,52 @@ export async function buildReviewItemViews(
     rows.filter((r) => r.kind === 'note').map((r) => r.noteId).filter((id): id is string => Boolean(id)),
   );
 
+  /*
+   * The facts a framing line is chosen from, loaded once for the whole build.
+   *
+   * Counters live on the Study Bible layer, keyed the way the engine keys them; a reader's own
+   * marks in the Bible reader are keyed by reference. Both are one query over the batch.
+   */
+  const nodeKeys = rows
+    .map((row) => {
+      if (row.kind === 'note' && row.noteId) return studyNodeKey.note(row.noteId);
+      if (row.kind === 'verse' && row.scriptureReference) {
+        const at = lastVerseOf(row.scriptureReference);
+        return at ? studyNodeKey.verse(at) : null;
+      }
+      return null;
+    })
+    .filter((key): key is string => Boolean(key));
+  const references = [
+    ...new Set(rows.map((row) => row.scriptureReference?.trim()).filter((r): r is string => Boolean(r))),
+  ];
+  const [nodes, marks] = await Promise.all([
+    nodeKeys.length
+      ? db
+          .select({
+            nodeKey: UserNodeStates.nodeKey,
+            revisitCount: UserNodeStates.revisitCount,
+            firstStudiedAt: UserNodeStates.firstStudiedAt,
+          })
+          .from(UserNodeStates)
+          .where(and(eq(UserNodeStates.userId, userId), inArray(UserNodeStates.nodeKey, nodeKeys)))
+      : Promise.resolve([]),
+    references.length
+      ? db
+          .select({ reference: StudyThreadEntries.scriptureReference })
+          .from(StudyThreadEntries)
+          .where(
+            and(
+              eq(StudyThreadEntries.userId, userId),
+              isNull(StudyThreadEntries.parentNoteId),
+              inArray(StudyThreadEntries.scriptureReference, references),
+            ),
+          )
+      : Promise.resolve([]),
+  ]);
+  const nodeByKey = new Map(nodes.map((n) => [n.nodeKey, n]));
+  const markedReferences = new Set(marks.map((m) => m.reference?.trim().toLowerCase()).filter(Boolean));
+
   // One probe per passage per build, however many rows share it.
   const materialCache = new Map<string, Promise<VerseKnowledgeMaterial>>();
   const materialFor = (reference: string, translation: string) => {
@@ -633,9 +689,39 @@ export async function buildReviewItemViews(
       },
     );
 
+    const resolvedKey = noteRung ?? key;
+    const framingNodeKey =
+      kind === 'note' && row.noteId
+        ? studyNodeKey.note(row.noteId)
+        : kind === 'verse' && row.scriptureReference
+          ? (() => {
+              const at = lastVerseOf(row.scriptureReference);
+              return at ? studyNodeKey.verse(at) : null;
+            })()
+          : null;
+    const node = framingNodeKey ? nodeByKey.get(framingNodeKey) : undefined;
+    const framing = reviewFraming(
+      {
+        kind: kind === 'note' ? 'note' : 'verse',
+        rungKey: resolvedKey,
+        identityIsAnswer: rungIdentityIsTheAnswer({ kind, ladderStep: row.ladderStep, promptKey: resolvedKey }),
+        pass: kind === 'verse' ? verseRungFor(row.ladderStep, `${row.id}:${row.ladderStep}`, verseMaterial).pass : 0,
+        recallState: row.recallState as RecallState,
+        revisitCount: node?.revisitCount ?? 0,
+        citedInNotes: verseMaterial?.citedInNotes ?? 0,
+        firstStudiedAt: node?.firstStudiedAt?.toISOString() ?? null,
+        topTheme: verseMaterial?.themes[0] ?? null,
+        person: verseMaterial?.people[0] ?? null,
+        crossRefCount: verseMaterial?.crossRefTotal ?? 0,
+        readerMarked: Boolean(row.scriptureReference && markedReferences.has(row.scriptureReference.trim().toLowerCase())),
+      },
+      `${row.id}:framing`,
+    );
+
     views.push({
       id: row.id,
       kind,
+      framing,
       // Real context on the note rungs too: `fillReviewPrompt(noteRung, {})` was throwing the
       // note's own name away, so every note prompt rendered in its nameless form.
       prompt: noteRung
@@ -1242,6 +1328,8 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   people: string[];
   /** Cross-reference targets above the vote floor whose text could be fetched. */
   crossRefs: { reference: string; text: string }[];
+  /** How many targets clear the vote floor at all, for the framing line. Capped by the query. */
+  crossRefTotal: number;
   /** Distinguishing labels of the reader's notes that cite this verse. */
   citingNoteLabels: string[];
 }
@@ -1256,6 +1344,7 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   allThemeLabels: [],
   people: [],
   crossRefs: [],
+  crossRefTotal: 0,
   citingNoteLabels: [],
 };
 
@@ -1275,7 +1364,8 @@ async function loadVerseMaterial(
     getKnowledgeForReference(at.book, at.chapter, at.verse, {
       minRelevance: 0,
       minVotes: CROSSREF_MIN_VOTES,
-      crossRefLimit: 8,
+      // Wide enough that "cross-referenced N times" is a count and not a cap.
+      crossRefLimit: 40,
       themeLimit: 16,
     }).catch(() => null),
     loadNotesCitingVerse(userId, at),
@@ -1307,6 +1397,7 @@ async function loadVerseMaterial(
     allThemeLabels: (knowledge?.themes ?? []).map(label),
     people: (knowledge?.people ?? []).map((p) => p.name),
     crossRefs,
+    crossRefTotal: knowledge?.crossReferences.length ?? 0,
     citingNoteLabels: citing,
   };
 }

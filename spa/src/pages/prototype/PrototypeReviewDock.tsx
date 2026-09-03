@@ -38,6 +38,7 @@ import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PROTO_REVIEW_RESULT_DWELL_MS } from '../../layouts/proto-motion';
 import { isTypingInInput } from '@/utils/keyboard-shortcuts';
 import { reviewRungIsGraded } from '@/utils/review-prompts';
+import { fillFraming } from '@/utils/review-framing';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import {
@@ -442,7 +443,8 @@ export default function PrototypeReviewDock() {
   const answeringOnNote = paperStack?.origin.review?.itemId === item?.id && Boolean(item);
   const isVerse = item?.kind === 'verse';
   // `reviewRowSubtitle` suppresses itself on a graded rung — see its docblock.
-  const subtitle = item ? reviewRowSubtitle(item) : null;
+  // What this is to the reader, else which thing is being asked about.
+  const subtitle = item ? (item.framing ? fillFraming(item.framing) : reviewRowSubtitle(item)) : null;
   const canJudge = canJudgeRecall({ attempt });
 
   const verdictRow = (

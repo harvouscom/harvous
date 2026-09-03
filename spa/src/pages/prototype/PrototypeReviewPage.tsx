@@ -31,6 +31,7 @@ import {
   REVIEW_RESUME_COPY,
 } from './proto-review-copy';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
+import { fillFraming } from '@/utils/review-framing';
 import { reviewRowSource, reviewRowSubject, reviewRowSubtitle } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
 import { prototypeChallengeRouteTo, prototypeHomeRouteTo } from '@/lib/prototype-path';
@@ -39,7 +40,7 @@ function rowMeta(item: ReviewItemView): (string | null)[] {
   const subject = reviewRowSubject(item);
   return [
     item.task,
-    reviewRowSource(item, subject),
+    item.framing ? fillFraming(item.framing) : reviewRowSource(item, subject),
     item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
   ];
 }

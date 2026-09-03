@@ -44,6 +44,7 @@ import {
 } from './proto-review-copy';
 import { prototypeChallengeRouteTo } from '@/lib/prototype-path';
 import { RECALL_STATE_LABELS, type ReviewItemKind } from '@/utils/review-item-kinds';
+import { fillFraming } from '@/utils/review-framing';
 import { reviewRowSource, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
@@ -183,8 +184,8 @@ export default function PrototypeReviewSection() {
           title={reviewRowSubject(item)}
           meta={[
             item.task,
-            // Why it is here, dropped when the subject above already said it.
-            reviewRowSource(item, reviewRowSubject(item)),
+            // What this is to the reader, when the app can say; its provenance when it cannot.
+            item.framing ? fillFraming(item.framing) : reviewRowSource(item, reviewRowSubject(item)),
             // The recall state as a word, never a percentage. "New" says nothing useful on a
             // row that is by definition being asked for the first time.
             item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],

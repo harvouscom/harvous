@@ -284,3 +284,41 @@ describe('opening a question', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 });
+
+describe('the framing line', () => {
+  it('takes the slot provenance would have, when the app has something to say', () => {
+    /*
+     * One slot, not two. A row reading "Pick a passage you cited · Cited in 3 of your notes ·
+     * Marked Romans 1:7 in a note · Forming" is a sentence nobody finishes. Framing is preferred
+     * because it is about the reader; provenance is what is left when there is nothing to say.
+     */
+    inbox.data = {
+      items: [
+        {
+          ...reviewItem('r1', 'Pick a passage you cited in Adoption, not slavery.'),
+          sourceLabel: 'Marked Romans 8:15 in a note',
+          framing: { template: 'cited', args: { n: 3 } },
+        },
+      ],
+      hasMore: false,
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(/Cited in 3 of your notes\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Marked Romans 8:15 in a note/)).not.toBeInTheDocument();
+  });
+
+  it('falls back to provenance rather than to nothing', () => {
+    inbox.data = {
+      items: [
+        {
+          ...reviewItem('r1', 'Pick a passage you cited in Adoption, not slavery.'),
+          sourceLabel: 'Marked Romans 8:15 in a note',
+          framing: null,
+        },
+      ],
+      hasMore: false,
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(/Marked Romans 8:15 in a note/)).toBeInTheDocument();
+  });
+});

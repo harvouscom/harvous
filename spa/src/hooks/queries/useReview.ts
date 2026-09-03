@@ -7,6 +7,7 @@
  * two doomed requests on every load.
  */
 import { useQuery } from '@tanstack/react-query';
+import type { ReviewFramingSpec } from '@/utils/review-framing';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useHasFeature } from '../useHasFeature';
@@ -24,6 +25,8 @@ export interface ReviewItemView {
   prompt: string;
   /** The instruction with the subject removed — the row's meta line. */
   task: string;
+  /** Why this is here or what it connects to, as a template; render with `fillFraming`. */
+  framing: ReviewFramingSpec | null;
   promptKey: string;
   recallState: RecallState;
   status: ReviewItemStatus;
