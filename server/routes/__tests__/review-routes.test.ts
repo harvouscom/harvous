@@ -243,12 +243,21 @@ describe('adding an item', () => {
     expect(block).toContain('ownsNote(userId, secondaryNoteId)');
   });
 
-  it('requires a real connection before reviewing one', () => {
+  it('refuses a retired kind before it touches the database', () => {
+    /*
+     * This asserted that a `connection` item checked for a real edge first. There is no
+     * connection item any more — the open questions moved to Home — so what matters now is
+     * that the refusal happens before any read or write, not after a lookup for a row that
+     * can never be created.
+     */
     const block = text.slice(
       text.indexOf('export async function createReviewItem'),
       text.indexOf('export async function recordReviewEvent'),
     );
-    expect(block).toContain('NoteConnections');
+    const guard = block.indexOf('isReviewAskableKind');
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(block.indexOf('await db'));
+    expect(block).not.toContain('NoteConnections');
   });
 });
 

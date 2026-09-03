@@ -16,6 +16,7 @@ export const RECALL_OPPORTUNITY_KINDS = [
   'connectNotes',
   'searchGap',
   'markNote',
+  'reflectThread',
 ] as const;
 
 export type RecallOpportunityKind = (typeof RECALL_OPPORTUNITY_KINDS)[number];
@@ -124,6 +125,7 @@ export const RECALL_KIND_LABELS: Record<RecallOpportunityKind, string> = {
   connectNotes: 'Connect notes',
   searchGap: 'Unanswered search',
   markNote: 'Mark a note',
+  reflectThread: 'Reflect on a Thread',
 };
 
 export function recallKindDisplayLabel(kind: string): string {

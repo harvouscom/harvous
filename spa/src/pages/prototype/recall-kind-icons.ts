@@ -53,6 +53,8 @@ export const RECALL_KIND_ICONS: Record<RecallOpportunityKind, IconName> = {
   /* Marking, not composing: `pen-to-square` is the toolbar's new-note button, and this card
      asks you to go into a note you already have. */
   markNote: 'highlighter',
+  /* The glyph a Thread wears everywhere else in the app. */
+  reflectThread: 'arrow-right-arrow-left',
 };
 
 export function recallKindIcon(kind: RecallOpportunityKind): IconName {

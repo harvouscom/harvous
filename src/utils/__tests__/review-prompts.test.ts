@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { REVIEW_ITEM_KINDS } from '../review-item-kinds';
+import { REVIEW_ASKABLE_KINDS, REVIEW_ITEM_KINDS, isReviewAskableKind } from '../review-item-kinds';
 import {
   NOTE_LADDER,
   NOTE_LADDER_MAX_STEP,
@@ -52,14 +52,6 @@ describe('REVIEW_PROMPTS', () => {
     }
   });
 
-  it('capitalizes Thread wherever it names one', () => {
-    const threadPrompts = REVIEW_PROMPT_KEYS.filter((k) => k.startsWith('thread.'));
-    for (const key of threadPrompts) {
-      const text = fillReviewPrompt(key, CTX);
-      expect(text).toContain('Thread');
-      expect(text).not.toMatch(/\bthread\b/);
-    }
-  });
 
   it('gives an instruction rather than asking a question', () => {
     /*
@@ -106,21 +98,11 @@ describe('REVIEW_PROMPTS', () => {
 });
 
 describe('pickPromptKey', () => {
-  it('covers every review kind', () => {
-    for (const kind of REVIEW_ITEM_KINDS) {
-      const key = pickPromptKey(kind, 0, 0);
-      expect(REVIEW_PROMPT_KEYS).toContain(key);
-    }
-  });
 
   it('is deterministic for the same review count', () => {
     expect(pickPromptKey('note', 4)).toBe(pickPromptKey('note', 4));
   });
 
-  it('rotates so the same item is not asked the same way twice running', () => {
-    expect(pickPromptKey('thread', 0)).not.toBe(pickPromptKey('thread', 1));
-    expect(pickPromptKey('connection', 0)).not.toBe(pickPromptKey('connection', 1));
-  });
 
   it('walks the verse ladder by step, not by review count', () => {
     expect(pickPromptKey('verse', 99, 0)).toBe(VERSE_LADDER[0]);
@@ -136,12 +118,6 @@ describe('pickPromptKey', () => {
 });
 
 describe('reviewPromptFor', () => {
-  it('returns the key alongside the rendered question', () => {
-    const result = reviewPromptFor({ kind: 'thread', reviewCount: 0 }, CTX);
-    expect(result.key).toBe('thread.central');
-    // The Thread's own name, not the reference its representative note happens to cite.
-    expect(result.prompt).toContain('Covenant Thread');
-  });
 
   it('tolerates a null ladder step', () => {
     const result = reviewPromptFor({ kind: 'verse', reviewCount: 0, ladderStep: null }, CTX);
@@ -150,26 +126,10 @@ describe('reviewPromptFor', () => {
 });
 
 describe('a fresh queue does not ask the same question three times', () => {
-  it('starts brand-new items at different points in the rotation', () => {
-    // Every new item has reviewCount 0, so without the id offset they all land on the first
-    // phrasing — which is exactly how the first preview read.
-    const keys = ['review_a1', 'review_b2', 'review_c3', 'review_d4'].map((id) =>
-      pickPromptKey('connection', 0, 0, id),
-    );
-    expect(new Set(keys).size).toBeGreaterThan(1);
-  });
 
-  it('asks the same item the same question on every device', () => {
-    expect(pickPromptKey('thread', 2, 0, 'review_x')).toBe(pickPromptKey('thread', 2, 0, 'review_x'));
-  });
 
-  it('still moves on as an item is answered', () => {
-    const first = pickPromptKey('thread', 0, 0, 'review_t');
-    const second = pickPromptKey('thread', 1, 0, 'review_t');
-    expect(second).not.toBe(first);
-  });
 
-  it('ignores the id for the kinds that climb, whose rung is the ladder position', () => {
+  it('picks a rung by ladder position, not by how many times it has come round', () => {
     expect(pickPromptKey('verse', 5, 2, 'review_v')).toBe(VERSE_LADDER[2]);
     expect(pickPromptKey('note', 5, 1, 'review_n')).toBe(NOTE_LADDER[1]);
   });
@@ -324,5 +284,33 @@ describe('the ladder wraps rather than ending', () => {
     expect(verseRungFor(-4).key).toBe(VERSE_LADDER[0]);
     expect(verseRungFor(Number.NaN).key).toBe(VERSE_LADDER[0]);
     expect(verseRungFor(1e6).pass).toBeGreaterThan(0);
+  });
+});
+
+describe('the kinds Review no longer asks about', () => {
+  it('has no question left for a highlight, a connection or a Thread', () => {
+    /*
+     * They asked open questions — "why did you connect these?" — which is the shape the note
+     * prompts were retired for. Worth asking, not worth marking, and a queue that mixes things
+     * you can be right about with things you cannot is not a review. They are Home suggestions.
+     */
+    for (const key of REVIEW_PROMPT_KEYS) {
+      expect(key.startsWith('highlight.')).toBe(false);
+      expect(key.startsWith('connection.')).toBe(false);
+      expect(key.startsWith('thread.')).toBe(false);
+    }
+  });
+
+  it('keeps every remaining key on one of the two ladders', () => {
+    const laddered = new Set([...NOTE_LADDER, ...VERSE_LADDER]);
+    for (const key of REVIEW_PROMPT_KEYS) expect(laddered.has(key)).toBe(true);
+  });
+
+  it('still names all five kinds, because rows for the retired ones exist', () => {
+    // What may be *created* narrowed; what may be *read* did not, or old rows would break.
+    expect(REVIEW_ITEM_KINDS).toContain('thread');
+    expect(REVIEW_ASKABLE_KINDS).toEqual(['note', 'verse']);
+    expect(isReviewAskableKind('thread')).toBe(false);
+    expect(isReviewAskableKind('verse')).toBe(true);
   });
 });

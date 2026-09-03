@@ -23,6 +23,7 @@ import { isNoteFingerprintsTableMissing } from './pg-undefined-relation';
 import {
   REVIEW_ENGINE_DAILY_CAP,
   REVIEW_ENGINE_WINDOW_HOURS,
+  type ReviewAskableKind,
 } from '@/utils/review-item-kinds';
 import {
   ENGINE_NODE_KINDS,
@@ -50,12 +51,15 @@ const CANDIDATE_LIMIT = 400;
 /** Slack over the day's room, so a note dropped at the floor does not cost a slot. */
 const OVERFETCH = 3;
 
-/** Node kind → the shape of question Review asks about it. */
-const REVIEW_KIND_FOR_NODE: Record<string, 'verse' | 'note' | 'connection' | 'thread'> = {
+/**
+ * Node kind → the shape of question Review asks about it.
+ *
+ * Two entries, not four. `connection` and `thread` had open questions with nothing to mark, and
+ * are Home suggestions now — see `REVIEW_ASKABLE_KINDS`.
+ */
+const REVIEW_KIND_FOR_NODE: Record<string, ReviewAskableKind> = {
   verse: 'verse',
   note: 'note',
-  connection: 'connection',
-  thread: 'thread',
 };
 
 function parseTranslation(meta: string | null): string | null {
@@ -218,7 +222,8 @@ export async function refillReviewQueue(
         {
           kind,
           noteId: pick.noteId,
-          secondaryNoteId: kind === 'connection' ? pick.secondaryNoteId : null,
+          // Only a connection ever had a second note, and the engine no longer makes those.
+          secondaryNoteId: null,
           scriptureReference: verseParts ? verseReferenceLabel(verseParts) : null,
           translation: verseParts ? parseTranslation(pick.meta ?? null) : null,
           origin: 'engine',

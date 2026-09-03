@@ -38,6 +38,7 @@ import {
   type ReviewItemStatus,
   type ReviewOutcome,
   type RecallState,
+  isReviewAskableKind,
 } from '@/utils/review-item-kinds';
 import {
   deferReview,
@@ -537,6 +538,13 @@ export async function buildReviewItemViews(
      */
     if (kind === 'note' && !noteRung && options.dropUnaskable) continue;
 
+    /*
+     * A row for a kind Review no longer asks about — always, not only when dropping unaskable
+     * notes. These exist in the table from before the open questions moved to Home, and there
+     * is no prompt left to render for them.
+     */
+    if (!isReviewAskableKind(kind)) continue;
+
     const { key, prompt } = reviewPromptFor(
       { kind, reviewCount: row.reviewCount, ladderStep: row.ladderStep, id: row.id },
       {
@@ -696,6 +704,9 @@ export interface CreateReviewItemResult {
 /**
  * Add something to Review, or hand back what is already there.
  *
+ * Refuses the retired kinds before it touches the database. A highlight, a link and a Thread
+ * were all asked open questions with no answer to mark, and those moved to Home.
+ *
  * Idempotent by `sourceKey`, and the existing row is returned rather than an error: the
  * reader tapping "Add to Review" on a note they already added meant "make sure this is in
  * Review", and it now is. A 409 would be technically accurate and useless.
@@ -705,13 +716,13 @@ export async function createReviewItem(
   input: CreateReviewItemInput,
   now: Date = new Date(),
 ): Promise<CreateReviewItemResult | { error: string }> {
-  let noteId = input.noteId?.trim() || null;
-  const secondaryNoteId = input.secondaryNoteId?.trim() || null;
-
-  // A Thread is addressed by any of its notes; the graph decides which one labels it.
-  if (input.kind === 'thread' && noteId) {
-    noteId = (await pickRepNoteIdForCluster(userId, noteId)) ?? noteId;
+  // Before anything is read or written: these kinds have no question left to ask.
+  if (!isReviewAskableKind(input.kind)) {
+    return { error: 'Review asks about notes and passages; Threads and links are on Home now' };
   }
+
+  const noteId = input.noteId?.trim() || null;
+  const secondaryNoteId = input.secondaryNoteId?.trim() || null;
 
   if (noteId && !(await ownsNote(userId, noteId))) return { error: 'Note not found' };
   if (secondaryNoteId && !(await ownsNote(userId, secondaryNoteId))) {
@@ -729,38 +740,12 @@ export async function createReviewItem(
     return { error: 'Nothing to ask about yet — cite a passage or link it to another note' };
   }
 
-  if (input.kind === 'connection') {
-    if (!noteId || !secondaryNoteId) return { error: 'A connection needs two notes' };
-    const edge = first(
-      await db
-        .select({ id: NoteConnections.id })
-        .from(NoteConnections)
-        .where(
-          and(
-            eq(NoteConnections.userId, userId),
-            or(
-              and(
-                eq(NoteConnections.fromNoteId, noteId),
-                eq(NoteConnections.toNoteId, secondaryNoteId),
-              ),
-              and(
-                eq(NoteConnections.fromNoteId, secondaryNoteId),
-                eq(NoteConnections.toNoteId, noteId),
-              ),
-            ),
-          ),
-        )
-        .limit(1),
-    );
-    if (!edge) return { error: 'These notes are not connected' };
-  }
-
   // A verse item made from a highlight inherits that highlight's reference and translation:
   // without it the row has no subject at all, since `verse` is keyed by reference.
   let scriptureReference = input.scriptureReference?.trim() || null;
   let translation = input.translation?.trim() || null;
 
-  if ((input.kind === 'highlight' || input.kind === 'verse') && input.studyThreadEntryId) {
+  if (input.kind === 'verse' && input.studyThreadEntryId) {
     const entry = first(
       await db
         .select({

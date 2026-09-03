@@ -20,6 +20,7 @@
 import type { RecallOpportunity } from './PrototypeRecallCarousel';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { noteMarkPrompt } from '@/utils/note-mark-prompts';
+import { threadReflectPrompt } from '@/utils/thread-reflect-prompts';
 import { RECALL_KIND_ICONS } from './recall-kind-icons';
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { isNoteDeleted } from './proto-deleted-notes';
@@ -97,6 +98,9 @@ export interface RecallCandidateInput {
   /** A note worth going back into and marking. See `pickMarkNoteCandidate`. */
   markNote: SpaceNoteRow | null | undefined;
   handleOpenMarkNote: (note: SpaceNoteRow) => boolean | void;
+  /** A named Thread worth thinking through. Carries the questions Review retired. */
+  reflectThread: { id: string; title: string; noteCount: number } | null | undefined;
+  handleOpenReflectThread: (threadId: string) => void;
 }
 
 /** Enough of a nameless note's opening to tell it from the next one, without wrapping. */
@@ -153,6 +157,8 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
     revisitNote,
     markNote,
     handleOpenMarkNote,
+    reflectThread,
+    handleOpenReflectThread,
     revisitOnHome,
     spotlightHighlight,
     studyArc,
@@ -533,6 +539,29 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
       meta: noteMarkPrompt(markNote.id),
       iconName: RECALL_KIND_ICONS.markNote,
       onOpen: () => handleOpenMarkNote(markNote),
+    });
+  }
+
+  /*
+   * The questions Review used to ask about a Thread and a link.
+   *
+   * They left for the same reason the five note prompts did: there is no answer to mark. "What
+   * is still unresolved in your Covenant Thread?" is a good question and a bad review — the app
+   * cannot say whether you got it right. Here it is what it always was, an invitation.
+   *
+   * Last, and low-scored, like the mark-a-note card beside it: an invitation is not a thread
+   * being picked up.
+   */
+  if (reflectThread && !out.some((o) => o.id === `reflect:${reflectThread.id}`)) {
+    out.push({
+      id: `reflect:${reflectThread.id}`,
+      kind: 'reflectThread',
+      score: 0.4,
+      eyebrow: 'A Thread to think through',
+      title: reflectThread.title,
+      meta: threadReflectPrompt(reflectThread.id, reflectThread.title),
+      iconName: RECALL_KIND_ICONS.reflectThread,
+      onOpen: () => handleOpenReflectThread(reflectThread.id),
     });
   }
 

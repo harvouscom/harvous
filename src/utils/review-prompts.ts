@@ -21,21 +21,13 @@
  * their prose: `attempt` text is still never compared to anything.
  */
 
-import type { ReviewItemKind } from './review-item-kinds';
+import type { ReviewAskableKind, ReviewItemKind } from './review-item-kinds';
 import { hashSeed } from './verse-cloze';
 
 export const REVIEW_PROMPT_KEYS = [
   'note.recognize',
   'note.passage',
   'note.connect',
-  'highlight.why',
-  'highlight.detail',
-  'connection.why',
-  'connection.distinct',
-  'connection.tension',
-  'thread.central',
-  'thread.unresolved',
-  'thread.backbone',
   'verse.recognize',
   'verse.rebuild',
   'verse.recall',
@@ -116,51 +108,6 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Pick a passage you cited in ${s}.`, 'Pick a passage you cited here.'),
   'note.connect': (ctx) =>
     named(ctx, (s) => `Pick a note you linked to ${s}.`, 'Pick a note you linked to this one.'),
-  'highlight.why': (ctx) =>
-    named(ctx, (s) => `Say what made ${s} worth keeping.`, 'Say what made this worth keeping.'),
-  'highlight.detail': (ctx) =>
-    named(ctx, (s) => `Say what in ${s} led you to mark it.`, 'Say what led you to mark this.'),
-  'connection.why': (ctx) =>
-    named(
-      ctx,
-      (s) => `Say why you connected ${s} to the other note.`,
-      'Say why you connected these two notes.',
-    ),
-  'connection.distinct': (ctx) =>
-    named(
-      ctx,
-      (s) => `Say what ${s} shares with the note beside it, and where they differ.`,
-      'Say what these two notes share, and where they differ.',
-    ),
-  'connection.tension': (ctx) =>
-    named(
-      ctx,
-      (s) => `Say where ${s} and the note beside it pull against each other.`,
-      'Say where these two notes pull against each other.',
-    ),
-  'thread.central': (ctx) =>
-    namedThread(
-      ctx,
-      (s) => `Say what central idea is taking shape across your ${s} Thread.`,
-      'Say what central idea is taking shape across this Thread.',
-    ),
-  'thread.unresolved': (ctx) =>
-    namedThread(
-      ctx,
-      (s) => `Say what is still unresolved in your ${s} Thread.`,
-      'Say what is still unresolved in this Thread.',
-    ),
-  'thread.backbone': (ctx) =>
-    namedThread(
-      ctx,
-      (s) => `Put your ${s} Thread into one sentence.`,
-      'Put this Thread into one sentence.',
-    ),
-  /*
-   * "Finish it", not "what comes next" — that phrase belongs to `verse.next`, which asks for the
-   * verse *after* this one. Two rungs one word apart is how the ladder starts to feel like it is
-   * asking the same thing twice while marking only one of them.
-   */
   'verse.recognize': (ctx) =>
     ctx.cue?.trim()
       ? named(
@@ -214,14 +161,6 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'note.recognize': 'Pick the note this is from',
   'note.passage': 'Pick a passage you cited',
   'note.connect': 'Pick a note you linked',
-  'highlight.why': 'Say what made it worth keeping',
-  'highlight.detail': 'Say what led you to mark it',
-  'connection.why': 'Say why you connected them',
-  'connection.distinct': 'Say what they share',
-  'connection.tension': 'Say where they pull apart',
-  'thread.central': 'Say what is taking shape',
-  'thread.unresolved': 'Say what is unresolved',
-  'thread.backbone': 'Put it into one sentence',
   'verse.recognize': 'Finish the verse',
   'verse.rebuild': 'Fill in the missing words',
   'verse.recall': 'Write it from memory',
@@ -356,18 +295,6 @@ export function reviewRungIsGraded(item: {
   return GRADED_VERSE_KEYS.has(verseRungFor(item.ladderStep ?? 0).key);
 }
 
-/**
- * Kinds that rotate through phrasings rather than climbing a ladder.
- *
- * `note` left this table when it became graded: its questions are rungs now, chosen by
- * `ladderStep` and by what the note actually has, not by how many times it has come round.
- */
-const ROTATIONS: Record<Exclude<ReviewItemKind, 'verse' | 'note'>, readonly ReviewPromptKey[]> = {
-  highlight: ['highlight.why', 'highlight.detail'],
-  connection: ['connection.why', 'connection.distinct', 'connection.tension'],
-  thread: ['thread.central', 'thread.unresolved', 'thread.backbone'],
-};
-
 /** Which kinds climb rather than rotate, and how far. */
 export function ladderMaxStepFor(kind: ReviewItemKind): number | null {
   if (kind === 'verse') return VERSE_LADDER_MAX_STEP;
@@ -386,19 +313,14 @@ export function nextLadderStep(kind: ReviewItemKind, step: number): number {
 }
 
 /**
- * Which prompt this item gets this time.
+ * Which rung this item is on.
  *
- * Rotation by review count rather than at random, for two reasons: the same item asked twice
- * on two devices must read the same, and a reader who sees "what did you observe" every single
- * time stops reading the question. Deterministic, so it is testable and cacheable.
- *
- * The item id offsets where in the rotation each item starts. Without it every brand-new item
- * begins at index 0, so a queue of three fresh notes asks "what did you observe" three times —
- * which is exactly how it read in the first preview. The offset is a hash rather than a random
- * pick for the same reason the rotation is: two devices must render the same question.
+ * Both remaining kinds climb rather than rotate. The rotation this used to do — a different
+ * phrasing each time an item came round — left with the open kinds it served; `reviewCount` and
+ * `itemId` are kept in the signature because callers pass them and a rung may want them again.
  */
 export function pickPromptKey(
-  kind: ReviewItemKind,
+  kind: ReviewAskableKind,
   reviewCount: number,
   ladderStep = 0,
   itemId?: string | null,
@@ -410,14 +332,8 @@ export function pickPromptKey(
    * body to quote, a passage to name or a link to recall — see `resolveNoteRung`, which the
    * server calls with the material in hand. This is the fallback when nothing is known.
    */
-  if (kind === 'note') {
-    const step = Math.min(Math.max(0, Math.trunc(ladderStep)), NOTE_LADDER_MAX_STEP);
-    return NOTE_LADDER[step];
-  }
-  const options = ROTATIONS[kind];
-  const offset = itemId ? hashSeed(itemId) : 0;
-  const index = (Math.max(0, Math.trunc(reviewCount)) + offset) % options.length;
-  return options[index];
+  const step = Math.min(Math.max(0, Math.trunc(ladderStep)), NOTE_LADDER_MAX_STEP);
+  return NOTE_LADDER[step];
 }
 
 export function fillReviewPrompt(key: ReviewPromptKey, ctx: ReviewPromptContext): string {
@@ -427,7 +343,7 @@ export function fillReviewPrompt(key: ReviewPromptKey, ctx: ReviewPromptContext)
 /** One call from an item row to its rendered question. */
 export function reviewPromptFor(
   item: {
-    kind: ReviewItemKind;
+    kind: ReviewAskableKind;
     reviewCount: number;
     ladderStep?: number | null;
     id?: string | null;

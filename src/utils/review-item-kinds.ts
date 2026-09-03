@@ -25,6 +25,26 @@ export function isReviewItemKind(value: string): value is ReviewItemKind {
 }
 
 /**
+ * The kinds Review still has an answerable question for.
+ *
+ * `highlight`, `connection` and `thread` asked open questions — "why did you connect these?",
+ * "what is taking shape across your Thread?" — which are the same shape the note prompts were
+ * retired for. They are worth asking; they are not worth *marking*, and a queue that mixes
+ * things you can be right about with things you cannot is not a review.
+ *
+ * They went where the note prompts went: Home, as a suggestion. `REVIEW_ITEM_KINDS` keeps all
+ * five because rows for the retired kinds exist in the table and their source keys must keep
+ * resolving — this is about what may be *created*, not about what may be read.
+ */
+export const REVIEW_ASKABLE_KINDS = ['note', 'verse'] as const;
+
+export type ReviewAskableKind = (typeof REVIEW_ASKABLE_KINDS)[number];
+
+export function isReviewAskableKind(value: string): value is ReviewAskableKind {
+  return (REVIEW_ASKABLE_KINDS as readonly string[]).includes(value);
+}
+
+/**
  * Three answers, and none of them is a rating.
  *
  * "I recalled it" / "I almost had it" describe the state of a memory, not satisfaction with

@@ -1116,6 +1116,28 @@ export function useHomeSurfaceData({
     return pickMarkNoteCandidate(notes, marked, spokenFor);
   }, [notes, highlightsWithRecency, continueNote, revisitNote, revisitOnHome, deletedIdList]);
 
+  /*
+   * A named Thread to think through, carrying the questions Review retired.
+   *
+   * The spotlight Thread, and skipped when the arc card above is already about it — two cards
+   * about the same cluster in one shelf is the shelf repeating itself. `connectNotes` is not a
+   * clash: that one proposes making a Thread, this one asks about one that exists.
+   */
+  const reflectThreadCandidate = useMemo(() => {
+    if (!spotlightThread) return null;
+    /*
+     * The same Thread the Continue row points at is fine, and deliberately so: Continue is a
+     * way back in, Suggested is something to do, and Home already reads that way for notes —
+     * "The first book" sits in both, as "pick up where you left off" and as "worth marking".
+     * Excluding it here only meant an account with one Thread never saw this card at all.
+     *
+     * Not the arc above it, though: an arc card proposes the same cluster as a topic, and two
+     * cards about one cluster in one shelf is the shelf repeating itself.
+     */
+    if (activeArc && 'title' in activeArc && activeArc.title === spotlightThread.title) return null;
+    return spotlightThread;
+  }, [spotlightThread, activeArc]);
+
   const handleOpenMarkNote = useCallback(
     // No card stack: the invitation is to work inside the note, not to keep a trail back.
     (row: SpaceNoteRow) => handleOpenRevisitNote(row, { stack: false }),
@@ -1128,6 +1150,8 @@ export function useHomeSurfaceData({
         searchGap,
         markNote: markNoteCandidate,
         handleOpenMarkNote,
+        reflectThread: reflectThreadCandidate,
+        handleOpenReflectThread: openThread,
         deletedNoteKey,
         continueNote,
         revisitNote,
@@ -1205,6 +1229,8 @@ export function useHomeSurfaceData({
       handleRecallCompleted,
       markNoteCandidate,
       handleOpenMarkNote,
+      reflectThreadCandidate,
+      openThread,
     ],
   );
 

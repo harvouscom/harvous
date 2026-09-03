@@ -1664,6 +1664,9 @@ export const RECALL_KIND_TIER: Record<RecallOpportunityKind, number> = {
      cannot take the head slot — the same restraint every new kind gets, and the rates above
      are the argument for it. */
   markNote: 2,
+  /* The Thread and link questions Review retired. Unmeasured here, and starting where it cannot
+     take the head slot — the restraint every new kind gets. */
+  reflectThread: 2,
 };
 
 export function recallKindTier(kind: RecallOpportunityKind): number {

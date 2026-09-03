@@ -56,13 +56,16 @@ export interface ReviewCandidateNode {
 }
 
 /**
- * The four kinds Review has a question for.
+ * The two kinds Review has an answerable question for.
  *
  * Themes, people, places and chapters are tracked and read by Home, but the app has no honest
- * question to ask about them yet. "What do you remember about adoption?" is a quiz about
- * doctrine, not a return to the reader's own study, and this feature does not do that.
+ * question to ask about them: "what do you remember about adoption?" is a quiz about doctrine,
+ * not a return to the reader's own study, and this feature does not do that.
+ *
+ * `connection` and `thread` left for a different reason — their questions were open, with no
+ * answer to mark — and are Home suggestions now. See `REVIEW_ASKABLE_KINDS`.
  */
-export const ENGINE_NODE_KINDS: readonly NodeKind[] = ['verse', 'note', 'connection', 'thread'];
+export const ENGINE_NODE_KINDS: readonly NodeKind[] = ['verse', 'note'];
 
 /** At most two of one kind in a batch of three, so an offer is never three of the same shape. */
 export const ENGINE_PER_KIND_CAP = 2;
