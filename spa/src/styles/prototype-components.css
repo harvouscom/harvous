@@ -21718,13 +21718,35 @@ button.proto-feed-sheet__stat:hover {
  * Sits on the line it interrupts: no border box, just the underline the underscores used to
  * draw, so the verse still reads as a verse while it is being filled in.
  */
+/*
+ * A gap to type into. The line under it is the whole affordance, so it is drawn from the text
+ * colour rather than the canvas — the control-edge tokens are derived from the paper and come
+ * out around 0.22 alpha, which on this ground is barely a line at all.
+ *
+ * **The line is a background, not a border.** `global.css` carries a blanket
+ * `input:focus { border: none !important }`, so the underline vanished the instant you typed
+ * in a gap and the box lost its 1.5px — the jump you can see when tabbing between blanks. A
+ * background cannot be stripped that way, and with no border in either state there is nothing
+ * left to change height.
+ *
+ * Focused, it takes the same two blues as the accent button and drifts: a gradient twice the
+ * width sliding back and forth, mirrored so the loop has no seam, and only where motion is
+ * welcome.
+ */
 .proto-review-dock__blank {
   appearance: none;
   border: 0;
-  border-bottom: 1.5px solid var(--pds-border-control-medium);
   border-radius: 0;
-  background: none;
-  padding: 0 2px;
+  background-color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--pds-border-on-paper),
+    var(--pds-border-on-paper)
+  );
+  background-size: 100% 1.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  padding: 0 2px 2px;
   margin: 0 1px;
   font: inherit;
   color: var(--pds-text-primary);
@@ -21733,7 +21755,28 @@ button.proto-feed-sheet__stat:hover {
 
 .proto-review-dock__blank:focus {
   outline: none;
-  border-bottom-color: var(--pds-accent);
+  background-image: linear-gradient(
+    90deg,
+    var(--pds-accent-gradient-start) 7%,
+    var(--pds-accent-gradient-end) 50%,
+    var(--pds-accent-gradient-start) 93%
+  );
+  background-size: 200% 1.5px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proto-review-dock__blank:focus {
+    animation: proto-review-blank-drift 2.4s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes proto-review-blank-drift {
+  from {
+    background-position: 0 100%;
+  }
+  to {
+    background-position: 100% 100%;
+  }
 }
 
 .proto-review-dock__blank:disabled {
