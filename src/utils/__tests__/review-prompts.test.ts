@@ -12,6 +12,10 @@ import {
   nextLadderStep,
   pickPromptKey,
   reviewPromptFor,
+  VERSE_NEXT_STEP,
+  reviewRungIsGraded,
+  VERSE_SEQUENCE_STEP,
+  VERSE_LOCATE_STEP,
 } from '../review-prompts';
 
 const CTX = {
@@ -186,5 +190,37 @@ describe('ladder advancement', () => {
     expect(ladderMaxStepFor('note')).toBe(NOTE_LADDER_MAX_STEP);
     expect(ladderMaxStepFor('verse')).toBe(VERSE_LADDER_MAX_STEP);
     expect(ladderMaxStepFor('highlight')).toBeNull();
+  });
+});
+
+describe('the verse ladder after "what comes next" arrived', () => {
+  it('has dropped the open contextualize rung, which the graded one replaced', () => {
+    expect(REVIEW_PROMPT_KEYS).not.toContain('verse.contextualize');
+    expect(VERSE_LADDER[VERSE_NEXT_STEP]).toBe('verse.next');
+  });
+
+  it('does not ask two rungs the same question in different words', () => {
+    /*
+     * `verse.recognize` owned "What comes next?" and meant "finish this verse"; `verse.next`
+     * means "what follows it". One phrase across both would make the ladder feel like it was
+     * asking the same thing twice while marking only one of them.
+     */
+    const recognize = fillReviewPrompt('verse.recognize', { reference: 'John 15:5', cue: 'I am the vine' });
+    const next = fillReviewPrompt('verse.next', { reference: 'John 15:5' });
+    expect(next).toContain('What comes after');
+    expect(recognize).not.toContain('What comes next');
+    expect(recognize).not.toContain('What comes after');
+  });
+
+  it('knows which rungs the server marks, so three surfaces cannot disagree', () => {
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_NEXT_STEP })).toBe(true);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_SEQUENCE_STEP })).toBe(true);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_LOCATE_STEP })).toBe(true);
+    // The open rungs, where the reader judges themselves.
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 0 })).toBe(false);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4 })).toBe(false);
+    // Every note rung is a multiple choice.
+    expect(reviewRungIsGraded({ kind: 'note', ladderStep: 2 })).toBe(true);
+    expect(reviewRungIsGraded({ kind: 'thread', ladderStep: 0 })).toBe(false);
   });
 });

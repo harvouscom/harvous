@@ -50,11 +50,15 @@ import {
   reviewPromptFor,
   type ReviewPromptKey,
   VERSE_LOCATE_STEP,
+  VERSE_NEXT_STEP,
   VERSE_REBUILD_STEP,
   VERSE_SEQUENCE_STEP,
 } from '@/utils/review-prompts';
 import {
   buildVerseLocate,
+  buildVerseNext,
+  gradeVerseNext,
+  type VerseNextExercise,
   buildVerseSequence,
   gradeVerseLocate,
   gradeVerseSequence,
@@ -65,6 +69,7 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
 import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
 import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
+import { formatVerseAddress, neighbourVerseAddresses, nextVerseAddress } from '@/utils/verse-adjacency';
 import { fetchVerseText } from './fetch-verse-text';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
@@ -1068,6 +1073,13 @@ export interface ReviewRevealPayload {
    * writing back at them. The other two rungs name the note in the row and ask about it.
    */
   noteChoice?: { fragment: string | null; options: string[] } | null;
+  /**
+   * The four openings on "what comes after this?", and never the next verse's reference.
+   *
+   * Naming it would answer the question outright — the reader would only have to know that
+   * Romans 1:8 follows Romans 1:7, which is arithmetic rather than memory.
+   */
+  next?: { options: string[] } | null;
 }
 
 /**
@@ -1108,6 +1120,38 @@ async function listUserVerseReferences(userId: string, exclude: string): Promise
  * key never travels to the client, which is the point — a `verse.locate` whose answer sits in
  * the page's memory is a multiple choice with the answer written on the back.
  */
+/**
+ * The "what comes after this?" rung, built once for both the question and the marking.
+ *
+ * Over-fetches neighbours: a verse whose text is missing from the cache contributes no option,
+ * and three distractors is the difference between a question and a coin toss.
+ */
+async function buildVerseNextFor(item: ReviewItemRow): Promise<VerseNextExercise | null> {
+  if (!item.scriptureReference) return null;
+
+  const next = nextVerseAddress(item.scriptureReference);
+  // The end of a book, or a reference the canon map does not recognise. Neither is askable.
+  if (!next) return null;
+
+  const translation = item.translation ?? 'NET';
+  const answerHtml = await fetchVerseText(formatVerseAddress(next), translation);
+  if (!answerHtml) return null;
+
+  const neighbours = neighbourVerseAddresses(item.scriptureReference, VERSE_NEXT_NEIGHBOURS);
+  const texts = await Promise.all(
+    neighbours.map((address) => fetchVerseText(formatVerseAddress(address), translation)),
+  );
+
+  return buildVerseNext({
+    answerText: stripHtml(answerHtml),
+    neighbourTexts: texts.filter(Boolean).map((html) => stripHtml(html)),
+    seed: `${item.id}:${item.ladderStep}`,
+  });
+}
+
+/** Five asked for, three needed — see `buildVerseNextFor`. */
+const VERSE_NEXT_NEIGHBOURS = 5;
+
 export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
@@ -1116,7 +1160,14 @@ export async function gradeVerseAnswer(
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const isSequence = item.ladderStep === VERSE_SEQUENCE_STEP && Array.isArray(answer.order);
   const isLocate = item.ladderStep === VERSE_LOCATE_STEP && typeof answer.option === 'string';
-  if (!isSequence && !isLocate) return null;
+  const isNext = item.ladderStep === VERSE_NEXT_STEP && typeof answer.option === 'string';
+  if (!isSequence && !isLocate && !isNext) return null;
+
+  if (isNext) {
+    const exercise = await buildVerseNextFor(item);
+    if (!exercise) return null;
+    return gradeVerseNext(exercise, answer.option!) ? 'recalled' : 'almost';
+  }
 
   const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
   if (!html) return null;
@@ -1390,6 +1441,11 @@ export async function buildReviewReveal(
           // which is the same information in one line.
           payload.sequence = exercise ? { phrases: exercise.phrases } : null;
           if (exercise) payload.verseText = null;
+        }
+        if (item.ladderStep === VERSE_NEXT_STEP) {
+          const exercise = await buildVerseNextFor(item);
+          // The verse asked about stays: it is the question, not the answer.
+          payload.next = exercise ? { options: exercise.options } : null;
         }
         if (item.ladderStep === VERSE_LOCATE_STEP) {
           const pool = await listUserVerseReferences(userId, item.scriptureReference);

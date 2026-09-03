@@ -13,7 +13,7 @@
  * Pure. `verse-cloze.ts` next door does the same job for the rebuild rung.
  */
 
-import { hashSeed, mulberry32 } from '@/utils/verse-cloze';
+import { hashSeed, mulberry32, verseCue } from '@/utils/verse-cloze';
 import { buildChoiceExercise, gradeChoiceExercise } from '@/utils/choice-exercise';
 
 // ─── Sequence: put the phrases back in order ─────────────────────────────────
@@ -184,6 +184,59 @@ export function buildVerseLocate(
   if (!choice) return null;
 
   return { phrase, options: choice.options, answerIndex: choice.answerIndex };
+}
+
+/** "What comes after this?" — the options are openings, not whole verses. */
+export interface VerseNextExercise {
+  /** What the reader picks between: the first few words of four verses. */
+  options: string[];
+  answerIndex: number;
+}
+
+/** Enough of a verse to recognise it, and few enough words to read four of them at a glance. */
+export const VERSE_NEXT_CUE_WORDS = 8;
+const NEXT_OPTION_COUNT = 4;
+
+/**
+ * Build "what comes after this?".
+ *
+ * The options are cues rather than whole verses for two reasons, and the second is the one that
+ * matters: four full verses is a wall of text nobody reads, and a long option gives away its own
+ * answer through subject matter — you can pick the one that sounds like a continuation without
+ * remembering anything. Eight words is enough to recognise a verse you know and not enough to
+ * reason your way to one you do not.
+ *
+ * The caller supplies neighbours from the same chapter. Distractors from elsewhere would test
+ * whether the reader recognises the topic, which is not what the rung is for.
+ */
+export function buildVerseNext(input: {
+  answerText: string;
+  neighbourTexts: readonly string[];
+  seed: string;
+}): VerseNextExercise | null {
+  const answer = verseCue(input.answerText, VERSE_NEXT_CUE_WORDS);
+  if (!answer) return null;
+
+  const pool = input.neighbourTexts
+    .map((text) => verseCue(text, VERSE_NEXT_CUE_WORDS))
+    .filter(Boolean);
+
+  const choice = buildChoiceExercise({
+    answers: [answer],
+    pool,
+    optionCount: NEXT_OPTION_COUNT,
+    seed: input.seed,
+  });
+  if (!choice) return null;
+
+  return { options: choice.options, answerIndex: choice.answerIndex };
+}
+
+/** True when the reader picked the verse that actually follows. */
+export function gradeVerseNext(exercise: VerseNextExercise, answer: string): boolean {
+  const shown = exercise.options[exercise.answerIndex];
+  if (!shown) return false;
+  return gradeChoiceExercise(exercise, answer, [shown]);
 }
 
 /** A middle fragment, so the opening words do not give the reference away. */

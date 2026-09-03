@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
+import { verseCue } from '@/utils/verse-cloze';
 import {
   buildVerseLocate,
   buildVerseSequence,
   gradeVerseLocate,
   gradeVerseSequence,
   splitVersePhrases,
+  buildVerseNext,
+  gradeVerseNext,
+  VERSE_NEXT_CUE_WORDS,
 } from '@/utils/verse-ladder-exercises';
 
 const JOHN_15_5 =
@@ -143,5 +147,57 @@ describe('gradeVerseLocate', () => {
     const exercise = buildVerseLocate('John 15:5', JOHN_15_5, pool, 'review_1:6')!;
     expect(gradeVerseLocate(exercise, '  john 15:5 ')).toBe(true);
     expect(gradeVerseLocate(exercise, '')).toBe(false);
+  });
+});
+
+describe('buildVerseNext', () => {
+  const answerText = 'I am the vine; you are the branches. The one who remains in me bears much fruit.';
+  const neighbours = [
+    'Every branch that bears fruit he prunes so that it will bear more fruit.',
+    'Remain in me, and I will remain in you.',
+    'If anyone does not remain in me, he is thrown out like a branch and dries up.',
+    'You are clean already because of the word that I have spoken to you.',
+  ];
+
+  it('offers four openings with the real continuation among them', () => {
+    const ex = buildVerseNext({ answerText, neighbourTexts: neighbours, seed: 'a' })!;
+    expect(ex.options).toHaveLength(4);
+    expect(ex.options[ex.answerIndex]).toBe(verseCue(answerText, VERSE_NEXT_CUE_WORDS));
+  });
+
+  it('shows openings, not whole verses', () => {
+    /*
+     * Four full verses is a wall of text nobody reads, and length itself gives the answer away:
+     * a long option can be reasoned about from its subject without remembering the passage.
+     */
+    const ex = buildVerseNext({ answerText, neighbourTexts: neighbours, seed: 'a' })!;
+    for (const option of ex.options) {
+      expect(option.split(/\s+/).length).toBeLessThanOrEqual(VERSE_NEXT_CUE_WORDS);
+    }
+  });
+
+  it('is the same card for the same seed', () => {
+    expect(buildVerseNext({ answerText, neighbourTexts: neighbours, seed: 'a' })).toEqual(
+      buildVerseNext({ answerText, neighbourTexts: neighbours, seed: 'a' }),
+    );
+  });
+
+  it('refuses rather than offering a thin question', () => {
+    expect(buildVerseNext({ answerText, neighbourTexts: neighbours.slice(0, 1), seed: 'a' })).toBeNull();
+    expect(buildVerseNext({ answerText: '', neighbourTexts: neighbours, seed: 'a' })).toBeNull();
+  });
+
+  it('marks the right pick right and every other one wrong', () => {
+    const ex = buildVerseNext({ answerText, neighbourTexts: neighbours, seed: 'b' })!;
+    const right = ex.options[ex.answerIndex];
+    expect(gradeVerseNext(ex, right)).toBe(true);
+    for (const wrong of ex.options.filter((o) => o !== right)) {
+      expect(gradeVerseNext(ex, wrong)).toBe(false);
+    }
+  });
+
+  it('rejects a right-looking answer that was never offered', () => {
+    const ex = buildVerseNext({ answerText, neighbourTexts: neighbours, seed: 'b' })!;
+    expect(gradeVerseNext(ex, 'Something the client made up')).toBe(false);
   });
 });

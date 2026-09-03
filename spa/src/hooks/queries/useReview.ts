@@ -63,6 +63,8 @@ export interface ReviewRevealResponse {
   locate?: { phrase: string; options: string[] } | null;
   /** A note rung's own material and four options. Which is right stays on the server. */
   noteChoice?: { fragment: string | null; options: string[] } | null;
+  /** Four openings on "what comes after this?". The next verse's reference is never sent. */
+  next?: { options: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
 }
 

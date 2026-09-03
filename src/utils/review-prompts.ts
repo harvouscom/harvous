@@ -32,7 +32,7 @@ export const REVIEW_PROMPT_KEYS = [
   'verse.recognize',
   'verse.rebuild',
   'verse.recall',
-  'verse.contextualize',
+  'verse.next',
   'verse.sequence',
   'verse.locate',
   'verse.connect',
@@ -121,13 +121,20 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     `What is still unresolved in your ${threadName(ctx)} Thread?`,
   'thread.backbone': (ctx) =>
     `If your ${threadName(ctx)} Thread had one sentence at its centre, what would it be?`,
+  /*
+   * "How does the rest go?", not "What comes next?".
+   *
+   * This rung asks you to finish the verse in front of you; `verse.next` asks what follows it.
+   * Two questions one word apart, and the same phrase on both would make the ladder feel like
+   * it was asking the same thing twice while marking only one of them.
+   */
   'verse.recognize': (ctx) =>
     ctx.cue?.trim()
-      ? `${subjectText(ctx)} — "${ctx.cue.trim()}…" What comes next?`
+      ? `${subjectText(ctx)} — "${ctx.cue.trim()}…" How does the rest go?`
       : `${subjectText(ctx)} — what does this verse say?`,
   'verse.rebuild': (ctx) => `Fill in what is missing from ${subjectText(ctx)}.`,
   'verse.recall': (ctx) => `${subjectText(ctx)} — write it as you remember it.`,
-  'verse.contextualize': (ctx) => `What happens just before or after ${subjectText(ctx)}?`,
+  'verse.next': (ctx) => `What comes after ${subjectText(ctx)}?`,
   'verse.sequence': (ctx) => `Put ${subjectText(ctx)} back in order.`,
   'verse.locate': () => 'Where is this from?',
   'verse.connect': (ctx) =>
@@ -163,7 +170,7 @@ export const VERSE_LADDER: readonly ReviewPromptKey[] = [
   'verse.recognize',
   'verse.rebuild',
   'verse.recall',
-  'verse.contextualize',
+  'verse.next',
   'verse.connect',
   'verse.sequence',
   'verse.locate',
@@ -174,11 +181,37 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
 /** The rung whose prompt hides part of the verse. The page renders a cloze only here. */
 export const VERSE_REBUILD_STEP = 1;
 
-/** The two graded rungs. The client's own verdict is ignored on these — the server marks them. */
 /** Rung 0 of the note ladder, where the note's own identity is the answer. */
 export const NOTE_RECOGNIZE_STEP = 0;
+
+/** The graded rungs. The client's own verdict is ignored on these — the server marks them. */
+export const VERSE_NEXT_STEP = 3;
 export const VERSE_SEQUENCE_STEP = 5;
 export const VERSE_LOCATE_STEP = 6;
+
+/**
+ * Rungs the server marks, where the puzzle *is* the question.
+ *
+ * On these the reader taps an option rather than writing an attempt and judging themselves, so
+ * the dock fetches the reveal straight away and the client's own verdict is discarded.
+ *
+ * One function because the answer was being written out by hand in three places — the dock, the
+ * subtitle rule and the outcome route — and a rung added to two of them is a rung that asks a
+ * question nobody can answer, or marks one nobody was asked.
+ */
+export function reviewRungIsGraded(item: {
+  kind?: string | null;
+  ladderStep?: number | null;
+}): boolean {
+  // Every note rung is a multiple choice now.
+  if (item.kind === 'note') return true;
+  if (item.kind !== 'verse') return false;
+  return (
+    item.ladderStep === VERSE_NEXT_STEP ||
+    item.ladderStep === VERSE_SEQUENCE_STEP ||
+    item.ladderStep === VERSE_LOCATE_STEP
+  );
+}
 
 /**
  * Kinds that rotate through phrasings rather than climbing a ladder.

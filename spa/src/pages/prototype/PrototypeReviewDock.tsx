@@ -36,7 +36,7 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { PROTO_REVIEW_RESULT_DWELL_MS } from '../../layouts/proto-motion';
-import { VERSE_LOCATE_STEP, VERSE_SEQUENCE_STEP } from '@/utils/review-prompts';
+import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import {
@@ -101,6 +101,51 @@ function revealLabelFor(kind: ReviewItemView['kind']): string {
   }
 }
 
+/**
+ * The options on a multiple-choice rung.
+ *
+ * One component for four rungs. It was three copies of the same eleven lines before `verse.next`
+ * would have made a fourth, and they had already begun to differ — one passed `promptKey` back
+ * with the answer and the others did not.
+ *
+ * Every rung sends `almost` as its outcome and lets the server decide. The client has no answer
+ * key and must not appear to: sending `recalled` here would be the page asserting something it
+ * cannot know.
+ */
+function ReviewChoiceChips({
+  options,
+  disabled,
+  onPick,
+  opening = false,
+}: {
+  options: readonly string[];
+  disabled: boolean;
+  onPick: (option: string) => void;
+  /**
+   * These options are the *first words* of something longer, so they trail off.
+   *
+   * Display only. The value handed back is the option itself — the server rebuilds the same
+   * exercise to mark the tap, and an ellipsis baked into the string would not match.
+   */
+  opening?: boolean;
+}) {
+  return (
+    <div className="proto-review-dock__chips">
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+          disabled={disabled}
+          onClick={() => onPick(option)}
+        >
+          {opening ? `${option}…` : option}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function PrototypeReviewDock() {
   const {
     reviewDock,
@@ -149,15 +194,11 @@ export default function PrototypeReviewDock() {
   const [sitting, setSitting] = useState({ answered: 0, holding: 0 });
 
   /*
-   * The two graded rungs fetch without being revealed, because on those the puzzle *is* the
-   * question — there is nothing to write first. Neither payload carries an answer key, and the
-   * locate rung's payload deliberately withholds the verse text as well.
+   * A graded rung fetches without being revealed, because on those the puzzle *is* the question
+   * — there is nothing to write first. No payload carries an answer key, and the locate rung's
+   * deliberately withholds the verse text as well.
    */
-  const isGradedRung =
-    (item?.kind === 'verse' &&
-      (item.ladderStep === VERSE_SEQUENCE_STEP || item.ladderStep === VERSE_LOCATE_STEP)) ||
-    // Every note rung is a multiple choice now; the puzzle is the question.
-    item?.kind === 'note';
+  const isGradedRung = item ? reviewRungIsGraded(item) : false;
   const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed || isGradedRung });
   const outcome = useReviewOutcome();
 
@@ -279,13 +320,14 @@ export default function PrototypeReviewDock() {
   );
 
   /*
-   * The two rungs the app can mark. They arrive with the reveal because the puzzle *is* the
-   * question here — there is nothing to write first, so the reader taps rather than judging
-   * themselves afterwards. Neither payload carries its answer; the server marks the tap.
+   * The rungs the app can mark. They arrive with the reveal because the puzzle *is* the question
+   * here — there is nothing to write first, so the reader taps rather than judging themselves
+   * afterwards. No payload carries its answer; the server marks the tap.
    */
   const sequenceExercise = reveal.data?.sequence ?? null;
   const locateExercise = reveal.data?.locate ?? null;
   const noteChoice = reveal.data?.noteChoice ?? null;
+  const nextExercise = reveal.data?.next ?? null;
 
   if (!reviewDock || isGuest || !review.has) return null;
 
@@ -394,19 +436,11 @@ export default function PrototypeReviewDock() {
             {noteChoice.fragment ? (
               <p className="proto-review-dock__verse">“{noteChoice.fragment}”</p>
             ) : null}
-            <div className="proto-review-dock__chips">
-              {noteChoice.options.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                  disabled={outcome.isPending}
-                  onClick={() => answer('almost', { option, promptKey: item.promptKey })}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            <ReviewChoiceChips
+              options={noteChoice.options}
+              disabled={outcome.isPending}
+              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+            />
           </>
         ) : sequenceExercise ? (
           /*
@@ -454,23 +488,33 @@ export default function PrototypeReviewDock() {
               </button>
             </div>
           </>
+        ) : nextExercise ? (
+          /*
+           * "What comes after this?" — the verse in question stays on screen above the options,
+           * because it is the question. Only the four openings are offered; the next verse's
+           * reference never reaches the page, or the answer would be arithmetic.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {verseMarkup ? (
+              <p className="proto-review-dock__verse" dangerouslySetInnerHTML={verseMarkup} />
+            ) : null}
+            <ReviewChoiceChips
+              options={nextExercise.options}
+              disabled={outcome.isPending}
+              opening
+              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+            />
+          </>
         ) : locateExercise ? (
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
             <p className="proto-review-dock__verse">“{locateExercise.phrase}…”</p>
-            <div className="proto-review-dock__chips">
-              {locateExercise.options.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                  disabled={outcome.isPending}
-                  onClick={() => answer('almost', { option })}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            <ReviewChoiceChips
+              options={locateExercise.options}
+              disabled={outcome.isPending}
+              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+            />
           </>
         ) : !revealed ? (
           <>

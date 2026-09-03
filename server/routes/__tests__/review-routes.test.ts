@@ -263,3 +263,33 @@ describe('no generative AI reaches this feature', () => {
     expect(service()).toContain("from '@/utils/review-prompts'");
   });
 });
+
+describe('the "what comes next" rung', () => {
+  it('builds the question and marks it from one function', () => {
+    const text = service();
+    expect(text).toContain('async function buildVerseNextFor');
+    const grader = text.slice(text.indexOf('export async function gradeVerseAnswer'));
+    expect(grader.slice(0, 900)).toContain('buildVerseNextFor');
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    expect(reveal).toContain('buildVerseNextFor');
+  });
+
+  it('never names the verse that answers it', () => {
+    /*
+     * The reference is the answer. Shipping "Romans 1:8" alongside the options would turn a
+     * question about what you remember into one about what number comes after seven.
+     */
+    const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf('VERSE_NEXT_STEP'));
+    const block = branch.slice(0, branch.indexOf('VERSE_LOCATE_STEP'));
+    expect(block).toContain('options: exercise.options');
+    expect(block).not.toContain('reference');
+    expect(block).not.toContain('answerIndex');
+  });
+
+  it('marks the tap on the server, whatever outcome the client claims', () => {
+    const grader = service().slice(service().indexOf('export async function gradeVerseAnswer'));
+    expect(grader).toContain('gradeVerseNext');
+    expect(grader.slice(0, 900)).toMatch(/isNext/);
+  });
+});
