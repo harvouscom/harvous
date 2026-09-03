@@ -33,7 +33,16 @@ jobs:
           echo "$body"
           echo "$code"
 
+          # The message has to name the failure it actually saw. This step used to answer
+          # every non-200 with "set HMC_SYNC_CRON_SECRET", which is right for a 401 and
+          # actively misleading for anything else — a week of 400s reading
+          # "since cannot be older than 30 days" were reported as a missing secret.
+          if [ "$code" = "401" ] || [ "$code" = "403" ]; then
+            echo "::error::HMC sync-denorm was rejected with HTTP $code. The API's HMC_SYNC_CRON_SECRET does not match the GitHub secret of the same name."
+            exit 1
+          fi
+
           if [ "$code" != "200" ]; then
-            echo "::error::HMC sync-denorm failed with HTTP $code. Body above. On Netlify: set HMC_SYNC_CRON_SECRET for Production and match GitHub."
+            echo "::error::HMC sync-denorm failed with HTTP $code. The response body is logged above and says what went wrong — read it before assuming credentials."
             exit 1
           fi

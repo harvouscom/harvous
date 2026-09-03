@@ -51,6 +51,47 @@ export function defaultHmcSyncSince(nowMs = Date.now()): string {
   return new Date(nowMs - HMC_SYNC_DEFAULT_LOOKBACK_MS).toISOString();
 }
 
+/**
+ * The furthest back the HMC change feed will answer for.
+ *
+ * Their limit is 30 days and a `since` beyond it is rejected outright with a 400, not
+ * silently truncated. An hour is held back from it so that request latency, or a little
+ * clock skew between us and them, cannot land a value that was legal when we computed it
+ * on the far side of the boundary by the time they read it.
+ */
+export const HMC_SYNC_MAX_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000 - 60 * 60 * 1000;
+
+/**
+ * The watermark to actually ask for, never older than the feed will serve.
+ *
+ * Without this the sync deadlocks, and it did: the stored cursor drifts past 30 days, every
+ * poll 400s on `since cannot be older than 30 days`, and because the cursor is only written
+ * after a successful drain, the very thing that would unstick it is downstream of the call
+ * that fails. Nothing retries its way out of that — the cron ran every two hours for a week
+ * against a cursor 36 days old and could not have succeeded once.
+ *
+ * Clamping loses the changes between the stored cursor and the floor. That is not a choice
+ * between keeping them and dropping them: the feed will not serve that range to anyone. It
+ * is a choice between dropping them and never syncing again. `clampedFrom` reports it so the
+ * gap is visible in the response rather than inferred from a suspiciously quiet run — a
+ * clamp means some linked churches may hold stale denorm and want a manual refresh.
+ */
+export function clampHmcSyncSince(
+  stored: string | null,
+  nowMs = Date.now(),
+): { since: string; clampedFrom: string | null } {
+  if (!stored) return { since: defaultHmcSyncSince(nowMs), clampedFrom: null };
+
+  const parsed = Date.parse(stored);
+  // An unparseable cursor is a corrupt one; the default lookback is a better answer than
+  // passing it through to be rejected, and it lets the next run write a clean value.
+  if (!Number.isFinite(parsed)) return { since: defaultHmcSyncSince(nowMs), clampedFrom: stored };
+
+  const floorMs = nowMs - HMC_SYNC_MAX_LOOKBACK_MS;
+  if (parsed >= floorMs) return { since: stored, clampedFrom: null };
+  return { since: new Date(floorMs).toISOString(), clampedFrom: stored };
+}
+
 export type HmcSyncCursorStore = {
   get(): Promise<string | null>;
   set(cursor: string): Promise<void>;
@@ -134,6 +175,11 @@ export type HmcDenormSyncResult = {
   pages: number;
   changeEvents: number;
   dirtyIds: number;
+  /**
+   * The stored cursor that was too old to use, when one was. Non-null means changes older
+   * than the feed's window were skipped and some denorm may be stale.
+   */
+  clampedFrom: string | null;
   linkedIds: number;
   refreshedUsers: number;
   refreshedChurches: number;
@@ -163,7 +209,7 @@ export async function runHmcDenormSync(deps?: Partial<SyncDeps>): Promise<HmcDen
   const maxPages = deps?.maxPages;
 
   const stored = await cursorStore.get();
-  const startSince = stored ?? defaultHmcSyncSince(now());
+  const { since: startSince, clampedFrom } = clampHmcSyncSince(stored, now());
   const drain = await drainHmcChurchChangeFeed({
     since: startSince,
     fetchChanges,
@@ -295,6 +341,7 @@ export async function runHmcDenormSync(deps?: Partial<SyncDeps>): Promise<HmcDen
     pages: drain.pages,
     changeEvents: drain.changeEvents,
     dirtyIds: dirtyIds.length,
+    clampedFrom,
     linkedIds,
     refreshedUsers,
     refreshedChurches,
