@@ -9,8 +9,8 @@ import {
   type NoteMaterial,
 } from '@/utils/note-ladder-exercises';
 
-const ALL: NoteMaterial = { canRecognize: true, canPassage: true, canConnect: true };
-const NONE: NoteMaterial = { canRecognize: false, canPassage: false, canConnect: false };
+const ALL: NoteMaterial = { canRecognize: true, canPassage: true, canConnect: true, canAnnotation: true };
+const NONE: NoteMaterial = { canRecognize: false, canPassage: false, canConnect: false, canAnnotation: false };
 
 const BODY =
   'God chose us before the foundation of the world, not because we had done anything to deserve it but because it pleased him to do so, and that is the whole ground of adoption.';
@@ -24,12 +24,12 @@ describe('resolveNoteRung', () => {
 
   it('walks past a rung the note has no material for', () => {
     // A note with no links cannot be asked what it was linked to, whatever step it is on.
-    expect(resolveNoteRung(2, { ...ALL, canConnect: false })).toBe('note.recognize');
+    expect(resolveNoteRung(2, { ...ALL, canConnect: false })).toBe('note.annotation');
     expect(resolveNoteRung(1, { ...ALL, canPassage: false })).toBe('note.connect');
   });
 
   it('wraps once rather than falling off the end', () => {
-    expect(resolveNoteRung(2, { canRecognize: true, canPassage: false, canConnect: false })).toBe(
+    expect(resolveNoteRung(2, { canRecognize: true, canPassage: false, canConnect: false, canAnnotation: false })).toBe(
       'note.recognize',
     );
   });
@@ -41,7 +41,7 @@ describe('resolveNoteRung', () => {
   });
 
   it('gives an encrypted note the two rungs built on plaintext', () => {
-    expect(resolveNoteRung(0, { canRecognize: false, canPassage: true, canConnect: true })).toBe(
+    expect(resolveNoteRung(0, { canRecognize: false, canPassage: true, canConnect: true, canAnnotation: false })).toBe(
       'note.passage',
     );
   });

@@ -46,6 +46,8 @@ export interface ReviewOutcomeInput {
 }
 
 export interface ReviewOutcomeResponse {
+  /** What the server recorded. On a graded rung this is its verdict, not what the page sent. */
+  outcome?: 'recalled' | 'almost' | 'revealed';
   item: ReviewItemView;
   next: { intervalDays: number; dueAt: string; recallState: string; label: string };
   /**

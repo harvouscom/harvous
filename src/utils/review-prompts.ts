@@ -28,6 +28,7 @@ export const REVIEW_PROMPT_KEYS = [
   'note.recognize',
   'note.passage',
   'note.connect',
+  'note.annotation',
   'verse.recognize',
   'verse.rebuild',
   'verse.recall',
@@ -108,6 +109,12 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Pick a passage you cited in ${s}.`, 'Pick a passage you cited here.'),
   'note.connect': (ctx) =>
     named(ctx, (s) => `Pick a note you linked to ${s}.`, 'Pick a note you linked to this one.'),
+  /*
+   * The words the reader typed on a highlight, and the passage they typed them on.
+   *
+   * Never names the note: the stem is already their own sentence, and the answer is the passage.
+   */
+  'note.annotation': () => 'Pick the passage you wrote this on.',
   'verse.recognize': (ctx) =>
     ctx.cue?.trim()
       ? named(
@@ -161,6 +168,7 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'note.recognize': 'Pick the note this is from',
   'note.passage': 'Pick a passage you cited',
   'note.connect': 'Pick a note you linked',
+  'note.annotation': 'Pick the passage you wrote this on',
   'verse.recognize': 'Finish the verse',
   'verse.rebuild': 'Fill in the missing words',
   'verse.recall': 'Write it from memory',
@@ -196,6 +204,7 @@ export const NOTE_LADDER: readonly ReviewPromptKey[] = [
   'note.recognize',
   'note.passage',
   'note.connect',
+  'note.annotation',
 ];
 
 export const NOTE_LADDER_MAX_STEP = NOTE_LADDER.length - 1;

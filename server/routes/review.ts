@@ -266,6 +266,14 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
 
     return c.json({
       success: true,
+      /*
+       * What was actually recorded, which on a graded rung is not what the page sent.
+       *
+       * The page has no answer key, so it sends `almost` and lets the server mark the tap. It
+       * then told the reader "Almost." whichever way the marking went — a right answer on every
+       * graded rung read as a near miss.
+       */
+      outcome: graded ?? outcome,
       item: (await buildReviewItemViews(auth.userId, [updated]))[0],
       ...(truth ? { truth: { verseText: truth } } : {}),
       next: {

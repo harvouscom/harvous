@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildVerseCloze, gradeVerseRebuild, verseClozeRatio, verseCue } from '../verse-cloze';
+import {
+  buildVerseCloze,
+  clozeSegments,
+  gradeVerseRebuild,
+  verseClozeRatio,
+  verseCue,
+} from '../verse-cloze';
 
 const JOHN_15_5 =
   'I am the vine; you are the branches. Whoever abides in me and I in him, he it is that bears much fruit, for apart from me you can do nothing.';
@@ -166,5 +172,48 @@ describe('gradeVerseRebuild', () => {
 
   it('marks a verse with nothing blanked wrong rather than vacuously right', () => {
     expect(gradeVerseRebuild({ tokens: [], blanks: [], display: '' }, [])).toBe(false);
+  });
+});
+
+describe('clozeSegments', () => {
+  const cloze = buildVerseCloze(JOHN_15_5, 'seed:1', 0.3);
+  const split = clozeSegments(cloze);
+
+  it('gives one more piece of text than there are gaps', () => {
+    expect(split.segments).toHaveLength(cloze.blanks.length + 1);
+    expect(split.blankLengths).toHaveLength(cloze.blanks.length);
+  });
+
+  it('rebuilds the verse exactly when the missing words are put back', () => {
+    /*
+     * The real invariant, and the one that caught a stray space before a full stop: the pieces
+     * concatenate with no spacing added, because the spacing is already in them.
+     */
+    const rebuilt = split.segments
+      .map((seg, i) => (i < cloze.blanks.length ? seg + cloze.blanks[i].word : seg))
+      .join('');
+    expect(rebuilt).toBe(cloze.tokens.join(' '));
+  });
+
+  it('never puts a missing word in the visible text', () => {
+    for (const blank of cloze.blanks) {
+      for (const segment of split.segments) {
+        expect(segment.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))).not.toContain(
+          blank.word,
+        );
+      }
+    }
+  });
+
+  it('keeps punctuation attached to the text, not to the gap', () => {
+    // A blank standing for `branches` in `branches.` leaves the stop at the head of the next
+    // piece, so the reader types a word and the sentence still ends properly.
+    const punctuated = buildVerseCloze('I am the vine you are the branches. Remain in me', 'p', 0.6);
+    const pieces = clozeSegments(punctuated);
+    expect(pieces.blankLengths.every((n) => n >= 3)).toBe(true);
+    const rebuilt = pieces.segments
+      .map((seg, i) => (i < punctuated.blanks.length ? seg + punctuated.blanks[i].word : seg))
+      .join('');
+    expect(rebuilt).toBe(punctuated.tokens.join(' '));
   });
 });

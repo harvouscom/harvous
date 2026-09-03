@@ -21696,6 +21696,34 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
+ * A gap in a cloze, which is a real input rather than a picture of one.
+ *
+ * Sits on the line it interrupts: no border box, just the underline the underscores used to
+ * draw, so the verse still reads as a verse while it is being filled in.
+ */
+.proto-review-dock__blank {
+  appearance: none;
+  border: 0;
+  border-bottom: 1.5px solid var(--pds-border-control-medium);
+  border-radius: 0;
+  background: none;
+  padding: 0 2px;
+  margin: 0 1px;
+  font: inherit;
+  color: var(--pds-text-primary);
+  text-align: center;
+}
+
+.proto-review-dock__blank:focus {
+  outline: none;
+  border-bottom-color: var(--pds-accent);
+}
+
+.proto-review-dock__blank:disabled {
+  opacity: 0.6;
+}
+
+/*
  * The altered verse, which must not look like a verse.
  *
  * Everything the scripture panel does, this deliberately does not: no reading face, no quiet

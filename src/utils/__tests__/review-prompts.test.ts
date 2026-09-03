@@ -155,7 +155,7 @@ describe('the note ladder', () => {
   });
 
   it('clamps at the top rather than falling off it', () => {
-    expect(pickPromptKey('note', 0, 99)).toBe('note.connect');
+    expect(pickPromptKey('note', 0, 99)).toBe('note.annotation');
     expect(pickPromptKey('note', 0, -3)).toBe('note.recognize');
   });
 

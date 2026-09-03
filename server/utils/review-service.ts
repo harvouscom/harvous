@@ -67,7 +67,7 @@ import {
   gradeVerseAltered,
   type VerseAlteredExercise,
 } from '@/utils/verse-altered';
-import { gradeVerseRebuild, verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
+import { clozeSegments, gradeVerseRebuild, verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
@@ -365,6 +365,8 @@ async function loadNoteMaterial(
         ((row.length ?? 0) >= MIN_QUIZZABLE_BODY_CHARS || withQuote.has(row.id)),
       canPassage: withPassage.has(row.id),
       canConnect: withLink.has(row.id),
+      // Probed in the annotation rung's own change; false until then, which skips it.
+      canAnnotation: false,
     });
   }
   return out;
@@ -382,6 +384,7 @@ const EMPTY_NOTE_MATERIAL: NoteMaterial = {
   canRecognize: false,
   canPassage: false,
   canConnect: false,
+  canAnnotation: false,
 };
 
 /**
@@ -1068,7 +1071,7 @@ export interface ReviewRevealPayload {
    * shipping it wholesale handed the client both. Withholding `verseText` beside that achieved
    * nothing: the passage was still in the payload, spelled differently.
    */
-  cloze?: { display: string; blankCount: number } | null;
+  cloze?: { segments: string[]; blankLengths: number[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
   /** The ordering puzzle, without its answer key — see verse-ladder-exercises.ts. */
   sequence?: { phrases: string[] } | null;
@@ -1531,7 +1534,9 @@ export async function buildReviewReveal(
         if (rung.key === 'verse.rebuild') {
           // A later pass hides more, and the seed carries the step, so it hides a different set.
           const cloze = buildVerseCloze(text, seed, verseClozeRatio(rung.pass));
-          payload.cloze = { display: cloze.display, blankCount: cloze.blanks.length };
+          // The pieces either side of each gap, so the page can put an input where the gap is
+          // rather than a picture of one. `display` is never sent: it is unfillable.
+          payload.cloze = cloze.blanks.length > 0 ? clozeSegments(cloze) : null;
           /*
            * The gaps, not the verse. This rung shipped both and rendered neither: it was not
            * graded, so the reveal was only fetched after "Check the verse", and the dock had no

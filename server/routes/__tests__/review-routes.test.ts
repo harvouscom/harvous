@@ -435,12 +435,27 @@ describe('the cloze payload', () => {
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
     const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.rebuild'"));
     const block = branch.slice(0, branch.indexOf("rung.key === 'verse.sequence'"));
-    expect(block).toContain('display: cloze.display');
-    expect(block).toContain('blankCount');
+    // Segments and gap widths — the pieces either side of each blank, never the tokens.
+    expect(block).toContain('clozeSegments(cloze)');
     expect(block).not.toMatch(/payload\.cloze = buildVerseCloze/);
 
     // And the payload type says so, so a later edit cannot widen it by accident.
-    const shape = text.slice(text.indexOf('cloze?:'), text.indexOf('cloze?:') + 120);
+    const shape = text.slice(text.indexOf('cloze?:'), text.indexOf('cloze?:') + 140);
     expect(shape).not.toContain('VerseCloze');
+    expect(shape).toContain('segments');
+  });
+});
+
+describe('what the reader is told after a graded rung', () => {
+  it('returns the outcome the server recorded, not the one the page sent', () => {
+    /*
+     * The page has no answer key, so on a graded rung it sends `almost` and lets the server
+     * mark the tap — and then told the reader "Almost." whichever way the marking went. A right
+     * answer on every graded rung read as a near miss. Found by filling a cloze correctly and
+     * watching the dock disagree with the item it had just updated.
+     */
+    const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+    const outcomeRoute = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
+    expect(outcomeRoute).toMatch(/outcome: graded \?\? outcome/);
   });
 });

@@ -217,3 +217,49 @@ function sameWord(a: string | undefined, b: string): boolean {
 function normaliseWord(value: string): string {
   return value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 }
+
+/** The verse split at its gaps, so the gaps can be inputs rather than a picture of inputs. */
+export interface VerseClozeSegments {
+  /** `blanks.length + 1` pieces of visible text; a piece may be empty at either end. */
+  segments: string[];
+  /** How many characters each gap stood for, which is what sizes the input. */
+  blankLengths: number[];
+}
+
+/**
+ * Split a cloze into the text either side of each gap.
+ *
+ * `display` renders the gaps as underscore runs, which is fine to look at and impossible to type
+ * into. Handing the client the pieces lets it put a real input where each gap is, so the reader
+ * fills the verse in place instead of retyping the missing words into a box underneath and
+ * trusting they got the order right.
+ *
+ * Punctuation stays outside the gap, exactly as `display` puts it: a blank standing for
+ * `branches` in `branches.` leaves the full stop at the head of the next segment.
+ */
+export function clozeSegments(cloze: VerseCloze): VerseClozeSegments {
+  const blankAt = new Map(cloze.blanks.map((b) => [b.index, b.word]));
+  const blankLengths: number[] = [];
+
+  /*
+   * Marked and split, rather than assembled piece by piece.
+   *
+   * Building the pieces by hand meant deciding at every seam whether a space belonged, and the
+   * first version put one before the full stop that follows a gap. Writing the whole line with a
+   * marker where each gap goes and splitting on it makes the spacing correct by construction:
+   * the pieces concatenate back to the verse exactly, with the missing words dropped in.
+   */
+  const MARK = '\u0000';
+  const line = cloze.tokens
+    .map((token, index) => {
+      const word = blankAt.get(index);
+      if (word === undefined) return token;
+      const at = token.indexOf(word);
+      blankLengths.push(Math.max(3, word.length));
+      if (at < 0) return MARK;
+      return `${token.slice(0, at)}${MARK}${token.slice(at + word.length)}`;
+    })
+    .join(' ');
+
+  return { segments: line.split(MARK), blankLengths };
+}

@@ -33,6 +33,8 @@ export interface NoteMaterial {
   canPassage: boolean;
   /** It is linked to at least one other note. */
   canConnect: boolean;
+  /** A highlight in it carries words the reader typed, on a passage that can be named. */
+  canAnnotation: boolean;
 }
 
 /**
@@ -51,6 +53,7 @@ export function resolveNoteRung(step: number, material: NoteMaterial): ReviewPro
     'note.recognize': material.canRecognize,
     'note.passage': material.canPassage,
     'note.connect': material.canConnect,
+    'note.annotation': material.canAnnotation,
   } as Record<ReviewPromptKey, boolean>;
 
   const start = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) % NOTE_LADDER.length : 0;
@@ -160,6 +163,54 @@ export function buildNoteRecognize(input: {
   if (selfAnswering) return null;
 
   return { ...choice, fragment };
+}
+
+/**
+ * A highlighted span with the words either side of it.
+ *
+ * The stem used to be a fragment the app chose out of the middle of the note, which is why a
+ * note review could feel like a memory test about a sentence nobody had marked. A span the
+ * reader dragged is a better question by itself, and it reads better with a few words of run-up:
+ * a quote that starts mid-clause is a puzzle about grammar before it is one about study.
+ *
+ * The context is trimmed to whole words and capped, because the point is a running start, not
+ * the paragraph — and because everything shown here is checked against the options.
+ */
+export interface NoteSpan {
+  before: string;
+  quote: string;
+  after: string;
+}
+
+const SPAN_CONTEXT_WORDS = 8;
+
+function tailWords(text: string, count: number): string {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return words.slice(Math.max(0, words.length - count)).join(' ');
+}
+
+function headWords(text: string, count: number): string {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return words.slice(0, count).join(' ');
+}
+
+export function buildNoteSpan(input: {
+  quote: string;
+  prefix?: string | null;
+  suffix?: string | null;
+}): NoteSpan | null {
+  const quote = input.quote.replace(/\s+/g, ' ').trim();
+  if (!quote) return null;
+  return {
+    before: tailWords(input.prefix ?? '', SPAN_CONTEXT_WORDS),
+    quote,
+    after: headWords(input.suffix ?? '', SPAN_CONTEXT_WORDS),
+  };
+}
+
+/** Everything the stem puts on screen, for the self-answering check. */
+export function noteSpanText(span: NoteSpan): string {
+  return [span.before, span.quote, span.after].filter(Boolean).join(' ');
 }
 
 // ─── Rungs 1 and 2: what was it about, and what did you link it to? ──────────

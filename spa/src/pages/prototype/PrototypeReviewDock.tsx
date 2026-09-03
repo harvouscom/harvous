@@ -64,7 +64,6 @@ import {
   REVIEW_REVEAL_VERSE_COPY,
   REVIEW_ALTERED_CAPTION,
   REVIEW_TRUTH_LABEL,
-  REVIEW_CLOZE_PLACEHOLDER,
 } from './proto-review-copy';
 
 /** Kinds whose answer is another surface: the note itself, or the Thread beside you. */
@@ -230,6 +229,8 @@ export default function PrototypeReviewDock() {
 
   const [attempt, setAttempt] = useState('');
   const [revealed, setRevealed] = useState(false);
+  /** One string per gap on the cloze rung. Keyed to the item so a new question starts empty. */
+  const [blanks, setBlanks] = useState<string[]>([]);
   /** Display indices the reader has placed, in the order they placed them. */
   const [placed, setPlaced] = useState<number[]>([]);
   /*
@@ -270,6 +271,7 @@ export default function PrototypeReviewDock() {
     setAttempt('');
     setRevealed(false);
     setPlaced([]);
+    setBlanks([]);
   }, [item?.id]);
 
   /*
@@ -312,7 +314,8 @@ export default function PrototypeReviewDock() {
             const crossedToDurable =
               item.recallState !== 'durable' && data.next.recallState === 'durable';
             setReviewDockResult({
-              outcome: value,
+              // The server's verdict where it marked one; `value` only where it could not.
+              outcome: data.outcome ?? value,
               label: data.next.label,
               recallState: data.next.recallState,
               crossedToDurable,
@@ -516,34 +519,53 @@ export default function PrototypeReviewDock() {
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
           </>
-        ) : clozeExercise && clozeExercise.blankCount > 0 ? (
+        ) : clozeExercise && clozeExercise.blankLengths.length > 0 ? (
           /*
-           * Fill in the missing words.
+           * Fill in the missing words, in the gaps themselves.
            *
-           * The server has built this cloze all along and nothing ever rendered it: the rung was
-           * not graded, so the reveal was only fetched after "Check the verse", and by then the
-           * dock had already shown a textarea and was about to print the whole passage. It is
-           * graded now, so the gaps arrive with the question and the verse does not.
+           * The server has built this cloze since the rung shipped and nothing ever rendered it,
+           * because the rung was not graded and the reveal arrived only after the reader had
+           * already been shown a textarea. It is graded now — and the gaps are inputs rather
+           * than a picture of inputs, so the words go where they belong instead of being retyped
+           * into a box underneath in an order the reader has to keep track of.
+           *
+           * Each input is sized by the word it stands for, which is the same hint the underscore
+           * run always gave.
            */
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
-            <p className="proto-challenge__cloze">{clozeExercise.display}</p>
-            <textarea
-              className="proto-review-dock__attempt"
-              placeholder={REVIEW_CLOZE_PLACEHOLDER}
-              value={attempt}
-              onChange={(event) => setAttempt(event.target.value)}
-              rows={2}
-            />
+            <p className="proto-challenge__cloze">
+              {clozeExercise.segments.map((segment, index) => (
+                <Fragment key={index}>
+                  {segment}
+                  {index < clozeExercise.blankLengths.length ? (
+                    <input
+                      type="text"
+                      className="proto-review-dock__blank"
+                      style={{ width: `${Math.max(4, clozeExercise.blankLengths[index]) + 1}ch` }}
+                      value={blanks[index] ?? ''}
+                      onChange={(event) => {
+                        const next = [...blanks];
+                        next[index] = event.target.value;
+                        setBlanks(next);
+                      }}
+                      aria-label={`Missing word ${index + 1}`}
+                      autoComplete="off"
+                      spellCheck={false}
+                      disabled={outcome.isPending}
+                    />
+                  ) : null}
+                </Fragment>
+              ))}
+            </p>
             <div className="proto-review-dock__actions">
               <button
                 type="button"
                 className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                disabled={outcome.isPending || !attempt.trim()}
+                disabled={outcome.isPending || blanks.some((b) => !b?.trim())}
                 onClick={() =>
                   answer('almost', {
-                    // One gap per word, in order — the server compares position by position.
-                    words: attempt.trim().split(/[\s,]+/).filter(Boolean),
+                    words: clozeExercise.blankLengths.map((_, i) => blanks[i] ?? ''),
                     promptKey: item.promptKey,
                   })
                 }
