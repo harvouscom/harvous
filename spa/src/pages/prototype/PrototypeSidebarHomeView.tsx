@@ -185,6 +185,8 @@ export default function PrototypeSidebarHomeView({
   const {
     contentReady,
     homeViewClassName,
+    showLoader,
+    loaderLeaving,
     lead,
     recallTrendGreeting,
     continueNote,
@@ -218,12 +220,19 @@ export default function PrototypeSidebarHomeView({
     destinations: { proposeThread, openThread, createThread: onOpenCreateThreadPrefill },
   });
 
+  // Nothing at all for the first 150ms of a wait, so a warm remount does not flash dots at
+  // a reader who is looking straight at the content they already had.
+  // `useProtoSpaceLoaderState` owns that grace period, and the fade-out below.
   if (!contentReady) {
-    return <ProtoSpaceLoading label="Loading home" />;
+    return showLoader ? <ProtoSpaceLoading label="Loading home" /> : null;
   }
 
   return (
     <div className={homeViewClassName}>
+      {/* Still here for a beat, fading, while the dashboard paints underneath — so the two
+          states overlap instead of one replacing the other between frames. Out of flow, so
+          it costs the layout below it nothing. */}
+      {showLoader ? <ProtoSpaceLoading label="Loading home" leaving={loaderLeaving} /> : null}
       <div className="proto-home-section">
         <PrototypeHomeGreeting
           notes={notes}

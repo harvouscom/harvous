@@ -46,7 +46,7 @@ import PrototypeChurchTeachingPlanSection from './PrototypeChurchTeachingPlanSec
 import PrototypeChurchEngagementSection from './PrototypeChurchEngagementSection';
 import PrototypeChurchStarterSection from './PrototypeChurchStarterSection';
 import PrototypeChurchSettingsSection from './PrototypeChurchSettingsSection';
-import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
+import { useProtoHomeViewClassName, useProtoSpaceLoaderState } from './useProtoHomeViewEnter';
 import PrototypeChannelPairingSection from './PrototypeChannelPairingSection';
 
 function normalizeSpaceId(id: string): string {
@@ -418,6 +418,7 @@ export default function PrototypeChurchHub() {
     (!billingEnabled || isQuerySettled(billingQuery.isPending, billingQuery.data != null));
   // Each tools pane is its own destination, so it replays on the way in and back.
   const homeViewClassName = useProtoHomeViewClassName(contentReady, `${orgId ?? 'none'}:${toolsView}`);
+  const { showLoader, loaderLeaving } = useProtoSpaceLoaderState(contentReady);
 
   /** What the header reads — the pane's own name once you drill into one. */
   const headerTitle =
@@ -502,9 +503,14 @@ export default function PrototypeChurchHub() {
     two.
   */
   const content = !contentReady ? (
-    <ProtoSpaceLoading label="Loading church" />
+    // Withheld for the first 150ms so a warm remount shows nothing rather than a flash of
+    // dots. See useProtoSpaceLoaderState.
+    showLoader ? <ProtoSpaceLoading label="Loading church" /> : null
   ) : (
         <div className={homeViewClassName}>
+          {/* Fading out over the hub arriving underneath, so the two states overlap rather
+              than swapping between frames. Out of flow; costs the layout nothing. */}
+          {showLoader ? <ProtoSpaceLoading label="Loading church" leaving={loaderLeaving} /> : null}
           {toolsView === 'teaching-plan' ? (
             /*
               Both lanes are plannable: a church Shared Space gathers as surely
@@ -590,7 +596,7 @@ export default function PrototypeChurchHub() {
                   <p className="proto-caption proto-home-section__eyebrow">Shared spaces</p>
                   {sharedSpaces.length > 0 ? (
                     <>
-                      <ul className="proto-church-hub__list">
+                      <ul className="proto-church-hub__list proto-home-cascade">
                         {sharedSpaces.map((space) => (
                           <li key={space.id}>
                             <ChurchHubSpaceButton space={space} ministry={false} onOpen={openSpace} />
@@ -639,7 +645,7 @@ export default function PrototypeChurchHub() {
                   <p className="proto-caption proto-home-section__eyebrow">Channels</p>
                   {ministryChannels.length > 0 ? (
                     <>
-                      <ul className="proto-church-hub__list">
+                      <ul className="proto-church-hub__list proto-home-cascade">
                         {ministryChannels.map((space) => (
                           <li key={space.id}>
                             <ChurchHubSpaceButton space={space} ministry onOpen={openSpace} />
@@ -689,7 +695,7 @@ export default function PrototypeChurchHub() {
                     <p className="proto-caption proto-home-section__eyebrow">
                       {manageOpen ? 'All channels' : 'Discover'}
                     </p>
-                    <ul className="proto-church-hub__list">
+                    <ul className="proto-church-hub__list proto-home-cascade">
                       {browseChannels.map((channel) => (
                         <li key={channel.id}>
                           <ChurchHubBrowseRow
@@ -717,7 +723,7 @@ export default function PrototypeChurchHub() {
             canManageChurchSettings ? (
               <div className="proto-home-section">
                 <p className="proto-caption proto-home-section__eyebrow">Tools</p>
-                <ProtoToolsRowList rows={churchToolRows}>
+                <ProtoToolsRowList rows={churchToolRows} cascade>
                   {/* Silent while the church is paid and healthy. */}
                   <PrototypeChurchPlanRow orgId={orgId} isStaff={canCreateChurchContent} />
                 </ProtoToolsRowList>

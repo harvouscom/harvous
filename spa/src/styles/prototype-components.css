@@ -6898,6 +6898,29 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   padding: 24px 14px 14px;
 }
 
+/*
+  The dots handing the pane over, rather than being cut away.
+
+  Out of flow for the length of the fade so the dashboard underneath takes its final height
+  immediately — left in flow, the block would hold its own 24px of padding open and the
+  content would drop by that much when it finally unmounted, which is a second settle for
+  the sake of a fade meant to prevent one. `pointer-events: none` because a mark that is
+  already leaving should not be able to swallow the first click on what replaced it.
+*/
+.proto-home-loading--leaving {
+  position: absolute;
+  inset-inline: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--pds-duration-popover) var(--pds-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-home-loading--leaving {
+    transition: none;
+  }
+}
+
 @keyframes proto-home-section-in {
   from {
     opacity: 0;
@@ -6914,6 +6937,8 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   flex-direction: column;
   gap: 10px;
   padding: 8px 14px 14px;
+  /* Anchors the loading dots while they fade out over the arriving dashboard. */
+  position: relative;
 }
 
 /* Same edge, same reason — see `.proto-home-greeting`. The 2px here was the other half of
@@ -6963,8 +6988,71 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 
 .proto-home-view--enter .proto-home-section {
   opacity: 0;
-  animation: proto-home-section-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: proto-home-section-in var(--pds-duration-home-section) var(--pds-ease-emphasized) both;
 }
+
+/*
+  The rows inside a panel arrive in sequence rather than as one block.
+
+  This is the part that makes a dashboard read as filling in rather than being pasted on.
+  The section fade alone moves a rectangle; nothing inside it has any order, so eight rows
+  land on the same frame and the panel is simply there. A 28ms step is barely a delay per
+  row, but it gives the eye a direction to follow down the panel — and because the step is
+  so small the last of six rows is only 140ms behind the first, well inside the section's
+  own animation. The whole thing is still one arrival.
+
+  Not gated on `--enter`, deliberately, and this is the important difference from the
+  section rule above.
+
+  A rule that only applies while a class is present *restarts* when that class is added and
+  snaps when it is removed — which is exactly why per-section stagger had to be deleted: a
+  section mounting inside the enter window replayed the slide and shoved its siblings. An
+  unconditional rule cannot do that. Each row animates once, when it mounts, and never
+  again. That also buys the case the enter window was never able to cover: a card that
+  appears on its own later — the Continue card swapping after a note is written, a recall
+  card returning when a snooze lapses — arrives with the same short fade instead of popping
+  into an otherwise still panel.
+*/
+@keyframes proto-home-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+  `proto-home-cascade` marks a container whose direct children are rows to cascade.
+
+  A named opt-in rather than a selector over the panel classes, because the three space
+  dashboards do not share one. Home builds its panels from `PrototypeHomeSection`, the space
+  hub hand-rolls `proto-list-panel` for its Thread rows, the church hub uses a plain `ul`,
+  and both of the latter reach for `ProtoToolsRowList` as well. Matching all of those by class
+  would have meant either a list that silently stops covering a panel someone adds later, or
+  `.proto-glass-surface--panel > *`, which is every panel in the shell — including
+  `proto-home-card`, whose children are a card's own icon and text rather than rows, and which
+  would have been staggered apart from the inside.
+*/
+.proto-home-cascade > * {
+  animation: proto-home-row-in var(--pds-duration-home-row) var(--pds-ease-emphasized) both;
+  animation-delay: calc(var(--proto-home-row-i, 0) * var(--pds-duration-home-row-step));
+}
+
+/* The cascade is an index, and CSS has no counter to read here, so the positions are
+   written out. Six is where it stops: past that the delay would be doing more than
+   pointing down the panel, and a long list would finish visibly after the section it
+   sits in. Everything from the seventh row on shares the sixth row's delay — which is
+   what keeps a church's Discover lane, or any list that can run long, from cascading
+   for a second and a half. */
+.proto-home-cascade > :nth-child(1) { --proto-home-row-i: 0; }
+.proto-home-cascade > :nth-child(2) { --proto-home-row-i: 1; }
+.proto-home-cascade > :nth-child(3) { --proto-home-row-i: 2; }
+.proto-home-cascade > :nth-child(4) { --proto-home-row-i: 3; }
+.proto-home-cascade > :nth-child(5) { --proto-home-row-i: 4; }
+.proto-home-cascade > :nth-child(n + 6) { --proto-home-row-i: 5; }
 
 /*
   No per-section stagger. The delays were keyed on `:nth-child`, so the last
@@ -6980,7 +7068,8 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 */
 
 @media (prefers-reduced-motion: reduce) {
-  .proto-home-view--enter .proto-home-section {
+  .proto-home-view--enter .proto-home-section,
+  .proto-home-cascade > * {
     opacity: 1;
     animation: none;
     transform: none;
