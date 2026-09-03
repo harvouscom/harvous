@@ -1,4 +1,5 @@
 import { NOTE_WRITTEN_SOURCE } from '@/utils/study-bible-source-copy';
+import { NOTE_RECOGNIZE_STEP, VERSE_LOCATE_STEP } from '@/utils/review-prompts';
 
 /**
  * The line under a review question that says *which* thing is being asked about.
@@ -31,6 +32,9 @@ const WRITTEN_PREFIX = 'Written ';
 
 export interface ReviewRowSubtitleInput {
   prompt: string;
+  /** Needed to know whether this row's question is one with a right answer. */
+  kind?: string | null;
+  ladderStep?: number | null;
   /** Server-resolved: title, else the note's opening line, else the passage it cites. */
   noteLabel?: string | null;
   /** The note's own opening words. Preferred over everything else — it is the context line. */
@@ -62,6 +66,17 @@ export function reviewRowSubtitle(
   item: ReviewRowSubtitleInput,
   now: Date = new Date(),
 ): string | null {
+  /*
+   * Nothing at all when the identity line *is* the answer — "Where is this from?" with
+   * "John 15:5" underneath is not a question, and neither is "Which of your notes says this?"
+   * above the note's name.
+   *
+   * Only those two rungs. Suppressing it for every graded rung was too much: "What did you link
+   * this to?" with nothing beneath it does not say which note is being asked about, so the
+   * reader cannot answer it either. A right answer is not a reason to withhold the question.
+   */
+  if (rungIdentityIsTheAnswer(item)) return null;
+
   // The note's own words win outright: the question above names the note, this shows it.
   const context = item.noteContext?.trim();
   if (context) return context;
@@ -100,4 +115,21 @@ export function reviewRowSource(
   const source = item.sourceLabel?.trim() || null;
   if (!source || !subtitle) return source;
   return source === NOTE_WRITTEN_SOURCE ? null : source;
+}
+
+/**
+ * Is this row's question one the app marks?
+ *
+ * Every note rung is a multiple choice. Two verse rungs are: put the phrases back in order, and
+ * say which passage a fragment came from. On all of them the row's usual context line would
+ * give the answer away before the reader opened the card.
+ */
+export function rungIdentityIsTheAnswer(item: {
+  kind?: string | null;
+  ladderStep?: number | null;
+}): boolean {
+  // "Which of your notes says this?" — the note's identity is the whole answer.
+  if (item.kind === 'note') return item.ladderStep === NOTE_RECOGNIZE_STEP;
+  // "Where is this from?" — so is the reference.
+  return item.kind === 'verse' && item.ladderStep === VERSE_LOCATE_STEP;
 }

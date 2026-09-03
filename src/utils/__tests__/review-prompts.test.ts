@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { REVIEW_ITEM_KINDS } from '../review-item-kinds';
 import {
+  NOTE_LADDER,
+  NOTE_LADDER_MAX_STEP,
   REVIEW_PROMPTS,
   REVIEW_PROMPT_KEYS,
   VERSE_LADDER,
   VERSE_LADDER_MAX_STEP,
   fillReviewPrompt,
+  ladderMaxStepFor,
+  nextLadderStep,
   pickPromptKey,
   reviewPromptFor,
 } from '../review-prompts';
@@ -71,7 +75,7 @@ describe('pickPromptKey', () => {
   });
 
   it('rotates so the same item is not asked the same way twice running', () => {
-    expect(pickPromptKey('note', 0)).not.toBe(pickPromptKey('note', 1));
+    expect(pickPromptKey('thread', 0)).not.toBe(pickPromptKey('thread', 1));
     expect(pickPromptKey('connection', 0)).not.toBe(pickPromptKey('connection', 1));
   });
 
@@ -100,17 +104,17 @@ describe('reviewPromptFor', () => {
 });
 
 describe('a fresh queue does not ask the same question three times', () => {
-  it('starts three brand-new items at different points in the rotation', () => {
-    // Every new item has reviewCount 0, so without the id offset all three land on
-    // 'note.observe' — which is exactly how the first preview read.
-    const keys = ['review_a1', 'review_b2', 'review_c3'].map((id) =>
-      pickPromptKey('note', 0, 0, id),
+  it('starts brand-new items at different points in the rotation', () => {
+    // Every new item has reviewCount 0, so without the id offset they all land on the first
+    // phrasing — which is exactly how the first preview read.
+    const keys = ['review_a1', 'review_b2', 'review_c3', 'review_d4'].map((id) =>
+      pickPromptKey('connection', 0, 0, id),
     );
     expect(new Set(keys).size).toBeGreaterThan(1);
   });
 
   it('asks the same item the same question on every device', () => {
-    expect(pickPromptKey('note', 2, 0, 'review_x')).toBe(pickPromptKey('note', 2, 0, 'review_x'));
+    expect(pickPromptKey('thread', 2, 0, 'review_x')).toBe(pickPromptKey('thread', 2, 0, 'review_x'));
   });
 
   it('still moves on as an item is answered', () => {
@@ -119,43 +123,68 @@ describe('a fresh queue does not ask the same question three times', () => {
     expect(second).not.toBe(first);
   });
 
-  it('ignores the id for a verse, whose rung is the ladder position', () => {
+  it('ignores the id for the kinds that climb, whose rung is the ladder position', () => {
     expect(pickPromptKey('verse', 5, 2, 'review_v')).toBe(VERSE_LADDER[2]);
+    expect(pickPromptKey('note', 5, 1, 'review_n')).toBe(NOTE_LADDER[1]);
   });
 });
 
-describe('note questions speak to the reader, not about the note', () => {
-  const noteKeys = REVIEW_PROMPT_KEYS.filter((k) => k.startsWith('note.'));
+describe('the note ladder', () => {
+  it('has dropped the five reflective prompts entirely', () => {
+    /*
+     * They moved to Home as an invitation to mark a note. Asserted rather than assumed, because
+     * leaving one behind would mean two surfaces asking the same question in different voices.
+     */
+    for (const gone of ['note.observe', 'note.central', 'note.carry', 'note.phrase', 'note.unclear']) {
+      expect(REVIEW_PROMPT_KEYS).not.toContain(gone);
+    }
+  });
 
-  it('never falls back to "this note", which named nothing', () => {
-    for (const key of noteKeys) {
+  it('climbs by rung, not by how many times it has come round', () => {
+    expect(pickPromptKey('note', 0, 0)).toBe('note.recognize');
+    expect(pickPromptKey('note', 0, 1)).toBe('note.passage');
+    expect(pickPromptKey('note', 0, 2)).toBe('note.connect');
+    // Review count is irrelevant now — the rung is the question.
+    expect(pickPromptKey('note', 47, 0)).toBe('note.recognize');
+  });
+
+  it('clamps at the top rather than falling off it', () => {
+    expect(pickPromptKey('note', 0, 99)).toBe('note.connect');
+    expect(pickPromptKey('note', 0, -3)).toBe('note.recognize');
+  });
+
+  it('asks questions with an answer, not questions about motive', () => {
+    for (const key of NOTE_LADDER) {
       const rendered = fillReviewPrompt(key, {});
-      expect(rendered).not.toMatch(/this note/i);
+      expect(rendered).toMatch(/\?$/);
+      // No "why did you", no "what made you" — those are the ones that left.
+      expect(rendered).not.toMatch(/why did you|what made you|clearer/i);
     }
   });
 
-  it('drops the worksheet vocabulary', () => {
-    for (const key of noteKeys) {
-      const rendered = fillReviewPrompt(key, { noteTitle: 'Adoption' });
-      expect(rendered).not.toMatch(/central idea|carry forward|the text itself|your note on/i);
-      expect(rendered).toMatch(/\byou\b/i);
+  it('every rung of every ladder has a prompt behind it', () => {
+    for (const key of [...NOTE_LADDER, ...VERSE_LADDER]) {
+      expect(REVIEW_PROMPTS[key]).toBeTypeOf('function');
     }
   });
+});
 
-  it('puts a named subject inside the sentence', () => {
-    expect(fillReviewPrompt('note.observe', { noteTitle: 'Romans 8' })).toBe(
-      'What did you see in Romans 8?',
-    );
+describe('ladder advancement', () => {
+  it('advances the kinds that climb and leaves the rest alone', () => {
+    expect(nextLadderStep('note', 0)).toBe(1);
+    expect(nextLadderStep('verse', 0)).toBe(1);
+    expect(nextLadderStep('connection', 0)).toBe(0);
+    expect(nextLadderStep('thread', 5)).toBe(5);
   });
 
-  it('asks the bare question when the note has no name, and stays short', () => {
-    // The row prints the note's own opening words underneath, the way a verse row carries a
-    // fragment of the verse. Splicing them into the sentence made one very long question and
-    // left the line below with nothing to say.
-    expect(fillReviewPrompt('note.observe', {})).toBe('What did you see here?');
-    expect(fillReviewPrompt('note.phrase', {})).toBe('What made you write this?');
-    for (const key of noteKeys) {
-      expect(fillReviewPrompt(key, {}).length).toBeLessThan(46);
-    }
+  it('stops at the top of each ladder', () => {
+    expect(nextLadderStep('note', NOTE_LADDER_MAX_STEP)).toBe(NOTE_LADDER_MAX_STEP);
+    expect(nextLadderStep('verse', VERSE_LADDER_MAX_STEP)).toBe(VERSE_LADDER_MAX_STEP);
+  });
+
+  it('knows which kinds have a ladder at all', () => {
+    expect(ladderMaxStepFor('note')).toBe(NOTE_LADDER_MAX_STEP);
+    expect(ladderMaxStepFor('verse')).toBe(VERSE_LADDER_MAX_STEP);
+    expect(ladderMaxStepFor('highlight')).toBeNull();
   });
 });

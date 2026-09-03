@@ -187,6 +187,14 @@ export function isChallengeStepKind(value: string): value is ChallengeStepKind {
  */
 export const REVIEW_INBOX_MAX_ROWS = 3;
 
+/**
+ * Extra rows read so that a note with nothing to ask about costs no slot.
+ *
+ * Items made before the note ladder existed can carry no question, and they are dropped while
+ * views are built. Without slack, three such rows at the front of the queue empty the inbox.
+ */
+export const REVIEW_INBOX_UNASKABLE_SLACK = 4;
+
 /** One sitting, not a queue to clear. Deliberately below what a keen reader could manage. */
 export const REVIEW_SESSION_CAP = 10;
 

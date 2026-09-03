@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { reviewRowSource, reviewRowSubtitle, writtenAtLabel } from '@/utils/review-row-subtitle';
+import { VERSE_LOCATE_STEP, VERSE_SEQUENCE_STEP } from '@/utils/review-prompts';
 
 const NOW = new Date('2026-09-02T12:00:00Z');
 
@@ -128,6 +129,39 @@ describe('reviewRowSource', () => {
   it('passes a reason through when there is no identity line at all', () => {
     expect(reviewRowSource({ sourceLabel: 'Marked Romans 1:7 in a note' }, null)).toBe(
       'Marked Romans 1:7 in a note',
+    );
+  });
+});
+
+describe('which rungs hide the identity line', () => {
+  /*
+   * The first cut suppressed the subtitle on every graded rung, which read as "What did you link
+   * this to?" above nothing at all — a question with a right answer, about a note the reader was
+   * never told the name of. A right answer is not a reason to withhold the question.
+   */
+  const note = {
+    prompt: 'What did you link this to?',
+    kind: 'note',
+    noteContext: 'God chose us before the foundation of the world',
+  };
+
+  it('shows which note is being asked about on the rungs whose answer is something else', () => {
+    expect(reviewRowSubtitle({ ...note, ladderStep: 1 })).toBe(note.noteContext);
+    expect(reviewRowSubtitle({ ...note, ladderStep: 2 })).toBe(note.noteContext);
+  });
+
+  it('hides it where the note itself is the answer', () => {
+    expect(
+      reviewRowSubtitle({ ...note, prompt: 'Which of your notes says this?', ladderStep: 0 }),
+    ).toBeNull();
+  });
+
+  it('hides the reference on "where is this from?" and nowhere else on the verse ladder', () => {
+    const verse = { prompt: 'Where is this from?', kind: 'verse', scriptureReference: 'John 15:5' };
+    expect(reviewRowSubtitle({ ...verse, ladderStep: VERSE_LOCATE_STEP })).toBeNull();
+    // Putting the words back in order is not made easier by knowing the address.
+    expect(reviewRowSubtitle({ ...verse, prompt: 'Put these back in order', ladderStep: VERSE_SEQUENCE_STEP })).toBe(
+      'John 15:5',
     );
   });
 });

@@ -18,6 +18,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { isReviewTableMissing } from '../utils/pg-undefined-relation';
 import {
   REVIEW_INBOX_MAX_ROWS,
+  REVIEW_INBOX_UNASKABLE_SLACK,
   REVIEW_SESSION_CAP,
   isReviewItemKind,
   isReviewItemStatus,
@@ -26,6 +27,7 @@ import {
 import { describeNextReturn } from '@/utils/review-scheduling';
 import {
   applyReviewOutcome,
+  gradeNoteAnswer,
   gradeVerseAnswer,
   buildReviewItemViews,
   buildReviewReveal,
@@ -60,12 +62,25 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
     // purpose: no cron, no guessed timezone, and nothing accumulates while they are away.
     await refillReviewQueue(auth.userId, now);
 
-    // One extra row, purely to answer `hasMore` without a second count query.
-    const due = await listDueReviewItems(auth.userId, REVIEW_INBOX_MAX_ROWS + 1, now);
-    const shown = due.slice(0, REVIEW_INBOX_MAX_ROWS);
-    const items = await buildReviewItemViews(auth.userId, shown);
+    /*
+     * Fetch, then drop, then cut — in that order.
+     *
+     * A note item the resolver can ask nothing about is dropped while views are built, so cutting
+     * to three rows first means a dropped item costs a slot. It showed one question with three
+     * due, because two rows ahead of it were legacy notes with nothing to ask. The slack is the
+     * same trick `review-opportunities.ts` uses when the floor turns a candidate away.
+     *
+     * One extra row beyond the cut, purely to answer `hasMore` without a second count query.
+     */
+    const due = await listDueReviewItems(
+      auth.userId,
+      REVIEW_INBOX_MAX_ROWS + 1 + REVIEW_INBOX_UNASKABLE_SLACK,
+      now,
+    );
+    const askable = await buildReviewItemViews(auth.userId, due, { dropUnaskable: true });
+    const items = askable.slice(0, REVIEW_INBOX_MAX_ROWS);
 
-    return c.json({ success: true, items, hasMore: due.length > REVIEW_INBOX_MAX_ROWS });
+    return c.json({ success: true, items, hasMore: askable.length > REVIEW_INBOX_MAX_ROWS });
   } catch (error) {
     // A database without the tables yet is an empty inbox, not a broken Activity page.
     if (isReviewTableMissing(error)) {
@@ -88,7 +103,7 @@ route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('r
       auth.userId,
       statusParam && isReviewItemStatus(statusParam) ? statusParam : undefined,
     );
-    const items = await buildReviewItemViews(auth.userId, rows);
+    const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
     return c.json({ success: true, items });
   } catch (error) {
     if (isReviewTableMissing(error)) return c.json({ success: true, items: [] });
@@ -109,7 +124,7 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
     const auth = getAuthenticatedAuth(c);
     await refillReviewQueue(auth.userId);
     const rows = await listDueReviewItems(auth.userId, REVIEW_SESSION_CAP);
-    const items = await buildReviewItemViews(auth.userId, rows);
+    const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
     for (const row of rows) await recordReviewEvent(auth.userId, row, 'shown');
     return c.json({ success: true, items });
   } catch (error) {
@@ -205,9 +220,16 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
               ? body.answer.order.filter((v: unknown) => Number.isInteger(v)).slice(0, 12)
               : undefined,
             option: typeof body.answer.option === 'string' ? body.answer.option : undefined,
+            // Which question the client believes it was shown. Only ever used to detect that
+            // the material moved underneath it, never to decide the answer.
+            promptKey: typeof body.answer.promptKey === 'string' ? body.answer.promptKey : undefined,
           }
         : null;
-    const graded = answer ? await gradeVerseAnswer(auth.userId, item, answer) : null;
+    const graded = answer
+      ? item.kind === 'note'
+        ? await gradeNoteAnswer(auth.userId, item, answer)
+        : await gradeVerseAnswer(auth.userId, item, answer)
+      : null;
 
     const { item: updated, nextReturnDays } = await applyReviewOutcome(
       auth.userId,

@@ -14,7 +14,9 @@ import {
   desc,
   eq,
   inArray,
+  isNotNull,
   lte,
+  ne,
   or,
   Notes,
   NoteConnections,
@@ -43,8 +45,10 @@ import {
   nextReviewAfter,
 } from '@/utils/review-scheduling';
 import {
+  fillReviewPrompt,
+  nextLadderStep,
   reviewPromptFor,
-  VERSE_LADDER_MAX_STEP,
+  type ReviewPromptKey,
   VERSE_LOCATE_STEP,
   VERSE_REBUILD_STEP,
   VERSE_SEQUENCE_STEP,
@@ -70,7 +74,18 @@ import {
   verseTouches,
   type NodeTouch,
 } from './study-bible-layer';
-import { nodeKey, verseNodesForReference } from '@/utils/study-bible-nodes';
+import { nodeKey, verseNodesForReference, verseReferenceLabel } from '@/utils/study-bible-nodes';
+import {
+  buildNoteChoice,
+  labelNamesWhat,
+  buildNoteRecognize,
+  gradeNoteChoice,
+  noteFragment,
+  resolveNoteRung,
+  type NoteMaterial,
+} from '@/utils/note-ladder-exercises';
+import type { ChoiceExercise } from '@/utils/choice-exercise';
+import { getNotePassages } from './scripture-knowledge';
 import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
 
 export interface ReviewItemRow {
@@ -182,6 +197,177 @@ function displayTitle(title: string | null | undefined): string | null {
 }
 
 /**
+ * What each note can actually be asked, in three queries for the whole batch.
+ *
+ * The ladder is material-gated: a note with no links cannot be asked what it was linked to, and
+ * a note that is one scripture pill has no prose to quote back. `resolveNoteRung` turns the
+ * stored step into the rung a given note can answer, and this is what it needs to decide.
+ *
+ * Batched deliberately. The session read renders ten items; asking per note would be a
+ * straightforward N+1 on the page a subscriber uses most.
+ */
+/**
+ * Every label in this account that names *what* a note is, and the label for each pool member.
+ *
+ * One loader, because the material probe and the exercise builder must agree about rung 0. When
+ * the probe thinks a note can be recognised and the builder cannot build the question, the reader
+ * gets "Which of your notes says this?" above nothing at all — which is exactly what the first
+ * preview showed.
+ */
+async function loadNoteLabelPool(
+  userId: string,
+): Promise<{ distinguishing: string[]; byId: Map<string, string> }> {
+  const rows = await db
+    .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
+    .from(Notes)
+    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), countableUserNotesWhere()))
+    .orderBy(desc(Notes.updatedAt))
+    .limit(NOTE_OPTION_POOL_LIMIT);
+
+  // `loadTitles` already resolves title, then excerpt, then cited passage — the same ladder the
+  // option label wants, minus the excerpt, which is barred here because it is the stem.
+  const resolved = await loadTitles(
+    userId,
+    rows.map((row) => row.id),
+  );
+
+  const distinguishing: string[] = [];
+  const byId = new Map<string, string>();
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const { label, distinguishing: names } = noteOptionLabel({
+      id: row.id,
+      title: row.title,
+      createdAt: row.createdAt,
+      passage: resolved.get(row.id)?.passage ?? null,
+    });
+    byId.set(row.id, label);
+    if (!names) continue;
+    const key = label.toLowerCase();
+    // Two rows reading the same is one option, not two.
+    if (seen.has(key)) continue;
+    seen.add(key);
+    distinguishing.push(label);
+  }
+  return { distinguishing, byId };
+}
+
+async function loadNoteMaterial(
+  userId: string,
+  noteIds: readonly string[],
+): Promise<Map<string, NoteMaterial>> {
+  const unique = [...new Set(noteIds.filter(Boolean))];
+  const out = new Map<string, NoteMaterial>();
+  if (!unique.length) return out;
+
+  const [bodies, viaPill, ownPassage, links, quotes, pool, labels] = await Promise.all([
+    db
+      .select({
+        id: Notes.id,
+        length: sql<number>`length(${Notes.content})`,
+        contentEncrypted: Notes.contentEncrypted,
+      })
+      .from(Notes)
+      .where(and(eq(Notes.userId, userId), inArray(Notes.id, unique))),
+    /*
+     * Both halves of what `getNotePassages` sees, because the probe deciding *whether* to ask
+     * "which of these did you cite here?" and the builder answering it must read the same thing.
+     * A pill points at a canonical scripture child, but a note can also carry its own metadata
+     * row — checking only the first silently drops the rung for every note of the second kind.
+     */
+    db
+      .select({ noteId: NoteScriptureReferences.noteId })
+      .from(NoteScriptureReferences)
+      .innerJoin(
+        ScriptureMetadata,
+        eq(NoteScriptureReferences.scriptureNoteId, ScriptureMetadata.noteId),
+      )
+      .where(inArray(NoteScriptureReferences.noteId, unique)),
+    db
+      .select({ noteId: ScriptureMetadata.noteId })
+      .from(ScriptureMetadata)
+      .where(inArray(ScriptureMetadata.noteId, unique)),
+    db
+      .select({ from: NoteConnections.fromNoteId, to: NoteConnections.toNoteId })
+      .from(NoteConnections)
+      .where(
+        and(
+          eq(NoteConnections.userId, userId),
+          or(
+            inArray(NoteConnections.fromNoteId, unique),
+            inArray(NoteConnections.toNoteId, unique),
+          ),
+        ),
+      ),
+    // A span the reader selected themselves. `resolved` matters: a detached anchor holds a
+    // quote that is no longer anywhere in the note.
+    db
+      .select({ parentNoteId: StudyThreadEntries.parentNoteId })
+      .from(StudyThreadEntries)
+      .where(
+        and(
+          eq(StudyThreadEntries.userId, userId),
+          inArray(StudyThreadEntries.parentNoteId, unique),
+          eq(StudyThreadEntries.anchorStatus, 'resolved'),
+          isNotNull(StudyThreadEntries.anchorQuote),
+        ),
+      ),
+    loadNoteLabelPool(userId),
+    loadNoteSubjectLabels(userId, unique),
+  ]);
+
+  const withPassage = new Set([...viaPill, ...ownPassage].map((row) => row.noteId));
+  const withLink = new Set<string>();
+  for (const edge of links) {
+    withLink.add(edge.from);
+    withLink.add(edge.to);
+  }
+  const withQuote = new Set(
+    quotes.map((row) => row.parentNoteId).filter((id): id is string => Boolean(id)),
+  );
+
+  for (const row of bodies) {
+    /*
+     * Rung 0 needs more than a body: it needs an *answer someone could name*. A note labelled
+     * "Written 10 Jul" cannot be picked out of a line of its own prose, and neither can the three
+     * options beside it. Checked here rather than in the builder so that the question the list
+     * asks and the exercise the reveal builds are decided by one rule.
+     */
+    const label = labels.get(row.id);
+    const namedRivals = label
+      ? pool.distinguishing.filter((other) => other.toLowerCase() !== label.label.toLowerCase())
+      : pool.distinguishing;
+    const answerable = Boolean(label?.distinguishing) && namedRivals.length >= MIN_NOTE_DISTRACTORS;
+
+    out.set(row.id, {
+      // Encrypted bodies are ciphertext the server cannot quote from, so those notes get the
+      // two rungs built on plaintext tables instead.
+      canRecognize:
+        answerable &&
+        !row.contentEncrypted &&
+        ((row.length ?? 0) >= MIN_QUIZZABLE_BODY_CHARS || withQuote.has(row.id)),
+      canPassage: withPassage.has(row.id),
+      canConnect: withLink.has(row.id),
+    });
+  }
+  return out;
+}
+
+/**
+ * Below this a body has nothing recognisable to quote — see `MIN_FRAGMENT_WORDS` next door.
+ * Measured in stored characters because that is what a batched query can ask cheaply, and the
+ * fragment builder does the real check on words once it has the text.
+ */
+const MIN_QUIZZABLE_BODY_CHARS = 120;
+
+/** A note the probe knows nothing about can be asked nothing — the safe reading, not the loud one. */
+const EMPTY_NOTE_MATERIAL: NoteMaterial = {
+  canRecognize: false,
+  canPassage: false,
+  canConnect: false,
+};
+
+/**
  * Titles for a batch of items in one query rather than per row.
  *
  * The inbox renders at most three, but the session and the manage list do not, and a
@@ -277,10 +463,22 @@ async function threadTitleFor(userId: string, repNoteId: string): Promise<string
 export async function buildReviewItemViews(
   userId: string,
   rows: ReviewItemRow[],
+  /**
+   * Drop note items the resolver can ask nothing about.
+   *
+   * True when assembling a queue, false when rebuilding one item the caller already has in hand
+   * — a route that just recorded an outcome must get its item back, not an empty array.
+   */
+  options: { dropUnaskable?: boolean } = {},
 ): Promise<ReviewItemView[]> {
   const titles = await loadTitles(
     userId,
     rows.flatMap((r) => [r.noteId, r.secondaryNoteId].filter((id): id is string => Boolean(id))),
+  );
+  // Only note items need it, and only they pay for it.
+  const material = await loadNoteMaterial(
+    userId,
+    rows.filter((r) => r.kind === 'note').map((r) => r.noteId).filter((id): id is string => Boolean(id)),
   );
 
   const views: ReviewItemView[] = [];
@@ -302,6 +500,27 @@ export async function buildReviewItemViews(
       cue = text ? verseCue(stripHtml(text)) : null;
     }
 
+    /*
+     * A note is asked the rung it can answer, not the rung it has climbed to. The stored step
+     * is nominal; a note with no links skips past "what did you link this to?" rather than
+     * showing a question with no possible answer.
+     */
+    const noteRung =
+      kind === 'note' && row.noteId
+        ? resolveNoteRung(row.ladderStep, material.get(row.noteId) ?? EMPTY_NOTE_MATERIAL)
+        : null;
+
+    /*
+     * A note the resolver can ask nothing about is not shown at all.
+     *
+     * The floor in `review-opportunities.ts` stops new ones being created, but items made before
+     * the note ladder existed are already in the table, and every one of them is a note with no
+     * name, no cited passage and no link. Falling back to the ladder's own wording would print
+     * "Which of your notes says this?" above no question — which is what the first preview did.
+     * These notes are not lost: they are exactly what the Home mark-a-note suggestion is for.
+     */
+    if (kind === 'note' && !noteRung && options.dropUnaskable) continue;
+
     const { key, prompt } = reviewPromptFor(
       { kind, reviewCount: row.reviewCount, ladderStep: row.ladderStep, id: row.id },
       {
@@ -316,8 +535,8 @@ export async function buildReviewItemViews(
     views.push({
       id: row.id,
       kind,
-      prompt,
-      promptKey: key,
+      prompt: noteRung ? fillReviewPrompt(noteRung, {}) : prompt,
+      promptKey: noteRung ?? key,
       recallState: row.recallState as RecallState,
       status: row.status as ReviewItemStatus,
       origin: row.origin as ReviewItemOrigin,
@@ -476,6 +695,17 @@ export async function createReviewItem(
   if (noteId && !(await ownsNote(userId, noteId))) return { error: 'Note not found' };
   if (secondaryNoteId && !(await ownsNote(userId, secondaryNoteId))) {
     return { error: 'Note not found' };
+  }
+
+  /*
+   * A note the ladder cannot ask about is refused, with a reason the reader can act on.
+   *
+   * Not a failure — the note is fine. It just has no body to quote, no passage cited and no
+   * link drawn, so every question would be one we invented rather than one they can answer.
+   * Citing a passage or linking it to something makes it reviewable.
+   */
+  if (input.kind === 'note' && noteId && !(await noteHasReviewableMaterial(userId, noteId))) {
+    return { error: 'Nothing to ask about yet — cite a passage or link it to another note' };
   }
 
   if (input.kind === 'connection') {
@@ -656,11 +886,12 @@ export async function applyReviewOutcome(
     now,
   );
 
-  // The ladder only advances on a clean recall — half-remembering a verse is not a reason to
-  // be asked a harder question about it next time.
+  // A ladder only advances on a clean recall — half-remembering something is not a reason to be
+  // asked a harder question about it next time. Notes climb now too; `nextLadderStep` knows
+  // which kinds have a ladder and how far each one goes.
   const ladderStep =
-    item.kind === 'verse' && outcome === 'recalled'
-      ? Math.min(VERSE_LADDER_MAX_STEP, item.ladderStep + 1)
+    outcome === 'recalled'
+      ? nextLadderStep(item.kind as ReviewItemKind, item.ladderStep)
       : item.ladderStep;
 
   const updated = first(
@@ -830,6 +1061,13 @@ export interface ReviewRevealPayload {
   sequence?: { phrases: string[] } | null;
   /** The four references, without which one is right. */
   locate?: { phrase: string; options: string[] } | null;
+  /**
+   * A note rung: the question's own material and its four options, never which is right.
+   *
+   * `fragment` is present only on `note.recognize`, where the question quotes the reader's own
+   * writing back at them. The other two rungs name the note in the row and ask about it.
+   */
+  noteChoice?: { fragment: string | null; options: string[] } | null;
 }
 
 /**
@@ -897,6 +1135,238 @@ export async function gradeVerseAnswer(
   return gradeVerseLocate(exercise, answer.option!) ? 'recalled' : 'almost';
 }
 
+/**
+ * Can this note be asked anything at all?
+ *
+ * The floor under the note ladder. Every rung needs material the reader committed — a body to
+ * quote, a passage cited, a link drawn — and a note with none of those has no question that is
+ * not invented. There is deliberately no reflective fallback: those five prompts left for Home,
+ * and putting one back here as a safety net would undo the change.
+ */
+export async function noteHasReviewableMaterial(userId: string, noteId: string): Promise<boolean> {
+  const material = (await loadNoteMaterial(userId, [noteId])).get(noteId);
+  return Boolean(material && resolveNoteRung(0, material));
+}
+
+/**
+ * How a note is named *as an option*, which is not how it is named as a row.
+ *
+ * `noteLabel` falls back to the note's own opening line, and that is right for a row — it shows
+ * you which note without you opening it. It is wrong here, because the question quotes the
+ * note's body, so the opening line can be the fragment itself. An option that repeats the
+ * question is the answer.
+ *
+ * Title, then the first passage it cites, then when it was written. Never the excerpt.
+ */
+function noteOptionLabel(row: {
+  id: string;
+  title: string | null;
+  createdAt: Date | null;
+  passage?: string | null;
+}): { label: string; distinguishing: boolean } {
+  const title = displayTitle(row.title);
+  // A note titled "August 13, 2026" is a date wearing a title. It names *when*, not *what*, so
+  // it cannot be told from the next day's note by anyone reading a sentence out of one.
+  if (title && labelNamesWhat(title)) return { label: title, distinguishing: true };
+  if (row.passage?.trim()) return { label: row.passage.trim(), distinguishing: true };
+  if (title) return { label: title, distinguishing: false };
+  const written = row.createdAt;
+  if (written) {
+    return {
+      label: `Written ${written.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
+      distinguishing: false,
+    };
+  }
+  return { label: 'A note', distinguishing: false };
+}
+
+
+/**
+ * The note's own option label, and a pool of other notes to sit beside it.
+ *
+ * `distinguishing` carries the whole quality of the exercise. Four options reading "Written 10
+ * Jul", "August 13, 2026", "Written 26 Jun" and "August 16, 2026" is not a question anyone can
+ * answer — the reader is being asked which of four days a sentence came from. Rung 0 requires
+ * every option to name *what* rather than *when*, and falls through when it cannot.
+ */
+async function loadNoteOptionLabels(
+  userId: string,
+  noteId: string,
+): Promise<{ own: string; ownDistinguishing: boolean; others: string[] }> {
+  const [pool, subject] = await Promise.all([
+    loadNoteLabelPool(userId),
+    loadNoteSubjectLabels(userId, [noteId]),
+  ]);
+  const ownLabel = subject.get(noteId) ?? { label: 'A note', distinguishing: false };
+  const own = ownLabel.label.toLowerCase();
+  return {
+    own: ownLabel.label,
+    ownDistinguishing: ownLabel.distinguishing,
+    // A distractor reading the same as the answer makes the question unanswerable, not just dull.
+    others: pool.distinguishing.filter((label) => label.toLowerCase() !== own),
+  };
+}
+
+/** The option label for specific notes, which may be older than the pool reaches. */
+async function loadNoteSubjectLabels(
+  userId: string,
+  noteIds: readonly string[],
+): Promise<Map<string, { label: string; distinguishing: boolean }>> {
+  const unique = [...new Set(noteIds.filter(Boolean))];
+  const out = new Map<string, { label: string; distinguishing: boolean }>();
+  if (!unique.length) return out;
+
+  const [rows, resolved] = await Promise.all([
+    db
+      .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
+      .from(Notes)
+      .where(and(eq(Notes.userId, userId), inArray(Notes.id, unique))),
+    loadTitles(userId, unique),
+  ]);
+
+  for (const row of rows) {
+    out.set(
+      row.id,
+      noteOptionLabel({
+        id: row.id,
+        title: row.title,
+        createdAt: row.createdAt,
+        passage: resolved.get(row.id)?.passage ?? null,
+      }),
+    );
+  }
+  return out;
+}
+
+/** The notes on the other end of this one's links — every one of them is a right answer. */
+async function loadConnectedNoteLabels(userId: string, noteId: string): Promise<string[]> {
+  const edges = await db
+    .select({ from: NoteConnections.fromNoteId, to: NoteConnections.toNoteId })
+    .from(NoteConnections)
+    .where(
+      and(
+        eq(NoteConnections.userId, userId),
+        or(eq(NoteConnections.fromNoteId, noteId), eq(NoteConnections.toNoteId, noteId)),
+      ),
+    );
+  const ids = [...new Set(edges.flatMap((e) => [e.from, e.to]))].filter((id) => id !== noteId);
+  if (!ids.length) return [];
+
+  const rows = await db
+    .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
+    .from(Notes)
+    .where(and(eq(Notes.userId, userId), inArray(Notes.id, ids)));
+  return rows.map((row) => noteOptionLabel(row).label);
+}
+
+/**
+ * How wide the option pool is drawn.
+ *
+ * Generously, on purpose: every acceptable answer is barred from being a distractor, so a note
+ * citing three passages the reader has also studied elsewhere shrinks the usable pool by three.
+ */
+const NOTE_OPTION_POOL_LIMIT = 60;
+/** Three wrong options, or the question is a coin toss between two. */
+const MIN_NOTE_DISTRACTORS = 3;
+
+/**
+ * Everything a note rung needs, built once so the reveal and the grader cannot disagree.
+ *
+ * Both call this. The reveal keeps `options` and throws the key away; the grader keeps the key
+ * and throws the options away. One function means there is no second implementation to drift.
+ */
+async function buildNoteExercise(
+  userId: string,
+  item: ReviewItemRow,
+): Promise<{ rung: ReviewPromptKey; exercise: ChoiceExercise; fragment: string | null; acceptable: string[] } | null> {
+  if (item.kind !== 'note' || !item.noteId) return null;
+
+  const material = (await loadNoteMaterial(userId, [item.noteId])).get(item.noteId);
+  if (!material) return null;
+  const rung = resolveNoteRung(item.ladderStep, material);
+  if (!rung) return null;
+
+  const seed = `${item.id}:${item.ladderStep}`;
+  const labels = await loadNoteOptionLabels(userId, item.noteId);
+
+  if (rung === 'note.recognize') {
+    const [note] = await db
+      .select({ content: Notes.content, contentEncrypted: Notes.contentEncrypted })
+      .from(Notes)
+      .where(and(eq(Notes.id, item.noteId), eq(Notes.userId, userId)))
+      .limit(1);
+    if (!note || note.contentEncrypted) return null;
+
+    // A span the reader selected themselves beats a fragment we chose for them.
+    const [quoted] = await db
+      .select({ quote: StudyThreadEntries.anchorQuote })
+      .from(StudyThreadEntries)
+      .where(
+        and(
+          eq(StudyThreadEntries.userId, userId),
+          eq(StudyThreadEntries.parentNoteId, item.noteId),
+          eq(StudyThreadEntries.anchorStatus, 'resolved'),
+          isNotNull(StudyThreadEntries.anchorQuote),
+        ),
+      )
+      .limit(1);
+
+    const fragment =
+      quoted?.quote?.trim() || noteFragment(stripHtml(note.content ?? ''), seed);
+    if (!fragment) return null;
+
+    // An answer nobody could name is not an answer. Falls through to the passage rung.
+    if (!labels.ownDistinguishing) return null;
+
+    const exercise = buildNoteRecognize({
+      fragment,
+      answerLabel: labels.own,
+      poolLabels: labels.others,
+      seed,
+    });
+    return exercise ? { rung, exercise, fragment: exercise.fragment, acceptable: [labels.own] } : null;
+  }
+
+  if (rung === 'note.passage') {
+    const passages = await getNotePassages(item.noteId);
+    const acceptable = passages.map((p) => verseReferenceLabel(p));
+    if (!acceptable.length) return null;
+    // Generous pool: every acceptable answer is also barred as a distractor.
+    const pool = await listUserVerseReferences(userId, '');
+    const exercise = buildNoteChoice({ acceptable, poolLabels: pool, seed });
+    return exercise ? { rung, exercise, fragment: null, acceptable } : null;
+  }
+
+  const neighbours: string[] = await loadConnectedNoteLabels(userId, item.noteId);
+  if (!neighbours.length) return null;
+  const exercise = buildNoteChoice({
+    acceptable: neighbours,
+    poolLabels: labels.others.filter((label) => !neighbours.includes(label)),
+    seed,
+  });
+  return exercise ? { rung, exercise, fragment: null, acceptable: neighbours } : null;
+}
+
+/**
+ * Mark a note rung, rebuilt from the same inputs the question was built from.
+ *
+ * Returns null when the effective rung has moved since the question was shown — the reader
+ * deleted the link they were about to be asked about, say. `graded ?? outcome` in the route
+ * then falls back to their own verdict, which is the safe failure.
+ */
+export async function gradeNoteAnswer(
+  userId: string,
+  item: ReviewItemRow,
+  answer: { option?: string; promptKey?: string },
+): Promise<ReviewOutcome | null> {
+  if (typeof answer.option !== 'string') return null;
+  const built = await buildNoteExercise(userId, item);
+  if (!built) return null;
+  // The client tells us which question it was shown; disagreement means the material moved.
+  if (answer.promptKey && answer.promptKey !== built.rung) return null;
+  return gradeNoteChoice(built.exercise, answer.option, built.acceptable) ? 'recalled' : 'almost';
+}
+
 /** What the reader sees after they answer, or after they give up and open it. */
 export async function buildReviewReveal(
   userId: string,
@@ -930,6 +1400,18 @@ export async function buildReviewReveal(
         }
       }
     }
+  }
+
+  /*
+   * A note rung ships its options and its fragment, and nothing else. `answerIndex` stays here,
+   * exactly as it does for the verse rungs — a multiple choice whose key is in the page is a
+   * multiple choice with the answer written on the back.
+   */
+  if (item.kind === 'note') {
+    const built = await buildNoteExercise(userId, item);
+    payload.noteChoice = built
+      ? { fragment: built.fragment, options: built.exercise.options }
+      : null;
   }
 
   const noteIds = [item.noteId, item.secondaryNoteId].filter((id): id is string => Boolean(id));

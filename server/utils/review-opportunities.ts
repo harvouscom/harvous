@@ -23,6 +23,7 @@ import {
 } from '@/utils/review-item-kinds';
 import {
   ENGINE_NODE_KINDS,
+  ENGINE_PER_KIND_CAP,
   engineDailyRoom,
   selectReviewBatch,
   type ReviewCandidateNode,
@@ -32,7 +33,7 @@ import {
   verseReferenceLabel,
   type NodeKind,
 } from '@/utils/study-bible-nodes';
-import { createReviewItem, type ReviewItemRow } from './review-service';
+import { createReviewItem, noteHasReviewableMaterial, type ReviewItemRow } from './review-service';
 import {
   isUserNodeStatesTableMissing,
   isReviewItemsTableMissing,
@@ -41,6 +42,9 @@ import {
 
 /** How many nodes to consider. Well past what three picks needs, cheap on the index. */
 const CANDIDATE_LIMIT = 400;
+
+/** Slack over the day's room, so a note dropped at the floor does not cost a slot. */
+const OVERFETCH = 3;
 
 /** Node kind → the shape of question Review asks about it. */
 const REVIEW_KIND_FOR_NODE: Record<string, 'verse' | 'note' | 'connection' | 'thread'> = {
@@ -131,16 +135,34 @@ export async function refillReviewQueue(
       meta: row.meta,
     }));
 
+    /*
+     * Ask for more than there is room for. Some picks are dropped below — a note whose material
+     * has gone, a kind with no question — and without the slack a skip would silently cost the
+     * reader one of their three.
+     */
     const picks = selectReviewBatch(candidates, {
       now,
       existingSourceKeys: new Set(existing.map((row) => row.sourceKey)),
-      limit: room,
+      limit: room * OVERFETCH,
+      perKindCap: ENGINE_PER_KIND_CAP * OVERFETCH,
     });
 
     const created: ReviewItemRow[] = [];
     for (const pick of picks) {
+      if (created.length >= room) break;
       const kind = REVIEW_KIND_FOR_NODE[pick.nodeKind];
       if (!kind) continue;
+
+      /*
+       * A note with nothing to ask about is not a review item.
+       *
+       * Checked here rather than inside `selectReviewBatch`, which is pure and has no note
+       * bodies — and should not grow a database dependency to answer one question about one
+       * kind. The batch is over-fetched above so a skip costs no slot.
+       */
+      if (kind === 'note' && pick.noteId && !(await noteHasReviewableMaterial(userId, pick.noteId))) {
+        continue;
+      }
 
       const verseParts = kind === 'verse' ? verseKeyPartsFromNodeKey(pick.nodeKey) : null;
       if (kind === 'verse' && !verseParts) continue;

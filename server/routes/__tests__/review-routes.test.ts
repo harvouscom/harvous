@@ -76,6 +76,43 @@ describe('the two graded rungs are marked on the server', () => {
     expect(outcome).toMatch(/graded \?\? outcome/);
   });
 
+  it('marks a note rung on the server too, not just the verse ones', () => {
+    const outcome = review().slice(review().indexOf("'/api/review/items/:id/outcome'"));
+    expect(outcome).toContain('gradeNoteAnswer');
+    expect(outcome).toMatch(/graded \?\? outcome/);
+  });
+
+  it('builds a note rung and marks it from one function, so the two cannot drift', () => {
+    // The reveal keeps the options and throws the key away; the grader keeps the key and
+    // throws the options away. Two implementations would eventually disagree.
+    const text = service();
+    expect(text).toContain('async function buildNoteExercise');
+    const grader = text.slice(text.indexOf('export async function gradeNoteAnswer'));
+    expect(grader.slice(0, 600)).toContain('buildNoteExercise');
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    expect(reveal).toContain('buildNoteExercise');
+  });
+
+  it('never sends a note rung its own answer', () => {
+    const text = service();
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf("item.kind === 'note'"));
+    const block = branch.slice(0, branch.indexOf('const noteIds'));
+    expect(block).toContain('options: built.exercise.options');
+    expect(block).not.toContain('answerIndex');
+    expect(block).not.toContain('acceptable');
+  });
+
+  it('refuses a note with nothing to ask about, rather than inventing a question', () => {
+    const text = service();
+    expect(text).toContain('noteHasReviewableMaterial');
+    const engine = readFileSync(
+      resolve(process.cwd(), 'server/utils/review-opportunities.ts'),
+      'utf8',
+    );
+    expect(engine).toContain('noteHasReviewableMaterial');
+  });
+
   it('never sends the answer key with the puzzle', () => {
     const text = service();
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
@@ -152,13 +189,25 @@ describe('answering an item', () => {
     expect(block).toContain("outcome === 'recalled'");
   });
 
-  it('advances the verse ladder only on a clean recall', () => {
+  it('advances a ladder only on a clean recall', () => {
+    /*
+     * Half-remembering something is not a reason to be asked a harder question about it next
+     * time. Notes climb as well as verses now, so this asserts the rule rather than the shape
+     * it used to have — `nextLadderStep` is the one place that knows which kinds have a ladder.
+     */
     const block = text.slice(
       text.indexOf('export async function applyReviewOutcome'),
       text.indexOf('export async function deferReviewItem'),
     );
-    expect(block).toContain('VERSE_LADDER_MAX_STEP');
-    expect(block).toMatch(/kind === 'verse' &&\s*outcome === 'recalled'/);
+    expect(block).toMatch(/outcome === 'recalled'\s*\?\s*nextLadderStep\(/);
+    expect(block).toContain(': item.ladderStep');
+  });
+
+  it('asks a note the rung it can answer, not the rung it has reached', () => {
+    // A note with no links cannot be asked what it was linked to, whatever step it sits on.
+    const views = text.slice(text.indexOf('export async function buildReviewItemViews'));
+    expect(views).toContain('resolveNoteRung');
+    expect(views).toContain('loadNoteMaterial');
   });
 
   it('records what was answered, with the interval on both sides of it', () => {

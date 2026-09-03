@@ -18,11 +18,9 @@ import type { ReviewItemKind } from './review-item-kinds';
 import { hashSeed } from './verse-cloze';
 
 export const REVIEW_PROMPT_KEYS = [
-  'note.observe',
-  'note.central',
-  'note.carry',
-  'note.phrase',
-  'note.unclear',
+  'note.recognize',
+  'note.passage',
+  'note.connect',
   'highlight.why',
   'highlight.detail',
   'connection.why',
@@ -91,21 +89,18 @@ function threadName(ctx: ReviewPromptContext): string {
  */
 export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) => string> = {
   /*
-   * Second person, and short.
+   * Three questions about the note, not about its wording.
    *
-   * These read like a worksheet before — "what is the central idea of your note on X", "what in
-   * the text itself led you to write this note". Two problems in one sentence: they addressed
-   * the note as an object rather than the reader as someone who wrote it, and "this note" named
-   * nothing when the note had no title.
+   * These replaced five open reflective prompts — "what made you write this?", "what is clearer
+   * to you now?" — which turned out not to be review questions at all. They were invitations to
+   * go and mark something, and that is where they went: Home, as a suggestion.
+   *
+   * What is left can be marked, because the answer is something the reader committed. The
+   * fragment, the options and the reference all ship with the reveal, so these carry no context.
    */
-  'note.observe': (ctx) => ask(ctx, (s) => `What did you see in ${s}?`, 'What did you see here?'),
-  'note.central': (ctx) =>
-    ask(ctx, (s) => `What were you working out in ${s}?`, 'What were you working out here?'),
-  'note.carry': (ctx) =>
-    ask(ctx, (s) => `What stuck with you from ${s}?`, 'What stuck with you here?'),
-  'note.phrase': (ctx) => ask(ctx, (s) => `What made you write ${s}?`, 'What made you write this?'),
-  'note.unclear': (ctx) =>
-    ask(ctx, (s) => `What is clearer to you in ${s} now?`, 'What is clearer to you now?'),
+  'note.recognize': () => 'Which of your notes says this?',
+  'note.passage': () => 'Which of these did you cite here?',
+  'note.connect': () => 'What did you link this to?',
   'highlight.why': (ctx) => `You marked this in ${subjectText(ctx)}. What made it worth keeping?`,
   'highlight.detail': (ctx) => `What detail in ${subjectText(ctx)} led you to mark this passage?`,
   'connection.why': (ctx) =>
@@ -149,6 +144,21 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
  * answer that comes from the text itself. Every other rung is an open question the reader
  * judges for themselves, and that asymmetry is deliberate — see verse-ladder-exercises.ts.
  */
+/**
+ * The note ladder. Three graded rungs, climbed on a clean recall like the verse ladder.
+ *
+ * Unlike the verse ladder these are *material-gated*: a note with no links cannot be asked what
+ * it was linked to. `resolveNoteRung` in note-ladder-exercises.ts turns this nominal position
+ * into the one a given note can actually be asked.
+ */
+export const NOTE_LADDER: readonly ReviewPromptKey[] = [
+  'note.recognize',
+  'note.passage',
+  'note.connect',
+];
+
+export const NOTE_LADDER_MAX_STEP = NOTE_LADDER.length - 1;
+
 export const VERSE_LADDER: readonly ReviewPromptKey[] = [
   'verse.recognize',
   'verse.rebuild',
@@ -165,15 +175,36 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
 export const VERSE_REBUILD_STEP = 1;
 
 /** The two graded rungs. The client's own verdict is ignored on these — the server marks them. */
+/** Rung 0 of the note ladder, where the note's own identity is the answer. */
+export const NOTE_RECOGNIZE_STEP = 0;
 export const VERSE_SEQUENCE_STEP = 5;
 export const VERSE_LOCATE_STEP = 6;
 
-const ROTATIONS: Record<Exclude<ReviewItemKind, 'verse'>, readonly ReviewPromptKey[]> = {
-  note: ['note.observe', 'note.central', 'note.carry', 'note.phrase', 'note.unclear'],
+/**
+ * Kinds that rotate through phrasings rather than climbing a ladder.
+ *
+ * `note` left this table when it became graded: its questions are rungs now, chosen by
+ * `ladderStep` and by what the note actually has, not by how many times it has come round.
+ */
+const ROTATIONS: Record<Exclude<ReviewItemKind, 'verse' | 'note'>, readonly ReviewPromptKey[]> = {
   highlight: ['highlight.why', 'highlight.detail'],
   connection: ['connection.why', 'connection.distinct', 'connection.tension'],
   thread: ['thread.central', 'thread.unresolved', 'thread.backbone'],
 };
+
+/** Which kinds climb rather than rotate, and how far. */
+export function ladderMaxStepFor(kind: ReviewItemKind): number | null {
+  if (kind === 'verse') return VERSE_LADDER_MAX_STEP;
+  if (kind === 'note') return NOTE_LADDER_MAX_STEP;
+  return null;
+}
+
+/** The next rung after a clean recall, clamped to the ladder's top. */
+export function nextLadderStep(kind: ReviewItemKind, step: number): number {
+  const max = ladderMaxStepFor(kind);
+  if (max === null) return step;
+  return Math.min(max, Math.max(0, Math.trunc(step)) + 1);
+}
 
 /**
  * Which prompt this item gets this time.
@@ -196,6 +227,15 @@ export function pickPromptKey(
   if (kind === 'verse') {
     const step = Math.min(Math.max(0, Math.trunc(ladderStep)), VERSE_LADDER_MAX_STEP);
     return VERSE_LADDER[step];
+  }
+  /*
+   * The *nominal* rung for a note. What it can actually be asked depends on whether it has a
+   * body to quote, a passage to name or a link to recall — see `resolveNoteRung`, which the
+   * server calls with the material in hand. This is the fallback when nothing is known.
+   */
+  if (kind === 'note') {
+    const step = Math.min(Math.max(0, Math.trunc(ladderStep)), NOTE_LADDER_MAX_STEP);
+    return NOTE_LADDER[step];
   }
   const options = ROTATIONS[kind];
   const offset = itemId ? hashSeed(itemId) : 0;

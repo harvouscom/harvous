@@ -154,8 +154,10 @@ export default function PrototypeReviewDock() {
    * locate rung's payload deliberately withholds the verse text as well.
    */
   const isGradedRung =
-    item?.kind === 'verse' &&
-    (item.ladderStep === VERSE_SEQUENCE_STEP || item.ladderStep === VERSE_LOCATE_STEP);
+    (item?.kind === 'verse' &&
+      (item.ladderStep === VERSE_SEQUENCE_STEP || item.ladderStep === VERSE_LOCATE_STEP)) ||
+    // Every note rung is a multiple choice now; the puzzle is the question.
+    item?.kind === 'note';
   const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed || isGradedRung });
   const outcome = useReviewOutcome();
 
@@ -197,7 +199,10 @@ export default function PrototypeReviewDock() {
   }, [item, reviewDock?.itemId, sessionItems, setReviewDockItem]);
 
   const answer = useCallback(
-    (value: 'recalled' | 'almost' | 'revealed', graded?: { order?: number[]; option?: string }) => {
+    (
+      value: 'recalled' | 'almost' | 'revealed',
+      graded?: { order?: number[]; option?: string; promptKey?: string },
+    ) => {
       if (!item) return;
       outcome.mutate(
         {
@@ -280,11 +285,13 @@ export default function PrototypeReviewDock() {
    */
   const sequenceExercise = reveal.data?.sequence ?? null;
   const locateExercise = reveal.data?.locate ?? null;
+  const noteChoice = reveal.data?.noteChoice ?? null;
 
   if (!reviewDock || isGuest || !review.has) return null;
 
   const answeringOnNote = paperStack?.origin.review?.itemId === item?.id && Boolean(item);
   const isVerse = item?.kind === 'verse';
+  // `reviewRowSubtitle` suppresses itself on a graded rung — see its docblock.
   const subtitle = item ? reviewRowSubtitle(item) : null;
   const canJudge = canJudgeRecall({ attempt });
 
@@ -377,6 +384,30 @@ export default function PrototypeReviewDock() {
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats
              repeating the prompt down here, where it would read as a second, separate ask. */
           <p className="proto-review-dock__handoff">Answer at the top of your note.</p>
+        ) : noteChoice ? (
+          /*
+           * A note rung. The fragment is the reader's own writing, quoted back — and the
+           * question above already says what is being asked, so this needs no other framing.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {noteChoice.fragment ? (
+              <p className="proto-review-dock__verse">“{noteChoice.fragment}”</p>
+            ) : null}
+            <div className="proto-review-dock__chips">
+              {noteChoice.options.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                  disabled={outcome.isPending}
+                  onClick={() => answer('almost', { option, promptKey: item.promptKey })}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </>
         ) : sequenceExercise ? (
           /*
            * Put the phrases back in order. Tap to place, tap a placed one to take it back —

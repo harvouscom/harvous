@@ -61,6 +61,8 @@ export interface ReviewRevealResponse {
   sequence?: { phrases: string[] } | null;
   /** The locate rung's fragment and four references. Which one is right stays on the server. */
   locate?: { phrase: string; options: string[] } | null;
+  /** A note rung's own material and four options. Which is right stays on the server. */
+  noteChoice?: { fragment: string | null; options: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
 }
 
