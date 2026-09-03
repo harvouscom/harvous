@@ -17,7 +17,6 @@ import type {
   ReviewItemOrigin,
   ReviewItemStatus,
 } from '@/utils/review-item-kinds';
-import type { VerseCloze } from '@/utils/verse-cloze';
 
 export interface ReviewItemView {
   id: string;
@@ -58,7 +57,8 @@ export interface ReviewRevealResponse {
   note?: { id: string; title: string | null; content: string } | null;
   secondaryNote?: { id: string; title: string | null; content: string } | null;
   verseText?: string | null;
-  cloze?: VerseCloze | null;
+  /** The gapped line and its gap count. The tokens and the missing words stay on the server. */
+  cloze?: { display: string; blankCount: number } | null;
   /** The ordering rung's phrases, shuffled. The order they belong in stays on the server. */
   sequence?: { phrases: string[] } | null;
   /** The locate rung's fragment and four references. Which one is right stays on the server. */

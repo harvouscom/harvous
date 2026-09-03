@@ -390,3 +390,57 @@ describe('the altered rung', () => {
     expect(route).toContain('MAX_WORD_INDEX');
   });
 });
+
+describe('the fill-in-the-gaps rung', () => {
+  it('sends the gaps without the verse that fills them', () => {
+    /*
+     * It used to send both and render neither. The rung was not graded, so the reveal was only
+     * fetched after "Check the verse" — by which point the dock had shown a textarea and was
+     * about to print the whole passage, and the cloze it had built went unused.
+     */
+    const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.rebuild'"));
+    const block = branch.slice(0, branch.indexOf("rung.key === 'verse.sequence'"));
+    expect(block).toContain('payload.cloze');
+    expect(block).toContain('payload.verseText = null');
+  });
+
+  it('marks the filled-in words on the server', () => {
+    const grader = service().slice(service().indexOf('export async function gradeVerseAnswer'));
+    expect(grader).toContain('gradeVerseRebuild');
+    expect(grader).toMatch(/isRebuild/);
+  });
+
+  it('hands the verse back once the gaps are answered', () => {
+    const fn = service().slice(service().indexOf('export async function verseTruthFor'));
+    expect(fn.slice(0, 800)).toContain("'verse.rebuild'");
+  });
+
+  it('bounds the words that arrive rather than trusting them', () => {
+    const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+    expect(route).toContain('MAX_CLOZE_BLANKS');
+    expect(route).toContain('MAX_CLOZE_WORD_LENGTH');
+  });
+});
+
+describe('the cloze payload', () => {
+  it('never ships the tokens or the missing words', () => {
+    /*
+     * `VerseCloze` carries `tokens` — the whole verse — and `blanks[].word`, every answer. The
+     * first version of this rung shipped the object wholesale, so withholding `verseText` beside
+     * it achieved nothing: the passage was in the payload, spelled differently. Caught by
+     * reading the response, not by a type.
+     */
+    const text = service();
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.rebuild'"));
+    const block = branch.slice(0, branch.indexOf("rung.key === 'verse.sequence'"));
+    expect(block).toContain('display: cloze.display');
+    expect(block).toContain('blankCount');
+    expect(block).not.toMatch(/payload\.cloze = buildVerseCloze/);
+
+    // And the payload type says so, so a later edit cannot widen it by accident.
+    const shape = text.slice(text.indexOf('cloze?:'), text.indexOf('cloze?:') + 120);
+    expect(shape).not.toContain('VerseCloze');
+  });
+});

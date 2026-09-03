@@ -64,6 +64,7 @@ import {
   REVIEW_REVEAL_VERSE_COPY,
   REVIEW_ALTERED_CAPTION,
   REVIEW_TRUTH_LABEL,
+  REVIEW_CLOZE_PLACEHOLDER,
 } from './proto-review-copy';
 
 /** Kinds whose answer is another surface: the note itself, or the Thread beside you. */
@@ -289,7 +290,13 @@ export default function PrototypeReviewDock() {
   const answer = useCallback(
     (
       value: 'recalled' | 'almost' | 'revealed',
-      graded?: { order?: number[]; option?: string; promptKey?: string; wordIndex?: number },
+      graded?: {
+        order?: number[];
+        option?: string;
+        promptKey?: string;
+        wordIndex?: number;
+        words?: string[];
+      },
     ) => {
       if (!item) return;
       outcome.mutate(
@@ -379,6 +386,7 @@ export default function PrototypeReviewDock() {
   const noteChoice = reveal.data?.noteChoice ?? null;
   const nextExercise = reveal.data?.next ?? null;
   const alteredExercise = reveal.data?.altered ?? null;
+  const clozeExercise = reveal.data?.cloze ?? null;
 
   if (!reviewDock || isGuest || !review.has) return null;
 
@@ -507,6 +515,42 @@ export default function PrototypeReviewDock() {
               disabled={outcome.isPending}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
+          </>
+        ) : clozeExercise && clozeExercise.blankCount > 0 ? (
+          /*
+           * Fill in the missing words.
+           *
+           * The server has built this cloze all along and nothing ever rendered it: the rung was
+           * not graded, so the reveal was only fetched after "Check the verse", and by then the
+           * dock had already shown a textarea and was about to print the whole passage. It is
+           * graded now, so the gaps arrive with the question and the verse does not.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            <p className="proto-challenge__cloze">{clozeExercise.display}</p>
+            <textarea
+              className="proto-review-dock__attempt"
+              placeholder={REVIEW_CLOZE_PLACEHOLDER}
+              value={attempt}
+              onChange={(event) => setAttempt(event.target.value)}
+              rows={2}
+            />
+            <div className="proto-review-dock__actions">
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                disabled={outcome.isPending || !attempt.trim()}
+                onClick={() =>
+                  answer('almost', {
+                    // One gap per word, in order — the server compares position by position.
+                    words: attempt.trim().split(/[\s,]+/).filter(Boolean),
+                    promptKey: item.promptKey,
+                  })
+                }
+              >
+                {REVIEW_CHECK_COPY}
+              </button>
+            </div>
           </>
         ) : sequenceExercise ? (
           /*

@@ -67,7 +67,7 @@ import {
   gradeVerseAltered,
   type VerseAlteredExercise,
 } from '@/utils/verse-altered';
-import { verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
+import { gradeVerseRebuild, verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
@@ -1061,7 +1061,14 @@ export interface ReviewRevealPayload {
   note?: { id: string; title: string | null; content: string } | null;
   secondaryNote?: { id: string; title: string | null; content: string } | null;
   verseText?: string | null;
-  cloze?: VerseCloze | null;
+  /**
+   * The gapped line and how many gaps it has — never the tokens, never the words.
+   *
+   * `VerseCloze` carries `tokens` (the whole verse) and `blanks[].word` (every answer), so
+   * shipping it wholesale handed the client both. Withholding `verseText` beside that achieved
+   * nothing: the passage was still in the payload, spelled differently.
+   */
+  cloze?: { display: string; blankCount: number } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
   /** The ordering puzzle, without its answer key — see verse-ladder-exercises.ts. */
   sequence?: { phrases: string[] } | null;
@@ -1178,7 +1185,12 @@ export async function verseTruthFor(item: ReviewItemRow): Promise<string | null>
   const rung = verseRungFor(item.ladderStep);
   // `verse.altered` most of all: leaving someone with a falsified line and no correction is the
   // one ending this rung must never have.
-  if (rung.key !== 'verse.sequence' && rung.key !== 'verse.locate' && rung.key !== 'verse.altered')
+  if (
+    rung.key !== 'verse.sequence' &&
+    rung.key !== 'verse.locate' &&
+    rung.key !== 'verse.altered' &&
+    rung.key !== 'verse.rebuild'
+  )
     return null;
   const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
   return html || null;
@@ -1213,7 +1225,7 @@ const VERSE_NEXT_NEIGHBOURS = 5;
 export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
-  answer: { order?: number[]; option?: string; wordIndex?: number },
+  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[] },
 ): Promise<ReviewOutcome | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const rung = verseRungFor(item.ladderStep);
@@ -1221,7 +1233,19 @@ export async function gradeVerseAnswer(
   const isLocate = rung.key === 'verse.locate' && typeof answer.option === 'string';
   const isNext = rung.key === 'verse.next' && typeof answer.option === 'string';
   const isAltered = rung.key === 'verse.altered' && Number.isInteger(answer.wordIndex);
-  if (!isSequence && !isLocate && !isNext && !isAltered) return null;
+  const isRebuild = rung.key === 'verse.rebuild' && Array.isArray(answer.words);
+  if (!isSequence && !isLocate && !isNext && !isAltered && !isRebuild) return null;
+
+  if (isRebuild) {
+    const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
+    if (!html) return null;
+    const cloze = buildVerseCloze(
+      stripHtml(html),
+      `${item.id}:${item.ladderStep}`,
+      verseClozeRatio(rung.pass),
+    );
+    return gradeVerseRebuild(cloze, answer.words!) ? 'recalled' : 'almost';
+  }
 
   if (isAltered) {
     const exercise = await buildVerseAlteredFor(item);
@@ -1506,7 +1530,16 @@ export async function buildReviewReveal(
         const rung = verseRungFor(item.ladderStep);
         if (rung.key === 'verse.rebuild') {
           // A later pass hides more, and the seed carries the step, so it hides a different set.
-          payload.cloze = buildVerseCloze(text, seed, verseClozeRatio(rung.pass));
+          const cloze = buildVerseCloze(text, seed, verseClozeRatio(rung.pass));
+          payload.cloze = { display: cloze.display, blankCount: cloze.blanks.length };
+          /*
+           * The gaps, not the verse. This rung shipped both and rendered neither: it was not
+           * graded, so the reveal was only fetched after "Check the verse", and the dock had no
+           * branch for a cloze — the reader got a textarea and then the whole passage. Fetching
+           * it up front is what makes the exercise appear, and the answer has to stop coming
+           * with it.
+           */
+          if (cloze.blanks.length > 0) payload.verseText = null;
         }
         if (rung.key === 'verse.sequence') {
           const exercise = buildVerseSequence(text, seed);

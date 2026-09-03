@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildVerseCloze, verseClozeRatio, verseCue } from '../verse-cloze';
+import { buildVerseCloze, gradeVerseRebuild, verseClozeRatio, verseCue } from '../verse-cloze';
 
 const JOHN_15_5 =
   'I am the vine; you are the branches. Whoever abides in me and I in him, he it is that bears much fruit, for apart from me you can do nothing.';
@@ -132,5 +132,39 @@ describe('a blank never mangles the words around it', () => {
     const cloze = buildVerseCloze('“Rejoice always, pray continually, everywhere”', 'a', 0.6);
     expect(cloze.display.startsWith('“')).toBe(true);
     expect(cloze.display.trimEnd().endsWith('”')).toBe(true);
+  });
+});
+
+describe('gradeVerseRebuild', () => {
+  const cloze = buildVerseCloze(JOHN_15_5, 'seed:1', 0.3);
+
+  it('accepts the missing words in the order they were taken out', () => {
+    expect(gradeVerseRebuild(cloze, cloze.blanks.map((b) => b.word))).toBe(true);
+  });
+
+  it('does not care about case or punctuation', () => {
+    /*
+     * The question is whether the word was remembered, not how it was typed. A reader filling
+     * gaps from memory should not be marked down for a capital or a missing apostrophe.
+     */
+    expect(
+      gradeVerseRebuild(cloze, cloze.blanks.map((b) => ` ${b.word.toUpperCase()}, `)),
+    ).toBe(true);
+  });
+
+  it('marks the right words in the wrong order wrong', () => {
+    // Order is the exercise: "vine … branches" is not "branches … vine".
+    const reversed = [...cloze.blanks.map((b) => b.word)].reverse();
+    const distinct = new Set(reversed).size > 1;
+    if (distinct) expect(gradeVerseRebuild(cloze, reversed)).toBe(false);
+  });
+
+  it('marks a short answer wrong rather than passing what was filled in', () => {
+    expect(gradeVerseRebuild(cloze, cloze.blanks.slice(1).map((b) => b.word))).toBe(false);
+    expect(gradeVerseRebuild(cloze, [])).toBe(false);
+  });
+
+  it('marks a verse with nothing blanked wrong rather than vacuously right', () => {
+    expect(gradeVerseRebuild({ tokens: [], blanks: [], display: '' }, [])).toBe(false);
   });
 });

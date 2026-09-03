@@ -191,3 +191,29 @@ export function verseCue(text: string, words = 4): string {
     .replace(/[“”"'‘’]+$/, '')
     .trim();
 }
+
+/**
+ * Did the reader fill the gaps with the words that belong in them?
+ *
+ * Position by position, because order is the exercise: "vine … branches" and "branches … vine"
+ * are not the same answer, and a set comparison would call them both right.
+ *
+ * Compared loosely. The blanks hold bare words already, and someone typing the missing words of
+ * a verse should not be marked down for capitalising one or leaving off an apostrophe — the
+ * question is whether they remembered the word, not how they typed it. This is the only graded
+ * rung whose answer key is the Scripture text itself rather than something the reader committed;
+ * that is fine, because the text is not a machine's reading of anything.
+ */
+export function gradeVerseRebuild(cloze: VerseCloze, answers: readonly string[]): boolean {
+  if (cloze.blanks.length === 0) return false;
+  if (answers.length !== cloze.blanks.length) return false;
+  return cloze.blanks.every((blank, index) => sameWord(answers[index], blank.word));
+}
+
+function sameWord(a: string | undefined, b: string): boolean {
+  return normaliseWord(a ?? '') === normaliseWord(b) && normaliseWord(b).length > 0;
+}
+
+function normaliseWord(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+}

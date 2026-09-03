@@ -99,6 +99,9 @@ export const REVIEW_CHECK_COPY = 'Check it';
 
 /** Said once, on the answer that moves something into durable recall. Never a score. */
 export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
+/** The cloze rung asks for words in order, which the general placeholder does not say. */
+export const REVIEW_CLOZE_PLACEHOLDER = 'Type the missing words, in order';
+
 export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';
 
 export const CHALLENGE_STEP_DONE_COPY = 'Done';

@@ -276,8 +276,13 @@ describe('the ladder wraps rather than ending', () => {
     const maintenanceLocate = VERSE_LADDER.length + VERSE_MAINTENANCE.indexOf('verse.locate');
     expect(verseRungFor(maintenanceLocate).key).toBe('verse.locate');
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: maintenanceLocate })).toBe(true);
+    // Rebuild is graded now: its gaps are the question, and the words that fill them are the
+    // answer. It was the one rung whose exercise the dock never rendered.
     const maintenanceRebuild = VERSE_LADDER.length + VERSE_MAINTENANCE.indexOf('verse.rebuild');
-    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: maintenanceRebuild })).toBe(false);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: maintenanceRebuild })).toBe(true);
+    // Recall — write the whole verse from memory — is still the reader's own to judge.
+    const recall = VERSE_LADDER.indexOf('verse.recall');
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: recall })).toBe(false);
   });
 
   it('tolerates a nonsense step', () => {

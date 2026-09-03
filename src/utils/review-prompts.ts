@@ -277,6 +277,7 @@ export const VERSE_LOCATE_STEP = 6;
  * question nobody can answer, or marks one nobody was asked.
  */
 const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>([
+  'verse.rebuild',
   'verse.next',
   'verse.altered',
   'verse.sequence',

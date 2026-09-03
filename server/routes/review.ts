@@ -47,6 +47,9 @@ const route = new Hono();
 /** The longest a free-text attempt may be. Generous for a paragraph, bounded against abuse. */
 /** No verse this app shows runs past a couple of hundred words. */
 const MAX_WORD_INDEX = 400;
+/** `MAX_BLANK_SHARE` caps a cloze well below this; the bound is for what arrives, not what we build. */
+const MAX_CLOZE_BLANKS = 24;
+const MAX_CLOZE_WORD_LENGTH = 40;
 const MAX_ATTEMPT_LENGTH = 4000;
 
 /**
@@ -227,6 +230,14 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
             // trusted: it indexes a token array on the server.
             wordIndex: Number.isInteger(body.answer.wordIndex)
               ? Math.max(0, Math.min(MAX_WORD_INDEX, body.answer.wordIndex))
+              : undefined,
+            // The words filled into a cloze's gaps. Bounded on both axes: a verse never has
+            // more blanks than this, and no single missing word is this long.
+            words: Array.isArray(body.answer.words)
+              ? body.answer.words
+                  .filter((w: unknown) => typeof w === 'string')
+                  .slice(0, MAX_CLOZE_BLANKS)
+                  .map((w: string) => w.slice(0, MAX_CLOZE_WORD_LENGTH))
               : undefined,
             // Which question the client believes it was shown. Only ever used to detect that
             // the material moved underneath it, never to decide the answer.
