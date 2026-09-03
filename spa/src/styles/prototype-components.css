@@ -21059,9 +21059,18 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
   font-size: 13px;
   line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  /*
+   * One line, and a plain ellipsis rather than `-webkit-line-clamp: 1` — the same reasoning the
+   * planner card records: clamping keeps `white-space: normal`, so the line breaks at a word
+   * boundary before it truncates and a long first word can swallow most of the preview. Cutting
+   * mid-word says more.
+   *
+   * One rather than two because these rows are a glance at the day, not the note. Two lines of a
+   * long note pushed the rows beneath it down and made the feed read as a wall of prose.
+   */
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   overflow: hidden;
 }
 
