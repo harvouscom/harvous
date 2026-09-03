@@ -24,7 +24,7 @@
  * textarea has no autofocus, because a card that appears while you are typing and takes the
  * caret is the interruption this whole feature is supposed not to be.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
@@ -62,6 +62,8 @@ import {
   REVIEW_REVEAL_COPY,
   REVIEW_REVEAL_THREAD_COPY,
   REVIEW_REVEAL_VERSE_COPY,
+  REVIEW_ALTERED_CAPTION,
+  REVIEW_TRUTH_LABEL,
 } from './proto-review-copy';
 
 /** Kinds whose answer is another surface: the note itself, or the Thread beside you. */
@@ -287,7 +289,7 @@ export default function PrototypeReviewDock() {
   const answer = useCallback(
     (
       value: 'recalled' | 'almost' | 'revealed',
-      graded?: { order?: number[]; option?: string; promptKey?: string },
+      graded?: { order?: number[]; option?: string; promptKey?: string; wordIndex?: number },
     ) => {
       if (!item) return;
       outcome.mutate(
@@ -376,6 +378,7 @@ export default function PrototypeReviewDock() {
   const locateExercise = reveal.data?.locate ?? null;
   const noteChoice = reveal.data?.noteChoice ?? null;
   const nextExercise = reveal.data?.next ?? null;
+  const alteredExercise = reveal.data?.altered ?? null;
 
   if (!reviewDock || isGuest || !review.has) return null;
 
@@ -451,10 +454,13 @@ export default function PrototypeReviewDock() {
             {/* The verse first, the verdict under it: what the reader came back for is the
                 text, not the bookkeeping. */}
             {lastResult.verseText ? (
-              <p
-                className="proto-review-dock__verse proto-review-dock__verse--scripture"
-                dangerouslySetInnerHTML={{ __html: lastResult.verseText }}
-              />
+              <>
+                <p className="proto-caption proto-review-dock__truth-label">{REVIEW_TRUTH_LABEL}</p>
+                <p
+                  className="proto-review-dock__verse proto-review-dock__verse--scripture"
+                  dangerouslySetInnerHTML={{ __html: lastResult.verseText }}
+                />
+              </>
             ) : null}
             <span className="proto-dock-check" aria-hidden>
               <Icon name="check" size={12} />
@@ -542,6 +548,44 @@ export default function PrototypeReviewDock() {
               >
                 {REVIEW_CHECK_COPY}
               </button>
+            </div>
+          </>
+        ) : alteredExercise ? (
+          /*
+           * The one rung that shows words which are not what the passage says.
+           *
+           * The question above states that before the reader reaches the text, and the caption
+           * below repeats it on the block itself — a prompt can be scrolled past, cropped out
+           * of a screenshot or skipped by someone tapping straight at the words, and the
+           * warning has to travel with them. Deliberately not `--scripture`: this is the one
+           * place a line must not be dressed as the real thing.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            <div className="proto-review-dock__altered">
+              <p className="proto-caption proto-review-dock__altered-caption">
+                {REVIEW_ALTERED_CAPTION}
+              </p>
+              <p className="proto-review-dock__altered-text">
+                {alteredExercise.tokens.map((token, index) => (
+                  /* The space is its own text node, outside the buttons. Without it the words
+                     are separated only by margin: the line looks right and reads as
+                     "Iamthevine" to a screen reader, and copies out that way too. */
+                  <Fragment key={`${index}-${token}`}>
+                    {index > 0 ? ' ' : null}
+                    <button
+                      type="button"
+                      className="proto-review-dock__altered-word"
+                      disabled={outcome.isPending}
+                      onClick={() =>
+                        answer('almost', { wordIndex: index, promptKey: item.promptKey })
+                      }
+                    >
+                      {token}
+                    </button>
+                  </Fragment>
+                ))}
+              </p>
             </div>
           </>
         ) : nextExercise ? (

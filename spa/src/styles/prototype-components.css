@@ -21687,6 +21687,65 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
+ * The altered verse, which must not look like a verse.
+ *
+ * Everything the scripture panel does, this deliberately does not: no reading face, no quiet
+ * grey ground, no pill chrome. It takes a warning tint and a marked edge instead, so a line
+ * that misquotes Scripture cannot be mistaken for it at a glance or in a screenshot. The
+ * caption above the words says the same thing in words.
+ */
+.proto-review-dock__altered {
+  margin: 0;
+  padding: 8px 12px 10px;
+  border-radius: var(--pds-radius-row);
+  border: 0.5px dashed var(--pds-border-control-medium);
+  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 8%, transparent);
+}
+
+.proto-review-dock__altered-caption {
+  margin: 0 0 6px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-review-dock__altered-text {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* Each word is its own target, so answering is a tap on the word rather than a menu about it. */
+.proto-review-dock__altered-word {
+  appearance: none;
+  border: 0;
+  background: none;
+  /* No horizontal margin: the spaces between words are real text nodes now, and a margin on
+     top of them spaced the line out like a puzzle grid. */
+  padding: 1px 1px;
+  margin: 0;
+  border-radius: 3px;
+  font: inherit;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+.proto-review-dock__altered-word:hover:not(:disabled),
+.proto-review-dock__altered-word:focus-visible {
+  background: color-mix(in srgb, var(--pds-text-primary) 8%, transparent);
+}
+
+.proto-review-dock__altered-word:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Above the restored verse, so the correction is unmistakable rather than a silent swap. */
+.proto-review-dock__truth-label {
+  margin: 0 0 4px;
+  color: var(--pds-text-secondary);
+}
+
+/*
  * A lettered option, which is what makes a row of buttons read as a question.
  *
  * The keycap is the toolbar's own `.proto-kbd`, not a new lozenge: the letters are real

@@ -45,6 +45,19 @@ export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
  * destination you have to come back from. It opens the rest of the list where it already is.
  */
 export const REVIEW_SEE_ALL_COPY = 'See all';
+
+/**
+ * The caption on the altered block itself.
+ *
+ * The prompt already says one word has been changed. This says it a second time, on the words,
+ * because the prompt can be scrolled past, cropped out of a screenshot, or skipped by someone
+ * tapping straight at the text — and the one thing this rung must never do is let an altered
+ * line be read as Scripture.
+ */
+export const REVIEW_ALTERED_CAPTION = 'Altered — one word here is wrong';
+
+/** Said plainly above the restored verse, so the correction is unmistakable. */
+export const REVIEW_TRUTH_LABEL = 'As it actually reads';
 export const REVIEW_SEE_LESS_COPY = 'Show fewer';
 
 /* The note's ⋯ menu is the one place this is offered. The Review card briefly carried a `+`

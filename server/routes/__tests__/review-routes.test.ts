@@ -268,8 +268,10 @@ describe('the "what comes next" rung', () => {
   it('builds the question and marks it from one function', () => {
     const text = service();
     expect(text).toContain('async function buildVerseNextFor');
+    // Searched over the whole function, not a fixed slice of it: a character window is a test
+    // that breaks when an unrelated rung is added above the line it was aiming at.
     const grader = text.slice(text.indexOf('export async function gradeVerseAnswer'));
-    expect(grader.slice(0, 900)).toContain('buildVerseNextFor');
+    expect(grader).toContain('buildVerseNextFor');
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
     expect(reveal).toContain('buildVerseNextFor');
   });
@@ -290,7 +292,7 @@ describe('the "what comes next" rung', () => {
   it('marks the tap on the server, whatever outcome the client claims', () => {
     const grader = service().slice(service().indexOf('export async function gradeVerseAnswer'));
     expect(grader).toContain('gradeVerseNext');
-    expect(grader.slice(0, 900)).toMatch(/isNext/);
+    expect(grader).toMatch(/isNext/);
   });
 });
 
@@ -332,5 +334,50 @@ describe('the ladder wrap and the truth restore', () => {
     expect(call).toBeGreaterThan(-1);
     expect(outcome.slice(0, call)).toContain('applyReviewOutcome');
     expect(outcome).not.toContain('verseTruthFor(updated)');
+  });
+});
+
+describe('the altered rung', () => {
+  it('ships the altered words and nothing that says which one', () => {
+    /*
+     * The client holding `alteredIndex` would be a puzzle with the answer on the back, and also
+     * a record of exactly which word was falsified.
+     */
+    const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.altered'"));
+    const block = branch.slice(0, branch.indexOf("rung.key === 'verse.locate'"));
+    expect(block).toContain('tokens: exercise.tokens');
+    expect(block).not.toContain('alteredIndex');
+    expect(block).not.toContain('original');
+    expect(block).not.toContain('substitute');
+  });
+
+  it('never prints the true verse beside the altered one', () => {
+    const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.altered'"));
+    expect(branch.slice(0, branch.indexOf("rung.key === 'verse.locate'"))).toContain(
+      'payload.verseText = null',
+    );
+  });
+
+  it('restores the true verse once the rung is answered', () => {
+    // Leaving someone holding a falsified line and no correction is the one ending this rung
+    // must never have.
+    const fn = service().slice(service().indexOf('export async function verseTruthFor'));
+    expect(fn.slice(0, 700)).toContain("'verse.altered'");
+  });
+
+  it('builds and marks it from one function', () => {
+    const text = service();
+    expect(text).toContain('async function buildVerseAlteredFor');
+    const grader = text.slice(text.indexOf('export async function gradeVerseAnswer'));
+    expect(grader).toContain('buildVerseAlteredFor');
+    expect(grader).toContain('gradeVerseAltered');
+  });
+
+  it('sanitises the tapped word index rather than trusting it', () => {
+    const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+    expect(route).toMatch(/Number\.isInteger\(body\.answer\.wordIndex\)/);
+    expect(route).toContain('MAX_WORD_INDEX');
   });
 });

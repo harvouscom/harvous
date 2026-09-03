@@ -33,6 +33,7 @@ export const REVIEW_PROMPT_KEYS = [
   'verse.rebuild',
   'verse.recall',
   'verse.next',
+  'verse.altered',
   'verse.sequence',
   'verse.locate',
   'verse.connect',
@@ -135,6 +136,17 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
   'verse.rebuild': (ctx) => `Fill in what is missing from ${subjectText(ctx)}.`,
   'verse.recall': (ctx) => `${subjectText(ctx)} — write it as you remember it.`,
   'verse.next': (ctx) => `What comes after ${subjectText(ctx)}?`,
+  /*
+   * The most important line of copy in this feature.
+   *
+   * It has to say the text has been changed *before* the reader reaches the text, because this
+   * is the one rung that puts words on screen which are not what the passage says. Phrased
+   * flatly and first: no "can you spot", no game-show framing around someone's Scripture.
+   */
+  'verse.altered': (ctx) =>
+    ctx.reference?.trim()
+      ? `One word in ${ctx.reference.trim()} has been changed. Which one?`
+      : 'One word in this verse has been changed. Which one?',
   'verse.sequence': (ctx) => `Put ${subjectText(ctx)} back in order.`,
   'verse.locate': () => 'Where is this from?',
   'verse.connect': (ctx) =>
@@ -174,6 +186,7 @@ export const VERSE_LADDER: readonly ReviewPromptKey[] = [
   'verse.connect',
   'verse.sequence',
   'verse.locate',
+  'verse.altered',
 ];
 
 export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
@@ -193,6 +206,7 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
 export const VERSE_MAINTENANCE: readonly ReviewPromptKey[] = [
   'verse.rebuild',
   'verse.next',
+  'verse.altered',
   'verse.sequence',
   'verse.locate',
 ];
@@ -240,7 +254,12 @@ export const VERSE_LOCATE_STEP = 6;
  * subtitle rule and the outcome route — and a rung added to two of them is a rung that asks a
  * question nobody can answer, or marks one nobody was asked.
  */
-const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>(['verse.next', 'verse.sequence', 'verse.locate']);
+const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>([
+  'verse.next',
+  'verse.altered',
+  'verse.sequence',
+  'verse.locate',
+]);
 
 export function reviewRungIsGraded(item: {
   kind?: string | null;

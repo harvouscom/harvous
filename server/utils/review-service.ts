@@ -60,6 +60,11 @@ import {
   gradeVerseLocate,
   gradeVerseSequence,
 } from '@/utils/verse-ladder-exercises';
+import {
+  buildVerseAltered,
+  gradeVerseAltered,
+  type VerseAlteredExercise,
+} from '@/utils/verse-altered';
 import { verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
@@ -1077,6 +1082,14 @@ export interface ReviewRevealPayload {
    * Romans 1:8 follows Romans 1:7, which is arithmetic rather than memory.
    */
   next?: { options: string[] } | null;
+  /**
+   * The altered verse, and nothing else.
+   *
+   * `alteredIndex`, `original` and `substitute` stay on the server — a puzzle whose answer is in
+   * the page is a puzzle with the answer written on the back, and here it would also mean the
+   * client holding a record of exactly which word was falsified.
+   */
+  altered?: { tokens: string[] } | null;
 }
 
 /**
@@ -1132,10 +1145,42 @@ async function listUserVerseReferences(userId: string, exclude: string): Promise
  * verse, which is the one thing they came to review. Returns null for rungs that showed it all
  * along, so the client has nothing extra to render.
  */
+/**
+ * The "one word has been changed" rung, built once for both the question and the marking.
+ *
+ * Neighbours supply the substitute, so an altered verse reads like the passage around it rather
+ * than like a word picked out of a dictionary. Returns null freely: a verse with nothing safe to
+ * change is common, and the rung falls through the way `verse.next` does at the end of a book.
+ */
+async function buildVerseAlteredFor(item: ReviewItemRow): Promise<VerseAlteredExercise | null> {
+  if (!item.scriptureReference) return null;
+  const translation = item.translation ?? 'NET';
+
+  const html = await fetchVerseText(item.scriptureReference, translation);
+  if (!html) return null;
+
+  const neighbours = neighbourVerseAddresses(item.scriptureReference, VERSE_ALTERED_NEIGHBOURS);
+  const texts = await Promise.all(
+    neighbours.map((address) => fetchVerseText(formatVerseAddress(address), translation)),
+  );
+
+  return buildVerseAltered({
+    text: stripHtml(html),
+    candidateTexts: texts.filter(Boolean).map((candidate) => stripHtml(candidate)),
+    seed: `${item.id}:${item.ladderStep}`,
+  });
+}
+
+/** A wide net, because most candidate words are barred by one list or another. */
+const VERSE_ALTERED_NEIGHBOURS = 8;
+
 export async function verseTruthFor(item: ReviewItemRow): Promise<string | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const rung = verseRungFor(item.ladderStep);
-  if (rung.key !== 'verse.sequence' && rung.key !== 'verse.locate') return null;
+  // `verse.altered` most of all: leaving someone with a falsified line and no correction is the
+  // one ending this rung must never have.
+  if (rung.key !== 'verse.sequence' && rung.key !== 'verse.locate' && rung.key !== 'verse.altered')
+    return null;
   const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
   return html || null;
 }
@@ -1169,14 +1214,21 @@ const VERSE_NEXT_NEIGHBOURS = 5;
 export async function gradeVerseAnswer(
   userId: string,
   item: ReviewItemRow,
-  answer: { order?: number[]; option?: string },
+  answer: { order?: number[]; option?: string; wordIndex?: number },
 ): Promise<ReviewOutcome | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const rung = verseRungFor(item.ladderStep);
   const isSequence = rung.key === 'verse.sequence' && Array.isArray(answer.order);
   const isLocate = rung.key === 'verse.locate' && typeof answer.option === 'string';
   const isNext = rung.key === 'verse.next' && typeof answer.option === 'string';
-  if (!isSequence && !isLocate && !isNext) return null;
+  const isAltered = rung.key === 'verse.altered' && Number.isInteger(answer.wordIndex);
+  if (!isSequence && !isLocate && !isNext && !isAltered) return null;
+
+  if (isAltered) {
+    const exercise = await buildVerseAlteredFor(item);
+    if (!exercise) return null;
+    return gradeVerseAltered(exercise, answer.wordIndex!) ? 'recalled' : 'almost';
+  }
 
   if (isNext) {
     const exercise = await buildVerseNextFor(item);
@@ -1468,6 +1520,13 @@ export async function buildReviewReveal(
           const exercise = await buildVerseNextFor(item);
           // The verse asked about stays: it is the question, not the answer.
           payload.next = exercise ? { options: exercise.options } : null;
+        }
+        if (rung.key === 'verse.altered') {
+          const exercise = await buildVerseAlteredFor(item);
+          payload.altered = exercise ? { tokens: exercise.tokens } : null;
+          // The true verse alongside a falsified one would answer the question, and worse,
+          // would print the passage twice with only one of them right.
+          if (exercise) payload.verseText = null;
         }
         if (rung.key === 'verse.locate') {
           const pool = await listUserVerseReferences(userId, item.scriptureReference);

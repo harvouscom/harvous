@@ -45,6 +45,8 @@ import { refillReviewQueue } from '../utils/review-opportunities';
 const route = new Hono();
 
 /** The longest a free-text attempt may be. Generous for a paragraph, bounded against abuse. */
+/** No verse this app shows runs past a couple of hundred words. */
+const MAX_WORD_INDEX = 400;
 const MAX_ATTEMPT_LENGTH = 4000;
 
 /**
@@ -221,6 +223,11 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
               ? body.answer.order.filter((v: unknown) => Number.isInteger(v)).slice(0, 12)
               : undefined,
             option: typeof body.answer.option === 'string' ? body.answer.option : undefined,
+            // Which word the reader pointed at. Sanitised to an integer here rather than
+            // trusted: it indexes a token array on the server.
+            wordIndex: Number.isInteger(body.answer.wordIndex)
+              ? Math.max(0, Math.min(MAX_WORD_INDEX, body.answer.wordIndex))
+              : undefined,
             // Which question the client believes it was shown. Only ever used to detect that
             // the material moved underneath it, never to decide the answer.
             promptKey: typeof body.answer.promptKey === 'string' ? body.answer.promptKey : undefined,

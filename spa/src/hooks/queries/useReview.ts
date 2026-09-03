@@ -65,6 +65,8 @@ export interface ReviewRevealResponse {
   noteChoice?: { fragment: string | null; options: string[] } | null;
   /** Four openings on "what comes after this?". The next verse's reference is never sent. */
   next?: { options: string[] } | null;
+  /** The altered verse. Which word was changed stays on the server. */
+  altered?: { tokens: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
 }
 
