@@ -17,6 +17,12 @@
  *   company than an empty state.
  * - **Plus with something due** gets the rows, each with an overflow, and a way to see the rest.
  *
+ * **Where the line falls with Suggested, below.** If a right answer exists and the reader
+ * could be wrong, it is Review; if the outcome is something new made or something organised,
+ * it is a Suggestion. Home's two resurfacing cards — a passage you keep returning to, a
+ * highlight to revisit — step aside for anything active here, so one subject is not a question
+ * in this section and a nudge in that one. `review-suggestion-handoff.ts` holds the rule.
+ *
  * Nobody has to fill it. The engine reads the reader's own Study Bible layer and adds a few
  * a day — a verse they highlighted, a link they drew, a Thread that has grown — and each row
  * says where it came from, so the section reads as their study coming back rather than as work

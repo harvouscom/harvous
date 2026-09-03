@@ -47,6 +47,7 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useTagsList } from '../../hooks/queries/useTagsList';
+import { useReviewItems } from '../../hooks/queries/useReview';
 import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
 import {
   usePrototypeSpaceStudyThreadHighlights,
@@ -1144,10 +1145,29 @@ export function useHomeSurfaceData({
     [handleOpenRevisitNote],
   );
 
+  /*
+   * Passages Review has already taken up, so Home's two resurfacing cards can step aside for
+   * them (`review-suggestion-handoff.ts` has the rule). The query gates itself on auth and on
+   * the entitlement, so a free account fires nothing and this is empty — which is the same
+   * answer as "nothing active", and needs no branch here.
+   */
+  const activeReviewItems = useReviewItems('active');
+  const activeReviewReferences = useMemo(
+    () =>
+      new Set(
+        (activeReviewItems.data?.items ?? [])
+          .filter((item) => item.kind === 'verse')
+          .map((item) => item.scriptureReference?.trim().toLowerCase())
+          .filter((reference): reference is string => Boolean(reference)),
+      ),
+    [activeReviewItems.data],
+  );
+
   const recallCandidates = useMemo<RecallOpportunity[]>(
     () =>
       buildRecallCandidates({
         searchGap,
+        activeReviewReferences,
         markNote: markNoteCandidate,
         handleOpenMarkNote,
         reflectThread: reflectThreadCandidate,
@@ -1231,6 +1251,7 @@ export function useHomeSurfaceData({
       handleOpenMarkNote,
       reflectThreadCandidate,
       openThread,
+      activeReviewReferences,
     ],
   );
 

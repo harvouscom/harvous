@@ -16,12 +16,23 @@
  * to catch that. Moving the code verbatim and passing the handlers in keeps the output
  * provably identical, and the descriptors can follow once there is a second caller to prove
  * them against.
+ *
+ * **What belongs here and what belongs in Review.** If a right answer exists and the reader
+ * could be wrong, it is Review; if the outcome is something new made or something organised,
+ * it is a Suggestion. Two kinds here sit on the line — `passage` and `highlight` both resurface
+ * something to re-read — so they step aside for a source Review has already taken up, and their
+ * eyebrows say extension rather than recall. The rule and the matcher live in
+ * `review-suggestion-handoff.ts`.
  */
 import type { RecallOpportunity } from './PrototypeRecallCarousel';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { noteMarkPrompt } from '@/utils/note-mark-prompts';
 import { threadReflectPrompt } from '@/utils/thread-reflect-prompts';
 import { RECALL_KIND_ICONS } from './recall-kind-icons';
+import { activeReviewCoversReference } from '@/utils/review-suggestion-handoff';
+
+/** No Review, or nothing active in it: the same thing as far as these two kinds are concerned. */
+const EMPTY_REVIEW_REFERENCES: ReadonlySet<string> = new Set();
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { isNoteDeleted } from './proto-deleted-notes';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
@@ -96,6 +107,11 @@ export interface RecallCandidateInput {
   handleRecallCompleted: any;
   searchGap: { query: string } | null | undefined;
   /** A note worth going back into and marking. See `pickMarkNoteCandidate`. */
+  /**
+   * Passages with an active Review item, lowercased. The two resurfacing kinds step aside for
+   * these. Empty for a reader without Review, which is the same as having nothing active.
+   */
+  activeReviewReferences?: ReadonlySet<string>;
   markNote: SpaceNoteRow | null | undefined;
   handleOpenMarkNote: (note: SpaceNoteRow) => boolean | void;
   /** A named Thread worth thinking through. Carries the questions Review retired. */
@@ -133,15 +149,19 @@ function pushRevisitHighlightRecallCard(
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void,
   usedHighlightIds: Set<string>,
   meta: string,
+  activeReviewReferences: ReadonlySet<string> = EMPTY_REVIEW_REFERENCES,
 ) {
   if (usedHighlightIds.has(highlight.id)) return;
+  // Review is already asking about this passage; a nudge to re-read it would be the same
+  // subject twice in one screen, with only one of the two able to mark an answer.
+  if (activeReviewCoversReference(highlight.scriptureReference, activeReviewReferences)) return;
   usedHighlightIds.add(highlight.id);
   out.push({
     id: highlight.id,
     kind: 'highlight',
     noteId: highlight.id,
     score: 0.55,
-    eyebrow: 'A highlight to revisit',
+    eyebrow: 'Worth a second look',
     title: prototypeHighlightListTitle(highlight),
     meta,
     iconName: highlightEntryKindIconName(highlight.entryKind),
@@ -152,6 +172,7 @@ function pushRevisitHighlightRecallCard(
 export function buildRecallCandidates(input: RecallCandidateInput): RecallOpportunity[] {
   const {
     searchGap,
+    activeReviewReferences = EMPTY_REVIEW_REFERENCES,
     deletedNoteKey,
     continueNote,
     revisitNote,
@@ -239,6 +260,7 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
         onOpenHighlight,
         usedHighlightIds,
         prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle),
+        activeReviewReferences,
       );
     }
   }
@@ -287,13 +309,17 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
     });
   }
 
-  if (passageConnection) {
+  // Same handoff as the highlight card: a passage Review has taken up is not also a nudge here.
+  if (
+    passageConnection &&
+    !activeReviewCoversReference(passageConnection.displayRef, activeReviewReferences)
+  ) {
     const id = `passage:${passageConnection.displayRef}`;
     out.push({
       id,
       kind: 'passage',
       score: Math.min(1, passageConnection.noteCount / 8),
-      eyebrow: 'A passage you keep returning to',
+      eyebrow: 'Worth reading again',
       title: passageConnection.displayRef,
       meta: `Across ${passageConnection.noteCount} of your notes`,
       iconName: RECALL_KIND_ICONS.passage,
@@ -342,6 +368,7 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
           onOpenHighlight,
           usedHighlightIds,
           prototypeHighlightSubtitlePreview(revisitChapterHighlight, revisitChapterHighlight.parentNoteTitle),
+          activeReviewReferences,
         );
       } else {
         out.push({
@@ -457,6 +484,7 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
           onOpenHighlight,
           usedHighlightIds,
           prototypeHighlightSubtitlePreview(revisitGapHighlight, revisitGapHighlight.parentNoteTitle),
+          activeReviewReferences,
         );
       } else {
         const id = `crossref-gap:${topCrossRefGap.from.displayRef}|${topCrossRefGap.to.displayRef}`;
