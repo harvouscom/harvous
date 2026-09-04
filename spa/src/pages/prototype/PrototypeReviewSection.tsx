@@ -104,21 +104,27 @@ export default function PrototypeReviewSection() {
 
   const [expanded, setExpanded] = useState(false);
   const inboxQuery = useReviewInbox();
-  /*
-   * Nothing due at all — which is when the drawer below has to be reachable on its own.
-   *
-   * Read at hook level rather than beside the rows, because the full list is a query and a
-   * query cannot be declared after the guards that return early.
-   */
-  const inboxEmpty = !inboxQuery.isPending && (inboxQuery.data?.items?.length ?? 0) === 0;
   const [setAsideOpen, setSetAsideOpen] = useState(false);
   const [comingBackOpen, setComingBackOpen] = useState(false);
   /*
-   * Every status, not just the active ones, and only once the reader asks — or when there is
-   * nothing due, since that is exactly when something they put aside is the only thing left to
-   * act on. Collapsed with a live queue, Activity still pays for the inbox read and no more.
+   * The active list, on the key Home already fetches — so this costs nothing.
+   *
+   * `use-home-surface-data` reads `useReviewItems('active')` on every Activity load for the
+   * suggestion handoff, so asking for the same key here shares that one request rather than
+   * adding a second. Asking for *every* status instead, as this briefly did, was a whole extra
+   * round trip on any load with an empty queue.
    */
-  const allQuery = useReviewItems(undefined, { enabled: expanded || inboxEmpty });
+  const activeQuery = useReviewItems('active');
+  /*
+   * Every status, for the drawer of things put aside. Fetched only when the reader opens a fold
+   * — or when there is nothing active at all, which is the one case where something they put
+   * down is the only thing left and no fold exists to open.
+   */
+  const nothingActive =
+    activeQuery.isFetched && (activeQuery.data?.items?.length ?? 0) === 0;
+  const allQuery = useReviewItems(undefined, {
+    enabled: expanded || setAsideOpen || nothingActive,
+  });
   const challengesQuery = useChallenges('active');
   // The sample: fetched only for an account that lacks the feature (the hook gates on that).
   const hasAnyFeature = review.has || challengesFeature.has;
@@ -190,7 +196,7 @@ export default function PrototypeReviewSection() {
 
   const inboxItems = inboxQuery.data?.items ?? [];
   const everyItem = allQuery.data?.items ?? null;
-  const activeItems = everyItem ? everyItem.filter((item) => item.status === 'active') : null;
+  const activeItems = activeQuery.data?.items ?? null;
   /*
    * Due, and not due yet — two different things that the fold used to show as one.
    *
@@ -217,6 +223,8 @@ export default function PrototypeReviewSection() {
   const setAside = everyItem
     ? everyItem.filter((item) => item.status === 'paused' || item.status === 'archived')
     : [];
+  /* The drawer can only speak once the all-status read has happened; before that it is silent
+     rather than guessing at a count. */
   // While the expanded list is still in flight, keep showing the three we already have rather
   // than collapsing to nothing and back.
   const items = expanded ? (dueActive ?? inboxItems) : inboxItems;
