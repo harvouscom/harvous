@@ -151,8 +151,14 @@ const INDEX_KEYED_RUNGS = new Set(['verse.theme', 'verse.person', 'verse.crossre
 /** The rungs that ask for the verse in your own typing. Marked, like everything else now. */
 const FREE_RECALL_RUNGS = new Set(['verse.recognize', 'verse.recall']);
 
-/** How long an answered question stays up wearing its verdict before the result takes the card. */
-const VERDICT_HOLD_MS = 700;
+/**
+ * How long an answered question stays up wearing its verdict before the result takes the card.
+ *
+ * Long enough to register a colour and short enough not to feel like a wait. 700ms was the
+ * first try and it was easy to miss entirely — the card had moved on before the eye got back
+ * to the thing it had just tapped.
+ */
+const VERDICT_HOLD_MS = 900;
 
 function ReviewChoiceChips({
   options,
@@ -390,6 +396,12 @@ export default function PrototypeReviewDock() {
         words?: string[];
         text?: string;
       },
+      /**
+       * What the reader tapped, for colouring it once the server has marked it. Defaults to
+       * the option, which is what it is on every rung whose answer is a chip; the altered rung
+       * passes its word index instead, since that is what identifies the thing tapped there.
+       */
+      picked: string | null = graded?.option ?? null,
     ) => {
       if (!item) return;
       outcome.mutate(
@@ -409,17 +421,16 @@ export default function PrototypeReviewDock() {
              */
             if (data.finalized === false) {
               setAttemptNumber((n) => n + 1);
-              setVerdict({ state: 'wrong', option: graded?.option ?? null });
+              setVerdict({ state: 'wrong', option: picked });
               if (graded?.option) setMissed((m) => [...m, graded.option!]);
               return;
             }
             // Marked, and shown as marked before the card moves on. Only where the server
             // actually marked something: an ungraded rung has no verdict to colour.
             if (typeof data.correct === 'boolean') {
-              setVerdict({
-                state: data.correct ? 'right' : 'wrong',
-                option: data.correct ? (graded?.option ?? null) : null,
-              });
+              setVerdict({ state: data.correct ? 'right' : 'wrong', option: picked });
+              // The last wrong pick is spent like the ones before it, and reads the same.
+              if (!data.correct && graded?.option) setMissed((m) => [...m, graded.option!]);
             }
             const crossedToDurable =
               item.recallState !== 'durable' && data.next.recallState === 'durable';
@@ -803,9 +814,13 @@ export default function PrototypeReviewDock() {
             <ol className="proto-review-dock__chips proto-review-dock__chips--placed">
               {placed.map((index, position) => (
                 <li key={`${index}-${position}`}>
+                  {/* The order you built is the answer, so the whole row wears the verdict. */}
                   <button
                     type="button"
-                    className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                    className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
+                    data-missed={verdict?.state === 'wrong' ? '' : undefined}
+                    data-correct={verdict?.state === 'right' ? '' : undefined}
+                    disabled={outcome.isPending}
                     onClick={() => setPlaced((current) => current.filter((_, i) => i !== position))}
                   >
                     {sequenceExercise.phrases[index]}
@@ -864,9 +879,15 @@ export default function PrototypeReviewDock() {
                     <button
                       type="button"
                       className="proto-review-dock__altered-word"
+                      /* The index identifies the word, so the one just tapped wears the verdict. */
+                      data-answer={verdict?.option === String(index) ? verdict.state : undefined}
                       disabled={outcome.isPending}
                       onClick={() =>
-                        answer('almost', { wordIndex: index, promptKey: item.promptKey })
+                        answer(
+                          'almost',
+                          { wordIndex: index, promptKey: item.promptKey },
+                          String(index),
+                        )
                       }
                     >
                       {token}

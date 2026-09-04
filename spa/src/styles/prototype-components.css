@@ -21866,17 +21866,23 @@ button.proto-feed-sheet__stat:hover {
  * wrong. It is only ever the server's verdict — the page holds no answer key — and it lasts a
  * beat before the result takes the card.
  */
+/*
+ * `!important` and a ring rather than a border, because the chip is a `proto-settings-btn`:
+ * that class sets `border: 0` — so a border-colour paints nothing — and its secondary variant
+ * sets `color` with `!important`, which quietly beat the first version of these rules. The
+ * verdict has to out-shout the variant to be seen at all.
+ */
 .proto-review-dock__choice[data-missed] {
-  opacity: 0.55;
-  border-color: color-mix(in oklab, var(--pds-destructive) 45%, transparent);
-  color: var(--pds-destructive);
+  background: var(--pds-destructive-bg);
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--pds-destructive) 45%, transparent);
+  color: var(--pds-destructive) !important;
   text-decoration: line-through;
 }
 
 .proto-review-dock__choice[data-correct] {
   background: var(--pds-bg-accent-button);
-  border-color: transparent;
-  color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
+  color: var(--pds-on-accent) !important;
 }
 
 /* The gap's line carries its verdict, the same line that carries focus. */
@@ -21892,6 +21898,17 @@ button.proto-feed-sheet__stat:hover {
     var(--pds-accent-gradient-end) 93%
   );
   background-size: 100% 1.5px;
+}
+
+/* The word you tapped on the altered rung, once the server has marked the tap. */
+.proto-review-dock__altered-word[data-answer='wrong'] {
+  background: var(--pds-destructive-bg-strong);
+  color: var(--pds-destructive);
+}
+
+.proto-review-dock__altered-word[data-answer='right'] {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
 }
 
 /* What the reader typed, shown back beside the verse: theirs, so not in the reading face. */
