@@ -55,6 +55,7 @@ import {
   REVIEW_SEE_ALL_COPY,
   REVIEW_RESUME_COPY,
   REVIEW_SEE_LESS_COPY,
+  reviewComingBackCopy,
   reviewSetAsideCopy,
   REVIEW_SECTION_TITLE,
 } from './proto-review-copy';
@@ -63,6 +64,7 @@ import { RECALL_STATE_LABELS, type ReviewItemKind } from '@/utils/review-item-ki
 import { fillFraming } from '@/utils/review-framing';
 import { reviewRowRecallLabel, reviewRowSource, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
+import { describeNextDue } from '@/utils/review-scheduling';
 import { recallChip } from './PrototypeRecallStateChip';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 
@@ -110,6 +112,7 @@ export default function PrototypeReviewSection() {
    */
   const inboxEmpty = !inboxQuery.isPending && (inboxQuery.data?.items?.length ?? 0) === 0;
   const [setAsideOpen, setSetAsideOpen] = useState(false);
+  const [comingBackOpen, setComingBackOpen] = useState(false);
   /*
    * Every status, not just the active ones, and only once the reader asks — or when there is
    * nothing due, since that is exactly when something they put aside is the only thing left to
@@ -189,6 +192,22 @@ export default function PrototypeReviewSection() {
   const everyItem = allQuery.data?.items ?? null;
   const activeItems = everyItem ? everyItem.filter((item) => item.status === 'active') : null;
   /*
+   * Due, and not due yet — two different things that the fold used to show as one.
+   *
+   * Expanding "see all" listed every active item together, so a verse coming back on Thursday
+   * sat among the ones waiting now as though it were also waiting. Worse, the whole section
+   * hides when nothing is due, so an account with a full schedule and an empty morning showed
+   * no Review at all and no way to reach any of it — the page that used to list them under
+   * "Coming back later" is gone.
+   */
+  const nowMs = Date.now();
+  const dueActive = activeItems
+    ? activeItems.filter((item) => Date.parse(item.dueAt) <= nowMs)
+    : null;
+  const comingBack = activeItems
+    ? activeItems.filter((item) => Date.parse(item.dueAt) > nowMs)
+    : [];
+  /*
    * Paused, and put down. The one place either can be picked back up.
    *
    * Home offers "Pause this" and "Remove from Review" on every row, and until now the only
@@ -200,7 +219,7 @@ export default function PrototypeReviewSection() {
     : [];
   // While the expanded list is still in flight, keep showing the three we already have rather
   // than collapsing to nothing and back.
-  const items = expanded ? (activeItems ?? inboxItems) : inboxItems;
+  const items = expanded ? (dueActive ?? inboxItems) : inboxItems;
   const activeChallenges = challengesQuery.data?.challenges ?? [];
 
   /*
@@ -220,7 +239,7 @@ export default function PrototypeReviewSection() {
    * full list has been fetched once, the count behind the fold is genuinely unknown, and the
    * label says "See all" rather than guessing. Guessing printed "1 more" over two items.
    */
-  const fullList = activeItems;
+  const fullList = dueActive;
   const folded =
     fullList !== null
       ? Math.max(0, fullList.length - reviewRows.length)
@@ -234,7 +253,8 @@ export default function PrototypeReviewSection() {
    * empty queue. It appears when there is something to *do*, and picking back up something you
    * put down is something to do.
    */
-  const hasRows = reviewRows.length > 0 || Boolean(challengeRow) || setAside.length > 0;
+  const hasRows =
+    reviewRows.length > 0 || Boolean(challengeRow) || comingBack.length > 0 || setAside.length > 0;
   if (!hasRows) return null;
 
   // The question opens where you are, not on a page of its own — see PrototypeReviewDock.
@@ -306,12 +326,50 @@ export default function PrototypeReviewSection() {
       ) : null}
 
       {/*
+        * What is scheduled, folded away under what is due.
+        *
+        * Shown whenever there is something to show, rather than only once the queue is opened:
+        * with nothing due this is the entire Review section, and it is the only way back to a
+        * queue that is otherwise invisible until its dates come round.
+        */}
+      {comingBack.length > 0 ? (
+        <>
+          <button
+            type="button"
+            className="proto-feed-part__more"
+            onClick={() => setComingBackOpen((open) => !open)}
+          >
+            <span>{reviewComingBackCopy(comingBack.length)}</span>
+            <Icon name={comingBackOpen ? 'caret-up' : 'caret-down'} size={10} />
+          </button>
+          {comingBackOpen
+            ? comingBack.map((item) => (
+                <PrototypeReviewRow
+                  key={item.id}
+                  icon={reviewKindIcon(item.kind)}
+                  title={reviewRowSubject(item)}
+                  /* When it comes back, which is the only thing this row is here to say. */
+                  meta={[item.task, describeNextDue(item.dueAt)]}
+                  titleTrailing={recallChip(item)}
+                  onOpen={() => openInDock(item.id)}
+                  actions={reviewRowActions({
+                    onDefer: () => defer.mutate(item.id),
+                    onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
+                    onRemove: () => setStatus.mutate({ itemId: item.id, status: 'archived' }),
+                  })}
+                />
+              ))
+            : null}
+        </>
+      ) : null}
+
+      {/*
         * What was put aside, folded away under what is live.
         *
         * Only once the reader has opened the queue, and only when there is something in it —
         * a fold that says "nothing" is a row spent on an empty drawer.
         */}
-      {(expanded || reviewRows.length === 0) && setAside.length > 0 ? (
+      {setAside.length > 0 ? (
         <>
           <button
             type="button"

@@ -28,6 +28,17 @@ export const REVIEW_RESUME_COPY = 'Start again';
  */
 export const reviewSetAsideCopy = (count: number) =>
   count === 1 ? '1 you put aside' : `${count} you put aside`;
+
+/**
+ * The fold over what is scheduled but not due.
+ *
+ * Named by when rather than by count alone — "3 coming back later" is a fact about the queue's
+ * shape, not a debt. It is the one group Home hid entirely: with nothing due the section used
+ * to disappear, taking every scheduled item with it, and the page that used to list them is
+ * gone.
+ */
+export const reviewComingBackCopy = (count: number) =>
+  count === 1 ? '1 coming back later' : `${count} coming back later`;
 export const REVIEW_REMOVE_COPY = 'Remove from Review';
 export const REVIEW_MORE_COPY = 'More';
 
