@@ -1033,12 +1033,26 @@ export function useHomeSurfaceData({
     return deriveRecurringPerson(input, { limit: 1 })[0];
   }, [notes, fingerprintsById, hasMoreNotes]);
 
+  /*
+   * The reader's own marks, and only those.
+   *
+   * Home is the personal space by design, and the personal endpoint returns only the reader's
+   * rows — so this filter is a guard, not a change. The guard exists because the home space id
+   * falls back to the last space *selected* while navigation is still loading, and that can be
+   * a shared one, whose highlight list is every member's with `isOwnHighlight` flagged. Every
+   * card downstream speaks in the second person — "the verse you marked", "add a thought to
+   * your highlight" — and the reading-note card quotes the mark into a new note under the
+   * reader's name. Another member's words must never get that far. Rows from the personal
+   * endpoint carry no flag at all, which is why the test is `!== false`.
+   */
   const highlightsWithRecency = useMemo(
     () =>
-      highlights.map((h) => ({
-        ...h,
-        recencyMs: Date.parse(prototypeHighlightRecencyIso(h) ?? '') || 0,
-      })),
+      highlights
+        .filter((h) => h.isOwnHighlight !== false)
+        .map((h) => ({
+          ...h,
+          recencyMs: Date.parse(prototypeHighlightRecencyIso(h) ?? '') || 0,
+        })),
     [highlights],
   );
 

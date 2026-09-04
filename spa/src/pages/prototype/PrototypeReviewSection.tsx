@@ -41,7 +41,6 @@ import {
   useReviewSample,
   type ReviewItemView,
 } from '../../hooks/queries/useReview';
-import { useAnswerReviewSample } from '../../hooks/mutations/useReviewMutations';
 import { REVIEW_MAX_ATTEMPTS } from '@/utils/review-item-kinds';
 import PrototypeReviewSample from './PrototypeReviewSample';
 import { useChallenges } from '../../hooks/queries/useChallenges';
