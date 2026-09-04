@@ -255,6 +255,36 @@ export function buildVerseNext(input: {
   return { options: choice.options, answerIndex: choice.answerIndex };
 }
 
+/**
+ * The first rung: given the reference, pick the words that belong to it.
+ *
+ * The strategy doc's first stage is "use a small cue to identify what was studied" —
+ * recognition. What shipped instead asked the reader to write the verse out from memory, which
+ * is the hardest thing on the ladder standing at its foot: the first question anyone ever met
+ * on a new verse was the one they were least able to answer. This is the inverse of `locate`
+ * (a fragment, pick the reference) and shares its options with `next` (openings, not whole
+ * verses), so the reader is choosing between things that all look like plausible beginnings.
+ */
+export function buildVerseRecognize(input: {
+  answerText: string;
+  poolTexts: readonly string[];
+  seed: string;
+}): VerseNextExercise | null {
+  const answer = verseCue(input.answerText, VERSE_NEXT_CUE_WORDS);
+  if (!answer) return null;
+
+  const pool = input.poolTexts.map((text) => verseCue(text, VERSE_NEXT_CUE_WORDS)).filter(Boolean);
+  const choice = buildChoiceExercise({
+    answers: [answer],
+    pool,
+    optionCount: NEXT_OPTION_COUNT,
+    seed: input.seed,
+  });
+  if (!choice) return null;
+
+  return { options: choice.options, answerIndex: choice.answerIndex };
+}
+
 /** True when the reader picked the verse that actually follows. */
 export function gradeVerseNext(exercise: VerseNextExercise, answer: string): boolean {
   const shown = exercise.options[exercise.answerIndex];
@@ -339,12 +369,11 @@ export function gradeVerseInitials(text: string, attempt: string): boolean {
  * paraphrase between them costs nothing. What it measures is how much of the verse you
  * reached, against a share of its content words.
  *
- * The share differs by rung, and the reason is what the reader was given: the first rung hands
- * over the opening words and asks for the rest, so most of it is fair; the recall rung hands
- * over nothing but the reference, where insisting on all of it would fail almost everyone
- * almost always.
+ * The share is set for the one rung that asks for this — recall, which hands over nothing but
+ * the reference. Insisting on all of a verse there would fail almost everyone almost always.
+ * (The first rung used to ask for production too, at a higher share; it is a recognition tap
+ * now, which is what its name always meant.)
  */
-export const RECOGNIZE_MIN_SHARE = 0.6;
 export const RECALL_MIN_SHARE = 0.45;
 
 export function verseRecallCoverage(text: string, attempt: string): number {

@@ -122,14 +122,13 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
    * Never names the note: the stem is already their own sentence, and the answer is the passage.
    */
   'note.annotation': () => 'Pick the passage you wrote this on.',
+  /*
+   * Recognition, which is what this rung was always named for: the reference is given and the
+   * reader picks the words that belong to it. It asked for the verse in full before, which put
+   * the ladder's hardest ask at its foot.
+   */
   'verse.recognize': (ctx) =>
-    ctx.cue?.trim()
-      ? named(
-          ctx,
-          (s) => `Finish ${s} from "${ctx.cue!.trim()}…".`,
-          `Finish the verse from "${ctx.cue!.trim()}…".`,
-        )
-      : named(ctx, (s) => `Say what ${s} says.`, 'Say what this verse says.'),
+    named(ctx, (s) => `Pick how ${s} begins.`, 'Pick how this verse begins.'),
   'verse.rebuild': (ctx) =>
     named(ctx, (s) => `Fill in the missing words of ${s}.`, 'Fill in the missing words.'),
   'verse.recall': (ctx) =>
@@ -211,7 +210,7 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'note.passage': 'Pick a passage you cited',
   'note.connect': 'Pick a note you linked',
   'note.annotation': 'Pick the passage you wrote this on',
-  'verse.recognize': 'Finish the verse',
+  'verse.recognize': 'Pick how it begins',
   'verse.rebuild': 'Fill in the missing words',
   'verse.initials': 'Write it from first letters',
   'verse.recall': 'Write it from memory',

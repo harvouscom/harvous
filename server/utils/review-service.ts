@@ -70,13 +70,13 @@ import {
 } from '@/utils/review-prompts';
 import {
   RECALL_MIN_SHARE,
-  RECOGNIZE_MIN_SHARE,
   buildVerseBefore,
   buildVerseBook,
   buildVerseInitials,
   buildVerseKeywords,
   buildVerseLocate,
   buildVerseNext,
+  buildVerseRecognize,
   buildVerseSequence,
   contentWords,
   gradeVerseBefore,
@@ -1748,6 +1748,32 @@ async function buildVerseNextFor(item: ReviewItemRow): Promise<VerseNextExercise
 }
 
 /**
+ * The recognition rung's options: this verse's opening against three others the reader has cited.
+ *
+ * Their own passages first, so the choice is between things they have actually studied; a fixed
+ * well-known set tops it up for a reader with nothing else on file yet.
+ */
+async function buildVerseRecognizeFor(
+  userId: string,
+  item: ReviewItemRow,
+  text: string,
+): Promise<VerseNextExercise | null> {
+  if (!item.scriptureReference) return null;
+  const translation = item.translation ?? 'NET';
+  const others = (await listUserVerseReferences(userId, item.scriptureReference)).slice(0, 5);
+  const pool = (
+    await Promise.all(others.map((reference) => fetchVerseText(reference, translation)))
+  )
+    .filter(Boolean)
+    .map((html) => stripHtml(html));
+  return buildVerseRecognize({
+    answerText: text,
+    poolTexts: pool,
+    seed: `${item.id}:${item.ladderStep}`,
+  });
+}
+
+/**
  * "Which comes first": this verse against another from the same chapter, never adjacent.
  *
  * Adjacent would make it a question about a digit. The partner is seeded from the non-adjacent
@@ -1834,11 +1860,7 @@ function locateFragmentOf(text: string): string {
  * The share differs by what the question gave away: the first rung hands over the opening
  * words, the recall rung hands over only the reference.
  */
-const FREE_RECALL_KEYS = new Set<ReviewPromptKey>(['verse.recognize', 'verse.recall']);
-
-function freeRecallShareFor(key: ReviewPromptKey): number {
-  return key === 'verse.recognize' ? RECOGNIZE_MIN_SHARE : RECALL_MIN_SHARE;
-}
+const FREE_RECALL_KEYS = new Set<ReviewPromptKey>(['verse.recall']);
 
 /** Five asked for, three needed — see `buildVerseNextFor`. */
 const VERSE_NEXT_NEIGHBOURS = 5;
@@ -1864,9 +1886,17 @@ export async function gradeVerseAnswer(
     };
   }
 
+  if (rung.key === 'verse.recognize' && typeof answer.option === 'string') {
+    const exercise = await buildVerseRecognizeFor(userId, item, material.text);
+    if (!exercise) return null;
+    return {
+      correct: gradeVerseNext(exercise, answer.option),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+    };
+  }
   if (FREE_RECALL_KEYS.has(rung.key) && typeof answer.text === 'string') {
     return {
-      correct: gradeVerseRecall(material.text, answer.text, freeRecallShareFor(rung.key)),
+      correct: gradeVerseRecall(material.text, answer.text, RECALL_MIN_SHARE),
       correctAnswer: null,
     };
   }
@@ -2291,6 +2321,12 @@ export async function buildReviewReveal(
           const built = await buildVerseContextFor(userId, item, rung.key, material, seed);
           // Options only. The verse stays on screen: it is the question, not the answer.
           payload.choice = built ? { options: built.exercise.options, opening: built.opening } : null;
+        }
+        if (rung.key === 'verse.recognize') {
+          const exercise = await buildVerseRecognizeFor(userId, item, text);
+          // Openings, and the verse withheld: it is the answer on this rung now.
+          payload.choice = exercise ? { options: exercise.options, opening: true } : null;
+          payload.verseText = null;
         }
         if (FREE_RECALL_KEYS.has(rung.key)) {
           // Nothing to build: the prompt is the whole question. The verse comes back as truth

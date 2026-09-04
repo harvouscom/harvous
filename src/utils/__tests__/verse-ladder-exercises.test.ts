@@ -20,8 +20,8 @@ import {
   READER_SPAN_MAX_WORDS,
   gradeVerseRecall,
   verseRecallCoverage,
-  RECOGNIZE_MIN_SHARE,
   RECALL_MIN_SHARE,
+  buildVerseRecognize,
 } from '@/utils/verse-ladder-exercises';
 
 const JOHN_15_5 =
@@ -356,15 +356,13 @@ describe('marking a verse written from memory', () => {
     'I am the vine; you are the branches. The one who remains in me and I in him bears much fruit.';
 
   it('forgives case, punctuation and the small words', () => {
-    expect(gradeVerseRecall(verse, 'i am the VINE you are the branches', RECOGNIZE_MIN_SHARE)).toBe(
-      false,
-    );
+    expect(gradeVerseRecall(verse, 'i am the VINE you are the branches', 0.6)).toBe(false);
     // The content words that matter, all of them, however they were typed.
     expect(
       gradeVerseRecall(
         verse,
         'I AM THE VINE!!! you are the BRANCHES... the one who remains in me, and I in him, bears much fruit',
-        RECOGNIZE_MIN_SHARE,
+        0.6,
       ),
     ).toBe(true);
   });
@@ -388,21 +386,61 @@ describe('marking a verse written from memory', () => {
     expect(half).toBeLessThan(1);
   });
 
-  it('asks for more where the question gave more away', () => {
+  it('is a dial, and a stricter share wants more of the verse', () => {
     /*
-     * The first rung hands over the opening words; recall hands over only the reference. Half
-     * the verse's content words is enough for one and not the other — and note how few those
-     * are: this verse reduces to six, so the bar is "did you reach the words that carry it".
+     * Note how few content words a verse reduces to: this one has six, so the bar is "did you
+     * reach the words that carry it". Half of them clears the recall floor and not a stricter
+     * one — the share is a dial, and `RECALL_MIN_SHARE` is where it sits for the one rung that
+     * asks the reader to produce the whole verse.
      */
-    expect(RECOGNIZE_MIN_SHARE).toBeGreaterThan(RECALL_MIN_SHARE);
     const half = 'I am the vine, you are the branches, and it bears';
     expect(verseRecallCoverage(verse, half)).toBeCloseTo(0.5, 2);
     expect(gradeVerseRecall(verse, half, RECALL_MIN_SHARE)).toBe(true);
-    expect(gradeVerseRecall(verse, half, RECOGNIZE_MIN_SHARE)).toBe(false);
+    expect(gradeVerseRecall(verse, half, 0.6)).toBe(false);
   });
 
   it('never marks an empty answer right', () => {
     expect(gradeVerseRecall(verse, '   ', RECALL_MIN_SHARE)).toBe(false);
     expect(gradeVerseRecall('', 'anything', RECALL_MIN_SHARE)).toBe(false);
+  });
+});
+
+describe('the recognition rung', () => {
+  const verse = 'I am the vine; you are the branches. The one who remains in me bears much fruit.';
+  const others = [
+    'For this is the way God loved the world: He gave his one and only Son.',
+    'The LORD is my shepherd, I lack nothing.',
+    'In the beginning God created the heavens and the earth.',
+    'Trust in the LORD with all your heart, and do not rely on your own understanding.',
+  ];
+
+  it('offers openings, never whole verses', () => {
+    const exercise = buildVerseRecognize({ answerText: verse, poolTexts: others, seed: 's' });
+    expect(exercise).not.toBeNull();
+    // Eight words each: what the reader compares is beginnings, not paragraphs.
+    for (const option of exercise!.options) {
+      expect(option.split(/\s+/).length).toBeLessThanOrEqual(8);
+    }
+    expect(exercise!.options).toHaveLength(4);
+  });
+
+  it('has this verse as the answer, and never as a distractor', () => {
+    const exercise = buildVerseRecognize({ answerText: verse, poolTexts: others, seed: 's' })!;
+    const answer = exercise.options[exercise.answerIndex];
+    expect(verse.startsWith(answer)).toBe(true);
+    expect(exercise.options.filter((o) => verse.startsWith(o))).toHaveLength(1);
+  });
+
+  it('is the same question for the same seed, and marks the tap', () => {
+    const a = buildVerseRecognize({ answerText: verse, poolTexts: others, seed: 'x' })!;
+    const b = buildVerseRecognize({ answerText: verse, poolTexts: others, seed: 'x' })!;
+    expect(a.options).toEqual(b.options);
+    expect(gradeVerseNext(a, a.options[a.answerIndex])).toBe(true);
+    expect(gradeVerseNext(a, a.options[(a.answerIndex + 1) % a.options.length])).toBe(false);
+  });
+
+  it('refuses to ask when there is nothing to choose between', () => {
+    expect(buildVerseRecognize({ answerText: verse, poolTexts: [], seed: 's' })).toBeNull();
+    expect(buildVerseRecognize({ answerText: '', poolTexts: others, seed: 's' })).toBeNull();
   });
 });

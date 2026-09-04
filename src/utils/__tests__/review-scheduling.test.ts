@@ -125,7 +125,11 @@ describe('rung weight', () => {
 
   it('scales a clean recall by the rung, and nothing else', () => {
     expect(nextReviewAfter('recalled', { ...held, rungKey: 'verse.recognize' }, NOW).intervalDays).toBeCloseTo(8.4);
-    expect(nextReviewAfter('recalled', { ...held, rungKey: 'verse.locate' }, NOW).intervalDays).toBeCloseTo(16.8);
+    // Locate is a four-option tap, so its weight sits below 1 like the other choice rungs —
+    // the rung reads harder than its exercise is.
+    expect(nextReviewAfter('recalled', { ...held, rungKey: 'verse.locate' }, NOW).intervalDays).toBeCloseTo(11.2);
+    // Producing the verse from nothing is the one that buys the long interval.
+    expect(nextReviewAfter('recalled', { ...held, rungKey: 'verse.recall' }, NOW).intervalDays).toBeCloseTo(16.8);
     // A miss is a day whatever the rung: nothing was retrieved, so there is nothing to weigh.
     expect(nextReviewAfter('revealed', { ...held, rungKey: 'verse.locate' }, NOW).intervalDays).toBe(1);
     expect(nextReviewAfter('almost', { ...held, rungKey: 'verse.locate' }, NOW).intervalDays).toBe(4);

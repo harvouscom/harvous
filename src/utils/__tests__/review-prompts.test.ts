@@ -215,16 +215,17 @@ describe('the verse ladder after "what comes next" arrived', () => {
 
   it('does not ask two rungs the same question in different words', () => {
     /*
-     * `verse.recognize` owned "What comes next?" and meant "finish this verse"; `verse.next`
-     * means "what follows it". One phrase across both would make the ladder feel like it was
-     * asking the same thing twice while marking only one of them.
+     * Both rungs put openings on screen, so their questions have to be unmistakably different:
+     * one asks which opening belongs to this reference, the other which verse comes after it.
+     * `verse.recognize` used to say "Finish…", which was the same words as the rung that
+     * actually finishes a verse — and it asked for production while marking nothing.
      */
-    const recognize = fillReviewPrompt('verse.recognize', { reference: 'John 15:5', cue: 'I am the vine' });
+    const recognize = fillReviewPrompt('verse.recognize', { reference: 'John 15:5' });
     const next = fillReviewPrompt('verse.next', { reference: 'John 15:5' });
-    // One finishes the verse in front of you; the other asks for the verse after it.
-    expect(recognize).toContain('Finish');
+    expect(recognize).toContain('begins');
     expect(next).toContain('follows');
     expect(recognize).not.toContain('follows');
+    expect(next).not.toContain('begins');
   });
 
   it('knows which rungs the server marks, so three surfaces cannot disagree', () => {

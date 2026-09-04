@@ -148,8 +148,11 @@ const INDEX_KEYED_RUNGS = new Set(['verse.theme', 'verse.person', 'verse.crossre
  * Bare rather than the toolbar's Cmd+Shift chord: these are the only controls on the card, and
  * a quiz that needs a chord to answer is not a quiz.
  */
-/** The rungs that ask for the verse in your own typing. Marked, like everything else now. */
-const FREE_RECALL_RUNGS = new Set(['verse.recognize', 'verse.recall']);
+/**
+ * The rung that asks for the verse in your own typing. One, now: the first rung asked for it
+ * too until it became the recognition tap its name always meant.
+ */
+const FREE_RECALL_RUNGS = new Set(['verse.recall']);
 
 /**
  * How long an answered question stays up wearing its verdict before the result takes the card.

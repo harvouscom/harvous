@@ -86,7 +86,12 @@ export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
   'verse.person': 0.9,
   'verse.crossref': 1.1,
   'verse.sequence': 1.0,
-  'verse.locate': 1.2,
+  /*
+   * A four-option tap, which the rule above puts below 1 — it was 1.2, joint-highest with
+   * writing the verse out from nothing, because the rung's *name* reads harder than its
+   * exercise is. What the reader does here is choose between four references on screen.
+   */
+  'verse.locate': 0.8,
   'verse.book': 0.7,
   'verse.altered': 1.1,
 };
