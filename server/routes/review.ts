@@ -10,6 +10,7 @@
  * stored and never graded. See docs/future/REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md.
  */
 
+import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { interleaveSession } from '@/utils/review-session-order';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
@@ -143,8 +144,32 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
       })),
     );
     const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
-    for (const row of rows) await recordReviewEvent(auth.userId, row, 'shown');
-    return c.json({ success: true, items });
+    /*
+     * Bookkeeping, so it happens beside the response rather than in front of it. These were
+     * awaited one row at a time, which put a write per item between the reader and their
+     * question — the same pattern `recordReviewOutcomeNodes` already avoids.
+     */
+    void Promise.all(rows.map((row) => recordReviewEvent(auth.userId, row, 'shown'))).catch(
+      () => {},
+    );
+
+    /*
+     * The first question's exercise, sent with the question.
+     *
+     * The reveal stays its own request for the rungs where fetching it *is* the signal "I need
+     * to see it" — but on a marked rung the payload is the exercise, without which there is
+     * nothing to answer, and the page asks for it the instant it renders. Two sequential trips
+     * meant the prompt appeared and its options arrived a second later. Only the first: the
+     * rest are prefetched as the sitting moves.
+     */
+    const first = items[0];
+    const firstRow = first ? rows.find((row) => row.id === first.id) : null;
+    const firstReveal =
+      firstRow && reviewRungIsGraded(first!)
+        ? await buildReviewReveal(auth.userId, firstRow).catch(() => null)
+        : null;
+
+    return c.json({ success: true, items, ...(firstReveal ? { firstReveal } : {}) });
   } catch (error) {
     if (isReviewTableMissing(error)) return c.json({ success: true, items: [] });
     const standardError = handleAPIError(error, { endpoint: '/api/review/session', action: 'review_session' });

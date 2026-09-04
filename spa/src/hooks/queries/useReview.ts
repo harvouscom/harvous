@@ -6,7 +6,8 @@
  * `requireFeature` on the server is. It exists so a free account's Activity page does not fire
  * two doomed requests on every load.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReviewFramingSpec } from '@/utils/review-framing';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
@@ -172,10 +173,25 @@ export function useReviewSession(options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
   const access = useReviewAccess();
   const enabled = authReady && access;
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: reviewSessionQueryKey,
     enabled: enabled && options?.enabled !== false,
-    queryFn: () => api.get<{ items: ReviewItemView[] }>('/api/review/session'),
+    queryFn: async () => {
+      const data = await api.get<{
+        items: ReviewItemView[];
+        firstReveal?: ReviewRevealResponse;
+      }>('/api/review/session');
+      /*
+       * The first question's exercise came with the question, so seed the cache the dock is
+       * about to read rather than letting it ask again. Without this the page renders a prompt
+       * with no options and fills them in a round trip later.
+       */
+      if (data.firstReveal && data.items[0]) {
+        queryClient.setQueryData(['review', 'reveal', data.items[0].id], data.firstReveal);
+      }
+      return data;
+    },
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
@@ -187,6 +203,28 @@ export function useReviewSession(options?: { enabled?: boolean }) {
  * Disabled until `enabled` flips, which is what makes the reveal a deliberate act rather than
  * something already sitting in the page while the question is on screen.
  */
+/**
+ * Fetch the *next* question's exercise while the reader answers this one.
+ *
+ * The first question's arrives with the session, so the only remaining wait was between one
+ * answer and the next — which is exactly when there is idle time to spend. Same cache key the
+ * dock reads, so by the time the card turns over the exercise is already there.
+ */
+export function usePrefetchReviewReveal(itemId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const authReady = useAuthReady();
+  const access = useReviewAccess();
+  useEffect(() => {
+    if (!itemId || !authReady || !access) return;
+    void queryClient.prefetchQuery({
+      queryKey: ['review', 'reveal', itemId] as const,
+      queryFn: () =>
+        api.get<ReviewRevealResponse>(`/api/review/items/${encodeURIComponent(itemId)}/reveal`),
+      staleTime: 5 * 60_000,
+    });
+  }, [itemId, authReady, access, queryClient]);
+}
+
 export function useReviewReveal(itemId: string | null, options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
   const access = useReviewAccess();

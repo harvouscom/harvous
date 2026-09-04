@@ -135,7 +135,8 @@ describe('a day of reviews and nothing else', () => {
      */
     expect(summary?.stats).toEqual([]);
     expect(summary?.revisited?.named).toEqual(['John 15:5']);
-    expect(summary?.lead).toBe('Today you came back to');
+    // The sheet header already says which day it is; opening with "Today" says it twice.
+    expect(summary?.lead).toBe('You came back to');
   });
 
   it('stays silent on a day with neither', () => {

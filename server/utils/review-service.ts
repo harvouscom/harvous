@@ -671,6 +671,24 @@ export async function buildReviewItemViews(
     return pending;
   };
 
+  /*
+   * Warm every row's text and material at once, before the loop reads them one at a time.
+   *
+   * The loop below awaits per row — a verse fetch here, a knowledge probe there — which turned
+   * a sitting of four into four round trips end to end while the reader watched an empty card.
+   * Both awaits already go through per-build caches, so priming them in parallel leaves the
+   * loop's logic untouched and its awaits already resolved.
+   */
+  await Promise.all(
+    rows.flatMap((row) => {
+      if (row.kind !== 'verse' || !row.scriptureReference) return [];
+      const translation = row.translation ?? 'NET';
+      const warm: Promise<unknown>[] = [materialFor(row.scriptureReference, translation)];
+      if (row.ladderStep === 0) warm.push(fetchVerseText(row.scriptureReference, translation));
+      return warm;
+    }),
+  );
+
   const views: ReviewItemView[] = [];
   for (const row of rows) {
     const kind = row.kind as ReviewItemKind;

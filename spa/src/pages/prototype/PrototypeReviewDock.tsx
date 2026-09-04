@@ -28,6 +28,7 @@ import { maxAttemptsFor } from '@/utils/review-item-kinds';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
+import ProtoLoadingDots from './ProtoLoadingDots';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { canJudgeRecall, resolveReviewDockItem } from '@/utils/review-dock-state';
 import { reviewRowSubtitle } from '@/utils/review-row-subtitle';
@@ -45,6 +46,7 @@ import { useHasFeature } from '../../hooks/useHasFeature';
 import {
   useReviewItems,
   useReviewReveal,
+  usePrefetchReviewReveal,
   useReviewSession,
   type ReviewItemView,
 } from '../../hooks/queries/useReview';
@@ -55,7 +57,7 @@ import {
   REVIEW_ALMOST_COPY,
   REVIEW_ATTEMPT_PLACEHOLDER,
   REVIEW_EMPTY_COPY,
-  REVIEW_LOADING_COPY,
+  REVIEW_LOADING_LABEL,
   REVIEW_RECALLED_COPY,
   REVIEW_REVEALED_ACK_COPY,
   REVIEW_CHECK_COPY,
@@ -318,6 +320,9 @@ export default function PrototypeReviewDock() {
    */
   const isGradedRung = item ? reviewRungIsGraded(item) : false;
   const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed || isGradedRung });
+  // The one after this one, fetched while the reader is still on this one.
+  const nextItem = sessionItems[sessionItems.findIndex((i) => i.id === item?.id) + 1];
+  usePrefetchReviewReveal(nextItem && reviewRungIsGraded(nextItem) ? nextItem.id : null);
   const outcome = useReviewOutcome();
   const stepBack = useStepBackReview();
   const setStatus = useSetReviewStatus();
@@ -682,7 +687,8 @@ export default function PrototypeReviewDock() {
         </span>
       }
     >
-      <div className="proto-review-dock__body">
+      {/* Keyed on the question, so each new one plays its own entrance. */}
+      <div className="proto-review-dock__body" key={item?.id ?? 'empty'}>
         {lastResult ? (
           /*
            * The moment after an answer, and the thing the first preview had nothing of: a
@@ -800,7 +806,12 @@ export default function PrototypeReviewDock() {
            * empty product a beat before their question arrived.
            */
           settling ? (
-            <p className="proto-review-dock__empty">{REVIEW_LOADING_COPY}</p>
+            /*
+             * Dots rather than a sentence. "One moment." is a thing to read on the way to the
+             * thing you came to read, and by the time the eye has parsed it the question has
+             * usually arrived — the dots say the same and ask for nothing.
+             */
+            <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
           ) : (
             <>
               <p className="proto-review-dock__empty">{REVIEW_EMPTY_COPY}</p>

@@ -21605,6 +21605,49 @@ button.proto-feed-sheet__stat:hover {
  * Body face rather than the heading face: it is a sentence addressed to the reader, and setting
  * it as a title made the dock read like an article about their note.
  */
+/*
+ * A question arrives in the order it is read: the prompt, then what it is about, then the
+ * options.
+ *
+ * Everything used to appear at once the instant the payload landed, so the eye had to find
+ * the question among four similar-looking chips. The delays are small — this is a hint about
+ * reading order, not an animation to watch — and they key off the question, so answering one
+ * and moving to the next plays it again.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .proto-review-dock__body > * {
+    animation: proto-review-enter 220ms ease both;
+  }
+
+  .proto-review-dock__prompt {
+    animation-delay: 0ms;
+  }
+
+  .proto-review-dock__subject,
+  .proto-challenge__cloze,
+  .proto-review-dock__verse,
+  .proto-review-dock__altered {
+    animation-delay: 60ms;
+  }
+
+  .proto-review-dock__chips,
+  .proto-review-dock__attempt,
+  .proto-review-dock__actions {
+    animation-delay: 120ms;
+  }
+}
+
+@keyframes proto-review-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .proto-review-dock__prompt {
   margin: 0;
   font-family: var(--pds-font-body);
@@ -21852,13 +21895,18 @@ button.proto-feed-sheet__stat:hover {
  * shortcuts, and a key that looks like a key everywhere else in the app should look like one
  * here. `--compact` is the size that fits inside a 28px control without setting its height.
  */
-.proto-review-dock__choice {
+/*
+ * The chip's own class doubled, because `.proto-settings-btn--compact` sets `padding: 0 12px`
+ * further down this file and would win on source order alone — the same shape of collision the
+ * verdict colours hit with that variant's `!important` colour.
+ */
+.proto-review-dock__choice.proto-review-dock__choice {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  /* Tighter on the key side than the label side, so the cap reads as belonging to the option
-     rather than floating between two of them. */
-  padding-left: 6px;
+  /* The keycap is its own round shape with its own edge, so the chip's padding only has to
+     clear it — any more and the cap floats in a gutter instead of starting the option. */
+  padding-left: 4px;
 }
 
 /*
@@ -22001,6 +22049,32 @@ button.proto-feed-sheet__stat:hover {
   flex-shrink: 0;
   /* Dimmer than the answer it points at: the letter is a way in, not part of the reading. */
   color: var(--pds-text-secondary);
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+/*
+ * Hover lands on the keycap rather than the chip.
+ *
+ * A row of options is a row of similar shapes, and a whole-chip tint was too quiet to say which
+ * one the pointer is on. The cap is the smallest thing that can carry it, it is already the
+ * thing a keyboard would press, and taking the accent gradient makes hovering and pressing A
+ * look like the same act.
+ */
+.proto-review-dock__choice:hover:not(:disabled) .proto-review-dock__choice-key,
+.proto-review-dock__choice:focus-visible .proto-review-dock__choice-key {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
+}
+
+/* A marked chip keeps its verdict: the pointer must not repaint an answer already given. */
+.proto-review-dock__choice[data-correct] .proto-review-dock__choice-key,
+.proto-review-dock__choice[data-missed] .proto-review-dock__choice-key {
+  background: none;
+  box-shadow: none;
 }
 
 .proto-review-dock__choice:disabled .proto-review-dock__choice-key {

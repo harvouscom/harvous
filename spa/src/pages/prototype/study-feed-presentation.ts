@@ -285,13 +285,16 @@ export function summarizeStudyFeedDay(
    * "Today 1 note so far" needs a verb when there is nothing to count: on a day whose only
    * record is the reviews, the lead runs straight into the clause that names them.
    */
+  /*
+   * On a day whose only record is the reviews the clause is the sentence, and it opens with the
+   * verb: the sheet's own header already says which day this is, so "Today you came back to…"
+   * says it twice and reads like a log entry.
+   */
   const revisitedOnly = stats.length === 0 && Boolean(options.revisited?.named.length);
-  const lead = options.isToday
-    ? revisitedOnly
-      ? 'Today you came back to'
-      : 'Today'
-    : revisitedOnly
-      ? 'This day you came back to'
+  const lead = revisitedOnly
+    ? 'You came back to'
+    : options.isToday
+      ? 'Today'
       : 'You spent this day';
   const tail = options.isToday
     ? options.partsCount > 1

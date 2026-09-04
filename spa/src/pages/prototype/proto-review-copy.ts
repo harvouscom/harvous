@@ -42,7 +42,8 @@ export const REVIEW_SECTION_TITLE = 'Review';
  * making it while the request is still in flight told the reader the feature had nothing for
  * them a beat before the question arrived. First impressions were of an empty product.
  */
-export const REVIEW_LOADING_COPY = 'One moment.';
+/** Announced to a screen reader while the dots show; never printed. */
+export const REVIEW_LOADING_LABEL = 'Finding your next one';
 export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
 
 /*
