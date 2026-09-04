@@ -9901,26 +9901,29 @@ button.proto-appearance-hero__card {
  * filled, and a looping animation there would reset `fill-opacity` to 0 on every pass and
  * blink the numeral out. This one only ever touches the stroke.
  *
- * Most of the eight seconds is rest: the lap takes about the 1.4s the draw did, then nothing
- * for six. That gap is what keeps it a gleam rather than a spinner.
+ * Most of the eleven seconds is rest: the lap still takes about the 1.4s the draw did, then
+ * nothing for nine and a half. Rarity is doing as much of the work as opacity here — a softer
+ * gleam that came round every few seconds would still read as something demanding attention.
  */
 .proto-welcome3__numeral-trace {
   fill: none;
-  stroke: #fff;
+  /* Tinted rather than pure white: white on this blue is a hard highlight, and the point is
+     for the light to belong to the glyph rather than sit on top of it. */
+  stroke: #cfeaff;
   /*
    * Half of this is clipped away, so ~32 units show. The glyph renders about 120px wide from a
    * 1054-unit viewBox — roughly 8.8 units per pixel — so anything under ~40 lands below a
    * single rendered pixel. 16 was the first guess and could not be seen at all.
    */
-  stroke-width: 64;
+  stroke-width: 52;
   stroke-linecap: round;
   stroke-linejoin: round;
-  /* 13% of the lap lit, the rest dark. */
-  stroke-dasharray: 0.13 0.87;
+  /* A tenth of the lap lit, the rest dark. */
+  stroke-dasharray: 0.1 0.9;
   stroke-dashoffset: 1;
   stroke-opacity: 0;
   /* Begins once the fill has landed and had a beat to settle. */
-  animation: proto-welcome3-trace 8000ms cubic-bezier(0.65, 0, 0.35, 1) 2600ms infinite;
+  animation: proto-welcome3-trace 11000ms cubic-bezier(0.65, 0, 0.35, 1) 2600ms infinite;
 }
 
 /*
@@ -9932,13 +9935,13 @@ button.proto-appearance-hero__card {
     stroke-dashoffset: 1;
     stroke-opacity: 0;
   }
-  3% {
-    stroke-opacity: 0.85;
+  2.5% {
+    stroke-opacity: 0.5;
   }
-  15% {
-    stroke-opacity: 0.85;
+  10% {
+    stroke-opacity: 0.5;
   }
-  18% {
+  13% {
     stroke-dashoffset: 0;
     stroke-opacity: 0;
   }
