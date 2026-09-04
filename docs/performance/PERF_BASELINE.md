@@ -2,7 +2,7 @@
 
 Current numbers, how each was measured, and how to reproduce them. Owned by `/engineer`.
 
-**Last measured:** 2026-08-13
+**Last measured:** 2026-08-13 (payload) · 2026-09-04 (request count)
 
 > Two older documents used to live here and now sit in `docs/archive/`:
 > `PERFORMANCE_OPTIMIZATION_LESSONS.md` and `PWA_INITIAL_LOAD_OPTIMIZATIONS.md`. Both instruct the
@@ -68,7 +68,54 @@ dependencies** consumed by **52 files**, so any one of the 75 re-renders all 52.
 
 ---
 
+## Request count on an Activity load
+
+A different axis from the payload above, and unmeasured until now: **an Activity load fires 42
+API requests.** Bytes are not the problem — most of these are small — but each is a round trip,
+and on a cold connection they queue.
+
+**Measured 2026-09-04**, signed in, warm cache, one reader with 30 notes and 11 review items.
+Reproduce by loading `/` and reading the browser's network log filtered to `/api/`. Note that
+`performance.getEntriesByType('resource')` returns **nothing** for these — something in the fetch
+path keeps them out of resource timing — so the network panel is the only way to count them.
+
+Three findings, in order of size. None is attacked, and each lives in a hook every surface
+depends on, which is why none was done in the session that found them.
+
+1. **The same notes page is fetched three times.** Three identical
+   `GET /api/spaces/<id>/notes?offset=0&limit=20&excludeLegacyScripture=1&sortBy=updated`
+   requests per load. The query key is identical, so React Query is not the cause — the suspect is
+   the cold-start effect at the bottom of `useSpaceNotes` (`spa/src/hooks/queries/useSpace.ts`),
+   which calls `query.refetch()` when `authReady` flips and runs **once per hook instance**. Three
+   consumers, three refetches. That effect exists to repair a real 401 race documented in
+   `useAuthReady` — deleting it reintroduces a cold-start bug that only shows up for other people,
+   so it needs a shared-latch or query-level fix rather than removal. Biggest single win, and the
+   heaviest payload of the three.
+
+2. **Six separate `POST /api/recall/event` impression writes**, one per visible suggestion card.
+   Batching them into one call removes five requests from every load. They are fire-and-forget, so
+   the risk is low; the work is a queue with a flush rather than a per-card post.
+
+3. **Duplicated reads.** `GET /api/user/get-profile` twice, and challenges as two calls
+   (`?status=active` and `?status=paused`). Smallest of the three, and probably the easiest.
+
+Roughly 42 → 33 requests if all three are done.
+
+---
+
 ## Fixed
+
+### Review's folds asked for a list Home already had — 2026-09-04
+
+The Review section on Activity read `GET /api/review/items` (every status) to populate its
+"coming back later" and "put aside" folds, while `use-home-surface-data` was already reading
+`GET /api/review/items?status=active` on the same load for the suggestion handoff. Two keys, two
+round trips, same rows.
+
+The section shares the `active` key now, and the all-status read is left for the drawer of things
+put aside — fetched when a fold is opened, or when there is nothing active at all, which is the
+one case where something put down is all that remains and no fold exists to open. One request
+saved on every load with an empty queue. Found while counting the 42 above.
 
 ### `manualChunks` object form silently produced an empty chunk — 2026-08-13
 
