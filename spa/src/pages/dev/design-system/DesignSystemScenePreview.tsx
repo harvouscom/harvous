@@ -1437,7 +1437,7 @@ function WhatsNewRowScene() {
                 className="proto-side-panel__action-btn"
                 aria-label="Read the release notes"
               >
-                <Icon name="list" size={12} aria-hidden />
+                <Icon name="eye" size={12} aria-hidden />
               </button>
               {dismiss}
             </>

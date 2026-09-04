@@ -110,7 +110,7 @@ export default function PrototypeWhatsNewPill() {
               title="Release notes"
               onClick={openNotes}
             >
-              <Icon name="list" size={12} aria-hidden />
+              <Icon name="eye" size={12} aria-hidden />
             </button>
           ) : null}
           <button
