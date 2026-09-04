@@ -6,6 +6,10 @@
 Nothing here is urgent while the branch is unmerged. Nothing here is optional
 once it is.
 
+**Status: the steps below have been run (2026-09-04).** Only step 1 changed
+anything; the four tables already existed. Kept as the record of what a database
+needs, and because a fresh or restored one will need all of it. See "Verifying".
+
 ---
 
 ## Why this doc exists
@@ -76,10 +80,37 @@ the four new tables do, and they are unprotected until it runs.
 
 ## Verifying
 
-The four table files were checked column-for-column and index-for-index against
-`server/db/schema.ts` when written — 73 columns and 15 indexes, all matching.
-They have **not** been executed anywhere: this checkout cannot reach the
-database, so the SQL is unrun. Read it before trusting it.
+**Run 2026-09-04.** Step 1 applied the column. Steps 2–5 were no-ops — all four
+tables already existed, every statement answering `already exists, skipping` —
+and `npm run db:rls` reported all 81 public tables already had it on.
+
+The four table files now describe **78 columns and 15 indexes**, and were checked
+by *executing* them: each `CREATE TABLE` was run into a session-scoped `TEMP`
+table and the result diffed against the live table — name, type, nullability and
+default, all matching, on all four.
+
+Worth doing it that way. `CREATE TABLE IF NOT EXISTS` skips the whole statement
+when the table is there, so running these files against a database that already
+has the tables exercises none of the columns they declare and reports success
+either way. That is why the gap below survived: the files had been *run*, and
+running them proved nothing.
+
+The earlier count of 73 was checked against `schema.ts` and was already wrong by
+the time it was written. `ReviewItems` was missing `intervalDays`, `lapseCount`
+and `lastRungKey`; `ReviewEvents` was missing `previousIntervalDays` and
+`nextIntervalDays`. The live tables had all five, because they arrived by push;
+only the hand-written files did not. Run against a fresh or restored database,
+`create-review-items.sql` would have built a table without `intervalDays` and
+every ReviewItems query would have 500'd — the exact failure this document was
+written to prevent, reintroduced by the fix for it.
+
+Two of those five are declared only on the review-engine branch. The files carry
+the union deliberately, and say why in their headers: an unnamed column is never
+selected and costs nothing, a missing one fails every query against the table.
+
+The lesson is narrower than "check the files". It is that `schema.ts` is only the
+source of truth for the branch you are reading, while the database is shared —
+so **check a manual file against the database, not against the schema**.
 
 Afterwards, the honest check is the endpoint that fails first:
 

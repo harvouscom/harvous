@@ -10,6 +10,17 @@
 -- `challengeId` points at Challenges without a foreign key, matching the rest of
 -- this schema — the cascade filters below are how deletes reach these rows.
 --
+-- Describes the union of what every branch declares, not one branch's schema.ts.
+-- `lapseCount` and `lastRungKey` are named only by the review-engine branch; the
+-- rest are on both. That is deliberate, because the two directions are not
+-- symmetric: Drizzle selects explicit column lists, so a column no branch names
+-- is never read and costs nothing, while a column that is missing fails *every*
+-- query against the table. Both carry a default or are nullable, so an insert
+-- from a branch that has never heard of them still works.
+--
+-- The rule this file is under: it describes a database every branch's code can
+-- run against, since they all share one.
+--
 -- RLS: `npm run db:rls` enables it on every public table, so run that after this.
 
 CREATE TABLE IF NOT EXISTS "ReviewItems" (
@@ -24,12 +35,15 @@ CREATE TABLE IF NOT EXISTS "ReviewItems" (
   "translation" text,
   "status" text NOT NULL DEFAULT 'active',
   "recallState" text NOT NULL DEFAULT 'new',
+  "intervalDays" real NOT NULL DEFAULT 1,
   "dueAt" timestamp with time zone NOT NULL,
   "lastReviewedAt" timestamp with time zone,
   "lastOutcome" text,
   "successStreak" integer NOT NULL DEFAULT 0,
   "reviewCount" integer NOT NULL DEFAULT 0,
   "ladderStep" integer NOT NULL DEFAULT 0,
+  "lapseCount" integer NOT NULL DEFAULT 0,
+  "lastRungKey" text,
   "origin" text NOT NULL DEFAULT 'user',
   "sourceLabel" text,
   "sourceAt" timestamp with time zone,

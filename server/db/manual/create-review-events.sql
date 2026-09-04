@@ -6,6 +6,12 @@
 -- Never updated, so "answered this wrong three times running" is a grouped read
 -- rather than a counter on ReviewItems that something has to keep correct.
 --
+-- `previousIntervalDays` / `nextIntervalDays` record the schedule either side of
+-- an answer, so a curve can be read back from the log rather than inferred. Both
+-- were declared in schema.ts without reaching this file, which is the omission
+-- this whole directory exists to catch — a column the code selects and the
+-- database lacks fails every query against the table, not just the ones naming it.
+--
 -- RLS: `npm run db:rls` enables it on every public table, so run that after this.
 
 CREATE TABLE IF NOT EXISTS "ReviewEvents" (
@@ -15,6 +21,8 @@ CREATE TABLE IF NOT EXISTS "ReviewEvents" (
   "noteId" text,
   "action" text NOT NULL,
   "attempt" text,
+  "previousIntervalDays" real,
+  "nextIntervalDays" real,
   "createdAt" timestamp with time zone NOT NULL
 );
 
