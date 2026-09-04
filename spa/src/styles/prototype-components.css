@@ -9913,6 +9913,7 @@ button.proto-appearance-hero__card {
   outline: none;
 }
 
+
 .proto-welcome3__sub {
   margin: 0;
   max-width: 34ch;
@@ -9999,6 +10000,23 @@ button.proto-appearance-hero__card {
   z-index: 2;
 }
 
+
+/*
+ * Bigger once the sheet stops being squeezed.
+ *
+ * The sheet is capped at 520px, so above this breakpoint it is always that width and there is
+ * no gradient to follow — two states, not a scale, which is why this is a media query rather
+ * than a clamp. At 24px the line sat too quiet under a numeral three times its height.
+ */
+@media (min-width: 601px) {
+  .proto-welcome3__lead {
+    font-size: 32px;
+  }
+
+  .proto-welcome3__sub {
+    font-size: 16px;
+  }
+}
 
 /*
  * Reduced motion: the numeral arrives already drawn and filled, and the copy simply is there.
