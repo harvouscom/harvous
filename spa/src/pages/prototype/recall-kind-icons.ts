@@ -53,6 +53,12 @@ export const RECALL_KIND_ICONS: Record<RecallOpportunityKind, IconName> = {
   /* Marking, not composing: `pen-to-square` is the toolbar's new-note button, and this card
      asks you to go into a note you already have. */
   markNote: 'highlighter',
+  /*
+   * `pen-to-square` — write. The same glyph `reflection` wears, and for the same reason: what
+   * this card offers is a blank note, not a passage to read. `book-open-reader` belongs to the
+   * Review row about a chapter, which asks rather than invites.
+   */
+  readingNote: 'pen-to-square',
   /* The glyph a Thread wears everywhere else in the app. */
   reflectThread: 'arrow-right-arrow-left',
 };

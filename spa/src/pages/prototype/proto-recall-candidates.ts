@@ -33,10 +33,15 @@ import { activeReviewCoversReference } from '@/utils/review-suggestion-handoff';
 
 /** No Review, or nothing active in it: the same thing as far as these two kinds are concerned. */
 const EMPTY_REVIEW_REFERENCES: ReadonlySet<string> = new Set();
+const EMPTY_REVIEW_CHAPTER_KEYS: ReadonlySet<string> = new Set();
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { isNoteDeleted } from './proto-deleted-notes';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { activeReviewCoversChapter } from '@/utils/review-suggestion-handoff';
+import { readingNoteEyebrow, readingNotePrompt } from '@/utils/reading-note-prompts';
+import { buildScripturePillWithQuoteHtml } from '../../lib/votd-scripture-pill-html';
+import type { ReadingNoteSuggestion } from '@/utils/prototype-home-trends';
 import {
   connectSuggestionRecallEyebrow,
   connectSuggestionRecallMeta,
@@ -112,6 +117,13 @@ export interface RecallCandidateInput {
    * these. Empty for a reader without Review, which is the same as having nothing active.
    */
   activeReviewReferences?: ReadonlySet<string>;
+  /**
+   * Chapters with an active *chapter* Review item, as `${book}|${chapter}`. The reading-note
+   * card steps aside for these and for nothing else — see `activeReviewCoversChapter`.
+   */
+  activeReviewChapterKeys?: ReadonlySet<string>;
+  /** The chapter read today or yesterday that no note cites yet. See `deriveReadingNote`. */
+  readingNote: ReadingNoteSuggestion | null | undefined;
   markNote: SpaceNoteRow | null | undefined;
   handleOpenMarkNote: (note: SpaceNoteRow) => boolean | void;
   /** A named Thread worth thinking through. Carries the questions Review retired. */
@@ -211,6 +223,8 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
     onOpenCreateThreadPrefill,
     startDraftNote,
     openCrossRefGap,
+    readingNote,
+    activeReviewChapterKeys = EMPTY_REVIEW_CHAPTER_KEYS,
     handleRecallCompleted,
   } = input;
 
@@ -393,6 +407,68 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
             }),
         });
       }
+    }
+  }
+
+  /*
+   * Write about what you read.
+   *
+   * The Bible reader has recorded every chapter turned to since it shipped, and Home never
+   * offered anything on the strength of it — a chapter read twice looked exactly like one never
+   * opened, because every other card here is derived from notes. This is the near half of the
+   * loop whose far half is the `chapter` review kind: read it, be invited to write about it
+   * while it is fresh, be asked about it later.
+   *
+   * The draft opens with the chapter as a pill, and — only where the reader marked a verse in
+   * that chapter — that verse quoted underneath. Their own choice or nothing: a note that
+   * opened with a verse chosen for them would be putting words in their mouth.
+   */
+  if (readingNote) {
+    const chapterKey = `${readingNote.book}|${readingNote.chapter}`;
+    const eyebrow = readingNoteEyebrow(readingNote.readAt);
+    if (eyebrow && !activeReviewCoversChapter(chapterKey, activeReviewChapterKeys)) {
+      const chapterRef = `${readingNote.book} ${readingNote.chapter}`;
+      const id = `readingNote:${readingNote.book}:${readingNote.chapter}`;
+      const translation = readingNote.translation?.trim() || 'NET';
+      const highlight = findHighlightForChapter(
+        highlightsWithRecency,
+        readingNote.book,
+        readingNote.chapter,
+      );
+      const quoteReference = highlight?.scriptureReference?.trim() || null;
+      const quoteText = highlight?.scripturePassageExcerpt?.trim() || null;
+      const quoted = Boolean(quoteReference && quoteText);
+      out.push({
+        id,
+        kind: 'readingNote',
+        isGenerative: true,
+        score: 0.6,
+        eyebrow,
+        title: chapterRef,
+        meta: readingNotePrompt(readingNote.book, readingNote.chapter),
+        iconName: RECALL_KIND_ICONS.readingNote,
+        onOpen: () =>
+          startDraftNote({
+            title: chapterRef,
+            contentHtml: buildScripturePillWithQuoteHtml(
+              // The verse they marked where they marked one, the chapter otherwise. The note is
+              // about the chapter either way — that is its title — but it opens at the line
+              // they already chose rather than at the top of thirty-six verses.
+              quoted ? quoteReference! : chapterRef,
+              quoted ? highlight?.scripturePassageTranslation?.trim() || translation : translation,
+              quoted
+                ? {
+                    reference: quoteReference!,
+                    text: quoteText!,
+                    accent: highlight?.highlightAccentRaw ?? null,
+                  }
+                : null,
+            ),
+            /* The id has to match this card's own, or the completion rests a suggestion that
+               was never shown. */
+            recall: { opportunityId: id, kind: 'readingNote' },
+          }),
+      });
     }
   }
 

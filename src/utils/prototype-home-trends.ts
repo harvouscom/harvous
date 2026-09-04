@@ -1,3 +1,4 @@
+import { dayIndex } from '@/utils/note-mark-prompts';
 import { normalizeDate } from './sorting';
 import { noteFolderMembershipLabels, type NoteFolderLabelSource } from './note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from './server-auto-untitled-note-display';
@@ -1667,6 +1668,9 @@ export const RECALL_KIND_TIER: Record<RecallOpportunityKind, number> = {
   /* The Thread and link questions Review retired. Unmeasured here, and starting where it cannot
      take the head slot — the restraint every new kind gets. */
   reflectThread: 2,
+  /* Reading, which no card has ever been built on. Same restraint: a new signal starts where it
+     cannot take the head slot. */
+  readingNote: 2,
 };
 
 export function recallKindTier(kind: RecallOpportunityKind): number {
@@ -2110,6 +2114,83 @@ export function deriveContinueReading(
   }
 
   return null;
+}
+
+// 1b-ii. Write about what you read ───────────────────────────────────────────────
+
+export interface ReadingNoteChapterInput {
+  book: string;
+  bookOrder: number;
+  chapter: number;
+  /** When it was last actually read — glances excluded. Null means it was only glanced at. */
+  lastReadAt: string | null;
+  translation?: string | null;
+}
+
+export interface ReadingNoteSuggestion {
+  book: string;
+  bookOrder: number;
+  chapter: number;
+  readAt: string;
+  translation: string | null;
+}
+
+/**
+ * The chapter worth writing about: the most recently read one, inside the window, that no note
+ * of theirs already cites.
+ *
+ * Three exclusions, each with a reason.
+ *
+ * **A glance is not a read.** `lastReadAt` is null for a chapter only ever glanced at, and the
+ * card says "you read this" — which would be untrue.
+ *
+ * **A chapter already cited is not a gap.** If a note quotes John 3, the reader has written
+ * about John 3, and offering to start one is offering something they already did. This is the
+ * same rule `deriveContinueBook` applies to its own candidates.
+ *
+ * **Old reading is not news.** Past the window the invitation stops being "while it is fresh"
+ * and becomes a chore list of everything unwritten, which is the shape this shelf refuses.
+ *
+ * The window is in **calendar days in the reader's own zone**, not elapsed hours, because that
+ * is how the card's eyebrow speaks — "you read this today", "yesterday". Measured in hours the
+ * two disagree: a chapter read at eight last night is twenty hours old, inside a two-day
+ * window, and two calendar days back if you open Home the morning after next. The card was
+ * then derived and silently dropped for want of an eyebrow. One notion of a day, used by both.
+ */
+export function deriveReadingNote(
+  input: {
+    readChapters: readonly ReadingNoteChapterInput[];
+    /** `${book}|${chapter}` for every chapter the reader's notes cite. */
+    citedChapterKeys: ReadonlySet<string>;
+    windowDays?: number;
+  },
+  now: Date = new Date(),
+): ReadingNoteSuggestion | null {
+  // 1: today or yesterday, which is exactly what the eyebrow can say.
+  const windowDays = input.windowDays ?? 1;
+  const today = dayIndex(now);
+  let best: ReadingNoteSuggestion | null = null;
+  let bestAt = -Infinity;
+
+  for (const chapter of input.readChapters) {
+    if (!chapter.lastReadAt || !chapter.book || !Number.isInteger(chapter.chapter)) continue;
+    const readAt = new Date(chapter.lastReadAt);
+    const at = readAt.getTime();
+    if (!Number.isFinite(at)) continue;
+    const age = today - dayIndex(readAt);
+    if (age < 0 || age > windowDays) continue;
+    if (input.citedChapterKeys.has(`${chapter.book}|${chapter.chapter}`)) continue;
+    if (at <= bestAt) continue;
+    bestAt = at;
+    best = {
+      book: chapter.book,
+      bookOrder: chapter.bookOrder,
+      chapter: chapter.chapter,
+      readAt: chapter.lastReadAt,
+      translation: chapter.translation ?? null,
+    };
+  }
+  return best;
 }
 
 /** Home card copy for continue-reading. */

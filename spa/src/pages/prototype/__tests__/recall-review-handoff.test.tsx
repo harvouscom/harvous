@@ -125,3 +125,73 @@ describe('the highlight card', () => {
     expect(card?.eyebrow).toBe('Worth a second look');
   });
 });
+
+describe('the chapter you read', () => {
+  const readingNote = {
+    book: 'John',
+    bookOrder: 42,
+    chapter: 3,
+    readAt: new Date().toISOString(),
+    translation: 'NET',
+  };
+
+  it('steps aside once Review is asking about that chapter', () => {
+    const out = build({
+      readingNote,
+      activeReviewChapterKeys: new Set(['John|3']),
+    });
+    expect(out.find((c) => c.kind === 'readingNote')).toBeUndefined();
+  });
+
+  it('stays for a verse item inside it, which asks a different thing', () => {
+    /*
+     * The rule that separates this card from the two above: a question about John 3:16 asks
+     * what you remember, and an invitation to write about John 3 asks what you saw. Both can
+     * stand on one screen. So a verse item — even one covering this chapter — does not
+     * suppress it, and neither does a chapter item on some other chapter.
+     */
+    const withVerseItem = build({
+      readingNote,
+      activeReviewReferences: new Set(['john 3:16']),
+      activeReviewChapterKeys: new Set(),
+    });
+    expect(withVerseItem.find((c) => c.kind === 'readingNote')).toBeDefined();
+
+    const otherChapter = build({ readingNote, activeReviewChapterKeys: new Set(['Romans|8']) });
+    expect(otherChapter.find((c) => c.kind === 'readingNote')).toBeDefined();
+  });
+
+  it('says nothing about reading too old to be news', () => {
+    const old = { ...readingNote, readAt: new Date(Date.now() - 5 * 86_400_000).toISOString() };
+    expect(build({ readingNote: old }).find((c) => c.kind === 'readingNote')).toBeUndefined();
+  });
+
+  it('quotes the verse the reader marked in that chapter, and nothing they did not', () => {
+    const startDraftNote = vi.fn((_seed: { title: string; contentHtml: string }) => true);
+    const marked = build({
+      readingNote,
+      startDraftNote,
+      highlightsWithRecency: [
+        {
+          ...highlight('John 3:16'),
+          scripturePassageExcerpt: 'For this is the way God loved the world',
+          scripturePassageTranslation: 'NET',
+          highlightAccentRaw: 'warmAmber',
+        },
+      ],
+    });
+    marked.find((c) => c.kind === 'readingNote')!.onOpen();
+    const seed = startDraftNote.mock.calls[0][0];
+    expect(seed.title).toBe('John 3');
+    expect(seed.contentHtml).toContain('For this is the way God loved the world');
+    expect(seed.contentHtml).toContain('data-scripture-reference="John 3:16"');
+
+    const bare = vi.fn((_seed: { title: string; contentHtml: string }) => true);
+    build({ readingNote, startDraftNote: bare })
+      .find((c) => c.kind === 'readingNote')!
+      .onOpen();
+    const plain = bare.mock.calls[0][0];
+    expect(plain.contentHtml).toContain('data-scripture-reference="John 3"');
+    expect(plain.contentHtml).not.toContain('blockquote');
+  });
+});

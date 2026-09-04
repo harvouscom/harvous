@@ -40,6 +40,7 @@ import {
 } from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
+import { chapterKeyPartsFromReference } from '@/utils/study-bible-nodes';
 import { parseReaderQuery } from '@/utils/parse-reader-query';
 import { buildRevisitCardStackOrigin } from './paper-stack-origins';
 import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
@@ -93,6 +94,7 @@ import {
   recallTrendGreetingParts,
   deriveContinueBook,
   deriveContinueReading,
+  deriveReadingNote,
   deriveRecurringPerson,
   pickBareHighlight,
   deriveReflectionPrompt,
@@ -921,8 +923,11 @@ export function useHomeSurfaceData({
     () =>
       (readingHistoryQuery.data?.chapters ?? []).map((c) => ({
         book: c.book,
+        bookOrder: c.bookOrder,
         chapter: c.chapter,
         countsAsRead: readingDwellCountsAsRead(c.dwellBucket),
+        // When it was last actually read, glances excluded — see `collapseReadingHistory`.
+        lastReadAt: c.lastReadAt ?? null,
       })),
     [readingHistoryQuery.data],
   );
@@ -944,6 +949,33 @@ export function useHomeSurfaceData({
     }));
     return deriveContinueBook(input, bibleBookChapterCounts(), { limit: 1 })[0];
   }, [scriptureBooks, hasMoreNotes, readChapters]);
+
+  /**
+   * The chapter worth writing about: read today or yesterday, and not yet cited by any note.
+   *
+   * `scriptureBooks` is the space's whole scripture index — every passage any note cites,
+   * fetched as its own query — so "have I written about this chapter" is answerable in full
+   * however many notes the list has actually loaded.
+   *
+   * Deliberately **not** gated on `hasMoreNotes`, which the neighbouring derivations are. They
+   * make claims about counts ("across 5 of your notes") and a partial library makes those
+   * untrue. This card claims only that you read a chapter, which the reading log knows on its
+   * own. Gated, it would never appear for anyone with more notes than one page — the owner's
+   * own account among them, which is how this was found.
+   */
+  const readingNoteCandidate = useMemo(() => {
+    const cited = new Set<string>();
+    for (const book of scriptureBooks) {
+      for (const passage of book.passages) cited.add(`${book.title}|${passage.chapter}`);
+    }
+    return deriveReadingNote({
+      readChapters: readChapters.map((c) => ({
+        ...c,
+        translation: readingHistoryQuery.data?.lastRead?.translation ?? null,
+      })),
+      citedChapterKeys: cited,
+    });
+  }, [readChapters, scriptureBooks, readingHistoryQuery.data?.lastRead?.translation]);
 
   /**
    * Where to pick reading back up. Kept separate from `continueBookSuggestion`, which answers a
@@ -1152,6 +1184,28 @@ export function useHomeSurfaceData({
    * answer as "nothing active", and needs no branch here.
    */
   const activeReviewItems = useReviewItems('active');
+  /**
+   * Chapters Review has taken up, as `${book}|${chapter}`.
+   *
+   * Kept apart from the reference set above because the two are used by different rules: the
+   * resurfacing kinds defer to any verse item covering their passage, while the reading-note
+   * card defers only to a *chapter* item on that chapter. See `review-suggestion-handoff.ts`.
+   */
+  const activeReviewChapterKeys = useMemo(
+    () =>
+      new Set(
+        (activeReviewItems.data?.items ?? [])
+          .filter((item) => item.kind === 'chapter')
+          .map((item) => {
+            const parts = item.scriptureReference
+              ? chapterKeyPartsFromReference(item.scriptureReference)
+              : null;
+            return parts ? `${parts.book}|${parts.chapter}` : null;
+          })
+          .filter((key): key is string => Boolean(key)),
+      ),
+    [activeReviewItems.data],
+  );
   const activeReviewReferences = useMemo(
     () =>
       new Set(
@@ -1168,6 +1222,8 @@ export function useHomeSurfaceData({
       buildRecallCandidates({
         searchGap,
         activeReviewReferences,
+        activeReviewChapterKeys,
+        readingNote: readingNoteCandidate,
         markNote: markNoteCandidate,
         handleOpenMarkNote,
         reflectThread: reflectThreadCandidate,
@@ -1235,6 +1291,8 @@ export function useHomeSurfaceData({
       openCrossRefConnection,
       openPassageConnection,
       continueBookSuggestion,
+      readingNoteCandidate,
+      activeReviewChapterKeys,
       navigate,
       recurringPerson,
       bareHighlight,

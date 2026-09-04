@@ -23,6 +23,24 @@
 /** Home kinds that defer to an active Review item on the same source. */
 export const RECALL_KINDS_DEFERRING_TO_REVIEW = ['passage', 'highlight'] as const;
 
+/**
+ * A chapter you read is a Suggestion the day you read it and a Review once you have read it
+ * enough to be asked about it.
+ *
+ * The card steps aside for an active **chapter** item on that chapter, and for nothing else —
+ * not for a verse item inside it, which is where this differs from the two kinds above. A
+ * question about John 3:16 and an invitation to write about John 3 are different acts: one asks
+ * what you remember, the other asks what you saw. The two resurfacing kinds defer to a verse
+ * because they are memory exercises wearing a suggestion's clothes; this one is not.
+ */
+export function activeReviewCoversChapter(
+  chapterKey: string | null | undefined,
+  activeChapterKeys: ReadonlySet<string>,
+): boolean {
+  const target = chapterKey?.trim();
+  return Boolean(target) && activeChapterKeys.has(target!);
+}
+
 const normalise = (value: string) => value.trim().toLowerCase();
 
 /**
