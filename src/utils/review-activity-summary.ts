@@ -189,20 +189,3 @@ export function reviewDayRevisitedCopy(
         : `, and ${subjects.rest} more ${subjects.restKind}`;
   return { lead: 'You came back to', named: subjects.named, tail: `${rest}` };
 }
-
-/**
- * The week, under the fold of an expanded Review section.
- *
- * Subject-led, like the day's line above it. "This week: 39 reviews, 14 held." was the same
- * two mistakes twice — a tally of a spiritual practice, and a word ("held") that only means
- * something if you have read the code. What is worth saying about a week is what it was spent
- * on, and a week with nothing named says nothing at all: this sits under a fold, where silence
- * costs nothing.
- */
-export function reviewWeekCaption(answers: readonly ReviewAnswerRecord[]): string | null {
-  const subjects = reviewDaySubjects(answers);
-  if (!subjects.named) return null;
-  return subjects.others === 0
-    ? `This week you kept coming back to ${subjects.named}.`
-    : `This week you kept coming back to ${subjects.named}, among others.`;
-}

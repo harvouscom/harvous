@@ -66,6 +66,7 @@ import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase
 import {
   isPrototypeHomeContentReady,
   isPrototypeHomePresentationReady,
+  type PrototypeHomePresentationReadyInput,
   isQuerySettled,
 } from '@/utils/prototype-home-ready';
 import {
@@ -137,7 +138,8 @@ import { buildRecallCandidates } from './proto-recall-candidates';
 
 import { type RecallOpportunity } from './PrototypeRecallCarousel';
 
-import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
+import { useProtoHomeViewClassName, useProtoSpaceLoaderState } from './useProtoHomeViewEnter';
+import { useHomeSettleTrace } from './useHomeSettleTrace';
 
 /** Force Home to present even if an auxiliary query never settles. */
 const HOME_PRESENTATION_DEADLINE_MS = 2500;
@@ -364,7 +366,11 @@ export function useHomeSurfaceData({
   // each time one of ~9 independent queries landed — the visible jumping. Wait for them
   // all, then present once. isPrototypeHomeContentReady only ever read notesListPhase;
   // the other flags passed to it were silently dropped.
-  const presentationReady = isPrototypeHomePresentationReady({
+  // Annotated, not inferred. The gate's whole contract is that every flag it declares is
+  // actually passed: hoisting the literal into a variable would otherwise drop the
+  // excess-property check that catches a flag added here and never declared there — the
+  // exact mistake that let five queries sit outside the gate for months.
+  const presentationInput: PrototypeHomePresentationReadyInput = {
     notesReady: isPrototypeHomeContentReady(notesListPhase),
     clerkLoaded,
     fingerprintsSettled,
@@ -382,7 +388,8 @@ export function useHomeSurfaceData({
     churchFeedSettled,
     readingPositionSettled,
     studyBibleSettled,
-  });
+  };
+  const presentationReady = isPrototypeHomePresentationReady(presentationInput);
 
   // Backstop: a disabled query stays `isPending` forever in React Query v5, so without a
   // deadline one misconfigured auxiliary would strand Home on loading dots. Trading a
@@ -399,7 +406,10 @@ export function useHomeSurfaceData({
 
   const contentReady = presentationReady || presentationDeadlinePassed;
 
+  useHomeSettleTrace(presentationInput, contentReady, presentationReady);
+
   const homeViewClassName = useProtoHomeViewClassName(contentReady, homeSpaceId);
+  const { showLoader, loaderLeaving } = useProtoSpaceLoaderState(contentReady);
 
   const tags = tagsQuery.data?.tags ?? [];
   const threads = threadsQuery.data ?? [];
@@ -1615,6 +1625,8 @@ export function useHomeSurfaceData({
     /* Gate — the view decides what to paint while this is false. */
     contentReady,
     homeViewClassName,
+    showLoader,
+    loaderLeaving,
 
     /* Greeting. */
     lead,

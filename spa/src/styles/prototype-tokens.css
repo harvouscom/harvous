@@ -491,6 +491,24 @@
      than a cut, and it is a collapse of a full pane so it does not go under ~200ms. Paired
      with PROTO_PAPER_STACK_EXIT_MS. */
   --pds-duration-paper-stack-exit: 200ms;
+  /*
+   * A space dashboard presenting itself — Home, a shared space, the church hub.
+   *
+   * Two durations, because two things arrive: the section is a block of the page settling
+   * into place, and the rows inside it are the contents of that block. The section is the
+   * longer of the pair on purpose — it is a larger object making a smaller move, and a row
+   * that outlasted its own container would still be arriving after the frame it arrives in
+   * had stopped.
+   *
+   * The step is what makes the panel read as filling rather than appearing. It is small
+   * deliberately: at 28ms a six-row panel finishes 140ms after it starts, which is inside
+   * the section's own animation, so the whole dashboard is still one arrival. Anything near
+   * 60ms and the last row is visibly a straggler — the failure the section stagger was
+   * removed for. Paired with PROTO_HOME_ENTER_WINDOW_MS, which has to outlast all three.
+   */
+  --pds-duration-home-section: 420ms;
+  --pds-duration-home-row: 320ms;
+  --pds-duration-home-row-step: 28ms;
   /* How much of the base paper stays visible above a stacked sheet — the edge you
      tap to go back. Enough for a line of caption with breathing room; tightened on
      phones where the toolbar already owns the top of the pane. */
