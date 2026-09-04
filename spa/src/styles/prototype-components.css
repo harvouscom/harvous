@@ -9901,9 +9901,7 @@ button.proto-appearance-hero__card {
  * filled, and a looping animation there would reset `fill-opacity` to 0 on every pass and
  * blink the numeral out. This one only ever touches the stroke.
  *
- * Most of the eleven seconds is rest: the lap still takes about the 1.4s the draw did, then
- * nothing for nine and a half. Rarity is doing as much of the work as opacity here — a softer
- * gleam that came round every few seconds would still read as something demanding attention.
+ * Six seconds, of which the lap is the first 1.8 and the rest is rest.
  */
 .proto-welcome3__numeral-trace {
   fill: none;
@@ -9923,25 +9921,64 @@ button.proto-appearance-hero__card {
   stroke-dashoffset: 1;
   stroke-opacity: 0;
   /* Begins once the fill has landed and had a beat to settle. */
-  animation: proto-welcome3-trace 11000ms cubic-bezier(0.65, 0, 0.35, 1) 2600ms infinite;
+  /* `linear` on purpose: the speed changes are authored into the keyframe spacing below, and
+     an easing on top would smear them back out. */
+  animation: proto-welcome3-trace 6000ms linear 2600ms infinite;
 }
 
 /*
- * One lap, then rest. Fading at both ends means the arc is never seen appearing or vanishing
- * mid-edge — it has gone by the time it returns to where it started.
+ * One lap, then rest — and the lap is not taken at an even pace.
+ *
+ * The offsets below are positions on the glyph, not round numbers. A lit arc sits at path
+ * fraction `1 - stroke-dashoffset`, so 0.7 is three tenths of the way round. Those fractions
+ * were measured off the real path with `getPointAtLength`, sampling turn angle between
+ * chords: the sharp turns land at ~0.13 (lower-left), ~0.31-0.42 (the pinch where the bowls
+ * meet), ~0.51 (upper-left) and ~0.81 (the right waist, an 83-degree turn and the sharpest
+ * on the glyph). The long quiet runs are the left flank and the top bar.
+ *
+ * So it hurries through the corners and takes its time down the flanks. An even pace read as
+ * a machine going round a track; this reads as light moving over a shape.
+ *
+ * Fading at both ends means the arc is never seen appearing or vanishing mid-edge — it has
+ * gone by the time it returns to where it started.
  */
 @keyframes proto-welcome3-trace {
   0% {
     stroke-dashoffset: 1;
     stroke-opacity: 0;
   }
-  2.5% {
+  2% {
     stroke-opacity: 0.5;
   }
-  10% {
+  /* Along the bottom and up through the lower-left corner. */
+  3.8% {
+    stroke-dashoffset: 0.83;
+  }
+  /* The left flank — the longest quiet run, so it lingers here. */
+  10.7% {
+    stroke-dashoffset: 0.7;
+  }
+  /* The pinch where the two bowls meet: whips through. */
+  12.6% {
+    stroke-dashoffset: 0.57;
+  }
+  /* Up and round the upper-left corner. */
+  15.3% {
+    stroke-dashoffset: 0.45;
+  }
+  /* Across the top bar — lingers again. */
+  23.2% {
+    stroke-dashoffset: 0.3;
+  }
+  /* The right waist, the sharpest turn on the glyph: fastest stretch of the lap. */
+  25.5% {
+    stroke-dashoffset: 0.14;
+  }
+  26% {
     stroke-opacity: 0.5;
   }
-  13% {
+  /* Round the bottom-right bowl and out. */
+  30% {
     stroke-dashoffset: 0;
     stroke-opacity: 0;
   }
