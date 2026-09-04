@@ -9890,101 +9890,35 @@ button.proto-appearance-hero__card {
 }
 
 /*
- * The draw comes back every so often, as light instead of ink.
+ * The light on the numeral keeps moving, very slowly.
  *
- * A short lit arc travelling the edge, not the whole outline staying lit — a full re-trace was
- * the first attempt and it turned half the numeral pale on the way round, which read as a
- * loading state. Same path, direction and easing as the original draw, so it is recognisably
- * that gesture returning rather than a new one.
+ * A second copy of the glyph, lit along a different axis, fading in and back out over
+ * fourteen seconds. Blending two smooth gradients gives another smooth gradient, so what the
+ * eye reads is not a second object but the light on the first one swinging.
  *
- * It has to be a second element. The first one's job ends with `both` holding the glyph
- * filled, and a looping animation there would reset `fill-opacity` to 0 on every pass and
- * blink the numeral out. This one only ever touches the stroke.
+ * This replaced an arc that travelled the outline. That was subtle by every measurement —
+ * faint, brief, rare — and still wrong, because it was a discrete thing with edges and the
+ * eye tracks those no matter how quiet they are. Here nothing arrives or leaves and there is
+ * nothing to follow, which is why it can run continuously with no rest gap at all.
  *
- * Six seconds, of which the lap is the first 1.8 and the rest is rest.
+ * Done this way because SVG gradient geometry is attributes, not CSS: `gradientTransform`,
+ * `x1`/`y1`/`x2`/`y2` and a stop's `offset` cannot be animated by a stylesheet. Cross-fading
+ * two copies gets the same result out of `fill-opacity`, which can.
  */
-.proto-welcome3__numeral-trace {
-  fill: none;
-  /* Tinted rather than pure white: white on this blue is a hard highlight, and the point is
-     for the light to belong to the glyph rather than sit on top of it. */
-  stroke: #cfeaff;
-  /*
-   * Half of this is clipped away, so ~32 units show. The glyph renders about 120px wide from a
-   * 1054-unit viewBox — roughly 8.8 units per pixel — so anything under ~40 lands below a
-   * single rendered pixel. 16 was the first guess and could not be seen at all.
-   */
-  stroke-width: 52;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  /* A tenth of the lap lit, the rest dark. */
-  stroke-dasharray: 0.1 0.9;
-  stroke-dashoffset: 1;
-  stroke-opacity: 0;
-  /* Begins once the fill has landed and had a beat to settle. */
-  /* `linear` on purpose: the speed changes are authored into the keyframe spacing below, and
-     an easing on top would smear them back out. */
-  animation: proto-welcome3-trace 6000ms linear 2600ms infinite;
+.proto-welcome3__numeral-drift {
+  fill: url(#proto-welcome3-grad-drift);
+  fill-opacity: 0;
+  /* Begins once the opening draw and fill have finished and had a beat to settle. */
+  animation: proto-welcome3-drift 14000ms ease-in-out 2400ms infinite;
 }
 
-/*
- * One lap, then rest — and the lap is not taken at an even pace.
- *
- * The offsets below are positions on the glyph, not round numbers. A lit arc sits at path
- * fraction `1 - stroke-dashoffset`, so 0.7 is three tenths of the way round. Those fractions
- * were measured off the real path with `getPointAtLength`, sampling turn angle between
- * chords: the sharp turns land at ~0.13 (lower-left), ~0.31-0.42 (the pinch where the bowls
- * meet), ~0.51 (upper-left) and ~0.81 (the right waist, an 83-degree turn and the sharpest
- * on the glyph). The long quiet runs are the left flank and the top bar.
- *
- * So it hurries through the corners and takes its time down the flanks. An even pace read as
- * a machine going round a track; this reads as light moving over a shape.
- *
- * Fading at both ends means the arc is never seen appearing or vanishing mid-edge — it has
- * gone by the time it returns to where it started.
- */
-@keyframes proto-welcome3-trace {
-  0% {
-    stroke-dashoffset: 1;
-    stroke-opacity: 0;
-  }
-  2% {
-    stroke-opacity: 0.5;
-  }
-  /* Along the bottom and up through the lower-left corner. */
-  3.8% {
-    stroke-dashoffset: 0.83;
-  }
-  /* The left flank — the longest quiet run, so it lingers here. */
-  10.7% {
-    stroke-dashoffset: 0.7;
-  }
-  /* The pinch where the two bowls meet: whips through. */
-  12.6% {
-    stroke-dashoffset: 0.57;
-  }
-  /* Up and round the upper-left corner. */
-  15.3% {
-    stroke-dashoffset: 0.45;
-  }
-  /* Across the top bar — lingers again. */
-  23.2% {
-    stroke-dashoffset: 0.3;
-  }
-  /* The right waist, the sharpest turn on the glyph: fastest stretch of the lap. */
-  25.5% {
-    stroke-dashoffset: 0.14;
-  }
-  26% {
-    stroke-opacity: 0.5;
-  }
-  /* Round the bottom-right bowl and out. */
-  30% {
-    stroke-dashoffset: 0;
-    stroke-opacity: 0;
-  }
+@keyframes proto-welcome3-drift {
+  0%,
   100% {
-    stroke-dashoffset: 0;
-    stroke-opacity: 0;
+    fill-opacity: 0;
+  }
+  50% {
+    fill-opacity: 1;
   }
 }
 
@@ -10138,10 +10072,10 @@ button.proto-appearance-hero__card {
     stroke-opacity: 0;
   }
 
-  /* A repeating gleam is precisely what this setting is asking not to see. */
-  .proto-welcome3__numeral-trace {
+  /* Settles on the first lighting and stays there. */
+  .proto-welcome3__numeral-drift {
     animation: none;
-    stroke-opacity: 0;
+    fill-opacity: 0;
   }
 
   .proto-welcome3__lead,
