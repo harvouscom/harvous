@@ -42,6 +42,8 @@ vi.mock('../../../hooks/queries/useReview', () => ({
 }));
 vi.mock('../../../hooks/queries/useChallenges', () => ({
   useChallenges: () => challenges,
+  // The section reads the shared Home list — active *and* paused — and filters it itself.
+  useHomeChallenges: () => challenges,
 }));
 vi.mock('../../../hooks/mutations/useReviewMutations', () => ({
   useDeferReview: () => ({ mutate: vi.fn(), isPending: false }),
@@ -243,6 +245,17 @@ describe('what it shows a subscriber', () => {
     render(<PrototypeReviewSection />);
     expect(screen.getByText(/Step 2 of 5/)).toBeInTheDocument();
     expect(screen.queryByText(/remaining|left|overdue/i)).not.toBeInTheDocument();
+  });
+
+  it('leaves a paused challenge where the reader put it', () => {
+    /*
+     * The list this reads is shared with the Strengthen row, which needs paused ones to know
+     * what not to offer again — so paused rows arrive here too and are filtered out. Showing
+     * one would hand back, as a thing in progress, the exact path the reader set down.
+     */
+    challenges.data = { challenges: [{ ...challenge('c1'), status: 'paused' }] };
+    render(<PrototypeReviewSection />);
+    expect(screen.queryByText('Strengthen Covenant')).not.toBeInTheDocument();
   });
 
   it('never renders a count of what it is not showing', () => {

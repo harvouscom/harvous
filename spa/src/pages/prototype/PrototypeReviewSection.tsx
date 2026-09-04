@@ -43,7 +43,7 @@ import {
 } from '../../hooks/queries/useReview';
 import { REVIEW_MAX_ATTEMPTS } from '@/utils/review-item-kinds';
 import PrototypeReviewSample from './PrototypeReviewSample';
-import { useChallenges } from '../../hooks/queries/useChallenges';
+import { useHomeChallenges } from '../../hooks/queries/useChallenges';
 import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -125,7 +125,14 @@ export default function PrototypeReviewSection() {
   const allQuery = useReviewItems(undefined, {
     enabled: expanded || setAsideOpen || nothingActive,
   });
-  const challengesQuery = useChallenges('active');
+  /*
+   * Open challenges, off the list the Strengthen row below also reads.
+   *
+   * Same trade as `activeQuery` above, one surface further out: that row needs paused ones too —
+   * a Thread the reader put down is not an offer to make again — so one request covers both
+   * statuses and each place filters it. Asked separately it was two round trips for one list.
+   */
+  const challengesQuery = useHomeChallenges();
   // The sample: fetched only for an account that lacks the feature (the hook gates on that).
   const hasAnyFeature = review.has || challengesFeature.has;
   /*
@@ -228,7 +235,9 @@ export default function PrototypeReviewSection() {
   // While the expanded list is still in flight, keep showing the three we already have rather
   // than collapsing to nothing and back.
   const items = expanded ? (dueActive ?? inboxItems) : inboxItems;
-  const activeChallenges = challengesQuery.data?.challenges ?? [];
+  const activeChallenges = (challengesQuery.data?.challenges ?? []).filter(
+    (c) => c.status === 'active',
+  );
 
   /*
    * Reviews first, then one challenge, and the cap applies to the whole stack.

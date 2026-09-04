@@ -70,40 +70,65 @@ dependencies** consumed by **52 files**, so any one of the 75 re-renders all 52.
 
 ## Request count on an Activity load
 
-A different axis from the payload above, and unmeasured until now: **an Activity load fires 42
-API requests.** Bytes are not the problem — most of these are small — but each is a round trip,
-and on a cold connection they queue.
+A different axis from the payload above: **an Activity load fires 31 API requests**, down from 42
+when this was first counted. Bytes are not the problem — most of these are small — but each is a
+round trip, and on a cold connection they queue.
 
 **Measured 2026-09-04**, signed in, warm cache, one reader with 30 notes and 11 review items.
 Reproduce by loading `/` and reading the browser's network log filtered to `/api/`. Note that
 `performance.getEntriesByType('resource')` returns **nothing** for these — something in the fetch
 path keeps them out of resource timing — so the network panel is the only way to count them.
 
-Three findings, in order of size. None is attacked, and each lives in a hook every surface
-depends on, which is why none was done in the session that found them.
-
-1. **The same notes page is fetched three times.** Three identical
-   `GET /api/spaces/<id>/notes?offset=0&limit=20&excludeLegacyScripture=1&sortBy=updated`
-   requests per load. The query key is identical, so React Query is not the cause — the suspect is
-   the cold-start effect at the bottom of `useSpaceNotes` (`spa/src/hooks/queries/useSpace.ts`),
-   which calls `query.refetch()` when `authReady` flips and runs **once per hook instance**. Three
-   consumers, three refetches. That effect exists to repair a real 401 race documented in
-   `useAuthReady` — deleting it reintroduces a cold-start bug that only shows up for other people,
-   so it needs a shared-latch or query-level fix rather than removal. Biggest single win, and the
-   heaviest payload of the three.
-
-2. **Six separate `POST /api/recall/event` impression writes**, one per visible suggestion card.
-   Batching them into one call removes five requests from every load. They are fire-and-forget, so
-   the risk is low; the work is a queue with a flush rather than a per-card post.
-
-3. **Duplicated reads.** `GET /api/user/get-profile` twice, and challenges as two calls
-   (`?status=active` and `?status=paused`). Smallest of the three, and probably the easiest.
-
-Roughly 42 → 33 requests if all three are done.
+The four duplicated reads found in that first count are in "Fixed" below. What is left is 31
+distinct endpoints, which is a different kind of problem: not one surface asking twice, but Home
+composing itself out of many small reads. Attacking that means merging endpoints or deferring
+sections, not deduplicating — so it is a design question rather than a bug, and nothing here is
+outstanding.
 
 ---
 
 ## Fixed
+
+### An Activity load asked for four things twice — 2026-09-04
+
+40 requests became 31, on the load measured immediately before and after. The 42 in the section
+above was counted before the review-folds fix below, and a load or two of ordinary variance sits
+between the two numbers.
+
+Four separate duplications, one fix each, and the shape they had in common is that no single file
+looked wrong: every one of them was two correct callers of the same data with nothing between
+them saying so.
+
+**The same notes page, three times.** Three identical
+`GET /api/spaces/<id>/notes?offset=0&limit=20&…` requests per load, from Home's list, the mention
+picker's source, and the Library panel. The cause was the cold-start effect at the bottom of
+`useSpaceNotes`, which re-fetches when `authReady` flips and ran **once per hook instance**. It
+had to stay — it repairs the 401 race `useAuthReady` documents, and deleting it breaks a cold
+start for other people rather than for whoever is testing on a warm cache — so it now shares a
+module-scoped latch, keyed by query key and released when auth is *lost*. The refetch also passes
+`cancelRefetch: false`, so it joins the fetch `enabled` already started rather than cancelling it;
+cancelling never closed the connection anyway, since the query function wires up no abort signal.
+
+Worth knowing if this is ever tested again: three consumers flipping in one React commit are
+deduplicated by React Query and the bug does not appear. It appears because each `useAuthReady`
+instance awaits its own `getToken()`, so the flips land in three separate commits. The test in
+`space-notes-auth-repair.test.tsx` staggers them for exactly that reason.
+
+**Six impression writes.** One `POST /api/recall/event` per visible suggestion card. They batch
+into a single `POST /api/recall/events` behind a queue flushed on the next macrotask, which is
+enough because the six calls arrive synchronously in one effect. Impressions only: an `open` is
+followed immediately by navigation away, and a `snooze` or `dismissed` is what suppresses a card
+on the reader's other devices, so neither can wait for a flush.
+
+**`GET /api/user/get-profile`, twice.** The prototype shell fetched its own copy to hydrate
+appearance and onboarding while `useProfile` fetched the same payload for everything else. The
+shell now goes through the query cache on the shared key, so whichever arrives first, the other
+joins it.
+
+**Challenges, as two calls.** `?status=active` for the Review section and `?status=paused`
+alongside it for the Strengthen row. `status` takes a comma-separated list now, and both surfaces
+read one `useHomeChallenges()` list and filter it — all-or-nothing on validation, so an unknown
+name still rejects the parameter rather than being quietly dropped.
 
 ### Review's folds asked for a list Home already had — 2026-09-04
 

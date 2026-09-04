@@ -33,9 +33,34 @@ export interface ChallengeContext {
 }
 
 export const challengesQueryKey = ['challenges'] as const;
-export const challengeListQueryKey = (status?: ChallengeStatus) =>
-  ['challenges', 'list', status ?? 'all'] as const;
+export const challengeListQueryKey = (status?: ChallengeStatus | readonly ChallengeStatus[]) =>
+  ['challenges', 'list', challengeStatusParam(status) ?? 'all'] as const;
 export const challengeQueryKey = (id: string) => ['challenges', 'one', id] as const;
+
+/**
+ * One status or several, as the server reads them: comma-separated, in the order given.
+ *
+ * The order is the caller's and is not sorted, so `['paused', 'active']` and
+ * `['active', 'paused']` are two keys for one list. Passing the constant below rather than
+ * an inline array is what keeps that from happening.
+ */
+function challengeStatusParam(
+  status?: ChallengeStatus | readonly ChallengeStatus[],
+): string | undefined {
+  if (!status) return undefined;
+  const list = typeof status === 'string' ? [status] : status;
+  return list.length > 0 ? list.join(',') : undefined;
+}
+
+/**
+ * What Home needs, in one request.
+ *
+ * Two rows on Activity ask about challenges — the Review section wants what is open, and the
+ * Strengthen row wants open *and* paused, since a Thread the reader put down is not an offer to
+ * make again. Asked separately that was two round trips for two overlapping lists, so they share
+ * this one and each filters it. Paused lists are short; the filtering is free next to the fetch.
+ */
+export const HOME_CHALLENGE_STATUSES: readonly ChallengeStatus[] = ['active', 'paused'];
 
 /*
  * Called unconditionally, then combined — never `authReady && useAccess()`.
@@ -61,19 +86,25 @@ export function useChallengesEnabled(): boolean {
   return authReady && access;
 }
 
-export function useChallenges(status?: ChallengeStatus) {
+export function useChallenges(status?: ChallengeStatus | readonly ChallengeStatus[]) {
   const authReady = useAuthReady();
   const access = useChallengeAccess();
   const enabled = authReady && access;
+  const statusParam = challengeStatusParam(status);
   return useQuery({
     queryKey: challengeListQueryKey(status),
     enabled,
     queryFn: () =>
       api.get<{ challenges: ChallengeView[] }>(
-        status ? `/api/challenges?status=${encodeURIComponent(status)}` : '/api/challenges',
+        statusParam ? `/api/challenges?status=${encodeURIComponent(statusParam)}` : '/api/challenges',
       ),
     staleTime: 60_000,
   });
+}
+
+/** The shared Home list. See {@link HOME_CHALLENGE_STATUSES}. */
+export function useHomeChallenges() {
+  return useChallenges(HOME_CHALLENGE_STATUSES);
 }
 
 export function useChallenge(id: string | null) {

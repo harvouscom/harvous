@@ -114,11 +114,14 @@ function displayTitle(title: string | null | undefined): string {
 
 export async function listChallenges(
   userId: string,
-  status?: ChallengeStatus,
+  status?: ChallengeStatus | ChallengeStatus[],
 ): Promise<ChallengeRow[]> {
-  const where = status
-    ? and(eq(Challenges.userId, userId), eq(Challenges.status, status))
-    : eq(Challenges.userId, userId);
+  // One status or several — Home asks for `active` and `paused` together rather than twice.
+  const statuses = status ? (Array.isArray(status) ? status : [status]) : [];
+  const where =
+    statuses.length > 0
+      ? and(eq(Challenges.userId, userId), inArray(Challenges.status, statuses))
+      : eq(Challenges.userId, userId);
   return (await db
     .select()
     .from(Challenges)

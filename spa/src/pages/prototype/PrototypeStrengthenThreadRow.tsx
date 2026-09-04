@@ -3,8 +3,8 @@
  *
  * Derived entirely on the client from Threads the reader already has, because there is nothing
  * to ask the server that it does not already answer: `usePrototypeStudyThreads` returns the
- * clusters, `useChallenges('active')` returns what is already open, and the offer is the
- * difference. An endpoint for that would be a join the client can do for free.
+ * clusters, `useHomeChallenges()` returns what is already open or paused, and the offer is
+ * the difference. An endpoint for that would be a join the client can do for free.
  *
  * Deliberately one row, for one Thread. Every qualifying Thread listed here would turn a
  * suggestion into a backlog, which is the shape this whole feature is trying not to be.
@@ -17,7 +17,7 @@ import { useNavigate } from '@tanstack/react-router';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import { useChallenges } from '../../hooks/queries/useChallenges';
+import { useHomeChallenges } from '../../hooks/queries/useChallenges';
 import {
   challengeConflictId,
   useCreateChallenge,
@@ -41,15 +41,15 @@ export default function PrototypeStrengthenThreadRow() {
   const { has, ready } = useHasFeature('challenges');
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const threadsQuery = usePrototypeStudyThreads(homeSpaceId ?? undefined);
-  const activeQuery = useChallenges('active');
-  const pausedQuery = useChallenges('paused');
+  // Open and paused in one request, shared with the Review section above — see the hook.
+  const challengesQuery = useHomeChallenges();
   const createChallenge = useCreateChallenge();
 
   const candidate = useMemo(() => {
     const threads = threadsQuery.data ?? [];
     // A Thread with a path already open — or one the reader paused — is not an offer.
     const taken = new Set(
-      [...(activeQuery.data?.challenges ?? []), ...(pausedQuery.data?.challenges ?? [])]
+      (challengesQuery.data?.challenges ?? [])
         .map((c) => c.sourceNoteId)
         .filter((id): id is string => Boolean(id)),
     );
@@ -58,7 +58,7 @@ export default function PrototypeStrengthenThreadRow() {
         .filter((t) => t.noteCount >= STRENGTHEN_MIN_NOTES && !taken.has(t.id))
         .sort((a, b) => b.noteCount - a.noteCount)[0] ?? null
     );
-  }, [threadsQuery.data, activeQuery.data, pausedQuery.data]);
+  }, [threadsQuery.data, challengesQuery.data]);
 
   // No offer to a guest, to a free account, or before the answer is known — an upsell for
   // Challenges already has its one row in the Review section above, and two would be two.
