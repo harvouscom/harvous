@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   reviewCountsByDay,
-  reviewDayChipLabels,
-  reviewWeekCaption,
+  reviewDayRevisitedCopy,
+  reviewDaySubjects,
   reviewWeekCounts,
 } from '@/utils/review-activity-summary';
 
@@ -46,40 +46,55 @@ describe('reviewWeekCounts', () => {
   });
 });
 
-describe('reviewDayChipLabels', () => {
-  it('says nothing on a day with no answers', () => {
-    expect(reviewDayChipLabels({ answered: 0, held: 0 })).toEqual([]);
-    expect(reviewDayChipLabels(null)).toEqual([]);
+describe('what the day says you came back to', () => {
+  const answer = (label: string | null, day = 3) => ({ at: at(day), held: true, label });
+
+  it('names the subject answered most that day', () => {
+    const subjects = reviewDaySubjects([
+      answer('Romans 1:7'),
+      answer('John 15:5'),
+      answer('John 15:5'),
+    ]);
+    expect(subjects.named[0]).toBe('John 15:5');
   });
 
-  it('says only the count when nothing was held', () => {
-    // No "0 held" chip: the absence is honest, and naming it would be a scolding.
-    expect(reviewDayChipLabels({ answered: 3, held: 0 })).toEqual(['3 reviews']);
-    expect(reviewDayChipLabels({ answered: 1, held: 0 })).toEqual(['1 review']);
+  it('names two and then says what the rest are', () => {
+    /*
+     * "and four others" was the first attempt and says nothing — a reader cannot tell whether
+     * they spent the day in the Psalms or in their own notes.
+     */
+    const copy = reviewDayRevisitedCopy(
+      reviewDaySubjects([
+        answer('John 15:5'),
+        answer('Romans 1:7'),
+        answer('Psalm 23:1'),
+        answer('Genesis 1:1'),
+      ]),
+    );
+    expect(copy?.named).toEqual(['John 15:5', 'Romans 1:7']);
+    expect(copy?.tail).toBe(', and 2 more passages');
   });
 
-  it('splits into two chips when some were held', () => {
-    expect(reviewDayChipLabels({ answered: 3, held: 2 })).toEqual(['3 reviews', '2 held']);
+  it('knows a note from a passage', () => {
+    const notes = reviewDayRevisitedCopy(
+      reviewDaySubjects([answer('John 15:5'), answer('Romans 1:7'), answer('My journey'), answer('The first book')]),
+    );
+    expect(notes?.tail).toBe(', and 2 more notes');
+    const mixed = reviewDayRevisitedCopy(
+      reviewDaySubjects([answer('John 15:5'), answer('Romans 1:7'), answer('My journey'), answer('Psalm 23:1')]),
+    );
+    expect(mixed?.tail).toBe(', and 2 more things');
   });
 
-  it('folds into one line when every one was held', () => {
-    expect(reviewDayChipLabels({ answered: 3, held: 3 })).toEqual(['3 reviews, all held']);
-    expect(reviewDayChipLabels({ answered: 1, held: 1 })).toEqual(['1 review, all held']);
+  it('says one more in the singular', () => {
+    const copy = reviewDayRevisitedCopy(
+      reviewDaySubjects([answer('John 15:5'), answer('Romans 1:7'), answer('Psalm 23:1')]),
+    );
+    expect(copy?.tail).toBe(', and one more passage');
   });
 
-  it('never claims more holds than answers', () => {
-    expect(reviewDayChipLabels({ answered: 2, held: 5 })).toEqual(['2 reviews, all held']);
-  });
-});
-
-describe('reviewWeekCaption', () => {
-  it('names both figures, and drops the holds when there are none', () => {
-    expect(reviewWeekCaption({ answered: 11, held: 8 })).toBe('This week: 11 reviews, 8 held.');
-    expect(reviewWeekCaption({ answered: 4, held: 0 })).toBe('This week: 4 reviews.');
-    expect(reviewWeekCaption({ answered: 1, held: 1 })).toBe('This week: 1 review, 1 held.');
-  });
-
-  it('says nothing at all about a week with nothing in it', () => {
-    expect(reviewWeekCaption({ answered: 0, held: 0 })).toBeNull();
+  it('says nothing at all when nothing carried a name', () => {
+    expect(reviewDayRevisitedCopy(reviewDaySubjects([answer(null), answer(null)]))).toBeNull();
+    expect(reviewDayRevisitedCopy(reviewDaySubjects([]))).toBeNull();
   });
 });

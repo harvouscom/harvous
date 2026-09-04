@@ -160,6 +160,11 @@ export interface StudyFeedResponse {
 export interface StudyFeedReviewAnswer {
   at: string;
   held: boolean;
+  /**
+   * What was asked about — a scripture reference or a note's title, the same names the feed
+   * prints on its reading and writing rows. Never an id, and never what the reader typed.
+   */
+  label?: string | null;
 }
 
 /** Pages do not overlap — each is cut by the `before` cursor — so this is a concat. */

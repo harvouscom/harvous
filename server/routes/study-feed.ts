@@ -24,18 +24,19 @@ import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import {
-  db,
-  Notes,
   NoteVersions,
   NoteVisitEvents,
+  Notes,
   ReadingEvents,
   ReviewEvents,
+  ReviewItems,
   SpaceMemberships,
   SpaceNotes,
   Spaces,
   StudyThreadEntries,
   SyncDeletedEntities,
   and,
+  db,
   desc,
   eq,
   gte,
@@ -490,8 +491,18 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
     const reviewAnswers = await source(
       () =>
         db
-          .select({ at: ReviewEvents.createdAt, action: ReviewEvents.action })
+          .select({
+            at: ReviewEvents.createdAt,
+            action: ReviewEvents.action,
+            // What was asked about, by the name the feed already prints on its other rows.
+            // Ids and the reader's typed attempt stay out; a label is what lets the day say
+            // "you came back to John 15:5" instead of counting at them.
+            reference: ReviewItems.scriptureReference,
+            noteTitle: Notes.title,
+          })
           .from(ReviewEvents)
+          .leftJoin(ReviewItems, eq(ReviewItems.id, ReviewEvents.reviewItemId))
+          .leftJoin(Notes, eq(Notes.id, ReviewItems.noteId))
           .where(
             and(
               eq(ReviewEvents.userId, auth.userId),
@@ -511,6 +522,7 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
       reviewAnswers: reviewAnswers.map((row) => ({
         at: row.at.toISOString(),
         held: row.action === 'recalled',
+        label: row.reference?.trim() || row.noteTitle?.trim() || null,
       })),
     };
     return c.json(body);

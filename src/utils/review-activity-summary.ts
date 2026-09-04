@@ -16,11 +16,15 @@
  * reader's zone, so it sends timestamps and the client decides which day they fall on.
  */
 
+import { parseScriptureReference } from '@/utils/scripture-detector';
+
 export interface ReviewAnswerRecord {
   /** ISO timestamp of the answer. */
   at: string;
   /** Recalled cleanly. "Almost" and "read again" are answers too, but they are not holds. */
   held: boolean;
+  /** What was asked about, by name. A reference or a note's title; never an id. */
+  label?: string | null;
 }
 
 export interface ReviewDayCounts {
@@ -35,6 +39,22 @@ function localDayKey(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/** The answers themselves per local day, for anything that needs more than a count. */
+export function reviewAnswersByDay(
+  answers: readonly ReviewAnswerRecord[],
+): Map<string, ReviewAnswerRecord[]> {
+  const byDay = new Map<string, ReviewAnswerRecord[]>();
+  for (const answer of answers) {
+    const at = new Date(answer.at);
+    if (Number.isNaN(at.getTime())) continue;
+    const key = localDayKey(at);
+    const list = byDay.get(key);
+    if (list) list.push(answer);
+    else byDay.set(key, [answer]);
+  }
+  return byDay;
 }
 
 /** Answers per local calendar day, keyed the way `buildStudyFeedDays` keys its days. */
@@ -60,6 +80,18 @@ export function reviewCountsByDay(
  * Seven days, not "this week": a week that resets on Monday makes Sunday evening a deadline,
  * and a rolling window says the same thing without inventing one.
  */
+export function reviewWeekAnswers(
+  answers: readonly ReviewAnswerRecord[],
+  now: Date = new Date(),
+): ReviewAnswerRecord[] {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  start.setDate(start.getDate() - (REVIEW_WEEK_DAYS - 1));
+  return answers.filter((answer) => {
+    const at = new Date(answer.at);
+    return !Number.isNaN(at.getTime()) && at >= start;
+  });
+}
+
 export function reviewWeekCounts(
   answers: readonly ReviewAnswerRecord[],
   now: Date = new Date(),
@@ -81,27 +113,96 @@ function plural(n: number, one: string, many: string): string {
 }
 
 /**
- * The chip or chips for a day, in the order they are read.
+ * What the day's sentence says about coming back to things.
  *
- * A day where everything was held says so in one chip — the single flourish in here, and it
- * is earned rather than awarded. A day where nothing was held says only how many were
- * answered: the absence is honest, and a "0 held" chip would be a scolding.
+ * It used to be two chips: "25 reviews" and "10 held". Both were wrong for the warmest line in
+ * the app. A count says nothing about the study it is counting, and "held" was a word borrowed
+ * from the recall state that means nothing to anyone reading it — the owner's question was
+ * literally "what the heck does that mean". Whether an answer landed is what the verdict
+ * colours and the dots now say, in the place where it matters.
+ *
+ * So the day names what you came back to instead, and the named thing is a chip like the
+ * folder and the Thread beside it. The subject is the one answered most that day, ties broken
+ * by the most recent — a day spent on one passage should name that passage.
  */
-export function reviewDayChipLabels(counts: ReviewDayCounts | null | undefined): string[] {
-  const answered = Math.max(0, counts?.answered ?? 0);
-  if (answered === 0) return [];
-  const held = Math.min(answered, Math.max(0, counts?.held ?? 0));
-  const reviews = plural(answered, 'review', 'reviews');
-  if (held === answered) return [`${reviews}, all held`];
-  if (held > 0) return [reviews, `${held} held`];
-  return [reviews];
+export interface ReviewDaySubjects {
+  /** The subjects to name, most-answered first. At most two: a sentence, not a list. */
+  named: string[];
+  /** What is behind them, and what kind of thing they are. */
+  rest: number;
+  restKind: 'passages' | 'notes' | 'things';
+  answered: number;
 }
 
-/** "This week: 11 reviews, 8 held." — null on a week with nothing in it, which says itself. */
-export function reviewWeekCaption(counts: ReviewDayCounts): string | null {
-  if (counts.answered <= 0) return null;
-  const reviews = plural(counts.answered, 'review', 'reviews');
-  return counts.held > 0
-    ? `This week: ${reviews}, ${counts.held} held.`
-    : `This week: ${reviews}.`;
+/** A label that parses as a reference is a passage; anything else is one of their notes. */
+function subjectIsPassage(label: string): boolean {
+  return parseScriptureReference(label) !== null;
+}
+
+export function reviewDaySubjects(answers: readonly ReviewAnswerRecord[]): ReviewDaySubjects {
+  const counts = new Map<string, { n: number; last: number }>();
+  for (const answer of answers) {
+    const label = answer.label?.trim();
+    if (!label) continue;
+    const at = new Date(answer.at).getTime();
+    const seen = counts.get(label);
+    if (seen) {
+      seen.n += 1;
+      seen.last = Math.max(seen.last, Number.isNaN(at) ? 0 : at);
+    } else {
+      counts.set(label, { n: 1, last: Number.isNaN(at) ? 0 : at });
+    }
+  }
+  /*
+   * Most answered, then most recent. Nothing after that: a `Map` keeps insertion order, and a
+   * stable sort leaves genuine ties in the order they were answered — which is at least a fact
+   * about the day, where sorting them by name would be a fact about the alphabet.
+   */
+  const ranked = [...counts.entries()].sort((a, b) => b[1].n - a[1].n || b[1].last - a[1].last);
+  const named = ranked.slice(0, 2).map(([label]) => label);
+  const rest = ranked.slice(2).map(([label]) => label);
+  const passages = rest.filter(subjectIsPassage).length;
+  return {
+    named,
+    rest: rest.length,
+    restKind: rest.length === 0 ? 'things' : passages === rest.length ? 'passages' : passages === 0 ? 'notes' : 'things',
+    answered: answers.length,
+  };
+}
+
+/**
+ * "You came back to John 15:5 and Romans 1:7, and three more passages."
+ *
+ * Up to two named, because past that it is a list rather than a sentence — and what is left is
+ * described by what it *is*. "Four others" was the first attempt and says nothing: a reader
+ * cannot tell whether they spent the day in the Psalms or in their own notes.
+ */
+export function reviewDayRevisitedCopy(
+  subjects: ReviewDaySubjects | null | undefined,
+): { lead: string; named: string[]; tail: string } | null {
+  if (!subjects?.named.length) return null;
+  const rest =
+    subjects.rest === 0
+      ? ''
+      : subjects.rest === 1
+        ? `, and one more ${subjects.restKind === 'notes' ? 'note' : subjects.restKind === 'passages' ? 'passage' : 'thing'}`
+        : `, and ${subjects.rest} more ${subjects.restKind}`;
+  return { lead: 'You came back to', named: subjects.named, tail: `${rest}` };
+}
+
+/**
+ * The week, under the fold of an expanded Review section.
+ *
+ * Subject-led, like the day's line above it. "This week: 39 reviews, 14 held." was the same
+ * two mistakes twice — a tally of a spiritual practice, and a word ("held") that only means
+ * something if you have read the code. What is worth saying about a week is what it was spent
+ * on, and a week with nothing named says nothing at all: this sits under a fold, where silence
+ * costs nothing.
+ */
+export function reviewWeekCaption(answers: readonly ReviewAnswerRecord[]): string | null {
+  const subjects = reviewDaySubjects(answers);
+  if (!subjects.named) return null;
+  return subjects.others === 0
+    ? `This week you kept coming back to ${subjects.named}.`
+    : `This week you kept coming back to ${subjects.named}, among others.`;
 }

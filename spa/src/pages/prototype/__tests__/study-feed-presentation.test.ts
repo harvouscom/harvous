@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StudyFeedItem } from '@/utils/study-feed-items';
+import { reviewDaySubjects } from '@/utils/review-activity-summary';
 import {
   formatChapterRange,
   studyFeedItemIcon,
@@ -82,7 +83,7 @@ describe('formatChapterRange', () => {
   });
 });
 
-describe('the day sentence counts reviews', () => {
+describe('the day sentence says what you came back to', () => {
   const note = (n: number): StudyFeedItem => ({
     id: `note-${n}`,
     kind: 'note-created',
@@ -94,44 +95,25 @@ describe('the day sentence counts reviews', () => {
     snippet: '',
     scriptureRefs: [],
   });
-  const day = (reviews: { answered: number; held: number } | null, items: StudyFeedItem[] = [note(1)]) =>
-    summarizeStudyFeedDay(items, { isToday: true, partsCount: 1, reviews });
+  const subjects = (...labels: string[]) =>
+    reviewDaySubjects(labels.map((label) => ({ at: '2026-08-27T10:00:00.000Z', held: true, label })));
+  const day = (revisited: ReturnType<typeof subjects> | null, items: StudyFeedItem[] = [note(1)]) =>
+    summarizeStudyFeedDay(items, { isToday: true, partsCount: 1, revisited });
 
-  const labels = (reviews: { answered: number; held: number } | null, items?: StudyFeedItem[]) =>
-    day(reviews, items)?.stats.map((s) => s.label) ?? [];
-
-  it('adds the chip after what was written and read', () => {
-    expect(labels({ answered: 3, held: 0 })).toEqual(['1 note', '3 reviews']);
-  });
-
-  it('adds a second chip for what was held, and folds a perfect day into one', () => {
-    expect(labels({ answered: 3, held: 2 })).toEqual(['1 note', '3 reviews', '2 held']);
-    expect(labels({ answered: 3, held: 3 })).toEqual(['1 note', '3 reviews, all held']);
-  });
-
-  it('says nothing about reviews on a day with none, exactly as before', () => {
-    expect(labels(null)).toEqual(['1 note']);
-    expect(labels({ answered: 0, held: 0 })).toEqual(['1 note']);
-  });
-
-  it('keeps the cap of three, and outranks notes revisited', () => {
+  it('names it as a clause rather than counting it as a stat', () => {
     /*
-     * Answering a question about something is a stronger account of the day than opening it
-     * again, so "revisited" is the chip that gets pushed out — never the review count.
+     * It was two chips once — "25 reviews" and "10 held". A count says nothing about the study
+     * it counts, and "held" was a word from the recall state that meant nothing to a reader.
      */
-    const items = [note(1), note(2), revisit('A note'), revisit('Another')];
-    const out = labels({ answered: 2, held: 1 }, items);
-    expect(out).toHaveLength(3);
-    expect(out).toContain('2 reviews');
-    expect(out.some((l) => l.includes('revisited'))).toBe(false);
+    const summary = day(subjects('John 15:5', 'John 15:5', 'Romans 1:7'));
+    expect(summary?.stats.map((s) => s.label)).toEqual(['1 note']);
+    expect(summary?.revisited?.named).toEqual(['John 15:5', 'Romans 1:7']);
+    expect(JSON.stringify(summary)).not.toContain('held');
   });
 
-  it('speaks for a day whose only record is the reviews', () => {
-    // See "a day of reviews and nothing else" below: this is the shape the chip exists for.
-    expect(
-      summarizeStudyFeedDay([], { isToday: true, partsCount: 0, reviews: { answered: 4, held: 4 } })
-        ?.stats.map((s) => s.label),
-    ).toEqual(['4 reviews, all held']);
+  it('says nothing about it on a day with none', () => {
+    expect(day(null)?.revisited).toBeNull();
+    expect(day(subjects())?.revisited).toBeNull();
   });
 });
 
@@ -145,14 +127,19 @@ describe('a day of reviews and nothing else', () => {
     const summary = summarizeStudyFeedDay([], {
       isToday: true,
       partsCount: 0,
-      reviews: { answered: 3, held: 3 },
+      revisited: reviewDaySubjects([{ at: '2026-08-27T10:00:00.000Z', held: true, label: 'John 15:5' }]),
     });
-    expect(summary?.stats.map((s) => s.label)).toEqual(['3 reviews, all held']);
-    expect(summary?.lead).toBe('Today');
+    /*
+     * With nothing to count, the lead runs straight into the clause — "Today 1 note so far"
+     * collapses to "Today  so far." otherwise, which is what shipped for a moment.
+     */
+    expect(summary?.stats).toEqual([]);
+    expect(summary?.revisited?.named).toEqual(['John 15:5']);
+    expect(summary?.lead).toBe('Today you came back to');
   });
 
   it('stays silent on a day with neither', () => {
-    expect(summarizeStudyFeedDay([], { isToday: true, partsCount: 0, reviews: null })).toBeNull();
+    expect(summarizeStudyFeedDay([], { isToday: true, partsCount: 0, revisited: null })).toBeNull();
     expect(summarizeStudyFeedDay([], { isToday: true, partsCount: 0 })).toBeNull();
   });
 });
