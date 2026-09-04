@@ -21702,10 +21702,31 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /* The check and the verdict on one line, the icon centred on the text. */
+/*
+ * How it went, set apart from the answer above and the way on below.
+ *
+ * Hairlines rather than spacing alone: the card holds three different kinds of thing after an
+ * answer — what the verse says, how it went, what to do next — and without a rule between them
+ * they read as one paragraph of mixed weights.
+ */
 .proto-review-dock__verdict {
   display: flex;
   align-items: center;
   gap: var(--pds-space-2);
+  padding: var(--pds-space-2) 0;
+  border-top: 0.5px solid var(--pds-border-on-paper);
+  border-bottom: 0.5px solid var(--pds-border-on-paper);
+}
+
+.proto-review-dock__verdict-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  /*
+   * Bare, not in an orb, and the colour of the words beside it: an orb reads as a badge
+   * awarded for a spiritual practice, and a coloured glyph makes the line a verdict twice —
+   * the glyph already says which way it went; the words do not need it repeated in red.
+   */
+  color: var(--pds-text-secondary);
 }
 
 @keyframes proto-review-result-in {
@@ -21730,9 +21751,9 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
 }
 
+/* One weight across the line: the icon carries the verdict, so the words need not shout it. */
 .proto-review-dock__result-outcome {
-  color: var(--pds-text-primary);
-  font-weight: 600;
+  color: var(--pds-text-secondary);
 }
 
 /* Said once, on the answer that earns it. Accent rather than a badge — a badge would be a
@@ -21921,10 +21942,20 @@ button.proto-feed-sheet__stat:hover {
  * verdict has to out-shout the variant to be seen at all.
  */
 .proto-review-dock__choice[data-missed] {
-  background: var(--pds-destructive-bg);
-  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--pds-destructive) 45%, transparent);
-  color: var(--pds-destructive) !important;
+  /* Solid, like the right answer's blue: a tint with a ring read as "disabled", not "wrong". */
+  background: var(--pds-destructive);
+  box-shadow: none;
+  color: var(--pds-on-accent) !important;
   text-decoration: line-through;
+  text-decoration-color: var(--pds-on-accent);
+  opacity: 1;
+}
+
+/* The keycap on a spent chip reads on the red rather than fighting it. */
+.proto-review-dock__choice[data-missed] .proto-review-dock__choice-key {
+  background: color-mix(in oklab, #fff 22%, transparent);
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
 }
 
 .proto-review-dock__choice[data-correct] {
@@ -22087,10 +22118,11 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /* A marked chip keeps its verdict: the pointer must not repaint an answer already given. */
-.proto-review-dock__choice[data-correct] .proto-review-dock__choice-key,
-.proto-review-dock__choice[data-missed] .proto-review-dock__choice-key {
-  background: none;
+.proto-review-dock__choice[data-correct] .proto-review-dock__choice-key {
+  background: color-mix(in oklab, #fff 22%, transparent);
   box-shadow: none;
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
 }
 
 .proto-review-dock__choice:disabled .proto-review-dock__choice-key {

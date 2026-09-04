@@ -91,16 +91,19 @@ export const REVIEW_REVEAL_CONNECTION_COPY = 'Check my notes';
 export const REVIEW_REVEALED_ACK_COPY = 'Got it now';
 
 /**
- * The word the dock says back after an answer, before the next return.
+ * What the dock says back after an answer, before the next return.
  *
- * Past tense and one word each, because this is a receipt rather than praise. "Well done" for
- * remembering a verse is the app grading a spiritual practice, which is what the whole feature
- * is built not to do.
+ * Said the way a person would, not the way the schedule names it: "Recalled." was the outcome
+ * enum with a full stop on it, and BRAND_VOICE.md's rule against systematic language applies
+ * to a card that is talking to someone about a verse. Still a receipt rather than praise —
+ * "well done" for remembering Scripture is the app grading a spiritual practice — and still
+ * inside the forbidden-words list: nothing here says wrong, fail or mistake, because a miss on
+ * a verse is not one.
  */
 export const REVIEW_OUTCOME_ACK_COPY: Record<'recalled' | 'almost' | 'revealed', string> = {
-  recalled: 'Recalled.',
-  almost: 'Almost.',
-  revealed: 'Read again.',
+  recalled: 'You had it.',
+  almost: 'Got there.',
+  revealed: 'Not this time.',
 };
 
 /** The graded rungs: the reader has arranged or chosen, and asks the app to mark it. */
@@ -148,6 +151,16 @@ export const REVIEW_INDEX_ANSWER_LABEL = 'The index has this as';
 export const REVIEW_SLIPPING_COPY = 'This one keeps slipping. An easier ask next time?';
 export const REVIEW_STEP_BACK_COPY = 'Step back a rung';
 export const REVIEW_STEPPED_BACK_COPY = 'Stepped back. It comes back easier.';
+/**
+ * The way on from a result, and the way out.
+ *
+ * Both are offered because a sitting is not a queue to clear: stopping after one is a complete
+ * act, and the card should not imply otherwise by only offering "next". "Enough for now" is the
+ * same voice as the rest — no count of what is left, no suggestion that leaving is quitting.
+ */
+export const REVIEW_NEXT_COPY = 'Next one';
+export const REVIEW_ENOUGH_COPY = 'Enough for now';
+
 export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
 /** The first-letters rung asks for the whole verse, not a note about it. */
 export const REVIEW_INITIALS_PLACEHOLDER = 'Write the verse out';

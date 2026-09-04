@@ -37,7 +37,6 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import { PROTO_REVIEW_RESULT_DWELL_MS } from '../../layouts/proto-motion';
 import { isTypingInInput } from '@/utils/keyboard-shortcuts';
 import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { fillFraming } from '@/utils/review-framing';
@@ -74,6 +73,8 @@ import {
   REVIEW_ALTERED_CAPTION,
   REVIEW_TRUTH_LABEL,
   REVIEW_YOUR_WORDS_LABEL,
+  REVIEW_ENOUGH_COPY,
+  REVIEW_NEXT_COPY,
   REVIEW_TRY_AGAIN_COPY,
   reviewPartsAgainCopy,
   reviewReachedCopy,
@@ -158,15 +159,6 @@ const INDEX_KEYED_RUNGS = new Set(['verse.theme', 'verse.person', 'verse.crossre
  * too until it became the recognition tap its name always meant.
  */
 const FREE_RECALL_RUNGS = new Set(['verse.recall']);
-
-/**
- * How long an answered question stays up wearing its verdict before the result takes the card.
- *
- * Long enough to register a colour and short enough not to feel like a wait. 700ms was the
- * first try and it was easy to miss entirely — the card had moved on before the eye got back
- * to the thing it had just tapped.
- */
-const VERDICT_HOLD_MS = 900;
 
 function ReviewChoiceChips({
   options,
@@ -276,10 +268,23 @@ export default function PrototypeReviewDock() {
   const settling =
     sessionQuery.isPending || sessionQuery.isFetching || (needsFallback && itemsQuery.isPending);
 
-  const item = useMemo(
+  const queued = useMemo(
     () => resolveReviewDockItem(reviewDock?.itemId, sessionItems, itemsQuery.data?.items ?? []),
     [reviewDock?.itemId, sessionItems, itemsQuery.data],
   );
+
+  /*
+   * The question stays put while its answer is being shown.
+   *
+   * Answering takes the item out of the session optimistically, so the moment the reply landed
+   * the queue resolved to the *next* question and the card swapped to it — then swapped back a
+   * beat later when the verdict handed over to the result. Choosing an answer flashed the next
+   * question at the reader before showing them how they had done.
+   *
+   * So the answered question is held until the handover, and only then does the queue decide.
+   */
+  const [heldItem, setHeldItem] = useState<ReviewItemView | null>(null);
+  const item = heldItem ?? queued;
 
   const [attempt, setAttempt] = useState('');
   const [revealed, setRevealed] = useState(false);
@@ -360,7 +365,6 @@ export default function PrototypeReviewDock() {
     if (!verdict.parts) return verdict.state;
     return verdict.parts[index] ? 'right' : 'wrong';
   };
-  const handoverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /*
    * One line after a miss, said as specifically as the answer allows: how many parts landed
@@ -381,20 +385,14 @@ export default function PrototypeReviewDock() {
   const lastResult = reviewDock?.lastResult ?? null;
 
   /*
-   * The result holds for a beat, then the next question takes the card.
+   * The result stays until the reader moves on.
    *
-   * A timer rather than a tap-to-continue: the reader has just answered, and asking them to
-   * acknowledge their own acknowledgement is one interaction too many. Long enough to read a
-   * short line, short enough that a sitting does not feel gated on it.
+   * It used to clear on a timer, on the reasoning that asking someone to acknowledge their own
+   * acknowledgement is one interaction too many. That was wrong in both directions: a verse
+   * you got wrong and its correction is exactly the thing you want to sit with, and a sitting
+   * that advances on its own is a sitting you cannot leave. Nothing here is a queue to clear,
+   * so the next question waits to be asked for.
    */
-  useEffect(() => {
-    if (!lastResult) return;
-    // A leech's result carries an offer, and an offer on a timer is a trap: it holds until the
-    // reader has stepped back or paused, and only then takes its beat and moves on.
-    if (lastResult.leech && !leechAction) return;
-    const timer = setTimeout(() => setReviewDockResult(null), PROTO_REVIEW_RESULT_DWELL_MS);
-    return () => clearTimeout(timer);
-  }, [lastResult, leechAction, setReviewDockResult]);
 
   // A new question is a clean slate; the previous attempt must not sit under it.
   useEffect(() => {
@@ -408,18 +406,6 @@ export default function PrototypeReviewDock() {
     setVerdict(null);
     setAttemptsTotal(null);
   }, [item?.id]);
-
-  /*
-   * Only on the way out. Clearing this when the question changed cancelled the pending
-   * handover — answering correctly left the answered card on screen for good, because the
-   * timer that was to replace it with the result had been cleared by the answer itself.
-   */
-  useEffect(
-    () => () => {
-      if (handoverRef.current) clearTimeout(handoverRef.current);
-    },
-    [],
-  );
 
   /*
    * Keep the dock's pointer on an item that still exists.
@@ -455,6 +441,13 @@ export default function PrototypeReviewDock() {
       picked: string | null = graded?.option ?? null,
     ) => {
       if (!item) return;
+      /*
+       * Pinned *before* the request, not on its reply. The mutation drops the item from the
+       * session optimistically in `onMutate`, so between tap and reply the queue resolved to the
+       * next question — the keyed body remounted, its state reset, and by the time the verdict
+       * arrived it was writing into a card that had already moved on and back.
+       */
+      setHeldItem(item);
       outcome.mutate(
         {
           itemId: item.id,
@@ -472,6 +465,8 @@ export default function PrototypeReviewDock() {
              */
             if (data.finalized === false) {
               setAttemptNumber((n) => n + 1);
+              // The same question, still up: hold it against the refetch the answer kicked off.
+              setHeldItem(item);
               if (data.attempts) setAttemptsTotal(data.attempts.total);
               setVerdict({ state: 'wrong', option: picked, parts: data.parts, reached: data.reached });
               if (graded?.option) setMissed((m) => [...m, graded.option!]);
@@ -483,6 +478,7 @@ export default function PrototypeReviewDock() {
             // Marked, and shown as marked before the card moves on. Only where the server
             // actually marked something: an ungraded rung has no verdict to colour.
             if (typeof data.correct === 'boolean') {
+              setHeldItem(item);
               setVerdict({
                 state: data.correct ? 'right' : 'wrong',
                 option: picked,
@@ -531,6 +527,12 @@ export default function PrototypeReviewDock() {
                * freshly rotated prompt because its review count had gone up. Null means
                * "whatever is next".
                */
+              /*
+               * The pointer stays off the answered item — it is rescheduled, so leaving the
+               * dock pointed at it would resurrect the question it just accepted an answer for
+               * — but the item itself stays held so the result has something under it. The
+               * pin lifts when the reader asks for the next one.
+               */
               setReviewDockItem(null);
             };
             /*
@@ -538,12 +540,14 @@ export default function PrototypeReviewDock() {
              * where nothing was marked — an ungraded rung has no verdict to show, and waiting
              * would just be a pause.
              */
-            if (handoverRef.current) clearTimeout(handoverRef.current);
-            if (typeof data.correct === 'boolean') {
-              handoverRef.current = setTimeout(handOver, VERDICT_HOLD_MS);
-            } else {
-              handOver();
-            }
+            /*
+             * Straight to the result, with the question still under it. There is no hold to
+             * time any more: the card stays on what just happened until the reader asks for
+             * the next one, which also ends the race the hold created — the answered item
+             * leaves the queue optimistically, so anything on a timer was competing with a
+             * refetch to decide what the card showed.
+             */
+            handOver();
           },
         },
       );
@@ -745,9 +749,14 @@ export default function PrototypeReviewDock() {
                 />
               </div>
             ) : null}
-            <div className="proto-review-dock__verdict">
-              <span className="proto-dock-check" aria-hidden>
-                <Icon name="check" size={12} />
+            <div className="proto-review-dock__verdict" data-outcome={lastResult.outcome}>
+              {/*
+                * The icon says which way it went. A check on "Read again." was the app
+                * congratulating someone for getting it wrong — and inside a filled orb it read
+                * as a badge awarded, which is the one thing this feature does not do.
+                */}
+              <span className="proto-review-dock__verdict-icon" aria-hidden>
+                <Icon name={lastResult.outcome === 'revealed' ? 'xmark' : 'check'} size={13} />
               </span>
               <p className="proto-review-dock__result-text">
                 <span className="proto-review-dock__result-outcome">
@@ -760,6 +769,29 @@ export default function PrototypeReviewDock() {
                   </span>
                 ) : null}
               </p>
+            </div>
+            {/*
+              * The reader decides when the next one comes. Both ways are offered: stopping
+              * after one is a whole act, and a card with only "next" on it would say otherwise.
+              */}
+            <div className="proto-review-dock__actions">
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--compact"
+                onClick={() => {
+                  setReviewDockResult(null);
+                  setHeldItem(null);
+                }}
+              >
+                {REVIEW_NEXT_COPY}
+              </button>
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                onClick={closeReviewDock}
+              >
+                {REVIEW_ENOUGH_COPY}
+              </button>
             </div>
             {lastResult.leech && lastResult.itemId ? (
               /* Four misses since it was last held. The one place Review says a thing is not
