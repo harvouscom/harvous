@@ -9,14 +9,16 @@
  */
 
 /**
- * The five shapes of a review item, which are five different questions.
+ * The six shapes of a review item, which are six different questions.
  *
  * `note` asks what you observed. `highlight` asks why you marked it. `connection` asks why
  * you linked two notes — the only kind with two note ids. `thread` asks what the whole
  * cluster is forming, and is keyed by the representative note the graph picked. `verse` is
- * the memory ladder, and the only kind whose prompt changes as you succeed at it.
+ * the memory ladder, whose prompt changes as you succeed at it. `chapter` is the newest: a
+ * chapter you sat with in the Bible reader, asked about from its own text and the curated
+ * index — the reading half of the loop that Home's "write about what you read" card opens.
  */
-export const REVIEW_ITEM_KINDS = ['note', 'highlight', 'connection', 'thread', 'verse'] as const;
+export const REVIEW_ITEM_KINDS = ['note', 'highlight', 'connection', 'thread', 'verse', 'chapter'] as const;
 
 export type ReviewItemKind = (typeof REVIEW_ITEM_KINDS)[number];
 
@@ -36,7 +38,7 @@ export function isReviewItemKind(value: string): value is ReviewItemKind {
  * five because rows for the retired kinds exist in the table and their source keys must keep
  * resolving — this is about what may be *created*, not about what may be read.
  */
-export const REVIEW_ASKABLE_KINDS = ['note', 'verse'] as const;
+export const REVIEW_ASKABLE_KINDS = ['note', 'verse', 'chapter'] as const;
 
 export type ReviewAskableKind = (typeof REVIEW_ASKABLE_KINDS)[number];
 
@@ -248,6 +250,8 @@ const CHOICE_RUNGS = new Set<string>([
   'note.passage',
   'note.connect',
   'note.annotation',
+  'chapter.verse',
+  'chapter.person',
 ]);
 
 export function maxAttemptsFor(promptKey: string | null | undefined): number {

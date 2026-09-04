@@ -14,6 +14,8 @@ import {
   deriveRecallState,
   describeNextReturn,
   firstDueAt,
+  firstDueAtFor,
+  NEVER_LAPSES,
   nextReviewAfter,
 } from '../review-scheduling';
 import { REVIEW_PROMPT_KEYS } from '../review-prompts';
@@ -218,5 +220,22 @@ describe('leeches', () => {
       recallState: 'fragile',
     });
     expect(stepBackRung({ ladderStep: 0, reviewCount: 9, successStreak: 0 }).ladderStep).toBe(0);
+  });
+});
+
+describe('firstDueAtFor', () => {
+  const NOW = new Date('2026-09-04T12:00:00Z');
+  it('always makes a chapter wait a night, whoever added it', () => {
+    // The chapter's text may still be on screen; asking today is asking about the open page.
+    for (const origin of ['user', 'engine', 'seed'] as const) {
+      expect(firstDueAtFor('chapter', origin, NOW).getTime() - NOW.getTime()).toBe(86_400_000);
+    }
+  });
+  it('leaves every other kind on the origin rule', () => {
+    expect(firstDueAtFor('verse', 'engine', NOW).getTime()).toBe(firstDueAt(NOW, 'engine').getTime());
+    expect(firstDueAtFor('note', 'user', NOW).getTime()).toBe(firstDueAt(NOW, 'user').getTime());
+  });
+  it('never counts a disagreement with the index as forgetting', () => {
+    expect(NEVER_LAPSES.has('chapter.person')).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { reviewRowSource, reviewRowSubtitle, writtenAtLabel, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { VERSE_LOCATE_STEP, VERSE_SEQUENCE_STEP } from '@/utils/review-prompts';
+import { rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
 
 const NOW = new Date('2026-09-02T12:00:00Z');
 
@@ -211,5 +212,17 @@ describe('reviewRowSubject', () => {
     const item = { sourceLabel: 'Marked John 15:5 in a note', kind: 'verse' };
     expect(reviewRowSource({ ...item, ladderStep: VERSE_LOCATE_STEP }, null)).toBeNull();
     expect(reviewRowSource({ ...item, ladderStep: 1 }, null)).toBe('Marked John 15:5 in a note');
+  });
+});
+
+describe('a chapter row', () => {
+  it('leads with the chapter and never hides it, since the chapter is never the answer', () => {
+    const item = { prompt: 'Pick the verse that is in John 3.', kind: 'chapter', scriptureReference: 'John 3' };
+    expect(reviewRowSubject({ ...item, ladderStep: 0 })).toBe('John 3');
+    for (const step of [0, 1, 2]) {
+      expect(rungIdentityIsTheAnswer({ kind: 'chapter', ladderStep: step })).toBe(false);
+    }
+    // The prompt already names it, so nothing is repeated underneath.
+    expect(reviewRowSubtitle({ ...item, ladderStep: 0 })).toBeNull();
   });
 });

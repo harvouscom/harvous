@@ -70,7 +70,7 @@ import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
  * `highlight` sits with the passages because that is what the reader marked, and `connection`
  * and `thread` sit with the notes because both are questions about their own writing.
  */
-const PASSAGE_KINDS = new Set<ReviewItemKind>(['verse', 'highlight']);
+const PASSAGE_KINDS = new Set<ReviewItemKind>(['verse', 'highlight', 'chapter']);
 
 /**
  * One of each, closed: a note and a passage.

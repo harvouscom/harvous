@@ -137,3 +137,26 @@ describe('fillFraming', () => {
     }
   });
 });
+
+describe('a chapter', () => {
+  const base = {
+    identityIsAnswer: false,
+    pass: 0,
+    recallState: 'new' as const,
+    revisitCount: 0,
+    citedInNotes: 0,
+    firstStudiedAt: null,
+    topTheme: null,
+    crossRefCount: 0,
+    readerMarked: false,
+  };
+
+  it('can be framed by a person, but never on the rung that asks who appears', () => {
+    const facts = { ...base, kind: 'chapter' as const, person: 'Nicodemus' };
+    expect(reviewFraming({ ...facts, rungKey: 'chapter.verse' }, 's')).toEqual({
+      template: 'person',
+      args: { label: 'Nicodemus' },
+    });
+    expect(reviewFraming({ ...facts, rungKey: 'chapter.person' }, 's')).toBeNull();
+  });
+});

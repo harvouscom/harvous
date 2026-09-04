@@ -11,7 +11,7 @@
  */
 
 import { reviewRungIsGraded } from '@/utils/review-prompts';
-import { interleaveSession } from '@/utils/review-session-order';
+import { interleaveSession, sessionGroupKeyFor } from '@/utils/review-session-order';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { requireFeature } from '../middleware/require-feature';
@@ -32,8 +32,8 @@ import {
 import { describeNextReturn } from '@/utils/review-scheduling';
 import {
   applyReviewOutcome,
-  gradeNoteAnswer,
-  gradeVerseAnswer,
+  chapterTruthFor,
+  gradeAnswerFor,
   verseTruthFor,
   buildReviewItemViews,
   buildReviewReveal,
@@ -140,7 +140,7 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
     const rows = interleaveSession(
       (await listDueReviewItems(auth.userId, REVIEW_SESSION_CAP)).map((row) => ({
         ...row,
-        groupKey: row.scriptureReference?.trim().toLowerCase() || row.noteId || null,
+        groupKey: sessionGroupKeyFor(row),
       })),
     );
     const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
@@ -292,11 +292,8 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
     // The rung the server resolved, which is also what decides how many goes it allows.
     const askedKey = (await buildReviewItemViews(auth.userId, [item]))[0]?.promptKey ?? null;
     const maxAttempts = maxAttemptsFor(askedKey);
-    const graded = answer
-      ? item.kind === 'note'
-        ? await gradeNoteAnswer(auth.userId, item, answer)
-        : await gradeVerseAnswer(auth.userId, item, answer)
-      : null;
+    // Marked by kind inside the service, so a new kind can never fall into another's grader.
+    const graded = answer ? await gradeAnswerFor(auth.userId, item, answer) : null;
 
     /*
      * A wrong first answer is not a verdict yet.
@@ -355,7 +352,8 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
      * item as it was asked, not as it now is — the outcome has already moved it to the next
      * rung, and the verse owed is the one just answered about.
      */
-    const truth = await verseTruthFor(item, auth.userId);
+    const truth =
+      (await verseTruthFor(item, auth.userId)) ?? (await chapterTruthFor(item, auth.userId));
 
     return c.json({
       success: true,

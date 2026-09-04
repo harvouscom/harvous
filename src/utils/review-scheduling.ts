@@ -16,6 +16,7 @@
 
 import {
   type RecallState,
+  type ReviewItemKind,
   type ReviewItemOrigin,
   type ReviewOutcome,
 } from './review-item-kinds';
@@ -94,6 +95,16 @@ export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
   'verse.locate': 0.8,
   'verse.book': 0.7,
   'verse.altered': 1.1,
+  /*
+   * The chapter rungs. Picking a verse out of four openings and picking who appears are taps
+   * with the answer on screen; finishing a verse from the chapter is produced text, and is the
+   * one rung here that buys the full fortnight. Ordering three verses sits between: the words
+   * are given, their order is not.
+   */
+  'chapter.verse': 0.7,
+  'chapter.finish': 1.0,
+  'chapter.order': 0.9,
+  'chapter.person': 0.9,
 };
 
 /**
@@ -111,7 +122,11 @@ export const REVIEW_LEECH_LAPSES = 4;
 /** How much each lapse slows compounding: 15% per lapse, never below half speed. */
 export const LAPSE_DAMPING_PER_LAPSE = 0.15;
 export const LAPSE_DAMPING_FLOOR = 0.5;
-export const NEVER_LAPSES: ReadonlySet<ReviewPromptKey> = new Set(['verse.theme']);
+export const NEVER_LAPSES: ReadonlySet<ReviewPromptKey> = new Set([
+  'verse.theme',
+  // The same reasoning: who the index says appears in a chapter is the index's reading.
+  'chapter.person',
+]);
 
 export function lapseDamping(lapseCount: number): number {
   return Math.max(LAPSE_DAMPING_FLOOR, 1 - LAPSE_DAMPING_PER_LAPSE * Math.max(0, lapseCount));
@@ -293,6 +308,22 @@ export function firstDueAt(now: Date = new Date(), origin: ReviewItemOrigin = 'u
   // Seeded and engine-added items are due immediately: the reader did not ask for them, so a
   // section that stays empty until tomorrow reads as a feature that does not work.
   return origin === 'seed' || origin === 'engine' ? new Date(now.getTime()) : addDays(now, 1);
+}
+
+/**
+ * The same, by kind — because a chapter is the one kind whose text may still be on screen.
+ *
+ * A chapter item exists because the reader just read that chapter, whoever added the row. Asking
+ * about it the same day is asking about the page they have open, so a chapter always waits a
+ * night, engine-added or not. Every other kind keeps the rule above.
+ */
+export function firstDueAtFor(
+  kind: ReviewItemKind,
+  origin: ReviewItemOrigin = 'user',
+  now: Date = new Date(),
+): Date {
+  if (kind === 'chapter') return addDays(now, 1);
+  return firstDueAt(now, origin);
 }
 
 /** Human phrasing for the next return, for the one line the session shows after an answer. */

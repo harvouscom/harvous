@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { interleaveSession, type SessionOrderInput } from '../review-session-order';
+import { interleaveSession, sessionGroupKeyFor, type SessionOrderInput } from '../review-session-order';
 
 const NOW = new Date('2026-09-03T12:00:00.000Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -78,3 +78,16 @@ describe('interleaveSession', () => {
 function ordered_kinds(items: SessionOrderInput[]): string[] {
   return items.map((i) => i.kind);
 }
+
+describe('sessionGroupKeyFor', () => {
+  it('groups a chapter with its verses, so neither is asked straight after the other', () => {
+    expect(sessionGroupKeyFor({ scriptureReference: 'John 3' })).toBe('john 3');
+    expect(sessionGroupKeyFor({ scriptureReference: 'John 3:16' })).toBe('john 3');
+    expect(sessionGroupKeyFor({ scriptureReference: 'John 3:16-18' })).toBe('john 3');
+    expect(sessionGroupKeyFor({ scriptureReference: 'John 4:1' })).not.toBe('john 3');
+  });
+  it('falls back to the note, and to nothing', () => {
+    expect(sessionGroupKeyFor({ noteId: 'note_1' })).toBe('note_1');
+    expect(sessionGroupKeyFor({})).toBeNull();
+  });
+});

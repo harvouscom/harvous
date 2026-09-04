@@ -21955,21 +21955,36 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
- * The label paints itself. Whatever wins `color` on this button — and something outside this
+ * The words paint themselves. Whatever wins `color` on this button — and something outside this
  * file does, with `!important`, because even an inline important white computes back to the
- * text colour — `-webkit-text-fill-color` is what the glyphs are actually drawn with, and the
- * strike is drawn here rather than by the button so it takes the same white as the words.
+ * text colour — `-webkit-text-fill-color` is what the glyphs are actually drawn with.
+ *
+ * On the button as well as on the label, because not every chip has a label span: the ordering
+ * rung's placed phrases are bare text inside the button, and wore the same solid red and blue
+ * with the text left dark. A rule aimed only at the span fixed the multiple-choice chips and
+ * left the ones next door unreadable.
  */
+.proto-review-dock__choice[data-missed],
+.proto-review-dock__choice[data-correct],
 .proto-review-dock__choice[data-missed] .proto-review-dock__choice-label,
 .proto-review-dock__choice[data-correct] .proto-review-dock__choice-label {
-  color: var(--pds-on-accent) !important;
   -webkit-text-fill-color: var(--pds-on-accent);
 }
 
+/*
+ * The strike is drawn on the label where there is one, and on the button where there is not, so
+ * it takes the same white as the words either way.
+ */
+.proto-review-dock__choice[data-missed],
 .proto-review-dock__choice[data-missed] .proto-review-dock__choice-label {
   text-decoration: line-through;
   text-decoration-color: var(--pds-on-accent);
   text-decoration-thickness: 1.5px;
+}
+
+/* Never twice: a struck label inside a struck button draws two lines through the same words. */
+.proto-review-dock__choice[data-missed]:has(.proto-review-dock__choice-label) {
+  text-decoration: none;
 }
 
 /* The disc on a spent chip: a shade of the red, so the white letter has something to sit on. */

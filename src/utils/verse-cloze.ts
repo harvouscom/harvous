@@ -67,6 +67,24 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
+/**
+ * A well-mixed index into `count`, from a seed.
+ *
+ * `hashSeed(seed) % count` looks equivalent and is not, for a reason worth writing down: FNV-1a
+ * multiplies by an odd prime, so the multiply never changes the low bit, and the final low bit is
+ * just the XOR of every character's low bit. A `% 2` draw is therefore a parity of the seed's
+ * characters rather than a hash of it — and since these seeds are `${id}:${step}`, every step
+ * with the same digit parity draws the same member. On the ladder that meant a two-member family
+ * showed one of its members and never the other, forever, for a given item: `chapter.person`
+ * was unreachable, and on maintenance passes so was one of rebuild/initials.
+ *
+ * Running the hash through mulberry32 mixes the low bits back in. Same seed, same answer.
+ */
+export function seededIndex(seed: string, count: number): number {
+  if (count <= 1) return 0;
+  return Math.min(count - 1, Math.floor(mulberry32(hashSeed(seed))() * count));
+}
+
 export function bareWord(token: string): string {
   return token.replace(/[^\p{L}\p{N}'-]/gu, '');
 }

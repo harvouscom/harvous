@@ -80,15 +80,36 @@ describe('the two graded rungs are marked on the server', () => {
   it('marks the answer rather than trusting the reader\'s verdict', () => {
     const text = review();
     const outcome = text.slice(text.indexOf("'/api/review/items/:id/outcome'"));
-    expect(outcome).toContain('gradeVerseAnswer');
+    expect(outcome).toContain('gradeAnswerFor');
     // The server's verdict decides; the client's claim is only the fallback where it cannot mark.
     expect(outcome).toMatch(/verdict \?\? outcome/);
   });
 
-  it('marks a note rung on the server too, not just the verse ones', () => {
-    const outcome = review().slice(review().indexOf("'/api/review/items/:id/outcome'"));
-    expect(outcome).toContain('gradeNoteAnswer');
-    expect(outcome).toMatch(/verdict \?\? outcome/);
+  it('marks every kind through one door, so a new kind cannot fall into another\'s grader', () => {
+    /*
+     * The route used to pick between two graders with a ternary. A third kind landed in the
+     * `else`, was marked as a verse, and got null — and null on a graded rung records the
+     * client's own verdict as truth.
+     */
+    const text = service();
+    const door = text.slice(text.indexOf('export async function gradeAnswerFor'));
+    const block = door.slice(0, door.indexOf('export async function buildReviewReveal'));
+    for (const grader of ['gradeNoteAnswer', 'gradeVerseAnswer', 'gradeChapterAnswer']) {
+      expect(block).toContain(grader);
+    }
+    expect(block).toMatch(/default:\s*return null/);
+  });
+
+  it('never sends a chapter rung the chapter\'s text, or its answer', () => {
+    const text = service();
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf("item.kind === 'chapter'"));
+    const block = branch.slice(0, branch.indexOf("item.kind === 'note'"));
+    expect(block).toContain('options: exercise.options');
+    expect(block).toContain('phrases: exercise.phrases');
+    expect(block).not.toContain('verseText');
+    expect(block).not.toContain('answerIndex');
+    expect(block).not.toContain('order:');
   });
 
   it('builds a note rung and marks it from one function, so the two cannot drift', () => {

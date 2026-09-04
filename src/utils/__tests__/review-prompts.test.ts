@@ -22,6 +22,10 @@ import {
   reviewTaskFor,
   VERSE_FAMILIES,
   VERSE_MAINTENANCE_FAMILIES,
+  CHAPTER_FAMILIES,
+  REVIEW_TASKS,
+  CHAPTER_LADDER_MAX_STEP,
+  chapterRungFor,
 } from '../review-prompts';
 
 const CTX = {
@@ -318,14 +322,14 @@ describe('the kinds Review no longer asks about', () => {
 
   it('keeps every remaining key in a verse family or on the note ladder', () => {
     // A step is a family now; a key that belongs to none of them can never be reached.
-    const reachable = new Set([...NOTE_LADDER, ...VERSE_FAMILIES.flat()]);
+    const reachable = new Set([...NOTE_LADDER, ...VERSE_FAMILIES.flat(), ...CHAPTER_FAMILIES.flat()]);
     for (const key of REVIEW_PROMPT_KEYS) expect(reachable.has(key)).toBe(true);
   });
 
-  it('still names all five kinds, because rows for the retired ones exist', () => {
+  it('still names the retired kinds, because rows for them exist', () => {
     // What may be *created* narrowed; what may be *read* did not, or old rows would break.
     expect(REVIEW_ITEM_KINDS).toContain('thread');
-    expect(REVIEW_ASKABLE_KINDS).toEqual(['note', 'verse']);
+    expect(REVIEW_ASKABLE_KINDS).toEqual(['note', 'verse', 'chapter']);
     expect(isReviewAskableKind('thread')).toBe(false);
     expect(isReviewAskableKind('verse')).toBe(true);
   });
@@ -432,5 +436,94 @@ describe('the text-keyed families', () => {
     const text = fillReviewPrompt('verse.before', { reference: 'John 15:5' });
     expect(text).toContain('John 15');
     expect(text).not.toContain('15:5');
+  });
+});
+
+describe('the chapter ladder', () => {
+  const full = { verseCount: 36, finishCandidates: 10, personCount: 3 };
+
+  it('climbs tap → finish → order-or-who, reaching the closing member only as a fallback', () => {
+    /*
+     * A seeded draw across the whole family would show "pick the verse" on step 1 to half of
+     * all readers while the cloze was there to be asked. So the draw runs over the real members
+     * and the closer is reached only when none of them builds.
+     */
+    expect(chapterRungFor(0, 'any', full).key).toBe('chapter.verse');
+    for (const seed of ['a', 'b', 'c', 'd']) expect(chapterRungFor(1, seed, full).key).toBe('chapter.finish');
+    const drawn = new Set(['a', 'b', 'c', 'd', 'e', 'f'].map((seed) => chapterRungFor(2, seed, full).key));
+    // Both real members come up across seeds; the closer never does while both can be built.
+    expect(drawn).toEqual(new Set(['chapter.order', 'chapter.person']));
+    expect(chapterRungFor(2, 'a', full)).toEqual(chapterRungFor(2, 'a', full));
+  });
+
+  it('falls forward to what the chapter can actually be asked', () => {
+    expect(chapterRungFor(1, 's', { ...full, finishCandidates: 0 }).key).toBe('chapter.verse');
+    expect(chapterRungFor(2, 's', { ...full, verseCount: 2 }).key).toBe('chapter.person');
+    expect(chapterRungFor(2, 's', { ...full, verseCount: 2, personCount: 0 }).key).toBe('chapter.verse');
+    // With no material at all only the member that always builds is offered.
+    expect(chapterRungFor(2, 's').key).toBe('chapter.verse');
+  });
+
+  it('wraps into maintenance over the two families with work in them', () => {
+    const top = CHAPTER_LADDER_MAX_STEP;
+    expect(chapterRungFor(top + 1, 's', full)).toMatchObject({ family: 1, pass: 1 });
+    expect(chapterRungFor(top + 2, 's', full)).toMatchObject({ family: 2, pass: 1 });
+    expect(chapterRungFor(top + 3, 's', full)).toMatchObject({ family: 1, pass: 2 });
+    expect(nextLadderStep('chapter', top)).toBe(top + 1);
+  });
+
+  it('is graded on every rung, and never read as a note', () => {
+    // The quiet else-branches: a third kind read as a note gets `note.recognize` and a
+    // question about a note it does not have.
+    expect(pickPromptKey('chapter', 0, 0, 'review_1', undefined, full)).toBe('chapter.verse');
+    expect(pickPromptKey('chapter', 0, 1, 'review_1', undefined, full)).toBe('chapter.finish');
+    for (const step of [0, 1, 2, 5]) {
+      expect(reviewRungIsGraded({ kind: 'chapter', ladderStep: step })).toBe(true);
+    }
+  });
+
+  it('names the chapter in every prompt, because it is never the answer', () => {
+    for (const key of CHAPTER_FAMILIES.flat()) {
+      expect(REVIEW_PROMPTS[key]({ reference: 'John 3' })).toContain('John 3');
+      expect(REVIEW_TASKS[key]).not.toContain('John');
+    }
+  });
+});
+
+describe('a family with two members draws both', () => {
+  /*
+   * The bug this pins: `hashSeed(seed) % 2` keeps FNV-1a's low bit, which is the XOR of the
+   * seed's character parities and not a hash of it. With seeds of `${id}:${step}` every step of
+   * the same digit parity drew the same member, so one member of a two-member family was
+   * unreachable for a given item — forever, on every maintenance pass.
+   */
+  const chapterMaterial = { verseCount: 36, finishCandidates: 20, personCount: 3 };
+  const verseMaterial = {
+    citedInNotes: 2,
+    themeCount: 2,
+    personCount: 2,
+    crossRefCount: 2,
+    contentWordCount: 12,
+    locateRivals: 5,
+  };
+
+  it('reaches "who appears" as well as "put them in order" across a chapter\'s passes', () => {
+    const steps = [2, 4, 6, 8, 10, 12];
+    const drawn = new Set(steps.map((s) => chapterRungFor(s, `review_x:${s}`, chapterMaterial).key));
+    expect(drawn.has('chapter.order')).toBe(true);
+    expect(drawn.has('chapter.person')).toBe(true);
+  });
+
+  it('alternates rebuild and initials across a verse\'s maintenance passes', () => {
+    // Family 1 comes round every six steps, so every recurrence has the same step parity.
+    const steps = [1, 8, 14, 20, 26, 32];
+    const drawn = new Set(steps.map((s) => verseRungFor(s, `review_x:${s}`, verseMaterial).key));
+    expect(drawn).toEqual(new Set(['verse.rebuild', 'verse.initials']));
+  });
+
+  it('is still the same question on the same seed, which is what the grader relies on', () => {
+    expect(chapterRungFor(2, 'review_x:2', chapterMaterial)).toEqual(
+      chapterRungFor(2, 'review_x:2', chapterMaterial),
+    );
   });
 });

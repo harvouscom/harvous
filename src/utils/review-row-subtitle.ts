@@ -147,7 +147,8 @@ export function reviewRowSubject(
   }
 
   const reference = item.scriptureReference?.trim();
-  if (item.kind === 'verse' && reference) return reference;
+  // A passage or a chapter leads with its address — "John 15:5", "John 3".
+  if ((item.kind === 'verse' || item.kind === 'chapter') && reference) return reference;
 
   const named = item.noteLabel?.trim() || item.noteTitle?.trim() || reference;
   if (named) return named;
@@ -174,6 +175,7 @@ export function rungIdentityIsTheAnswer(item: {
 }): boolean {
   // "Which of your notes says this?" — the note's identity is the whole answer.
   if (item.kind === 'note') return item.ladderStep === NOTE_RECOGNIZE_STEP;
+  // A chapter is named in every one of its prompts and is never the answer to any of them.
   if (item.kind !== 'verse') return false;
   // "Where is this from?" — so is the reference. The server's resolved rung wins: with families a
   // step can wear several rungs, and only the one that was actually asked is the truth.

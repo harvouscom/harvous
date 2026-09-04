@@ -55,6 +55,15 @@ export const REVIEW_KIND_ICONS: Record<ReviewItemKind, IconName> = {
    */
   connection: 'arrow-right-arrow-left',
   thread: 'arrow-right-arrow-left',
+
+  /*
+   * `book-open-reader` — a chapter you read.
+   *
+   * The docblock above reserves `book-open` for "go and read"; this is its sibling, the reader
+   * *at* the book, which is what a chapter item is about: not a passage you marked but a
+   * chapter you sat with.
+   */
+  chapter: 'book-open-reader',
 };
 
 export function reviewKindIcon(kind: ReviewItemKind): IconName {

@@ -30,7 +30,7 @@ import type { ReviewPromptKey } from '@/utils/review-prompts';
 import { hashSeed } from '@/utils/verse-cloze';
 
 export interface ReviewFramingFacts {
-  kind: 'note' | 'verse';
+  kind: 'note' | 'verse' | 'chapter';
   rungKey: ReviewPromptKey;
   /** True on the rungs whose answer is the subject itself; nothing is framed there. */
   identityIsAnswer: boolean;
@@ -89,12 +89,13 @@ export function reviewFraming(
   if (facts.identityIsAnswer) return null;
 
   const age = daysAgo(facts.firstStudiedAt, now);
-  const isVerse = facts.kind === 'verse';
+  // A person can frame a passage or a chapter; a note is never "about Nicodemus".
+  const isScripture = facts.kind !== 'note';
   const key = facts.rungKey;
 
   // Leak rules, each the reason a candidate is left out of its group.
   const themeLeaks = key === 'verse.theme';
-  const personLeaks = key === 'verse.person';
+  const personLeaks = key === 'verse.person' || key === 'chapter.person';
   const crossrefLeaks = key === 'verse.crossref' || key === 'verse.locate';
   const citedLeaks = key === 'verse.connect';
 
@@ -119,7 +120,7 @@ export function reviewFraming(
       curated.push({ template: 'theme', args: { label: facts.topTheme } });
     }
   }
-  if (isVerse && facts.person && !personLeaks) {
+  if (isScripture && facts.person && !personLeaks) {
     curated.push({ template: 'person', args: { label: facts.person } });
   }
   if (facts.crossRefCount >= 8 && !crossrefLeaks) {

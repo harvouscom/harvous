@@ -14,6 +14,23 @@
  * precedence over novelty. The result is a function of its input alone; two devices agree.
  */
 
+/**
+ * What an item is *about*, for keeping two questions on one subject apart.
+ *
+ * A passage's subject is its chapter, not its verse: "John 3" and "John 3:16" are one thing to
+ * be asked about, and a chapter question straight after a verse question from it is a test of
+ * the last answer. So the verse part is stripped, which also keeps two verses of one chapter
+ * apart — an improvement the chapter kind happened to force. A note's subject is the note.
+ */
+export function sessionGroupKeyFor(row: {
+  scriptureReference?: string | null;
+  noteId?: string | null;
+}): string | null {
+  const reference = row.scriptureReference?.trim().toLowerCase();
+  if (reference) return reference.replace(/:.*$/, '');
+  return row.noteId ?? null;
+}
+
 export interface SessionOrderInput {
   id: string;
   kind: string;

@@ -32,6 +32,7 @@ import {
   NoteFingerprints,
   NoteScriptureReferences,
   ScriptureMetadata,
+  ReadingEvents,
   ReviewEvents,
   ReviewItems,
   StudyThreadEntries,
@@ -56,10 +57,13 @@ import {
   REVIEW_LEECH_LAPSES,
   deferReview,
   firstDueAt,
+  firstDueAtFor,
   nextReviewAfter,
   stepBackRung,
 } from '@/utils/review-scheduling';
 import {
+  type ChapterMaterial,
+  chapterRungFor,
   fillReviewPrompt,
   nextLadderStep,
   reviewPromptFor,
@@ -68,6 +72,21 @@ import {
   verseRungFor,
   type VerseMaterial,
 } from '@/utils/review-prompts';
+import { splitChapterHtmlIntoVerses, verseHtml, versesHtml, type ChapterVerse } from '@/utils/chapter-text';
+import {
+  WELL_KNOWN_CHAPTERS,
+  askablePeople,
+  buildChapterFinish,
+  buildChapterOrder,
+  buildChapterPerson,
+  buildChapterVerse,
+  chapterCueFor,
+  chapterFinishCandidates,
+  gradeChapterVerse,
+  type ChapterFinishExercise,
+  type ChapterOrderExercise,
+  type ChapterVerseExercise,
+} from '@/utils/chapter-ladder-exercises';
 import {
   RECALL_MIN_SHARE,
   buildVerseBefore,
@@ -104,6 +123,7 @@ import {
   gradeVerseRebuild,
   hashSeed,
   markVerseRebuild,
+  seededIndex,
   type VerseCloze,
   verseClozeRatio,
   verseCue,
@@ -121,7 +141,7 @@ import {
   buildVersePerson,
   buildVerseTheme,
 } from '@/utils/verse-knowledge-exercises';
-import { getKnowledgeForReference } from './scripture-knowledge';
+import { getKnowledgeForChapter, getKnowledgeForReference } from './scripture-knowledge';
 import { curatedTopicLabelForDisplay } from '@/utils/prototype-home-trends';
 import { gradeChoiceExercise } from '@/utils/choice-exercise';
 import { reviewFraming, type ReviewFramingSpec } from '@/utils/review-framing';
@@ -131,12 +151,19 @@ import { fetchVerseText } from './fetch-verse-text';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
 import {
+  chapterTouch,
   noteTouch,
   touchNodes,
   verseTouches,
   type NodeTouch,
 } from './study-bible-layer';
-import { nodeKey, verseNodesForReference, verseReferenceLabel } from '@/utils/study-bible-nodes';
+import {
+  chapterKeyPartsFromReference,
+  chapterReferenceLabel,
+  nodeKey,
+  verseNodesForReference,
+  verseReferenceLabel,
+} from '@/utils/study-bible-nodes';
 import {
   buildNoteChoice,
   labelNamesWhat,
@@ -615,16 +642,21 @@ export async function buildReviewItemViews(
    * Counters live on the Study Bible layer, keyed the way the engine keys them; a reader's own
    * marks in the Bible reader are keyed by reference. Both are one query over the batch.
    */
-  const nodeKeys = rows
-    .map((row) => {
-      if (row.kind === 'note' && row.noteId) return studyNodeKey.note(row.noteId);
-      if (row.kind === 'verse' && row.scriptureReference) {
-        const at = lastVerseOf(row.scriptureReference);
-        return at ? studyNodeKey.verse(at) : null;
-      }
-      return null;
-    })
-    .filter((key): key is string => Boolean(key));
+  // Kind first, always: `lastVerseOf` does not normalise a chapter-only reference, so a
+  // chapter row must never reach the verse branch.
+  const nodeKeyFor = (row: ReviewItemRow): string | null => {
+    if (row.kind === 'note' && row.noteId) return studyNodeKey.note(row.noteId);
+    if (row.kind === 'chapter' && row.scriptureReference) {
+      const parts = chapterKeyPartsFromReference(row.scriptureReference);
+      return parts ? studyNodeKey.chapter(parts) : null;
+    }
+    if (row.kind === 'verse' && row.scriptureReference) {
+      const at = lastVerseOf(row.scriptureReference);
+      return at ? studyNodeKey.verse(at) : null;
+    }
+    return null;
+  };
+  const nodeKeys = rows.map(nodeKeyFor).filter((key): key is string => Boolean(key));
   const references = [
     ...new Set(rows.map((row) => row.scriptureReference?.trim()).filter((r): r is string => Boolean(r))),
   ];
@@ -670,6 +702,16 @@ export async function buildReviewItemViews(
     }
     return pending;
   };
+  const chapterMaterialCache = new Map<string, Promise<ChapterKnowledgeMaterial>>();
+  const chapterMaterialFor = (reference: string, translation: string) => {
+    const key = `${reference.toLowerCase()}|${translation}`;
+    let pending = chapterMaterialCache.get(key);
+    if (!pending) {
+      pending = loadChapterMaterial(userId, reference, translation);
+      chapterMaterialCache.set(key, pending);
+    }
+    return pending;
+  };
 
   /*
    * Warm every row's text and material at once, before the loop reads them one at a time.
@@ -681,8 +723,10 @@ export async function buildReviewItemViews(
    */
   await Promise.all(
     rows.flatMap((row) => {
-      if (row.kind !== 'verse' || !row.scriptureReference) return [];
+      if (!row.scriptureReference) return [];
       const translation = row.translation ?? 'NET';
+      if (row.kind === 'chapter') return [chapterMaterialFor(row.scriptureReference, translation)];
+      if (row.kind !== 'verse') return [];
       const warm: Promise<unknown>[] = [materialFor(row.scriptureReference, translation)];
       if (row.ladderStep === 0) warm.push(fetchVerseText(row.scriptureReference, translation));
       return warm;
@@ -744,6 +788,16 @@ export async function buildReviewItemViews(
       kind === 'verse' && row.scriptureReference
         ? await materialFor(row.scriptureReference, row.translation ?? 'NET')
         : undefined;
+    const chapterMaterial =
+      kind === 'chapter' && row.scriptureReference
+        ? await chapterMaterialFor(row.scriptureReference, row.translation ?? 'NET')
+        : undefined;
+    /*
+     * A chapter whose text could not be fetched has no exercise on any rung — every one of
+     * them is built from the verses — and would reach the dock as a prompt above nothing.
+     * Dropped the way a note with nothing to ask about is dropped.
+     */
+    if (kind === 'chapter' && options.dropUnaskable && !chapterMaterial?.verses.length) continue;
     const { key, prompt } = reviewPromptFor(
       {
         kind,
@@ -751,6 +805,7 @@ export async function buildReviewItemViews(
         ladderStep: row.ladderStep,
         id: row.id,
         material: verseMaterial,
+        chapterMaterial,
       },
       {
         reference: row.scriptureReference,
@@ -762,30 +817,32 @@ export async function buildReviewItemViews(
     );
 
     const resolvedKey = noteRung ?? key;
-    const framingNodeKey =
-      kind === 'note' && row.noteId
-        ? studyNodeKey.note(row.noteId)
-        : kind === 'verse' && row.scriptureReference
-          ? (() => {
-              const at = lastVerseOf(row.scriptureReference);
-              return at ? studyNodeKey.verse(at) : null;
-            })()
-          : null;
+    const framingNodeKey = nodeKeyFor(row);
     const node = framingNodeKey ? nodeByKey.get(framingNodeKey) : undefined;
+    const seed = `${row.id}:${row.ladderStep}`;
+    const pass =
+      kind === 'verse'
+        ? verseRungFor(row.ladderStep, seed, verseMaterial).pass
+        : kind === 'chapter'
+          ? chapterRungFor(row.ladderStep, seed, chapterMaterial).pass
+          : 0;
     const framing = reviewFraming(
       {
-        kind: kind === 'note' ? 'note' : 'verse',
+        kind: kind === 'note' ? 'note' : kind === 'chapter' ? 'chapter' : 'verse',
         rungKey: resolvedKey,
         identityIsAnswer: rungIdentityIsTheAnswer({ kind, ladderStep: row.ladderStep, promptKey: resolvedKey }),
-        pass: kind === 'verse' ? verseRungFor(row.ladderStep, `${row.id}:${row.ladderStep}`, verseMaterial).pass : 0,
+        pass,
         recallState: row.recallState as RecallState,
         revisitCount: node?.revisitCount ?? 0,
         citedInNotes: verseMaterial?.citedInNotes ?? 0,
         firstStudiedAt: node?.firstStudiedAt?.toISOString() ?? null,
         topTheme: verseMaterial?.themes[0] ?? null,
-        person: verseMaterial?.people[0] ?? null,
+        person: verseMaterial?.people[0] ?? (chapterMaterial ? askablePeople(chapterMaterial.people)[0] ?? null : null),
         crossRefCount: verseMaterial?.crossRefTotal ?? 0,
-        readerMarked: Boolean(row.scriptureReference && markedReferences.has(row.scriptureReference.trim().toLowerCase())),
+        // A chapter is "marked" when the reader highlighted a verse in it.
+        readerMarked:
+          (chapterMaterial?.highlightedNumbers.length ?? 0) > 0 ||
+          Boolean(row.scriptureReference && markedReferences.has(row.scriptureReference.trim().toLowerCase())),
       },
       `${row.id}:framing`,
     );
@@ -911,6 +968,11 @@ export function reviewSourceKey(input: {
       return input.scriptureReference
         ? `verse:${input.scriptureReference.trim().toLowerCase()}`
         : null;
+    case 'chapter': {
+      // The node key itself — `chapter:John|3` — since a chapter has one canonical spelling.
+      const parts = input.scriptureReference ? chapterKeyPartsFromReference(input.scriptureReference) : null;
+      return parts ? nodeKey.chapter(parts) : null;
+    }
     case 'connection': {
       if (!input.noteId || !input.secondaryNoteId) return null;
       // Sorted, so a link added from either end is one review item.
@@ -953,7 +1015,7 @@ export async function createReviewItem(
 ): Promise<CreateReviewItemResult | { error: string }> {
   // Before anything is read or written: these kinds have no question left to ask.
   if (!isReviewAskableKind(input.kind)) {
-    return { error: 'Review asks about notes and passages; Threads and links are on Home now' };
+    return { error: 'Review asks about notes, passages and chapters; Threads and links are on Home now' };
   }
 
   const noteId = input.noteId?.trim() || null;
@@ -1002,6 +1064,17 @@ export async function createReviewItem(
     translation = translation ?? entry.translation ?? null;
   }
 
+  /*
+   * A chapter item is about a whole chapter and nothing finer. The reference is canonicalised
+   * ("Psalm 23" becomes "Psalms 23") so the source key, the node key and the prompt agree; a
+   * verse or a partial range is refused with the reason, since that is a verse item's business.
+   */
+  if (input.kind === 'chapter') {
+    const parts = scriptureReference ? chapterKeyPartsFromReference(scriptureReference) : null;
+    if (!parts) return { error: 'A chapter review is about a whole chapter — name one, like John 3' };
+    scriptureReference = chapterReferenceLabel(parts);
+  }
+
   const sourceKey = reviewSourceKey({ ...input, noteId, secondaryNoteId, scriptureReference });
   if (!sourceKey) return { error: 'Not enough to review' };
 
@@ -1044,7 +1117,7 @@ export async function createReviewItem(
         status: 'active',
         recallState: 'new',
         intervalDays: 1,
-        dueAt: firstDueAt(now, input.origin ?? 'user'),
+        dueAt: firstDueAtFor(input.kind, input.origin ?? 'user', now),
         successStreak: 0,
         reviewCount: 0,
         ladderStep: 0,
@@ -1226,7 +1299,27 @@ async function recordReviewOutcomeNodes(
   const mirror = { lastReviewedAt: now, nextReviewAt: next.dueAt, recallState: next.recallState };
   const touches: NodeTouch[] = [];
 
-  if (item.scriptureReference) {
+  /*
+   * A chapter item was asked about the chapter, so the chapter node carries the mirror. Kept
+   * out of the verse path below on purpose: that one expands a reference into verses and gives
+   * the chapter above them a bare touch, which for a chapter-only reference would be thirty-six
+   * verse touches about a question that named none of them.
+   */
+  const chapterParts = item.kind === 'chapter' && item.scriptureReference
+    ? chapterKeyPartsFromReference(item.scriptureReference)
+    : null;
+  if (chapterParts) {
+    touches.push({
+      ...chapterTouch({
+        chapter: chapterParts,
+        signal: 'review',
+        at: now,
+        sourceLabel: REVIEWED_SOURCE,
+        translation: item.translation,
+      }),
+      reviewMirror: mirror,
+    });
+  } else if (item.scriptureReference) {
     const { verses, chapters } = verseNodesForReference(item.scriptureReference);
     for (const touch of verseTouches({
       verses,
@@ -1638,7 +1731,7 @@ async function buildVerseContextFor(
 
   if (rungKey === 'verse.crossref') {
     if (!material.crossRefs.length) return null;
-    const answer = material.crossRefs[hashSeed(seed) % material.crossRefs.length];
+    const answer = material.crossRefs[seededIndex(seed, material.crossRefs.length)];
     const barred = new Set(material.crossRefs.map((c) => c.reference.toLowerCase()));
     const distractorTexts: string[] = [];
     for (const ref of otherRefs) {
@@ -1817,7 +1910,7 @@ async function buildVerseBeforeFor(item: ReviewItemRow, text: string, seed: stri
     (n) => Math.abs(n.verse - at.verse) >= 2,
   );
   if (!partners.length) return null;
-  const partner = partners[hashSeed(seed) % partners.length];
+  const partner = partners[seededIndex(seed, partners.length)];
   const html = await fetchVerseText(formatVerseAddress(partner), item.translation ?? 'NET');
   if (!html) return null;
   return buildVerseBefore({
@@ -1882,6 +1975,251 @@ function locateFragmentOf(text: string): string {
   if (words.length < 6) return words.join(' ');
   const start = Math.min(2, Math.max(0, words.length - 8));
   return words.slice(start, start + 8).join(' ');
+}
+
+// ─── The chapter rungs ────────────────────────────────────────────────────────
+
+/**
+ * What a chapter can be asked, with the material behind each answer.
+ *
+ * The chapter twin of `VerseKnowledgeMaterial`: the pure `ChapterMaterial` counts decide which
+ * family member a step resolves to, and this carries the verses and names the builders need.
+ * One load per chapter per request, cached inside a view build.
+ */
+interface ChapterKnowledgeMaterial extends ChapterMaterial {
+  reference: string;
+  book: string;
+  chapter: number;
+  translation: string;
+  verses: ChapterVerse[];
+  /** Verse numbers the reader highlighted in this chapter, in the Bible reader. */
+  highlightedNumbers: number[];
+  /** Everyone the index places in the chapter, barred names included (they bar distractors). */
+  people: string[];
+}
+
+const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
+  reference: '',
+  book: '',
+  chapter: 0,
+  translation: 'NET',
+  verses: [],
+  highlightedNumbers: [],
+  people: [],
+  verseCount: 0,
+  finishCandidates: 0,
+  personCount: 0,
+};
+
+/** The verse numbers of the reader's own highlights within one chapter. */
+async function loadReaderHighlightsInChapter(
+  userId: string,
+  parts: { book: string; chapter: number },
+): Promise<number[]> {
+  const rows = await db
+    .select({ reference: StudyThreadEntries.scriptureReference })
+    .from(StudyThreadEntries)
+    .where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        isNull(StudyThreadEntries.parentNoteId),
+        sql`${StudyThreadEntries.scriptureReference} LIKE ${`${parts.book} ${parts.chapter}:%`}`,
+      ),
+    )
+    .catch(() => []);
+  const numbers = new Set<number>();
+  for (const row of rows) {
+    if (!row.reference) continue;
+    for (const verse of verseNodesForReference(row.reference).verses) {
+      if (verse.book === parts.book && verse.chapter === parts.chapter) numbers.add(verse.verse);
+    }
+  }
+  return [...numbers].sort((a, b) => a - b);
+}
+
+async function loadChapterMaterial(
+  userId: string,
+  reference: string | null,
+  translation: string,
+): Promise<ChapterKnowledgeMaterial> {
+  const parts = reference ? chapterKeyPartsFromReference(reference) : null;
+  if (!parts) return EMPTY_CHAPTER_MATERIAL;
+  const label = chapterReferenceLabel(parts);
+  const [html, highlightedNumbers, knowledge] = await Promise.all([
+    fetchVerseText(label, translation).catch(() => ''),
+    loadReaderHighlightsInChapter(userId, parts),
+    getKnowledgeForChapter(parts.book, parts.chapter).catch(() => null),
+  ]);
+  const verses = html ? splitChapterHtmlIntoVerses(html) : [];
+  const people = (knowledge?.people ?? []).map((p) => p.name);
+  return {
+    reference: label,
+    book: parts.book,
+    chapter: parts.chapter,
+    translation,
+    verses,
+    highlightedNumbers,
+    people,
+    verseCount: verses.length,
+    finishCandidates: chapterFinishCandidates(verses, highlightedNumbers).length,
+    personCount: askablePeople(people).length,
+  };
+}
+
+/** Other chapters the reader has turned to, most recent first, for distractors they have met. */
+async function listUserReadChapters(
+  userId: string,
+  exclude: { book: string; chapter: number },
+  limit: number,
+): Promise<{ book: string; chapter: number }[]> {
+  try {
+    const rows = await db
+      .select({
+        book: ReadingEvents.book,
+        chapter: ReadingEvents.chapter,
+        last: sql<string>`max(${ReadingEvents.createdAt})`,
+      })
+      .from(ReadingEvents)
+      .where(eq(ReadingEvents.userId, userId))
+      .groupBy(ReadingEvents.book, ReadingEvents.chapter)
+      .orderBy(desc(sql`max(${ReadingEvents.createdAt})`))
+      .limit(limit + 1);
+    return rows
+      .filter((row) => !(row.book === exclude.book && row.chapter === exclude.chapter))
+      .slice(0, limit)
+      .map((row) => ({ book: row.book, chapter: row.chapter }));
+  } catch {
+    return [];
+  }
+}
+
+/** How many other chapters to draw distractors from, and how many a choice needs. */
+const CHAPTER_DISTRACTOR_CHAPTERS = 5;
+const CHAPTER_DISTRACTORS_NEEDED = 3;
+
+/**
+ * "Pick the verse that is in John 3": one opening per chapter the reader has read, then
+ * well-known chapters fetched one at a time until three distractors exist. The prefix guard
+ * inside `buildChapterVerse` drops any that open like the answer.
+ */
+async function buildChapterVerseFor(
+  userId: string,
+  material: ChapterKnowledgeMaterial,
+  seed: string,
+): Promise<ChapterVerseExercise | null> {
+  if (!material.verses.length) return null;
+  const others = await listUserReadChapters(userId, material, CHAPTER_DISTRACTOR_CHAPTERS);
+  const cueOf = async (label: string): Promise<string | null> => {
+    const html = await fetchVerseText(label, material.translation).catch(() => '');
+    return html ? chapterCueFor(splitChapterHtmlIntoVerses(html), `${seed}:${label}`) : null;
+  };
+  const own = (await Promise.all(others.map((c) => cueOf(chapterReferenceLabel(c))))).filter(
+    (cue): cue is string => Boolean(cue),
+  );
+  const fallback: string[] = [];
+  const taken = new Set([material.reference, ...others.map(chapterReferenceLabel)]);
+  for (const label of WELL_KNOWN_CHAPTERS) {
+    if (own.length + fallback.length >= CHAPTER_DISTRACTORS_NEEDED) break;
+    if (taken.has(label)) continue;
+    const cue = await cueOf(label);
+    if (cue) fallback.push(cue);
+  }
+  return buildChapterVerse({ verses: material.verses, distractorTexts: own, fallbackTexts: fallback, seed });
+}
+
+function buildChapterFinishFor(material: ChapterKnowledgeMaterial, seed: string, pass: number): ChapterFinishExercise | null {
+  return buildChapterFinish({
+    verses: material.verses,
+    highlightedNumbers: material.highlightedNumbers,
+    seed,
+    ratio: verseClozeRatio(pass),
+  });
+}
+
+function buildChapterOrderFor(material: ChapterKnowledgeMaterial, seed: string): ChapterOrderExercise | null {
+  return buildChapterOrder({ verses: material.verses, seed });
+}
+
+/** "Pick who appears in John 3": people of other read chapters as distractors, the index as fallback. */
+async function buildChapterPersonFor(
+  userId: string,
+  material: ChapterKnowledgeMaterial,
+  seed: string,
+): Promise<ChoiceExercise | null> {
+  if (!askablePeople(material.people).length) return null;
+  const others = await listUserReadChapters(userId, material, 3);
+  const pool = (
+    await Promise.all(others.map((c) => getKnowledgeForChapter(c.book, c.chapter).catch(() => null)))
+  ).flatMap((k) => k?.people.map((p) => p.name) ?? []);
+  const fallback = await samplePeopleNames(seed);
+  return buildChapterPerson({ people: material.people, pool, fallbackPool: fallback, seed });
+}
+
+export async function gradeChapterAnswer(
+  userId: string,
+  item: ReviewItemRow,
+  answer: { order?: number[]; option?: string; words?: string[] },
+): Promise<GradedAnswer | null> {
+  if (item.kind !== 'chapter' || !item.scriptureReference) return null;
+  const seed = `${item.id}:${item.ladderStep}`;
+  const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+  const rung = chapterRungFor(item.ladderStep, seed, material);
+
+  if (rung.key === 'chapter.verse' && typeof answer.option === 'string') {
+    const exercise = await buildChapterVerseFor(userId, material, seed);
+    if (!exercise) return null;
+    return {
+      correct: gradeChapterVerse(exercise, answer.option),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+    };
+  }
+  if (rung.key === 'chapter.finish' && Array.isArray(answer.words)) {
+    const exercise = buildChapterFinishFor(material, seed, rung.pass);
+    if (!exercise) return null;
+    const marked = markVerseRebuild(exercise.cloze, answer.words);
+    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
+  }
+  if (rung.key === 'chapter.order' && Array.isArray(answer.order)) {
+    const exercise = buildChapterOrderFor(material, seed);
+    if (!exercise) return null;
+    const marked = markVerseSequence(exercise, answer.order);
+    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
+  }
+  if (rung.key === 'chapter.person' && typeof answer.option === 'string') {
+    const exercise = await buildChapterPersonFor(userId, material, seed);
+    if (!exercise) return null;
+    // Anyone the index places in the chapter is right, whichever one the build showed.
+    return {
+      correct: gradeChoiceExercise(exercise, answer.option, askablePeople(material.people)),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+    };
+  }
+  return null;
+}
+
+/**
+ * What a chapter rung owes once it is answered: the verse that was finished, the three that
+ * were ordered (in their true order), the verse whose opening was picked. Nothing on the person
+ * rung — the name is the answer, and the route already sends that.
+ */
+export async function chapterTruthFor(item: ReviewItemRow, userId: string): Promise<string | null> {
+  if (item.kind !== 'chapter' || !item.scriptureReference) return null;
+  const seed = `${item.id}:${item.ladderStep}`;
+  const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+  const rung = chapterRungFor(item.ladderStep, seed, material);
+  if (rung.key === 'chapter.finish') {
+    const exercise = buildChapterFinishFor(material, seed, rung.pass);
+    return exercise ? verseHtml(exercise.verse) : null;
+  }
+  if (rung.key === 'chapter.order') {
+    const exercise = buildChapterOrderFor(material, seed);
+    return exercise ? versesHtml(exercise.verses) : null;
+  }
+  if (rung.key === 'chapter.verse') {
+    const exercise = await buildChapterVerseFor(userId, material, seed);
+    return exercise ? verseHtml(exercise.verse) : null;
+  }
+  return null;
 }
 
 /**
@@ -2335,6 +2673,30 @@ export async function gradeNoteAnswer(
   };
 }
 
+/**
+ * One door for marking, whatever the kind.
+ *
+ * The route used to choose between two graders with a ternary, which made a third kind fall
+ * into whichever branch was the `else` — a chapter would have been marked as a verse and
+ * returned null, and null on a graded rung means the client's own verdict is recorded as truth.
+ */
+export async function gradeAnswerFor(
+  userId: string,
+  item: ReviewItemRow,
+  answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string; promptKey?: string },
+): Promise<GradedAnswer | null> {
+  switch (item.kind) {
+    case 'note':
+      return gradeNoteAnswer(userId, item, answer);
+    case 'verse':
+      return gradeVerseAnswer(userId, item, answer);
+    case 'chapter':
+      return gradeChapterAnswer(userId, item, answer);
+    default:
+      return null;
+  }
+}
+
 /** What the reader sees after they answer, or after they give up and open it. */
 export async function buildReviewReveal(
   userId: string,
@@ -2452,6 +2814,33 @@ export async function buildReviewReveal(
           payload.verseText = null;
         }
       }
+    }
+  }
+
+  /*
+   * A chapter rung ships its exercise and never the chapter's text: on every rung here the text
+   * is the key. The same payload fields the verse rungs use, so the dock renders these through
+   * the branches it already has.
+   */
+  if (item.kind === 'chapter' && item.scriptureReference) {
+    const seed = `${item.id}:${item.ladderStep}`;
+    const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+    const rung = chapterRungFor(item.ladderStep, seed, material);
+    if (rung.key === 'chapter.verse') {
+      const exercise = await buildChapterVerseFor(userId, material, seed);
+      payload.choice = exercise ? { options: exercise.options, opening: true } : null;
+    }
+    if (rung.key === 'chapter.finish') {
+      const exercise = buildChapterFinishFor(material, seed, rung.pass);
+      payload.cloze = exercise ? clozeSegments(exercise.cloze) : null;
+    }
+    if (rung.key === 'chapter.order') {
+      const exercise = buildChapterOrderFor(material, seed);
+      payload.sequence = exercise ? { phrases: exercise.phrases } : null;
+    }
+    if (rung.key === 'chapter.person') {
+      const exercise = await buildChapterPersonFor(userId, material, seed);
+      payload.choice = exercise ? { options: exercise.options, opening: false } : null;
     }
   }
 

@@ -5,6 +5,9 @@ import {
   nodeKey,
   parseNodeKey,
   reviewSourceKeyForNode,
+  chapterKeyPartsFromReference,
+  chapterKeyPartsFromNodeKey,
+  chapterReferenceLabel,
   verseKeyPartsFromNodeKey,
   verseNodesForReference,
   verseReferenceLabel,
@@ -134,11 +137,37 @@ describe('reviewSourceKeyForNode', () => {
     ).toBe('connection:note_a:note_b');
   });
 
-  it('returns null for kinds Review has no question for', () => {
-    expect(reviewSourceKeyForNode({ nodeKind: 'theme', nodeKey: nodeKey.theme('adoption') })).toBeNull();
+  it('keys a chapter by its node key, which is also what review-service produces', () => {
     expect(
       reviewSourceKeyForNode({ nodeKind: 'chapter', nodeKey: nodeKey.chapter({ book: 'Romans', chapter: 8 }) }),
-    ).toBeNull();
+    ).toBe('chapter:Romans|8');
+  });
+
+  it('returns null for kinds Review has no question for', () => {
+    expect(reviewSourceKeyForNode({ nodeKind: 'theme', nodeKey: nodeKey.theme('adoption') })).toBeNull();
     expect(reviewSourceKeyForNode({ nodeKind: 'person', nodeKey: nodeKey.person('paul') })).toBeNull();
+  });
+});
+
+describe('chapterKeyPartsFromReference', () => {
+  it('accepts a whole chapter however it is spelled, and canonicalises the book', () => {
+    expect(chapterKeyPartsFromReference('John 3')).toEqual({ book: 'John', chapter: 3 });
+    expect(chapterKeyPartsFromReference('John 3:1-36')).toEqual({ book: 'John', chapter: 3 });
+    expect(chapterKeyPartsFromReference('Psalm 23')).toEqual({ book: 'Psalms', chapter: 23 });
+  });
+
+  it('refuses a verse, a partial range and anything crossing chapters', () => {
+    // "John 3:16" is a verse item's business; a chapter review is about the chapter.
+    expect(chapterKeyPartsFromReference('John 3:16')).toBeNull();
+    expect(chapterKeyPartsFromReference('John 3:1-10')).toBeNull();
+    expect(chapterKeyPartsFromReference('Exodus 6:28-7:7')).toBeNull();
+    expect(chapterKeyPartsFromReference('')).toBeNull();
+  });
+
+  it('round-trips through the node key', () => {
+    const key = nodeKey.chapter({ book: 'John', chapter: 3 });
+    expect(chapterKeyPartsFromNodeKey(key)).toEqual({ book: 'John', chapter: 3 });
+    expect(chapterReferenceLabel({ book: 'John', chapter: 3 })).toBe('John 3');
+    expect(chapterKeyPartsFromNodeKey('verse:John|3|16')).toBeNull();
   });
 });

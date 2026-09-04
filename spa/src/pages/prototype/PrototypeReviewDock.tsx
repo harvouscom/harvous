@@ -70,6 +70,7 @@ import {
   REVIEW_REVEAL_COPY,
   REVIEW_REVEAL_THREAD_COPY,
   REVIEW_REVEAL_VERSE_COPY,
+  REVIEW_REVEAL_CHAPTER_COPY,
   REVIEW_ALTERED_CAPTION,
   REVIEW_TRUTH_LABEL,
   REVIEW_YOUR_WORDS_LABEL,
@@ -112,6 +113,8 @@ function revealLabelFor(kind: ReviewItemView['kind']): string {
   switch (kind) {
     case 'verse':
       return REVIEW_REVEAL_VERSE_COPY;
+    case 'chapter':
+      return REVIEW_REVEAL_CHAPTER_COPY;
     case 'thread':
       return REVIEW_REVEAL_THREAD_COPY;
     case 'connection':
@@ -135,7 +138,7 @@ function revealLabelFor(kind: ReviewItemView['kind']): string {
 const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 /** The rungs whose answer key is the curated index rather than the text or the reader. */
-const INDEX_KEYED_RUNGS = new Set(['verse.theme', 'verse.person', 'verse.crossref']);
+const INDEX_KEYED_RUNGS = new Set(['verse.theme', 'verse.person', 'verse.crossref', 'chapter.person']);
 
 /**
  * The options on a multiple-choice rung.

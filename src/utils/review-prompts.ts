@@ -22,7 +22,7 @@
  */
 
 import type { ReviewAskableKind, ReviewItemKind } from './review-item-kinds';
-import { hashSeed } from './verse-cloze';
+import { seededIndex } from './verse-cloze';
 
 export const REVIEW_PROMPT_KEYS = [
   'note.recognize',
@@ -44,6 +44,10 @@ export const REVIEW_PROMPT_KEYS = [
   'verse.locate',
   'verse.book',
   'verse.connect',
+  'chapter.verse',
+  'chapter.finish',
+  'chapter.order',
+  'chapter.person',
 ] as const;
 
 export type ReviewPromptKey = (typeof REVIEW_PROMPT_KEYS)[number];
@@ -193,6 +197,27 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
       (s) => `Pick the passage ${s} is cross-referenced with.`,
       'Pick the passage this verse is cross-referenced with.',
     ),
+  /*
+   * The chapter rungs: questions about a chapter the reader sat with in the Bible reader.
+   *
+   * Every key is the chapter's own text or the curated index; the reader's words never enter it.
+   * The chapter is named in every prompt — it is never the answer here, and "pick the verse that
+   * is in this chapter" with no chapter named is a question about nothing. Chapter *themes* are
+   * deliberately absent: John 3 carries over a thousand topics in the index, so almost any theme
+   * is defensible and the question would be unfalsifiable.
+   */
+  'chapter.verse': (ctx) =>
+    named(ctx, (s) => `Pick the verse that is in ${s}.`, 'Pick the verse that is in this chapter.'),
+  'chapter.finish': (ctx) =>
+    named(ctx, (s) => `Finish this verse from ${s}.`, 'Finish this verse from the chapter.'),
+  'chapter.order': (ctx) =>
+    named(
+      ctx,
+      (s) => `Put these in the order they come in ${s}.`,
+      'Put these in the order they come.',
+    ),
+  'chapter.person': (ctx) =>
+    named(ctx, (s) => `Pick who appears in ${s}.`, 'Pick who appears in this chapter.'),
 };
 
 /**
@@ -225,6 +250,10 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'verse.theme': 'Pick the theme it carries',
   'verse.person': 'Pick who it is about',
   'verse.crossref': 'Pick its cross-reference',
+  'chapter.verse': 'Pick the verse in it',
+  'chapter.finish': 'Finish a verse from it',
+  'chapter.order': 'Put them in order',
+  'chapter.person': 'Pick who is in it',
 };
 
 export function reviewTaskFor(key: ReviewPromptKey): string {
@@ -411,12 +440,91 @@ export function verseRungFor(step: number, seed?: string, material?: VerseMateri
   const members = VERSE_FAMILIES[family];
   if (!seed || members.length === 1) return { key: members[0], pass, family };
 
-  const start = hashSeed(seed) % members.length;
+  const start = seededIndex(seed, members.length);
   for (let i = 0; i < members.length; i++) {
     const key = members[(start + i) % members.length];
     if (verseFamilyMemberAvailable(key, material)) return { key, pass, family };
   }
   return { key: members[0], pass, family };
+}
+
+/**
+ * What a chapter can be asked, as far as its rung families care. The chapter twin of
+ * `VerseMaterial`: counts only, the server holds the text and the people.
+ */
+export interface ChapterMaterial {
+  /** Verses the text actually has — Psalm 117 has two, whatever the canon table says. */
+  verseCount: number;
+  /** Verses fit to be finished: the reader's own highlights in the chapter, else long enough. */
+  finishCandidates: number;
+  /** People the index places in the chapter, after the trivial names are barred. */
+  personCount: number;
+}
+
+/**
+ * The chapter ladder, as families like the verse ladder's.
+ *
+ * Three steps: pick the verse that is in it, finish a verse from it, then put verses in order
+ * or say who appears. `chapter.verse` closes every family because it is the one member that
+ * always builds — its distractors fall back to well-known chapters — so a step can never resolve
+ * to nothing.
+ *
+ * The closing member is a fallback, not a peer, and that is the one way this differs from
+ * `verseRungFor`. A verse family draws by seed across all its members; here the draw runs over
+ * the members *before* `chapter.verse` and reaches it only when none of them can be built —
+ * otherwise a seeded draw would show "pick the verse" on step 1 to half of all readers while
+ * the cloze was there to be asked. Among the real members the draw is seeded as usual: on step 2
+ * a chapter is asked to order its verses or to say who appears, and which one varies by item and
+ * by pass, so the maintenance cycle does not ask the same one forever.
+ */
+export const CHAPTER_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
+  ['chapter.verse'],
+  ['chapter.finish', 'chapter.verse'],
+  ['chapter.order', 'chapter.person', 'chapter.verse'],
+];
+
+export const CHAPTER_LADDER_MAX_STEP = CHAPTER_FAMILIES.length - 1;
+
+/** Once climbed, a chapter cycles over the two families with work in them. */
+export const CHAPTER_MAINTENANCE_FAMILIES: readonly number[] = [1, 2];
+
+export function chapterFamilyMemberAvailable(
+  key: ReviewPromptKey,
+  material: ChapterMaterial | undefined,
+): boolean {
+  if (!material) return key === 'chapter.verse';
+  switch (key) {
+    case 'chapter.finish':
+      return material.finishCandidates >= 1;
+    case 'chapter.order':
+      return material.verseCount >= 3;
+    case 'chapter.person':
+      return material.personCount >= 1;
+    default:
+      return true;
+  }
+}
+
+export function chapterRungFor(step: number, seed?: string, material?: ChapterMaterial): VerseRung {
+  const clamped = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) : 0;
+  let family: number;
+  let pass: number;
+  if (clamped < CHAPTER_FAMILIES.length) {
+    family = clamped;
+    pass = 0;
+  } else {
+    const offset = clamped - CHAPTER_FAMILIES.length;
+    family = CHAPTER_MAINTENANCE_FAMILIES[offset % CHAPTER_MAINTENANCE_FAMILIES.length];
+    pass = 1 + Math.floor(offset / CHAPTER_MAINTENANCE_FAMILIES.length);
+  }
+  const members = CHAPTER_FAMILIES[family];
+  const real = members.slice(0, -1);
+  const start = real.length && seed ? seededIndex(seed, real.length) : 0;
+  for (let i = 0; i < real.length; i++) {
+    const key = real[(start + i) % real.length];
+    if (chapterFamilyMemberAvailable(key, material)) return { key, pass, family };
+  }
+  return { key: members[members.length - 1], pass, family };
 }
 
 export const VERSE_REBUILD_STEP = 1;
@@ -465,8 +573,8 @@ export function reviewRungIsGraded(item: {
   /** The resolved rung, when the caller has it. Otherwise the family default is judged. */
   promptKey?: string | null;
 }): boolean {
-  // Every note rung is a multiple choice now.
-  if (item.kind === 'note') return true;
+  // Every note rung is a multiple choice now, and every chapter rung is keyed to the text.
+  if (item.kind === 'note' || item.kind === 'chapter') return true;
   if (item.kind !== 'verse') return false;
   // The rung the server actually resolved wins; a step alone can only name the family default.
   if (item.promptKey && REVIEW_PROMPT_KEYS.includes(item.promptKey as ReviewPromptKey)) {
@@ -479,14 +587,16 @@ export function reviewRungIsGraded(item: {
 export function ladderMaxStepFor(kind: ReviewItemKind): number | null {
   if (kind === 'verse') return VERSE_LADDER_MAX_STEP;
   if (kind === 'note') return NOTE_LADDER_MAX_STEP;
+  if (kind === 'chapter') return CHAPTER_LADDER_MAX_STEP;
   return null;
 }
 
 /** The next rung after a clean recall, clamped to the ladder's top. */
 export function nextLadderStep(kind: ReviewItemKind, step: number): number {
   const current = Math.max(0, Math.trunc(Number.isFinite(step) ? step : 0));
-  // A verse keeps climbing past the top of the ladder, into the maintenance cycle.
-  if (kind === 'verse') return current + 1;
+  // A verse keeps climbing past the top of the ladder, into the maintenance cycle; so does a
+  // chapter — see `chapterRungFor`.
+  if (kind === 'verse' || kind === 'chapter') return current + 1;
   const max = ladderMaxStepFor(kind);
   if (max === null) return step;
   return Math.min(max, current + 1);
@@ -505,10 +615,16 @@ export function pickPromptKey(
   ladderStep = 0,
   itemId?: string | null,
   material?: VerseMaterial,
+  chapterMaterial?: ChapterMaterial,
 ): ReviewPromptKey {
   // Past the top the ladder wraps into maintenance rather than stopping — see `verseRungFor`.
   if (kind === 'verse') {
     return verseRungFor(ladderStep, itemId ? `${itemId}:${ladderStep}` : undefined, material).key;
+  }
+  // Explicit, and before the note fall-through: a third kind read as a note would be handed
+  // `note.recognize` and a question about a note it does not have.
+  if (kind === 'chapter') {
+    return chapterRungFor(ladderStep, itemId ? `${itemId}:${ladderStep}` : undefined, chapterMaterial).key;
   }
   /*
    * The *nominal* rung for a note. What it can actually be asked depends on whether it has a
@@ -532,6 +648,8 @@ export function reviewPromptFor(
     id?: string | null;
     /** What the verse can be asked; decides which family member the step resolves to. */
     material?: VerseMaterial;
+    /** The same for a chapter. */
+    chapterMaterial?: ChapterMaterial;
   },
   ctx: ReviewPromptContext,
 ): { key: ReviewPromptKey; prompt: string } {
@@ -541,6 +659,7 @@ export function reviewPromptFor(
     item.ladderStep ?? 0,
     item.id ?? null,
     item.material,
+    item.chapterMaterial,
   );
   return { key, prompt: fillReviewPrompt(key, ctx) };
 }

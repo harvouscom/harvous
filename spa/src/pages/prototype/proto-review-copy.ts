@@ -87,6 +87,7 @@ export const REVIEW_ALMOST_COPY = 'I almost had it';
  */
 export const REVIEW_REVEAL_COPY = 'Check my note';
 export const REVIEW_REVEAL_VERSE_COPY = 'Check the verse';
+export const REVIEW_REVEAL_CHAPTER_COPY = 'Check the chapter';
 export const REVIEW_REVEAL_THREAD_COPY = 'Open the Thread';
 export const REVIEW_REVEAL_CONNECTION_COPY = 'Check my notes';
 /** After revealing cold: the honest answer is that it needed looking at. */

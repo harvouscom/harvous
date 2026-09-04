@@ -166,6 +166,40 @@ export async function getKnowledgeForReference(
   };
 }
 
+// ─── getKnowledgeForChapter ─────────────────────────────────────────────────────
+
+export interface ChapterKnowledge {
+  book: string;
+  chapter: number;
+  /** Everyone the index places anywhere in the chapter, each once. */
+  people: EntityRef[];
+}
+
+/**
+ * The people of a whole chapter — the one aggregate the chapter review rungs need.
+ *
+ * Themes are deliberately *not* aggregated. A verse carries a handful of topics; a chapter is
+ * the union of thirty-six such handfuls (John 3 counts over a thousand), and at that breadth
+ * almost any theme is defensible, which makes "pick the theme this chapter carries" a question
+ * with no wrong answer. People are placed by verse and are either in the chapter or not.
+ */
+export async function getKnowledgeForChapter(book: string, chapter: number): Promise<ChapterKnowledge> {
+  const rows = await db
+    .select({ id: BiblePeople.id, slug: BiblePeople.slug, name: BiblePeople.name })
+    .from(ScriptureEntityRefs)
+    .innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id))
+    .where(
+      and(
+        eq(ScriptureEntityRefs.entityType, 'person'),
+        eq(ScriptureEntityRefs.book, book),
+        eq(ScriptureEntityRefs.chapter, chapter),
+      ),
+    );
+  const byId = new Map<string, EntityRef>();
+  for (const row of rows) if (!byId.has(row.id)) byId.set(row.id, row);
+  return { book, chapter, people: [...byId.values()] };
+}
+
 // ─── passage aggregation (for related-notes + passage-aware tagging) ─────────────
 
 /** A note's cited passages — its own ScriptureMetadata plus any linked scripture notes, deduped. */
