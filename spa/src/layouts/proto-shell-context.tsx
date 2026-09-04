@@ -454,6 +454,14 @@ export type ReviewDockResult = {
    */
   verseText?: string | null;
   /**
+   * What the reader typed, when the rung asked them to write the verse out.
+   *
+   * Kept so the answer is worth something after it is marked: their words sit beside the
+   * verse, which is the comparison the exercise was for. It is theirs — it is not sent
+   * anywhere new, and it is already what the server records as the attempt.
+   */
+  attempt?: string | null;
+  /**
    * Missed four times after being held. The one moment Review says a thing is not working
    * rather than asking again, so the result carries the item to act on.
    */

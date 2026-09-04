@@ -69,6 +69,8 @@ import {
   type VerseMaterial,
 } from '@/utils/review-prompts';
 import {
+  RECALL_MIN_SHARE,
+  RECOGNIZE_MIN_SHARE,
   buildVerseBefore,
   buildVerseBook,
   buildVerseInitials,
@@ -82,9 +84,11 @@ import {
   gradeVerseKeywords,
   gradeVerseLocate,
   gradeVerseNext,
+  gradeVerseRecall,
   gradeVerseSequence,
   readerSpanFragment,
   type VerseNextExercise,
+  verseRecallCoverage,
 } from '@/utils/verse-ladder-exercises';
 import {
   buildVerseAltered,
@@ -1704,6 +1708,8 @@ export async function verseTruthFor(item: ReviewItemRow, userId?: string): Promi
   // `verse.altered` most of all: leaving someone with a falsified line and no correction is the
   // one ending this rung must never have.
   const withheld = new Set<ReviewPromptKey>([
+    'verse.recognize',
+    'verse.recall',
     'verse.sequence',
     'verse.locate',
     'verse.book',
@@ -1822,6 +1828,18 @@ function locateFragmentOf(text: string): string {
   return words.slice(start, start + 8).join(' ');
 }
 
+/**
+ * The two rungs that ask for the verse in the reader's own typing, and how much of it counts.
+ *
+ * The share differs by what the question gave away: the first rung hands over the opening
+ * words, the recall rung hands over only the reference.
+ */
+const FREE_RECALL_KEYS = new Set<ReviewPromptKey>(['verse.recognize', 'verse.recall']);
+
+function freeRecallShareFor(key: ReviewPromptKey): number {
+  return key === 'verse.recognize' ? RECOGNIZE_MIN_SHARE : RECALL_MIN_SHARE;
+}
+
 /** Five asked for, three needed — see `buildVerseNextFor`. */
 const VERSE_NEXT_NEIGHBOURS = 5;
 
@@ -1846,6 +1864,12 @@ export async function gradeVerseAnswer(
     };
   }
 
+  if (FREE_RECALL_KEYS.has(rung.key) && typeof answer.text === 'string') {
+    return {
+      correct: gradeVerseRecall(material.text, answer.text, freeRecallShareFor(rung.key)),
+      correctAnswer: null,
+    };
+  }
   if (rung.key === 'verse.initials' && typeof answer.text === 'string') {
     return { correct: gradeVerseInitials(material.text, answer.text), correctAnswer: null };
   }
@@ -2267,6 +2291,11 @@ export async function buildReviewReveal(
           const built = await buildVerseContextFor(userId, item, rung.key, material, seed);
           // Options only. The verse stays on screen: it is the question, not the answer.
           payload.choice = built ? { options: built.exercise.options, opening: built.opening } : null;
+        }
+        if (FREE_RECALL_KEYS.has(rung.key)) {
+          // Nothing to build: the prompt is the whole question. The verse comes back as truth
+          // once the answer is in, which is why it cannot be sent with the question.
+          payload.verseText = null;
         }
         if (rung.key === 'verse.initials') {
           payload.initials = buildVerseInitials(text);

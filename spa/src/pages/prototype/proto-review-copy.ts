@@ -35,6 +35,14 @@ export const REVIEW_SECTION_TITLE = 'Review';
  * Not "0 items due". The point of an empty inbox is that there is nothing to do, and the way
  * to say that is to say it.
  */
+/**
+ * Opening the dock, before the queue has answered.
+ *
+ * Not the empty state, which is what used to show here: "Nothing waiting" is a claim, and
+ * making it while the request is still in flight told the reader the feature had nothing for
+ * them a beat before the question arrived. First impressions were of an empty product.
+ */
+export const REVIEW_LOADING_COPY = 'One moment.';
 export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
 
 /*
@@ -122,7 +130,12 @@ export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
 /** The first-letters rung asks for the whole verse, not a note about it. */
 export const REVIEW_INITIALS_PLACEHOLDER = 'Write the verse out';
 
-export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';
+/*
+ * "if you want to" was honest while nothing marked the answer, and wrong the moment something
+ * did. The ask is direct now, and what you write comes back beside the verse afterwards.
+ */
+export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember';
+export const REVIEW_YOUR_WORDS_LABEL = 'What you wrote';
 
 export const CHALLENGE_STEP_DONE_COPY = 'Done';
 export const CHALLENGE_STEP_SKIP_COPY = 'Skip this';

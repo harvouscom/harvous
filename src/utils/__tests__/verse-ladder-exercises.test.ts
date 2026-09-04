@@ -18,6 +18,10 @@ import {
   buildVerseBook,
   readerSpanFragment,
   READER_SPAN_MAX_WORDS,
+  gradeVerseRecall,
+  verseRecallCoverage,
+  RECOGNIZE_MIN_SHARE,
+  RECALL_MIN_SHARE,
 } from '@/utils/verse-ladder-exercises';
 
 const JOHN_15_5 =
@@ -344,5 +348,61 @@ describe('buildVerseLocate with a reader span', () => {
     // Same options either way: the span changes the question's stem, not its answer.
     expect(mine?.options).toEqual(theirs?.options);
     expect(mine?.answerIndex).toBe(theirs?.answerIndex);
+  });
+});
+
+describe('marking a verse written from memory', () => {
+  const verse =
+    'I am the vine; you are the branches. The one who remains in me and I in him bears much fruit.';
+
+  it('forgives case, punctuation and the small words', () => {
+    expect(gradeVerseRecall(verse, 'i am the VINE you are the branches', RECOGNIZE_MIN_SHARE)).toBe(
+      false,
+    );
+    // The content words that matter, all of them, however they were typed.
+    expect(
+      gradeVerseRecall(
+        verse,
+        'I AM THE VINE!!! you are the BRANCHES... the one who remains in me, and I in him, bears much fruit',
+        RECOGNIZE_MIN_SHARE,
+      ),
+    ).toBe(true);
+  });
+
+  it('wants them in order, but not one after another', () => {
+    /*
+     * A paraphrase between the words of the verse costs nothing — the reader is producing the
+     * verse, not transcribing it — but producing them backwards is not producing the verse.
+     */
+    expect(
+      gradeVerseRecall(verse, 'the vine, and you my friends are the branches that remain in me and bear fruit', 0.5),
+    ).toBe(true);
+    expect(gradeVerseRecall(verse, 'fruit bears him remains branches vine', 0.5)).toBe(false);
+  });
+
+  it('measures how much of the verse was reached', () => {
+    expect(verseRecallCoverage(verse, '')).toBe(0);
+    expect(verseRecallCoverage(verse, verse)).toBe(1);
+    const half = verseRecallCoverage(verse, 'I am the vine; you are the branches.');
+    expect(half).toBeGreaterThan(0);
+    expect(half).toBeLessThan(1);
+  });
+
+  it('asks for more where the question gave more away', () => {
+    /*
+     * The first rung hands over the opening words; recall hands over only the reference. Half
+     * the verse's content words is enough for one and not the other — and note how few those
+     * are: this verse reduces to six, so the bar is "did you reach the words that carry it".
+     */
+    expect(RECOGNIZE_MIN_SHARE).toBeGreaterThan(RECALL_MIN_SHARE);
+    const half = 'I am the vine, you are the branches, and it bears';
+    expect(verseRecallCoverage(verse, half)).toBeCloseTo(0.5, 2);
+    expect(gradeVerseRecall(verse, half, RECALL_MIN_SHARE)).toBe(true);
+    expect(gradeVerseRecall(verse, half, RECOGNIZE_MIN_SHARE)).toBe(false);
+  });
+
+  it('never marks an empty answer right', () => {
+    expect(gradeVerseRecall(verse, '   ', RECALL_MIN_SHARE)).toBe(false);
+    expect(gradeVerseRecall('', 'anything', RECALL_MIN_SHARE)).toBe(false);
   });
 });

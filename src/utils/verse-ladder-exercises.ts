@@ -265,10 +265,18 @@ export function gradeVerseNext(exercise: VerseNextExercise, answer: string): boo
 // ─── Text-keyed rungs: first letters, key words, which comes first, the book ─────────
 
 /** The words in a verse worth recalling: not stopwords, not too short, in order. */
+/**
+ * The words of a verse that carry it: long enough to be worth recalling, not a stopword.
+ *
+ * Split on dashes as well as spaces. The NET sets clauses with em dashes and no spaces — "and
+ * I in him—bears much fruit" — so "him—bears" arrived as one token, and a token like that can
+ * never match anything a reader types. It counted against them on every rung built from these
+ * words, and made a perfect answer unmarkable.
+ */
 export function contentWords(text: string): string[] {
   return text
     .trim()
-    .split(/\s+/)
+    .split(/[\s\u2013\u2014—–-]+/)
     .map((token) => bareWord(token))
     .filter((word) => word.length >= MIN_BLANK_LENGTH && !STOPWORDS.has(word.toLowerCase()));
 }
@@ -316,6 +324,47 @@ export function gradeVerseInitials(text: string, attempt: string): boolean {
     if (i === wanted.length) return true;
   }
   return false;
+}
+
+/**
+ * Writing a verse out from memory, marked on how much of it you actually produced.
+ *
+ * The two rungs that ask for this used to mark nothing at all: you typed, pressed a button,
+ * read the verse and decided for yourself. That is the strongest exercise in the feature
+ * attached to the weakest feedback, and it is the first thing a new reader meets.
+ *
+ * Marking is deliberately forgiving, because the thing being tested is the verse and not your
+ * typing. Only content words count — "the", "and", "a" slipping is not forgetting — case and
+ * punctuation are ignored, and they need only appear **in order**, so an extra word or a
+ * paraphrase between them costs nothing. What it measures is how much of the verse you
+ * reached, against a share of its content words.
+ *
+ * The share differs by rung, and the reason is what the reader was given: the first rung hands
+ * over the opening words and asks for the rest, so most of it is fair; the recall rung hands
+ * over nothing but the reference, where insisting on all of it would fail almost everyone
+ * almost always.
+ */
+export const RECOGNIZE_MIN_SHARE = 0.6;
+export const RECALL_MIN_SHARE = 0.45;
+
+export function verseRecallCoverage(text: string, attempt: string): number {
+  const wanted = contentWords(text).map(normaliseWord);
+  if (!wanted.length) return 0;
+  const written = attempt.trim().split(/\s+/).map(normaliseWord).filter(Boolean);
+  let matched = 0;
+  let i = 0;
+  for (const word of written) {
+    // In order, but not consecutively: skip ahead to the next word of the verse this one is.
+    const at = wanted.indexOf(word, i);
+    if (at === -1) continue;
+    matched += 1;
+    i = at + 1;
+  }
+  return matched / wanted.length;
+}
+
+export function gradeVerseRecall(text: string, attempt: string, minShare: number): boolean {
+  return verseRecallCoverage(text, attempt) >= minShare;
 }
 
 /** "Name three words from this verse." Free recall: the lightest rung on the ladder. */

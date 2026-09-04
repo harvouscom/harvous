@@ -231,10 +231,13 @@ describe('the verse ladder after "what comes next" arrived', () => {
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_NEXT_STEP })).toBe(true);
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_SEQUENCE_STEP })).toBe(true);
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: VERSE_LOCATE_STEP })).toBe(true);
-    // The open rungs, where the reader judges themselves: recognising a cue and writing the
-    // verse from memory. The context step (4) was the last open one and is graded now.
-    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 0 })).toBe(false);
-    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 2 })).toBe(false);
+    /*
+     * Every verse rung is marked now. The last two open ones asked the reader to write the
+     * verse out and then judge themselves, which put the strongest exercise in the feature
+     * behind the weakest feedback — and rung 0 is the first thing anyone ever sees.
+     */
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 0 })).toBe(true);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 2 })).toBe(true);
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4 })).toBe(true);
     // Every note rung is a multiple choice.
     expect(reviewRungIsGraded({ kind: 'note', ladderStep: 2 })).toBe(true);
@@ -285,9 +288,10 @@ describe('the ladder wraps rather than ending', () => {
     // answer. It was the one rung whose exercise the dock never rendered.
     const maintenanceRebuild = VERSE_LADDER.length + VERSE_MAINTENANCE.indexOf('verse.rebuild');
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: maintenanceRebuild })).toBe(true);
-    // Recall — write the whole verse from memory — is still the reader's own to judge.
+    // Recall — write the whole verse from memory — is marked too, forgivingly: the content
+    // words, in order, with case, punctuation and the small words all forgiven.
     const recall = VERSE_LADDER.indexOf('verse.recall');
-    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: recall })).toBe(false);
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: recall })).toBe(true);
   });
 
   it('tolerates a nonsense step', () => {
@@ -382,7 +386,9 @@ describe('rung families', () => {
     }
     // A caller that knows the resolved rung is believed over the step's default.
     expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 0, promptKey: 'verse.theme' })).toBe(true);
-    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4, promptKey: 'verse.recall' })).toBe(false);
+    // A rung the caller resolved wins over the step's default — both are graded, so the
+    // check that the resolved key is believed is the one below, on a kind that is not.
+    expect(reviewRungIsGraded({ kind: 'thread', ladderStep: 4, promptKey: 'verse.theme' })).toBe(false);
   });
 });
 

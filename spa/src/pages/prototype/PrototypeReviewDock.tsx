@@ -54,6 +54,7 @@ import {
   REVIEW_ALMOST_COPY,
   REVIEW_ATTEMPT_PLACEHOLDER,
   REVIEW_EMPTY_COPY,
+  REVIEW_LOADING_COPY,
   REVIEW_RECALLED_COPY,
   REVIEW_REVEALED_ACK_COPY,
   REVIEW_CHECK_COPY,
@@ -69,6 +70,7 @@ import {
   REVIEW_REVEAL_VERSE_COPY,
   REVIEW_ALTERED_CAPTION,
   REVIEW_TRUTH_LABEL,
+  REVIEW_YOUR_WORDS_LABEL,
   REVIEW_TRY_AGAIN_COPY,
   REVIEW_ANSWER_LABEL,
   REVIEW_INDEX_ANSWER_LABEL,
@@ -146,18 +148,32 @@ const INDEX_KEYED_RUNGS = new Set(['verse.theme', 'verse.person', 'verse.crossre
  * Bare rather than the toolbar's Cmd+Shift chord: these are the only controls on the card, and
  * a quiz that needs a chord to answer is not a quiz.
  */
+/** The rungs that ask for the verse in your own typing. Marked, like everything else now. */
+const FREE_RECALL_RUNGS = new Set(['verse.recognize', 'verse.recall']);
+
+/** How long an answered question stays up wearing its verdict before the result takes the card. */
+const VERDICT_HOLD_MS = 700;
+
 function ReviewChoiceChips({
   options,
   disabled,
   onPick,
   opening = false,
   missed = [],
+  correct,
 }: {
   options: readonly string[];
   disabled: boolean;
   onPick: (option: string) => void;
-  /** Options already tried and wrong. Struck through, and not offered again. */
+  /** Options already tried and wrong. Marked, and not offered again. */
   missed?: readonly string[];
+  /**
+   * The option the server just marked right, held for a beat before the result takes the card.
+   *
+   * The page has no answer key, so this is only ever what came back from marking — never a
+   * guess made here.
+   */
+  correct?: string | null;
   /**
    * These options are the *first words* of something longer, so they trail off.
    *
@@ -197,6 +213,7 @@ function ReviewChoiceChips({
           type="button"
           className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
           data-missed={missed.includes(option) ? '' : undefined}
+          data-correct={correct === option ? '' : undefined}
           disabled={disabled || missed.includes(option)}
           onClick={() => pick.current(option)}
         >
@@ -241,6 +258,9 @@ export default function PrototypeReviewDock() {
     reviewDock?.itemId && !sessionItems.some((i) => i.id === reviewDock.itemId),
   );
   const itemsQuery = useReviewItems(undefined, { enabled: open && needsFallback });
+  /** The queue has not answered yet — neither "here is a question" nor "there is nothing". */
+  const settling =
+    sessionQuery.isPending || sessionQuery.isFetching || (needsFallback && itemsQuery.isPending);
 
   const item = useMemo(
     () => resolveReviewDockItem(reviewDock?.itemId, sessionItems, itemsQuery.data?.items ?? []),
@@ -291,6 +311,17 @@ export default function PrototypeReviewDock() {
   const setStatus = useSetReviewStatus();
   // What the reader chose for a slipping item, so the offer is made once and answered once.
   const [leechAction, setLeechAction] = useState<'stepped' | 'paused' | null>(null);
+  /*
+   * How the last answer went, while the card still has the question on it.
+   *
+   * The page cannot mark anything, so this is set from the server's reply and nothing else. It
+   * exists because a right answer used to be invisible: the card flipped to the result the
+   * instant the request came back, so the only feedback on the thing you had just filled in was
+   * that it disappeared. `settled` holds the answered question on screen for a beat with its
+   * line in the accent blue, then the result takes over.
+   */
+  const [verdict, setVerdict] = useState<{ state: 'right' | 'wrong'; option: string | null } | null>(null);
+  const handoverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lastResult = reviewDock?.lastResult ?? null;
 
@@ -318,7 +349,20 @@ export default function PrototypeReviewDock() {
     setBlanks([]);
     setAttemptNumber(1);
     setMissed([]);
+    setVerdict(null);
   }, [item?.id]);
+
+  /*
+   * Only on the way out. Clearing this when the question changed cancelled the pending
+   * handover — answering correctly left the answered card on screen for good, because the
+   * timer that was to replace it with the result had been cleared by the answer itself.
+   */
+  useEffect(
+    () => () => {
+      if (handoverRef.current) clearTimeout(handoverRef.current);
+    },
+    [],
+  );
 
   /*
    * Keep the dock's pointer on an item that still exists.
@@ -365,41 +409,65 @@ export default function PrototypeReviewDock() {
              */
             if (data.finalized === false) {
               setAttemptNumber((n) => n + 1);
+              setVerdict({ state: 'wrong', option: graded?.option ?? null });
               if (graded?.option) setMissed((m) => [...m, graded.option!]);
               return;
             }
+            // Marked, and shown as marked before the card moves on. Only where the server
+            // actually marked something: an ungraded rung has no verdict to colour.
+            if (typeof data.correct === 'boolean') {
+              setVerdict({
+                state: data.correct ? 'right' : 'wrong',
+                option: data.correct ? (graded?.option ?? null) : null,
+              });
+            }
             const crossedToDurable =
               item.recallState !== 'durable' && data.next.recallState === 'durable';
-            setReviewDockResult({
-              // The server's verdict where it marked one; `value` only where it could not.
-              outcome: data.outcome ?? value,
-              label: data.next.label,
-              recallState: data.next.recallState,
-              crossedToDurable,
-              // The verse the rung withheld. Without it, answering "put these back in order"
-              // leaves the reader holding four shuffled phrases and no verse.
-              verseText: data.truth?.verseText ?? null,
-              correctAnswer: data.correctAnswer ?? null,
-              fromIndex: INDEX_KEYED_RUNGS.has(item.promptKey),
-              leech: data.leech === true,
-              itemId: item.id,
-              at: Date.now(),
-            });
-            setLeechAction(null);
-            setSitting((current) => ({
-              answered: current.answered + 1,
-              holding: current.holding + (data.next.recallState === 'durable' ? 1 : 0),
-            }));
+            const handOver = () => {
+              setReviewDockResult({
+                // The server's verdict where it marked one; `value` only where it could not.
+                outcome: data.outcome ?? value,
+                label: data.next.label,
+                recallState: data.next.recallState,
+                crossedToDurable,
+                // The verse the rung withheld. Without it, answering "put these back in order"
+                // leaves the reader holding four shuffled phrases and no verse.
+                verseText: data.truth?.verseText ?? null,
+                correctAnswer: data.correctAnswer ?? null,
+                attempt: FREE_RECALL_RUNGS.has(item.promptKey) ? attempt.trim() || null : null,
+                fromIndex: INDEX_KEYED_RUNGS.has(item.promptKey),
+                leech: data.leech === true,
+                itemId: item.id,
+                at: Date.now(),
+              });
+              setLeechAction(null);
+              setSitting((current) => ({
+                answered: current.answered + 1,
+                holding: current.holding + (data.next.recallState === 'durable' ? 1 : 0),
+              }));
+              /*
+               * Hand the dock back to the queue rather than leaving it pointed at what was just
+               * answered.
+               *
+               * The answered item does not vanish — it is rescheduled, so it is still in the
+               * full item list the fallback lookup reads. Leaving the pointer on it made the
+               * dock resurrect the question it had just accepted an answer for, wearing a
+               * freshly rotated prompt because its review count had gone up. Null means
+               * "whatever is next".
+               */
+              setReviewDockItem(null);
+            };
             /*
-             * Hand the dock back to the queue rather than leaving it pointed at what was just
-             * answered.
-             *
-             * The answered item does not vanish — it is rescheduled, so it is still in the full
-             * item list the fallback lookup reads. Leaving the pointer on it made the dock
-             * resurrect the question it had just accepted an answer for, wearing a freshly
-             * rotated prompt because its review count had gone up. Null means "whatever is next".
+             * A beat before the card moves on, so a marked answer is seen as marked. Skipped
+             * where nothing was marked — an ungraded rung has no verdict to show, and waiting
+             * would just be a pause.
              */
-            setReviewDockItem(null);
+            if (handoverRef.current) clearTimeout(handoverRef.current);
+            if (typeof data.correct === 'boolean') {
+              handoverRef.current = setTimeout(handOver, VERDICT_HOLD_MS);
+            } else {
+              handOver();
+            }
           },
         },
       );
@@ -541,6 +609,16 @@ export default function PrototypeReviewDock() {
                 <p className="proto-review-dock__verse">{lastResult.correctAnswer}</p>
               </div>
             ) : null}
+            {lastResult.attempt ? (
+              <div className="proto-review-dock__answer">
+                <p className="proto-caption proto-review-dock__truth-label">
+                  {REVIEW_YOUR_WORDS_LABEL}
+                </p>
+                <p className="proto-review-dock__verse proto-review-dock__verse--yours">
+                  {lastResult.attempt}
+                </p>
+              </div>
+            ) : null}
             {lastResult.verseText ? (
               <div className="proto-review-dock__answer">
                 <p className="proto-caption proto-review-dock__truth-label">{REVIEW_TRUTH_LABEL}</p>
@@ -605,12 +683,21 @@ export default function PrototypeReviewDock() {
             ) : null}
           </div>
         ) : !item ? (
-          <>
-            <p className="proto-review-dock__empty">{REVIEW_EMPTY_COPY}</p>
-            {sitting.answered > 0 ? (
-              <p className="proto-caption">{sittingCloseLine(sitting)}</p>
-            ) : null}
-          </>
+          /*
+           * "Nothing waiting" is a claim, so it waits until the queue has actually answered.
+           * Said while the request was still in flight, it met a first-time reader with an
+           * empty product a beat before their question arrived.
+           */
+          settling ? (
+            <p className="proto-review-dock__empty">{REVIEW_LOADING_COPY}</p>
+          ) : (
+            <>
+              <p className="proto-review-dock__empty">{REVIEW_EMPTY_COPY}</p>
+              {sitting.answered > 0 ? (
+                <p className="proto-caption">{sittingCloseLine(sitting)}</p>
+              ) : null}
+            </>
+          )
         ) : answeringOnNote ? (
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats
              repeating the prompt down here, where it would read as a second, separate ask. */
@@ -645,6 +732,7 @@ export default function PrototypeReviewDock() {
               options={noteChoice.options}
               disabled={outcome.isPending}
               missed={missed}
+              correct={verdict?.state === 'right' ? verdict.option : null}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
           </>
@@ -671,6 +759,7 @@ export default function PrototypeReviewDock() {
                     <input
                       type="text"
                       className="proto-review-dock__blank"
+                      data-answer={verdict?.state ?? undefined}
                       style={{ width: `${Math.max(4, clozeExercise.blankLengths[index]) + 1}ch` }}
                       value={blanks[index] ?? ''}
                       onChange={(event) => {
@@ -825,6 +914,7 @@ export default function PrototypeReviewDock() {
                   <input
                     type="text"
                     className="proto-review-dock__blank"
+                    data-answer={verdict?.state ?? undefined}
                     style={{ width: '10ch' }}
                     value={blanks[index] ?? ''}
                     onChange={(event) => {
@@ -871,6 +961,7 @@ export default function PrototypeReviewDock() {
               options={beforeExercise.options}
               disabled={outcome.isPending}
               missed={missed}
+              correct={verdict?.state === 'right' ? verdict.option : null}
               opening
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
@@ -893,6 +984,7 @@ export default function PrototypeReviewDock() {
               options={contextChoice.options}
               disabled={outcome.isPending}
               missed={missed}
+              correct={verdict?.state === 'right' ? verdict.option : null}
               opening={contextChoice.opening}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
@@ -915,6 +1007,7 @@ export default function PrototypeReviewDock() {
               options={nextExercise.options}
               disabled={outcome.isPending}
               missed={missed}
+              correct={verdict?.state === 'right' ? verdict.option : null}
               opening
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
@@ -930,8 +1023,40 @@ export default function PrototypeReviewDock() {
               options={locateExercise.options}
               disabled={outcome.isPending}
               missed={missed}
+              correct={verdict?.state === 'right' ? verdict.option : null}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
+          </>
+        ) : FREE_RECALL_RUNGS.has(item.promptKey) ? (
+          /*
+           * Write the verse out, and have it marked. Forgivingly — content words, in order,
+           * case and punctuation and the small words all forgiven — because the thing being
+           * tested is the verse, not the typing. What you wrote comes back with the verse.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            <textarea
+              className="proto-review-dock__attempt"
+              data-answer={verdict?.state ?? undefined}
+              placeholder={REVIEW_ATTEMPT_PLACEHOLDER}
+              value={attempt}
+              onChange={(event) => setAttempt(event.target.value)}
+              rows={3}
+              disabled={outcome.isPending}
+            />
+            {verdict?.state === 'wrong' ? (
+              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
+            ) : null}
+            <div className="proto-review-dock__actions">
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                disabled={outcome.isPending || !attempt.trim()}
+                onClick={() => answer('almost', { text: attempt, promptKey: item.promptKey })}
+              >
+                {REVIEW_CHECK_COPY}
+              </button>
+            </div>
           </>
         ) : !revealed ? (
           <>

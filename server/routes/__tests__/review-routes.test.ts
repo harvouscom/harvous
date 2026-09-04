@@ -340,9 +340,12 @@ describe('the ladder wrap and the truth restore', () => {
     const text = service();
     expect(text).toContain('export async function verseTruthFor');
     const fn = text.slice(text.indexOf('export async function verseTruthFor'));
-    // Only the two rungs that hide it; everything else showed the verse all along.
-    expect(fn.slice(0, 500)).toContain("'verse.sequence'");
-    expect(fn.slice(0, 500)).toContain("'verse.locate'");
+    // Every rung that hides the verse owes it back. The free-recall pair joined them when
+    // they started being marked: you cannot be asked to write it out with it on screen.
+    const withheld = fn.slice(0, 700);
+    for (const key of ["'verse.sequence'", "'verse.locate'", "'verse.recognize'", "'verse.recall'"]) {
+      expect(withheld).toContain(key);
+    }
   });
 
   it('reads the truth from the item as it was asked, not as the outcome left it', () => {

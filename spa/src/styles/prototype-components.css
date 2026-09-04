@@ -20939,6 +20939,9 @@ button.proto-feed-sheet__stat:hover {
   padding: var(--pds-space-10) 0;
   color: var(--pds-text-muted);
   font-size: 14px;
+  text-align: center;
+  /* Balanced rather than ragged: it is one sentence holding the foot of the sheet. */
+  text-wrap: pretty;
 }
 
 /* The day's own controls, at the head of its page. */
@@ -21858,10 +21861,62 @@ button.proto-feed-sheet__stat:hover {
   padding-left: 6px;
 }
 
-/* An option already tried and wrong: still readable, plainly spent. */
+/*
+ * How an answer went, said in colour: the accent blue for right, the destructive red for
+ * wrong. It is only ever the server's verdict — the page holds no answer key — and it lasts a
+ * beat before the result takes the card.
+ */
 .proto-review-dock__choice[data-missed] {
-  opacity: 0.45;
+  opacity: 0.55;
+  border-color: color-mix(in oklab, var(--pds-destructive) 45%, transparent);
+  color: var(--pds-destructive);
   text-decoration: line-through;
+}
+
+.proto-review-dock__choice[data-correct] {
+  background: var(--pds-bg-accent-button);
+  border-color: transparent;
+  color: var(--pds-on-accent);
+}
+
+/* The gap's line carries its verdict, the same line that carries focus. */
+.proto-review-dock__blank[data-answer='wrong'] {
+  background-image: linear-gradient(90deg, var(--pds-destructive), var(--pds-destructive));
+  color: var(--pds-destructive);
+}
+
+.proto-review-dock__blank[data-answer='right'] {
+  background-image: linear-gradient(
+    90deg,
+    var(--pds-accent-gradient-start) 7%,
+    var(--pds-accent-gradient-end) 93%
+  );
+  background-size: 100% 1.5px;
+}
+
+/* What the reader typed, shown back beside the verse: theirs, so not in the reading face. */
+.proto-review-dock__verse--yours {
+  font-style: italic;
+  color: var(--pds-text-secondary);
+}
+
+/* The free-recall box carries its verdict on its edge, the way a gap carries it on its line. */
+.proto-review-dock__attempt[data-answer='wrong'] {
+  border-color: color-mix(in oklab, var(--pds-destructive) 55%, transparent);
+}
+
+.proto-review-dock__attempt[data-answer='right'] {
+  border-color: var(--pds-accent-gradient-end);
+}
+
+/* An answered gap keeps its verdict rather than flashing back to focus blue under the caret. */
+.proto-review-dock__blank[data-answer]:focus {
+  animation: none;
+}
+
+.proto-review-dock__blank[data-answer='wrong']:focus {
+  background-image: linear-gradient(90deg, var(--pds-destructive), var(--pds-destructive));
+  background-size: 100% 1.5px;
 }
 
 .proto-review-dock__retry {

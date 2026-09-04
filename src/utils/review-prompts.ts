@@ -441,6 +441,10 @@ export const VERSE_LOCATE_STEP = 6;
  * question nobody can answer, or marks one nobody was asked.
  */
 const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>([
+  // Both free-recall rungs are marked now. They were the only two the app never checked, and
+  // "write what you remember, if you want to" above an unchecked box is not a question.
+  'verse.recognize',
+  'verse.recall',
   'verse.rebuild',
   'verse.initials',
   'verse.keywords',
