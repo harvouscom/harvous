@@ -172,7 +172,8 @@ export default function PrototypeWelcome3Sheet({ open, onDismiss }: Props) {
             Harvous 3 is here.
           </h2>
           <p className="proto-welcome3__sub">
-            Every note, highlight, and thread is where you left it. What is around them is new.
+            Every note, highlight, and thread is where you left it. We just moved a few things
+            around.
           </p>
 
           <div className="proto-welcome3__actions">

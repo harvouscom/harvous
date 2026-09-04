@@ -9903,6 +9903,16 @@ button.proto-appearance-hero__card {
   animation-delay: 1300ms;
 }
 
+/*
+ * This is where focus lands on open — see `data-proto-dialog-heading` in the component — not
+ * a place a person tabs to. The button rule up top only matches `button, [role='button']`, so
+ * a plain heading falls through to the browser default outline; on a sentence nobody can
+ * interact with, that reads as a rendering glitch rather than a focus indicator.
+ */
+.proto-welcome3__lead:focus-visible {
+  outline: none;
+}
+
 .proto-welcome3__sub {
   margin: 0;
   max-width: 34ch;
