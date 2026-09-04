@@ -66,6 +66,8 @@ export interface ReviewOutcomeResponse {
    */
   finalized?: boolean;
   attemptsLeft?: number;
+  /** Goes used and allowed for the rung on screen, so the dock can draw them. */
+  attempts?: { used: number; total: number };
   /** The option that was right, sent only once the question is over and only where it is one. */
   correctAnswer?: string;
   /**

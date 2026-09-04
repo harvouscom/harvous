@@ -602,11 +602,12 @@ describe('a scheduler that remembers', () => {
      * the schedule must not take the page's word for which rung was asked — a `verse.locate`
      * claim on a recognize card would buy a fortnight for a four-option tap.
      */
-    const at = outcome().indexOf('applyReviewOutcome(');
-    const before = outcome().slice(Math.max(0, at - 400), at);
-    expect(before).toContain('buildReviewItemViews(auth.userId, [item])');
-    expect(before).toMatch(/promptKey \?\? null/);
-    expect(outcome()).not.toMatch(/applyReviewOutcome\([^)]*answer\.promptKey/);
+    // Resolved once, near the top, and used for both the weight and the attempt budget.
+    const block = outcome();
+    expect(block).toContain('buildReviewItemViews(auth.userId, [item])');
+    expect(block).toMatch(/const askedKey =[\s\S]*promptKey \?\? null/);
+    expect(block).toMatch(/applyReviewOutcome\([\s\S]*askedKey,/);
+    expect(block).not.toMatch(/applyReviewOutcome\([^)]*answer\.promptKey/);
   });
 
   it('says so only when this miss made the item a leech', () => {
@@ -657,9 +658,11 @@ describe('the sample, for an account without Review', () => {
     }
   });
 
-  it('keeps the two-attempt rule and bounds what the page sends', () => {
+  it('keeps the retry rule and bounds what the page sends', () => {
     const block = sampleRoutes();
-    expect(block).toContain('attemptNumber < REVIEW_MAX_ATTEMPTS');
+    // The sample is a fill-in-the-gaps, so it gets what every typed rung gets.
+    expect(block).toContain("maxAttemptsFor('verse.rebuild')");
+    expect(block).toContain('attemptNumber < sampleAttempts');
     expect(block).toContain('finalized: false');
     expect(block).toContain('.slice(0, MAX_CLOZE_BLANKS)');
     expect(block).toContain('w.slice(0, MAX_CLOZE_WORD_LENGTH)');

@@ -215,11 +215,44 @@ export function isChallengeStepKind(value: string): value is ChallengeStepKind {
 /**
  * How many goes a graded rung allows before it shows the answer.
  *
- * Two. Being told "back in 4 days" the instant you slip teaches nothing; trying again while the
+ * Being told "back in 4 days" the instant you slip teaches nothing; trying again while the
  * question is still in front of you is where the repetition does its work. How many goes it took
  * is what sets the interval, so the schedule still reflects how well it went.
+ *
+ * **The number depends on the exercise, and the reason is the guessing floor.** Four options
+ * with one spent leaves three, then two: a third go at a tap is nearly a giveaway, and a fourth
+ * would hand it over. Nothing typed has that floor — a second wrong guess at a word you cannot
+ * remember is still a wrong guess — so the rungs that ask the reader to produce something get
+ * one more, which is where the retrieval actually happens. No document specifies a number; this
+ * is argued from the exercises.
+ *
+ * `REVIEW_MAX_ATTEMPTS` remains the ceiling every bound and clamp is written against.
  */
-export const REVIEW_MAX_ATTEMPTS = 2;
+export const REVIEW_MAX_ATTEMPTS = 3;
+
+/** Rungs whose answer is one of four on screen. A third go there is not an attempt. */
+const CHOICE_ATTEMPTS = 2;
+const PRODUCED_ATTEMPTS = 3;
+
+const CHOICE_RUNGS = new Set<string>([
+  'verse.recognize',
+  'verse.next',
+  'verse.before',
+  'verse.locate',
+  'verse.book',
+  'verse.connect',
+  'verse.theme',
+  'verse.person',
+  'verse.crossref',
+  'note.recognize',
+  'note.passage',
+  'note.connect',
+  'note.annotation',
+]);
+
+export function maxAttemptsFor(promptKey: string | null | undefined): number {
+  return promptKey && CHOICE_RUNGS.has(promptKey) ? CHOICE_ATTEMPTS : PRODUCED_ATTEMPTS;
+}
 
 export const REVIEW_INBOX_MAX_ROWS = 3;
 

@@ -24,6 +24,7 @@
  * textarea has no autofocus, because a card that appears while you are typing and takes the
  * caret is the interruption this whole feature is supposed not to be.
  */
+import { maxAttemptsFor } from '@/utils/review-item-kinds';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -331,6 +332,11 @@ export default function PrototypeReviewDock() {
    * that it disappeared. `settled` holds the answered question on screen for a beat with its
    * line in the accent blue, then the result takes over.
    */
+  /**
+   * The goes this question allows. The server decides — it resolves the rung — so this is only
+   * a first guess for the first attempt, replaced by what comes back.
+   */
+  const [attemptsTotal, setAttemptsTotal] = useState<number | null>(null);
   /** Words already tried and wrong on the altered rung, by index. Spent, like a spent chip. */
   const [spentWords, setSpentWords] = useState<number[]>([]);
   const [verdict, setVerdict] = useState<{
@@ -364,6 +370,9 @@ export default function PrototypeReviewDock() {
       </p>
     ) : null;
 
+  /** What this rung allows: the server's answer once it has spoken, else the rung's own rule. */
+  const goesTotal = attemptsTotal ?? (item ? maxAttemptsFor(item.promptKey) : 0);
+
   const lastResult = reviewDock?.lastResult ?? null;
 
   /*
@@ -392,6 +401,7 @@ export default function PrototypeReviewDock() {
     setMissed([]);
     setSpentWords([]);
     setVerdict(null);
+    setAttemptsTotal(null);
   }, [item?.id]);
 
   /*
@@ -457,6 +467,7 @@ export default function PrototypeReviewDock() {
              */
             if (data.finalized === false) {
               setAttemptNumber((n) => n + 1);
+              if (data.attempts) setAttemptsTotal(data.attempts.total);
               setVerdict({ state: 'wrong', option: picked, parts: data.parts, reached: data.reached });
               if (graded?.option) setMissed((m) => [...m, graded.option!]);
               // The altered rung answers with an index, not an option, so it never entered
@@ -637,6 +648,29 @@ export default function PrototypeReviewDock() {
       onToggleExpanded={() => setReviewDockExpanded(!reviewDock.expanded)}
       onDismiss={closeReviewDock}
       headerIcon={<Icon name="arrows-rotate" size={13} aria-hidden />}
+      headerTrailing={
+        /*
+         * The goes this question has, one dot each, spent ones dimmed. No numerals and no
+         * words: the vocabulary here avoids counting what is owed, and a dot that has gone out
+         * says "that one is used" without saying it. Only while a marked question is up.
+         */
+        item && isGradedRung && goesTotal > 1 && !lastResult ? (
+          <span
+            className="proto-review-dock__goes"
+            aria-label={`Attempt ${Math.min(attemptNumber, goesTotal)} of ${goesTotal}`}
+          >
+            {Array.from({ length: goesTotal }, (_, index) => (
+              <span
+                key={index}
+                className="proto-review-dock__go"
+                data-spent={index < attemptNumber - 1 ? '' : undefined}
+                data-current={index === attemptNumber - 1 ? '' : undefined}
+                aria-hidden
+              />
+            ))}
+          </span>
+        ) : null
+      }
       headerTitle={
         <span className="study-dock-card__header-primary-text">
           Review

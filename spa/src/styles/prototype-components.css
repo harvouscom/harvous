@@ -21911,6 +21911,34 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-on-accent);
 }
 
+/*
+ * The goes a question has, one dot each.
+ *
+ * Not a bar and not a count: the onboarding dock already found that a bar for a small set reads
+ * as a task the app is setting, and this feature's vocabulary avoids counting what is owed. A
+ * dot that has gone out says "that one is used" and says nothing else.
+ */
+.proto-review-dock__goes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.proto-review-dock__go {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pds-border-on-paper);
+}
+
+.proto-review-dock__go[data-current] {
+  background: var(--pds-accent-indicator);
+}
+
+.proto-review-dock__go[data-spent] {
+  background: color-mix(in oklab, var(--pds-destructive) 40%, transparent);
+}
+
 /* A word of theirs that landed in the verse. Marked, not highlighted: this is a reading, not a
    correction sheet, and the words that missed are simply left as they wrote them. */
 .proto-review-dock__verse--yours span[data-answer='right'] {

@@ -20,11 +20,12 @@ import { isReviewTableMissing } from '../utils/pg-undefined-relation';
 import {
   REVIEW_INBOX_MAX_ROWS,
   REVIEW_INBOX_UNASKABLE_SLACK,
+  REVIEW_MAX_ATTEMPTS,
   REVIEW_SESSION_CAP,
   isReviewItemKind,
   isReviewItemStatus,
   isReviewOutcome,
-  REVIEW_MAX_ATTEMPTS,
+  maxAttemptsFor,
   type ReviewOutcome,
 } from '@/utils/review-item-kinds';
 import { describeNextReturn } from '@/utils/review-scheduling';
@@ -263,6 +264,9 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
             promptKey: typeof body.answer.promptKey === 'string' ? body.answer.promptKey : undefined,
           }
         : null;
+    // The rung the server resolved, which is also what decides how many goes it allows.
+    const askedKey = (await buildReviewItemViews(auth.userId, [item]))[0]?.promptKey ?? null;
+    const maxAttempts = maxAttemptsFor(askedKey);
     const graded = answer
       ? item.kind === 'note'
         ? await gradeNoteAnswer(auth.userId, item, answer)
@@ -289,12 +293,13 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
      * which is a way of asking to be shown a verse less often — not an exploit worth a round trip
      * to defend against.
      */
-    if (graded && !graded.correct && attemptNumber < REVIEW_MAX_ATTEMPTS) {
+    if (graded && !graded.correct && attemptNumber < maxAttempts) {
       return c.json({
         success: true,
         correct: false,
         finalized: false,
-        attemptsLeft: REVIEW_MAX_ATTEMPTS - attemptNumber,
+        attemptsLeft: maxAttempts - attemptNumber,
+        attempts: { used: attemptNumber, total: maxAttempts },
         // What was right, so the next go can be about what was not. The parts index the
         // reader's own submission; nothing here names anything they did not write.
         ...(graded.parts ? { parts: graded.parts } : {}),
@@ -310,15 +315,14 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         : 'revealed'
       : null;
 
-    // The rung that was asked, resolved the way the list resolved it — not the client's claim.
-    const asked = (await buildReviewItemViews(auth.userId, [item]))[0]?.promptKey ?? null;
     const { item: updated, nextReturnDays, leech } = await applyReviewOutcome(
       auth.userId,
       item,
       verdict ?? outcome,
       attempt,
       new Date(),
-      asked,
+      // The rung that was asked, resolved the way the list resolved it — not the client's claim.
+      askedKey,
     );
 
     /*
@@ -347,6 +351,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         : {}),
       ...(graded?.parts ? { parts: graded.parts } : {}),
       ...(graded?.reached ? { reached: graded.reached } : {}),
+      attempts: { used: attemptNumber, total: maxAttempts },
       item: (await buildReviewItemViews(auth.userId, [updated]))[0],
       ...(truth ? { truth: { verseText: truth } } : {}),
       ...(leech ? { leech: true } : {}),
@@ -447,8 +452,10 @@ route.post('/api/review/sample/answer', requireAuth, rateLimit('write'), async (
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const day = sampleDayFrom(typeof body?.day === 'string' ? body.day : undefined);
+    // The sample is a fill-in-the-gaps, so it gets what every typed rung gets.
+    const sampleAttempts = maxAttemptsFor('verse.rebuild');
     const attemptNumber = Number.isInteger(body?.attemptNumber)
-      ? Math.max(1, Math.min(REVIEW_MAX_ATTEMPTS, body.attemptNumber))
+      ? Math.max(1, Math.min(sampleAttempts, body.attemptNumber))
       : 1;
     const words = Array.isArray(body?.words)
       ? body.words
@@ -460,8 +467,8 @@ route.post('/api/review/sample/answer', requireAuth, rateLimit('write'), async (
     if (!graded) return c.json({ error: 'No sample today', code: 'REVIEW_SAMPLE_UNAVAILABLE' }, 404);
     // Same two-attempt rule as the real thing: a miss with a go left keeps the question up
     // and shows nothing; only the final answer brings the verse out.
-    if (!graded.correct && attemptNumber < REVIEW_MAX_ATTEMPTS) {
-      return c.json({ success: true, correct: false, finalized: false, attemptsLeft: REVIEW_MAX_ATTEMPTS - attemptNumber });
+    if (!graded.correct && attemptNumber < sampleAttempts) {
+      return c.json({ success: true, correct: false, finalized: false, attemptsLeft: sampleAttempts - attemptNumber });
     }
     return c.json({
       success: true,

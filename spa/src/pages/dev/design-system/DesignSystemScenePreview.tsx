@@ -1271,6 +1271,87 @@ const MARK_SAMPLE = 'the light shines in the darkness';
  * somewhere merely visited — and that needs a day holding both. A real account's day is
  * whatever happened, which on most mornings is a chapter and nothing else.
  */
+/**
+ * How an answered Review question reads: the verdict on each part, and the goes it has.
+ *
+ * One grammar across every exercise — right is the accent gradient, wrong is the destructive
+ * red, carried on the element's own edge rather than in a badge beside it. The dots are the
+ * only progress indicator in the app; they exist because a bar for a two-or-three step count
+ * reads as a task being set, which the onboarding dock found first.
+ */
+function ReviewVerdictsScene() {
+  return (
+    <div className="pds-stack" style={{ gap: 20, maxWidth: 520 }}>
+      <div>
+        <p className="pds-caption">Goes</p>
+        <span className="proto-review-dock__goes" aria-label="Attempt 2 of 3">
+          <span className="proto-review-dock__go" data-spent aria-hidden />
+          <span className="proto-review-dock__go" data-current aria-hidden />
+          <span className="proto-review-dock__go" aria-hidden />
+        </span>
+      </div>
+
+      <div>
+        <p className="pds-caption">Gaps, marked per gap</p>
+        <p className="proto-challenge__cloze">
+          {'I am the vine; you are the '}
+          <input
+            className="proto-review-dock__blank"
+            data-answer="right"
+            defaultValue="branches"
+            style={{ width: '9ch' }}
+            readOnly
+          />
+          {'. The one who remains in me bears much '}
+          <input
+            className="proto-review-dock__blank"
+            data-answer="wrong"
+            defaultValue="peace"
+            style={{ width: '6ch' }}
+            readOnly
+          />
+          {'.'}
+        </p>
+      </div>
+
+      <div>
+        <p className="pds-caption">Options</p>
+        <div className="proto-review-dock__chips">
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
+            data-correct
+          >
+            <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
+              A
+            </kbd>
+            <span className="proto-review-dock__choice-label">I am the vine; you are the branches.</span>
+          </button>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
+            data-missed
+            disabled
+          >
+            <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
+              B
+            </kbd>
+            <span className="proto-review-dock__choice-label">The LORD is my shepherd.</span>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p className="pds-caption">What you wrote</p>
+        <p className="proto-review-dock__verse proto-review-dock__verse--yours">
+          <span data-answer="right">vine</span> and the <span data-answer="right">branches</span> and
+          something about <span data-answer="right">fruit</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function StudyFeedScene() {
   const dayStart = new Date(2026, 7, 25, 8, 0, 0);
   const at = (minutes: number) => new Date(dayStart.getTime() + minutes * 60_000).toISOString();
@@ -1419,6 +1500,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <NoteAudienceBarScene />;
     case 'ds-20-study-feed':
       return <StudyFeedScene />;
+    case 'ds-21-review-verdicts':
+      return <ReviewVerdictsScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }
