@@ -1188,6 +1188,21 @@ export default function PrototypeReviewDock() {
               </button>
             </div>
           </>
+        ) : isGradedRung && (reveal.isPending || reveal.isFetching) ? (
+          /*
+           * The question, and dots where its exercise will be.
+           *
+           * Every exercise branch above is keyed on a field of the reveal, so until it lands
+           * they are all empty and the chain fell through to the free-text fallback below —
+           * the reader saw a textarea and a "check the verse" button, which then vanished and
+           * became four options. Showing the wrong exercise is worse than showing none, and
+           * the prompt is the part they should be reading first anyway.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
+            <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
+          </>
         ) : !revealed ? (
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
