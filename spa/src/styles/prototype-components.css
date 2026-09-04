@@ -9815,6 +9815,39 @@ button.proto-appearance-hero__card {
   /* Dissolve toward the edges so it reads as ruled paper behind the numeral, not wallpaper. */
   mask-image: radial-gradient(70% 70% at 50% 30%, #000 20%, transparent 100%);
   -webkit-mask-image: radial-gradient(70% 70% at 50% 30%, #000 20%, transparent 100%);
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  /*
+   * The pool of visible ruling drifts on the same fourteen seconds as the numeral's lighting,
+   * so the two read as one light source rather than two separate animations. The grid itself
+   * never moves — travelling ruled lines are conspicuous, and would undo the whole point.
+   */
+  animation: proto-welcome3-ground 14000ms ease-in-out 2400ms infinite;
+}
+
+/*
+ * `mask-position`, not the gradient's own `at`.
+ *
+ * Animating `mask-image` between two gradients was the obvious way and does not work: the
+ * engine treats gradient images as discrete, so instead of drifting it snapped from one
+ * position to the other halfway through — worse than not animating at all. Position is a
+ * length and interpolates properly.
+ *
+ * Pixels rather than percentages: the mask is exactly the size of the box, so percentage
+ * offsets resolve against zero free space and would move nothing at all. `no-repeat` above
+ * stops the shifted mask tiling; the few pixels it uncovers at the edge are already fully
+ * transparent in the gradient, so nothing shows a seam.
+ */
+@keyframes proto-welcome3-ground {
+  0%,
+  100% {
+    mask-position: -8px 6px;
+    -webkit-mask-position: -8px 6px;
+  }
+  50% {
+    mask-position: 8px -6px;
+    -webkit-mask-position: 8px -6px;
+  }
 }
 
 .proto-welcome3__grid::before {
@@ -9822,12 +9855,18 @@ button.proto-appearance-hero__card {
   position: absolute;
   inset: 0;
   --proto-welcome3-cell: calc(100cqw / round(nearest, 100cqw / 24px, 1));
-  /* `--pds-border`, not `--pds-border-soft`: soft is a 10%-alpha hairline meant for borders on
-     tinted chrome, and over the near-white sheet it renders as nothing at all. This is the
-     closest the app has to the site's `--color-rule` at 38%. */
+  /*
+   * Mixed off the text colour rather than a border token, because it has to work on both
+   * grounds and the border tokens only work on one. They derive from the canvas by scaling its
+   * lightness down, which gives contrast on a light sheet and none at all on a dark one — the
+   * ruling came out at oklch(0.206) over a 0.18 sheet, invisible. The text colour is the one
+   * value in the system already guaranteed to oppose the background, so a few percent of it
+   * lands dark-on-light and light-on-dark without a second branch.
+   */
+  --proto-welcome3-rule: color-mix(in srgb, var(--pds-text-primary) 8%, transparent);
   background-image:
-    linear-gradient(to right, var(--pds-border) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--pds-border) 1px, transparent 1px);
+    linear-gradient(to right, var(--proto-welcome3-rule) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--proto-welcome3-rule) 1px, transparent 1px);
   background-size: var(--proto-welcome3-cell) var(--proto-welcome3-cell);
 }
 
@@ -10076,6 +10115,10 @@ button.proto-appearance-hero__card {
   .proto-welcome3__numeral-drift {
     animation: none;
     fill-opacity: 0;
+  }
+
+  .proto-welcome3__grid {
+    animation: none;
   }
 
   .proto-welcome3__lead,
