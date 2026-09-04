@@ -21841,6 +21841,38 @@ button.proto-feed-sheet__stat:hover {
 }
 
 /*
+ * An option reads left, and its words wrap rather than run off the card.
+ *
+ * `.proto-settings-btn` is built for a full-width action button: `width: 100%` with its
+ * content centred. That is right for "Check it" and wrong for a sentence — on a narrow card a
+ * verse opening overflowed *both* edges at once, taking the letter keycap off the left with
+ * it, so option A had no A and began mid-word. Found at 375px; on a desktop card the openings
+ * happened to fit.
+ *
+ * Doubled selector to out-specify the button's own rule. `anywhere` rather than `break-word`
+ * because it also lets the label shrink below its longest word, which is what allows the flex
+ * row to give the text a narrower box instead of overflowing one.
+ */
+.proto-review-dock__choice.proto-review-dock__choice {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/*
+ * `flex: 1 1 auto` because a global `* { flex-shrink: 0 }` reset is in force.
+ *
+ * That is the whole reason the words could not wrap: the label was `flex: 0 0 auto`, so its
+ * box stayed at the full width of the sentence no matter how narrow the card got, and the text
+ * simply hung outside it. `min-width: 0` and `overflow-wrap` are the usual pair for letting a
+ * flex item narrow, and neither does anything until the item is allowed to shrink at all.
+ */
+.proto-review-dock__choice-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
  * A gap in a cloze, which is a real input rather than a picture of one.
  *
  * Sits on the line it interrupts: no border box, just the underline the underscores used to
