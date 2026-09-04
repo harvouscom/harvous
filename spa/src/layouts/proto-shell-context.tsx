@@ -1,3 +1,4 @@
+import type { ReviewAnswerEcho } from '@/utils/review-answer-echo';
 import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { clearComposeRestoreStash } from '../lib/compose-session-restore';
 import {
@@ -378,6 +379,15 @@ export type PaperStackOrigin = {
     attempt?: string;
     /** Where recall stood before this answer, so the result can say when it crossed into holding. */
     recallState?: string;
+    /**
+     * The question and what it was about, carried so the result card can recap them.
+     *
+     * Read from here rather than from `base.title` below: that is a display slot on a union,
+     * and a result that depended on how a card happens to be laid out would break the first
+     * time the layout changed.
+     */
+    prompt?: string;
+    subject?: string | null;
   };
   label: string;
   icon: string;
@@ -453,18 +463,32 @@ export type ReviewDockResult = {
    * shuffled phrases and no verse is not how a review should end.
    */
   verseText?: string | null;
-  /** Which of the reader's own words landed, indexed to their typed answer. */
-  attemptParts?: boolean[] | null;
   /** How much of the verse that answer reached. A count; it names no word. */
   reached?: { matched: number; total: number } | null;
   /**
-   * What the reader typed, when the rung asked them to write the verse out.
+   * The question, as it was asked.
    *
-   * Kept so the answer is worth something after it is marked: their words sit beside the
-   * verse, which is the comparison the exercise was for. It is theirs — it is not sent
-   * anywhere new, and it is already what the server records as the attempt.
+   * The result used to arrive without it, so a card read "The answer / I am the vine; you are
+   * the branches." with nothing above it saying what had been asked — and on the rungs keyed to
+   * the curated index, "The index has this as / Moses" with no question at all. A recap that
+   * leaves out the question is not a recap.
    */
-  attempt?: string | null;
+  prompt?: string | null;
+  /**
+   * Which thing it was about, where the question does not name it.
+   *
+   * Also where the rungs that deliberately *hid* the subject can finally say it: "say where
+   * this is from" cannot name the passage while it is the answer, and has every reason to once
+   * the answer is in.
+   */
+  subject?: string | null;
+  /**
+   * What the reader submitted, marked.
+   *
+   * Absent where there is nothing to hand back — the self-judged rungs, where they read the
+   * note and said how it went, have no answer for the card to echo.
+   */
+  echo?: ReviewAnswerEcho | null;
   /**
    * Missed four times after being held. The one moment Review says a thing is not working
    * rather than asking again, so the result carries the item to act on.

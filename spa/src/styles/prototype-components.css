@@ -22056,10 +22056,62 @@ button.proto-feed-sheet__stat:hover {
 
 /* A word of theirs that landed in the verse. Marked, not highlighted: this is a reading, not a
    correction sheet, and the words that missed are simply left as they wrote them. */
-.proto-review-dock__verse--yours span[data-answer='right'] {
+.proto-review-dock__verse--yours span[data-answer='right'],
+.proto-review-dock__echo-rows li[data-answer='right'] {
   color: var(--pds-accent-gradient-end);
   font-style: normal;
   font-weight: 600;
+}
+
+/*
+ * A choice of theirs that missed.
+ *
+ * Only on the layouts that echo a discrete choice — one tapped option, or phrases put in an
+ * order — because the reader watched those turn red as chips a second ago and the recap should
+ * agree with what they saw. Their own prose is left alone by the rule above: marking every
+ * unmatched word of someone's writing is the correction sheet that rule exists to refuse.
+ */
+.proto-review-dock__echo-rows li[data-answer='wrong'],
+.proto-review-dock__verse--pick span[data-answer='wrong'] {
+  color: var(--pds-destructive);
+  font-style: normal;
+}
+
+/* The order they put them in, read down the page as they built it. */
+.proto-review-dock__echo-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  counter-reset: proto-echo-row;
+}
+
+.proto-review-dock__echo-rows li {
+  counter-increment: proto-echo-row;
+}
+
+/* The position, so a wrong order reads as "this one was third" rather than as a wrong phrase. */
+.proto-review-dock__echo-rows li::before {
+  content: counter(proto-echo-row) '. ';
+  color: var(--pds-text-tertiary);
+  font-style: normal;
+}
+
+/*
+ * The question, recapped above its own answer.
+ *
+ * Quieter and smaller than the prompt it repeats — it is context now, not the ask — and clamped
+ * to two lines so a long question cannot push "Next one" below the fold of a card that already
+ * scrolls.
+ */
+.proto-review-dock__prompt--asked {
+  font-size: 14px;
+  color: var(--pds-text-secondary);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 /* What the reader typed, shown back beside the verse: theirs, so not in the reading face. */

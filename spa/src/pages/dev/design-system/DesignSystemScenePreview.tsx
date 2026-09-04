@@ -1348,6 +1348,32 @@ function ReviewVerdictsScene() {
           something about <span data-answer="right">fruit</span>
         </p>
       </div>
+
+      <div>
+        {/* One tapped thing, which may be marked either way — the reader watched this chip turn
+            red a second ago, so the recap agrees with what they saw. */}
+        <p className="pds-caption">What you picked</p>
+        <p className="proto-review-dock__verse proto-review-dock__verse--yours proto-review-dock__verse--pick">
+          <span data-answer="wrong">To all those loved by God in Rome…</span>
+        </p>
+      </div>
+
+      <div>
+        <p className="pds-caption">The order you put them in</p>
+        <ol className="proto-review-dock__verse proto-review-dock__verse--yours proto-review-dock__echo-rows">
+          <li data-answer="right">I am the vine</li>
+          <li data-answer="wrong">bears much fruit</li>
+          <li data-answer="wrong">you are the branches</li>
+        </ol>
+      </div>
+
+      <div>
+        {/* The question, recapped above its own answer: quieter than the ask it repeats. */}
+        <p className="pds-caption">The question, recapped</p>
+        <p className="proto-review-dock__prompt proto-review-dock__prompt--asked">
+          Pick how John 15:5 begins.
+        </p>
+      </div>
     </div>
   );
 }

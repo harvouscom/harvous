@@ -1,3 +1,4 @@
+import { reviewAnswerEcho } from '@/utils/review-answer-echo';
 import DevModeBadge from '../components/DevModeBadge';
 import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
@@ -661,6 +662,15 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
               label: data.next.label,
               recallState: data.next.recallState,
               crossedToDurable: !wasDurable && data.next.recallState === 'durable',
+              /*
+               * The question, and what the reader wrote before opening the note — unmarked,
+               * because nothing marked it. These rungs are the self-judged ones: they read the
+               * note and said how it went, so there is no verdict to colour their words with,
+               * and the echo says so by marking nothing.
+               */
+              prompt: review.prompt ?? null,
+              subject: review.subject ?? null,
+              echo: reviewAnswerEcho({ submitted: review.attempt ? { text: review.attempt } : null }),
               at: Date.now(),
             }),
         },

@@ -12,6 +12,8 @@
  * and the strategy doc names that failure mode explicitly.
  */
 
+import type { ReviewEchoManner } from '@/utils/review-answer-echo';
+
 export const REVIEW_START_COPY = 'Start';
 export const REVIEW_DEFER_COPY = 'Not now';
 export const REVIEW_PAUSE_COPY = 'Pause this';
@@ -174,6 +176,20 @@ export const REVIEW_INITIALS_PLACEHOLDER = 'Write the verse out';
  */
 export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember';
 export const REVIEW_YOUR_WORDS_LABEL = 'What you wrote';
+
+/**
+ * The heading above the reader's own answer on the result card, by what they actually did.
+ *
+ * Four, because "what you wrote" over three tapped chips is not what happened, and the result
+ * is meant to be a recap of the moment rather than a generic slot. `wrote` reuses the constant
+ * above so the free-recall card keeps the words it always had.
+ */
+export const REVIEW_ECHO_LABEL: Record<ReviewEchoManner, string> = {
+  picked: 'What you picked',
+  ordered: 'The order you put them in',
+  filled: 'What you filled in',
+  wrote: REVIEW_YOUR_WORDS_LABEL,
+};
 
 export const CHALLENGE_STEP_DONE_COPY = 'Done';
 export const CHALLENGE_STEP_SKIP_COPY = 'Skip this';

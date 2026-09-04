@@ -25,6 +25,12 @@
  * caret is the interruption this whole feature is supposed not to be.
  */
 import { maxAttemptsFor } from '@/utils/review-item-kinds';
+import {
+  echoMatchesAnswer,
+  reviewAnswerEcho,
+  reviewResultSubject,
+  type ReviewEchoShown,
+} from '@/utils/review-answer-echo';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -53,6 +59,7 @@ import { useReviewOutcome, useSetReviewStatus, useStepBackReview } from '../../h
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { buildReviewCardStackOrigin } from './paper-stack-origins';
 import {
+  REVIEW_ECHO_LABEL,
   REVIEW_ALMOST_COPY,
   REVIEW_ATTEMPT_PLACEHOLDER,
   REVIEW_EMPTY_COPY,
@@ -442,6 +449,15 @@ export default function PrototypeReviewDock() {
        * passes its word index instead, since that is what identifies the thing tapped there.
        */
       picked: string | null = graded?.option ?? null,
+      /**
+       * What was on screen, for the two answers that are indices into it.
+       *
+       * Passed in from the render rather than read at handover: this callback is memoised on
+       * the item, and the reveal payloads are not in its dependency list — reading
+       * `sequenceExercise` inside it would hand back whatever it was when the callback was
+       * built, which on a fresh question is null.
+       */
+      shown?: ReviewEchoShown,
     ) => {
       if (!item) return;
       /*
@@ -507,8 +523,20 @@ export default function PrototypeReviewDock() {
                 // leaves the reader holding four shuffled phrases and no verse.
                 verseText: data.truth?.verseText ?? null,
                 correctAnswer: data.correctAnswer ?? null,
-                attempt: FREE_RECALL_RUNGS.has(item.promptKey) ? attempt.trim() || null : null,
-                attemptParts: FREE_RECALL_RUNGS.has(item.promptKey) ? (data.parts ?? null) : null,
+                /*
+                 * The question and what was said about it, so the result is a recap rather than
+                 * a loose answer. Every rung's submission shape is handled in one place — see
+                 * `buildReviewAnswerEcho` — and the two rungs whose answer is a set of indices
+                 * are resolved back to words here, where the exercise they indexed is in scope.
+                 */
+                prompt: item.prompt,
+                subject: reviewResultSubject(item),
+                echo: reviewAnswerEcho({
+                  submitted: graded ?? null,
+                  shown,
+                  parts: data.parts ?? null,
+                  correct: data.correct ?? null,
+                }),
                 reached: data.reached ?? null,
                 fromIndex: INDEX_KEYED_RUNGS.has(item.promptKey),
                 leech: data.leech === true,
@@ -704,9 +732,65 @@ export default function PrototypeReviewDock() {
            * on the answer that earns it — that it is holding now.
            */
           <div className="proto-review-dock__result">
+            {/*
+              * The question, first, because a result that does not say what was asked is a
+              * sentence with no subject. It is also the one line that makes the index-keyed
+              * rungs read as anything at all: "The reference works say / Moses" means nothing
+              * until "Pick who appears in John 3." is sitting above it.
+              */}
+            {lastResult.prompt ? (
+              <p className="proto-review-dock__prompt proto-review-dock__prompt--asked">
+                {lastResult.prompt}
+              </p>
+            ) : null}
+            {/* Only where the question does not already name the thing — and on the rungs that
+                hid it while asking, this is where it is finally safe to say. */}
+            {lastResult.subject && !lastResult.prompt?.includes(lastResult.subject) ? (
+              <p className="proto-review-dock__subject">{lastResult.subject}</p>
+            ) : null}
+            {lastResult.echo ? (
+              /*
+               * What the reader said, marked. Their own words and taps rather than the verse's,
+               * so the card says how it went without printing the answer twice.
+               */
+              <div className="proto-review-dock__answer">
+                <p className="proto-caption proto-review-dock__truth-label">
+                  {REVIEW_ECHO_LABEL[lastResult.echo.manner]}
+                </p>
+                {lastResult.echo.layout === 'rows' ? (
+                  <ol className="proto-review-dock__verse proto-review-dock__verse--yours proto-review-dock__echo-rows">
+                    {lastResult.echo.parts.map((part, index) => (
+                      <li key={`${index}-${part.text}`} data-answer={part.state}>
+                        {part.text}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p
+                    className={`proto-review-dock__verse proto-review-dock__verse--yours${
+                      // One tapped thing, which may be marked either way — see the CSS.
+                      lastResult.echo.layout === 'line' ? ' proto-review-dock__verse--pick' : ''
+                    }`}
+                  >
+                    {lastResult.echo.parts.map((part, index) => (
+                      <Fragment key={`${index}-${part.text}`}>
+                        {index > 0 ? ' ' : null}
+                        <span data-answer={part.state}>{part.text}</span>
+                      </Fragment>
+                    ))}
+                  </p>
+                )}
+                {lastResult.reached ? (
+                  <p className="proto-caption proto-review-dock__retry">
+                    {reviewReachedCopy(lastResult.reached.matched, lastResult.reached.total)}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             {/* The verse first, the verdict under it: what the reader came back for is the
-                text, not the bookkeeping. */}
-            {lastResult.correctAnswer ? (
+                text, not the bookkeeping. Skipped where the echo above already carries these
+                exact words, or the card prints one sentence under two headings. */}
+            {lastResult.correctAnswer && !echoMatchesAnswer(lastResult.echo, lastResult.correctAnswer) ? (
               <div className="proto-review-dock__answer">
                 <p className="proto-caption proto-review-dock__truth-label">
                   {/* A miss on a curated rung is a disagreement with the index, not a lapse of
@@ -714,33 +798,6 @@ export default function PrototypeReviewDock() {
                   {lastResult.fromIndex ? REVIEW_INDEX_ANSWER_LABEL : REVIEW_ANSWER_LABEL}
                 </p>
                 <p className="proto-review-dock__verse">{lastResult.correctAnswer}</p>
-              </div>
-            ) : null}
-            {lastResult.attempt ? (
-              /*
-               * Their sentence, with the words that landed marked. The marks index their own
-               * typing, so this says how much of the verse they reached without printing the
-               * verse's vocabulary at them — the verse itself is directly below, in full.
-               */
-              <div className="proto-review-dock__answer">
-                <p className="proto-caption proto-review-dock__truth-label">
-                  {REVIEW_YOUR_WORDS_LABEL}
-                </p>
-                <p className="proto-review-dock__verse proto-review-dock__verse--yours">
-                  {lastResult.attempt.split(/\s+/).map((word, index) => (
-                    <Fragment key={`${index}-${word}`}>
-                      {index > 0 ? ' ' : null}
-                      <span data-answer={lastResult.attemptParts?.[index] ? 'right' : undefined}>
-                        {word}
-                      </span>
-                    </Fragment>
-                  ))}
-                </p>
-                {lastResult.reached ? (
-                  <p className="proto-caption proto-review-dock__retry">
-                    {reviewReachedCopy(lastResult.reached.matched, lastResult.reached.total)}
-                  </p>
-                ) : null}
               </div>
             ) : null}
             {lastResult.verseText ? (
@@ -993,7 +1050,11 @@ export default function PrototypeReviewDock() {
                 type="button"
                 className="proto-settings-btn proto-settings-btn--compact"
                 disabled={outcome.isPending || placed.length !== sequenceExercise.phrases.length}
-                onClick={() => answer('almost', { order: placed })}
+                onClick={() =>
+                  answer('almost', { order: placed }, null, {
+                    phrases: sequenceExercise.phrases,
+                  })
+                }
               >
                 {REVIEW_CHECK_COPY}
               </button>
@@ -1039,6 +1100,7 @@ export default function PrototypeReviewDock() {
                           'almost',
                           { wordIndex: index, promptKey: item.promptKey },
                           String(index),
+                          { word: token },
                         )
                       }
                     >
@@ -1136,7 +1198,9 @@ export default function PrototypeReviewDock() {
               missed={missed}
               correct={verdict?.state === 'right' ? verdict.option : null}
               opening
-              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+              onPick={(option) =>
+                answer('almost', { option, promptKey: item.promptKey }, option, { opening: true })
+              }
             />
           </>
         ) : contextChoice ? (
@@ -1157,7 +1221,11 @@ export default function PrototypeReviewDock() {
               missed={missed}
               correct={verdict?.state === 'right' ? verdict.option : null}
               opening={contextChoice.opening}
-              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+              onPick={(option) =>
+                answer('almost', { option, promptKey: item.promptKey }, option, {
+                  opening: contextChoice.opening,
+                })
+              }
             />
           </>
         ) : nextExercise ? (
@@ -1178,7 +1246,9 @@ export default function PrototypeReviewDock() {
               missed={missed}
               correct={verdict?.state === 'right' ? verdict.option : null}
               opening
-              onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+              onPick={(option) =>
+                answer('almost', { option, promptKey: item.promptKey }, option, { opening: true })
+              }
             />
           </>
         ) : locateExercise ? (
