@@ -9861,6 +9861,12 @@ button.proto-appearance-hero__card {
  * glyph's true edge and the weight is exactly the font's.
  */
 .proto-welcome3__numeral-path {
+  /* On the element rather than the glyph in `defs`, so the gleam below can wear its own. */
+  fill: url(#proto-welcome3-grad);
+  stroke: url(#proto-welcome3-grad);
+  stroke-width: 28;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   fill-opacity: 0;
@@ -9879,6 +9885,65 @@ button.proto-appearance-hero__card {
 @keyframes proto-welcome3-fill {
   to {
     fill-opacity: 1;
+    stroke-opacity: 0;
+  }
+}
+
+/*
+ * The draw comes back every so often, as light instead of ink.
+ *
+ * A short lit arc travelling the edge, not the whole outline staying lit — a full re-trace was
+ * the first attempt and it turned half the numeral pale on the way round, which read as a
+ * loading state. Same path, direction and easing as the original draw, so it is recognisably
+ * that gesture returning rather than a new one.
+ *
+ * It has to be a second element. The first one's job ends with `both` holding the glyph
+ * filled, and a looping animation there would reset `fill-opacity` to 0 on every pass and
+ * blink the numeral out. This one only ever touches the stroke.
+ *
+ * Most of the eight seconds is rest: the lap takes about the 1.4s the draw did, then nothing
+ * for six. That gap is what keeps it a gleam rather than a spinner.
+ */
+.proto-welcome3__numeral-trace {
+  fill: none;
+  stroke: #fff;
+  /*
+   * Half of this is clipped away, so ~32 units show. The glyph renders about 120px wide from a
+   * 1054-unit viewBox — roughly 8.8 units per pixel — so anything under ~40 lands below a
+   * single rendered pixel. 16 was the first guess and could not be seen at all.
+   */
+  stroke-width: 64;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* 13% of the lap lit, the rest dark. */
+  stroke-dasharray: 0.13 0.87;
+  stroke-dashoffset: 1;
+  stroke-opacity: 0;
+  /* Begins once the fill has landed and had a beat to settle. */
+  animation: proto-welcome3-trace 8000ms cubic-bezier(0.65, 0, 0.35, 1) 2600ms infinite;
+}
+
+/*
+ * One lap, then rest. Fading at both ends means the arc is never seen appearing or vanishing
+ * mid-edge — it has gone by the time it returns to where it started.
+ */
+@keyframes proto-welcome3-trace {
+  0% {
+    stroke-dashoffset: 1;
+    stroke-opacity: 0;
+  }
+  3% {
+    stroke-opacity: 0.85;
+  }
+  15% {
+    stroke-opacity: 0.85;
+  }
+  18% {
+    stroke-dashoffset: 0;
+    stroke-opacity: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
     stroke-opacity: 0;
   }
 }
@@ -10027,6 +10092,12 @@ button.proto-appearance-hero__card {
     animation: none;
     stroke-dashoffset: 0;
     fill-opacity: 1;
+    stroke-opacity: 0;
+  }
+
+  /* A repeating gleam is precisely what this setting is asking not to see. */
+  .proto-welcome3__numeral-trace {
+    animation: none;
     stroke-opacity: 0;
   }
 

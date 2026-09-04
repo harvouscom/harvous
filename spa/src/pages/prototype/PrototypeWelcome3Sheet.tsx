@@ -147,16 +147,27 @@ export default function PrototypeWelcome3Sheet({ open, onDismiss }: Props) {
                 <stop offset="7%" stopColor="#2bb5ff" />
                 <stop offset="93%" stopColor="#006eff" />
               </linearGradient>
+
+              {/* The glyph itself, defined once and worn twice: the numeral below, and the
+                  gleam that re-traces its edge. Carries no fill or stroke of its own so each
+                  `use` can set them in CSS — a presentation attribute here would win over
+                  anything inherited and both copies would look the same. `pathLength` has to
+                  live on the geometry, and normalises the dash maths for both. */}
+              <path id="proto-welcome3-glyph" pathLength="1" d="M509 1474Q362 1474 261 1436Q161 1398 100 1337Q39 1276 14 1214Q-11 1156 9 1094Q30 1033 81 1008Q132 983 181 996Q231 1010 262 1058Q278 1092 302 1122Q327 1152 367 1170Q406 1188 471 1188Q545 1188 599 1142Q654 1096 654 1012Q654 936 598 889Q543 842 434 842H412Q361 842 327 805Q293 768 293 718Q293 668 327 631Q362 594 414 594H435Q534 594 580 552Q625 508 625 444Q625 370 582 330Q539 290 470 290Q420 290 389 302Q359 314 334 338Q310 362 291 395Q262 436 214 448Q166 462 116 439Q65 416 45 359Q25 301 55 242Q89 176 150 120Q212 64 298 32Q385 0 512 0Q703 0 825 96Q947 192 947 359Q947 468 889 552Q830 636 722 674Q849 702 927 796Q1006 889 1006 1026Q1006 1218 868 1346Q730 1474 509 1474Z" />
+
+              {/* Keeps the gleam inside the glyph. The stroke is centred on the edge, so half
+                  of it falls outside — invisible on a white sheet, a white halo on a dark one.
+                  Clipping makes it an inner light in both. */}
+              <clipPath id="proto-welcome3-clip">
+                <use href="#proto-welcome3-glyph" />
+              </clipPath>
             </defs>
-            <path
-              className="proto-welcome3__numeral-path"
-              pathLength="1"
-              fill="url(#proto-welcome3-grad)"
-              stroke="url(#proto-welcome3-grad)"
-              strokeWidth="28"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M509 1474Q362 1474 261 1436Q161 1398 100 1337Q39 1276 14 1214Q-11 1156 9 1094Q30 1033 81 1008Q132 983 181 996Q231 1010 262 1058Q278 1092 302 1122Q327 1152 367 1170Q406 1188 471 1188Q545 1188 599 1142Q654 1096 654 1012Q654 936 598 889Q543 842 434 842H412Q361 842 327 805Q293 768 293 718Q293 668 327 631Q362 594 414 594H435Q534 594 580 552Q625 508 625 444Q625 370 582 330Q539 290 470 290Q420 290 389 302Q359 314 334 338Q310 362 291 395Q262 436 214 448Q166 462 116 439Q65 416 45 359Q25 301 55 242Q89 176 150 120Q212 64 298 32Q385 0 512 0Q703 0 825 96Q947 192 947 359Q947 468 889 552Q830 636 722 674Q849 702 927 796Q1006 889 1006 1026Q1006 1218 868 1346Q730 1474 509 1474Z"
+
+            <use className="proto-welcome3__numeral-path" href="#proto-welcome3-glyph" />
+            <use
+              className="proto-welcome3__numeral-trace"
+              href="#proto-welcome3-glyph"
+              clipPath="url(#proto-welcome3-clip)"
             />
           </svg>
 
