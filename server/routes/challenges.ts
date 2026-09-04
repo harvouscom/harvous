@@ -19,6 +19,7 @@ import {
   isChallengeSettableStatus,
   isChallengeStatus,
   isChallengeTemplateKey,
+  type ChallengeStatus,
 } from '@/utils/review-item-kinds';
 import {
   buildChallengeContext,
@@ -38,13 +39,25 @@ const MAX_RESPONSE_LENGTH = 2000;
 route.get('/api/challenges', requireAuth, rateLimit('read'), requireFeature('challenges'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
+    /*
+     * `status` takes a comma-separated list, so a caller wanting two of them makes one request.
+     * Home wants exactly that — open challenges for the Review section, open and paused for the
+     * Strengthen row — and asked as two requests it was two round trips for one overlapping list.
+     *
+     * Still all-or-nothing on validation: one unknown name rejects the whole parameter rather
+     * than being dropped, because a filter that quietly ignores half of what it was given
+     * returns a plausible wrong answer.
+     */
     const statusParam = c.req.query('status');
-    if (statusParam && !isChallengeStatus(statusParam)) {
+    const statuses = statusParam
+      ? statusParam.split(',').map((part) => part.trim()).filter(Boolean)
+      : [];
+    if (statusParam && (statuses.length === 0 || !statuses.every(isChallengeStatus))) {
       return c.json({ error: 'Unknown status', code: 'CHALLENGE_STATUS_INVALID' }, 400);
     }
     const rows = await listChallenges(
       auth.userId,
-      statusParam && isChallengeStatus(statusParam) ? statusParam : undefined,
+      statuses.length > 0 ? (statuses as ChallengeStatus[]) : undefined,
     );
     return c.json({ success: true, challenges: rows.map(toChallengeView) });
   } catch (error) {

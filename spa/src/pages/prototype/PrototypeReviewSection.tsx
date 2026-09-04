@@ -27,7 +27,7 @@ import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
 import { useReviewInbox } from '../../hooks/queries/useReview';
-import { useChallenges } from '../../hooks/queries/useChallenges';
+import { useHomeChallenges } from '../../hooks/queries/useChallenges';
 import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -54,7 +54,14 @@ export default function PrototypeReviewSection() {
   const { dismissed: plusPromptDismissed, dismiss: dismissPlusPrompt } = useDismissiblePlusPrompt();
 
   const inboxQuery = useReviewInbox();
-  const challengesQuery = useChallenges('active');
+  /*
+   * Open challenges, off the list the Strengthen row below also reads.
+   *
+   * That row needs paused ones too — a Thread the reader put down is not an offer to make
+   * again — so one request covers both statuses and each place filters it. Asked separately it
+   * was two round trips for one overlapping list.
+   */
+  const challengesQuery = useHomeChallenges();
   const defer = useDeferReview();
   const setStatus = useSetReviewStatus();
 
@@ -96,7 +103,9 @@ export default function PrototypeReviewSection() {
   }
 
   const items = inboxQuery.data?.items ?? [];
-  const activeChallenges = challengesQuery.data?.challenges ?? [];
+  const activeChallenges = (challengesQuery.data?.challenges ?? []).filter(
+    (c) => c.status === 'active',
+  );
 
   /*
    * Reviews first, then one challenge, and the cap applies to the whole stack.

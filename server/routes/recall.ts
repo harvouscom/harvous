@@ -1,5 +1,6 @@
 /**
  * POST /api/recall/event        — record a Home recall carousel event.
+ * POST /api/recall/events       — the same, for a set of them that arrived together.
  * GET  /api/recall/events/recent — read back history for suppression.
  */
 
@@ -46,6 +47,64 @@ const RECALL_HISTORY_MAX_ROWS = 500;
  * lost are the oldest — and a dismissal from years ago is the likeliest to have gone stale.
  */
 const RECALL_PERMANENT_MAX_ROWS = 2000;
+
+/**
+ * Ceiling on one batch.
+ *
+ * The carousel sends an impression per card on screen, so a real batch is single digits; this
+ * is only here so a malformed or hostile body cannot turn one authenticated request into an
+ * unbounded run of inserts. Anything past it is rejected rather than truncated, because a
+ * silently half-recorded batch is the harder thing to notice.
+ */
+const RECALL_EVENT_BATCH_MAX = 50;
+
+/**
+ * The plural of the route below, for events that arrive together.
+ *
+ * Home shows six suggestions and recorded six impressions as six requests. They are written
+ * one at a time here rather than as a multi-row insert because `recordRecallEvent` is more
+ * than an insert for some actions — an `open` also bumps spaced repetition and touches the
+ * study-bible layer — and one code path for both routes is worth more than five saved
+ * statements on a connection the client is no longer waiting on. The round trips this removes
+ * are the ones over the network, which is where they cost.
+ *
+ * Partial batches are honoured: an entry that fails validation is counted and skipped rather
+ * than failing the ones beside it. These are analytics writes the client never reads back, so
+ * losing the whole batch to one bad row is the worse trade — but the count comes back in the
+ * response so a client that starts sending garbage is not silently accommodated.
+ */
+route.post('/api/recall/events', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const rows = Array.isArray((body as { events?: unknown })?.events)
+      ? ((body as { events: unknown[] }).events)
+      : null;
+    if (!rows) {
+      return c.json({ error: 'Expected an events array', code: 'RECALL_EVENTS_INVALID' }, 400);
+    }
+    if (rows.length > RECALL_EVENT_BATCH_MAX) {
+      return c.json({ error: 'Too many events', code: 'RECALL_EVENTS_TOO_MANY' }, 400);
+    }
+
+    let recorded = 0;
+    let rejected = 0;
+    for (const row of rows) {
+      const input = validateRecallEventInput(row);
+      if (!input) {
+        rejected += 1;
+        continue;
+      }
+      await recordRecallEvent(auth.userId, input);
+      recorded += 1;
+    }
+
+    return c.json({ success: true, recorded, rejected });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/recall/events', action: 'recall_events' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
 
 route.post('/api/recall/event', requireAuth, rateLimit('write'), async (c) => {
   try {
