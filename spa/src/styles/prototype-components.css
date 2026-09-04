@@ -10022,6 +10022,9 @@ button.proto-appearance-hero__card {
 .proto-welcome3__sub {
   margin: 0;
   max-width: 34ch;
+  /* Evens the lines rather than letting the last one strand a single word, which is what this
+     copy does at phone width. Ignored by browsers that lack it, which just wrap as before. */
+  text-wrap: balance;
   font-size: 15px;
   line-height: 1.5;
   color: var(--pds-text-secondary);
