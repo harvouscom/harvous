@@ -150,6 +150,8 @@ describe('a chapter', () => {
     crossRefCount: 0,
     readerMarked: false,
   };
+  const NOW = new Date('2026-09-04T12:00:00Z');
+  const daysBefore = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOString();
 
   it('can be framed by a person, but never on the rung that asks who appears', () => {
     const facts = { ...base, kind: 'chapter' as const, person: 'Nicodemus' };
@@ -158,5 +160,68 @@ describe('a chapter', () => {
       args: { label: 'Nicodemus' },
     });
     expect(reviewFraming({ ...facts, rungKey: 'chapter.person' }, 's')).toBeNull();
+  });
+
+  it('says when it was read, in the reader own week', () => {
+    const spec = reviewFraming(
+      { ...base, kind: 'chapter', person: null, rungKey: 'chapter.verse', lastReadAt: daysBefore(3) },
+      's',
+      NOW,
+    );
+    expect(spec?.template).toBe('readOn');
+    // Rendered on the client, because the weekday belongs to their locale and their zone.
+    expect(fillFraming(spec!, NOW)).toMatch(/^You read this on \w+\.$/);
+    expect(fillFraming({ template: 'readOn', args: { atIso: NOW.toISOString() } }, NOW)).toBe(
+      'You read this today.',
+    );
+    expect(fillFraming({ template: 'readOn', args: { atIso: daysBefore(1) } }, NOW)).toBe(
+      'You read this yesterday.',
+    );
+  });
+
+  it('never names today weekday, which would mean either today or a week ago', () => {
+    const weekAgo = reviewFraming(
+      { ...base, kind: 'chapter', person: null, rungKey: 'chapter.verse', lastReadAt: daysBefore(7) },
+      's',
+      NOW,
+    );
+    expect(weekAgo?.template).not.toBe('readOn');
+    const sixDays = reviewFraming(
+      { ...base, kind: 'chapter', person: null, rungKey: 'chapter.verse', lastReadAt: daysBefore(6) },
+      's',
+      NOW,
+    );
+    expect(sixDays?.template).toBe('readOn');
+  });
+
+  it('lets a weekday go once it is no longer this week', () => {
+    const spec = reviewFraming(
+      { ...base, kind: 'chapter', person: null, rungKey: 'chapter.verse', lastReadAt: daysBefore(20) },
+      's',
+      NOW,
+    );
+    // "You read this on Tuesday" three weeks later names the wrong Tuesday.
+    expect(spec?.template).not.toBe('readOn');
+  });
+
+  it('counts reads and names a marked verse without naming the verse', () => {
+    const facts = {
+      ...base,
+      kind: 'chapter' as const,
+      person: null,
+      rungKey: 'chapter.finish' as const,
+      readCount: 4,
+      readerMarked: true,
+    };
+    const seen = new Set<string>();
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const spec = reviewFraming(facts, seed, NOW);
+      if (spec) seen.add(spec.template);
+    }
+    expect(seen.has('readTwice')).toBe(true);
+    expect(seen.has('markedIn')).toBe(true);
+    expect(fillFraming({ template: 'readTwice', args: { n: 4 } }, NOW)).toBe('You have read this 4 times.');
+    expect(fillFraming({ template: 'readTwice', args: { n: 2 } }, NOW)).toBe('You have read this twice.');
+    expect(fillFraming({ template: 'markedIn', args: {} }, NOW)).toBe('You marked a verse here.');
   });
 });

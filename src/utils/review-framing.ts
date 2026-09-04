@@ -47,12 +47,19 @@ export interface ReviewFramingFacts {
   crossRefCount: number;
   /** The reader marked a span of this verse in the Bible reader. */
   readerMarked: boolean;
+  /** ISO. When this was last read, for the chapter kind. */
+  lastReadAt?: string | null;
+  /** How many times it has been read — `revisit` on the chapter node, so glances are excluded. */
+  readCount?: number;
 }
 
 export type ReviewFramingTemplate =
   | 'returning'
   | 'cited'
   | 'marked'
+  | 'readOn'
+  | 'readTwice'
+  | 'markedIn'
   | 'since'
   | 'themeSince'
   | 'theme'
@@ -63,8 +70,16 @@ export type ReviewFramingTemplate =
 
 export interface ReviewFramingSpec {
   template: ReviewFramingTemplate;
-  args: { n?: number; label?: string; sinceIso?: string };
+  args: { n?: number; label?: string; sinceIso?: string; atIso?: string };
 }
+
+/**
+ * Within the week the weekday is a memory; past that it is a date, and says less.
+ *
+ * Six days, not seven: at exactly seven the weekday named is *today's* weekday, so "you read
+ * this on Friday" arrives on a Friday and means either today or a week ago.
+ */
+const READ_ON_MAX_DAYS = 6;
 
 const DAY_MS = 86_400_000;
 
@@ -101,10 +116,27 @@ export function reviewFraming(
 
   const reader: ReviewFramingSpec[] = [];
   if (facts.revisitCount >= 2) reader.push({ template: 'returning', args: {} });
+
+  /*
+   * A chapter's reader facts are about reading rather than about writing, so they get their own
+   * three. "You read this on Tuesday" is the whole reason a chapter question is not a quiz: it
+   * says where the question came from, in the reader's own week.
+   */
+  if (facts.kind === 'chapter') {
+    const readAge = daysAgo(facts.lastReadAt ?? null, now);
+    if (facts.lastReadAt && readAge !== null && readAge <= READ_ON_MAX_DAYS) {
+      reader.push({ template: 'readOn', args: { atIso: facts.lastReadAt } });
+    }
+    if ((facts.readCount ?? 0) >= 2) {
+      reader.push({ template: 'readTwice', args: { n: facts.readCount } });
+    }
+    if (facts.readerMarked) reader.push({ template: 'markedIn', args: {} });
+  }
   if (facts.citedInNotes >= 2 && !citedLeaks) {
     reader.push({ template: 'cited', args: { n: facts.citedInNotes } });
   }
-  if (facts.readerMarked) reader.push({ template: 'marked', args: {} });
+  // The verse half of the same fact. A chapter says "you marked a verse here" instead.
+  if (facts.readerMarked && facts.kind !== 'chapter') reader.push({ template: 'marked', args: {} });
   if (age !== null && age >= 60 && facts.revisitCount >= 1 && facts.firstStudiedAt) {
     reader.push({ template: 'since', args: { sinceIso: facts.firstStudiedAt } });
   }
@@ -153,6 +185,21 @@ export function fillFraming(spec: ReviewFramingSpec, now: Date = new Date()): st
       return `Cited in ${spec.args.n ?? 0} of your notes.`;
     case 'marked':
       return 'You marked this while reading.';
+    case 'readOn': {
+      const at = spec.args.atIso ? new Date(spec.args.atIso) : null;
+      if (!at || !Number.isFinite(at.getTime())) return 'You read this recently.';
+      const days = Math.floor((now.getTime() - at.getTime()) / DAY_MS);
+      if (days <= 0) return 'You read this today.';
+      if (days === 1) return 'You read this yesterday.';
+      // The weekday in the reader's own locale, which is why this is rendered here.
+      return `You read this on ${at.toLocaleDateString(undefined, { weekday: 'long' })}.`;
+    }
+    case 'readTwice':
+      return (spec.args.n ?? 2) === 2
+        ? 'You have read this twice.'
+        : `You have read this ${spec.args.n} times.`;
+    case 'markedIn':
+      return 'You marked a verse here.';
     case 'since':
       return `In your study since ${month(spec.args.sinceIso)}.`;
     case 'themeSince':

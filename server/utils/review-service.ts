@@ -179,6 +179,7 @@ import {
 import type { ChoiceExercise } from '@/utils/choice-exercise';
 import { getNotePassages } from './scripture-knowledge';
 import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
+import { READING_DWELL_BUCKETS, readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
 
 export interface ReviewItemRow {
   id: string;
@@ -667,6 +668,8 @@ export async function buildReviewItemViews(
             nodeKey: UserNodeStates.nodeKey,
             revisitCount: UserNodeStates.revisitCount,
             firstStudiedAt: UserNodeStates.firstStudiedAt,
+            // When it was last turned to, for the chapter framing line.
+            lastSeenAt: UserNodeStates.lastSeenAt,
           })
           .from(UserNodeStates)
           .where(and(eq(UserNodeStates.userId, userId), inArray(UserNodeStates.nodeKey, nodeKeys)))
@@ -834,7 +837,7 @@ export async function buildReviewItemViews(
         pass,
         recallState: row.recallState as RecallState,
         revisitCount: node?.revisitCount ?? 0,
-        citedInNotes: verseMaterial?.citedInNotes ?? 0,
+        citedInNotes: verseMaterial?.citedInNotes ?? chapterMaterial?.citedInNotes ?? 0,
         firstStudiedAt: node?.firstStudiedAt?.toISOString() ?? null,
         topTheme: verseMaterial?.themes[0] ?? null,
         person: verseMaterial?.people[0] ?? (chapterMaterial ? askablePeople(chapterMaterial.people)[0] ?? null : null),
@@ -843,6 +846,15 @@ export async function buildReviewItemViews(
         readerMarked:
           (chapterMaterial?.highlightedNumbers.length ?? 0) > 0 ||
           Boolean(row.scriptureReference && markedReferences.has(row.scriptureReference.trim().toLowerCase())),
+        /*
+         * Reading facts. The timestamp comes from the reading log, not from the node's
+         * `lastSeenAt` — that is the last touch of any kind, and answering a review about a
+         * chapter bumps it, so the row would tell the reader they had read something today
+         * when what they did today was answer a question about it. The count is the node's
+         * `revisitCount`, which only reading ever increments on a chapter.
+         */
+        lastReadAt: chapterMaterial?.lastReadAt?.toISOString() ?? null,
+        readCount: kind === 'chapter' ? node?.revisitCount ?? 0 : 0,
       },
       `${row.id}:framing`,
     );
@@ -1996,6 +2008,16 @@ interface ChapterKnowledgeMaterial extends ChapterMaterial {
   highlightedNumbers: number[];
   /** Everyone the index places in the chapter, barred names included (they bar distractors). */
   people: string[];
+  /** How many of the reader's notes cite any verse in this chapter. For the framing line only. */
+  citedInNotes: number;
+  /**
+   * When the reader last actually read this chapter, glances excluded. Null if never.
+   *
+   * From `ReadingEvents` rather than from the node's `lastSeenAt`, which is the last touch of
+   * *any* kind — answering a review about a chapter bumps it, and "you read this today" is then
+   * the app describing its own question back to the reader as if it were their reading.
+   */
+  lastReadAt: Date | null;
 }
 
 const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
@@ -2006,10 +2028,84 @@ const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
   verses: [],
   highlightedNumbers: [],
   people: [],
+  citedInNotes: 0,
+  lastReadAt: null,
   verseCount: 0,
   finishCandidates: 0,
   personCount: 0,
 };
+
+/**
+ * How many of the reader's own notes cite any verse in this chapter.
+ *
+ * The chapter twin of `loadNotesCitingVerse`, and it counts rather than naming: the count is
+ * only ever a framing line ("Cited in 3 of your notes"), and no chapter rung asks which note,
+ * so there is nothing here to leak. One query against the citation index rather than one per
+ * verse — a chapter has up to a hundred and seventy-six of them.
+ */
+async function countNotesCitingChapter(
+  userId: string,
+  parts: { book: string; chapter: number },
+): Promise<number> {
+  try {
+    const meta = await db
+      .select({ noteId: ScriptureMetadata.noteId })
+      .from(ScriptureMetadata)
+      .where(and(eq(ScriptureMetadata.book, parts.book), eq(ScriptureMetadata.chapter, parts.chapter)));
+    if (!meta.length) return 0;
+    const scriptureNoteIds = [...new Set(meta.map((m) => m.noteId))];
+    const viaPill = await db
+      .select({ noteId: NoteScriptureReferences.noteId })
+      .from(NoteScriptureReferences)
+      .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureNoteIds));
+    const candidates = [...new Set([...scriptureNoteIds, ...viaPill.map((r) => r.noteId)])];
+    const owned = await db
+      .select({ id: Notes.id })
+      .from(Notes)
+      .where(
+        and(
+          eq(Notes.userId, userId),
+          inArray(Notes.id, candidates),
+          ne(Notes.noteType, 'scripture'),
+          countableUserNotesWhere(),
+        ),
+      );
+    return owned.length;
+  } catch {
+    return 0;
+  }
+}
+
+/** When this chapter was last read for long enough to count. Glances are not reading. */
+async function loadLastReadAt(
+  userId: string,
+  parts: { book: string; chapter: number },
+): Promise<Date | null> {
+  try {
+    const row = first(
+      await db
+        .select({ createdAt: ReadingEvents.createdAt })
+        .from(ReadingEvents)
+        .where(
+          and(
+            eq(ReadingEvents.userId, userId),
+            eq(ReadingEvents.book, parts.book),
+            eq(ReadingEvents.chapter, parts.chapter),
+            // The buckets that count as having read it — a glance is not reading.
+            inArray(
+              ReadingEvents.dwellBucket,
+              READING_DWELL_BUCKETS.filter((bucket) => readingDwellCountsAsRead(bucket)),
+            ),
+          ),
+        )
+        .orderBy(desc(ReadingEvents.createdAt))
+        .limit(1),
+    );
+    return row?.createdAt ? new Date(row.createdAt) : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The verse numbers of the reader's own highlights within one chapter. */
 async function loadReaderHighlightsInChapter(
@@ -2045,10 +2141,12 @@ async function loadChapterMaterial(
   const parts = reference ? chapterKeyPartsFromReference(reference) : null;
   if (!parts) return EMPTY_CHAPTER_MATERIAL;
   const label = chapterReferenceLabel(parts);
-  const [html, highlightedNumbers, knowledge] = await Promise.all([
+  const [html, highlightedNumbers, knowledge, citedInNotes, lastReadAt] = await Promise.all([
     fetchVerseText(label, translation).catch(() => ''),
     loadReaderHighlightsInChapter(userId, parts),
     getKnowledgeForChapter(parts.book, parts.chapter).catch(() => null),
+    countNotesCitingChapter(userId, parts),
+    loadLastReadAt(userId, parts),
   ]);
   const verses = html ? splitChapterHtmlIntoVerses(html) : [];
   const people = (knowledge?.people ?? []).map((p) => p.name);
@@ -2060,6 +2158,8 @@ async function loadChapterMaterial(
     verses,
     highlightedNumbers,
     people,
+    citedInNotes,
+    lastReadAt,
     verseCount: verses.length,
     finishCandidates: chapterFinishCandidates(verses, highlightedNumbers).length,
     personCount: askablePeople(people).length,
