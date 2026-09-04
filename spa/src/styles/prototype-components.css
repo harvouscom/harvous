@@ -22045,8 +22045,22 @@ button.proto-feed-sheet__stat:hover {
   padding-left: calc(22px + 6px + var(--pds-space-2));
 }
 
+/*
+ * A circle, like every other small round marker in the app.
+ *
+ * `.proto-kbd` is a keyboard cap — a rounded rectangle, sized by its content, because a chord
+ * like "⌘K" has to fit. Here it always holds one letter, so it is a disc: equal width and
+ * height, no border to make it look like a key, and the letter centred in it.
+ */
 .proto-review-dock__choice-key {
   flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
   /* Dimmer than the answer it points at: the letter is a way in, not part of the reading. */
   color: var(--pds-text-secondary);
   transition:
@@ -22067,6 +22081,8 @@ button.proto-feed-sheet__stat:hover {
 .proto-review-dock__choice:focus-visible .proto-review-dock__choice-key {
   background: var(--pds-bg-accent-button);
   color: var(--pds-on-accent);
+  /* Belt and braces: a `kbd` is one of the elements a UA may paint with its own fill. */
+  -webkit-text-fill-color: var(--pds-on-accent);
   box-shadow: var(--pds-shadow-accent-button);
 }
 
