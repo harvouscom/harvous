@@ -63,7 +63,9 @@ export const REVIEW_SEE_ALL_COPY = 'See all';
  * tapping straight at the text — and the one thing this rung must never do is let an altered
  * line be read as Scripture.
  */
-export const REVIEW_ALTERED_CAPTION = 'Altered — one word here is wrong';
+/* "Wrong" is on the voice doc's forbidden list; the caption says what the line is, not what the
+   reader might be. */
+export const REVIEW_ALTERED_CAPTION = 'Altered — one word here is not what it says';
 
 /** Said plainly above the restored verse, so the correction is unmistakable. */
 export const REVIEW_TRUTH_LABEL = 'As it actually reads';
