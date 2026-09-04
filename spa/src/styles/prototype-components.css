@@ -13185,6 +13185,74 @@ html.harvous-prototype-route
   font-size: 13px;
 }
 
+/*
+ * How well the reader holds something, on a review row.
+ *
+ * The same chip the shared spaces use for a person — `.proto-shared-author-chip` above, which
+ * already rides in a row's meta line on the space hub — with a status glyph where the face
+ * goes. Every metric is taken from it rather than re-guessed: the 999px pill, the 11px/600
+ * label, the asymmetric padding that tucks the disc against the left edge, the 14px circle.
+ * Its `margin-right` is not, because that chip precedes a preview while this one ends a line
+ * and the separator already spaces it.
+ *
+ * The disc carries the state and the label never does. Learning it is an outline, the way the
+ * base avatar is; knowing it and losing it are solid. A fully tinted pill at the end of every
+ * row would be a scoreboard, and grading someone's grasp of Scripture at a glance is the one
+ * thing this feature refuses to do.
+ */
+.proto-recall-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px 1px 4px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 999px;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.proto-recall-chip__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 0.5px solid color-mix(in oklch, currentColor 30%, transparent);
+}
+
+/*
+ * Every state's colour carries `!important` and an attribute selector, for one reason.
+ *
+ * A row is a `<button>`, and global.css forces `button * { color: … !important }` on everything
+ * inside one. The glyph is drawn with `currentColor`, so without this the disc fills with its
+ * state colour and the icon on top stays grey — all three states looking alike. `!important`
+ * alone is not enough either: among important declarations the more specific selector wins, and
+ * that global rule out-specifies a lone class. Matching the shape of the two below is what makes
+ * this one land.
+ */
+.proto-recall-chip[data-state] .proto-recall-chip__mark {
+  color: var(--pds-text-secondary) !important;
+}
+
+.proto-recall-chip[data-state='durable'] .proto-recall-chip__mark {
+  border-color: transparent;
+  background: var(--pds-accent-gradient-end);
+  color: var(--pds-on-accent) !important;
+}
+
+.proto-recall-chip[data-state='slipping'] .proto-recall-chip__mark {
+  border-color: transparent;
+  background: var(--pds-destructive);
+  color: var(--pds-on-accent) !important;
+}
+
 /* Owner / You markers — subtle neutral pill (matches our chip language). */
 .proto-shared-people-row__tag {
   flex-shrink: 0;

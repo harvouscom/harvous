@@ -1368,6 +1368,32 @@ function ReviewVerdictsScene() {
       </div>
 
       <div>
+        {/* The shared-spaces author chip with a status glyph where the face goes. The disc
+            carries the state; the label never does. */}
+        <p className="pds-caption">How well you hold it</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span className="proto-recall-chip" data-state="fragile">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="seedling" size={9} />
+            </span>
+            Still learning
+          </span>
+          <span className="proto-recall-chip" data-state="durable">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="check" size={9} />
+            </span>
+            You know this
+          </span>
+          <span className="proto-recall-chip" data-state="slipping">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="clock-rotate-left" size={9} />
+            </span>
+            Slipping away
+          </span>
+        </div>
+      </div>
+
+      <div>
         {/* The question, recapped above its own answer: quieter than the ask it repeats. */}
         <p className="pds-caption">The question, recapped</p>
         <p className="proto-review-dock__prompt proto-review-dock__prompt--asked">

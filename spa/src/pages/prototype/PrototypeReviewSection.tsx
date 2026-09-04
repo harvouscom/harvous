@@ -62,6 +62,7 @@ import { RECALL_STATE_LABELS, type ReviewItemKind } from '@/utils/review-item-ki
 import { fillFraming } from '@/utils/review-framing';
 import { reviewRowRecallLabel, reviewRowSource, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
+import { recallChip } from './PrototypeRecallStateChip';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 
 /**
@@ -231,7 +232,7 @@ export default function PrototypeReviewSection() {
             item.framing ? fillFraming(item.framing) : reviewRowSource(item, reviewRowSubject(item)),
             // The recall state as a word, never a percentage — and only where the framing line
             // has not already said it. See `reviewRowRecallLabel`.
-            reviewRowRecallLabel(item, RECALL_STATE_LABELS),
+            recallChip(item),
           ]}
           onOpen={() => openInDock(item.id)}
           actions={reviewRowActions({

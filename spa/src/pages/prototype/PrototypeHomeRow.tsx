@@ -18,6 +18,7 @@
  * separator the church rows use — so nothing is lost, and the title stays the specific
  * thing the row is about, as it is in the church hub's Following list.
  */
+import { isValidElement } from 'react';
 import type { CSSProperties, MouseEventHandler, PointerEvent, ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { handleMarqueeHover } from './marquee-overflow';
@@ -66,6 +67,17 @@ export function marqueeCharCount(node: ReactNode): number {
   if (typeof node === 'string') return node.length;
   if (typeof node === 'number') return String(node).length;
   if (Array.isArray(node)) return node.reduce<number>((n, child) => n + marqueeCharCount(child), 0);
+  /*
+   * An element counts as the text inside it.
+   *
+   * Meta items may be arbitrary nodes, and a row whose last item is a chip measured as zero —
+   * so a line long enough to need the marquee could be paced as if it ended two words earlier,
+   * and one sitting either side of the fade threshold got no fade at all.
+   */
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    const children = node.props?.children;
+    return children === undefined ? 0 : marqueeCharCount(children);
+  }
   return 0;
 }
 

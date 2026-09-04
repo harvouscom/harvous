@@ -10,6 +10,7 @@
  * "Put down" are things they set aside and might want back. No group carries a count in its
  * heading — the rows are right there to be counted by anyone who wants to.
  */
+import type { ReactNode } from 'react';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import PrototypeReviewSample from './PrototypeReviewSample';
 import { useMemo } from 'react';
@@ -47,14 +48,15 @@ import {
   reviewRowSubtitle,
 } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
+import { recallChip } from './PrototypeRecallStateChip';
 import { prototypeChallengeRouteTo, prototypeHomeRouteTo } from '@/lib/prototype-path';
 
-function rowMeta(item: ReviewItemView): (string | null)[] {
+function rowMeta(item: ReviewItemView): ReactNode[] {
   const subject = reviewRowSubject(item);
   return [
     item.task,
     item.framing ? fillFraming(item.framing) : reviewRowSource(item, subject),
-    reviewRowRecallLabel(item, RECALL_STATE_LABELS),
+    recallChip(item),
   ];
 }
 
@@ -228,7 +230,7 @@ export default function PrototypeReviewPage() {
                   icon={reviewKindIcon(item.kind)}
                   title={item.noteLabel ?? item.scriptureReference ?? reviewRowSubtitle(item) ?? 'A note'}
                   meta={[
-                    reviewRowRecallLabel(item, RECALL_STATE_LABELS),
+                    recallChip(item),
                   ]}
                   onOpen={() => openReviewDock(item.id)}
                   actions={reviewRowActions({

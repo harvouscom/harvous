@@ -7,6 +7,7 @@
  * item in the queue themselves, so the strongest answer is "remove from Review", which they
  * can undo by adding it again.
  */
+import type { ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon, { type IconName } from '@/components/react/Icon';
@@ -41,7 +42,8 @@ export default function PrototypeReviewRow({
 }: {
   icon: IconName;
   title: string;
-  meta: (string | null | undefined | false)[];
+  /** Strings, or a node — the recall state rides here as a chip. See `PrototypeHomeRow`. */
+  meta: ReactNode[];
   onOpen: () => void;
   /** Empty renders no overflow at all — a row with nothing to answer needs no menu. */
   actions: StudyInboxRowAction[];

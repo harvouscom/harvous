@@ -117,18 +117,24 @@ export function isRecallState(value: string): value is RecallState {
 }
 
 /**
- * The same five states, said the way a person would say them.
+ * Five states, three things worth saying.
  *
- * "Still fragile", "Forming", "Holding" and "Slipping" were four different metaphors — glass,
- * clay, grip, slope — for one axis, and three of them were the enum's own words promoted to a
- * caption. None of them told the reader anything they could act on. These do: they say where
- * you stand with the thing, in words nobody has to learn.
+ * The words came from the model rather than from the reader: "Still fragile", "Forming",
+ * "Holding" and "Slipping" were four metaphors — glass, clay, grip, slope — for one axis, and
+ * three were the enum's own values promoted to a caption. The first rewrite kept the shape and
+ * fixed the words, which was not enough: "Needs work" is a school report about the reader, and
+ * "Coming back" says nothing at all.
+ *
+ * So the shape goes too. `fragile` and `forming` differ by whether you have got something right
+ * once or twice running, and nobody needs to be told that difference about their own study —
+ * both are still learning it. What is left is the three states a person would actually name:
+ * learning it, knowing it, losing it.
  */
 export const RECALL_STATE_LABELS: Record<RecallState, string> = {
   new: 'New',
-  fragile: 'Needs work',
-  forming: 'Coming back',
-  durable: 'You have this',
+  fragile: 'Still learning',
+  forming: 'Still learning',
+  durable: 'You know this',
   slipping: 'Slipping away',
 };
 
