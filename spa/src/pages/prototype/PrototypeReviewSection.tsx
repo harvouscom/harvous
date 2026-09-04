@@ -54,7 +54,9 @@ import {
   REVIEW_PLUS_META,
   REVIEW_PLUS_TITLE,
   REVIEW_SEE_ALL_COPY,
+  REVIEW_RESUME_COPY,
   REVIEW_SEE_LESS_COPY,
+  reviewSetAsideCopy,
   REVIEW_SECTION_TITLE,
 } from './proto-review-copy';
 import { prototypeChallengeRouteTo } from '@/lib/prototype-path';
@@ -102,11 +104,19 @@ export default function PrototypeReviewSection() {
   const [expanded, setExpanded] = useState(false);
   const inboxQuery = useReviewInbox();
   /*
-   * The full list, fetched only once the reader asks for it. The inbox read is capped at three
-   * and cannot answer "show me the rest", and paying for every waiting item on every Activity
-   * load would be a cost nobody asked for.
+   * Nothing due at all — which is when the drawer below has to be reachable on its own.
+   *
+   * Read at hook level rather than beside the rows, because the full list is a query and a
+   * query cannot be declared after the guards that return early.
    */
-  const allQuery = useReviewItems('active', { enabled: expanded });
+  const inboxEmpty = !inboxQuery.isPending && (inboxQuery.data?.items?.length ?? 0) === 0;
+  const [setAsideOpen, setSetAsideOpen] = useState(false);
+  /*
+   * Every status, not just the active ones, and only once the reader asks — or when there is
+   * nothing due, since that is exactly when something they put aside is the only thing left to
+   * act on. Collapsed with a live queue, Activity still pays for the inbox read and no more.
+   */
+  const allQuery = useReviewItems(undefined, { enabled: expanded || inboxEmpty });
   const challengesQuery = useChallenges('active');
   // The sample: fetched only for an account that lacks the feature (the hook gates on that).
   const hasAnyFeature = review.has || challengesFeature.has;
@@ -177,9 +187,21 @@ export default function PrototypeReviewSection() {
   }
 
   const inboxItems = inboxQuery.data?.items ?? [];
+  const everyItem = allQuery.data?.items ?? null;
+  const activeItems = everyItem ? everyItem.filter((item) => item.status === 'active') : null;
+  /*
+   * Paused, and put down. The one place either can be picked back up.
+   *
+   * Home offers "Pause this" and "Remove from Review" on every row, and until now the only
+   * screen that could undo either was a route nothing in the app linked to — so both were
+   * one-way doors for anyone who did not know the URL. They belong under the queue they left.
+   */
+  const setAside = everyItem
+    ? everyItem.filter((item) => item.status === 'paused' || item.status === 'archived')
+    : [];
   // While the expanded list is still in flight, keep showing the three we already have rather
   // than collapsing to nothing and back.
-  const items = expanded ? (allQuery.data?.items ?? inboxItems) : inboxItems;
+  const items = expanded ? (activeItems ?? inboxItems) : inboxItems;
   const activeChallenges = challengesQuery.data?.challenges ?? [];
 
   /*
@@ -199,7 +221,7 @@ export default function PrototypeReviewSection() {
    * full list has been fetched once, the count behind the fold is genuinely unknown, and the
    * label says "See all" rather than guessing. Guessing printed "1 more" over two items.
    */
-  const fullList = allQuery.data?.items ?? null;
+  const fullList = activeItems;
   const folded =
     fullList !== null
       ? Math.max(0, fullList.length - reviewRows.length)
@@ -208,7 +230,12 @@ export default function PrototypeReviewSection() {
         : Math.max(0, items.length - reviewRows.length);
   const moreThanShown = folded === null || folded > 0;
 
-  const hasRows = reviewRows.length > 0 || Boolean(challengeRow);
+  /*
+   * Nothing waiting is still said by the absence — the section does not appear to announce an
+   * empty queue. It appears when there is something to *do*, and picking back up something you
+   * put down is something to do.
+   */
+  const hasRows = reviewRows.length > 0 || Boolean(challengeRow) || setAside.length > 0;
   if (!hasRows) return null;
 
   // The question opens where you are, not on a page of its own — see PrototypeReviewDock.
@@ -277,6 +304,39 @@ export default function PrototypeReviewSection() {
           <span>{expanded ? REVIEW_SEE_LESS_COPY : foldedLabel(folded)}</span>
           <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
         </button>
+      ) : null}
+
+      {/*
+        * What was put aside, folded away under what is live.
+        *
+        * Only once the reader has opened the queue, and only when there is something in it —
+        * a fold that says "nothing" is a row spent on an empty drawer.
+        */}
+      {(expanded || reviewRows.length === 0) && setAside.length > 0 ? (
+        <>
+          <button
+            type="button"
+            className="proto-feed-part__more"
+            onClick={() => setSetAsideOpen((open) => !open)}
+          >
+            <span>{reviewSetAsideCopy(setAside.length)}</span>
+            <Icon name={setAsideOpen ? 'caret-up' : 'caret-down'} size={10} />
+          </button>
+          {setAsideOpen
+            ? setAside.map((item) => (
+                <PrototypeHomeRow
+                  key={item.id}
+                  icon={item.status === 'paused' ? 'circle-minus' : 'eye-slash'}
+                  title={reviewRowSubject(item)}
+                  /* The whole row is the undo: there is one thing to do with something you put
+                     down, and it is to pick it up — so the row says so rather than hiding it
+                     behind a menu. */
+                  meta={[REVIEW_RESUME_COPY]}
+                  onClick={() => setStatus.mutate({ itemId: item.id, status: 'active' })}
+                />
+              ))
+            : null}
+        </>
       ) : null}
     </PrototypeHomeSection>
   );

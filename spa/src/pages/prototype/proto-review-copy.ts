@@ -18,6 +18,16 @@ export const REVIEW_START_COPY = 'Start';
 export const REVIEW_DEFER_COPY = 'Not now';
 export const REVIEW_PAUSE_COPY = 'Pause this';
 export const REVIEW_RESUME_COPY = 'Start again';
+
+/**
+ * The fold over what the reader put aside, on Home.
+ *
+ * "Paused" and "put down" are two different acts — a season, and a decision — but one drawer:
+ * both are things taken out of the queue, and both are picked back up the same way. Naming the
+ * count is the point of the fold, since a drawer you cannot see into is one you never open.
+ */
+export const reviewSetAsideCopy = (count: number) =>
+  count === 1 ? '1 you put aside' : `${count} you put aside`;
 export const REVIEW_REMOVE_COPY = 'Remove from Review';
 export const REVIEW_MORE_COPY = 'More';
 

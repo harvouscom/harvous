@@ -12,7 +12,6 @@ import {
   isReservedPrototypeSegment,
   prototypeHomeRouteTo,
   prototypeNoteRouteTo,
-  prototypeReviewRouteTo,
   prototypeSettingsAccountRouteTo,
 } from '@/lib/prototype-path';
 import { isStatusHost } from '@/lib/status-page-host';
@@ -415,33 +414,33 @@ function buildPrototypeRouteBranch() {
   });
 
   /**
-   * Review and Challenges — four lazy main-pane routes.
+   * Review has no page of its own any more — both of its URLs land on Activity.
    *
-   * Both first segments are in `RESERVED_PROTOTYPE_SEGMENTS`, which is what keeps the
-   * single-segment `$noteId` catch-all from reading `/review` as a note id. They register
-   * before it in `addChildren` for the same reason `read/today` does.
+   * `review/session` went first: the question is asked in a dock, so a session was never a
+   * destination. `review` followed it. It listed the whole queue on a screen nothing in the
+   * app ever linked to, which made the two things only it could do — picking a paused item
+   * back up, recovering one that was put down — reachable only by typing a URL. Those live
+   * under the queue on Activity now, folded away beneath it, next to the actions that create
+   * them.
    *
-   * `useShellModeNav` needs no case for these: it classifies anything that is neither the
-   * reader nor a note path as Activity, which is right — a review session is launched from
-   * Activity and the segmented control should stay where it was.
+   * Kept as redirects rather than deleted, because both URLs were live and a bookmark or a
+   * stale tab should land somewhere rather than on nothing. Both segments stay in
+   * `RESERVED_PROTOTYPE_SEGMENTS`, which is what keeps the single-segment `$noteId` catch-all
+   * from reading them as a note id.
    */
   const prototypeReviewRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'review',
-    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReviewPage')),
+    beforeLoad: () => {
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
+    },
   });
 
-  /*
-   * `review/session` is retired — Review is a dock now, not a destination.
-   *
-   * Kept as a redirect rather than deleted: the URL was live, and a bookmark or a stale tab
-   * should land on the list rather than on nothing. The question itself is opened from a row.
-   */
   const prototypeReviewSessionRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'review/session',
     beforeLoad: () => {
-      throw redirect({ to: prototypeReviewRouteTo(), replace: true });
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
     },
   });
 
