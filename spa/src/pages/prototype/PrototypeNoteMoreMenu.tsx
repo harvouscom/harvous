@@ -17,6 +17,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
+import PrototypeAddToReviewItem from './PrototypeAddToReviewItem';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
@@ -281,6 +282,16 @@ export default function PrototypeNoteMoreMenu({
                 </button>
               ) : null}
               {overflowActions && (onFind || onShare) ? <div className="proto-menu-sep" role="separator" /> : null}
+              {/*
+                * "Add to Review" — a note put into the queue by the person who wrote it.
+                *
+                * Not offered on a foreign read-only note: Review asks what *you* observed, and
+                * a note you are reading in someone else's space has no answer of yours behind
+                * it. Renders nothing without the key rather than showing a locked row, because
+                * the Review section on Activity already carries the one upsell this feature gets
+                * and a second one in a note's menu is a paywall following you around.
+                */}
+              <PrototypeAddToReviewItem noteId={noteId} readOnlyForeign={readOnlyForeign} onDone={() => setOpen(false)} />
               {readOnlyForeign ? (
                 <>
                   {canPin ? (

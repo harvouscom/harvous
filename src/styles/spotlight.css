@@ -359,7 +359,7 @@
   padding: 8px 0;
 }
 
-/* Group heading — matches SearchResultsList count label; semibold + deep grey like `.badge-number` (navigation.css) */
+/* Group heading — semibold + deep grey like `.badge-number` (navigation.css) */
 .spotlight-container [cmdk-group-heading] {
   padding: 4px 4px 8px;
   font-size: 12px;
@@ -391,7 +391,7 @@
 
 /* Row surface stays white; interaction = depth only (no paper tint, no scale).
    Selection ring uses box-shadow (not border) so row inner height stays full
-   --spotlight-result-row-height — same as CondensedNoteRowLayout / Find SearchResultsList rows. */
+   --spotlight-result-row-height — same as CondensedNoteRowLayout rows. */
 .spotlight-container .spotlight-result-row {
   position: relative;
   height: var(--spotlight-result-row-height) !important;

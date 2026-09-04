@@ -1,51 +1,70 @@
 /**
  * Detail-column toolbar — mirrors macOS Harvous detail toolbar.
  *
- * Desktop detail:  [show sidebar when collapsed] [Note|Bible] · folder chip · find/share/more · inspector · account
- * Mobile unified: [sidebar toggle] [Note|Bible] · … (space + list mode live in the sidebar header)
+ * Desktop detail:  [show sidebar when collapsed] [Activity|Note|Read] · library chip · find/share/more · inspector · account
+ * Mobile unified: [sidebar toggle] [Activity|Note|Read] · library chip · …
+ *
+ * The center used to hold a folder chip that appeared only on notes you could organize.
+ * It now holds the Library chip, which renders on every mode and opens the browse panel —
+ * the surface that took over from the sidebar. See `PrototypeLibraryChip`.
  */
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
-import NotesBibleSegmented from './NotesBibleSegmented';
+import ShellModeSegmented from './ShellModeSegmented';
 import { useNote } from '../../hooks/queries/useNote';
 import { useForeignSharedNote } from '../../hooks/useForeignSharedNote';
 import { normalizeNoteIdFromParam, isPrototypeDraftNoteSlug } from './proto-route-slugs';
 import {
   resolveVisibleComposeTarget,
   useProtoShell,
-  usePrototypeFolderChip,
 } from '../../layouts/proto-shell-context';
 import { resolvePrototypeToolbarNoteId } from '@/utils/prototype-compose-url';
-import {
-  effectiveNoteFolderLabel,
-  noteFolderChipAdditionalCount,
-  noteFolderMembershipLabels,
-} from '@/utils/note-folder-display';
 import AccountMenu from './AccountMenu';
-import { PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE } from './proto-toolbar-tokens';
+import {
+  PROTO_SEG_GLYPH_SIZE,
+  PROTO_SEG_ICON_SIZE,
+  PROTO_TOOLBAR_ORB_ICON_SIZE,
+} from './proto-toolbar-tokens';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import ProtoHouseIcon from './ProtoHouseIcon';
+import PrototypeOnboardingPopover from './PrototypeOnboardingPopover';
+import { useOnboardingState } from './useOnboardingState';
+import { shownOnboardingProgress } from './onboarding-visible-steps';
+import { offerGuestAccount } from '../../lib/guest-gate';
 import PrototypeSharePopover from './PrototypeSharePopover';
 import PrototypeFindInNotePopover from './PrototypeFindInNotePopover';
-import PrototypeFolderPopover from './PrototypeFolderPopover';
+import PrototypeLibraryChip from './PrototypeLibraryChip';
+import { LIBRARY_CHIP_OPENING_VIEW } from './library-panel/library-panel-view';
+import {
+  clearLibraryChipRect,
+  publishLibraryChipRect,
+} from './library-panel/library-chip-rect';
+import { useActiveSpace } from '../../hooks/useActiveSpace';
+import SpaceSwitcherMenu from './SpaceSwitcherMenu';
+import { SpaceSwitcherTriggerIcon } from './SpaceSwitcherTriggerIcon';
 import PrototypeToolbarShortcutItem from './PrototypeToolbarShortcutItem';
 import PrototypeNoteMoreMenu from './PrototypeNoteMoreMenu';
 import SplitColumnToggleIcon from './SplitColumnToggleIcon';
 import { usePrototypeShiftHints } from '../../hooks/usePrototypeShiftHints';
 import {
+  isPrototypeAdminPath,
   isPrototypeHomePath,
   isPrototypeNotePath,
   matchPrototypeNoteId,
   prototypeHomeRouteTo,
 } from '@/lib/prototype-path';
-import { useReaderToggle } from '../../hooks/useReaderToggle';
+import { useShellModeNav } from '../../hooks/useShellModeNav';
 import { prototypeToolbarNoteDetailsAvailable } from './prototype-toolbar-note-details';
 import {
   canOrganizeSharedSpaceNote,
   canPinSharedSpaceItem,
+  isMinistryBroadcastSpace,
 } from '../../lib/shared-space-capabilities';
 import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
+import { useSpaceSwitcherUnseen } from './use-space-switcher-unseen';
 import { canComposeInSpace } from '../../lib/shared-space-capabilities';
 
 export type NativeToolbarVariant = 'detail' | 'unified';
@@ -103,7 +122,25 @@ export function resolveNativeToolbarContextCapabilities(options: {
   contextualAccessKnown: boolean;
   isOwnNote: boolean;
   isSpaceOwner: boolean;
+  /** A guest's note exists only in their browser — there is nothing to hand anyone. */
+  isGuest?: boolean;
 }) {
+  /*
+   * Sharing is the one capability a guest cannot be offered an account for.
+   *
+   * Everywhere else the answer is "this needs an account", because the feature is waiting on
+   * the other side of one. Here there is no note on any server to publish, no token to mint
+   * and no URL that could resolve — so the control is removed rather than explained. The rest
+   * of the row is untouched: organizing and pinning a local note are still coherent.
+   */
+  if (options.isGuest) {
+    return {
+      canOrganize: true,
+      canPin: true,
+      canRemove: false,
+      canShare: false,
+    };
+  }
   if (!options.hasSharedContext) {
     return {
       canOrganize: true,
@@ -149,13 +186,16 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const findButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const shareButtonRef = useRef<HTMLButtonElement | null>(null);
-  const folderChipRef = useRef<HTMLButtonElement | null>(null);
-  const folderPopover = useToolbarAnchoredPopover();
   const findPopover = useToolbarAnchoredPopover();
+  const onboardingPopover = useToolbarAnchoredPopover();
+  /* Declared up here because the toolbar's capabilities are computed below and one of them
+     (sharing) depends on it. */
+  const { isGuest } = useHarvousIdentity();
+  const onboarding = useOnboardingState();
+  const onboardingButtonRef = useRef<HTMLButtonElement | null>(null);
   const sharePopover = useToolbarAnchoredPopover();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
 
-  const prototypeFolderChip = usePrototypeFolderChip();
   const {
     composePersistedNoteId,
     composeDraftActive,
@@ -175,6 +215,11 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     activeSpaceId,
     sidebarLayer,
     sidebarListSpaceScope,
+    activeChurchOrgId,
+    libraryPanelView,
+    libraryPanelExiting,
+    openLibraryPanel,
+    hideSidebar,
   } = useProtoShell();
 
   const isUnified = variant === 'unified';
@@ -226,6 +271,10 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     type: contextualSpaceAccess?.space.type,
     orgId: contextualSpaceAccess?.space.orgId,
   });
+  /* The Activity half is the space switcher's trigger here, so the dot that used to live on
+     the switcher's own button belongs on it. */
+  const unseen = useSpaceSwitcherUnseen({ homeSpaceId, activeSpaceId });
+
   // Name the destination up front — "New note" never said where it would land.
   const activeSpaceTitle = contextualSpaceAccess?.space.title?.trim();
   const composeDestinationLabel =
@@ -233,51 +282,64 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
       ? `New note in ${activeSpaceTitle}`
       : 'New note in My Home';
   const contextualCapabilities = resolveNativeToolbarContextCapabilities({
+    isGuest,
     hasSharedContext: isSharedContext,
     contextualAccessKnown,
     isOwnNote: !readOnlyForeignNote,
     isSpaceOwner: isContextSpaceOwner,
   });
 
-  const useShellFolderChip =
-    isOnNotePage &&
-    !!toolbarNoteId &&
-    prototypeFolderChip != null &&
-    prototypeFolderChip.noteId === toolbarNoteId;
+  /* Same count the list under it will show — see `onboarding-visible-steps`. */
+  const onboardingProgress = shownOnboardingProgress(onboarding.state, isGuest);
+  const { spaceTitle: activeSpaceTitleForChip, space: activeSpaceRow } = useActiveSpace();
+  const activeSpaceColor = activeSpaceRow?.color ?? null;
 
-  const toolbarFolderSource = toolbarNote
-    ? {
-        primaryCollection: toolbarNote.primaryCollection ?? null,
-        secondaryCollections: toolbarNote.secondaryCollections ?? [],
-      }
-    : null;
-
-  const toolbarFolderLabel = useShellFolderChip
-    ? prototypeFolderChip.label
-    : toolbarFolderSource
-      ? effectiveNoteFolderLabel(toolbarFolderSource)
-      : null;
-
-  const toolbarFolderExtraCount = useShellFolderChip
-    ? prototypeFolderChip.extraCount
-    : toolbarFolderSource
-      ? noteFolderChipAdditionalCount(toolbarFolderSource)
-      : 0;
-
-  const toolbarFolderAriaLabel = (() => {
-    const labels = useShellFolderChip
-      ? prototypeFolderChip.membershipLabels
-      : toolbarFolderSource
-        ? noteFolderMembershipLabels(toolbarFolderSource)
-        : [];
-    if (labels.length === 0) return 'Folder — none set';
-    return `Folders: ${labels.join(', ')}`;
-  })();
+  /*
+   * The space lives on the Activity segment now, not on the centre chip.
+   *
+   * One tile, one home: the chip names the folder or book you are looking at, and the
+   * segment names the space you are in. Both showing the space put the same colour tile
+   * and the same word twice in a 46px row.
+   */
+  const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
+  const activitySegmentRef = useRef<HTMLButtonElement | null>(null);
+  /*
+   * The same glyph the sidebar's switcher shows, from the same component — so My Home is a
+   * house and My Church is a church, not the generic Activity mark. Only a space with no
+   * identity of its own falls back to `layer-group`.
+   */
+  const spaceGlyph = isGuest ? (
+    /*
+     * A guest has no space, so this fell through to the neutral `layer-group` the switcher
+     * shows while nav is still resolving — a placeholder for an answer that is coming. For a
+     * guest no answer is coming, and the honest one is a house: the only space they have is
+     * their own, and this segment goes to it.
+     */
+    <ProtoHouseIcon size={PROTO_SEG_GLYPH_SIZE} />
+  ) : homeSpaceId ? (
+    <SpaceSwitcherTriggerIcon
+      space={activeSpaceRow}
+      isMinistry={Boolean(activeSpaceRow && isMinistryBroadcastSpace(activeSpaceRow))}
+      inSharedSpace={Boolean(activeSpaceTitleForChip)}
+      inMyChurchMode={Boolean(activeChurchOrgId)}
+      hasHome={Boolean(homeSpaceId)}
+      glyphSize={PROTO_SEG_GLYPH_SIZE}
+      tileSize={PROTO_SEG_ICON_SIZE}
+    />
+  ) : undefined;
 
   const onCompose = () => {
-    if (!visibleComposeTarget || !canComposeInContext) return;
+    /*
+     * A guest composes too, into no space at all — the note is saved to this device by
+     * `handleNoteSave`, which never asks where it belongs. So the target check below, which is
+     * about which of a member's spaces receives the note, has nothing to decide for them and
+     * would only stop a session that works.
+     */
+    if (!isGuest && (!visibleComposeTarget || !canComposeInContext)) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget });
+    /* `?? undefined` because a guest has no target and the session takes none — the early
+       return above used to guarantee this was a string. */
+    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget ?? undefined });
     navigate({ to: prototypeHomeRouteTo() });
   };
 
@@ -287,15 +349,24 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
    * exists once you have read, a scripture index built from notes you have not written — so
    * someone with an empty account could not reach it at all except by typing the URL.
    */
-  const { isOnReadPage, openReader, backToNotes } = useReaderToggle();
+  const { mode, isOnReadPage, hasNoteToResume, openActivity, openNote, openReader } =
+    useShellModeNav();
 
   const onSidebarButton = () => {
     if (isMobileSidebar) toggleDrawer();
     else toggleDesktopSidebar();
   };
 
+  /*
+   * Reaching for the "show sidebar" orb is the reader stating a preference, so it goes
+   * through the toggle rather than through `ensureSidebarExpanded` — that one exists for the
+   * app opening the rail on someone's behalf (a chip, a drilldown), which must not be
+   * mistaken for them asking. On mobile there is no preference to record; the drawer is
+   * transient by nature.
+   */
   const onShowSidebar = () => {
-    ensureSidebarExpanded();
+    if (isMobileSidebar) ensureSidebarExpanded();
+    else toggleDesktopSidebar();
   };
 
   const showShiftHints = usePrototypeShiftHints();
@@ -349,13 +420,25 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     return () => window.removeEventListener('prototypeOpenFindInNote', onOpenFind as EventListener);
   }, [isOnNotePage, toolbarNoteId, openFindPopover]);
 
+  /*
+   * There is only one rail left — admin's — so everywhere else the sidebar controls open
+   * nothing.
+   *
+   * Left ungated on a phone, the drawer toggle stayed in the toolbar after the rail was
+   * deleted: tapping it set `proto-shell--drawer-open` and mounted the overlay over a drawer
+   * with no contents, which is a control that does nothing and a scrim that eats the next tap.
+   * The collapsed-rail controls beside it had the same problem on desktop — an expand button
+   * for a rail that cannot expand.
+   */
+  const hasRail = !hideSidebar && isPrototypeAdminPath(pathname);
+
   const showCollapsedSidebarControls =
-    !isUnified && (desktopSidebarCollapsed || sidebarExiting);
+    hasRail && !isUnified && (desktopSidebarCollapsed || sidebarExiting);
 
   return (
     <div className="proto-toolbar-inner">
       <div className="proto-toolbar-left">
-        {isUnified ? (
+        {isUnified && hasRail ? (
           <PrototypeToolbarShortcutItem shortcut="S" showShortcut={showShiftHints}>
             <button
               type="button"
@@ -385,53 +468,83 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
             </button>
           </PrototypeToolbarShortcutItem>
         ) : null}
-        {/* Writing and reading are the two things you start here, so they are one control. */}
-        <NotesBibleSegmented
-          isOnReadPage={isOnReadPage}
-          onBackToNotes={backToNotes}
-          onCompose={onCompose}
+        {/* The three things you can be doing here, as one control. */}
+        <ShellModeSegmented
+          mode={mode}
+          unseenLabel={unseen.label}
+          hasNoteToResume={hasNoteToResume}
+          onOpenActivity={openActivity}
+          onOpenNote={() => openNote(onCompose)}
           onOpenReader={openReader}
-          canCompose={canComposeInContext}
-          disabled={!homeSpaceId}
+          /*
+           * A guest can compose in the sense this flag governs: the half is live, and pressing
+           * it explains what writing needs (see `onCompose`). Left false, the label became
+           * "Composing is not available in this channel yet" — true of a channel someone lacks
+           * permission in, and quite wrong about a visitor who simply has no account yet.
+           */
+          canCompose={canComposeInContext || isGuest}
+          /*
+           * `disabled` here means "no home space yet", which for a member is a moment during
+           * boot and for a guest is permanent — so this disabled the entire Activity / Note /
+           * Bible control for the whole visit. Reading and moving around the app do not need a
+           * space; only writing into one does, and that is decided a line above.
+           */
+          disabled={!homeSpaceId && !isGuest}
           showShortcuts={showShiftHints}
           composeLabel={composeDestinationLabel}
+          spaceGlyph={spaceGlyph}
+          spaceLabel={activeSpaceTitleForChip ?? (activeChurchOrgId ? 'My Church' : 'My Home')}
+          spaceMenuOpen={spaceMenuOpen}
+          onOpenSpaceMenu={() => setSpaceMenuOpen((open) => !open)}
+          spaceMenuTriggerRef={activitySegmentRef}
+        />
+        {/* Renders no trigger of its own — the Activity segment above is the button, and
+            the seg-track it sits in expects exactly three children. */}
+        <SpaceSwitcherMenu
+          homeSpaceId={homeSpaceId}
+          authReady={!!homeSpaceId}
+          trigger="external"
+          open={spaceMenuOpen}
+          onOpenChange={setSpaceMenuOpen}
+          anchorRef={activitySegmentRef}
         />
       </div>
 
       <div className="proto-toolbar-center">
-        {isOnNotePage && !toolbarNoteLoading && toolbarNote && contextualCapabilities.canOrganize ? (
-          <>
-            <button
-              ref={folderChipRef}
-              type="button"
-              className="proto-toolbar-folder-chip"
-              title="Folder — edit folders"
-              aria-label={toolbarFolderAriaLabel}
-              aria-haspopup="dialog"
-              aria-expanded={folderPopover.isOpen && !folderPopover.exiting}
-              onClick={() => folderPopover.toggleFrom(folderChipRef.current)}
-            >
-              <Icon name="folder" size={PROTO_TOOLBAR_FOLDER_CHIP_ICON_SIZE} className="proto-toolbar-folder-chip__icon" aria-hidden />
-              {toolbarFolderLabel?.trim() ? (
-                <span className="proto-toolbar-folder-chip__labels">
-                  <span className="proto-toolbar-folder-chip__label">{toolbarFolderLabel}</span>
-                  {toolbarFolderExtraCount > 0 ? (
-                    <span className="proto-toolbar-folder-chip__extra">+{toolbarFolderExtraCount}</span>
-                  ) : null}
-                </span>
-              ) : null}
-            </button>
-            {folderPopover.isOpen && toolbarNoteId ? (
-              <PrototypeFolderPopover
-                note={toolbarNote}
-                contextSpaceId={contextSpaceId}
-                anchorRect={folderPopover.anchorRect}
-                exiting={folderPopover.exiting}
-                onDismiss={folderPopover.dismiss}
-              />
-            ) : null}
-          </>
-        ) : null}
+        {/* ⇧K, the same chord the panel already answers — the chip is the only toolbar
+            control that was silent under a Shift hold, and it is the one most worth
+            reaching by key. */}
+        <PrototypeToolbarShortcutItem shortcut="K" showShortcut={showShiftHints}>
+          <PrototypeLibraryChip
+            mode={mode}
+            /* Hidden while the panel is *up*, not while it is leaving. The chip has to be
+               back on screen during the exit or there is nothing for the shrinking panel to
+               dissolve into — it was the second half of the crossfade that never played. */
+            panelOpen={Boolean(libraryPanelView) && !libraryPanelExiting}
+            onOpen={(rect) => {
+              /*
+               * The panel is search and the lists it searches, and both are the account's — a
+               * guest has no space for either to read from, so it opened onto nothing. Answered
+               * here rather than inside the panel because there is no version of that surface
+               * worth showing them: an empty search over an empty library is not a preview of
+               * the feature, it is a blank box.
+               *
+               * Before the rect work below, so a press that only explains itself does not also
+               * publish a morph origin for a panel that will not open.
+               */
+              if (isGuest) {
+                offerGuestAccount('Search');
+                return;
+              }
+              /* Clearing on a failed measure matters as much as publishing on a good one:
+                 a stale rect from an earlier click would morph this open out of a box the
+                 chip no longer occupies. */
+              if (rect) publishLibraryChipRect(rect);
+              else clearLibraryChipRect();
+              openLibraryPanel(LIBRARY_CHIP_OPENING_VIEW);
+            }}
+          />
+        </PrototypeToolbarShortcutItem>
       </div>
 
       <div className="proto-toolbar-right">
@@ -571,6 +684,46 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 />
               </button>
             </PrototypeToolbarShortcutItem>
+          ) : null}
+
+          {/*
+            The checklist, from wherever you are.
+
+            It only ever rendered at the top of Activity, so the surface that explains the app
+            was the one you had to already know how to reach. Shown only while there is a
+            checklist to show — `visible` is false once it is finished or put away — so this is
+            not a permanent piece of chrome, it is the chrome of a phase.
+          */}
+          {onboarding.visible ? (
+            <button
+              ref={onboardingButtonRef}
+              type="button"
+              className="proto-toolbar-icon-btn proto-onboarding-chip"
+              title="Getting started"
+              aria-label={`Getting started, ${onboardingProgress.done} of ${onboardingProgress.total} done`}
+              aria-haspopup="dialog"
+              aria-expanded={onboardingPopover.isOpen && !onboardingPopover.exiting}
+              onClick={() => onboardingPopover.toggleFrom(onboardingButtonRef.current)}
+            >
+              <Icon name="list-check" size={12} aria-hidden />
+              {/*
+                The word, where there is room for it. "2/4" alone is a fraction of nothing in
+                particular — it counts something, and the toolbar gives no clue what. The label
+                is what makes the control legible on sight rather than on hover, and it drops
+                out below the shell's mobile breakpoint where the count and the glyph carry it.
+              */}
+              <span className="proto-onboarding-chip__label">Getting started</span>
+              <span className="proto-onboarding-chip__count" aria-hidden>
+                {onboardingProgress.done}/{onboardingProgress.total}
+              </span>
+            </button>
+          ) : null}
+          {onboardingPopover.isOpen ? (
+            <PrototypeOnboardingPopover
+              anchorRect={onboardingPopover.anchorRect}
+              exiting={onboardingPopover.exiting}
+              onDismiss={onboardingPopover.dismiss}
+            />
           ) : null}
 
           <AccountMenu iconSize={PROTO_TOOLBAR_ORB_ICON_SIZE} />

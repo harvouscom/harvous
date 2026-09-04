@@ -8,7 +8,7 @@ import {
   isNoteUnseenSinceVisit,
   sharedThreadNoteCountPreview,
 } from '../shared-space-dashboard';
-import { sharedSpaceDashboardHasError } from '../PrototypeSidebarSharedSpaceView';
+import { sharedSpaceDashboardHasError } from '../PrototypeSpaceHub';
 
 function note(
   id: string,

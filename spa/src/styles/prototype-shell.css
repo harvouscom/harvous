@@ -137,6 +137,29 @@
 }
 
 /*
+ * The Review slot — a second slot in the same band, before the note's carousel.
+ *
+ * It carries the shared `__slot` class deliberately rather than a class of its own. That one
+ * name is keyed by ten rules in this file (pointer-events, the empty collapse, the drawer and
+ * inspector reserves, and four breakpoints), and a parallel class would have meant restating
+ * every one of them and keeping them in step forever. The modifier below is only what actually
+ * differs.
+ *
+ * What differs is the offset: a lone card portalled into a slot is centred by the rule above,
+ * but the carousel centres its own track on the paper. The review card is a bare card, so it
+ * takes the carousel's offset explicitly and lines up with the note whether or not the note's
+ * own docks are open beside it.
+ */
+.proto-shell__study-dock-layer__slot--review > .study-dock-card {
+  transform: translateX(var(--proto-study-dock-center-offset, 0px));
+}
+
+/* Two cards in one band need air between them; one card must not gain a stray gap. */
+.proto-shell__study-dock-layer__slot--review:not(:empty) + .proto-shell__study-dock-layer__slot:not(:empty) {
+  margin-top: 4px;
+}
+
+/*
  * Clear the sidebar for a bare card only.
  *
  * Deliberately not extended to the carousel, which the reader now portals here as well: the
@@ -166,6 +189,25 @@
 
 .proto-shell--no-sidebar .proto-shell__study-dock-layer__slot:not(:empty),
 .proto-shell--sidebar-collapsed .proto-shell__study-dock-layer__slot:not(:empty) {
+  padding-left: 0;
+}
+
+/*
+ * ...and the same reset on the LAYER, which is where the bare-card reserve actually lands.
+ *
+ * The two rules above clear the slot and the one below clears the carousel track, but the
+ * sidebar offset for a bare card sits on the layer itself (see the `:has()` rule further up).
+ * So with the sidebar retired, a dock portalled straight into a slot kept a 304px reserve for
+ * a column that is not there, and sat 152px right of centre on every route — most visibly the
+ * Review dock on Activity, where the feed sheet is centred in the full width.
+ *
+ * The selector repeats the `:has()` deliberately: without it this is less specific than the
+ * rule it has to undo, and loses.
+ */
+.proto-shell--no-sidebar
+  .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card),
+.proto-shell--sidebar-collapsed
+  .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card) {
   padding-left: 0;
 }
 
@@ -294,10 +336,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   border-radius: var(--pds-shell-frame-radius) var(--pds-shell-frame-radius) 0 0;
 }
 
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format {
   padding-left: var(--proto-format-toolbar-paper-inset, 0px);
   padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
 }
@@ -309,11 +348,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   .proto-editor-bottom-bar__format {
   padding-left: var(--proto-format-toolbar-overhang);
   padding-right: var(--proto-format-toolbar-overhang);
-}
-
-/* Inspector column (when open on desktop) */
-.proto-shell--inspector-open {
-  grid-template-columns: var(--proto-sidebar-w-clamped) minmax(0, 1fr) var(--pds-inspector-w);
 }
 
 /* No footer (search route) — note routes add a chrome row via --note-chrome instead. */
@@ -530,51 +564,8 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   display: none;
 }
 
-.proto-shell__inspector-cell {
-  grid-column: 3;
-  grid-row: 2;
-  min-height: 0;
-  overflow: hidden;
-  border-left: 1px solid var(--pds-border);
-  background: var(--pds-bg-sidebar);
-  display: flex;
-  flex-direction: column;
-}
-
 .proto-shell--no-sidebar .proto-shell__main-cell {
   grid-column: 1;
-}
-.proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__main-cell {
-  grid-column: 1;
-}
-.proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__inspector-cell {
-  grid-column: 2;
-}
-
-.proto-shell__footer-cell {
-  grid-column: 1 / -1;
-  grid-row: 3;
-  border-top: 1px solid var(--pds-border);
-  background: transparent;
-  box-shadow: var(--pds-glass-rim);
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  position: relative;
-}
-
-.proto-shell__footer-cell::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--pds-glass-sheen);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-shell__footer-cell > * {
-  position: relative;
-  z-index: 1;
 }
 
 /* ─── Sidebar root ───────────────────────────────────────────────────────── */
@@ -600,56 +591,12 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   scroll-padding-bottom: 16px;
 }
 
-.proto-load-more-sentinel {
-  height: 4px;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-
-.proto-load-more-status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 18px 16px;
-  min-height: 28px;
-  flex-shrink: 0;
-}
-
-.proto-load-more-retry {
-  border: none;
-  background: transparent;
-  padding: 4px 0;
-  cursor: pointer;
-  font-family: inherit;
-  color: var(--pds-text-secondary);
-  text-decoration: none;
-}
-
-.proto-load-more-retry:hover {
-  color: var(--pds-text-primary);
-  text-decoration: none;
-}
-
 /* ─── Main pane ──────────────────────────────────────────────────────────── */
 .proto-main-pane {
   flex: 1;
   min-height: 0;
   overflow: auto;
   font-family: var(--pds-font-body);
-}
-
-.proto-main-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  padding: 32px;
-  color: var(--pds-text-secondary);
-  font-size: 0.9375rem;
-  text-align: center;
-  gap: 8px;
 }
 
 /* ─── Mobile drawer ──────────────────────────────────────────────────────── */
@@ -748,7 +695,14 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
   }
 
-  html[data-proto-keyboard-open] .proto-shell__study-dock-layer {
+  /*
+   * The band gets out of the keyboard's way — unless what is being typed into is in it.
+   *
+   * The Review dock has a textarea for writing down what you remember. Hiding the band while
+   * someone is mid-sentence would take the card away at the one moment it must not move.
+   */
+  html[data-proto-keyboard-open]
+    .proto-shell__study-dock-layer:not(:has(.proto-review-dock :focus-within)) {
     display: none;
   }
 
@@ -761,18 +715,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   html[data-proto-keyboard-open] .proto-editor-scroll {
     overscroll-behavior: contain;
     background: var(--pds-paper-sheet);
-  }
-
-  .proto-shell--inspector-open {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .proto-shell__footer-cell {
-    display: none;
-  }
-
-  .proto-shell__inspector-cell {
-    display: none;
   }
 
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
@@ -1056,43 +998,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   /* Reusable expandable right-side panel — mobile variants. */
-  .proto-side-panel-mobile-backdrop {
-    position: fixed;
-    inset: var(--pds-toolbar-h) 0 0 0;
-    z-index: 155;
-    background: transparent;
-    pointer-events: auto;
-  }
-
-  .proto-side-panel-mobile {
-    position: fixed;
-    top: calc(var(--pds-toolbar-h) + 8px);
-    right: 8px;
-    bottom: 8px;
-    width: min(var(--pds-inspector-w), calc(92vw - 16px));
-    z-index: 160;
-    border-radius: var(--pds-shell-frame-radius);
-    background: var(--pds-bg-page);
-    box-shadow: var(--pds-shadow-drawer);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    animation: proto-inspector-mobile-in 0.26s cubic-bezier(0.32, 0.72, 0.24, 1) forwards;
-    transition: width 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
-  }
-
-  .proto-side-panel-mobile--expanded {
-    width: calc(92vw - 16px);
-  }
-
-  .proto-side-panel-mobile--docked {
-    width: min(var(--pds-inspector-w), calc(92vw - 16px));
-  }
-
-  .proto-side-panel-mobile--exiting {
-    animation: proto-inspector-mobile-out 200ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
-    transition: none;
-  }
 }
 
 @media (min-width: 900px) {
@@ -1341,6 +1246,54 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   /*
+   * Opened from somewhere in particular — grow out of that instead of the left edge.
+   *
+   * The width unfurl above says "the sidebar took the room it needed", which was true while
+   * the sidebar was the only way in. A tool is reached from a hub's header, a row in a sheet,
+   * a step in a plan; a panel that always came from the same edge regardless was animating a
+   * door that is not there any more.
+   *
+   * Still a clip, which is the whole reason this generalises cleanly: the width animation was
+   * already a window onto a body laid out at final size, and `clip-path` is that window with
+   * four sides instead of one. A transform would have squashed a 1040px panel into a 30px
+   * button and stretched every word in it back out.
+   *
+   * `--proto-expand-clip-from` is written by the panel before paint — see
+   * `ProtoSidebarExpandedPanel`. Only the name is overridden, so duration, easing and fill
+   * stay the shorthand's above and there is one place to change how fast any of this is.
+   */
+  .proto-sidebar-expanded-panel[data-expand-from='origin'] {
+    width: min(calc(100% - 16px), 1040px);
+    animation-name: proto-sidebar-expanded-clip-in;
+  }
+
+  @keyframes proto-sidebar-expanded-clip-in {
+    from {
+      clip-path: var(--proto-expand-clip-from);
+      opacity: 0.6;
+    }
+    to {
+      clip-path: inset(0 round var(--pds-shell-frame-radius));
+      opacity: 1;
+    }
+  }
+
+  .proto-sidebar-expanded-panel--exiting[data-expand-from='origin'] {
+    animation-name: proto-sidebar-expanded-clip-out;
+  }
+
+  @keyframes proto-sidebar-expanded-clip-out {
+    from {
+      clip-path: inset(0 round var(--pds-shell-frame-radius));
+      opacity: 1;
+    }
+    to {
+      clip-path: var(--proto-expand-clip-from);
+      opacity: 0;
+    }
+  }
+
+  /*
    * Pinned to the panel's final width so children lay out once and each frame of
    * the width animation is a clip, not a reflow.
    *
@@ -1363,9 +1316,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   @media (prefers-reduced-motion: reduce) {
     .proto-shell,
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
     .proto-shell__study-dock-layer__slot:not(:empty),
     .proto-shell-drawer-sidebar--exiting .proto-sidebar-root,
     .proto-sidebar-expanded-panel,
@@ -1397,11 +1347,9 @@ html.harvous-prototype-route .proto-shell-frame {
 html.harvous-prototype-route .proto-shell {
   background: transparent;
 }
-
 html.harvous-prototype-route .proto-shell__toolbar-cell,
 html.harvous-prototype-route .proto-shell__sidebar-toolbar-cell,
 html.harvous-prototype-route .proto-shell__detail-toolbar-cell,
-html.harvous-prototype-route .proto-shell__footer-cell,
 html.harvous-prototype-route .proto-shell__editor-chrome-row {
   background: transparent;
 }
@@ -1533,3 +1481,1108 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   background-color: var(--pds-glass-shell-floating);
   background-image: none;
 }
+
+/*
+ * ============================================================================
+ * Library panel — the browse surface that took over from the sidebar.
+ * ============================================================================
+ *
+ * It morphs out of the toolbar's centre chip, which is the whole point: the chip
+ * names your context, and expanding it shows that context's contents.
+ *
+ * FLIP, on transform and opacity only. The panel lays out at its final size and is
+ * transformed onto the chip's box for one frame, then released — so the browser
+ * interpolates two composited states and never lays anything out. The first version
+ * animated `width` and `grid-template-rows`, which cost a layout pass per frame and,
+ * because keyframes restart from their `from` value, replayed from the chip's width when
+ * you reopened mid-close. Transitions retarget from wherever the property is, so
+ * open → close → open is one continuous move. See `use-library-panel-morph.ts`.
+ *
+ * The mobile sheet below was already transform-only and is unchanged.
+ */
+.proto-library-panel {
+  position: fixed;
+  top: calc(var(--pds-toolbar-h) + 8px);
+  /*
+   * Centred by margin, not by `translateX(-50%)`.
+   *
+   * The transform belongs entirely to the morph. Spending it on centring is what forced
+   * the old version to animate `width` in the first place — a centring translate inside a
+   * keyframe fights whatever else the keyframe is interpolating.
+   */
+  left: 0;
+  right: 0;
+  /*
+   * 880px was wider than the content wanted. These rows are one line of title over one of
+   * meta, so past ~700px the eye has to travel a long way from the title to the timestamp
+   * that belongs to it, and the panel starts reading as a page rather than a surface you
+   * dipped into.
+   */
+  width: min(calc(100% - 32px), 680px);
+  margin-inline: auto;
+  /*
+   * Percentages, not viewport units.
+   *
+   * The shell frame carries a backdrop-filter, which makes it the containing block for
+   * `position: fixed` descendants — so this panel measures from the frame (inset on every
+   * side), not the window. `100vh` overshot by exactly that inset and ran the panel's
+   * bottom edge past the frame it lives in.
+   */
+  max-height: calc(100% - var(--pds-toolbar-h) - 24px);
+  z-index: 30;
+  box-sizing: border-box;
+  display: grid;
+  /* Header, tab row, then the scrolling body. */
+  grid-template-rows: auto auto 1fr;
+  border-radius: var(--pds-shell-frame-radius);
+  border: 0.5px solid var(--pds-border);
+  /*
+   * The sidebar's material, without a second blur.
+   *
+   * The rail reads as frosted because it is transparent and the *frame* carries the blur —
+   * a trick this panel cannot copy, because it floats over the main pane rather than beside
+   * it, so translucency here would show the day sheet's own text rather than a wallpaper.
+   * And a `backdrop-filter` of its own is the one thing this stack must not have
+   * (PROTOTYPE_AW_SNAP_ERROR_5 — stacking them crashed the GPU).
+   *
+   * So: glass character built from the parts that are safe. A vertical gradient for the
+   * body, the shell's own rim highlight along the top edge, and the drawer shadow it
+   * already had. It is opaque, and it reads as the same family.
+   */
+  background-image: linear-gradient(
+    to bottom,
+    var(--pds-panel-glass-top),
+    var(--pds-panel-glass-bottom)
+  );
+  background-color: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-drawer), var(--pds-glass-rim);
+  overflow: hidden;
+
+  /*
+   * No focus ring on the panel itself.
+   *
+   * It is `tabIndex={-1}` and takes focus programmatically on open, purely so the keyboard
+   * lands inside rather than back at the top of the page — it is not a tab stop and never
+   * something you focus deliberately, so a ring around the whole surface is announcing a
+   * state nobody chose. The controls inside keep their own rings.
+   */
+  outline: none;
+
+  /* The chip's line, not the panel's middle. */
+  transform-origin: top center;
+  transition:
+    transform var(--pds-duration-morph) var(--pds-ease-emphasized),
+    opacity var(--pds-duration-morph) var(--pds-ease-emphasized);
+}
+
+/*
+ * Exit on `--pds-ease-standard`, which starts fast and settles.
+ *
+ * Not `--pds-ease-morph-exit`: that curve eases in, and on a dismissal the start is
+ * precisely the moment being watched — you just asked for this to go away. (That token
+ * stays as it is for the resource-add morph, which is a different gesture.)
+ */
+.proto-library-panel--exiting {
+  opacity: 0;
+  transition:
+    transform var(--pds-duration-morph) var(--pds-ease-standard),
+    opacity var(--pds-duration-morph) var(--pds-ease-standard);
+}
+
+/*
+ * Contents arrive a beat after the box does.
+ *
+ * The container's scale would otherwise stretch every row inside it. Rather than
+ * counter-scaling each one — which costs a second transform per child and leaves text
+ * briefly soft on some GPUs — the content fades in over the back half of the move, so the
+ * frames where the scale is most extreme are the frames nobody is reading.
+ */
+.proto-library-panel .proto-library-panel__header,
+.proto-library-panel .proto-library-panel__body {
+  opacity: 0;
+}
+
+.proto-library-panel--settled .proto-library-panel__header,
+.proto-library-panel--settled .proto-library-panel__body {
+  opacity: 1;
+  transition: opacity var(--pds-duration-morph) var(--pds-ease-emphasized) 40ms;
+}
+
+/*
+ * The first rows arrive in sequence rather than as a block — 40ms apart, inside the
+ * 30–80ms band where a stagger is felt rather than counted.
+ */
+/*
+ * Rows, named as rows.
+ *
+ * This was `body > * > *`, which is any grandchild — and it caught the search results'
+ * structural wrapper. `animation-fill-mode: both` then left that wrapper holding a
+ * transform forever, a transform makes an element the containing block, and a containing
+ * block between a `position: sticky` heading and its scrollport is exactly what stops the
+ * heading sticking. A stagger meant for five rows had quietly disabled sticky headings.
+ */
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(-n + 5) {
+  animation: proto-library-row-in var(--pds-duration-morph) var(--pds-ease-emphasized) both;
+}
+
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(2) {
+  animation-delay: 40ms;
+}
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(3) {
+  animation-delay: 80ms;
+}
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(4) {
+  animation-delay: 120ms;
+}
+.proto-library-panel--settled .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li:nth-child(5) {
+  animation-delay: 160ms;
+}
+
+@keyframes proto-library-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * The chip crossfades with the panel rather than blinking out.
+ *
+ * Both are anchored at the same point, so one dissolving into the other reads as one object
+ * — and it means `border-radius` never has to animate from pill to frame.
+ *
+ * **The transition lives here, on the base.** It used to sit on `--hidden` alone, which
+ * animates only the way *in*: a transition is read from the destination's computed style,
+ * and the destination of un-hiding has no rule, so the chip faded out and then snapped back.
+ * The exit is the half you watch on a dismissal, and it was the half with no animation.
+ *
+ * `visibility` is stepped rather than faded, and the delay is what sequences it: on the way
+ * out it waits for the fade to finish, on the way back it lifts immediately so there is
+ * something to fade *in*. It is here at all because `opacity: 0` still leaves a control
+ * focusable and in the accessibility tree, and a hidden chip should be neither.
+ *
+ * Each direction borrows the curve of the panel motion it is crossfading against — the panel
+ * arrives on `emphasized` and leaves on `standard`, so the chip does the reverse of each.
+ * Two halves of one dissolve moving on two curves is what makes a crossfade read as two
+ * things rather than one object changing shape.
+ */
+.proto-library-chip {
+  transition:
+    opacity var(--pds-duration-morph) var(--pds-ease-standard),
+    visibility 0s;
+}
+
+.proto-library-chip--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--pds-duration-morph) var(--pds-ease-emphasized),
+    visibility 0s var(--pds-duration-morph);
+}
+
+/*
+ * `min-width` is gone with the width animation that needed it.
+ *
+ * It pinned children to the panel's final width so each frame of a width interpolation was
+ * a clip rather than a reflow. Nothing animates layout now, so keeping it would be a
+ * technique described by a comment for a problem that no longer exists.
+ */
+.proto-library-panel__header,
+.proto-library-panel__body {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+}
+
+.proto-library-panel__header {
+  display: grid;
+  /* Three columns so the search field is the panel's centre whatever the sides
+     hold. Always rendered, even when a cell is empty — a conditional cell
+     collapses the track and slides the centre across. */
+  /*
+   * The field takes the room, because it is now the surface's identity — there is no
+   * title, and after the space switcher moved to the toolbar there is nothing in the
+   * trailing cell either. The old 1 / 1.2 / 1 split left the field at roughly a third of
+   * an 880px panel with ~290px of dead space on each side. The side cells keep a minimum
+   * so the back tile has somewhere to sit, and stay symmetric so the field is centred.
+   */
+  /*
+   * Lead sized to its one button, field takes the middle, kind picker gets a real share.
+   *
+   * The three cells used to be 1fr / 3fr / 1fr with the outer two empty, to keep the field
+   * optically centred. Both ends hold something now — a collapse control and the kind
+   * picker — and they are different widths, so centring was already a fiction. Sizing each
+   * cell to its job gives the field more room than the symmetry ever did.
+   */
+  /*
+   * The trailing track is never narrower than what it holds.
+   *
+   * It was `minmax(124px, auto)`, which was enough while it held one control: the kind picker
+   * came to 141 and the track sat at roughly that. Add a second control and the track stayed
+   * where it was and the new one overflowed *left*, out of its own cell and over the end of
+   * the search field — `1fr` is greedy, and a `minmax` floor could not pull the track back
+   * because the flex cell's own min-content contribution was zeroed by its `min-width: 0`.
+   *
+   * Plain `auto` sizes the track to what it holds and lets the field take the remainder,
+   * which is the arrangement the 124px was approximating. It keeps holding if either
+   * control's label changes.
+   */
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 0.5px solid var(--pds-border-control);
+}
+
+.proto-library-panel__header-lead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.proto-library-panel__title {
+  /* Not `proto-marquee` — that sets `container-type: inline-size`, and inline-size
+     containment zeroes an element's own intrinsic width. The title's width comes
+     from its own text, so it would render at 0px. Ellipsis via max-width instead. */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pds-text-primary);
+}
+
+.proto-library-panel__search {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/*
+ * The field's trailing control, given a slot of its own rather than crowded against the edge.
+ *
+ * A square the full height of the field, flush to its end.
+ *
+ * Sized and placed rather than padded: a 24px button inside the field's 10px side padding sat
+ * 11px from the right edge and 5px from the top, and an icon further in from the side than
+ * from the top reads as misplaced even when nobody can say why. Filling the height and
+ * cancelling the field's own padding makes the box square by construction, so the glyph's
+ * clearance is the same on all four sides and stays that way if the field's height or padding
+ * moves. `aspect-ratio` rather than a width, so neither number is written twice.
+ *
+ * `flex: 0 0 auto` because the input beside it is the flexible one: when the row is tight the
+ * field gives up width, never the control.
+ */
+.proto-library-recents__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  align-self: stretch;
+  /* The field's own side padding, on the button — so the glyph's clearance to the right edge
+     is the same number as the field gives its text, and the same as the (34 - 14) / 2 it gets
+     above and below. Cancelled again as margin so the box sits flush to the field's end.
+     `aspect-ratio` was the first attempt and does nothing here: a flex item's width comes
+     from its content, so there is no definite axis for the ratio to work from. */
+  padding-inline: var(--proto-search-field-pad-x);
+  margin-inline-end: calc(-1 * var(--proto-search-field-pad-x));
+  border: none;
+  border-radius: var(--pds-radius-input);
+  background: transparent;
+  color: var(--pds-text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+@media (hover: hover) {
+  .proto-library-recents__toggle:hover {
+    background: var(--pds-bg-control);
+    color: var(--pds-text-primary);
+  }
+}
+
+.proto-library-recents__toggle[aria-expanded='true'] {
+  background: var(--pds-bg-control);
+  color: var(--pds-text-primary);
+}
+
+/*
+ * `min-width: 0` deliberately absent.
+ *
+ * It was here so the cell could shrink, and while the cell held one control that cost
+ * nothing. It also zeroes the element's min-content contribution, which is what the track's
+ * `min-content` floor is computed from — so with the floor in place and this still here, the
+ * track went on resolving to the picker's width alone and the second control overflowed left
+ * over the search field. The field is the flexible cell; it is the one that should give up
+ * width when the row is tight, not the controls that stop being pressable.
+ */
+.proto-library-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.proto-library-panel__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* So the row may collapse below its content during the height morph, and what
+     is clipped does not spill past the rounded corner. */
+  min-height: 0;
+  /* A variable, not a literal, because the sticky footer below has to cancel exactly
+     this to reach the panel's edge — and two numbers that must agree should be one. */
+  --proto-library-body-pad: 10px;
+  padding: var(--proto-library-body-pad);
+  /* Except at the top, where the header's own 8px is already doing the separating — the two
+     stacked read as a band of dead space between the field and the first row. Only the top:
+     the footer above cancels the other three by that variable, and this is not one of them. */
+  padding-top: 2px;
+}
+
+/*
+ * A sticky action bar belongs to the panel's edge, not to the list's gutter.
+ *
+ * The resource shelf ends in one ("Add resource"), and inside the body's padding it sat
+ * as an inset slab with a strip of panel visible under and beside it — which reads as the
+ * list having a footer rather than the panel having an action. Negative margins cancel the
+ * padding on three sides so it spans the full width and lands flush, and the bottom corners
+ * pick up the panel's own radius so it ends where the panel ends.
+ */
+.proto-library-panel__body .proto-resource-footer {
+  margin-inline: calc(-1 * var(--proto-library-body-pad));
+  margin-bottom: calc(-1 * var(--proto-library-body-pad));
+  bottom: calc(-1 * var(--proto-library-body-pad));
+  border-bottom-left-radius: var(--pds-shell-frame-radius);
+  border-bottom-right-radius: var(--pds-shell-frame-radius);
+}
+
+/*
+ * Everything's list, which holds two kinds of furniture at once.
+ *
+ * Notes, highlights and resources are rows; folders, Threads and Scripture are the cards they
+ * are on their own tabs. Both style themselves from their own class, so all this has to do is
+ * stack them and put air between them — the plain list it inherits from has neither, because
+ * rows carry their own vertical padding and cards expected a grid's gap.
+ */
+.proto-library-all-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+}
+
+/*
+ * Rows sit on the cards' edges, not inside them.
+ *
+ * `.proto-note-row-item` insets itself by 8px a side, which is right in a list of rows where
+ * that inset *is* the gutter. Beside a card that paints a surface to the full width, it reads
+ * as two lists that failed to agree: the card's glyph at 264 and the row's at 271, for no
+ * reason a reader could name. Full width here, and the row's own padding matched to the
+ * card's, so both furnitures share one left edge.
+ */
+.proto-library-all-list > .proto-note-row-item {
+  width: 100%;
+  margin: 0;
+}
+
+.proto-library-all-list > .proto-note-row-item .proto-note-row__main {
+  padding: 10px 11px;
+}
+
+/*
+ * Rows step aside for the tick exactly as far as the cards do.
+ *
+ * Both furnitures make room when selecting starts — the card's own rule takes it to 33px —
+ * but the padding above is more specific than the shared `:has(--selectable)` rule that moves
+ * a row, so rows stayed at 11px while the cards moved. The tick then sat on top of the row's
+ * glyph, and the two left edges that were carefully aligned a moment ago were 22px apart.
+ *
+ * 33px rather than the list's usual 32: matching the card is the point, and in this one list
+ * they are neighbours.
+ */
+.proto-library-all-list > .proto-note-row-item--selectable .proto-note-row__main {
+  padding-left: 33px;
+}
+
+/*
+ * A row that leads with what it is.
+ *
+ * Grid rather than a flex row wrapping the text, because that would have meant restructuring
+ * four separate row bodies to introduce a wrapper none of them needed. Here the glyph takes
+ * the first column and spans however many lines the row has, and everything else stacks in
+ * the second — so a row with a title and a preview and a row with only a title both come out
+ * with the glyph centred against the whole block.
+ */
+.proto-note-row__main--lead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+}
+
+.proto-note-row__main--lead > .proto-note-row__lead-icon {
+  grid-row: 1 / -1;
+  grid-column: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pds-text-secondary);
+}
+
+.proto-note-row__main--lead > :not(.proto-note-row__lead-icon) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+/*
+ * Folders in the panel are rows, not a two-up grid of tiles.
+ *
+ * The grid earns its place in the sidebar, where the rail is narrow and a tile is the only
+ * way two folders fit side by side. The panel is 880px wide, so the same grid gives every
+ * folder a tile with a great deal of nothing in it, and puts the panel's one browsing surface
+ * in a different shape from every other tab — Notes, Threads and Highlights are all lists.
+ *
+ * So here the card lies down: glyph first, then the name with its count under it. That is the
+ * note row's own anatomy, which means a folder in this panel reads as the same kind of object
+ * as everything else in it. Scoped by the panel's id rather than changed at the source,
+ * because the sidebar's rail still needs the tiles.
+ */
+#proto-library-panel .proto-collection-grid {
+  grid-template-columns: minmax(0, 1fr);
+  /* The tiles' own gap. Each card still paints its own surface, so with the rows this close
+     together they read as one slab divided by hairlines rather than as separate things. */
+  gap: 8px;
+  padding: 0;
+}
+
+#proto-library-panel .proto-collection-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  /* The tile's floor was there to keep a grid of them even. A row is as tall as its text. */
+  min-height: 0;
+  border: none;
+  border-radius: 10px;
+}
+
+#proto-library-panel .proto-collection-card__icon {
+  height: auto;
+  flex-shrink: 0;
+}
+
+/* `margin-top: auto` pushed the text to the bottom of a tile that had spare height. Lying
+   down there is none, and the auto margin would shove the name off centre. */
+#proto-library-panel .proto-collection-card__body {
+  margin-top: 0;
+}
+
+/*
+ * The tick sits on the card's middle, not at a measured height near its top.
+ *
+ * `top: 21px` is 10px of padding plus half a 22px glyph row — exactly right for the tall tile
+ * it was written for, where the icon sits above the text. Lying down, the glyph is centred on
+ * the whole card, so the same 21px left the tick floating near the top edge with the name
+ * beside it. Centring is also the more durable rule: it holds whatever the row's height turns
+ * out to be, where a literal has to be recomputed every time the card changes shape.
+ *
+ * Covers folders, Threads and Scripture together — all three draw this same card, and the
+ * `translateY(-50%)` they already carry does the other half.
+ */
+#proto-library-panel .proto-collection-card__select {
+  top: 50%;
+}
+
+/*
+ * Recent searches, as a list of terms you can put back in the field.
+ *
+ * These were a wrapping pill track, which is what a set of filters looks like — things
+ * standing side by side, any number of them on at once. A history is ordered and you pick
+ * one from it, and each entry needed room for a dismiss that a pill has nowhere to put. So
+ * one term per line.
+ *
+ * Still not `.proto-chip-bar`, for the older reason: that is a segmented control whose
+ * children are `flex: 1 0 auto`, so a lone entry fills the track and reads as "one option,
+ * currently selected". None of these is selected.
+ */
+.proto-recent-queries {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0 8px 8px;
+  list-style: none;
+}
+
+/*
+ * Past queries, in the card the header's control opens.
+ *
+ * The rows carry their own padding, so the card supplies only its width — wide enough that
+ * an ordinary query reads whole rather than trailing into an ellipsis on every line.
+ */
+.proto-library-recents__popover {
+  width: 264px;
+}
+
+/*
+ * The heading sits apart from the list rather than on top of it.
+ *
+ * It was 4px, which put "Recent searches" close enough to the first term to read as its
+ * label rather than the group's. The gap is the thing that says one is a heading.
+ */
+.proto-library-recents__label {
+  margin: 0;
+  padding: 10px 12px 10px;
+  color: var(--pds-text-muted);
+}
+
+/*
+ * One remembered search: the term, and the way to be rid of it.
+ *
+ * The row is the hover surface and the two buttons inside it are transparent, so the
+ * highlight is the whole line — a term whose background stopped short of its own dismiss
+ * would look like two controls that happened to be adjacent.
+ */
+.proto-recent-query {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+
+.proto-recent-query:hover {
+  background: var(--pds-bg-chip);
+}
+
+.proto-recent-query__term {
+  flex: 1 1 auto;
+  /* Without this a long query pushes the dismiss off the end instead of truncating: a flex
+     item's floor is its content, and `text-overflow` never fires above its own floor. */
+  min-width: 0;
+  padding: 6px 4px 6px 8px;
+  border: none;
+  background: none;
+  font-family: var(--pds-font-body);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  /* A long query stays one line and truncates rather than growing the row into a paragraph. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s ease;
+}
+
+.proto-recent-query:hover .proto-recent-query__term {
+  color: var(--pds-text-primary);
+}
+
+/*
+ * Present at rest, muted.
+ *
+ * Not revealed on hover: the app's other per-row dismiss — `.proto-side-panel__action-btn`
+ * on a Home suggestion — sits at 0.4 and brightens, and a control that appears only when
+ * pointed at is a control a touch screen never advertises. The user has to know a row can
+ * be forgotten before they think to reach for it.
+ */
+.proto-recent-query__forget {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--pds-text-muted);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.proto-recent-query__forget:hover,
+.proto-recent-query__forget:focus-visible {
+  opacity: 1;
+  background: var(--pds-bg-chip-hover);
+  color: var(--pds-text-primary);
+}
+
+/*
+ * The contents leave before the box closes — rows legible while being clipped
+ * read as a scroll rather than a morph. Exit only; arrival rides the panel's own
+ * fade-in.
+ *
+ * This comment stood alone for a while with no rule under it, which is why the close felt
+ * wrong: the box retracts toward the chip, and text that is still fully opaque while that
+ * happens is text being squashed. Half the box's duration, so the panel is empty well
+ * before it is small, and `linear` because nothing here is travelling — it is only
+ * getting out of the way.
+ *
+ * Every direct child, not a list of them: the header (which carries the tab row), the back
+ * row, the body and the bulk bar all have to go together, and naming them individually is a
+ * list that the next child added to the panel would silently not join.
+ *
+ * The doubled class is deliberate — it matches the `--settled` arrival's two-class
+ * specificity, so this wins on order rather than on a `!important`.
+ */
+.proto-library-panel--exiting.proto-library-panel > * {
+  opacity: 0;
+  transition: opacity calc(var(--pds-duration-morph) / 2) linear;
+}
+
+/* The chip holds its box while the panel is out — the toolbar must not reflow under a panel
+   that is animating out of that exact spot. `visibility` preserves layout where `display`
+   would not; it is declared with the crossfade above, so the two cannot disagree. */
+
+/*
+ * Mobile — a full-height sheet instead of a centred panel.
+ *
+ * Keyed on the shell's one mobile breakpoint (899px), not the 600px the toolbar
+ * uses for its own reflow: the panel is a shell surface, and `MOBILE_MQ` in
+ * proto-shell-context is what decides which presentation the JS mounts. The two
+ * must agree or the shell and the component in it disagree about which layout
+ * they are in.
+ */
+.proto-library-sheet {
+  /* Same programmatic-focus target as the panel — see the note there. */
+  outline: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /*
+   * Below the toolbar, not under it.
+   *
+   * The sheet is a region rather than a modal — the toolbar above stays live, and the
+   * chip that summoned it lives there. Starting at the frame's top edge slid the sheet's
+   * own header (its back tile and title) beneath the toolbar orbs, so the surface opened
+   * with its controls invisible.
+   */
+  top: calc(var(--pds-toolbar-h) + 8px);
+  z-index: 30;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  border-radius: var(--pds-shell-frame-radius) var(--pds-shell-frame-radius) 0 0;
+  border-top: 0.5px solid var(--pds-border);
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-drawer);
+  overflow: hidden;
+  /* Duration MUST match PROTO_VOTD_SHEET_MOTION_MS in proto-motion.ts — the shell
+     keeps the sheet mounted for exactly this long after dismissal. */
+  animation: proto-library-sheet-in 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
+}
+
+@keyframes proto-library-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes proto-library-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* The sheet's own header/body share the panel's classes, so give them the sheet's
+   scroll behaviour without the width pinning a morph needs. */
+/* The sheet does not morph, so its children take no counter-scale. */
+.proto-library-sheet .proto-library-panel__header,
+.proto-library-sheet .proto-library-sheet .proto-library-panel__body {
+  transform: none;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Fewer and gentler, not none.
+   *
+   * The previous version set `animation: none` and then `display: none` on the exiting
+   * panel, which made a dismissal a hard cut — the surface was simply gone between frames.
+   * A short opacity fade still says "this is leaving" without moving anything.
+   */
+  .proto-library-panel,
+  .proto-library-sheet {
+    transform: none;
+    transition: opacity 120ms linear;
+  }
+
+  .proto-library-panel__header,
+    .proto-library-panel__body {
+    transform: none;
+    opacity: 1;
+    transition: none;
+    animation: none;
+  }
+
+  .proto-library-panel__body :is(.proto-note-list, .proto-collection-grid) > li {
+    animation: none;
+  }
+
+  /* The chip matches the panel's reduced-motion fade rather than cutting. `none` here used
+     to hide only the fade *out*, so with the transition now on the base the chip would have
+     faded in and cut out — and either way a hard cut beside a fading panel is the two halves
+     of one crossfade disagreeing. Same 120ms, both directions. */
+  .proto-library-chip {
+    transition:
+      opacity 120ms linear,
+      visibility 0s;
+  }
+
+  .proto-library-chip--hidden {
+    transition:
+      opacity 120ms linear,
+      visibility 0s 120ms;
+  }
+}
+
+/*
+ * The kind picker, in the header row beside the field.
+ *
+ * `ProtoSelectMenu`'s trigger is `width: 100%` — right for the settings rows it was built
+ * for, wrong beside another control, where it claims the whole cell and pushes itself past
+ * the edge. The study feed's scope picker hit this exact thing; same fix.
+ */
+/*
+ * The kind picker fills its cell.
+ *
+ * `ProtoSelectMenu`'s trigger is `width: 100%` by default — which was wrong when this cell
+ * also held the space switcher and the trigger pushed itself past the edge. The switcher
+ * moved to the toolbar, so the cell is the picker's alone and the default is right again.
+ * Stated rather than left implicit, because the override that used to live here is the
+ * thing a reader would go looking for.
+ */
+.proto-library-kind.proto-select-menu__trigger {
+  width: 100%;
+  justify-content: space-between;
+}
+
+/*
+ * A result group's heading.
+ *
+ * ## Why it no longer sticks
+ *
+ * It was sticky, on the reasoning that results run past a screen and a label that scrolls
+ * away leaves you reading rows with no idea which group they are in. True, but sticking
+ * costs an opaque backing, and the panel behind it is a *gradient* — so the fill matched
+ * near the top and turned into a visible white band everywhere else. No flat colour can
+ * sit still over a gradient; the band was not a wrong shade, it was the wrong idea. The
+ * hairline still passes under the eye on the way down, which is what actually marks the
+ * boundary between two groups.
+ *
+ * ## What is left
+ *
+ * The rule runs from the label to the edge, so the heading sits *in* the break instead of
+ * floating above the list. A pseudo-element rather than a border, because the label has to
+ * interrupt it.
+ *
+ * ## Why the type lives on the span
+ *
+ * `prototype-route-overrides.css` paints every `h*` inside a `proto-` class at
+ * `--pds-text-primary !important`, and a global sets `h3` bold — so this element's own
+ * `font-weight` and `color` were being ignored and the label rendered as a full-strength
+ * heading shouting over the rows it names. A declaration on the child beats a value
+ * inherited from the parent whatever its importance, so the voice is set there.
+ */
+.proto-library-results__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  /* Left lines the label up with the row text below it — the rows' own box inset plus their
+     inner padding. Right stops the hairline where the rows stop, rather than running it out
+     to the panel's edge past everything it is dividing. */
+  padding: 14px 8px 8px 18px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.proto-library-results__heading-text {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  font-weight: 500;
+  /* Muted, like `.proto-home-section__eyebrow`. A group label is the quietest thing in the
+     list — it names rows rather than competing with them. */
+  color: var(--pds-text-muted);
+}
+
+/*
+ * Ink, not `--pds-border-control`.
+ *
+ * The `border-control*` tokens are derived from the canvas — near-white at low alpha, made
+ * to draw an edge on something darker. On this panel's pale gradient the rule was there and
+ * invisible, which stopped mattering only while the heading still had an opaque band doing
+ * the dividing. Now that the band is gone this line *is* the break, so it is the token that
+ * is dark ink on a light surface and is named for exactly that.
+ */
+.proto-library-results__heading::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 0.5px;
+  background: var(--pds-border-on-paper);
+}
+
+/* The first group opens the list, so it has nothing to be broken away from. */
+.proto-library-results__group:first-child .proto-library-results__heading {
+  padding-top: 2px;
+}
+
+.proto-library-results__group:first-child .proto-library-results__heading::after {
+  display: none;
+}
+
+/*
+ * A lone group has nothing to be told apart from, so it loses its heading.
+ *
+ * These labels exist to divide: "Actions", "Go to", "Everywhere else" say which of several
+ * lists you are looking at. Most searches produce one group, and then the label is a bar
+ * across the top of the panel announcing "Results" above the only thing there — a sticky
+ * band of chrome, wider than the rows it introduces, saying what the search field already
+ * said. `:only-child` is exact here: the body holds groups and nothing else.
+ *
+ * Clipped rather than `display: none`, so a screen reader still hears the region named. The
+ * heading is redundant on screen because the eye takes in the whole panel at once; read
+ * linearly it is still the thing that says the list has started.
+ */
+.proto-library-results__group:only-child .proto-library-results__heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.proto-library-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/*
+ * "Load more" — a continuation, not a call to action.
+ *
+ * The sidebar's footer button is a gradient primary because it *starts* something (a new
+ * folder). Pagination at the end of a list you are already reading should not be the
+ * loudest thing in the panel, so this is a quiet centred pill instead.
+ */
+/*
+ * The pager, set like Activity's.
+ *
+ * It was a bordered pill floating in the middle of a gutter, which is a different idea of
+ * "there is more below" from the one the study feed uses a few hundred pixels away —
+ * `.proto-feed-part__more` is a full-width bar with a hairline over it and a caret pointing
+ * down. Two shapes for one meaning in one app is one too many, and the bar is the better of
+ * the two here: it spans the list it belongs to rather than hovering unattached beneath it.
+ *
+ * Values match `.proto-feed-part__more` deliberately. Not a shared class — that one is the
+ * feed's own furniture and lives with it — but if this drifts, that is where it drifted from.
+ */
+.proto-library-more {
+  display: flex;
+  padding: 4px 0 0;
+}
+
+.proto-library-more__btn {
+  appearance: none;
+  border: 0;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pds-space-2);
+  width: 100%;
+  padding: var(--pds-space-2);
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.proto-library-more__btn:hover:not(:disabled) {
+  background: var(--pds-bg-row-hover);
+  color: var(--pds-text-primary);
+}
+
+.proto-library-more__btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ─── Guest mode ─────────────────────────────────────────────────────────── */
+
+/*
+  The standing "you are trying Harvous" row, above the shell frame.
+
+  At the `#root` layer rather than inside the card: it is a notice about this whole visit, not a
+  piece of the app's chrome, and the app shell moves down as one object beneath it. Its height
+  comes off the frame rather than out of the grid, which already carries four row templates that
+  a fifth variant would have to be spelled out against.
+
+  It has no surface of its own on purpose: it belongs to the background layer, so the wallpaper
+  or canvas runs straight through it and the app shell below is exactly the shell, unchanged.
+  Painting it `--pds-bg-page` made it a second white bar stacked on the app instead of a notice
+  written on the ground the app sits on.
+
+  `html.harvous-proto-guest` is set by `public/scripts/prototype-route-boot.js` before the bundle
+  loads, so the space is claimed in the first paint: an arriving guest never sees the shell jump
+  down by 37px a moment after landing, on the one screen whose whole job is to look like an
+  uninterrupted continuation of the marketing page.
+*/
+:root {
+  /*
+   * Content height plus its padding: a 24px button with 14px above and below. Named as one
+   * number because three places have to agree on it — the frame's height, the frame's top
+   * offset, and the boot script's placeholder card.
+   */
+  --proto-guest-row-h: 52px;
+}
+
+/*
+  The boot script's placeholder card starts below the row as well.
+
+  `prototype-route-boot.js` paints `#root::before` as a fixed card at the frame inset, so it was
+  still pinned to 14px while the shell had moved down — its white ran up behind the notice and
+  read as a band of blank paper above the toolbar belonging to no surface. Both classes so this
+  outranks the boot rule rather than relying on which stylesheet the browser saw last.
+*/
+html.harvous-prototype-route.harvous-proto-guest #root::before {
+  top: var(--proto-guest-row-h);
+}
+
+html.harvous-proto-guest .proto-shell-frame {
+  /*
+   * No top margin. The row's own bottom padding is the space above the shell, so the frame's
+   * usual 14px on top would sit under it as a second gap — the notice would read as a bar with
+   * a margin rather than as breathing room around a line of text.
+   */
+  margin-top: 0;
+  height: calc(100vh - var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+  height: calc(100dvh - var(--pds-shell-frame-inset) - var(--proto-guest-row-h));
+}
+
+.proto-guest-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  /* `#root` is a flex column, so without this the frame below squeezes the row shorter than the
+     height the frame just subtracted for it, and the shell hangs off the bottom. */
+  flex-shrink: 0;
+  height: var(--proto-guest-row-h);
+  /* Vertical padding, not a margin below — see the frame's `margin-top: 0` above. */
+  padding: 14px 12px;
+  /* No fill and no rule beneath it — the canvas (or the wallpaper) is the background here. */
+  background: transparent;
+  color: var(--pds-text-secondary);
+}
+
+.proto-guest-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /*
+   * Room for descenders. The read-only banner this is shaped after uses `line-height: 1`, which
+   * is right there because it has no `overflow: hidden` — here the label clips to its line box
+   * to make an ellipsis possible, so at 1 the tails of "y" and "g" were cut off.
+   */
+  line-height: 1.4;
+  /* The whole flex chain needs this, not just the label: one ancestor at its default
+     `min-width: auto` refuses to shrink below its content, and the sentence ran off both edges
+     of a phone instead of truncating. */
+  min-width: 0;
+  flex-shrink: 1;
+  font-weight: 500;
+}
+
+/*
+  The sentence gives way before the button does. On a narrow phone the label truncates and the
+  way to keep the notes stays whole and tappable; the reverse would leave a full explanation of
+  a problem beside no way to solve it.
+*/
+.proto-guest-row__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /*
+   * Shrinkable in its own right, not just allowed to be narrow. `min-width: 0` lets a flex item
+   * go below its content; it does not make it *give way*, and with `flex-shrink: 0` the label
+   * stayed at its full 315px inside a 197px parent and ran under the button. Both halves are
+   * needed for an ellipsis to ever appear.
+   */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-guest-row__trail {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/*
+  The accent button, in the one size that fits a 34px bar. Same three tokens as
+  `.proto-settings-btn` — a second gradient defined by hand here would drift from that one the
+  first time either is touched.
+
+  Named for the size rather than the row, because guest Home wants the same button next to its
+  own list and a `__action` on a `proto-guest-row` block would have been the wrong thing to
+  reach for there.
+*/
+.proto-accent-btn-sm {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent) !important;
+  box-shadow: var(--pds-shadow-accent-button);
+  font: 600 12px/1 var(--pds-font-body);
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.1s;
+}
+
+.proto-accent-btn-sm:hover {
+  filter: brightness(1.06);
+}
+
+/* The long prefix is not decoration — same reason `.proto-settings-btn` and
+   `.proto-settings-danger__btn:hover` carry it. A global rule,
+   `html.harvous-prototype-route button[class*="proto-"]`, pins every prototype button to
+   text-primary with !important, and at (0,2,2) it outranks a bare class — so as an `<a>` this
+   button had white text and as a `<button>` it had dark text on the same blue. */
+html.harvous-prototype-route button[class*='proto-'].proto-accent-btn-sm {
+  color: var(--pds-on-accent) !important;
+}
+

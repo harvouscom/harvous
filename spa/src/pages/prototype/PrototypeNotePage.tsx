@@ -1,3 +1,9 @@
+import { draftWentBeyondItsSeed } from '@/utils/recall-draft-completion';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { addGuestNote, updateGuestNote } from '../../lib/guest-store';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
+import { reportRecallCompleted } from './proto-recall-completion';
+import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { stashComposeRestore } from '../../lib/compose-session-restore';
 import { consumePendingNoteFocus } from '../../lib/pending-note-focus';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -18,7 +24,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../../src/components/react/CardFullEditable';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { detectScriptureReferences, parseScriptureReference } from '@/utils/scripture-detector';
-import { readerRouteForReference } from '../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { useSettledFlag } from '../../hooks/useSettledFlag';
 import { buildNoteDockOrigin, readPaperStackDockPlacement } from './paper-stack-origins';
 import { bibleChapterQueryOptions } from '../../hooks/queries/usePrototypeBibleChapter';
@@ -39,9 +45,12 @@ import {
 } from '../../hooks/mutations/usePatchSpaceNoteOrganization';
 import { useShellPaneIsWide } from '../../layouts/use-shell-pane-wide';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { noteFolderChipDisplayState } from '@/utils/note-folder-display';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
-import PrototypeInspectorPane from './PrototypeInspectorPane';
+import PrototypeInspectorPane, {
+  type PrototypeInspectorTemplatesProps,
+} from './PrototypeInspectorPane';
 import PrototypeStudyThreadPopover from './PrototypeStudyThreadPopover';
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypePaneEmptyState from './PrototypePaneEmptyState';
@@ -167,7 +176,15 @@ export function draftSaveDestinationLabel(input: {
   homeSpaceId: string | null | undefined;
   targetSpaceTitle: string | null | undefined;
   threadTitle?: string | null;
+  /** A guest's note has no space; it is saved to the browser it was written in. */
+  isGuest?: boolean;
 }): string {
+  /*
+   * First, because every branch below names a space and a guest has none — this line read
+   * "Saving to My Home" over a note whose destination was localStorage, which is the one
+   * place in the app that says out loud where writing goes.
+   */
+  if (input.isGuest) return 'Saving to this device';
   if (isDraftSaveDestinationHome(input)) return 'Saving to My Home';
   const spaceTitle = input.targetSpaceTitle?.trim() || 'this space';
   const threadTitle = input.threadTitle?.trim();
@@ -342,6 +359,7 @@ export default function PrototypeNotePage() {
     paperStack,
     setStackNoteTitle,
   } = useProtoShell();
+  const libraryNav = useLibraryPanelNav();
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   /**
    * A parked note has no note segment either: flipping the sheet down sends the URL to the
@@ -480,6 +498,7 @@ export default function PrototypeNotePage() {
     return secondaries?.length ? secondaries : EMPTY_NOTE_COLLECTIONS;
   }, [isDraft, note?.secondaryCollections]);
 
+
   const queryClient = useQueryClient();
   const router = useRouter();
   const updateNoteMutation = useUpdateNote();
@@ -493,7 +512,16 @@ export default function PrototypeNotePage() {
   const patchSpaceNoteOrganizationMutationRef = useRef(patchSpaceNoteOrganizationMutation);
   patchSpaceNoteOrganizationMutationRef.current = patchSpaceNoteOrganizationMutation;
   const draftPersistPromiseRef = useRef<Promise<string | null> | null>(null);
+  const { isGuest } = useHarvousIdentity();
   const persistedDraftIdRef = useRef<string | null>(null);
+  /*
+   * The guest equivalent of `persistedDraftIdRef`: the local note this compose session has
+   * already filed, so every later autosave updates it instead of filing another.
+   *
+   * Keyed to the compose session by the effect below rather than living forever, or a second
+   * "New note" would keep writing into the first one.
+   */
+  const guestDraftIdRef = useRef<string | null>(null);
   // The note id a draft compose persisted into. Unlike `persistedDraftIdRef` (reset
   // on every slug change), this survives the compose-on-home → /{id} swap so the editor
   // subtree key can stay stable across that single transition (no remount mid-typing).
@@ -634,6 +662,70 @@ export default function PrototypeNotePage() {
     name: string;
   } | null>(null);
   const templateProvenanceRef = useRef<{ id: string; name: string } | null>(null);
+
+  /*
+   * The suggestion that seeded this draft, and whether it has already been reported.
+   *
+   * Held in a ref rather than read from `composeSeed` at save time for the same reason
+   * `templateProvenanceRef` exists: the completing save usually happens *after* the draft has
+   * been adopted, by which point the compose session — and its seed — is over. The seed is
+   * also what the finished note is compared against, so the whole thing is captured together
+   * while it is still readable.
+   */
+  const recallSeedRef = useRef<{
+    opportunityId: string;
+    kind: RecallOpportunityKind;
+    seedTitle?: string;
+    seedContentHtml?: string;
+    reported: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    const seed = composeSeed;
+    if (!seed?.startedFromRecallOpportunityId || !seed.startedFromRecallKind) return;
+    if (recallSeedRef.current?.opportunityId === seed.startedFromRecallOpportunityId) return;
+    recallSeedRef.current = {
+      opportunityId: seed.startedFromRecallOpportunityId,
+      kind: seed.startedFromRecallKind,
+      seedTitle: seed.title,
+      seedContentHtml: seed.contentHtml,
+      reported: false,
+    };
+  }, [composeSeed]);
+
+  /**
+   * Report the suggestion as carried out, the first time the note stops being just its seed.
+   *
+   * Called from every save rather than only from the create, because the create usually is
+   * not the moment: a seeded title clears `isEffectivelyEmptyPrototypeNote` on its own, so
+   * the note is typically written to disk before anything has been typed into it.
+   */
+  const maybeReportRecallCompletion = useCallback(
+    (title: string, content: string, noteId: string | null | undefined) => {
+      const seed = recallSeedRef.current;
+      if (!seed || seed.reported || !noteId) return;
+      if (
+        !draftWentBeyondItsSeed({
+          seedTitle: seed.seedTitle,
+          seedContentHtml: seed.seedContentHtml,
+          title,
+          content,
+        })
+      ) {
+        return;
+      }
+      seed.reported = true;
+      /* Recall runs on My Home, so its cooldown map is the personal space's — not whichever
+         space this note happens to have been written into. */
+      reportRecallCompleted({
+        spaceId: personalHomeSpaceId,
+        opportunityId: seed.opportunityId,
+        kind: seed.kind,
+        noteId,
+      });
+    },
+    [personalHomeSpaceId],
+  );
 
   const handlePrototypeLiveChange = useCallback((snapshot: { title: string; content: string }) => {
     setLiveNoteSnapshot(snapshot);
@@ -797,12 +889,16 @@ export default function PrototypeNotePage() {
         homeSpaceId: personalHomeSpaceId,
         targetSpaceTitle: composeTargetTitle,
         threadTitle: composeGroupThreads.find((t) => t.id === resolvedComposeThreadId)?.title,
+        isGuest,
       });
     }
+    /* A saved guest note has no space either — the same sentence, in the present tense. */
+    if (isGuest) return 'Saved on this device';
     return noteDestinationLabel(destinationRows);
   }, [
     viewerIsAuthor,
     isDraft,
+    isGuest,
     composeTargetSpaceId,
     personalHomeSpaceId,
     composeTargetTitle,
@@ -1069,7 +1165,7 @@ export default function PrototypeNotePage() {
         }),
         targetNoteId,
       );
-      void navigate(route);
+      void navigate(landAgain(route));
     },
     [
       isDraft,
@@ -1130,7 +1226,7 @@ export default function PrototypeNotePage() {
       initialScriptureTranslation ?? '',
     );
     if (!readerRoute) return;
-    navigate(readerRoute);
+    navigate(landAgain(readerRoute));
   }, [navigate, initialScriptureRef, initialScriptureTranslation]);
 
   // Dock the inspector side-by-side only when the pane is wide enough to seat the
@@ -1251,16 +1347,23 @@ export default function PrototypeNotePage() {
       if (isCrossSpace) {
         setActiveSpaceId(targetSpaceId === personalHomeSpaceId ? null : targetSpaceId);
       }
+      /*
+       * Into the Library panel, which is where a thread or a folder is browsed now.
+       *
+       * These four lines set sidebar state — the list mode, the drilldown, the layer, expand
+       * it — and the sidebar has been admin-only since the rail was retired, so a thread or
+       * folder mention pill inside a note simply did nothing when pressed. `useLibraryPanelNav`
+       * is the same journey against the surface that replaced it, and the slug is the same one
+       * every other caller hands it.
+       *
+       * The mobile drawer goes with them: it held the sidebar, so opening it now opens an
+       * empty tray over the note. The panel presents itself on both widths.
+       */
       if (payload.kind === 'thread') {
-        setSidebarListMode('threads');
-        setSidebarThreadDrilldownId(threadClusterDrillSlug(payload.entityId));
+        libraryNav.openThread(threadClusterDrillSlug(payload.entityId));
       } else {
-        setSidebarListMode('folders');
-        setSidebarFolderDrilldown(payload.entityId);
+        libraryNav.openFolder(payload.entityId);
       }
-      setSidebarLayer('list');
-      ensureSidebarExpanded();
-      if (isMobileSidebar) openDrawer();
     },
     [
       navigate,
@@ -1268,13 +1371,7 @@ export default function PrototypeNotePage() {
       personalHomeSpaceId,
       selectedSpaceId,
       setActiveSpaceId,
-      setSidebarListMode,
-      setSidebarThreadDrilldownId,
-      setSidebarFolderDrilldown,
-      setSidebarLayer,
-      ensureSidebarExpanded,
-      isMobileSidebar,
-      openDrawer,
+      libraryNav,
     ],
   );
 
@@ -1370,6 +1467,7 @@ export default function PrototypeNotePage() {
     setTemplatePrefill(null);
     setTemplateApplyEpoch(0);
     templateProvenanceRef.current = null;
+    recallSeedRef.current = null;
     setTemplateProvenance(null);
     // Belt-and-braces only. The epoch stamp on liveNoteSnapshotState is what actually
     // prevents the previous session's title leaking in — this effect runs too late.
@@ -1936,6 +2034,7 @@ export default function PrototypeNotePage() {
   /** Bumped when the editor loses focus so a focus-bailed open-time reprocess can retry. */
   const [scriptureReprocessFocusTick, setScriptureReprocessFocusTick] = useState(0);
 
+
   useEffect(() => {
     if (isDraft || !note || isLoading || note.contentEncrypted) return;
     // Never process list-truncated HTML — that can persist a truncated body to the DB.
@@ -2096,6 +2195,9 @@ export default function PrototypeNotePage() {
           adoptedComposeIdRef.current = createdId;
           setAdoptedComposeId(createdId);
           setComposePersistedNoteId(createdId);
+          /* Only fires if the reader had already written past the seed before the first
+             autosave. Usually they have not, and the update path below catches it instead. */
+          maybeReportRecallCompletion(newTitle, newContent, createdId);
           // The URL is still `/` until the idle replace, so a refresh right now would
           // lose the open note. Stash it; the shell setter clears this the moment the
           // URL catches up or the session resets.
@@ -2182,6 +2284,10 @@ export default function PrototypeNotePage() {
     persistDraftNoteRef.current = persistDraftNote;
   }, [persistDraftNote]);
 
+  useEffect(() => {
+    guestDraftIdRef.current = null;
+  }, [composeSessionEpoch]);
+
   const handleNoteSave = useCallback(
     async (
       newTitle: string,
@@ -2192,6 +2298,25 @@ export default function PrototypeNotePage() {
       if (isEffectivelyEmptyPrototypeNote(newTitle, newContent)) {
         return;
       }
+      /*
+       * A guest's note never leaves the device.
+       *
+       * Before the draft branch, because both halves of that branch reach for a server: the
+       * create needs a space id a guest does not have, and the update needs a note the server
+       * has never seen. The ref is what makes an autosave an update — without it every 700ms
+       * pass would file a new note, and a paragraph would arrive as a dozen.
+       */
+      if (isGuest) {
+        const existingId = isDraft ? guestDraftIdRef.current : noteId;
+        const saved = existingId
+          ? updateGuestNote(existingId, { title: newTitle, contentHtml: newContent })
+          : addGuestNote({ title: newTitle, contentHtml: newContent });
+        if (!saved) return undefined;
+        if (isDraft) guestDraftIdRef.current = saved.id;
+        /* The checklist's own step, latched where the writing actually happens. */
+        markOnboardingStep('note');
+        return { noteId: saved.id };
+      }
       if (isDraft) {
         const createdId = await persistDraftNote(
           newTitle,
@@ -2201,6 +2326,10 @@ export default function PrototypeNotePage() {
         );
         return createdId ? { noteId: createdId } : undefined;
       }
+      /* The usual moment a suggested draft becomes a real note: the seed alone was enough to
+         create it, so the save that first carries the reader's own words is an update. */
+      maybeReportRecallCompletion(newTitle, newContent, noteId);
+
       // Offline persistence (queue + materialize) is handled by useUpdateNote's runOfflineFirst
       // path below — no separate offline write here, which would double-queue the edit.
       const sharedContextSpaceId = contextSpaceId?.trim() || null;
@@ -2230,7 +2359,7 @@ export default function PrototypeNotePage() {
       }
       return result;
     },
-    [contextSpaceId, isDraft, noteId, patchSharedOrganization, persistDraftNote],
+    [contextSpaceId, isDraft, isGuest, noteId, patchSharedOrganization, persistDraftNote],
   );
 
   const handlePrototypeEditorUnmount = useCallback(
@@ -2567,7 +2696,16 @@ export default function PrototypeNotePage() {
       ? { noteId, enabled: true }
       : null;
 
-  const inspectorTemplates = showTemplatesInInspector
+  /*
+    Annotated rather than inferred, which is what types the callbacks inside it.
+    
+    Unannotated, this literal gave `onTemplateProvenanceChange`'s parameter no contextual type,
+    so it was an implicit `any` — the one real type error in this file, as opposed to the seven
+    the debug scaffolding was suppressing. Naming the type also checks the other twelve fields
+    against what the pane actually accepts, which is how the two copies of this shape drifted
+    without anything noticing.
+  */
+  const inspectorTemplates: PrototypeInspectorTemplatesProps | null = showTemplatesInInspector
     ? {
         spaceId: templateSpaceId,
         spaceTitle: showSpaceAttachOption

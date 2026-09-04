@@ -7,6 +7,19 @@ import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import PrototypeTranslationRow from './PrototypeTranslationRow';
 
 /**
+ * Bytes as something a person can picture.
+ *
+ * Whole megabytes above 10 and one decimal below, because "4.6 MB" is the difference between
+ * two translations and "14 MB" versus "14.2 MB" is not — precision where it changes a
+ * decision, and none where it is only noise.
+ */
+function formatPackStorage(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  if (mb < 0.1) return 'under 0.1 MB';
+  return `${mb >= 10 ? Math.round(mb) : mb.toFixed(1)} MB`;
+}
+
+/**
  * Translations — which one you read in, and which ones you keep.
  *
  * This page used to be a list of radio buttons for the default translation. It now also owns
@@ -17,7 +30,8 @@ import PrototypeTranslationRow from './PrototypeTranslationRow';
 export default function PrototypeTranslationPage() {
   const { data: profile } = useProfile();
   const updateTranslation = useUpdateTranslation();
-  const { packs, loading, downloading, download, cancel, remove, atLimit, maxPacks } = useBiblePacks();
+  const { packs, storageBytes, loading, downloading, queue, download, cancel, remove, atLimit, maxPacks } =
+    useBiblePacks();
 
   // Optimistic selection: pending value if mutating, else server value, else NET.
   const selected =
@@ -52,11 +66,34 @@ export default function PrototypeTranslationPage() {
     }
   }, [loading, selected, packs, downloading, atLimit, download]);
 
+  /* Complete copies only. A pack halfway through is not yet something you can read on a
+     plane, and counting it here would promise otherwise. */
+  const savedCount = packs.filter((p) => p.complete).length;
+
   return (
     <SettingsShell>
+      {/*
+        One line, like every other settings intro on this shell.
+
+        This was four sentences: what choosing does, the limit, that your default saves itself,
+        and that chapters are kept as you read. The last two described behaviour rather than
+        asking anything of the reader — and both are already visible in the list, where the
+        default wears an Offline badge and the rest do not. Explaining machinery every visit is
+        how a settings page ends up with more prose than controls.
+
+        The size stays, because it is the one thing the rows cannot say: "3 of 3" is a limit to
+        take on trust, "14 MB" is a fact someone can weigh against their own device.
+      */}
       <SettingsIntro>
-        Scripture you read appears in this translation. Keep up to {maxPacks} available offline —
-        your default is saved automatically, and any chapter you read is kept as you go.
+        Pick what you read in, and keep up to {maxPacks} offline.
+        {savedCount > 0 ? (
+          <>
+            {' '}
+            <span className="proto-translation-usage">
+              {savedCount} saved · {formatPackStorage(storageBytes)}.
+            </span>
+          </>
+        ) : null}
       </SettingsIntro>
 
       <SettingsGroup>
@@ -65,6 +102,9 @@ export default function PrototypeTranslationPage() {
           const isSelected = id === selected;
           const pack = packs.find((p) => p.translationId === id);
           const isDownloading = downloading?.translationId === id;
+          /* Asked for, but another pack is still transferring — `queue` includes the one in
+             flight, so the head is excluded rather than shown twice. */
+          const isQueued = !isDownloading && queue.includes(id);
           const canDownload = !pack?.complete && !isDownloading && (!atLimit || !!pack);
 
           /*
@@ -91,17 +131,27 @@ export default function PrototypeTranslationPage() {
               ? pack.booksSaved / pack.booksTotal
               : null;
 
-          /* One shape for the five states, resolved here so the row stays presentational
+          /* One shape for the six states, resolved here so the row stays presentational
              and the gallery can render every one of them without a pack store. */
           const state = isDownloading
-            ? ({ kind: 'saving', booksSaved: downloading.booksSaved, booksTotal: downloading.booksTotal } as const)
-            : pack?.complete
-              ? ({ kind: 'offline' } as const)
-              : pack
-                ? ({ kind: 'partial', booksSaved: pack.booksSaved, booksTotal: pack.booksTotal } as const)
-                : canDownload
-                  ? ({ kind: 'available' } as const)
-                  : ({ kind: 'blocked' } as const);
+            ? ({
+                kind: 'saving',
+                booksSaved: downloading.booksSaved,
+                booksTotal: downloading.booksTotal,
+              } as const)
+            : isQueued
+              ? ({ kind: 'queued' } as const)
+              : pack?.complete
+                ? ({ kind: 'offline' } as const)
+                : pack
+                  ? ({
+                      kind: 'partial',
+                      booksSaved: pack.booksSaved,
+                      booksTotal: pack.booksTotal,
+                    } as const)
+                  : canDownload
+                    ? ({ kind: 'available' } as const)
+                    : ({ kind: 'blocked' } as const);
 
           return (
             <PrototypeTranslationRow
@@ -115,7 +165,7 @@ export default function PrototypeTranslationPage() {
                 updateTranslation.mutate(id);
               }}
               onSave={() => void download(id)}
-              onStop={cancel}
+              onStop={() => cancel(id)}
               onRemove={() => void remove(id)}
             />
           );

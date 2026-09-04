@@ -8,7 +8,13 @@ export type SidebarSearchResultKind =
   | 'scriptureBook'
   | 'scripturePassage'
   /** A passage the query itself names, whether or not any note cites it. */
-  | 'scriptureReference';
+  | 'scriptureReference'
+  /**
+   * A curated library item. Only the Library panel produces these — the sidebar's own
+   * search has no Resources scope — but the kind lives here so one row component can
+   * render every result the app knows how to show.
+   */
+  | 'resource';
 
 export type SidebarElsewhereTypeFilter =
   | 'all'
@@ -19,6 +25,25 @@ export type SidebarElsewhereTypeFilter =
   | 'scripture';
 
 export type HighlightKindFilter = 'all' | 'notes' | 'connected' | 'scripture' | 'references';
+
+/**
+ * The five, in the order they are offered.
+ *
+ * One table, because there were two identical ones — the sidebar's list and its search
+ * results each kept a copy — and the search panel was about to make a third. They are the
+ * same five kinds wherever highlights are filtered, so a kind added in one place has to
+ * appear in the others or the surfaces quietly disagree about what a highlight can be.
+ *
+ * "All" is a member rather than the absence of one: exactly one of these is on at any time.
+ */
+export const HIGHLIGHT_KIND_OPTIONS: { id: HighlightKindFilter; label: string; iconName?: string }[] =
+  [
+    { id: 'all', label: 'All' },
+    { id: 'notes', label: 'Notes', iconName: 'note-sticky' },
+    { id: 'connected', label: 'Connected', iconName: 'arrow-right-arrow-left' },
+    { id: 'scripture', label: 'Scripture', iconName: 'scroll' },
+    { id: 'references', label: 'References', iconName: 'lines-leaning' },
+  ];
 
 export type SidebarSearchScope = 'active' | 'elsewhere' | 'my-home';
 
@@ -81,6 +106,8 @@ export function sidebarSearchResultIcon(
     case 'scripturePassage':
     case 'scriptureReference':
       return 'book-open';
+    case 'resource':
+      return 'newspaper';
     default:
       return 'note-sticky';
   }
@@ -103,6 +130,8 @@ export function sidebarSearchResultAriaLabel(
       return 'Scripture passage';
     case 'scriptureReference':
       return 'Read passage';
+    case 'resource':
+      return 'Resource';
     case 'highlight':
       switch (highlightEntryKind) {
         case 'linkedNote':
@@ -140,4 +169,59 @@ export function elsewhereTypeFilterMatches(
     default:
       return true;
   }
+}
+
+/**
+ * The Library panel's tabs.
+ *
+ * Derived from the search filter rather than listed again, which is the whole mechanism
+ * keeping browse and search honest with each other: a kind that becomes searchable becomes
+ * browsable in the same edit, and neither list can quietly grow a member the other lacks.
+ *
+ * Resources are the one addition. The sidebar's search has no Resources scope, so the
+ * filter above does not carry one — but the panel browses them, so the tab table does.
+ */
+export type LibraryTab = SidebarElsewhereTypeFilter | 'resources';
+
+export const LIBRARY_TAB_OPTIONS: {
+  id: LibraryTab;
+  label: string;
+  iconName?: string;
+}[] = [
+  ...SIDEBAR_ELSEWHERE_TYPE_OPTIONS.map((option) =>
+    /*
+     * "Everything", with a glyph — two departures from the shared filter, both about this
+     * being a menu rather than a chip row.
+     *
+     * The word: "Everything" against a field that says "Search my Harvous…" — the field
+     * names the haystack, the picker names how much of it. The sidebar's chip stays "All"
+     * because a chip row is short on width and long on context.
+     *
+     * The glyph: every other row here has one, and a single iconless row starts its label
+     * at a different x than its neighbours — the ragged edge reads as a rendering fault
+     * rather than a category.
+     *
+     * `layer-group`, the same mark the study feed's scope picker already wears for "All
+     * activity". This was `table-cells` for a while on the theory that the layers belonged
+     * to the Activity segment and a row wearing the shell's navigation mark would read as a
+     * way out of the menu. That was wrong twice over: the segment shows the *space tile* and
+     * only falls back to layers when there is none, and the scope picker had already
+     * established the mark as meaning "all of it" rather than "go here". One idea, one
+     * glyph, wherever the app offers to stop narrowing.
+     */
+    option.id === 'all'
+      ? { ...option, label: 'Everything', iconName: 'layer-group' }
+      : option,
+  ),
+  /* Matches the sidebar's Resources list mode, so the same shelf wears one glyph. */
+  { id: 'resources', label: 'Resources', iconName: 'newspaper' },
+];
+
+/** Whether a result belongs under a tab. Delegates to the search filter for the shared six. */
+export function libraryTabMatches(tab: LibraryTab, kind: SidebarSearchResultKind): boolean {
+  if (tab === 'resources') return kind === 'resource';
+  /* `all` includes resources here even though the search filter has never seen the kind —
+     "all" means all, and the panel is the only surface that can produce one. */
+  if (tab === 'all') return true;
+  return elsewhereTypeFilterMatches(tab, kind);
 }

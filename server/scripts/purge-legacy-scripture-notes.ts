@@ -7,6 +7,7 @@
  *   npx tsx server/scripts/purge-legacy-scripture-notes.ts --userId=user_xxx
  */
 import 'dotenv/config';
+import { requireDbTarget } from '../utils/require-db-target';
 import {
   countLegacyScriptureNotesForUser,
   findUsersWithLegacyScriptureNotes,
@@ -25,6 +26,7 @@ function parseArgs() {
 }
 
 async function main() {
+  requireDbTarget({ scriptName: 'purge-legacy-scripture-notes', writes: true });
   const { dryRun, migrateOnly, userId } = parseArgs();
   console.log(
     dryRun

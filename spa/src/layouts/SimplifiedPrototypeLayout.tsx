@@ -1,3 +1,4 @@
+import { reviewAnswerEcho } from '@/utils/review-answer-echo';
 import DevModeBadge from '../components/DevModeBadge';
 import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
@@ -5,11 +6,13 @@ import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcu
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import PrototypeSyncChip from '../components/PrototypeSyncChip';
 import PrototypeAppUpdateToast from '../components/PrototypeAppUpdateToast';
+import PrototypeWelcome3 from '../pages/prototype/PrototypeWelcome3';
 import PrototypeFeedbackToast from '../components/PrototypeFeedbackToast';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { syncPassageKnowledge } from '../lib/passage-knowledge-sync';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { profileQueryOptions } from '../hooks/queries/useProfile';
 import { HARVOUS_REMOTE_SYNC_COMPLETED } from '@/utils/harvous-remote-sync-event';
 import { refreshPrototypeLists } from '../lib/refresh-client-data';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
@@ -31,18 +34,31 @@ import { useAuthReady } from '../hooks/useAuthReady';
 import { api } from '../lib/api';
 import NativeToolbar from '../pages/prototype/NativeToolbar';
 import PrototypeSidebarToolbar from '../pages/prototype/PrototypeSidebarToolbar';
-import PrototypeSidebar from '../pages/prototype/PrototypeSidebar';
-/**
- * Lazy: most sessions never press ⇧K, and the palette pulls in `cmdk`. The shell owns the
- * open flag because something has to hear the shortcut while this module is unfetched.
+/*
+ * The Library panel and everything it browses — off the critical path.
+ *
+ * The shell owns the open flag, not the panel, because something has to hear ⇧K / ⇧L
+ * while this module is still unfetched.
+ *
+ * It only exists once someone opens it, and its body pulls in the list views for all
+ * five sections, so shipping it in the initial payload charges every route (sign-in
+ * included) for a surface most sessions open second, not first.
  */
-const PrototypeCommandPalette = lazy(() => import('../pages/prototype/PrototypeCommandPalette'));
-import PrototypeSidebarSharedSpaceView from '../pages/prototype/PrototypeSidebarSharedSpaceView';
-import PrototypeSidebarChurchHubView from '../pages/prototype/PrototypeSidebarChurchHubView';
+const PrototypeOrganizeCommandHost = lazy(
+  () => import('../pages/prototype/PrototypeOrganizeCommandHost'),
+);
+const PrototypeLibraryPanelHost = lazy(
+  () => import('../pages/prototype/library-panel/PrototypeLibraryPanelHost'),
+);
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSidebarHost';
+
+import { cycleLibraryTab } from '../pages/prototype/library-panel/library-panel-view';
+import { clearLibraryChipRect } from '../pages/prototype/library-panel/library-chip-rect';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
+import { useReviewOutcome } from '../hooks/mutations/useReviewMutations';
+import type { ReviewOutcome } from '@/utils/review-item-kinds';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
@@ -66,13 +82,12 @@ import '../styles/prototype-shell.css';
 import '../styles/prototype-components.css';
 import '../styles/prototype-editor.css';
 import '../styles/prototype-route-overrides.css';
-import { hasClerkSessionCookieHint } from '../hooks/queries/useProfile';
 import { usePrototypeHomeSpaceId } from '../hooks/usePrototypeHomeSpaceId';
 import { useWarmDefaultTranslationPack } from '../hooks/useWarmDefaultTranslationPack';
-import { useReaderToggle } from '../hooks/useReaderToggle';
+import { usePersistentStorage } from '../hooks/usePersistentStorage';
+import { useShellModeNav } from '../hooks/useShellModeNav';
 import { useActiveSpace } from '../hooks/useActiveSpace';
 import { useSharedSpaceVisitStamp } from '../hooks/useSharedSpaceVisit';
-import { resolvePrototypeSidebarVariant } from './resolve-prototype-sidebar-variant';
 import { updateStudyDockExpandedMaxHeight } from '@/utils/study-dock-layout';
 import { emitProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import { isPrototypeDraftNoteSlug, normalizeNoteIdFromParam } from '../pages/prototype/proto-route-slugs';
@@ -103,6 +118,7 @@ import {
 } from '../lib/prototype-background';
 import {
   fetchAndHydrateOnboardingFromProfile,
+  hydrateOnboardingForGuest,
   initOnboardingAccountSync,
 } from '../lib/proto-onboarding-sync';
 import {
@@ -126,14 +142,24 @@ import {
   freezeMainInnerIntoLayer,
   FREEZE_MAIN_FOR_SETTINGS_EVENT,
 } from '../lib/prototype-settings-main-keepalive';
-import {
-  computePrototypeShouldShowShell,
-  shouldRedirectPrototypeToSignIn,
-} from '@/utils/prototype-shell-auth';
+import { shouldRedirectPrototypeToSignIn } from '@/utils/prototype-shell-auth';
+import { useHarvousIdentity } from '../hooks/useHarvousIdentity';
+import PrototypeGuestModeRow from '../pages/prototype/PrototypeGuestModeRow';
+import { useGuestAdoption } from '../hooks/useGuestAdoption';
+import { useGuestExitPrompt } from '../hooks/useGuestExitPrompt';
 
 export default function SimplifiedPrototypeLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
+  const identity = useHarvousIdentity();
   const authReady = useAuthReady();
+  // Named for what it is for here: the shell's one read of the profile, shared with `useProfile`.
+  const profileQueryClient = useQueryClient();
+  // Hands anything made as a guest to the account, the first moment there is one to hand it to.
+  useGuestAdoption();
+  // The checklist has nothing to wait for when there is no account — see the function's note.
+  useEffect(() => {
+    if (identity.isGuest) hydrateOnboardingForGuest();
+  }, [identity.isGuest]);
   const { user } = useUser();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
@@ -163,7 +189,6 @@ export default function SimplifiedPrototypeLayout() {
       replace: true,
     });
   }, [isSignedIn, pathname, layoutRouter]);
-  const hasSessionCookie = hasClerkSessionCookieHint();
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -197,22 +222,26 @@ export default function SimplifiedPrototypeLayout() {
 
   // Profile appearance / attendance need a session JWT — wait for useAuthReady (Bearer via api).
   useEffect(() => {
-    if (!authReady) return;
-    // One request, two consumers. Both read different fields off the same profile — letting
-    // each fetch its own would double an authenticated round trip on every cold start.
+    if (!authReady || !userId) return;
+    /*
+     * One request, now three consumers. Appearance and onboarding read different fields off
+     * the same profile, and `useProfile` — mounted below this in the tree — reads the rest.
+     *
+     * Through the query cache rather than `api.get`, so all three share one round trip. This
+     * used to fetch its own copy, which made `get-profile` the request an Activity load asked
+     * for twice; `ensureQueryData` returns the in-flight promise when `useProfile` got there
+     * first, and seeds the cache for it when this did.
+     */
     void (async () => {
       try {
-        const profile = await api.get<{
-          appearanceSettings?: string | null;
-          onboardingState?: string | null;
-        }>('/api/user/get-profile');
+        const profile = await profileQueryClient.ensureQueryData(profileQueryOptions(userId));
         void fetchAndHydrateAppearanceFromProfile(profile);
         void fetchAndHydrateOnboardingFromProfile(profile);
       } catch {
         /* offline or mid-auth — both sides keep their local caches */
       }
     })();
-  }, [authReady]);
+  }, [authReady, userId, profileQueryClient]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -226,6 +255,10 @@ export default function SimplifiedPrototypeLayout() {
   // Cookie hint is only for the pre-load window. Once Clerk has spoken, trust isSignedIn —
   // a stale __session / __client_uat must not trap the shell without redirecting to sign-in.
   useEffect(() => {
+    // A guest is signed out on purpose. Bouncing them to /sign-in is the exact friction this
+    // mode exists to remove, so the marker outranks the redirect — but only the redirect. Every
+    // read and write below still treats them as having no account, because they have none.
+    if (identity.isGuest) return;
     if (!shouldRedirectPrototypeToSignIn(isLoaded, isSignedIn)) return;
     const path =
       typeof window !== 'undefined'
@@ -233,7 +266,7 @@ export default function SimplifiedPrototypeLayout() {
         : prototypeHomePath();
     const redirectUrl = `/sign-in?redirect_url=${encodeURIComponent(path)}`;
     window.location.replace(redirectUrl);
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, identity.isGuest]);
 
   const lastServiceWorkerNavCheckRef = useRef(0);
   const SW_UPDATE_CHECK_THROTTLE_MS = 90_000;
@@ -270,24 +303,33 @@ export default function SimplifiedPrototypeLayout() {
   // only once they happen to visit Settings > Translation.
   useWarmDefaultTranslationPack();
 
-  // Optimistic shell only while Clerk is still loading (cookie hint avoids boot-canvas flash).
-  // After isLoaded, require a real signed-in session — ignore stale cookie hints.
-  const shouldShowShell = computePrototypeShouldShowShell(isLoaded, isSignedIn, hasSessionCookie);
+  // And ask that none of it be treated as disposable. Everything offline — unsynced notes,
+  // the sync queue, the packs above — shares one origin, and an origin without persistence
+  // is evicted whole. This is the guard the pack limit was standing in for.
+  usePersistentStorage();
 
-  if (!shouldShowShell) {
+  // Optimistic shell only while Clerk is still loading (cookie hint avoids boot-canvas flash).
+  // After isLoaded, require a real signed-in session — ignore stale cookie hints. A guest is the
+  // third answer: no session, but a shell all the same.
+  if (identity.mode === 'signed-out') {
     return <div className="proto-shell-frame simplified-prototype-root" aria-hidden="true" />;
   }
 
   return (
     <ProtoMigrationProvider>
       <ProtoShellProvider>
-        <PrototypeAuthenticatedChrome userId={user?.id} />
+        <PrototypeAuthenticatedChrome
+          userId={identity.isGuest ? identity.userId : user?.id}
+          isGuest={identity.isGuest}
+        />
       </ProtoShellProvider>
     </ProtoMigrationProvider>
   );
 }
 
-function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
+function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: string; isGuest?: boolean }) {
+  // Speaks once, on the way out, and only for a guest who has made something.
+  useGuestExitPrompt(isGuest);
   const queryClient = useQueryClient();
   const chromeRouter = useRouter();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
@@ -319,15 +361,24 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     adoptStackNoteId,
     retargetStackOrigin,
     clearPaperStack,
+    setReviewDockItem,
+    setReviewDockResult,
     openDrawer,
     clearComposeDraftActive,
     beginPrototypeComposeSession,
     expandedSidebarTool,
     expandedSidebarExiting,
+    expandedSidebarOrigin,
+    libraryPanelView,
+    libraryPanelExiting,
     closeExpandedSidebar,
   } = useProtoShell();
   /* Mounted through the exit animation, like every other prototype panel. */
   const expandedSidebarMounted = !hideSidebar && (Boolean(expandedSidebarTool) || expandedSidebarExiting);
+  /* Not gated on `hideSidebar`: the panel is not the sidebar. It hangs off the toolbar,
+     and the surfaces that hide the rail (share views, focused reads) still want a way
+     to browse. */
+  const libraryPanelMounted = Boolean(libraryPanelView) || libraryPanelExiting;
   // Stamp visit for dashboard and notes-list alike (survives layer toggles).
   useSharedSpaceVisitStamp(isSharedSpace ? (shellActiveSpaceId ?? resolvedActiveSpaceId) : null);
   const shellRef = useRef<HTMLDivElement | null>(null);
@@ -487,6 +538,10 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     if (!stack) return;
     const { origin } = stack;
 
+    // A review edge has no flip-down: its base is a picture of a question, not a place. The
+    // edge renders no flip button, and this guards the keyboard path to the same handler.
+    if (origin.kind === 'reviewCard') return;
+
     if (origin.kind === 'noteDock') {
       if (paperStackExiting) return;
       setPaperStackExiting(true);
@@ -572,6 +627,8 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     });
   }, [paperStack, homeSpaceId, clearPaperStack, isMobileSidebar, openDrawer, chromeRouter]);
 
+  const reviewOutcome = useReviewOutcome();
+
   const handleSuggestionIgnore = useCallback(() => {
     const suggestion = paperStack?.origin.suggestion;
     if (!suggestion) return;
@@ -585,6 +642,55 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
     clearPaperStack();
   }, [paperStack, homeSpaceId, clearPaperStack]);
 
+  /**
+   * Answer the review question the stacked note was opened for.
+   *
+   * The attempt rides on the origin rather than being read from the dock: this handler lives in
+   * the layout, and reaching into the dock's local draft from here would mean putting keystrokes
+   * in shell state. The snapshot was taken when the note was revealed, which is exactly when the
+   * fact being recorded — whether a retrieval happened first — stopped being able to change.
+   *
+   * Clearing the stack is what advances the queue: the mutation drops the item from the session
+   * optimistically, the dock's resolver falls through to the next one, and the note stays open
+   * underneath because the route was already the note.
+   */
+  const handleReviewVerdict = useCallback(
+    (outcome: ReviewOutcome) => {
+      const review = paperStack?.origin.review;
+      if (!review) return;
+      const wasDurable = review.recallState === 'durable';
+      reviewOutcome.mutate(
+        { itemId: review.itemId, outcome, attempt: review.attempt },
+        {
+          // The stack is already gone by the time this lands — see below — so the moment is
+          // handed to the dock, which is the one surface still on screen.
+          onSuccess: (data) =>
+            setReviewDockResult({
+              outcome,
+              label: data.next.label,
+              recallState: data.next.recallState,
+              crossedToDurable: !wasDurable && data.next.recallState === 'durable',
+              /*
+               * The question, and what the reader wrote before opening the note — unmarked,
+               * because nothing marked it. These rungs are the self-judged ones: they read the
+               * note and said how it went, so there is no verdict to colour their words with,
+               * and the echo says so by marking nothing.
+               */
+              prompt: review.prompt ?? null,
+              subject: review.subject ?? null,
+              echo: reviewAnswerEcho({ submitted: review.attempt ? { text: review.attempt } : null }),
+              at: Date.now(),
+            }),
+        },
+      );
+      // The dock goes back to "whatever is next"; an answered item is rescheduled rather than
+      // deleted, so a pointer left on it would show the same question again. See the dock.
+      setReviewDockItem(null);
+      clearPaperStack();
+    },
+    [paperStack, reviewOutcome, setReviewDockItem, setReviewDockResult, clearPaperStack],
+  );
+
   const handleFlipSheetUp = useCallback(() => {
     setStackSheetOpen(true);
     const href = stackedNoteHrefRef.current;
@@ -596,15 +702,19 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const isSettingsRoute = isPrototypeSettingsPath(pathname);
   /** Desktop modal: keep last main paint under the settings portal. Mobile sheet keeps current Outlet. */
   const desktopSettingsKeepAlive = isSettingsRoute && !isMobileSidebar;
-  /** Shell id is null on My Home / My Church hub; useActiveSpace remaps null → personal home. */
-  const sidebarVariant = resolvePrototypeSidebarVariant({
-    isAdminRoute,
-    isSharedSpace,
-    sidebarLayer,
-    location,
-  });
+  /**
+   * Standing in a shared space with that space open.
+   *
+   * This was `sidebarVariant === 'shared-list'`, back when the rail had five shapes and one of
+   * them was a space's notes. The rail is admin-only now, so the variant had exactly one
+   * surviving reader — the expanded planner — and what that reader actually wants is this
+   * predicate, not a name for a sidebar that no longer renders.
+   *
+   * Shell id is null on My Home / My Church hub; useActiveSpace remaps null → personal home.
+   */
+  const inScopedSharedSpace = isSharedSpace && Boolean(location.spaceId);
   const listScopeSpaceId =
-    sidebarVariant === 'shared-list' && sidebarListSpaceScope === 'my-home' && homeSpaceId
+    inScopedSharedSpace && sidebarListSpaceScope === 'my-home' && homeSpaceId
       ? homeSpaceId
       : resolvedActiveSpaceId;
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
@@ -924,14 +1034,34 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
   const shellStyle = { '--proto-sidebar-w': `${sidebarWidth}px` } as CSSProperties;
 
   const useSplitDesktopToolbar = !hideSidebar && !isMobileSidebar;
+
+  /*
+   * Whether this route has a rail at all — admin's, the only one left.
+   *
+   * `hideSidebar` says "this route suppresses the rail" and is still right about the routes it
+   * names; it is just no longer the whole answer, because every non-admin route now has no rail
+   * either. Both the grid column and the `<aside>` read this one predicate, so the column
+   * cannot be reserved for something that will not render — which is what left the day sheet
+   * pushed right against an empty gutter for one commit.
+   */
+  const showRail = !hideSidebar && isAdminRoute;
   const useAdminFullWidthToolbar = isAdminRoute && useSplitDesktopToolbar;
+  /*
+   * The rail's own toolbar, which only makes sense above a rail.
+   *
+   * It carries the space switcher and the list-view menu, and both now have somewhere better to
+   * be: the switcher lives in the shell's Activity segment, and the list menu chose between the
+   * rail's six list modes, which the search panel's tabs replaced. Left ungated it rendered
+   * beside the segmented control on every route — a second space switcher, one row above the
+   * real one, both claiming to say where you are.
+   */
   const showSidebarToolbar =
-    useSplitDesktopToolbar && !useAdminFullWidthToolbar && !desktopSidebarCollapsed && !sidebarExiting;
+    showRail && useSplitDesktopToolbar && !useAdminFullWidthToolbar && !desktopSidebarCollapsed && !sidebarExiting;
 
   const shellMods = [
     'proto-shell',
     'proto-theme',
-    hideSidebar ? 'proto-shell--no-sidebar' : '',
+    !showRail ? 'proto-shell--no-sidebar' : '',
     isAdminRoute ? 'proto-shell--admin' : '',
     'proto-shell--no-footer',
     isNoteRoute ? 'proto-shell--note-chrome' : '',
@@ -946,14 +1076,20 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
 
   return (
     <>
+      <PrototypeGuestModeRow enabled={isGuest} />
       <div className="proto-shell-frame simplified-prototype-root">
         <div ref={shellRef} className={shellMods} style={shellStyle}>
         <DevModeBadge />
-        {userId ? (
+        {/* Never for a guest: 'guest' is a truthy userId, and mounting this would start a
+            push loop against a server that 401s every op, in a timer nobody is watching. */}
+        {userId && !isGuest ? (
           <SyncManagerIsland userId={userId} hideOfflineIndicator deferSyncInit />
         ) : null}
-        <PrototypeSyncChip userId={userId} />
+        {isGuest ? null : <PrototypeSyncChip userId={userId} />}
         <PrototypeAppUpdateToast />
+        {/* Sits beside the update toast because it answers the same question at a different
+            size, and holds the toast back while it is up so they never stack. */}
+        <PrototypeWelcome3 enabled={Boolean(userId) && !isGuest} />
         <PrototypeFeedbackToast />
         <PrototypeShortcutBridge />
         <KeyboardShortcutsInit />
@@ -993,7 +1129,13 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           <DrawerOverlay onClose={closeDrawer} />
         ) : null}
 
-        {!hideSidebar ? (
+        {/*
+          The rail is an admin surface now, so the cell that holds it is gated on the route
+          rather than on `hideSidebar` alone. That flag used to mean "this route has no rail";
+          with only one rail left it would have meant "every other route gets the admin nav",
+          which is exactly what it did for one commit.
+        */}
+        {showRail ? (
           <aside
             className={[
               'proto-shell__sidebar-cell',
@@ -1003,21 +1145,13 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
               .filter(Boolean)
               .join(' ')}
           >
-            {sidebarVariant === 'admin' ? (
-              <PrototypeAdminSidebar />
-            ) : sidebarVariant === 'church-hub' ? (
-              <PrototypeSidebarChurchHubView />
-            ) : sidebarVariant === 'shared-space' ? (
-              <PrototypeSidebarSharedSpaceView />
-            ) : sidebarVariant === 'shared-list' ? (
-              <PrototypeSidebar
-                scopedSpaceId={listScopeSpaceId}
-                showListSpaceScopeBar
-                shellIsSharedSpace
-              />
-            ) : (
-              <PrototypeSidebar />
-            )}
+            {/*
+              Admin only. The rail's last job was browsing, and the search panel does that now
+              across seven kinds with the shell's own selection — so a second list beside the
+              canvas is a second answer to a question already answered. Admin keeps its own,
+              which was never part of this migration.
+            */}
+            <PrototypeAdminSidebar />
           </aside>
         ) : null}
         {!hideSidebar &&
@@ -1063,6 +1197,7 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
                 onDismiss={clearPaperStack}
                 onSuggestionNevermind={handleSuggestionNevermind}
                 onSuggestionIgnore={handleSuggestionIgnore}
+                onReviewVerdict={handleReviewVerdict}
                 /* Parked: the URL is the origin's own address, so the Outlet IS the reader
                    route — hand it down as the paper behind, which is the surface being used
                    now. Any other time the descriptor's stand-in is right, and the Outlet is
@@ -1092,8 +1227,30 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
           <PrototypeExpandedSidebarHost
             tool={expandedSidebarTool}
             exiting={expandedSidebarExiting}
+            origin={expandedSidebarOrigin}
             onClose={closeExpandedSidebar}
           />
+        ) : null}
+
+        {/* Where the six organize verbs are carried out. Mounted by the shell rather than by
+            a list, because the sidebar that used to own these sheets boots collapsed — and
+            collapsed means unmounted, so a verb invoked from the panel or a chord had
+            nowhere to open. Renders only portalled sheets and confirms until one is raised. */}
+        <Suspense fallback={null}>
+          <PrototypeOrganizeCommandHost
+            scopedSpaceId={inScopedSharedSpace ? listScopeSpaceId : null}
+            shellIsSharedSpace={inScopedSharedSpace}
+          />
+        </Suspense>
+
+        {/* The browse surface the sidebar used to be, summoned from the toolbar chip.
+            Mounted through the exit morph, which is what `libraryPanelExiting` buys.
+            No Suspense fallback: the chunk lands in a few ms, and a placeholder box
+            would play the opening morph on chrome that is about to be replaced. */}
+        {libraryPanelMounted ? (
+          <Suspense fallback={null}>
+            <PrototypeLibraryPanelHost />
+          </Suspense>
         ) : null}
 
         {/* The bottom chrome is the shell's, not the editor's — a note fills it with the
@@ -1105,9 +1262,13 @@ function PrototypeAuthenticatedChrome({ userId }: { userId?: string }) {
             It still goes down with a stacked note sheet: with the note flipped away the bar
             below it belongs to the chapter, and leaving the note's toolbar hovering over
             Scripture would also cover the way back up to the note. */}
-        {(isNoteRoute || isPrototypeReadPath(pathname)) && (!paperStack || paperStack.open) ? (
-          <PrototypeEditorChromeBar />
-        ) : null}
+        {/* Always mounted: the Review dock lives in this bar's floating layer and has to reach
+            Activity and the reader too. The old condition now only governs the format bar. */}
+        <PrototypeEditorChromeBar
+          bottomBarActive={
+            (isNoteRoute || isPrototypeReadPath(pathname)) && (!paperStack || paperStack.open)
+          }
+        />
         </div>
       </div>
     </>
@@ -1149,9 +1310,13 @@ function PrototypeShortcutBridge() {
     composeDraftActive,
     activeSpaceId,
     sidebarListSpaceScope,
+    desktopSidebarCollapsed,
+    libraryPanelView,
+    openLibraryPanel,
+    setLibraryPanelView,
   } = useProtoShell();
 
-  const readerToggle = useReaderToggle();
+  const shellModeNav = useShellModeNav();
 
   const noteSlugFromPath = matchPrototypeNoteId(pathname);
   const isDraftNoteRoute =
@@ -1176,7 +1341,7 @@ function PrototypeShortcutBridge() {
    * worked. Both now read the flag off the same hook rather than re-deriving it.
    */
   const showNoteDetailsOrb =
-    readerToggle.isOnReadPage ||
+    shellModeNav.isOnReadPage ||
     prototypeToolbarNoteDetailsAvailable({
       isOnNotePage:
         isPrototypeNotePath(pathname) || (composeDraftActive && isPrototypeHomePath(pathname)),
@@ -1214,6 +1379,12 @@ function PrototypeShortcutBridge() {
   }, [isMobileSidebar, toggleDesktopSidebar, toggleDrawer]);
 
   const focusPrototypeNoteList = useCallback(() => {
+    /*
+     * The panel answers this chord itself when it is open — it is the list on screen, and
+     * its own handler focuses its first row. Falling through would flip the rail's layer
+     * underneath it and then steal the focus back on the next frame.
+     */
+    if (libraryPanelView) return;
     // List-layer target — flip out of Home first so the list exists when the rAF queries it.
     setSidebarLayer('list');
     ensureSidebarExpanded();
@@ -1223,18 +1394,47 @@ function PrototypeShortcutBridge() {
       );
       target?.focus();
     });
-  }, [ensureSidebarExpanded, setSidebarLayer]);
+  }, [ensureSidebarExpanded, libraryPanelView, setSidebarLayer]);
 
+  /*
+   * Opens the Library panel's search rather than the sidebar's.
+   *
+   * The panel is the browse surface now, and its search field is the same universal
+   * search the sidebar ran — so pointing a chord at the rail would summon a fallback
+   * to do what the primary surface does. The sidebar keeps its own field for anyone who
+   * opens it with ⇧S.
+   *
+   * Still named for the sidebar, as are the events that reach it: renaming the pair is a
+   * sweep across the shell and the native parity tests, and the fossil is documented here.
+   */
   const focusPrototypeSidebarSearch = useCallback(() => {
-    setSidebarLayer('list');
-    ensureSidebarExpanded();
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLInputElement>('#proto-sidebar-search-input')?.focus();
-    });
-  }, [ensureSidebarExpanded, setSidebarLayer]);
+    /* Opened by a chord, so there is no chip box to grow from — clearing the last one
+       makes the panel fade in rather than morph out of a control nobody touched.
+       Focus is the field's own `autoFocus`; a `querySelector` after a frame raced the
+       panel's lazy chunk and found nothing on the first open of a session. */
+    clearLibraryChipRect();
+    /* This chord *is* a search, so the caret goes where the query will. */
+    openLibraryPanel({ tab: 'all', drill: null, autoFocusSearch: true });
+  }, [openLibraryPanel]);
 
+  /*
+   * ⇧← / ⇧→ walks sections of whichever browse surface is actually up.
+   *
+   * Three cases rather than two, because during the transition both surfaces exist: the
+   * panel wins when it is open, the sidebar keeps its own cycle when someone has it
+   * expanded, and from neither the keys open the panel — which is the answer that
+   * matches where browsing lives now.
+   */
   const cycleListMode = useCallback(
     (step: number) => {
+      if (libraryPanelView) {
+        setLibraryPanelView(cycleLibraryTab(libraryPanelView, step >= 0 ? 1 : -1));
+        return;
+      }
+      if (desktopSidebarCollapsed && !isMobileSidebar) {
+        openLibraryPanel({ tab: 'all', drill: null });
+        return;
+      }
       // From Home, the first cycle returns to the last-used list view instead of advancing past it.
       if (sidebarLayer === 'space') {
         setSidebarListMode(sidebarListMode);
@@ -1247,29 +1447,51 @@ function PrototypeShortcutBridge() {
       setSidebarListMode(order[nextIndex]);
       ensureSidebarExpanded();
     },
-    [ensureSidebarExpanded, setSidebarListMode, sidebarLayer, sidebarListMode],
+    [
+      desktopSidebarCollapsed,
+      ensureSidebarExpanded,
+      isMobileSidebar,
+      libraryPanelView,
+      openLibraryPanel,
+      setLibraryPanelView,
+      setSidebarListMode,
+      sidebarLayer,
+      sidebarListMode,
+    ],
   );
 
-  const showHomeLayer = useCallback(() => {
-    setSidebarLayer('space');
-    ensureSidebarExpanded();
-  }, [ensureSidebarExpanded, setSidebarLayer]);
+  /*
+   * ⇧H used to open the sidebar's Home layer, back when Home lived in the sidebar. Home is
+   * the main pane now, so the chord goes where the word does: to Activity, the same half of
+   * the shell switch it sits under.
+   */
+  const showActivity = useCallback(() => {
+    if (!homeSpaceId) return;
+    shellModeNav.openActivity();
+  }, [homeSpaceId, shellModeNav]);
 
+  /* ⇧L opens the Library, which is where lists live now. Browsing, so no caret — the
+     arrow keys belong to the list here, not to a text cursor. */
   const showListLayer = useCallback(() => {
-    setSidebarLayer('list');
-    ensureSidebarExpanded();
-  }, [ensureSidebarExpanded, setSidebarLayer]);
+    clearLibraryChipRect();
+    openLibraryPanel({ tab: 'all', drill: null });
+  }, [openLibraryPanel]);
 
   /*
-   * The toolbar's Notes/Bible switch, driven from the keyboard — the same hook, so R and the
-   * control cannot mean different things. It used to be a second copy of the smart-jump
-   * navigation here, and the copies had already drifted once over what counts as the reader.
+   * The toolbar's shell switch, driven from the keyboard — the same hook, so the chords and
+   * the control cannot mean different things. This used to be a second copy of the
+   * smart-jump navigation here, and the copies had already drifted once over what counts as
+   * the reader.
+   *
+   * R still toggles rather than only opening: leaving the reader is the other half of what
+   * the key is for, and it returns to the last non-reader path rather than to Activity,
+   * which is what "back" means to someone who was in a note when they pressed it.
    */
   const toggleReader = useCallback(() => {
     if (!homeSpaceId) return;
-    if (readerToggle.isOnReadPage) readerToggle.backToNotes();
-    else readerToggle.openReader();
-  }, [homeSpaceId, readerToggle]);
+    if (shellModeNav.mode === 'reader') shellModeNav.leaveReader();
+    else shellModeNav.openReader();
+  }, [homeSpaceId, shellModeNav]);
 
   useEffect(() => {
     const onNewNote = () => createPrototypeNote();
@@ -1279,13 +1501,12 @@ function PrototypeShortcutBridge() {
       toggleInspector();
     };
     const onFocusList = () => focusPrototypeNoteList();
-    const onFocusSidebarSearch = () => focusPrototypeSidebarSearch();
     const onCycleListMode = (event: Event) => {
       const custom = event as CustomEvent<{ step?: number }>;
       const step = custom.detail?.step === -1 ? -1 : 1;
       cycleListMode(step);
     };
-    const onShowHome = () => showHomeLayer();
+    const onShowHome = () => showActivity();
     const onShowList = () => showListLayer();
     const onOpenReader = () => toggleReader();
 
@@ -1294,7 +1515,6 @@ function PrototypeShortcutBridge() {
     window.addEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
     window.addEventListener('prototypeShortcutToggleInspector', onToggleInspector);
     window.addEventListener('prototypeShortcutFocusNoteList', onFocusList);
-    window.addEventListener('prototypeShortcutFocusSidebarSearch', onFocusSidebarSearch);
     window.addEventListener('prototypeShortcutCycleListMode', onCycleListMode as EventListener);
     window.addEventListener('prototypeShortcutShowHome', onShowHome);
     window.addEventListener('prototypeShortcutShowList', onShowList);
@@ -1305,7 +1525,6 @@ function PrototypeShortcutBridge() {
       window.removeEventListener('prototypeShortcutToggleSidebar', onToggleSidebar);
       window.removeEventListener('prototypeShortcutToggleInspector', onToggleInspector);
       window.removeEventListener('prototypeShortcutFocusNoteList', onFocusList);
-      window.removeEventListener('prototypeShortcutFocusSidebarSearch', onFocusSidebarSearch);
       window.removeEventListener('prototypeShortcutCycleListMode', onCycleListMode as EventListener);
       window.removeEventListener('prototypeShortcutShowHome', onShowHome);
       window.removeEventListener('prototypeShortcutShowList', onShowList);
@@ -1314,63 +1533,30 @@ function PrototypeShortcutBridge() {
     createPrototypeNote,
     cycleListMode,
     focusPrototypeNoteList,
-    focusPrototypeSidebarSearch,
     toggleReader,
     pathname,
     showNoteDetailsOrb,
-    showHomeLayer,
+    showActivity,
     showListLayer,
     toggleInspector,
     togglePrototypeSidebar,
   ]);
 
   /**
-   * Where the palette goes to answer ⇧K.
+   * ⇧K opens the Library panel's search, the same surface ⇧L reaches — and the only chord
+   * that does, so the toolbar chip's hint can name one key.
    *
-   * Mounted here rather than in the sidebar so it still opens with the sidebar collapsed,
-   * hidden, or swapped for the admin and church views — the moments you are most likely to
-   * reach for it. The list it acts on publishes itself; see
-   * `prototype-command-context-store`.
+   * The palette used to live here as its own overlay — mounted at the shell rather than in
+   * the sidebar so it still opened with the rail collapsed. That reasoning now belongs to
+   * the panel, which is mounted the same way and does the same two jobs in one place:
+   * browse by tab, retrieve by query. The list a command acts on still publishes itself;
+   * see `prototype-command-context-store`.
    */
-  const [paletteOpen, setPaletteOpen] = useState(false);
   useEffect(() => {
-    const onOpen = () => setPaletteOpen(true);
+    const onOpen = () => focusPrototypeSidebarSearch();
     window.addEventListener('prototypeShortcutOpenCommandPalette', onOpen);
     return () => window.removeEventListener('prototypeShortcutOpenCommandPalette', onOpen);
-  }, []);
+  }, [focusPrototypeSidebarSearch]);
 
-  const paletteNavigation = useMemo(
-    () => [
-      { id: 'home', label: 'Show Home', icon: 'house', keys: '⇧H', run: showHomeLayer },
-      { id: 'list', label: 'Show list', icon: 'note-sticky', keys: '⇧L', run: showListLayer },
-      { id: 'reader', label: 'Read the Bible', icon: 'scroll', keys: '⇧R', run: toggleReader },
-      { id: 'new-note', label: 'New note', icon: 'plus', keys: '⇧N', run: createPrototypeNote },
-      {
-        id: 'settings',
-        label: 'Settings',
-        icon: 'gear',
-        keys: '⇧,',
-        run: () => navigate.navigate({ to: prototypeSettingsRouteTo() }),
-      },
-    ],
-    [showHomeLayer, showListLayer, toggleReader, createPrototypeNote, navigate],
-  );
-
-  /* No Suspense fallback: the chunk lands in a few ms and a flash of chrome under the
-     scrim would read as the palette opening twice. */
-  return paletteOpen ? (
-    <Suspense fallback={null}>
-      <PrototypeCommandPalette
-        homeSpaceId={homeSpaceId}
-        navigationItems={paletteNavigation}
-        onClose={() => setPaletteOpen(false)}
-        onOpenNote={(noteId) => {
-          navigate.navigate({
-            to: prototypeNoteRouteTo(),
-            params: { noteId: noteParamSlug(noteId) },
-          });
-        }}
-      />
-    </Suspense>
-  ) : null;
+  return null;
 }

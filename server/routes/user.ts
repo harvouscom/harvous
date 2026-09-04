@@ -31,6 +31,7 @@
  *   GET  /api/profile/my-shared-spaces
  */
 
+import { deleteSearchEventsForUser } from '../utils/record-search-event';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
@@ -280,6 +281,11 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
     await db.delete(Spaces).where(eq(Spaces.userId, auth.userId));
     await db.delete(Tags).where(eq(Tags.userId, auth.userId));
 
+    /* SearchEvents has no noteId, so `deleteNotesCascadeForUser` above cannot reach it. This
+       explicit delete is the only thing that can, and it is the difference between clearing
+       your data and leaving a log of everything you ever searched for behind. */
+    await deleteSearchEventsForUser(auth.userId);
+
     return c.json({ success: true, message: 'All data cleared' });
   } catch (error: any) {
     console.error('Clear data error:', error);
@@ -313,6 +319,10 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
     await db.delete(Tags).where(eq(Tags.userId, auth.userId));
     await db.delete(UserXP).where(eq(UserXP.userId, auth.userId));
     await db.delete(UserMetadata).where(eq(UserMetadata.userId, auth.userId));
+    /* Same reason as clear-data: no noteId means the note cascade cannot see this table, and
+       a deleted account that leaves its owner's search history behind is the worst outcome
+       this feature can produce. */
+    await deleteSearchEventsForUser(auth.userId);
 
     // Delete from Clerk
     try {

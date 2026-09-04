@@ -20,6 +20,15 @@ const { HOME_LOCATION, churchParent } = await import('../proto-location');
 type Shell = ReturnType<typeof useProtoShell>;
 
 function renderShell() {
+  /*
+   * Start expanded, which is what every test below is about.
+   *
+   * The shell now opens collapsed unless the reader has said otherwise — Activity is the
+   * canvas, so the rail stays out of the way by default. These tests predate that and are
+   * about what the *expanded tool* does when the sidebar moves under it, so they state the
+   * expanded premise rather than inherit it.
+   */
+  localStorage.setItem('harvous-prototype-sidebar-open-preference', 'open');
   const ref: { current: Shell | null } = { current: null };
   function Probe() {
     ref.current = useProtoShell();

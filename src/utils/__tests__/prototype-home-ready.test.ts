@@ -48,12 +48,14 @@ describe('isPrototypeHomePresentationReady', () => {
     connectionsSettled: true,
     highlightsSettled: true,
     votdSettled: true,
+    searchEventsSettled: true,
     crossRefGapsSettled: true,
     connectSuggestionsSettled: true,
     recallHistorySettled: true,
     churchSermonsSettled: true,
     churchFeedSettled: true,
     readingPositionSettled: true,
+    studyBibleSettled: true,
   };
 
   it('returns true when all presentation deps are settled', () => {
@@ -106,12 +108,14 @@ describe('home readiness composition', () => {
     connectionsSettled: true,
     highlightsSettled: true,
     votdSettled: true,
+    searchEventsSettled: true,
     crossRefGapsSettled: true,
     connectSuggestionsSettled: true,
     recallHistorySettled: true,
     churchSermonsSettled: true,
     churchFeedSettled: true,
     readingPositionSettled: true,
+    studyBibleSettled: true,
   };
 
   it('is not ready on notes alone', () => {

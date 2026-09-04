@@ -17,6 +17,10 @@ import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
 import PrototypePaperStack from '../../prototype/PrototypePaperStack';
 import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
+import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
+import PrototypeWelcome3Sheet from '../../prototype/PrototypeWelcome3Sheet';
+import PrototypeHomeRow from '../../prototype/PrototypeHomeRow';
+import { buildStudyFeedDays, type StudyFeedItem } from '@/utils/study-feed-items';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
   BG_PRESETS,
@@ -1087,6 +1091,9 @@ function TranslationRowScene() {
     { id: 'NLT', name: 'New Living Translation', state: { kind: 'saving', booksSaved: 49, booksTotal: 66 } },
     { id: 'NET', name: 'New English Translation', state: { kind: 'offline' } },
     { id: 'BSB', name: 'Berean Standard Bible', state: { kind: 'partial', booksSaved: 12, booksTotal: 66 } },
+    /* Packs transfer one at a time, so a second press waits — shown beside the one saving,
+       which is the pairing that matters: the two rows have to be tellable apart at a glance. */
+    { id: 'CSB', name: 'Christian Standard Bible', state: { kind: 'queued' } },
     { id: 'KJV', name: 'King James Version', state: { kind: 'blocked' } },
   ];
 
@@ -1258,6 +1265,332 @@ type MeasuredSpan = { key: string; top: number; height: number; lane: number; la
  */
 const MARK_SAMPLE = 'the light shines in the darkness';
 
+/*
+ * Activity — one day, as a sheet on a stack.
+ *
+ * Fixture rather than live data on purpose: what is being judged is whether a day reads as a
+ * page — the parts of it as sections, something written carrying more of the sheet than
+ * somewhere merely visited — and that needs a day holding both. A real account's day is
+ * whatever happened, which on most mornings is a chapter and nothing else.
+ */
+/**
+ * How an answered Review question reads: the verdict on each part, and the goes it has.
+ *
+ * One grammar across every exercise — right is the accent gradient, wrong is the destructive
+ * red, carried on the element's own edge rather than in a badge beside it. The dots are the
+ * only progress indicator in the app; they exist because a bar for a two-or-three step count
+ * reads as a task being set, which the onboarding dock found first.
+ */
+function ReviewVerdictsScene() {
+  return (
+    <div className="pds-stack" style={{ gap: 20, maxWidth: 520 }}>
+      <div>
+        <p className="pds-caption">Goes</p>
+        <span className="proto-review-dock__goes" aria-label="Attempt 2 of 3">
+          <span className="proto-review-dock__go" data-spent aria-hidden />
+          <span className="proto-review-dock__go" data-current aria-hidden />
+          <span className="proto-review-dock__go" aria-hidden />
+        </span>
+      </div>
+
+      <div>
+        <p className="pds-caption">Gaps, marked per gap</p>
+        <p className="proto-challenge__cloze">
+          {'I am the vine; you are the '}
+          <input
+            className="proto-review-dock__blank"
+            data-answer="right"
+            defaultValue="branches"
+            style={{ width: '9ch' }}
+            readOnly
+          />
+          {'. The one who remains in me bears much '}
+          <input
+            className="proto-review-dock__blank"
+            data-answer="wrong"
+            defaultValue="peace"
+            style={{ width: '6ch' }}
+            readOnly
+          />
+          {'.'}
+        </p>
+      </div>
+
+      <div>
+        <p className="pds-caption">Options</p>
+        <div className="proto-review-dock__chips">
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
+            data-correct
+          >
+            <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
+              A
+            </kbd>
+            <span className="proto-review-dock__choice-label">I am the vine; you are the branches.</span>
+          </button>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
+            data-missed
+            disabled
+          >
+            <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
+              B
+            </kbd>
+            <span className="proto-review-dock__choice-label">The LORD is my shepherd.</span>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p className="pds-caption">What you wrote</p>
+        <p className="proto-review-dock__verse proto-review-dock__verse--yours">
+          <span data-answer="right">vine</span> and the <span data-answer="right">branches</span> and
+          something about <span data-answer="right">fruit</span>
+        </p>
+      </div>
+
+      <div>
+        {/* One tapped thing, which may be marked either way — the reader watched this chip turn
+            red a second ago, so the recap agrees with what they saw. */}
+        <p className="pds-caption">What you picked</p>
+        <p className="proto-review-dock__verse proto-review-dock__verse--yours proto-review-dock__verse--pick">
+          <span data-answer="wrong">To all those loved by God in Rome…</span>
+        </p>
+      </div>
+
+      <div>
+        <p className="pds-caption">The order you put them in</p>
+        <ol className="proto-review-dock__verse proto-review-dock__verse--yours proto-review-dock__echo-rows">
+          <li data-answer="right">I am the vine</li>
+          <li data-answer="wrong">bears much fruit</li>
+          <li data-answer="wrong">you are the branches</li>
+        </ol>
+      </div>
+
+      <div>
+        {/* The shared-spaces author chip with a status glyph where the face goes. The glyph
+            carries the state; the label never does. */}
+        <p className="pds-caption">How well you hold it</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span className="proto-recall-chip" data-state="fragile">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="seedling" size={10} />
+            </span>
+            Still learning
+          </span>
+          <span className="proto-recall-chip" data-state="durable">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="check" size={10} />
+            </span>
+            You know this
+          </span>
+          <span className="proto-recall-chip" data-state="slipping">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="clock-rotate-left" size={10} />
+            </span>
+            Slipping away
+          </span>
+        </div>
+      </div>
+
+      <div>
+        {/* The question, recapped above its own answer: quieter than the ask it repeats. */}
+        <p className="pds-caption">The question, recapped</p>
+        <p className="proto-review-dock__prompt proto-review-dock__prompt--asked">
+          Pick how John 15:5 begins.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function StudyFeedScene() {
+  const dayStart = new Date(2026, 7, 25, 8, 0, 0);
+  const at = (minutes: number) => new Date(dayStart.getTime() + minutes * 60_000).toISOString();
+
+  const items: StudyFeedItem[] = [
+    {
+      id: 'fixture-reading',
+      kind: 'passage-read',
+      at: at(20),
+      startAt: at(2),
+      book: 'Romans',
+      bookOrder: 44,
+      chapters: [7, 8],
+      translation: 'ESV',
+      dwellBucket: 'study',
+    },
+    {
+      id: 'fixture-highlight',
+      kind: 'highlight-scripture',
+      at: at(24),
+      entryId: 'entry-fixture-1',
+      accent: 'warmAmber',
+      excerpt: 'There is now no condemnation',
+      reference: 'Romans 8:1',
+      translation: 'ESV',
+    },
+    {
+      id: 'fixture-note',
+      kind: 'note-created',
+      at: at(38),
+      noteId: 'note-fixture-1',
+      title: 'No condemnation',
+      snippet:
+        'I keep reading this as a verdict I have to earn. Paul writes it as one already given — the trial is over, and I am still arguing the case.',
+      scriptureRefs: ['Romans 8:1'],
+    },
+    {
+      id: 'fixture-revisit',
+      kind: 'note-revisited',
+      at: at(400),
+      noteId: 'note-fixture-2',
+      title: 'What grace costs',
+      folder: 'Romans',
+      visitCount: 1,
+    },
+    {
+      id: 'fixture-evening-read',
+      kind: 'passage-read',
+      at: at(700),
+      book: 'Psalms',
+      bookOrder: 18,
+      chapters: [103],
+      translation: 'ESV',
+      dwellBucket: 'read',
+    },
+  ];
+
+  const day = buildStudyFeedDays(items, new Date(2026, 7, 25, 21, 0, 0))[0];
+
+  return (
+    <div className="proto-theme">
+      <div className="proto-feed" style={{ padding: 0 }}>
+        <div className="proto-feed-stack">
+          <div className="proto-feed-stack__edges">
+            {[2, 1].map((depth) => (
+              <button
+                key={depth}
+                type="button"
+                className="proto-feed-stack__edge"
+                style={{ '--edge-depth': depth } as CSSProperties}
+              >
+                <span className="proto-feed-stack__edge-label">
+                  {depth === 1 ? 'Yesterday' : 'Sunday, August 23'}
+                </span>
+              </button>
+            ))}
+          </div>
+          <article className="proto-feed-sheet">
+            <header className="proto-feed-sheet__head">
+              <div className="proto-feed-sheet__title">
+                <h2 className="proto-feed-sheet__day">{day.label}</h2>
+                <span className="proto-feed-sheet__date">{day.dateLabel}</span>
+              </div>
+            </header>
+            <div className="proto-feed-sheet__body">
+              {day.parts.map((group) => (
+                <PrototypeStudyFeedPart key={group.part} group={group} onOpen={() => {}} />
+              ))}
+            </div>
+            <footer className="proto-feed-sheet__foot">
+              <button type="button" className="proto-feed-sheet__flip" disabled>
+                <Icon name="caret-up" size={11} />
+                <span>Newer</span>
+              </button>
+              <button type="button" className="proto-feed-sheet__flip">
+                <span>Earlier</span>
+                <Icon name="caret-down" size={11} />
+              </button>
+            </footer>
+          </article>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/*
+ * The real sheet, opened. It is a one-time surface gated on a browser having run 2.x, so once
+ * anyone has dismissed it this scene is the only way left to look at it.
+ */
+function Welcome3Scene() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        Shown once, on the first 3.0 load, to a browser that was running Harvous before it.
+        Reuses the <code>/3/</code> hero from harvous.com. Close it and press Replay to watch
+        the numeral draw again.
+      </p>
+      <div className="pds-gallery-btn-row">
+        <button
+          type="button"
+          className="proto-shared-people-row__action"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? 'Close' : 'Replay'}
+        </button>
+      </div>
+      <PrototypeWelcome3Sheet open={open} onDismiss={() => setOpen(false)} />
+    </div>
+  );
+}
+
+/*
+ * Fixtures rather than the real `PrototypeWhatsNewPill`, for the same reason the toast scene
+ * uses one: the row shows for exactly one release per browser and reads the running build's
+ * version to decide its shape, so neither variant can be summoned on demand.
+ */
+function WhatsNewRowScene() {
+  const dismiss = (
+    <button type="button" className="proto-side-panel__action-btn" aria-label="Dismiss what's new">
+      <Icon name="xmark" size={12} aria-hidden />
+    </button>
+  );
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        Sits in Activity&rsquo;s Following group. Opening it no longer puts it away &mdash; the{' '}
+        <code>&times;</code> does, and only for <em>this</em> release.
+      </p>
+
+      <PrototypeSectionHeader>On 3.0 &mdash; row opens the welcome sheet</PrototypeSectionHeader>
+      <div className="proto-glass-surface">
+        <PrototypeHomeRow
+          icon="burst"
+          title="What's new in Harvous"
+          aria-label="See what is new in Harvous 3"
+          trailing={
+            <>
+              <button
+                type="button"
+                className="proto-side-panel__action-btn"
+                aria-label="Read the release notes"
+              >
+                <Icon name="eye" size={12} aria-hidden />
+              </button>
+              {dismiss}
+            </>
+          }
+        />
+      </div>
+
+      <PrototypeSectionHeader>Every other release &mdash; row is the notes</PrototypeSectionHeader>
+      <div className="proto-glass-surface">
+        <PrototypeHomeRow
+          icon="burst"
+          title="What's new in Harvous"
+          aria-label="Read the release notes"
+          trailing={dismiss}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1298,6 +1631,14 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <TranslationRowScene />;
     case 'ds-19-note-audience-bar':
       return <NoteAudienceBarScene />;
+    case 'ds-20-study-feed':
+      return <StudyFeedScene />;
+    case 'ds-21-review-verdicts':
+      return <ReviewVerdictsScene />;
+    case 'ds-22-welcome-3':
+      return <Welcome3Scene />;
+    case 'ds-23-whats-new-row':
+      return <WhatsNewRowScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

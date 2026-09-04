@@ -1261,6 +1261,21 @@ export const UserMetadata = pgTable('UserMetadata', {
   tier: text('tier').notNull().default('free'),
   /** Polar customer id for portal sessions and subscription sync. */
   polarCustomerId: text('polarCustomerId'),
+  /**
+   * When this user claimed the founding offer. `null` = never.
+   *
+   * Founding is a Polar `duration: once` discount on the annual plan, not a
+   * product, so a founder's subscription looks like any other annual one and
+   * this cannot be derived from `Entitlements.productId`. Stamped by the Polar
+   * webhook when a discounted checkout completes, and never cleared — the
+   * promise is "the first 99 people", so a founder who cancels keeps their
+   * claim rather than freeing the slot, and the badge outlives the first
+   * renewal onto the list price.
+   *
+   * Not an entitlement: founding grants no capability a normal Plus
+   * subscription doesn't. It is identity, so it lives here.
+   */
+  foundingClaimedAt: ts('foundingClaimedAt'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
@@ -1530,6 +1545,274 @@ export const NoteVisitEvents = pgTable('NoteVisitEvents', {
   // For the delete cascade, which filters on noteId alone. RecallEvents is deleted the same
   // way and has no such index; that is a gap, not a precedent.
   index('NoteVisitEvents_noteIdIndex').on(table.noteId),
+]);
+
+// ─── SearchEvents (append-only log of searches) ────────────────────────────────
+// The third member of the same family as ReadingEvents and NoteVisitEvents, and the one that
+// records something the others structurally cannot.
+//
+// Every existing signal is derived from something the reader *made or read*: a note written, a
+// chapter read, a highlight left, a note returned to. A search is the only record of something
+// they wanted and did not find — a stated intent with no artifact behind it. A question asked
+// four times across three weeks that never produced a note is the clearest gap the app can see,
+// and until now it left no trace at all.
+//
+// Two actions, no UPDATE, for the same reason the siblings are append-only: "asked repeatedly
+// and never opened anything" is a grouped read over rows, not a mutable counter that has to be
+// kept correct. `openedResult` is a second row rather than a column on the first, so the write
+// path never has to go back and find what it wrote.
+//
+// The query text is the sensitive part of this table and is treated as such: normalized on the
+// way in, aged out on read, deleted for real on clear-data and delete-account (SearchEvents has
+// no noteId, so the note cascade cannot reach it), and never sent to analytics — see
+// `trackSearchPerformed`, which deliberately reports query *length* only.
+
+export const SearchEvents = pgTable('SearchEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** Trimmed, whitespace-collapsed, lowercased — so repeats group without a second pass. */
+  query: text('query').notNull(),
+  /** query | resultOpen — see src/utils/search-event-kinds.ts. */
+  action: text('action').notNull(),
+  /** What the surface actually showed. 0 is the interesting value. */
+  resultCount: integer('resultCount').notNull(),
+  /** library | spotlight — which field it was typed into. */
+  surface: text('surface').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('SearchEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('SearchEvents_userId_queryIndex').on(table.userId, table.query),
+]);
+
+// ─── ReviewItems (Plus: a scheduled return to your own study) ─────────────────
+// The sixth member of the memory-layer family above, and the first one the reader puts
+// something *into* deliberately. NoteFingerprints, RecallEvents, ReadingEvents,
+// NoteVisitEvents and SearchEvents all record what happened; this records what the reader
+// asked to come back to, which is why it is a mutable row rather than an append-only log.
+//
+// The schedule is stored, not derived. `intervalDays` and `dueAt` are written by
+// `nextReviewAfter` (src/utils/review-scheduling.ts) on every outcome, so the inbox is one
+// indexed read rather than a scan-and-score over history — and so the reader can be told
+// exactly when something is coming back. That is the whole point of a transparent schedule:
+// a number that only exists inside a ranking function cannot be shown to anyone.
+//
+// `sourceKey` carries the uniqueness the columns cannot. A review of a note, of a highlight,
+// of a connection between two notes and of a Thread are four different rows with four
+// different id columns; one text key over `(userId, sourceKey)` stops the same thing being
+// added twice without four partial indexes.
+
+export const ReviewItems = pgTable('ReviewItems', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** note | highlight | connection | thread | verse — see src/utils/review-item-kinds.ts. */
+  kind: text('kind').notNull(),
+  /** `${kind}:${id}[:${secondaryId}]` — the dedupe key across all five shapes. */
+  sourceKey: text('sourceKey').notNull(),
+  /** The note under review; for `connection` the from-note, for `thread` the cluster rep. */
+  noteId: text('noteId'),
+  /** `connection` only — the to-note. */
+  secondaryNoteId: text('secondaryNoteId'),
+  /** `highlight` only — the StudyThreadEntries row. */
+  studyThreadEntryId: text('studyThreadEntryId'),
+  /** `highlight` | `verse` — normalized reference, e.g. "John 15:5". */
+  scriptureReference: text('scriptureReference'),
+  translation: text('translation'),
+  /** active | paused | archived. Paused is the reader's "not this season". */
+  status: text('status').notNull().default('active'),
+  /** new | fragile | forming | durable — derived by deriveRecallState, stored for cheap reads. */
+  recallState: text('recallState').notNull().default('new'),
+  intervalDays: real('intervalDays').notNull().default(1),
+  dueAt: ts('dueAt').notNull(),
+  lastReviewedAt: ts('lastReviewedAt'),
+  /** recalled | almost | revealed — the last answer, which decides the next interval. */
+  lastOutcome: text('lastOutcome'),
+  /** Consecutive `recalled` answers. Resets to 0 on almost/revealed. */
+  successStreak: integer('successStreak').notNull().default(0),
+  reviewCount: integer('reviewCount').notNull().default(0),
+  /** Verse ladder position 0..4 (recognize → rebuild → recall → contextualize → connect). */
+  ladderStep: integer('ladderStep').notNull().default(0),
+  /** Misses on something once held. Four makes a leech; stepping back a rung resets it. */
+  lapseCount: integer('lapseCount').notNull().default(0),
+  /** The rung actually asked last time, since a family can wear several per step. */
+  lastRungKey: text('lastRungKey'),
+  /** user | seed | challenge | engine — where the row came from, so the queue stays legible. */
+  origin: text('origin').notNull().default('user'),
+  /**
+   * Why this is here, in the reader's words: "Highlighted while reading John 15".
+   *
+   * Copied from the UserNodeStates row at the moment the engine adds the item, not read
+   * live, so a row's stated reason never changes under someone mid-sitting. Null on items
+   * the reader added themselves — they know why it is there.
+   */
+  sourceLabel: text('sourceLabel'),
+  /** When that source signal happened. Orders the queue by what is actually recent. */
+  sourceAt: ts('sourceAt'),
+  /** Set when a challenge created this item, so completing the challenge can advance it. */
+  challengeId: text('challengeId'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('ReviewItems_userId_sourceKeyIndex').on(table.userId, table.sourceKey),
+  // The inbox read: due, active, oldest first.
+  index('ReviewItems_userId_status_dueAtIndex').on(table.userId, table.status, table.dueAt),
+  // The three cascade filters. NoteVisitEvents_noteIdIndex's docblock calls the missing
+  // equivalent on RecallEvents a gap rather than a precedent; these are the ones that close it.
+  index('ReviewItems_noteIdIndex').on(table.noteId),
+  index('ReviewItems_secondaryNoteIdIndex').on(table.secondaryNoteId),
+  index('ReviewItems_studyThreadEntryIdIndex').on(table.studyThreadEntryId),
+]);
+
+// ─── ReviewEvents (append-only log of what a review session was answered with) ─
+// Separate from ReviewItems for the same reason RecallEvents is separate from
+// NoteFingerprints: the item holds the current state, this holds how it got there. A
+// reader who wants to know whether their recall is actually improving needs the sequence,
+// which a row that only ever holds "last outcome" has already thrown away.
+//
+// `attempt` is what the reader typed before revealing, and it is the sensitive column here:
+// it is their own words about their own study. Never sent to analytics, deleted by the note
+// cascade and by clear-data along with everything else keyed to the note.
+
+export const ReviewEvents = pgTable('ReviewEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  reviewItemId: text('reviewItemId').notNull(),
+  /** Denormalized so the note cascade can find these rows without joining ReviewItems. */
+  noteId: text('noteId'),
+  /** shown | recalled | almost | revealed | deferred | paused | resumed | archived. */
+  action: text('action').notNull(),
+  /** What the reader wrote before revealing, when they wrote anything. */
+  attempt: text('attempt'),
+  previousIntervalDays: real('previousIntervalDays'),
+  nextIntervalDays: real('nextIntervalDays'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('ReviewEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('ReviewEvents_reviewItemId_createdAtIndex').on(table.reviewItemId, table.createdAt),
+  index('ReviewEvents_noteIdIndex').on(table.noteId),
+]);
+
+// ─── UserNodeStates (the reader's own Study Bible layer) ──────────────────────
+// The personal counterpart to the curated scripture knowledge layer. That layer is the
+// terrain — topics, cross-references, people, places, all of it shared and none of it
+// keyed to a person. This table is one reader's path across it: which verses they have
+// marked, which notes they keep coming back to, which themes their study actually runs
+// through, and when each of those last happened.
+//
+// One row per (user, node). A node is anything study can be *about*, addressed by a
+// `nodeKey` of the form `${kind}:${id}` — see src/utils/study-bible-nodes.ts, which owns
+// every key shape and is the only place allowed to build them.
+//
+// Why persisted rather than derived on read: the Home arcs already tried the derived
+// version and gave up in public. Every one of them bails with `if (hasMoreNotes) return
+// undefined`, because counting honestly needs the whole note set in the browser and a
+// paginated reader never has it. Counts that accumulate as activity happens do not have
+// that problem, and they are also the only way "you keep returning to this" can mean
+// anything after the first page.
+//
+// **Not a second source of truth.** ReviewItems still owns scheduling (dueAt, recallState,
+// ladderStep, streak) and NoteFingerprints still owns the passive-resurfacing stability.
+// The mirror columns here are written by applyReviewOutcome so the engine and Home can rank
+// without joining ReviewItems, and nothing reads them back as authority.
+//
+// The six counters are deliberately orthogonal — a signal increments exactly one of them —
+// so a scorer can weigh "returned to it" differently from "linked it to something", which
+// is the whole difference between attention and intent.
+
+export const UserNodeStates = pgTable('UserNodeStates', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** note | verse | chapter | theme | person | place | thread | connection. */
+  nodeKind: text('nodeKind').notNull(),
+  /** `${kind}:${id}` — unique per reader. Built only by src/utils/study-bible-nodes.ts. */
+  nodeKey: text('nodeKey').notNull(),
+  /** Display text: note title, "John 15:5", topic label, person name, Thread title. */
+  label: text('label'),
+  /** note / thread rep / connection from-note. Lets the note cascade find rows without parsing keys. */
+  noteId: text('noteId'),
+  /** `connection` only — the to-note. */
+  secondaryNoteId: text('secondaryNoteId'),
+  /** Saw it: opened, read, highlighted, cited. */
+  exposureCount: integer('exposureCount').notNull().default(0),
+  /** Came back to it deliberately, after a dwell long enough to mean something. */
+  revisitCount: integer('revisitCount').notNull().default(0),
+  /** Linked it to something themselves. The strongest signal a reader gives without typing. */
+  explicitConnectionCount: integer('explicitConnectionCount').notNull().default(0),
+  /** Wrote more about it: a later save, an annotation on a highlight. */
+  expansionCount: integer('expansionCount').notNull().default(0),
+  /** Named a Thread, summarized a cluster — said what the whole thing is. */
+  synthesisCount: integer('synthesisCount').notNull().default(0),
+  /** Answered a review about it. */
+  reviewCount: integer('reviewCount').notNull().default(0),
+  firstStudiedAt: ts('firstStudiedAt').notNull(),
+  lastSeenAt: ts('lastSeenAt').notNull(),
+  /** Mirror of the latest ReviewItems outcome for this node. ReviewItems stays canonical. */
+  lastReviewedAt: ts('lastReviewedAt'),
+  /** Mirror of the item's dueAt, so the engine can skip what is already scheduled. */
+  nextReviewAt: ts('nextReviewAt'),
+  /** Mirror of the item's recallState; 'new' until a review touches this node. */
+  recallState: text('recallState').notNull().default('new'),
+  /** exposure | revisit | connection | expansion | synthesis | review — the most recent. */
+  lastSignal: text('lastSignal').notNull(),
+  /** Reader-facing provenance: "Highlighted while reading John 15". Review rows show this. */
+  lastSourceLabel: text('lastSourceLabel'),
+  lastSourceAt: ts('lastSourceAt').notNull(),
+  /** active | archived. The note cascade archives cross-note nodes it cannot delete outright. */
+  status: text('status').notNull().default('active'),
+  /** JSON: { translation?, topicId?, slug?, book?, chapter?, verse? }. Small and stable — it is replaced, not merged. */
+  meta: text('meta'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt').notNull(),
+}, (table) => [
+  // The upsert target. Every writer goes through touchNodes, which conflicts on this.
+  uniqueIndex('UserNodeStates_userId_nodeKeyIndex').on(table.userId, table.nodeKey),
+  // The engine's read (kinds it reviews, most recent first) and Home's (themes, people).
+  index('UserNodeStates_userId_nodeKind_lastSeenAtIndex').on(table.userId, table.nodeKind, table.lastSeenAt),
+  // The cascade filters, for the same reason ReviewItems carries both.
+  index('UserNodeStates_noteIdIndex').on(table.noteId),
+  index('UserNodeStates_secondaryNoteIdIndex').on(table.secondaryNoteId),
+]);
+
+// ─── Challenges (Plus: a bounded path through study you already have) ─────────
+// Steps are a JSON column rather than a ChallengeSteps table, and the reason is that they
+// are never queried across challenges. A template builds four or five of them at creation,
+// they are always read and written as one unit with their parent, and nothing ever asks
+// "every link step across all users". That is the same shape as ThreadProgress.openedNoteIds
+// and StudyThreadMemberOrders.orderedNoteIds, and it buys a second table, a second index set
+// and a second cascade branch for nothing.
+//
+// A challenge is retired, not deleted, when its source note goes: the notes it produced are
+// ordinary notes the reader still owns, and a finished path that quietly vanishes because
+// one of its inputs was tidied away reads as data loss. See delete-note-cascade.ts.
+
+export const Challenges = pgTable('Challenges', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** strengthen_thread | keep_verse | return_to_question | trace_connection. */
+  templateKey: text('templateKey').notNull(),
+  /** Resolved at creation from the source's own title, so a renamed Thread keeps its path. */
+  title: text('title').notNull(),
+  /** active | paused | completed | archived | retired. */
+  status: text('status').notNull().default('active'),
+  /** `${templateKey}:${id}[:${secondaryId}]` — one active challenge per source. */
+  sourceKey: text('sourceKey').notNull(),
+  /** Thread rep note, question note, or the from-note of a connection. */
+  sourceNoteId: text('sourceNoteId'),
+  sourceSecondaryNoteId: text('sourceSecondaryNoteId'),
+  sourceEntryId: text('sourceEntryId'),
+  scriptureReference: text('scriptureReference'),
+  translation: text('translation'),
+  /** JSON ChallengeStep[] — shape in src/utils/challenge-templates.ts. */
+  steps: text('steps').notNull(),
+  currentStepIndex: integer('currentStepIndex').notNull().default(0),
+  startedAt: ts('startedAt').notNull(),
+  lastStepAt: ts('lastStepAt'),
+  completedAt: ts('completedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('Challenges_userId_statusIndex').on(table.userId, table.status),
+  index('Challenges_sourceNoteIdIndex').on(table.sourceNoteId),
+  index('Challenges_sourceSecondaryNoteIdIndex').on(table.sourceSecondaryNoteId),
 ]);
 
 // ─── SupportTickets (user feedback from settings support form) ─────────────────

@@ -2,13 +2,18 @@
  * Account menu — toolbar dropdown. Shows the signed-in name + email (like native
  * Mac's account screen), Settings, and Log out.
  * Mirrors SpaceSwitcherMenu / ListViewMenu (proto-menu popover, right-anchored).
+ *
+ * For a guest it becomes a second way to make an account, and the one that survives a narrow
+ * window — the standing row's label truncates on a phone, but this control is always the same
+ * size. Settings and Log out are both absent rather than disabled: there is no session to end,
+ * and a row that cannot do anything is worse than no row.
  */
 import { useClerk, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
-import { resolveProfileFullName } from '@/utils/nav-avatar-initials';
+import { getNavAvatarInitials, resolveProfileFullName } from '@/utils/nav-avatar-initials';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
 import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
@@ -18,6 +23,8 @@ import { usePopoverDismiss } from '../../hooks/usePopoverDismiss';
 import { prefetchSettingsOpenPath } from './settings/prefetch-settings-chunks';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 
 export default function AccountMenu({ iconSize, disabled = false }: { iconSize: number; disabled?: boolean }) {
   const clerk = useClerk();
@@ -31,6 +38,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+  const { isGuest } = useHarvousIdentity();
 
   const avatarImageUrl = useMemo(
     () => resolveClerkProfileImageUrl(user, profile?.profileImageUrl),
@@ -51,6 +59,9 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
   }, [user?.hasImage, user?.id, queryClient]);
 
   const name = useMemo(() => resolveProfileFullName(user, profile), [user, profile]);
+  /* Initials rather than a person glyph where there is no photo — the header's job is to
+     say *which* account, and a generic silhouette is the one answer that does not. */
+  const initials = useMemo(() => getNavAvatarInitials(user, profile), [user, profile]);
   const email = profile?.email ?? user?.primaryEmailAddress?.emailAddress ?? '';
   const showProfilePhoto = Boolean(avatarImageUrl) && !photoLoadFailed;
 
@@ -78,21 +89,71 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               onError={() => setPhotoLoadFailed(true)}
             />
           ) : (
-            <Icon name="circle-user" size={iconSize} />
+            /* The guest's badge, so the mode is legible from the toolbar without opening the
+               menu — and the same glyph the standing row carries, so the two read as one thing. */
+            <Icon name={isGuest ? 'id-card-clip' : 'circle-user'} size={iconSize} />
           )}
         </span>
       </button>
 
       {open ? (
-        <ProtoPopoverShell className="proto-menu__popover proto-menu__popover--right" role="menu" aria-label="Account">
-          {/* Name + email header (mirrors native Mac account screen). */}
-          <div style={{ padding: '8px 10px 10px', borderBottom: '0.5px solid var(--pds-border)', marginBottom: 4 }}>
-            <div className="pds-list-title" style={{ color: 'var(--pds-text-primary)' }}>{name}</div>
-            {email ? (
-              <div className="pds-list-preview" style={{ marginTop: 2 }}>{email}</div>
-            ) : null}
+        <ProtoPopoverShell
+          className="proto-menu__popover proto-menu__popover--right proto-menu__popover--account"
+          role="menu"
+          aria-label="Account"
+        >
+          {/*
+            Who you are, shown rather than only spelled out. The face carries continuity from
+            the orb that was just clicked — the menu opens from it and repeats it, so the two
+            read as one object rather than as a button and an unrelated panel.
+          */}
+          <div className="proto-account-menu__identity">
+            <span className="proto-account-menu__avatar" aria-hidden>
+              {isGuest ? (
+                <Icon name="id-card-clip" size={PROTO_TOOLBAR_ICON_SIZE} />
+              ) : showProfilePhoto ? (
+                <img
+                  src={avatarImageUrl!}
+                  alt=""
+                  className="proto-profile-orb__photo"
+                  onError={() => setPhotoLoadFailed(true)}
+                />
+              ) : (
+                initials
+              )}
+            </span>
+            <span className="proto-account-menu__text">
+              <span className="pds-list-title proto-account-menu__name">
+                {isGuest ? 'Guest' : name}
+              </span>
+              {isGuest ? (
+                <span className="pds-list-preview proto-account-menu__email">
+                  Saved on this device
+                </span>
+              ) : email ? (
+                <span className="pds-list-preview proto-account-menu__email">{email}</span>
+              ) : null}
+            </span>
           </div>
 
+          {isGuest ? (
+            <div className="proto-menu-section" role="group">
+              <a
+                role="menuitem"
+                className="proto-menu-item"
+                href={guestSignUpHref()}
+                onClick={() => {
+                  setOpen(false);
+                  leaveForSignUp();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="circle-user" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>Create free account</span>
+              </a>
+            </div>
+          ) : (
           <div className="proto-menu-section" role="group">
             <button
               type="button"
@@ -135,6 +196,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               <span style={{ flex: 1, minWidth: 0 }}>{isSigningOut ? 'Logging out…' : 'Log out'}</span>
             </button>
           </div>
+          )}
         </ProtoPopoverShell>
       ) : null}
     </div>

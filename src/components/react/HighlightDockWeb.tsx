@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isGuestModeActive } from '../../../spa/src/lib/guest-session';
+import { updateGuestHighlight } from '../../../spa/src/lib/guest-store';
+import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
 import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
@@ -64,6 +67,23 @@ function patchStudyThread(
   body: Record<string, string>,
   contextSpaceId?: string | null,
 ) {
+  /*
+   * Every edit this dock makes funnels through here, which is why the guest branch belongs at
+   * this line rather than in `useUpdateHighlight` — the dock never calls that hook, it has its
+   * own fetch, so a branch there was reached by nothing.
+   *
+   * This is also the only way a guest can write. The full editor needs a space and a server; a
+   * thought attached to a verse needs neither, and it is the same `miniNoteBody` field the
+   * account version writes, so adoption carries it up with the highlight.
+   */
+  if (isGuestModeActive()) {
+    updateGuestHighlight(id, {
+      ...(body.miniNoteBody === undefined ? {} : { miniNoteBody: body.miniNoteBody }),
+      ...(body.focusTitle === undefined ? {} : { focusTitle: body.focusTitle }),
+    });
+    if (body.miniNoteBody?.trim()) markOnboardingStep('note');
+    return;
+  }
   void fetch(`/api/study-threads/${id}`, {
     method: 'PATCH',
     credentials: 'include',

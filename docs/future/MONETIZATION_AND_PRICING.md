@@ -4,20 +4,48 @@ Canonical product and pricing model for Harvous paid features. Technical billing
 entitlements, webhooks) lives in [`docs/BILLING_ARCHITECTURE.md`](../BILLING_ARCHITECTURE.md). Clerk
 auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 
-**Status (July 2026): three products, one of them free. Simple pricing, 37signals-style — one price
-per product, everything included, no tiers within a product.**
+**Status (September 2026 — 3.0): three products, one of them free. Simple pricing,
+37signals-style — one price per product, everything included, no tiers within a product.**
 
 | Product | Price | What's in it |
 |---|---|---|
-| **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is the paid line. |
-| **Founding** | **$30/yr** | First **99** subscribers · **annual only** · lifetime price lock. |
-| **Harvous Plus** | **$5/mo** | Shared Spaces hosting now; Review, Challenges, and seasons fold in later. Standard annual ($45) is unlisted — Founding is the yearly offer. |
+| **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is paid. |
+| **Harvous Plus** | **$7/mo · $49/yr** | **Review and personal Challenges**, Shared Spaces hosting; themed seasons fold in later. Both intervals listed. |
+| **Founding** | **$35 first year, then $49** | First **99** · a Polar `duration: once` discount on the annual plan, **not a product**. |
 | **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
 Plus a **30-day money-back guarantee** on Plus (cancel anytime). There is deliberately **no free
-trial** and **no metered free tier**: free/paid is a categorical line (private vs. shared), not a
-quota.
+trial** and **no metered free tier** — but see the caveat under *What changed at 3.0*.
+
+### What changed at 3.0, and why
+
+Set at the 3.0 cutover, replacing $5/mo · Founding $30/yr. Three things moved:
+
+1. **The paid hook changed shape.** Review and Challenges shipped, so what someone
+   buys stopped being "you may host a shared space" — social, dependent on a network,
+   with no hosts to seed it — and became "your study comes back to you", which works
+   for one person on the day they pay. Feature bullets and page copy now lead with it.
+2. **The price met the category.** Dwell $59.99/yr, Hallow $69.99/yr, Glorify $69.99/yr,
+   Readwise $119.88/yr. $49 is deliberately the value price in that band, not the ceiling.
+   The numbers are sevens on purpose: $49 is seven sevens, the Jubilee arithmetic of
+   Leviticus 25, for a product whose promise is returning to what you already studied.
+3. **Founding stopped being a lifetime lock.** Harvous was pre-revenue when this was
+   set, so no one held the old $30/yr price and nothing had to be grandfathered — the
+   one window in which prices can be edited in place rather than superseded. It closes
+   with the first sale.
+
+**On economics.** Polar Starter takes 5% + 50c, so the flat fee alone is 7% of a $7
+charge and 1% of a $49 one: $7/mo nets $6.15 (12.1%), $49/yr nets $46.05 (6.0%), and the
+$35 first year nets $32.75. Annual at 42% under monthly is a deliberate push toward the
+instrument that survives the fee.
+
+**Caveat on "no free trial".** The original reasoning was that free users already
+experience the paid surface by *joining* a Plus host's space. That does not hold for
+Review, which is personal — a free user cannot experience it secondhand, and the entire
+storefront for it is one dismissible row on Activity. The decision stands for now
+(a trial is also blocked by `listActiveFeatureKeys` ignoring `expiresAt`), but it is
+resting on the money-back guarantee alone and should be revisited.
 
 **Why no Season Pass SKU.** Seasons fold into Plus via `challenges`. Selling them separately meant
 8–11 purchase decisions a year at a price point where the processor takes ~15%, plus a new SKU each
@@ -30,8 +58,9 @@ Separate *products* are fine; *tiers within a product* are what this model avoid
 Plus when it ships). **Compete** stays free to play. Hosting Shared Spaces is Plus; members join free.
 
 > **Historical:** earlier drafts had a "Harvous Complete" tier, then a four-SKU split (Review / Group
-> Sharing / Connector / Season Pass) at $5/$45 founding stepping to $9/$79. Both are superseded by the
-> table above. Sections below marked *historical derivation* are kept for the reasoning, not the prices.
+> Sharing / Connector / Season Pass) at $5/$45 founding stepping to $9/$79, then the July 2026 model
+> ($5/mo, Founding $30/yr lifetime). All are superseded by the table above. Sections below marked
+> *historical derivation* are kept for the reasoning, not the prices.
 
 ---
 
@@ -86,12 +115,21 @@ brings up to 50 free members in, and those members use shared spaces for weeks b
 consider hosting one. That is the trial, and it is already built. The consequence to accept: the
 **first 99 founders are the hard part**, because the loop has no hosts to seed it yet.
 
-### Review (paid, individual)
+### Review (paid, individual) — **shipped v3.0, September 2026**
 
-- AI-generated quiz sessions from the user's own notes and preferences
-- Grounded on [scripture-knowledge layer](./SCRIPTURE_KNOWLEDGE_LAYER.md) (cross-refs, themes, related notes)
-- Web-first runtime: **Mistral Small** on server ([SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md))
-- Each subscriber's Review is tied to **their account only** — not shareable via Group Sharing or church org
+- **No generative AI.** Authored prompt templates filled with the user's own notes, highlights,
+  connections and Threads — see
+  [REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md](./REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md).
+  This reverses the Mistral plan in
+  [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md), which is superseded.
+- **Transparent schedule:** revealed → 1 day, almost → 4 days, recalled → 14, compounding ×1.8
+  from the third consecutive recall, capped at 180. Every interval can be said in a sentence.
+- Surfaces: a max-three-row **Review** section on Activity, a review session, and a manage page.
+  No counts, no badges, no overdue language anywhere.
+- Each subscriber's Review is tied to **their account only** — not shareable via Group Sharing
+  or church org.
+- **Marginal cost is a few database rows.** The small-model budget the pricing was built on is
+  unspent, which strengthens the cost constraint rather than testing it.
 
 ### Shared Spaces hosting (in Plus)
 
@@ -246,14 +284,17 @@ providers — see [entitlements.ts](../../server/utils/entitlements.ts).
 | Feature key | Gates | Granted by |
 |---|---|---|
 | `shared_spaces` | Owning shared spaces (`canCreateSharedSpace`) | Plus |
-| `review` | AI quiz session generation (when Review ships) | Plus |
-| `challenges` | Full seasons, incl. guide + archive | Plus |
+| `review` | The Review section, review sessions, adding items — **live in 3.0** | Plus |
+| `challenges` | Personal challenge paths — **live in 3.0**; seasons later | Plus |
 | `connector` | Connector API key, MCP OAuth, `/api/connector/*` + `/mcp` reads | Connector (separate product) |
 
 There is no `season_pass` key — Plus includes every season via `challenges`.
 
-**Plus grants `review` and `challenges` from day one**, before those products exist. Nothing gates on
-them yet, and issuing the rows now means existing subscribers need no backfill when they ship.
+**Plus granted `review` and `challenges` from day one**, before those products existed — so when
+they shipped in 3.0 no subscriber needed a backfill. Both now gate real routes via
+`requireFeature()` ([server/middleware/require-feature.ts](../../server/middleware/require-feature.ts)),
+which reconciles with the provider once on a miss before refusing, covering the post-checkout
+webhook gap.
 
 **Sources.** `EntitlementSource` is `'billing' | 'admin_grant' | 'church_seat' | 'trial'`, unique on
 `(userId, featureKey, source)`. Provider sync only ever touches `billing` rows, so an `admin_grant`
@@ -349,7 +390,7 @@ active season", and at 8–11 seasons a year against a $79–149 retail pass, th
 passes inside an $828 tier**. Seasons are now a tier benefit, and the inconsistency disappears with
 the SKU.
 
-**On the seat discount:** retail Plus is $5/mo (interim), so a $2–3 church seat is a 40–60% bulk break. That is
+**On the seat discount:** retail Plus is $7/mo, so a $2–3 church seat is a 55–70% bulk break. That is
 deliberate — the real per-seat cost is ~$0.10/mo (see §3 fee note and the cost constraint in
 [billing-plans.ts](../../src/lib/billing-plans.ts)), so even $2 holds >90% margin. Church procurement
 responds to a steep, legible break far better than to a 25% one, and discounting *seats* is much
@@ -419,11 +460,17 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
 
 ## 8. Rollout sequence
 
-1. **Deterministic Compete + Review product** — UX and grounding builder; Mistral Review endpoint
-2. **Review runtime** — no new billing needed; Plus already grants `review`
-3. **Challenges** — first themed season, included in Plus
+1. ~~**Deterministic Compete + Review product**~~ — **shipped v3.0**, and deterministic all the
+   way down: no grounding builder and no Mistral endpoint were needed.
+2. ~~**Review runtime**~~ — **shipped v3.0**. No new billing; Plus already granted `review`.
+3. ~~**Challenges**~~ — **personal challenges shipped v3.0**. Themed *seasons* (Season Pass) are
+   still ahead and still fold into Plus via the same `challenges` key.
 4. **Referral** rewards update
 5. **Church org** — research pricing vs Planning Center; pilot with friendly churches
+
+**Still ahead for Compete:** public seasons need editorial content — an authored season map, a
+curated quiz set, and a schedule — which is a content pipeline rather than a code problem. The
+free-track/Plus split in §3 is unchanged by 3.0.
 
 **Deferred:** [Give Me More Context](./GIVE_ME_MORE_CONTEXT.md) — not v1 paid scope.
 
@@ -437,15 +484,23 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
       entitlement plumbing, and it sidesteps the `expiresAt` bug in §6.
 - [x] ~~Season Pass price~~ — **no Season Pass.** Folded into Plus via `challenges` (§3).
 - [x] ~~Connector price~~ — **$5/mo · $60/yr**, no annual discount.
-- [x] ~~Founding price / cap~~ — **$30/yr, annual only, first 99**, lifetime lock, then straight to
-      standard with a "all 99 claimed" sold-out state (no second tier).
-- [x] ~~Plus interim list price~~ — **$5/mo** while Shared Spaces is the live paid surface; standard
-      annual is **$45** (unlisted). Founding is the only yearly offer for now.
+- [x] ~~Founding price / cap~~ — **$35 first year, then $49, first 99.** A Polar `duration: once`
+      discount on the annual product rather than a product of its own, so it renews to list and
+      `max_redemptions` enforces the cap server-side. Selling out changes the price on the annual
+      chip; it does not remove an option.
+- [x] ~~Plus list price~~ — **$7/mo · $49/yr, both listed.** Superseded the $5/mo interim price at
+      3.0, when Review and Challenges made Plus more than hosting.
+- [x] ~~Lifetime founding lock~~ — **dropped at 3.0**, while pre-revenue and therefore free to drop.
+      Founders keep the badge permanently (`UserMetadata.foundingClaimedAt`); only the price renews.
 
 **Still open:**
 
-- [ ] Fair-use soft cap on Review sessions — hygiene, not economics: at ~$0.001/session a user needs
-      ~4,250 sessions/month to eat one subscription. Decide before Review ships, not before launch.
+- [ ] Fair-use soft cap on Review sessions — hygiene, not economics. The ~$0.001/session figure was
+      the small-model budget that never shipped; actual marginal cost is a few database rows, so
+      this is now about abuse, not unit economics.
+- [ ] Revisit "no trial" — its stated rationale (free users meet the paid surface by joining a
+      host's space) does not hold for Review. Blocked on the `expiresAt` bug in §6.
+- [ ] Reprice Connector before it ships — $60/yr now costs more than the $49/yr product it adds to.
 - [ ] Connector: exact rate limit numbers (requests/day, requests/min, max page size) before launch
 - [ ] Connector: whether church tiers get a higher shared limit, or Connector stays purely individual
 - [ ] Whether a **bundle product** is worth adding if Plus + Connector dual-buy turns out common —
@@ -458,7 +513,8 @@ Example: 5 small-group leaders → **$19 + 5×$12 = $79/mo**.
 
 ## Related docs
 
-- [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md) — Review runtime AI + grounding
+- [REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md](./REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md) — **canonical** product thesis for Review, Challenges and Season Pass
+- [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md) — superseded for Review; grounding layer only
 - [HARVOUS_NORTH_STAR.md](./HARVOUS_NORTH_STAR.md) — Remember / Learn / Compete pillars
 - [CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md) — technical billing
 - [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) — church ladder

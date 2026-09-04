@@ -21,6 +21,22 @@ html.harvous-prototype-route [class*='proto-'] button * {
 }
 
 /*
+ * Harvous 3 welcome — white label on the accent button.
+ *
+ * The blanket rule above matches `button[class*='proto-']` and forces `--pds-text-primary`
+ * with `!important`, which lands dark ink on the blue gradient. Restated here rather than in
+ * the component CSS because only an `!important` in this file can beat it.
+ *
+ * Worth knowing: this whole file is scoped to `html.harvous-prototype-route`, so the design
+ * gallery does not see any of it. A button that looks right at /__dev/design-system can still
+ * be wrong on the real route — check both.
+ */
+html.harvous-prototype-route button.proto-welcome3__cta,
+html.harvous-prototype-route button.proto-welcome3__cta * {
+  color: #fff !important;
+}
+
+/*
  * Offline badge — one neutral chip, both states.
  *
  * It sits inside the translation row's button, so the blanket rule above would otherwise
@@ -88,8 +104,7 @@ html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-side
 html.harvous-prototype-route button.proto-sidebar-seg__btn,
 html.harvous-prototype-route button.proto-sidebar-seg__btn .proto-sidebar-seg__label,
 html.harvous-prototype-route button.proto-toolbar-folder-chip,
-html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label,
-html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__extra {
+html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label {
   font-variation-settings: var(--pds-font-body-variation-toolbar-chip) !important;
 }
 
@@ -149,10 +164,6 @@ html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-ite
   color: var(--pds-text-secondary) !important;
 }
 
-html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-sep {
-  color: var(--pds-text-tertiary) !important;
-}
-
 /* List row preview lines inside buttons — beat blanket `button *` primary above.
    Timestamp stays secondary; excerpt body uses list-preview (native secondary / tertiary). */
 html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,
@@ -180,10 +191,8 @@ html.harvous-prototype-route button.proto-note-row__main .pds-list-preview .pds-
 html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview .pds-list-timestamp,
 html.harvous-prototype-route button.proto-thread-trail__step-main .proto-note-row__preview .pds-list-timestamp,
 html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-preview .pds-list-timestamp,
-html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .pds-list-preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview .pds-list-timestamp,
-html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .proto-inspector-activity__subject-row .pds-list-timestamp {
   color: var(--pds-text-secondary) !important;
 }
@@ -224,6 +233,29 @@ html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismi
 html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss:hover svg,
 html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss:hover path,
 html.harvous-prototype-route .pds-paper-stack button.pds-paper-stack__edge-dismiss:hover * {
+  color: var(--pds-text-primary) !important;
+}
+
+/* Translation edge — the label and its paper are one muted strip, and it has to answer hover.
+   Same trap the paper-stack edge above hit, one surface along: the blanket rule paints every
+   proto button descendant primary, and the `.pds-caption` carve-out pins it to secondary hard
+   enough that the hover tint never lands. `.pds-reader` in the prefix buys the specificity to
+   take both, order-independently.
+
+   This matters more here than it looks. Under reduced motion the lift is cancelled, so colour
+   is the only feedback left — and Activity's edge, which has no such carve-out, currently
+   answers hover with nothing at all when motion is off. */
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge .pds-caption,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge span,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge * {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover .pds-caption,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover span,
+html.harvous-prototype-route .pds-reader button.pds-reader-stack__edge:hover * {
   color: var(--pds-text-primary) !important;
 }
 

@@ -10,7 +10,6 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
 import SharedSpaceNoteAuthorChip from '../../prototype/SharedSpaceNoteAuthorChip';
 import SharedSpaceSocialGreeting from '../../prototype/SharedSpaceSocialGreeting';
-import SharedSpaceAboutSheet from '../../prototype/SharedSpaceAboutSheet';
 import PrototypeSpacePeopleSheet from '../../prototype/PrototypeSpacePeopleSheet';
 import PrototypeListEmptyState from '../../prototype/PrototypeListEmptyState';
 import ProtoSpaceMenuIcon from '../../prototype/ProtoSpaceMenuIcon';
@@ -324,16 +323,20 @@ export default function SharedSpaceDashboardFixtureView({
         </div>
       </div>
 
-      <SharedSpaceAboutSheet
-        open={aboutOpen}
-        onOpenChange={setAboutOpen}
-        space={fixtureToSpaceDetail(fixture)}
-        members={members}
-      />
-
+      {/*
+        One sheet, two doors — the same merge the product made. `i` opens it on the room's
+        letter, the gear on its settings; the fixture's space is passed in because there is no
+        row behind it for `useSpace` to find.
+      */}
       <PrototypeSpacePeopleSheet
-        open={peopleOpen}
-        onOpenChange={setPeopleOpen}
+        open={aboutOpen || peopleOpen}
+        onOpenChange={(next) => {
+          if (next) return;
+          setAboutOpen(false);
+          setPeopleOpen(false);
+        }}
+        initialView={aboutOpen ? 'letter' : 'details'}
+        spaceDetail={fixtureToSpaceDetail(fixture)}
         spaceId={spaceId}
         spaceTitle={spaceTitle}
         spaceColor={spaceColor}

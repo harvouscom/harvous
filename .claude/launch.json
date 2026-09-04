@@ -102,6 +102,16 @@
       ],
       "port": 4326,
       "autoPort": false
+    },
+    {
+      "name": "activity-search-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/sidebar-activity-view-redesign-c9cc41 && API_PORT=3003 VITE_API_PROXY_TARGET=http://localhost:3003 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4328 --strictPort'"
+      ],
+      "port": 4328,
+      "autoPort": false
     }
   ]
 }

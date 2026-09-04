@@ -35,6 +35,72 @@
     return;
   }
 
+  /*
+   * Was this browser already running Harvous before 3.0?
+   *
+   * Sampled here, once, because it is only answerable here. The question is "did anything
+   * write a Harvous key before this build did", and the 3.0 bundle starts answering it wrong
+   * the moment it caches the onboarding checklist a few hundred milliseconds from now. A
+   * React-side check would be racing its own app; running before the bundle means there is
+   * no race to lose.
+   *
+   * Latched rather than recomputed, and `'0'` is stored as deliberately as `'1'` — the
+   * absence of the key is what means "not asked yet", so a new browser has to record its own
+   * newness or it would look like an upgrader on its second visit.
+   *
+   * Deliberately ahead of the `?try=1` write below: a guest arriving for the first time would
+   * otherwise find the key that write had just left and count itself as an upgrade.
+   *
+   * Keep the key in sync with PROTO_UPGRADED_FROM_2_KEY in spa/src/layouts/proto-session-keys.ts.
+   */
+  var PROTO_UPGRADED_FROM_2_KEY = 'harvous-proto-upgraded-from-2';
+  try {
+    if (localStorage.getItem(PROTO_UPGRADED_FROM_2_KEY) === null) {
+      var sawHarvousBefore = false;
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && (k.indexOf('harvous-proto') === 0 || k.indexOf('harvous-prototype') === 0)) {
+          sawHarvousBefore = true;
+          break;
+        }
+      }
+      localStorage.setItem(PROTO_UPGRADED_FROM_2_KEY, sawHarvousBefore ? '1' : '0');
+    }
+  } catch (e) { /* ignore — without storage the welcome simply never shows, which is safe */ }
+
+  /*
+   * A `?try=1` arrival is someone trying Harvous without an account.
+   *
+   * The marker has to be written here, before the bundle, because the shell's gate runs on the
+   * very first React render: a marker written later would let that render resolve `signed-out`
+   * and paint the empty frame for a beat on the way in — on the one screen whose whole job is
+   * to look like an uninterrupted continuation of the marketing page.
+   *
+   * Keep the key in sync with PROTO_GUEST_SESSION_KEY in spa/src/layouts/proto-session-keys.ts.
+   */
+  var PROTO_GUEST_SESSION_KEY = 'harvous-proto-guest';
+  try {
+    if (window.location.search.indexOf('try=1') !== -1 &&
+        new URLSearchParams(window.location.search).get('try') === '1' &&
+        !localStorage.getItem(PROTO_GUEST_SESSION_KEY)) {
+      localStorage.setItem(PROTO_GUEST_SESSION_KEY, new Date().toISOString());
+    }
+  } catch (e) { /* ignore — a guest who cannot write localStorage still gets the reader */ }
+
+  /*
+   * Reserve the guest row's space before first paint.
+   *
+   * The class takes the row's height off the shell frame so the two do not overlap. It tracks
+   * the session and nothing else — the row is not dismissible, so being a guest is the whole
+   * condition. React re-asserts it from `PrototypeGuestModeRow`; this is only about the first
+   * frame, where an arriving guest must not see the shell jump down a moment after landing.
+   */
+  try {
+    if (localStorage.getItem(PROTO_GUEST_SESSION_KEY)) {
+      root.classList.add('harvous-proto-guest');
+    }
+  } catch (e) { /* ignore */ }
+
   /** iOS standalone PWA: skip image wallpapers at first paint (WebKit compositor OOM). */
   function isIosStandalonePwa() {
     var ua = navigator.userAgent || '';
@@ -131,6 +197,15 @@
       'html.' +
       PROTO_ROUTE_CLASS +
       ' #root::before{content:"";position:fixed;inset:var(--pds-shell-frame-inset);z-index:-1;border-radius:var(--pds-shell-frame-radius);background:var(--pds-bg-page);box-shadow:var(--pds-shadow-shell);pointer-events:none}' +
+      /*
+       * The guest row sits above the shell on the background layer, so the placeholder card has
+       * to start below it too. Without this the card is still pinned at the frame inset and its
+       * white runs up behind the notice — a band of blank paper above the toolbar that belongs
+       * to no surface.
+       */
+      'html.' +
+      PROTO_ROUTE_CLASS +
+      '.harvous-proto-guest #root::before{top:var(--proto-guest-row-h, 52px)}' +
       'html.' +
       PROTO_ROUTE_CLASS +
       '.' +

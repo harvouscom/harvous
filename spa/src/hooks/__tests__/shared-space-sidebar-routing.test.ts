@@ -6,7 +6,6 @@ import {
   resolveSharedSpaceTitle,
   resolveSpaceSwitcherToolbarState,
 } from '../useActiveSpace';
-import { resolvePrototypeSidebarVariant } from '../../layouts/resolve-prototype-sidebar-variant';
 import {
   HOME_LOCATION,
   HOME_PARENT,
@@ -152,74 +151,6 @@ describe('resolveSpaceSwitcherToolbarState', () => {
       label: null,
       triggerTitle: 'My Church — Testament Made',
     });
-  });
-});
-
-describe('resolvePrototypeSidebarVariant', () => {
-  it('uses shared-space view on space layer regardless of list mode', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: true,
-        sidebarLayer: 'space',
-        location: { parent: HOME_PARENT, spaceId: 'space_shared_1' },
-      }),
-    ).toBe('shared-space');
-  });
-
-  it('uses scoped list sidebar on list layer for shared spaces', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: true,
-        sidebarLayer: 'list',
-        location: { parent: HOME_PARENT, spaceId: 'space_shared_1' },
-      }),
-    ).toBe('shared-list');
-  });
-
-  it('uses personal sidebar for My Home', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: false,
-        sidebarLayer: 'space',
-        location: { parent: HOME_PARENT, spaceId: 'space_home' },
-      }),
-    ).toBe('personal');
-  });
-
-  it('uses church-hub when My Church is active without a space', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: false,
-        sidebarLayer: 'space',
-        location: { parent: churchParent('org_1'), spaceId: null },
-      }),
-    ).toBe('church-hub');
-  });
-
-  it('prefers shared-space over church-hub when a channel is open', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: false,
-        isSharedSpace: true,
-        sidebarLayer: 'space',
-        location: { parent: churchParent('org_1'), spaceId: 'space_ministry' },
-      }),
-    ).toBe('shared-space');
-  });
-
-  it('prefers admin sidebar on admin routes', () => {
-    expect(
-      resolvePrototypeSidebarVariant({
-        isAdminRoute: true,
-        isSharedSpace: true,
-        sidebarLayer: 'space',
-        location: { parent: HOME_PARENT, spaceId: 'space_shared_1' },
-      }),
-    ).toBe('admin');
   });
 });
 

@@ -15,8 +15,9 @@
  * live, and the surface is a `region` you tab into and out of. Escape closes,
  * but only when nothing inside claimed the key first.
  */
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
+import type { ProtoExpandRect } from '../../layouts/proto-shell-context';
 
 type ProtoSidebarExpandedPanelProps = {
   /** Accessible name for the region — the tool's title. */
@@ -39,6 +40,13 @@ type ProtoSidebarExpandedPanelProps = {
   actions?: ReactNode;
   /** True during the exit animation window. */
   exiting: boolean;
+  /**
+   * The box this was opened from, in viewport coordinates.
+   *
+   * Absent leaves the panel's original animation: an unfurl from the left edge at the
+   * sidebar's width, which was the truth while the sidebar was the only way in.
+   */
+  origin?: ProtoExpandRect | null;
   onClose: () => void;
   children: ReactNode;
 };
@@ -50,11 +58,55 @@ export default function ProtoSidebarExpandedPanel({
   toolbar,
   actions,
   exiting,
+  origin,
   onClose,
   children,
 }: ProtoSidebarExpandedPanelProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+
+  /*
+   * Grow out of whatever opened this.
+   *
+   * A clip, not a scale, and for the reason the width animation gave: the body is laid out at
+   * the final size and each frame is a window onto it rather than a reflow. A transform would
+   * have squashed a 1040px panel into a 30px button and stretched every word in it back out.
+   * This is the same idea the edge unfurl had, generalised from "a strip at the left" to any
+   * rectangle — so the surface opens from the header chip, the row, the step in the plan that
+   * asked for it.
+   *
+   * A layout effect, before paint: measured after, the first frame would be the panel at full
+   * size and the animation would start from a flash of the thing it is supposed to reveal.
+   */
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    if (!el || !origin) return;
+    /*
+     * Switch the animation over *before* measuring, or the box measured is the wrong one.
+     *
+     * The edge unfurl animates `width` with `fill-mode: both`, so its `from` keyframe holds
+     * the panel at the sidebar's width from the moment it mounts — and reading the rect there
+     * returns 304px rather than the 1000 it is about to become. The clip came out ~500px wide
+     * on the wrong side of the panel. Setting this first swaps in the rule whose width is the
+     * CSS one, and the `getBoundingClientRect` below forces the recalc that makes it true.
+     */
+    el.dataset.expandFrom = 'origin';
+    const to = el.getBoundingClientRect();
+    if (to.width < 1 || to.height < 1) {
+      delete el.dataset.expandFrom;
+      return;
+    }
+    /* Negative insets are fine and mean the opener sits outside the panel — a toolbar button
+       above it, say. `clip-path` takes them, and the reveal simply starts off-panel. */
+    const top = Math.round(origin.top - to.top);
+    const right = Math.round(to.right - (origin.left + origin.width));
+    const bottom = Math.round(to.bottom - (origin.top + origin.height));
+    const left = Math.round(origin.left - to.left);
+    el.style.setProperty(
+      '--proto-expand-clip-from',
+      `inset(${top}px ${right}px ${bottom}px ${left}px round 12px)`,
+    );
+  }, [origin]);
 
   /* Focus moves in once on mount and back to the opener on close. Not a trap —
      the toolbar and the note underneath stay reachable by keyboard. */

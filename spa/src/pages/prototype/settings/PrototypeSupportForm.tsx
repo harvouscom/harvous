@@ -1,3 +1,4 @@
+import { useReleaseNotesUrl } from '../../../hooks/useReleaseNotesUrl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import Icon from '@/components/react/Icon';
@@ -12,11 +13,7 @@ function appVersionRaw(): string | undefined {
   return (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__;
 }
 
-/** Matches harvous.com `versionToSlug` → `/release-notes/v2-3-10/`. */
-function releaseNotesUrlForVersion(version: string): string {
-  const slug = `v${version.replace(/\./g, '-').toLowerCase()}`;
-  return `https://harvous.com/release-notes/${slug}/`;
-}
+
 
 type Props = {
   initialTopic?: FeedbackTopic;
@@ -30,7 +27,7 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
 
   const version = appVersionRaw();
   const versionLabel = version ? `Version ${version}` : '';
-  const releaseNotesHref = version ? releaseNotesUrlForVersion(version) : null;
+  const releaseNotesUrl = useReleaseNotesUrl(version);
   const canSend = message.trim().length > 0 && !pending;
 
   const handleSend = async () => {
@@ -129,22 +126,32 @@ export default function PrototypeSupportForm({ initialTopic }: Props) {
         </button>
       </div>
 
-      {versionLabel ? (
-        <footer className="proto-support-version">
-          <p className="proto-support-version__label">{versionLabel}</p>
-          {releaseNotesHref ? (
-            <a
-              className="proto-support-version__link"
-              href={releaseNotesHref}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Release note
-              <Icon name="arrow-up-right-from-square" size={10} aria-hidden />
-            </a>
-          ) : null}
-        </footer>
-      ) : null}
+      {/*
+        * The link goes to this version's own page when the site has published one, and to the
+        * index when it has not.
+        *
+        * It was the index unconditionally, because the app's version bumps on every commit and
+        * a build is regularly ahead of what has been published — and this sits in the support
+        * pane, where people arrive because something is already wrong, which is the worst place
+        * in the app to hand somebody a second broken thing. The site now says which versions
+        * exist, so the specific page can be offered without that risk.
+        *
+        * The version still prints beside it. That is the part support actually needs, and it
+        * is now the only part that depends on knowing the version — the footer used to hide
+        * itself entirely without one, taking a working link with it.
+        */}
+      <footer className="proto-support-version">
+        {versionLabel ? <p className="proto-support-version__label">{versionLabel}</p> : null}
+        <a
+          className="proto-support-version__link"
+          href={releaseNotesUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Release notes
+          <Icon name="arrow-up-right-from-square" size={10} aria-hidden />
+        </a>
+      </footer>
     </>
   );
 }

@@ -31,6 +31,9 @@ const SELECT_NOUN_BY_KIND: Record<SidebarSelectionKind, string> = {
   thread: 'Threads',
   sharedThread: 'Threads',
   resource: 'resources',
+  /* The sidebar has no mixed list, so this is unreachable here — but the table has to be
+     total, and "items" is the word the panel's own bar uses for an unlike pile. */
+  mixed: 'items',
 };
 
 const MENU_Z_INDEX = 6000;

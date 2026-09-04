@@ -101,6 +101,7 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   'new',
   'compose',
   'church',
+  'review',
   'challenges',
   'compete',
   'learn',
@@ -257,9 +258,38 @@ export function prototypeReadRouteTo(): '/prototype/read/$book/$chapter' {
     : '/prototype/read/$book/$chapter') as '/prototype/read/$book/$chapter';
 }
 
+/**
+ * TanStack Router `to` for `/read/today` — the reader on whatever today's passage is.
+ *
+ * Separate from `prototypeReadRouteTo` because it takes no params: this is the URL for
+ * "somewhere real to land" (the marketing handoff, a guest's checklist), where the caller
+ * knows it wants today and not a particular chapter.
+ */
+export function prototypeReadTodayRouteTo(): '/prototype/read/today' {
+  return (isDedicatedPrototypeHost()
+    ? '/read/today'
+    : '/prototype/read/today') as '/prototype/read/today';
+}
+
 /** True for `/read/{book}/{chapter}` — the reader hosts in the shell like the note editor. */
 export function isPrototypeReadPath(pathname: string): boolean {
   return /^\/read\/[^/]+\/[^/]+\/?$/.test(prototypeLogicalPath(pathname));
+}
+
+/**
+ * The book/chapter a reader path names, for callers that need the subject rather than
+ * just the shape — the toolbar chip labelling itself "Romans", and the Library panel
+ * deciding which book to open to.
+ *
+ * Returns the raw slug; resolving it to a book title is `bookFromSlug`'s job, and lives
+ * in the caller so this module stays free of canon data.
+ */
+export function matchPrototypeReadParams(
+  pathname: string,
+): { bookSlug: string; chapter: string } | null {
+  const match = /^\/read\/([^/]+)\/([^/]+)\/?$/.exec(prototypeLogicalPath(pathname));
+  if (!match) return null;
+  return { bookSlug: decodeURIComponent(match[1]!), chapter: decodeURIComponent(match[2]!) };
 }
 
 export function prototypeSettingsRouteTo(): '/prototype/settings' {
@@ -272,6 +302,29 @@ export function prototypeSettingsAccountRouteTo(): '/prototype/settings/account'
 
 export function prototypeSettingsSupportRouteTo(): '/prototype/settings/support' {
   return (isDedicatedPrototypeHost() ? '/settings/support' : '/prototype/settings/support') as '/prototype/settings/support';
+}
+
+/**
+ * Review's two URLs, and Challenges' two.
+ *
+ * Shaped like `prototypeReadTodayRouteTo` rather than the note route: these take no params,
+ * except the one challenge id, and both live under segments reserved in
+ * `RESERVED_PROTOTYPE_SEGMENTS` so the single-segment note catch-all cannot swallow them.
+ */
+export function prototypeReviewRouteTo(): '/prototype/review' {
+  return (isDedicatedPrototypeHost() ? '/review' : '/prototype/review') as '/prototype/review';
+}
+
+export function prototypeChallengesRouteTo(): '/prototype/challenges' {
+  return (isDedicatedPrototypeHost()
+    ? '/challenges'
+    : '/prototype/challenges') as '/prototype/challenges';
+}
+
+export function prototypeChallengeRouteTo(): '/prototype/challenges/$challengeId' {
+  return (isDedicatedPrototypeHost()
+    ? '/challenges/$challengeId'
+    : '/prototype/challenges/$challengeId') as '/prototype/challenges/$challengeId';
 }
 
 export function prototypeHomeRouteTo(): '/prototype' {

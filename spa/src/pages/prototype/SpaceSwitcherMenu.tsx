@@ -7,12 +7,21 @@
  * In My Church, staff can create a church Shared Space or ministry channel.
  * Create opens CreateSharedSpaceSheet (dialog/sheet), not an inline form.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import ProtoHouseIcon from './ProtoHouseIcon';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import { SpaceSwitcherTriggerIcon } from './SpaceSwitcherTriggerIcon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { parentForSpace } from '../../layouts/proto-location';
 import { resolveSpaceSwitcherToolbarState, useActiveSpace } from '../../hooks/useActiveSpace';
@@ -64,6 +73,12 @@ import CreateSharedSpaceSheet, { type CreateSpaceSheetKind } from './CreateShare
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { PROTO_MENU_CHECK_ICON_SIZE, PROTO_SEG_GLYPH_SIZE, PROTO_TOOLBAR_ICON_SIZE, PROTO_TOOLBAR_ORB_ICON_SIZE, PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
 import { UNLIMITED, isUnlimited } from '@/lib/shared-spaces-limits';
+import {
+  anySpaceHasUnseenActivity,
+  normalizeSwitcherSpaceId as normalizeSpaceId,
+  spaceHasUnseenActivity,
+  unseenDotLabelSuffix,
+} from './space-switcher-unseen';
 
 type SpaceSwitcherDragController = ReturnType<typeof useSharedSpaceSwitcherDragReorder>;
 
@@ -102,8 +117,7 @@ function SpaceSwitcherRow({
     transform,
     transition,
   } = useSortable({ id: spaceId });
-  // Active space: no new affordance (you're already there). Inactive: subtle dot only.
-  const hasUnseen = !checked && Boolean(row.newNoteCount && row.newNoteCount > 0);
+  const hasUnseen = spaceHasUnseenActivity(row, checked);
   const ministry = isMinistryBroadcastSpace(row);
 
   return (
@@ -168,24 +182,54 @@ const SPACE_SWITCHER_POPOVER_FALLBACK_HEIGHT = 180;
 /** Spaces listed under each parent before collapsing into a "See all" row. */
 const SWITCHER_SPACES_PER_PARENT = 6;
 
-function normalizeSpaceId(id: string): string {
-  return id.startsWith('space_') ? id : `space_${id}`;
-}
+const NOOP = () => {};
+
+/**
+ * Which triggers live inside the sidebar, and so should reveal it when a space is picked.
+ *
+ * `ensureSidebarExpanded` was right when this control only ever lived in the rail's own
+ * header — picking a space meant "show me it", and the rail was where it would be shown.
+ * Mounted anywhere else, that same call slides the sidebar open underneath the surface the
+ * reader is actually using.
+ */
+const REVEALS_SIDEBAR: Record<'orb' | 'segment' | 'panel-header' | 'external', boolean> = {
+  orb: true,
+  segment: true,
+  'panel-header': false,
+  external: false,
+};
 
 export default function SpaceSwitcherMenu({
   homeSpaceId,
   authReady,
   trigger = 'orb',
+  open: openProp,
+  onOpenChange,
+  anchorRef,
 }: {
   homeSpaceId: string | null;
   authReady: boolean;
   /**
    * `orb` is the standalone control — a circle, or a titled pill once a space is chosen.
    * `segment` is the same control as the Spaces half of the sidebar's layer switch: a
-   * flat, full-width half of a joined pill. Only the trigger changes; the menu below is
-   * one menu, because there is only one set of spaces to pick from.
+   * flat, full-width half of a joined pill. `panel-header` is the Library panel's scope
+   * control. Only the trigger changes; the menu below is one menu, because there is only
+   * one set of spaces to pick from.
    */
-  trigger?: 'orb' | 'segment';
+  trigger?: 'orb' | 'segment' | 'panel-header' | 'external';
+  /**
+   * `external` only: the caller renders the button and owns the open state.
+   *
+   * Controlled rather than a `renderTrigger` callback, because the one caller puts its
+   * trigger inside `.proto-seg-track` — a container whose sliding thumb is sized
+   * `track / count` and assumes exactly three equal children. A render prop would still
+   * have this component own a DOM node in that track (the `.proto-menu` wrapper it emits),
+   * which the thumb does not expect. This way the toolbar's markup stays byte-identical
+   * and the menu contributes only its portalled popover.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  anchorRef?: RefObject<HTMLElement | null>;
 }) {
   const navigate = useNavigate();
   const {
@@ -206,7 +250,23 @@ export default function SpaceSwitcherMenu({
   const switchToSpace = useSwitchToSpace();
   const { isSharedSpace, space, spaceTitle, navReady } = useActiveSpace();
   const showShiftHints = usePrototypeShiftHints();
-  const [open, setOpen] = useState(false);
+  /* Declared here rather than beside `inPanelHeader` below, because the open state
+     immediately under it branches on this. */
+  const isExternal = trigger === 'external';
+  const [internalOpen, setInternalOpen] = useState(false);
+  /* External mode hands both the button and the open state to the caller. */
+  const open = isExternal ? Boolean(openProp) : internalOpen;
+  const setOpen = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      const resolve = (prev: boolean) => (typeof next === 'function' ? next(prev) : next);
+      if (isExternal) {
+        onOpenChange?.(resolve(Boolean(openProp)));
+        return;
+      }
+      setInternalOpen(resolve);
+    },
+    [isExternal, onOpenChange, openProp],
+  );
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   /** Captured when opening the create sheet so My Church mode survives menu close. */
   const [createOrgId, setCreateOrgId] = useState<string | null>(null);
@@ -229,11 +289,36 @@ export default function SpaceSwitcherMenu({
    */
   const [seenTick, setSeenTick] = useState(0);
   useEffect(() => subscribeRecallShelfSeenChanged(() => setSeenTick((t) => t + 1)), []);
+  /*
+   * "You are not looking at the shelf right now" — asked of whichever surface this trigger
+   * lives on. Inside the rail that is the layer; outside it the layer is a question the
+   * trigger cannot answer, and asking it anyway made the dot depend on state the toolbar
+   * has no relationship to.
+   */
+  const awayFromShelf = REVEALS_SIDEBAR[trigger] ? sidebarLayer !== 'space' : true;
   const hasUnseenSuggestions = useMemo(
-    () => sidebarLayer !== 'space' && recallShelfHasUnseen(homeSpaceId, localDayIndex(new Date())),
+    () => awayFromShelf && recallShelfHasUnseen(homeSpaceId, localDayIndex(new Date())),
     // `seenTick` is the subscription; the day is read fresh each time it fires.
-    [sidebarLayer, homeSpaceId, seenTick],
+    [awayFromShelf, homeSpaceId, seenTick],
   );
+
+  /*
+   * The trigger's other source of news. It used to raise the dot for unseen *suggestions*
+   * alone, so the toolbar could sit undotted above a list where two spaces each carried one.
+   * Same rule as the rows, asked of all of them at once.
+   */
+  const spacesHaveUnseen = useMemo(
+    () =>
+      anySpaceHasUnseenActivity(
+        [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
+        (row) => activeSpaceId === normalizeSpaceId(row.id),
+      ),
+    [nav?.spaces, nav?.memberOfSpaces, activeSpaceId],
+  );
+  const unseenSuffix = unseenDotLabelSuffix({
+    suggestions: hasUnseenSuggestions,
+    spaces: spacesHaveUnseen,
+  });
 
   const normalizedActive = useMemo(
     () => (homeSpaceId == null ? null : normalizeSpaceId(homeSpaceId)),
@@ -407,7 +492,7 @@ export default function SpaceSwitcherMenu({
       return undefined;
     }
     const update = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
+      const rect = (anchorRef ?? triggerRef).current?.getBoundingClientRect();
       if (!rect) return;
       const measured = popoverRef.current?.getBoundingClientRect();
       const width = measured?.width || SPACE_SWITCHER_POPOVER_WIDTH;
@@ -427,7 +512,7 @@ export default function SpaceSwitcherMenu({
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [open]);
+  }, [open, anchorRef]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -437,6 +522,9 @@ export default function SpaceSwitcherMenu({
       if (spaceDrag.isDragging || churchDrag.isDragging) return;
       const target = e.target as Node;
       if (triggerRef.current?.contains(target)) return;
+      /* The external trigger is a button this component does not render; without this the
+         segment's own click would close the menu and immediately reopen it. */
+      if (anchorRef?.current?.contains(target)) return;
       if (popoverRef.current?.contains(target)) return;
       setOpen(false);
     };
@@ -449,7 +537,7 @@ export default function SpaceSwitcherMenu({
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [open, spaceDrag.isDragging, churchDrag.isDragging]);
+  }, [open, anchorRef, setOpen, spaceDrag.isDragging, churchDrag.isDragging]);
 
   if (!authReady) {
     return null;
@@ -465,6 +553,20 @@ export default function SpaceSwitcherMenu({
     myChurchName: myChurch?.churchName ?? null,
   });
   const isSegment = trigger === 'segment';
+  /*
+   * In the Library panel the sidebar must stay where it is.
+   *
+   * Every selection here otherwise calls `ensureSidebarExpanded`, which was right when
+   * this control only ever lived in the sidebar's own header — picking a space meant
+   * "show me it", and the rail was where it would be shown. Mounted in the panel, that
+   * same call slides the sidebar open *underneath* the panel the reader is using.
+   */
+  const inPanelHeader = trigger === 'panel-header';
+  /*
+   * A table rather than a negation, so the next trigger has to answer the question instead
+   * of inheriting whichever default it happens to fall on.
+   */
+  const revealSidebar = REVEALS_SIDEBAR[trigger] ? ensureSidebarExpanded : NOOP;
   /** Pill when a space/channel is selected (title); My Home / My Church hubs stay circular orbs.
    *
    * A title is required, not incidental: the pill's padding is asymmetric because it is
@@ -490,16 +592,15 @@ export default function SpaceSwitcherMenu({
    * tile. See PROTO_SEG_GLYPH_SIZE.
    */
   const hubGlyphSize = isSegment ? PROTO_SEG_GLYPH_SIZE : PROTO_TOOLBAR_ORB_ICON_SIZE;
-  const triggerIcon = activeIsMinistry ? (
-    <ProtoSpaceMenuIcon color={space?.color || 'paper'} iconName="rss" />
-  ) : showSharedSpaceToolbar ? (
-    <ProtoSpaceMenuIcon color={space?.color || 'paper'} />
-  ) : inMyChurchMode ? (
-    <Icon name="church" size={hubGlyphSize} aria-hidden />
-  ) : hasHome ? (
-    <ProtoHouseIcon size={hubGlyphSize} />
-  ) : (
-    <Icon name="table-cells" size={hubGlyphSize} />
+  const triggerIcon = (
+    <SpaceSwitcherTriggerIcon
+      space={space}
+      isMinistry={activeIsMinistry}
+      inSharedSpace={showSharedSpaceToolbar}
+      inMyChurchMode={inMyChurchMode}
+      hasHome={hasHome}
+      glyphSize={hubGlyphSize}
+    />
   );
 
   // Every selection closes the menu. The parent chips that used to stay open
@@ -509,14 +610,14 @@ export default function SpaceSwitcherMenu({
   function selectHome() {
     setOpen(false);
     switchToSpace(null);
-    ensureSidebarExpanded();
+    revealSidebar();
   }
 
   function selectMyChurch() {
     if (!myChurch) return;
     setOpen(false);
     setActiveChurchOrgId(myChurch.orgId);
-    ensureSidebarExpanded();
+    revealSidebar();
   }
 
   /**
@@ -527,7 +628,7 @@ export default function SpaceSwitcherMenu({
   function selectSpace(row: NavSpace) {
     setOpen(false);
     switchToSpace(normalizeSpaceId(row.id), parentForSpace(row));
-    ensureSidebarExpanded();
+    revealSidebar();
   }
 
   function openCreateSheet(kind: CreateSpaceSheetKind = 'shared') {
@@ -569,6 +670,18 @@ export default function SpaceSwitcherMenu({
       />
     );
   }
+
+  const createSheet = (
+    <CreateSharedSpaceSheet
+      open={createSheetOpen}
+      onOpenChange={setCreateSheetOpen}
+      orgId={createOrgId}
+      kind={createKind}
+      // A just-created space isn't in nav yet, so its parent can't be looked
+      // up — but the sheet already captured which org it was created under.
+      onCreated={(spaceId) => selectSpace({ id: spaceId, orgId: createOrgId } as NavSpace)}
+    />
+  );
 
   const popover = open && typeof document !== 'undefined'
     ? createPortal(
@@ -742,6 +855,17 @@ export default function SpaceSwitcherMenu({
       )
     : null;
 
+  if (isExternal) {
+    /* No wrapper and no button: the caller owns both, and the seg-track it sits in expects
+       exactly three children. All this mode contributes is the menu itself. */
+    return (
+      <>
+        {popover}
+        {createSheet}
+      </>
+    );
+  }
+
   return (
     <div
       className={[
@@ -752,7 +876,7 @@ export default function SpaceSwitcherMenu({
         .filter(Boolean)
         .join(' ')}
     >
-      <PrototypeToolbarShortcutItem shortcut="H" showShortcut={showShiftHints}>
+      <PrototypeToolbarShortcutItem showShortcut={showShiftHints}>
         <button
           ref={triggerRef}
           type="button"
@@ -767,9 +891,7 @@ export default function SpaceSwitcherMenu({
           title={triggerTitle}
           /* The dot is `aria-hidden`, so what it means has to reach the label — otherwise the
              only people told there is something new are the ones who can see 7px of colour. */
-          aria-label={
-            hasUnseenSuggestions ? `${triggerTitle} — new suggestions` : triggerTitle
-          }
+          aria-label={unseenSuffix ? `${triggerTitle} — ${unseenSuffix}` : triggerTitle}
           aria-haspopup="menu"
           aria-expanded={open}
           disabled={!hasHome}
@@ -780,7 +902,9 @@ export default function SpaceSwitcherMenu({
           // menu. Neither job ever costs two clicks.
           onClick={() => {
             if (!hasHome) return;
-            if (!open && sidebarLayer !== 'space') {
+            /* No layer to switch to in the panel — its header has one job, so the
+               trigger always opens the menu rather than toggling something first. */
+            if (REVEALS_SIDEBAR[trigger] && !open && sidebarLayer !== 'space') {
               setSidebarLayer('space');
               ensureSidebarExpanded();
               return;
@@ -824,21 +948,13 @@ export default function SpaceSwitcherMenu({
           ) : (
             triggerIcon
           )}
-          {hasUnseenSuggestions ? (
+          {unseenSuffix ? (
             <span className="proto-toolbar-icon-btn__unseen-dot" aria-hidden />
           ) : null}
         </button>
       </PrototypeToolbarShortcutItem>
       {popover}
-      <CreateSharedSpaceSheet
-        open={createSheetOpen}
-        onOpenChange={setCreateSheetOpen}
-        orgId={createOrgId}
-        kind={createKind}
-        // A just-created space isn't in nav yet, so its parent can't be looked
-        // up — but the sheet already captured which org it was created under.
-        onCreated={(spaceId) => selectSpace({ id: spaceId, orgId: createOrgId } as NavSpace)}
-      />
+      {createSheet}
     </div>
   );
 }

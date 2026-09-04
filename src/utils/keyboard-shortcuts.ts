@@ -343,9 +343,11 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
       return true;
     }
     /**
-     * The palette opens with its field focused and searches notes as you type, so this
-     * still does what it always did — it just also runs commands. The old behaviour is
-     * not lost either: ⌘F focuses the sidebar's own search field (see below).
+     * Opens the Library panel with its field focused. The event name is a fossil: it used to
+     * summon `PrototypeCommandPalette`, which has since merged into the panel — the tabs are
+     * the browsing, the query is the retrieval, and the organize verbs are an Actions group
+     * above the results. The name is kept because `library-panel/__tests__/palette-retired.test.ts`
+     * asserts the shell still listens for it, so the chord cannot be quietly unhooked.
      */
     if (key === 'k') {
       event.preventDefault();
@@ -447,15 +449,12 @@ function handlePrototypeKeyboardShortcut(event: KeyboardEvent): boolean {
     }
   }
 
-  // Cmd/Ctrl + F — focus sidebar search (native SidebarPanelView parity).
-  if (modifier && key === 'f' && !event.altKey && !event.shiftKey) {
-    if (isPrototypeTypingContext(event)) return false;
-    if (isPrototypeShellPath(path)) {
-      event.preventDefault();
-      window.dispatchEvent(new CustomEvent('prototypeShortcutFocusSidebarSearch'));
-      return true;
-    }
-  }
+  /*
+   * Cmd/Ctrl + F is deliberately *not* bound: it belongs to the browser's find-in-page, and a
+   * document app is exactly where someone reaches for that. ⇧K opens the Library panel's search
+   * — searching the library rather than the page in front of you — and that is the only chord
+   * for it, so the toolbar chip can name one key rather than two.
+   */
 
   // Cmd/Ctrl + S — save in editor/forms.
   if (modifier && key === 's' && !event.altKey && !event.shiftKey) {
@@ -755,23 +754,30 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       items: [
         { action: 'New note', keyParts: [shift, 'N'] },
         { action: 'Read the Bible', keyParts: [shift, 'R'] },
-        { action: 'Search and commands', keyParts: [shift, 'K'] },
+        { action: 'Search the Library', keyParts: [shift, 'K'] },
         { action: 'Settings', keyParts: [shift, ','] },
         { action: 'Toggle sidebar', keyParts: [shift, 'S'] },
-        { action: 'Show Home', keyParts: [shift, 'H'] },
-        { action: 'Show list', keyParts: [shift, 'L'] },
-        { action: 'Focus note list', keyParts: [shift, 'J'] },
+        { action: 'Show Activity', keyParts: [shift, 'H'] },
+        { action: 'Open the Library', keyParts: [shift, 'L'] },
+        { action: 'Focus the list', keyParts: [shift, 'J'] },
         { action: 'Dismiss', keyParts: ['Esc'] },
       ],
     },
     {
-      heading: 'Sidebar',
+      /**
+       * "Browsing" rather than "Sidebar": ⇧K and ⇧L both open the Library panel now, and
+       * ⇧← / ⇧→ cycles whichever of the two surfaces is up. A heading naming only the rail
+       * would send the reader to the one these keys mostly do not reach.
+       *
+       * `Home / End → Jump to first / last` used to sit here and was never bound — the only
+       * Home/End handler on a prototype route is the sidebar's resize grip. A reference page
+       * that advertises a chord nothing answers is worse than one that omits it.
+       */
+      heading: 'Browsing',
       items: [
-        { action: 'Cycle list mode', keyParts: [shift, '← / →'] },
+        { action: 'Cycle sections', keyParts: [shift, '← / →'] },
         { action: 'Move in list', keyParts: [shift, '↑ / ↓'] },
-        { action: 'Jump to first / last', keyParts: ['Home / End'] },
         { action: 'Open item', keyParts: ['Enter'] },
-        { action: 'Focus search field', keyParts: [getKeyboardShortcutModifierLabel(), 'F'] },
         { action: 'Back', keyParts: [getKeyboardShortcutModifierLabel(), '←'] },
       ],
     },
@@ -779,7 +785,7 @@ export function getPrototypeKeyboardShortcutsReference(): KeyboardShortcutRefere
       /**
        * Derived from the command table rather than restated, so a verb cannot exist as a
        * chord without appearing here. The two lists used to be independent, and this one
-       * had already drifted — it was missing ⌘F and ⌘← above.
+       * had already drifted — it was missing ⌘← above.
        *
        * These act on the selection when one stands, and on the row holding keyboard focus
        * when none does.

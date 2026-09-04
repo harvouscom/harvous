@@ -41,7 +41,9 @@ import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import SharedNoteActivityPanel from './SharedNoteActivityPanel';
-import PrototypeInspectorTemplatesSection from './PrototypeInspectorTemplatesSection';
+import PrototypeInspectorTemplatesSection, {
+  type PrototypeInspectorTemplatesSectionProps,
+} from './PrototypeInspectorTemplatesSection';
 import PrototypeInspectorTeachingPlanSection, {
   type PrototypeInspectorTeachingPlanSectionProps,
 } from './PrototypeInspectorTeachingPlanSection';
@@ -64,21 +66,14 @@ import {
   REMOVE_NOTE_FROM_SPACE_CONFIRMATION as SHARED_REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
 } from './proto-destructive-copy';
 
-export type PrototypeInspectorTemplatesProps = {
-  spaceId?: string | null;
-  spaceTitle?: string | null;
-  canAttachToSpace?: boolean;
-  showSpaceAttachOption?: boolean;
-  isEmpty: boolean;
-  liveTitle: string;
-  liveContent: string;
-  noteType?: string | null;
-  startedFromTemplateId?: string | null;
-  startedFromTemplateName?: string | null;
-  onApply: (template: ApplyableNoteTemplate) => void;
-  /** Keep note provenance label in sync when the source template is renamed. */
-  onTemplateProvenanceChange?: (provenance: { id: string; name: string }) => void;
-};
+/**
+ * What the pane hands the templates section — which is exactly what the section takes.
+ *
+ * This was a second, hand-maintained copy of the section's own props, and it had already
+ * drifted: `churchOrgId` and `canManageChurchTemplates` were missing here while the pane
+ * spread them straight through, so two real props travelled untyped. An alias cannot drift.
+ */
+export type PrototypeInspectorTemplatesProps = PrototypeInspectorTemplatesSectionProps;
 
 interface PrototypeInspectorPaneProps {
   note: NoteDetail;

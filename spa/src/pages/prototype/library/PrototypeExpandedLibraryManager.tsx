@@ -41,6 +41,7 @@ const VIEWS: { id: LibraryManagerView; label: string; icon: IconName }[] = [
 
 export default function PrototypeExpandedLibraryManager({
   exiting,
+  origin,
   onClose,
 }: ExpandedSidebarToolProps) {
   const { activeChurchOrgId } = useProtoShell();
@@ -108,6 +109,7 @@ export default function PrototypeExpandedLibraryManager({
         ) : undefined
       }
       exiting={exiting}
+      origin={origin}
       onClose={onClose}
     >
       {!canBrowse ? (

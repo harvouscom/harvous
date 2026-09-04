@@ -29,6 +29,8 @@ export interface PrototypeHomePresentationReadyInput {
   /** Clerk `useUser().isLoaded` — enough for the hello first name. */
   clerkLoaded: boolean;
   fingerprintsSettled: boolean;
+  /** The reader's Study Bible layer, which the study arc prefers over the note-side count. */
+  studyBibleSettled: boolean;
   tagsSettled: boolean;
   threadsSettled: boolean;
   scriptureSettled: boolean;
@@ -39,6 +41,8 @@ export interface PrototypeHomePresentationReadyInput {
   /** Daily passage pill — settle even when the day has no VOTD. */
   votdSettled: boolean;
   /** Cross-ref gaps — feeds the `crossrefGap` recall card. */
+  /** The search log behind the unanswered-question card. */
+  searchEventsSettled: boolean;
   crossRefGapsSettled: boolean;
   /** Connect suggestions — feeds the `connectNotes` recall card. */
   connectSuggestionsSettled: boolean;
@@ -81,11 +85,13 @@ export function isPrototypeHomePresentationReady(input: PrototypeHomePresentatio
     input.connectionsSettled &&
     input.highlightsSettled &&
     input.votdSettled &&
+    input.searchEventsSettled &&
     input.crossRefGapsSettled &&
     input.connectSuggestionsSettled &&
     input.recallHistorySettled &&
     input.churchSermonsSettled &&
     input.churchFeedSettled &&
-    input.readingPositionSettled
+    input.readingPositionSettled &&
+    input.studyBibleSettled
   );
 }

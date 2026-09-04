@@ -3,8 +3,11 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { isScriptureQuoteBlockquoteNode } from '@/components/react/TiptapScriptureQuoteBlockquote';
 import { fetchVerseHtml } from '@/utils/fetch-verse-html';
 import { stripHtml } from '@/utils/html-stripper';
-import { scriptureQuoteAccentKey, quoteReferencesAlign } from '@/utils/insert-scripture-quote';
-import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import {
+  scriptureQuoteAccentKey,
+  quoteReferencesAlign,
+  scriptureQuoteReferenceValue,
+} from '@/utils/insert-scripture-quote';
 
 export type ScriptureQuoteAfterPill = { pos: number; node: ProseMirrorNode };
 
@@ -87,18 +90,22 @@ export async function syncAdjacentScriptureQuotesForPillApply(
   const quotes = findScriptureQuotesAfterPillBlock(editor.state.doc, pillFrom, pillTo);
   if (!quotes.length) return false;
 
-  const normRef = normalizeScriptureReference(reference) ?? reference;
+  const normRef = scriptureQuoteReferenceValue(reference) ?? reference;
   const accent = scriptureQuoteAccentKey(pillAccent);
 
   const tr = editor.state.tr;
   const { schema } = editor.state;
   for (let i = quotes.length - 1; i >= 0; i -= 1) {
     const { pos, node } = quotes[i];
-    const storedRef =
-      typeof node.attrs.scriptureQuoteReference === 'string'
-        ? normalizeScriptureReference(node.attrs.scriptureQuoteReference) ??
-          String(node.attrs.scriptureQuoteReference)
-        : null;
+    /*
+     * Coerced on the way in as well as the way out, because `refToFetch` is both what gets
+     * fetched and what gets stored: a value read off a note that loaded corrupted is a candidate
+     * for being written straight back. Today it survives only by luck — garbage fails
+     * `quoteReferencesAlign` and loses to `normRef` — which is a weak thing to rest on.
+     */
+    const storedRef = scriptureQuoteReferenceValue(
+      typeof node.attrs.scriptureQuoteReference === 'string' ? node.attrs.scriptureQuoteReference : null,
+    );
     const refToFetch =
       storedRef && quoteReferencesAlign(normRef, storedRef) ? storedRef : normRef;
 

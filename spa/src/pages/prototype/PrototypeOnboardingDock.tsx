@@ -14,6 +14,13 @@
  * is what is left.
  */
 import { useEffect, useRef, useState } from 'react';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
+import {
+  shownOnboardingProgress,
+  stepAppliesTo,
+  stepIsDone,
+} from './onboarding-visible-steps';
 import Icon, { type IconName } from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useOnboardingState } from './useOnboardingState';
@@ -82,10 +89,17 @@ const COPY_BY_ID = new Map(ONBOARDING_STEP_COPY.map((step) => [step.id, step]));
 type Props = {
   /** Take the user to where a step gets done. */
   onStepAction: (id: OnboardingStepId) => void;
+  /**
+   * `home` is the ambient group on Activity. `popover` is the same list inside the toolbar's
+   * card, where the eyebrow and the cluster-dismiss are the popover's own chrome and would be
+   * said twice.
+   */
+  variant?: 'home' | 'popover';
 };
 
-export default function PrototypeOnboardingDock({ onStepAction }: Props) {
-  const { state, visible, progress, dismissStep, dismissAll } = useOnboardingState();
+export default function PrototypeOnboardingDock({ onStepAction, variant = 'home' }: Props) {
+  const { state, visible, dismissStep, dismissAll } = useOnboardingState();
+  const { isGuest } = useHarvousIdentity();
 
   /*
    * Rows mid-goodbye: done, but still on screen playing the check and collapse.
@@ -101,10 +115,14 @@ export default function PrototypeOnboardingDock({ onStepAction }: Props) {
   const celebratedRef = useRef(false);
 
   const rows = ONBOARDING_STEP_COPY.filter((step) => {
+    if (!stepAppliesTo(step.id, isGuest)) return false;
     if (exiting.includes(step.id)) return true;
-    const s = state.steps[step.id];
-    return !s.done && !s.dismissed;
+    if (stepIsDone(state, step.id, isGuest)) return false;
+    return !state.steps[step.id].dismissed;
   });
+
+  const shownProgress = shownOnboardingProgress(state, isGuest);
+
   /*
    * A row still finishing its exit keeps the dock up — but only when the dock is leaving of
    * its own accord. Completing the last step should play out; being dismissed should not.
@@ -112,7 +130,16 @@ export default function PrototypeOnboardingDock({ onStepAction }: Props) {
    * whole thing on screen for another second, which reads as the button not working.
    */
   const dismissed = state.dismissedVersion >= ONBOARDING_VERSION;
-  const showing = !dismissed && (visible || exiting.length > 0);
+  /*
+   * A guest is never "finished".
+   *
+   * `visible` goes false once every step is done, which is right for a member — the list has
+   * served its purpose and retires itself. A guest's list has a fourth row that is not a step
+   * and cannot be ticked, so finishing read, highlight and note made the checklist vanish
+   * taking the account offer with it, at the exact moment they had most to keep. Dismissing it
+   * still works; completing it no longer counts as dismissing it.
+   */
+  const showing = !dismissed && (visible || isGuest || exiting.length > 0);
   const liveIds = showing ? rows.filter((r) => !exiting.includes(r.id)).map((r) => r.id) : [];
   const liveKey = liveIds.join(',');
 
@@ -164,30 +191,10 @@ export default function PrototypeOnboardingDock({ onStepAction }: Props) {
     showPrototypeFeedbackToast("That's the tour — the rest is yours.", 'success');
   }, [state.completedAt, exiting.length]);
 
-  if (!showing || rows.length === 0) return null;
+  // A guest always has the account row, so an empty step list is not an empty dock for them.
+  if (!showing || (rows.length === 0 && !isGuest)) return null;
 
-  return (
-    <section
-      className="proto-home-section proto-onboarding-dock"
-      aria-label="Getting started"
-    >
-      <div className="proto-onboarding-dock__head">
-        <p className="proto-caption proto-onboarding-dock__eyebrow">
-          Getting started
-          <span className="proto-onboarding-dock__count" aria-label={`${progress.done} of ${progress.total} done`}>
-            {progress.done} of {progress.total}
-          </span>
-        </p>
-        <button
-          type="button"
-          className="proto-side-panel__action-btn proto-onboarding-dock__dismiss"
-          aria-label="Dismiss getting started"
-          onClick={dismissAll}
-        >
-          <Icon name="xmark" size={12} aria-hidden />
-        </button>
-      </div>
-
+  const list = (
       <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-onboarding-dock__list">
         {rows.map((step, index) => {
           const done = exiting.includes(step.id);
@@ -227,7 +234,72 @@ export default function PrototypeOnboardingDock({ onStepAction }: Props) {
             </div>
           );
         })}
+
+        {/*
+          The last step, and the only one that is not about Scripture: it is what turns two
+          highlights on one browser into a study. Placed inside the same list rather than as a
+          separate card so it reads as the end of the sequence — the thing you arrive at, not a
+          banner bolted underneath one.
+
+          No dismiss control. The other rows can be put away because the app works without
+          them; this one is the offer the whole mode exists to make, and the dock's own
+          dismiss already puts the entire cluster away for anyone who wants it gone.
+        */}
+        {isGuest ? (
+          <div className="proto-onboarding-dock__row" style={{ '--proto-onboarding-index': rows.length } as React.CSSProperties}>
+            <div className="proto-onboarding-dock__row-inner">
+              <PrototypeHomeRow
+                icon="circle-user"
+                title="Create a free account"
+                /*
+                  Says what an account is *for*, in the terms this reader already has. The line
+                  before it — "keeps what you make, and opens notes, threads and recall" —
+                  listed three features they have never seen, and led with a verb ("opens")
+                  doing work it cannot do on its own. Their study following them is the promise
+                  the product actually makes; a phone is the concrete form of it.
+                */
+                meta={['Keeps your study, and brings it to your phone too.']}
+                onClick={() => {
+                  leaveForSignUp();
+                  window.location.href = guestSignUpHref();
+                }}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
+  );
+
+  /* The popover supplies its own title and its own way out, so the section head would be
+     the same two things said twice inside a card the size of the list. */
+  if (variant === 'popover') return list;
+
+  return (
+    <section
+      className="proto-home-section proto-onboarding-dock"
+      aria-label="Getting started"
+    >
+      <div className="proto-onboarding-dock__head">
+        <p className="proto-caption proto-onboarding-dock__eyebrow">
+          Getting started
+          <span
+            className="proto-onboarding-dock__count"
+            aria-label={`${shownProgress.done} of ${shownProgress.total} done`}
+          >
+            {shownProgress.done} of {shownProgress.total}
+          </span>
+        </p>
+        <button
+          type="button"
+          className="proto-side-panel__action-btn proto-onboarding-dock__dismiss"
+          aria-label="Dismiss getting started"
+          onClick={dismissAll}
+        >
+          <Icon name="xmark" size={12} aria-hidden />
+        </button>
+      </div>
+
+      {list}
     </section>
   );
 }

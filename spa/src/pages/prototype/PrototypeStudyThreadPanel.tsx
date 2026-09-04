@@ -4,6 +4,7 @@
  * Name/auto/lock use proto-fte-* classes (same as PrototypeFolderTagEditor).
  */
 import { useEffect, useMemo, useState } from 'react';
+import { THREAD_NAME_MAX_LENGTH } from '@/utils/collection-name-limits';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import PrototypeConnectNoteSheet from './PrototypeConnectNoteSheet';
@@ -180,6 +181,7 @@ export default function PrototypeStudyThreadPanel({ noteId, spaceId }: Prototype
                   onChange={(e) => { setEditingTitle(true); setTitleDraft(e.target.value); }}
                   onBlur={() => { if (!isManual) setEditingTitle(false); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyTitle(); } }}
+                  maxLength={THREAD_NAME_MAX_LENGTH}
                   aria-label="Thread name"
                 />
                 <div className="proto-fte-field__actions">

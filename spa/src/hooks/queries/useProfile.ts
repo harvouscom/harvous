@@ -229,6 +229,15 @@ export interface UserProfile {
    * degrades to "no saved position" rather than breaking the profile load.
    */
   lastReadPosition?: string | null;
+  /**
+   * Appearance and onboarding, as the raw JSON strings from the account.
+   *
+   * Neither is read through `useProfile` — the prototype shell hydrates them into their own
+   * stores on mount. They are typed here because that hydration shares this query rather than
+   * fetching the same profile a second time, so the shape it receives has to say they exist.
+   */
+  appearanceSettings?: string | null;
+  onboardingState?: string | null;
 }
 
 export interface XPData {
@@ -254,6 +263,91 @@ function asPlaceholderProfile(snapshot: CachedSessionProfile | undefined): UserP
   return snapshot as UserProfile | undefined;
 }
 
+/**
+ * The profile fetch itself, outside the hook so `profileQueryOptions` and `useProfile` run the
+ * same code. `userId` is the caller's, because `id` is the one field the response does not send.
+ */
+function fetchProfile(userId: string): Promise<UserProfile> {
+  return api
+    .get<
+      Omit<UserProfile, 'displayName' | 'defaultTranslation'> & {
+        displayName?: string;
+        emailVerified?: boolean;
+        hmcChurchId?: string | null;
+        churchName?: string | null;
+        churchCity?: string | null;
+        churchState?: string | null;
+        churchCountry?: string | null;
+        connectedChurchId?: string | null;
+        connectedOrgId?: string | null;
+        connectedChurchAt?: string | null;
+        isHomeChurchStaff?: boolean;
+        hasLockPinSet?: boolean;
+        defaultTranslation?: string;
+        sharedSpaceSwitcherOrder?: string[] | null;
+        lastReadPosition?: string | null;
+      }
+    >('/api/user/get-profile')
+    .then((data) => {
+      if (data.userColor) setCachedUserColor(data.userColor);
+      setCachedUserNames(data.firstName ?? null, data.lastName ?? null);
+      const defaultTranslation = data.defaultTranslation ?? 'NET';
+      updateCachedProfileData({
+        firstName: data.firstName ?? '',
+        lastName: data.lastName ?? '',
+        userColor: data.userColor ?? 'blue',
+        email: data.email ?? '',
+        profileImageUrl: data.profileImageUrl ?? null,
+        emailVerified: data.emailVerified ?? false,
+        churchName: data.churchName ?? null,
+        churchCity: data.churchCity ?? null,
+        churchState: data.churchState ?? null,
+        hasLockPinSet: data.hasLockPinSet,
+        defaultTranslation,
+      });
+      // hmcChurchId / connected* live on React Query profile; localStorage cache stays denorm-only.
+      const profile = {
+        ...data,
+        id: userId,
+        connectedChurchId: data.connectedChurchId ?? null,
+        connectedOrgId: data.connectedOrgId ?? null,
+        connectedChurchAt: data.connectedChurchAt ?? null,
+        isHomeChurchStaff: Boolean(data.isHomeChurchStaff),
+        sharedSpaceSwitcherOrder: Array.isArray(data.sharedSpaceSwitcherOrder)
+          ? data.sharedSpaceSwitcherOrder
+          : null,
+        defaultTranslation,
+        displayName:
+          (data.displayName ?? `${data.firstName ?? ''} ${(data.lastName ?? '').charAt(0)}`.trim()) || 'User',
+      } as UserProfile;
+      setCachedProfile(profile);
+      return profile;
+    });
+}
+
+/** The one key the profile lives under. Anything that reads it must use this. */
+export function profileQueryKey(userId: string | null | undefined) {
+  return ['profile', userId ?? 'none'] as const;
+}
+
+/**
+ * Options for the profile query, shared rather than re-declared.
+ *
+ * `SimplifiedPrototypeLayout` also needs this payload on mount — it hydrates appearance and
+ * onboarding out of it — and fetching it there made `get-profile` the one request an Activity
+ * load asked for twice. Going through the query cache with the same key means the second caller
+ * joins the first's request instead of opening its own, whichever of them arrives first.
+ *
+ * `id` is filled from the argument because the response does not carry it.
+ */
+export function profileQueryOptions(userId: string) {
+  return {
+    queryKey: profileQueryKey(userId),
+    queryFn: () => fetchProfile(userId),
+    staleTime: 5 * 60_000,
+  };
+}
+
 export function useProfile() {
   const { userId } = useAuth();
   const authReady = useAuthReady();
@@ -272,64 +366,9 @@ export function useProfile() {
   );
 
   return useQuery({
-    queryKey: ['profile', userId ?? effectiveUserId ?? 'none'],
+    queryKey: profileQueryKey(userId ?? effectiveUserId),
     enabled: authReady && !!userId,
-    queryFn: () =>
-      api
-        .get<
-          Omit<UserProfile, 'displayName' | 'defaultTranslation'> & {
-            displayName?: string;
-            emailVerified?: boolean;
-            hmcChurchId?: string | null;
-            churchName?: string | null;
-            churchCity?: string | null;
-            churchState?: string | null;
-            churchCountry?: string | null;
-            connectedChurchId?: string | null;
-            connectedOrgId?: string | null;
-            connectedChurchAt?: string | null;
-            isHomeChurchStaff?: boolean;
-            hasLockPinSet?: boolean;
-            defaultTranslation?: string;
-            sharedSpaceSwitcherOrder?: string[] | null;
-            lastReadPosition?: string | null;
-          }
-        >('/api/user/get-profile')
-        .then((data) => {
-          if (data.userColor) setCachedUserColor(data.userColor);
-          setCachedUserNames(data.firstName ?? null, data.lastName ?? null);
-          const defaultTranslation = data.defaultTranslation ?? 'NET';
-          updateCachedProfileData({
-            firstName: data.firstName ?? '',
-            lastName: data.lastName ?? '',
-            userColor: data.userColor ?? 'blue',
-            email: data.email ?? '',
-            profileImageUrl: data.profileImageUrl ?? null,
-            emailVerified: data.emailVerified ?? false,
-            churchName: data.churchName ?? null,
-            churchCity: data.churchCity ?? null,
-            churchState: data.churchState ?? null,
-            hasLockPinSet: data.hasLockPinSet,
-            defaultTranslation,
-          });
-          // hmcChurchId / connected* live on React Query profile; localStorage cache stays denorm-only.
-          const profile = {
-            ...data,
-            id: userId!,
-            connectedChurchId: data.connectedChurchId ?? null,
-            connectedOrgId: data.connectedOrgId ?? null,
-            connectedChurchAt: data.connectedChurchAt ?? null,
-            isHomeChurchStaff: Boolean(data.isHomeChurchStaff),
-            sharedSpaceSwitcherOrder: Array.isArray(data.sharedSpaceSwitcherOrder)
-              ? data.sharedSpaceSwitcherOrder
-              : null,
-            defaultTranslation,
-            displayName:
-              (data.displayName ?? `${data.firstName ?? ''} ${(data.lastName ?? '').charAt(0)}`.trim()) || 'User',
-          } as UserProfile;
-          setCachedProfile(profile);
-          return profile;
-        }),
+    queryFn: () => fetchProfile(userId!),
     staleTime: 5 * 60_000,
     // Placeholder, deliberately — not `initialData`.
     //

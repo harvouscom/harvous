@@ -18,8 +18,10 @@
  * separator the church rows use — so nothing is lost, and the title stays the specific
  * thing the row is about, as it is in the church hub's Following list.
  */
-import type { CSSProperties, MouseEventHandler, ReactNode } from 'react';
+import { isValidElement } from 'react';
+import type { CSSProperties, MouseEventHandler, PointerEvent, ReactNode } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
+import { handleMarqueeHover } from './marquee-overflow';
 
 export type HomeRowProps = {
   icon: IconName;
@@ -30,6 +32,14 @@ export type HomeRowProps = {
    */
   iconNode?: ReactNode;
   title: ReactNode;
+  /**
+   * A small mark on the title's own line — a status, a badge — rather than in the meta.
+   *
+   * For anything that is *about the subject* instead of about why the row is here. On a review
+   * row the meta is a sentence ("Cross-referenced 28 times."), and a status appended to it as
+   * one more dot-separated fragment reads as another clause of that sentence.
+   */
+  titleTrailing?: ReactNode;
   /** Meta items; falsy ones are skipped so callers can pass optionals straight through. */
   meta?: ReadonlyArray<ReactNode | null | undefined | false | ''>;
   onClick?: MouseEventHandler<HTMLButtonElement>;
@@ -43,6 +53,11 @@ export type HomeRowProps = {
   'aria-label'?: string;
   title_attr?: string;
 };
+
+/* Correct the fade estimate against a real measurement, once per hover. */
+function onRowPointerEnter(event: PointerEvent<HTMLElement>) {
+  handleMarqueeHover(event);
+}
 
 export function homeRowMetaItems(items: HomeRowProps['meta']): ReactNode[] {
   return (items ?? []).filter((m): m is ReactNode => Boolean(m));
@@ -60,6 +75,17 @@ export function marqueeCharCount(node: ReactNode): number {
   if (typeof node === 'string') return node.length;
   if (typeof node === 'number') return String(node).length;
   if (Array.isArray(node)) return node.reduce<number>((n, child) => n + marqueeCharCount(child), 0);
+  /*
+   * An element counts as the text inside it.
+   *
+   * Meta items may be arbitrary nodes, and a row whose last item is a chip measured as zero —
+   * so a line long enough to need the marquee could be paced as if it ended two words earlier,
+   * and one sitting either side of the fade threshold got no fade at all.
+   */
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    const children = node.props?.children;
+    return children === undefined ? 0 : marqueeCharCount(children);
+  }
   return 0;
 }
 
@@ -108,6 +134,7 @@ export default function PrototypeHomeRow({
   icon,
   iconNode,
   title,
+  titleTrailing,
   meta,
   onClick,
   onMouseEnter,
@@ -150,7 +177,26 @@ export default function PrototypeHomeRow({
           className="pds-list-title proto-list-panel__row-title proto-marquee"
           style={marqueePace(titleChars)}
         >
-          <span>{title}</span>
+          {/*
+            * A mark that belongs to the subject travels with the title, inside the same
+            * ellipsising span rather than beside it in a flex row.
+            *
+            * Beside it does not work: the title's intrinsic width resolves to zero in a flex
+            * row — the marquee's inner span reports nothing to measure — so a title sized to
+            * its content vanishes and the mark slides into its place. Made to grow instead, the
+            * title takes the whole line and pushes the mark to the far right, which is a
+            * different thing from a mark on a title.
+            *
+            * As inline content it simply follows the words, wraps never (the line is nowrap),
+            * and on a title long enough to overflow it is clipped with everything else — which
+            * is the right casualty, since by then the title is the thing being read.
+            */}
+          <span>
+            {title}
+            {titleTrailing ? (
+              <span className="proto-list-panel__row-title-mark">{titleTrailing}</span>
+            ) : null}
+          </span>
         </span>
         {metaItems.length > 0 ? (
           <span
@@ -182,6 +228,7 @@ export default function PrototypeHomeRow({
           className="proto-list-panel__row-main"
           onClick={onClick}
           onMouseEnter={onMouseEnter}
+          onPointerEnter={onRowPointerEnter}
           onFocus={onFocus}
           disabled={disabled}
           aria-label={ariaLabel}
@@ -200,6 +247,7 @@ export default function PrototypeHomeRow({
       className="proto-list-panel__row"
       onClick={onClick}
       onMouseEnter={onMouseEnter}
+      onPointerEnter={onRowPointerEnter}
       onFocus={onFocus}
       disabled={disabled}
       aria-label={ariaLabel}

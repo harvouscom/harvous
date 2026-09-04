@@ -8,7 +8,7 @@ export type BillingSummaryForCopy = {
   cancelAtPeriodEnd: boolean;
 };
 
-/** e.g. `$5/mo` or `$45/yr` from Polar amount. */
+/** e.g. `$7/mo` or `$49/yr` from Polar amount. */
 export function formatBillingPriceLine(billing: Pick<BillingSummaryForCopy, 'amountCents' | 'interval'>): string {
   const dollars = billing.amountCents / 100;
   const price = Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;

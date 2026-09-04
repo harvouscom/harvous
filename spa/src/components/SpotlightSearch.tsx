@@ -13,8 +13,9 @@ import {
 import {
   addRecentSearchTerm,
   RECENT_SEARCH_COMMIT_IDLE_MS,
-  recentSearchStorageKey,
+  readRecentSearchTerms,
   recentSearchesUpdatedEvent,
+  removeRecentSearchTerm,
 } from '@/utils/recent-search-storage';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { trackSearchPerformed } from '@/utils/analytics';
@@ -67,37 +68,17 @@ function detectScope(): { scope: SearchScope; label: string } | null {
   return null;
 }
 
-function getRecentSearches(): RecentSearch[] {
-  try {
-    const key = recentSearchStorageKey(null);
-    const stored = JSON.parse(localStorage.getItem(key) || '[]');
-    const mapped = stored.map((item: any) =>
-      typeof item === 'string' ? { term: item, count: 0 } : item,
-    );
-    const filtered = mapped.filter(
-      (item: RecentSearch) => item.term.trim().length >= MIN_SEARCH_QUERY_LENGTH,
-    );
-    if (filtered.length !== mapped.length) {
-      localStorage.setItem(key, JSON.stringify(filtered));
-    }
-    return filtered.slice(0, 5);
-  } catch {
-    return [];
-  }
-}
+/**
+ * Spotlight shows five; the store keeps ten.
+ *
+ * The parse, the string-or-object normalisation and the length filter used to live here and
+ * again in `RecentSearches`. They are the store's now — two copies of one normalisation is
+ * how the copies end up tolerating different shapes.
+ */
+const SPOTLIGHT_RECENTS_SHOWN = 5;
 
-function removeRecentSearch(term: string) {
-  try {
-    const key = recentSearchStorageKey(null);
-    const stored = JSON.parse(localStorage.getItem(key) || '[]');
-    const filtered = stored.filter((s: any) =>
-      (typeof s === 'string' ? s : s.term) !== term,
-    );
-    localStorage.setItem(key, JSON.stringify(filtered));
-    window.dispatchEvent(new CustomEvent(recentSearchesUpdatedEvent(null)));
-  } catch {
-    /* ignore */
-  }
+function getRecentSearches(): RecentSearch[] {
+  return readRecentSearchTerms(null, SPOTLIGHT_RECENTS_SHOWN);
 }
 
 const CloseIcon = () => (
@@ -416,7 +397,7 @@ export default function SpotlightSearch() {
                 <RecentSearchRow
                   term={search.term}
                   count={search.count}
-                  onRemove={() => { removeRecentSearch(search.term); refreshRecents(); }}
+                  onRemove={() => { removeRecentSearchTerm(null, search.term); refreshRecents(); }}
                   onPrefetchSearch={prefetchRecentSearch}
                   variant="overlay"
                 />

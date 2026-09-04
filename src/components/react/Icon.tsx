@@ -35,6 +35,8 @@ import barsSvg from '@fortawesome/fontawesome-free/svgs/solid/bars.svg?raw';
 import gearSvg from '@fortawesome/fontawesome-free/svgs/solid/gear.svg?raw';
 import keySvg from '@fortawesome/fontawesome-free/svgs/solid/key.svg?raw';
 import keyboardSvg from '@fortawesome/fontawesome-free/svgs/solid/keyboard.svg?raw';
+import clockRotateLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/clock-rotate-left.svg?raw';
+import shapesSvg from '@fortawesome/fontawesome-free/svgs/solid/shapes.svg?raw';
 import tableCellsSvg from '@fortawesome/fontawesome-free/svgs/solid/table-cells.svg?raw';
 import tableColumnsSvg from '@fortawesome/fontawesome-free/svgs/solid/table-columns.svg?raw';
 import arrowRightArrowLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-right-arrow-left.svg?raw';
@@ -115,6 +117,8 @@ import timelineSvg from '@fortawesome/fontawesome-free/svgs/solid/timeline.svg?r
 import inboxSvg from '@fortawesome/fontawesome-free/svgs/solid/inbox.svg?raw';
 import arrowsLeftRightToLineSvg from '@fortawesome/fontawesome-free/svgs/solid/arrows-left-right-to-line.svg?raw';
 import sunSvg from '@fortawesome/fontawesome-free/svgs/solid/sun.svg?raw';
+import burstSvg from '@fortawesome/fontawesome-free/svgs/solid/burst.svg?raw';
+import checkDoubleSvg from '@fortawesome/fontawesome-free/svgs/solid/check-double.svg?raw';
 import trophySvg from '@fortawesome/fontawesome-free/svgs/solid/trophy.svg?raw';
 import layerGroupSvg from '@fortawesome/fontawesome-free/svgs/solid/layer-group.svg?raw';
 import magnifyingGlassSvg from '@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg?raw';
@@ -219,6 +223,8 @@ const icons = {
   
   // Achievement icons
   sun: svgRootCurrentColor(sunSvg),
+  burst: svgRootCurrentColor(burstSvg),
+  'check-double': svgRootCurrentColor(checkDoubleSvg),
   trophy: svgRootCurrentColor(trophySvg),
   // Navigation/UI icons
   bars: withCurrentColor(barsSvg),
@@ -229,6 +235,8 @@ const icons = {
   key: withCurrentColor(keySvg),
   keyboard: withCurrentColor(keyboardSvg),
   'circle-up': withCurrentColor(circleUpSvg),
+  'clock-rotate-left': withCurrentColor(clockRotateLeftSvg),
+  shapes: withCurrentColor(shapesSvg),
   'table-cells': withCurrentColor(tableCellsSvg),
   'table-columns': withCurrentColor(tableColumnsSvg),
   'arrow-left': withCurrentColor(arrowLeftSvg),

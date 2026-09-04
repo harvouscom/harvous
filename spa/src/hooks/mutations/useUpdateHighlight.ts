@@ -4,6 +4,9 @@ import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id
 import type { StudyThreadEntryDetail } from '../queries/useNote';
 import type { StudyThreadEntryKind } from './useCreateHighlight';
 import { withStudyThreadContext } from '@/utils/study-dock-stack';
+import { useHarvousIdentity } from '../useHarvousIdentity';
+import { updateGuestHighlight } from '../../lib/guest-store';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
 
 export interface UpdateHighlightInput {
   id: string;
@@ -52,9 +55,26 @@ interface UpdateHighlightResponse {
 
 export function useUpdateHighlight() {
   const queryClient = useQueryClient();
+  const { isGuest } = useHarvousIdentity();
 
   return useMutation({
     mutationFn: (input: UpdateHighlightInput) => {
+      /*
+       * The annotate dock's "Note (optional)" is the one way a guest can write, and it is worth
+       * having: the full editor needs a space and a server, a thought on a verse needs neither.
+       * Same field either way, so adoption carries it up with the highlight rather than needing
+       * a path of its own.
+       */
+      if (isGuest) {
+        const updated = updateGuestHighlight(input.id, {
+          ...(input.highlightAccentRaw
+            ? { accent: input.highlightAccentRaw as never }
+            : {}),
+          ...(input.miniNoteBody === undefined ? {} : { miniNoteBody: input.miniNoteBody }),
+        });
+        if (input.miniNoteBody?.trim()) markOnboardingStep('note');
+        return Promise.resolve({ success: Boolean(updated) } as UpdateHighlightResponse);
+      }
       const request = buildUpdateHighlightRequest(input);
       return api.patch<UpdateHighlightResponse>(request.url, request.body);
     },

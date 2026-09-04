@@ -100,6 +100,7 @@ export default function PrototypeSharedThreadDrilldown({
   onSetCurrent,
   onRequestDelete,
   onThreadUpdated,
+  framed = false,
 }: {
   thread: SharedThreadDrillTarget;
   spaceId: string;
@@ -114,6 +115,13 @@ export default function PrototypeSharedThreadDrilldown({
   canCompose?: boolean;
   /** Parent destination for the back control (space title). */
   backLabel?: string;
+  /**
+   * The caller has already drawn a surface around this — skip our own root and drawer chrome.
+   *
+   * True from the space hub, which is a sheet on the canvas and frames its own exits. False in
+   * the rail, which hands this its whole footprint and expects it to be the root.
+   */
+  framed?: boolean;
   onBack: () => void;
   onCompose: () => void;
   onSetCurrent: (threadId: string) => Promise<unknown>;
@@ -338,10 +346,23 @@ export default function PrototypeSharedThreadDrilldown({
     }
   };
 
+  /*
+    The root is the caller's when the caller already framed one.
+    
+    This drilldown replaces its host's whole view, and both hosts used to be the rail — so it
+    carried `proto-sidebar-root` and the drawer's toolbar itself. The space hub is a sheet on
+    the canvas now, and it frames its four exits including this one, so on that path the rail
+    root was landing *inside* a `.proto-feed-sheet`: two surfaces' chrome stacked, and a drawer
+    toolbar in the middle of the main pane on a phone.
+  */
   return (
     <>
-    <div className="proto-sidebar-root proto-shared-thread-drilldown">
-      {isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
+    <div
+      className={
+        framed ? 'proto-shared-thread-drilldown' : 'proto-sidebar-root proto-shared-thread-drilldown'
+      }
+    >
+      {!framed && isMobileSidebar ? <PrototypeSidebarToolbar variant="drawer" /> : null}
       <div className="proto-shared-thread-drilldown__header" ref={headerRef}>
         <div className="proto-shared-thread-drilldown__identity">
           {/*

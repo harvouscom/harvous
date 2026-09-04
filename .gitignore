@@ -18,6 +18,9 @@ pnpm-debug.log*
 
 # environment variables
 .env
+# Local backups of .env hold live credentials; never let one be staged.
+.env.bak*
+.env.*.bak
 .env.local
 .env.production
 

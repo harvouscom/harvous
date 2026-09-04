@@ -37,20 +37,6 @@ function displayShareUrl(url: string): string {
   return url.replace(/^https?:\/\//, '');
 }
 
-/** Middle-truncate long share URLs for one-line list preview. */
-function truncateShareUrl(url: string, maxLength = 42): string {
-  const displayUrl = displayShareUrl(url);
-  if (displayUrl.length <= maxLength) return displayUrl;
-  try {
-    const parsed = new URL(url);
-    const tail = parsed.pathname + parsed.search;
-    const prefix = `${parsed.host}${tail.slice(0, 8)}`;
-    const suffix = tail.slice(-14);
-    return `${prefix}…${suffix}`;
-  } catch {
-    return `${displayUrl.slice(0, maxLength - 1)}…`;
-  }
-}
 
 const RECOVERY_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -157,7 +143,7 @@ export default function PrototypeSharingPage() {
   };
 
   return (
-    <SettingsShell>
+    <SettingsShell wide>
       {sharingQuery.isLoading ? (
         <p className="pds-caption" style={{ marginTop: 20, color: 'var(--pds-text-secondary)' }}>Loading…</p>
       ) : null}
@@ -221,42 +207,50 @@ export default function PrototypeSharingPage() {
                       </span>
                     ) : null}
 
-                    <a
-                      className="proto-sharing-card__url"
-                      href={note.shareUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={displayShareUrl(note.shareUrl)}
-                    >
-                      {truncateShareUrl(note.shareUrl)}
-                    </a>
+                  </div>
 
+                  {/*
+                    * Everything you can do to a link, on one line beside it.
+                    *
+                    * These used to stack under the title with the share URL above them, which
+                    * made every row four lines tall and led with the one thing nobody reads:
+                    * `/shared/note/1WlqeTV6099T` says nothing the title does not, since every
+                    * link looks like that. Copy takes it, the title opens the note, and the
+                    * address itself is on the button's tooltip for anyone who wants to see it.
+                    */}
+                  <span className="proto-sharing-card__actions">
                     {isConfirmingRefresh ? (
-                      <div className="proto-sharing-card__confirm">
+                      <>
                         <span className="proto-sharing-card__confirm-prompt">
-                          Create a new link? The old one will stop working.
+                          Replace this link? The old one stops working.
                         </span>
-                        <span className="proto-sharing-card__inline-actions">
-                          <button
-                            type="button"
-                            className="proto-sharing-card__text-action"
-                            disabled={isRowBusy}
-                            onClick={() => setConfirmRefreshId(null)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            className="proto-sharing-card__text-action proto-sharing-card__text-action--accent"
-                            disabled={isRowBusy}
-                            onClick={() => void handleRefreshNote(note)}
-                          >
-                            {isRefreshing ? 'Working…' : 'Get new link'}
-                          </button>
-                        </span>
-                      </div>
+                        <button
+                          type="button"
+                          className="proto-sharing-card__text-action"
+                          disabled={isRowBusy}
+                          onClick={() => setConfirmRefreshId(null)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="proto-sharing-card__text-action proto-sharing-card__text-action--accent"
+                          disabled={isRowBusy}
+                          onClick={() => void handleRefreshNote(note)}
+                        >
+                          {isRefreshing ? 'Working…' : 'Replace'}
+                        </button>
+                      </>
                     ) : (
-                      <span className="proto-sharing-card__inline-actions">
+                      <>
+                        <button
+                          type="button"
+                          className="proto-sharing-card__text-action"
+                          disabled={isRowBusy}
+                          onClick={() => setConfirmRefreshId(note.id)}
+                        >
+                          New link
+                        </button>
                         <button
                           type="button"
                           className="proto-sharing-card__text-action proto-sharing-card__text-action--danger"
@@ -267,25 +261,17 @@ export default function PrototypeSharingPage() {
                         </button>
                         <button
                           type="button"
-                          className="proto-sharing-card__text-action"
+                          className="proto-thread-review__dismiss"
                           disabled={isRowBusy}
-                          onClick={() => setConfirmRefreshId(note.id)}
+                          onClick={() => void handleCopyNote(note)}
+                          title={displayShareUrl(note.shareUrl)}
+                          aria-label={copiedId === note.id ? 'Copied' : 'Copy link'}
                         >
-                          Get a new link
+                          {copiedId === note.id ? 'Copied' : 'Copy'}
                         </button>
-                      </span>
+                      </>
                     )}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="proto-thread-review__dismiss"
-                    disabled={isRowBusy}
-                    onClick={() => void handleCopyNote(note)}
-                    aria-label={copiedId === note.id ? 'Copied' : 'Copy link'}
-                  >
-                    {copiedId === note.id ? 'Copied' : 'Copy'}
-                  </button>
+                  </span>
                 </div>
               );
             })}

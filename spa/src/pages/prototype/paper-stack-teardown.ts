@@ -47,6 +47,9 @@ export type PaperStackPathHelpers = {
  *   the reader wanders; landing back on the origin note *without* going through the edge
  *   (browser back) means the stack is over — the note is on screen, so there is nothing to
  *   return to.
+ * - `reviewCard` (a review question is the origin, the note it asks about is the sheet): only
+ *   that note keeps it. There is no way back to a card — the dock is still on screen — so the
+ *   edge exists solely to be answered, and it has no business over any other page.
  *
  * A compose draft stacks with no note id and gets one when it saves; the save navigation
  * arrives here as a note path with no id on the stack, and that is the one case that
@@ -63,6 +66,19 @@ export function resolvePaperStackAfterNavigation(
 
   if (origin.kind === 'noteDock') {
     return helpers.isReadPath(pathname) ? 'keep' : 'clear';
+  }
+
+  /*
+   * Before the generic note branch below, which would be wrong here in one specific way: that
+   * branch keeps the stack on a note path with no resolvable id (a compose draft) so a save can
+   * adopt it. A review card never stacks a draft — it stacks an existing note it named — so a
+   * path it cannot resolve means the reader has gone somewhere else entirely, and the question
+   * should not follow them there as an edge over an unrelated page. The dock still has it.
+   */
+  if (origin.kind === 'reviewCard') {
+    if (!helpers.isNotePath(pathname)) return 'clear';
+    const atPath = helpers.noteIdAt(pathname);
+    return atPath && atPath === noteId ? 'keep' : 'clear';
   }
 
   if (helpers.isNotePath(pathname)) {

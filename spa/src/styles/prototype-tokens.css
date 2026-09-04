@@ -491,6 +491,24 @@
      than a cut, and it is a collapse of a full pane so it does not go under ~200ms. Paired
      with PROTO_PAPER_STACK_EXIT_MS. */
   --pds-duration-paper-stack-exit: 200ms;
+  /*
+   * A space dashboard presenting itself — Home, a shared space, the church hub.
+   *
+   * Two durations, because two things arrive: the section is a block of the page settling
+   * into place, and the rows inside it are the contents of that block. The section is the
+   * longer of the pair on purpose — it is a larger object making a smaller move, and a row
+   * that outlasted its own container would still be arriving after the frame it arrives in
+   * had stopped.
+   *
+   * The step is what makes the panel read as filling rather than appearing. It is small
+   * deliberately: at 28ms a six-row panel finishes 140ms after it starts, which is inside
+   * the section's own animation, so the whole dashboard is still one arrival. Anything near
+   * 60ms and the last row is visibly a straggler — the failure the section stagger was
+   * removed for. Paired with PROTO_HOME_ENTER_WINDOW_MS, which has to outlast all three.
+   */
+  --pds-duration-home-section: 420ms;
+  --pds-duration-home-row: 320ms;
+  --pds-duration-home-row-step: 28ms;
   /* How much of the base paper stays visible above a stacked sheet — the edge you
      tap to go back. Enough for a line of caption with breathing room; tightened on
      phones where the toolbar already owns the top of the pane. */
@@ -526,14 +544,35 @@
   --pds-paper-measure: 656px;
   --pds-paper-column-min: 720px;
   /*
-   * On a wide pane the sheet grows to here — 816px, which leaves 80px of margin either
+   * On a wide pane the sheet grows to here — 784px, which leaves 64px of margin either
    * side instead of 32. The point is the page around the text, not more text per line.
    *
-   * Derived from the margin rather than chosen for itself: 656px of text plus 2x80. Moving
+   * Derived from the margin rather than chosen for itself: 656px of text plus 2x64. Moving
    * the margin means moving this number, and the two must be changed together or the
    * measure shifts — which is the one thing the derivation below exists to prevent.
+   *
+   * Was 2x80. Eighty was generous enough that the text read as a narrow column inset in a
+   * wide sheet rather than a page with margins; sixty-four keeps the page and closes the
+   * gap. The measure is untouched at 656, so no line rewraps — which is the check on this
+   * change, not a side effect of it.
    */
-  --pds-paper-column-max: 816px;
+  --pds-paper-column-max: 784px;
+  /*
+   * The ceiling again, for a sheet holding two columns instead of one.
+   *
+   * Derived the same way and from the same parts, so it cannot drift: two measures, the gutter
+   * between them (`.pds-reader__compare-row`'s own gap), and the same total side margin the
+   * single-column ceiling leaves. 656x2 + 20 + 128 = 1460.
+   *
+   * The point is the same as the single-column ceiling's — the page around the text, not more
+   * text per line. A comparison on the 784px sheet gave each version about 316px, less than
+   * half the measure, so both texts broke every couple of words while the pane beside them sat
+   * empty. Two columns need twice the room to be the same reading.
+   */
+  --pds-paper-column-compare-max: calc(
+    2 * var(--pds-paper-measure) + var(--pds-space-5) +
+      (var(--pds-paper-column-max) - var(--pds-paper-measure))
+  );
   /*
    * How much pane has to stay clear beside the sheet before it takes any of it. Keeps the
    * sheet from growing into its own shadow: it only widens once there is room to spare,
@@ -592,6 +631,14 @@
   /* The base paper of a stack: one step lighter than the sheet's --pds-shadow-card,
      so the sheet reads as the nearer of the two papers. */
   --pds-shadow-paper-stack-base: 0 1px 2px oklch(var(--pds-lch-shadow-card-b));
+  /*
+   * A panel resting on paper.
+   *
+   * Lighter than --pds-shadow-card, which is tuned for a card over the canvas. Here the
+   * ground is a sheet a few pixels away, so the same shadow reads as the panel floating
+   * off the page rather than lying on it.
+   */
+  --pds-shadow-paper-panel: 0 1px 2px oklch(var(--pds-lch-shadow-card-b));
   --pds-shadow-shell:
     0 2px 12px oklch(var(--pds-lch-shadow-shell-a)),
     0 1px 3px oklch(var(--pds-lch-shadow-shell-b));
@@ -711,6 +758,29 @@
   --pds-highlight-mint-green: var(--study-dock-accent-mintGreen);
   --pds-highlight-coral-rose: var(--study-dock-accent-coralRose);
 
+  /*
+   * A panel lying on the sheet, as a gradient rather than a flat fill.
+   *
+   * White at the top falling to a barely-there warm grey at the bottom — light from above,
+   * which is the only reason a flat shape reads as a raised one. An earlier pass varied the
+   * *alpha* of white instead, which over warm paper is still white on white: the panel had a
+   * gradient on paper and none to the eye. The tonal step is small (2.5% lightness) but it
+   * is a step, and that is the difference between a surface and a boundary.
+   */
+  /*
+   * The search panel's own body, as a gradient rather than a flat fill.
+   *
+   * Lighter at the top, a touch cooler at the bottom — the same read the rail gets for free
+   * from the frame's blur, arrived at with a gradient because a second blur layer is not
+   * available here. Wider than the inner panels' 2.5% step: this is the surface those sit
+   * on, so it has to be distinguishable from them as well as from the page.
+   */
+  --pds-panel-glass-top: oklch(1 0 0 / 0.86);
+  --pds-panel-glass-bottom: oklch(0.968 0.004 265 / 0.86);
+
+  --pds-paper-panel-top: oklch(1 0 0 / 0.95);
+  --pds-paper-panel-bottom: oklch(0.975 0.003 106 / 0.95);
+
   /* Site paper editor — mirrors /site/src/styles/global.css (founder letter card) */
   --pds-paper-desk: #f7f6f3;
   --pds-paper-sheet: var(--pds-bg-sidebar);
@@ -725,7 +795,7 @@
    *
    * The sheet's side margin is whatever is left over after the text has taken its 656px,
    * so the two can never drift apart the way two hand-kept numbers do. At the 720px floor
-   * it comes to exactly the 32px this used to be; at the 816px ceiling, 80px.
+   * it comes to exactly the 32px this used to be; at the 784px ceiling, 64px.
    *
    * Restated verbatim inside each of the three growth rules, and it has to be. A custom
    * property is substituted at the element where it is *declared*, and the resolved value
@@ -973,6 +1043,29 @@ html.harvous-proto-wallpaper-image {
     --pds-paper-grain-b: rgba(255, 255, 255, 0.02);
     --pds-paper-fold-a: rgba(255, 255, 255, 0.08);
     --pds-paper-fold-b: rgba(255, 255, 255, 0.02);
+
+    /*
+     * Panel materials for dark, which the light values cannot stand in for.
+     *
+     * Both pairs are near-white in `:root` — a 95% white gradient for the sheet's panels and
+     * an 86% one for the search panel's body — and neither had a dark counterpart. On a dark
+     * sheet they painted a light slab, and the near-white row text on top of it disappeared.
+     *
+     * The relationships carry over, not the numbers. Top stays lighter than bottom, because
+     * light still falls from above. The panels sit a step above the body so the body still
+     * reads as the surface they lie on, and both stay above the sheet beneath them. The 2.5%
+     * and 3.2% steps are the light values' own, kept because a step is the whole difference
+     * between a surface and a boundary.
+     *
+     * The warm hue at the light gradient's bottom does not come along. The dark palette is
+     * hue 285 throughout, and belonging to that family matters more here than transliterating
+     * one warm value into a place nothing else is warm.
+     */
+    --pds-panel-glass-top: oklch(0.225 0.01 285 / 0.86);
+    --pds-panel-glass-bottom: oklch(0.193 0.01 285 / 0.86);
+
+    --pds-paper-panel-top: oklch(0.24 0.01 285 / 0.95);
+    --pds-paper-panel-bottom: oklch(0.215 0.01 285 / 0.95);
   }
 
   html.harvous-prototype-route:not(.harvous-proto-wallpaper-image):not([data-color-scheme="light"]) {
@@ -1174,6 +1267,14 @@ html.harvous-proto-wallpaper-image {
   --pds-paper-grain-b: rgba(255, 255, 255, 0.02);
   --pds-paper-fold-a: rgba(255, 255, 255, 0.08);
   --pds-paper-fold-b: rgba(255, 255, 255, 0.02);
+
+  /* Panel materials for dark — see the prefers-color-scheme block above for why these exist
+     and how the two pairs relate. */
+  --pds-panel-glass-top: oklch(0.225 0.01 285 / 0.86);
+  --pds-panel-glass-bottom: oklch(0.193 0.01 285 / 0.86);
+
+  --pds-paper-panel-top: oklch(0.24 0.01 285 / 0.95);
+  --pds-paper-panel-bottom: oklch(0.215 0.01 285 / 0.95);
 }
 
 html[data-color-scheme="dark"].harvous-prototype-route:not(.harvous-proto-wallpaper-image) {
@@ -1582,26 +1683,10 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
 }
 
 /* HarvousTypography.inspectorBody — 12pt / 400 */
-.pds-inspector-body {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--pds-text-primary);
-  line-height: 1.4;
-}
 
 /* HarvousTypography.searchSpotlightTitle — 13pt / 500 */
-.pds-search-result-title {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-}
 
 /* HarvousTypography.searchSpotlightMeta — 11pt / 400 */
-.pds-search-result-meta {
-  font-size: 0.6875rem;
-  font-weight: 400;
-  color: var(--pds-text-secondary);
-}
 
 /* ─── Legacy proto-* aliases (referenced from existing JSX) ──────────────── */
 /* These map old class names to new token values without SPA dependencies. */
@@ -1615,46 +1700,10 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   -webkit-font-smoothing: antialiased;
 }
 
-.proto-display {
-  font-family: var(--pds-font-display);
-  font-variation-settings: var(--pds-font-display-variation);
-}
-
-.proto-title-lg {
-  font-family: var(--pds-font-display);
-  font-variation-settings: var(--pds-font-display-variation);
-  font-size: 1.25rem;
-  font-weight: 580;
-  letter-spacing: -0.018em;
-  line-height: 1.2;
-}
-
-.proto-title-md {
-  font-family: var(--pds-font-display);
-  font-variation-settings: var(--pds-font-display-variation);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  line-height: 1.25;
-}
-
 .proto-body {
   font-size: 1rem;
   font-weight: 400;
   line-height: 1.45;
-}
-
-.proto-list-title {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--pds-text-primary);
-}
-
-.proto-list-preview {
-  font-size: 0.75rem;
-  font-weight: 400;
-  line-height: 1.35;
-  color: var(--pds-text-list-preview);
 }
 
 .proto-caption {

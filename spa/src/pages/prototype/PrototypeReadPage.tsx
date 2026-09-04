@@ -6,6 +6,8 @@
  * surfaces later (paper stack, split view) without dragging routing along.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { offerGuestAccount } from '../../lib/guest-gate';
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
@@ -21,7 +23,7 @@ import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-lis
 import { toast } from '@/utils/toast';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useProtoShell, type PaperStackOrigin } from '../../layouts/proto-shell-context';
-import { readerRouteForReference } from '../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug, normalizeNoteIdFromParam } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { noteDockReturnSearch } from './paper-stack-origins';
@@ -45,7 +47,12 @@ import {
   chapterReferencesKey,
   chapterReferenceLookupKey,
 } from '../../hooks/queries/usePrototypeChapterHighlights';
-import type { SavedReference } from '../../hooks/queries/usePrototypeChapterHighlights';
+import type {
+  ChapterHighlight,
+  SavedReference,
+} from '../../hooks/queries/usePrototypeChapterHighlights';
+import { useUpdateTranslation } from '../../hooks/mutations/useUpdateTranslation';
+import { TRANSLATIONS } from '@/data/translations';
 
 /**
  * Verse numbers a stored reference covers: "Exodus 5:3" → [3], "Exodus 5:3-5" → [3,4,5].
@@ -68,12 +75,65 @@ function versesInReference(reference: string | null): number[] {
   return out;
 }
 
+/**
+ * Fan one translation's stored rows out to the verses they cover.
+ *
+ * A row is anchored to a reference, which may be a range ("Exodus 5:3-5"), while the reader
+ * paints per verse.
+ *
+ * Whole-verse rows only. A sub-verse highlight covers part of a verse, so painting the whole
+ * verse in its colour would be a lie — those go to `versePaintMap` below and are drawn as marks
+ * inside the text instead. That is also what keeps the `Map<verse, highlight>` shape honest: it
+ * holds one highlight per verse, last write wins, which is fine for whole-verse rows (there can
+ * only be one) and would silently drop all but one of several spans inside a verse.
+ *
+ * A function rather than the body of one memo because there are two columns now, each with its
+ * own translation's rows. Two copies of this logic is where the second column would quietly
+ * start painting by different rules than the first.
+ */
+function verseHighlightMap(rows: ChapterHighlight[] | undefined): Map<number, ReaderVerseHighlight> {
+  const map = new Map<number, ReaderVerseHighlight>();
+  for (const h of rows ?? []) {
+    if (h.spanKey) continue;
+    for (const v of versesInReference(h.scriptureReference)) {
+      map.set(v, { accent: h.highlightAccent, studyThreadEntryId: h.id, miniNoteBody: h.miniNoteBody });
+    }
+  }
+  return map;
+}
+
+/**
+ * Sub-verse highlights, as paints for the passage painter — keyed by the verse they sit in.
+ *
+ * Deliberately separate from `verseHighlightMap`. That map drives a CSS attribute on the verse
+ * span; these are `<mark>` elements wrapped around a substring, which is a different mechanism
+ * and the one the scripture dock and native already share
+ * (`decoratePassageHtmlWithSavedHighlights`). Reusing it rather than writing a second painter is
+ * the whole point of the excerpt model.
+ */
+function versePaintMap(rows: ChapterHighlight[] | undefined): Map<number, PassageHighlightPaint[]> {
+  const map = new Map<number, PassageHighlightPaint[]>();
+  for (const h of rows ?? []) {
+    if (!h.spanKey || !h.excerpt) continue;
+    /* A span lives inside one verse. If a row's reference spans several, the excerpt can only
+       match within whichever verse actually contains that text — so every covered verse is
+       offered the paint and the painter's own `indexOf` decides. */
+    for (const v of versesInReference(h.scriptureReference)) {
+      const list = map.get(v) ?? [];
+      list.push({ id: h.id, excerpt: h.excerpt, accentRaw: h.highlightAccent, entryKind: 'scriptureLink' });
+      map.set(v, list);
+    }
+  }
+  return map;
+}
+
 export default function PrototypeReadPage() {
   const params = useParams({ strict: false }) as { book?: string; chapter?: string };
   const search = useSearch({ strict: false }) as {
     v?: string;
     vEnd?: string;
     t?: string;
+    c?: string;
     ref?: string;
     req?: string;
   };
@@ -81,6 +141,7 @@ export default function PrototypeReadPage() {
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
+  const { isGuest } = useHarvousIdentity();
   const {
     beginPrototypeComposeSession,
     stackNote,
@@ -118,6 +179,17 @@ export default function PrototypeReadPage() {
   // the reader follows the account's default rather than a hardcoded one.
   const translation = (search.t || profile?.defaultTranslation || 'NET').toUpperCase();
 
+  /*
+   * The second column, when there is one. Absent means the page is a single column.
+   *
+   * Never the same as `translation` — a page split against itself is two identical columns and
+   * a control that appears to have done nothing. Guarded here rather than at each writer so a
+   * hand-edited URL cannot produce it either.
+   */
+  const compareRaw = search.c ? search.c.toUpperCase() : undefined;
+  const compareTranslation =
+    compareRaw && compareRaw !== translation && TRANSLATIONS[compareRaw] ? compareRaw : undefined;
+
   /**
    * Highlights on this chapter, from the one store that holds all of them — made here while
    * reading, or made in any note's scripture dock. The reader paints; it does not own.
@@ -126,29 +198,46 @@ export default function PrototypeReadPage() {
   const createHighlight = useCreateChapterHighlight(book, chapter, translation, homeSpaceId);
   const deleteHighlight = useDeleteChapterHighlight(book, chapter, translation, homeSpaceId);
 
+  /*
+   * The compared version's own set, because a highlight belongs to a translation.
+   *
+   * The endpoint filters on `scripturePassageTranslation`, so these are genuinely different
+   * rows rather than the same ones seen twice — marking a phrase in one version does not mark
+   * it in the other, and painting the primary's colours into the second column would claim you
+   * had marked words you have never read.
+   *
+   * Falls back to the page's own translation rather than going conditional: hooks cannot be,
+   * and asking for the translation already loaded resolves to the same cache entry and the
+   * same in-flight request, so the fallback costs nothing.
+   */
+  const compareHighlightTranslation = compareTranslation ?? translation;
+  const { data: compareChapterHighlights } = usePrototypeChapterHighlights(
+    book,
+    chapter,
+    compareHighlightTranslation,
+  );
+  const createCompareHighlight = useCreateChapterHighlight(
+    book,
+    chapter,
+    compareHighlightTranslation,
+    homeSpaceId,
+  );
+  const deleteCompareHighlight = useDeleteChapterHighlight(
+    book,
+    chapter,
+    compareHighlightTranslation,
+    homeSpaceId,
+  );
+
   /**
    * Fan the stored rows out to the verses they cover. A row is anchored to a reference, which
    * may be a range ("Exodus 5:3-5"), while the reader paints per verse.
    */
-  const highlights = useMemo(() => {
-    const map = new Map<number, ReaderVerseHighlight>();
-    for (const h of chapterHighlights ?? []) {
-      /*
-       * Whole-verse rows only. A sub-verse highlight covers part of a verse, so painting the
-       * whole verse in its colour would be a lie — those go to `versePaints` below and are drawn
-       * as marks inside the text instead.
-       *
-       * This is also what keeps the `Map<verse, highlight>` shape honest. It holds one highlight
-       * per verse, last write wins, which is fine for whole-verse rows (there can only be one)
-       * and would silently drop all but one of several spans inside a verse.
-       */
-      if (h.spanKey) continue;
-      for (const v of versesInReference(h.scriptureReference)) {
-        map.set(v, { accent: h.highlightAccent, studyThreadEntryId: h.id, miniNoteBody: h.miniNoteBody });
-      }
-    }
-    return map;
-  }, [chapterHighlights]);
+  const highlights = useMemo(() => verseHighlightMap(chapterHighlights), [chapterHighlights]);
+  const compareHighlights = useMemo(
+    () => verseHighlightMap(compareChapterHighlights),
+    [compareChapterHighlights],
+  );
 
   /**
    * Sub-verse highlights, as paints for the passage painter — keyed by the verse they sit in.
@@ -158,26 +247,11 @@ export default function PrototypeReadPage() {
    * and the one the scripture dock and native already share (`decoratePassageHtmlWithSavedHighlights`).
    * Reusing it rather than writing a second painter is the whole point of the excerpt model.
    */
-  const versePaints = useMemo(() => {
-    const map = new Map<number, PassageHighlightPaint[]>();
-    for (const h of chapterHighlights ?? []) {
-      if (!h.spanKey || !h.excerpt) continue;
-      /* A span lives inside one verse. If a row's reference spans several, the excerpt can only
-         match within whichever verse actually contains that text — so every covered verse is
-         offered the paint and the painter's own `indexOf` decides. */
-      for (const v of versesInReference(h.scriptureReference)) {
-        const list = map.get(v) ?? [];
-        list.push({
-          id: h.id,
-          excerpt: h.excerpt,
-          accentRaw: h.highlightAccent,
-          entryKind: 'scriptureLink',
-        });
-        map.set(v, list);
-      }
-    }
-    return map;
-  }, [chapterHighlights]);
+  const versePaints = useMemo(() => versePaintMap(chapterHighlights), [chapterHighlights]);
+  const compareVersePaints = useMemo(
+    () => versePaintMap(compareChapterHighlights),
+    [compareChapterHighlights],
+  );
 
   /**
    * Saved word look-ups on this chapter, keyed by (reference, word) — what tells the reader a
@@ -256,25 +330,43 @@ export default function PrototypeReadPage() {
        * the same string by construction and the span key is null either way.
        */
       fullPassageText?: string,
+      /**
+       * Which version the excerpt is in, when it is not the one the page is reading.
+       *
+       * Set only from the comparison's second column. It picks the mutation, and the mutation
+       * is what stamps `scripturePassageTranslation` on the row and invalidates the right
+       * cache — so getting this wrong would file a highlight of NIV words under ESV, where it
+       * would then paint onto entirely different text.
+       */
+      inTranslation?: string,
     ): Promise<string | null> => {
       const reference =
         start === end ? `${book} ${chapter}:${start}` : `${book} ${chapter}:${start}-${end}`;
       const spanKey = spanKeyForSelection(excerpt, fullPassageText ?? excerpt);
+      /* Only the compared version routes elsewhere. Anything else — absent, or the page's own
+         translation — is the primary column, which is what every caller meant before there
+         were two of them. */
+      const write =
+        inTranslation && inTranslation === compareTranslation ? createCompareHighlight : createHighlight;
       try {
-        const result = await createHighlight.mutateAsync({ reference, accent, excerpt, spanKey });
+        const result = await write.mutateAsync({ reference, accent, excerpt, spanKey });
         return result?.highlight?.id ?? null;
       } catch {
         return null;
       }
     },
-    [book, chapter, createHighlight],
+    [book, chapter, createHighlight, createCompareHighlight, compareTranslation],
   );
 
   const handleRemoveHighlight = useCallback(
-    (studyThreadEntryId: string) => {
-      deleteHighlight.mutate(studyThreadEntryId);
+    (studyThreadEntryId: string, inTranslation?: string) => {
+      // Same routing as the write: the row lives in one version's set, and the delete has to
+      // invalidate the list the reader is actually painting from.
+      const remove =
+        inTranslation && inTranslation === compareTranslation ? deleteCompareHighlight : deleteHighlight;
+      remove.mutate(studyThreadEntryId);
     },
-    [deleteHighlight],
+    [deleteHighlight, deleteCompareHighlight, compareTranslation],
   );
 
   const handleNavigateTo = useCallback(
@@ -282,11 +374,12 @@ export default function PrototypeReadPage() {
       void navigate({
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(nextBook), chapter: String(nextChapter) },
-        // Drop `v`: a verse focus belongs to the chapter it was linked into.
-        search: { v: undefined, t: search.t },
+        // Drop `v`: a verse focus belongs to the chapter it was linked into. `c` rides along —
+        // turning the page should not close a comparison you set up.
+        search: { v: undefined, t: search.t, c: search.c },
       });
     },
-    [navigate, search.t],
+    [navigate, search.t, search.c],
   );
 
   /**
@@ -328,7 +421,7 @@ export default function PrototypeReadPage() {
       });
       stackNote(readerOrigin(start));
     },
-    [homeSpaceId, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
+    [homeSpaceId, isGuest, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
   );
 
   /**
@@ -420,7 +513,7 @@ export default function PrototypeReadPage() {
       // the same way today's passage and a note's dock now do.
       const route = readerRouteForReference(ref, translation);
       if (!route) return;
-      void navigate(route);
+      void navigate(landAgain(route));
     },
     [navigate, translation],
   );
@@ -507,6 +600,20 @@ export default function PrototypeReadPage() {
 
   // Reuses the reader's own cached chapter query, so opening the inspector costs nothing.
   const { data: chapterData } = usePrototypeBibleChapter(book, chapter, translation);
+  /*
+   * The compared chapter. Same hook, same cache, so a version already read — or already pulled
+   * as a stack edge's prefetch — costs nothing to bring alongside.
+   *
+   * `undefined` for the translation when there is no comparison, which leaves the query
+   * disabled rather than fetching a column nothing will show. A translation that genuinely
+   * lacks this chapter answers 404, and `data` stays undefined: the column then renders its
+   * verses as gaps, which is the honest thing and is what the aligner already produces.
+   */
+  const { data: compareData } = usePrototypeBibleChapter(
+    compareTranslation ? book : undefined,
+    compareTranslation ? chapter : undefined,
+    compareTranslation ?? translation,
+  );
 
   /**
    * Record the read. Marks the position as soon as the chapter is on screen and logs how long
@@ -533,16 +640,78 @@ export default function PrototypeReadPage() {
     },
   });
 
+  /**
+   * Choosing a translation — from the stack's edges, the heading chip, or the inspector.
+   *
+   * One function for all three, because they are one decision and had started to be two: the
+   * inspector pinned `?t=` for the session while Settings wrote the account default, so the
+   * reader could disagree with the reader depending on which control you reached for.
+   *
+   * Three things happen, and the order of the reasoning matters more than the order of the
+   * calls:
+   *
+   * 1. **It sticks.** `useUpdateTranslation` writes `UserMetadata.defaultTranslation`, so the
+   *    next chapter and tomorrow both open in what you just chose. Choosing is the whole
+   *    gesture; a version you have to re-choose every chapter is a preview, not a switch.
+   * 2. **The URL still carries it**, so a reload and a copied link both read in it — the rule
+   *    `translation` above is written against, unchanged.
+   *
+   * Deliberately NOT called for `search.t` on arrival. Following a shared ESV link would
+   * otherwise rewrite what the reader reads in, silently, on someone else's say-so. Persisting
+   * belongs to the act of choosing, not to the act of arriving.
+   */
+  const updateTranslation = useUpdateTranslation();
+
   const handleChangeTranslation = useCallback(
     (next: string) => {
+      const id = next.trim().toUpperCase();
+      if (!id || id === translation) return;
+
+      /* Fire-and-forget: the read must not wait on, or fail with, a preference write. The
+         mutation is optimistic, so the profile cache already reads as `id` regardless. */
+      updateTranslation.mutate(id);
+
       void navigate({
         to: prototypeReadRouteTo(),
         params: { book: bookSlug(book), chapter: String(chapter) },
         // Pin it in the URL so the choice survives a reload and travels in a shared link.
-        search: { v: search.v, t: next },
+        search: {
+          v: search.v,
+          t: id,
+          /* Reading in what you were comparing against closes the comparison rather than
+             splitting the page against itself. The other column has become this one. */
+          c: search.c && search.c.toUpperCase() === id ? undefined : search.c,
+        },
       });
     },
-    [navigate, book, chapter, search.v],
+    [navigate, book, chapter, search.v, search.c, translation, updateTranslation],
+  );
+
+  /**
+   * Open, change, or close the second column.
+   *
+   * `null` closes it. Choosing the translation already in the first column closes it too, for
+   * the same reason: the two columns would be the same text, and a control that appears to have
+   * done nothing is worse than one that did the obvious thing.
+   *
+   * Deliberately does NOT write the account default, unlike choosing the primary. What you read
+   * in is a preference; what you happen to be holding a passage up against is not, and making
+   * it one would mean a comparison silently changed the version every other surface uses.
+   */
+  const handleChangeCompare = useCallback(
+    (next: string | null) => {
+      const id = next?.trim().toUpperCase();
+      void navigate({
+        to: prototypeReadRouteTo(),
+        params: { book: bookSlug(book), chapter: String(chapter) },
+        search: {
+          v: search.v,
+          t: search.t,
+          c: !id || id === translation ? undefined : id,
+        },
+      });
+    },
+    [navigate, book, chapter, search.v, search.t, translation],
   );
 
   const readerInspector = (
@@ -654,6 +823,18 @@ export default function PrototypeReadPage() {
           focusVerse={Number.isFinite(focusVerse) ? focusVerse : undefined}
           focusVerseEnd={Number.isFinite(focusVerseEnd) ? focusVerseEnd : undefined}
           onNavigateTo={handleNavigateTo}
+          onChangeTranslation={handleChangeTranslation}
+          compare={
+            compareTranslation
+              ? {
+                  translation: compareTranslation,
+                  verses: compareData?.verses ?? [],
+                  highlights: compareHighlights,
+                  versePaints: compareVersePaints,
+                }
+              : null
+          }
+          onChangeCompare={handleChangeCompare}
           onStartNote={handleStartNote}
           // A cross-reference tapped inside the scripture dock is a place to go, not another
           // card to stack — it moves the reader, and the dock re-describes where you landed.
