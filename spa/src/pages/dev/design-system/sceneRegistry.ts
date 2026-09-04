@@ -258,6 +258,17 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-21-welcome-3',
     visualBaseline: true,
   },
+  {
+    id: 'ds-22-whats-new-row',
+    title: "What's new row",
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeWhatsNewPill.tsx',
+      'spa/src/pages/prototype/PrototypeHomeRow.tsx',
+    ],
+    screenshotSlug: 'ds-22-whats-new-row',
+    visualBaseline: true,
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

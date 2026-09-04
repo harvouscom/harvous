@@ -19,6 +19,7 @@ import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
 import PrototypeWelcome3Sheet from '../../prototype/PrototypeWelcome3Sheet';
+import PrototypeHomeRow from '../../prototype/PrototypeHomeRow';
 import { buildStudyFeedDays, type StudyFeedItem } from '@/utils/study-feed-items';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
@@ -1405,6 +1406,58 @@ function Welcome3Scene() {
   );
 }
 
+/*
+ * Fixtures rather than the real `PrototypeWhatsNewPill`, for the same reason the toast scene
+ * uses one: the row shows for exactly one release per browser and reads the running build's
+ * version to decide its shape, so neither variant can be summoned on demand.
+ */
+function WhatsNewRowScene() {
+  const dismiss = (
+    <button type="button" className="proto-side-panel__action-btn" aria-label="Dismiss what's new">
+      <Icon name="xmark" size={12} aria-hidden />
+    </button>
+  );
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        Sits in Activity&rsquo;s Following group. Opening it no longer puts it away &mdash; the{' '}
+        <code>&times;</code> does, and only for <em>this</em> release.
+      </p>
+
+      <PrototypeSectionHeader>On 3.0 &mdash; row opens the welcome sheet</PrototypeSectionHeader>
+      <div className="proto-glass-surface">
+        <PrototypeHomeRow
+          icon="burst"
+          title="What's new in Harvous"
+          aria-label="See what is new in Harvous 3"
+          trailing={
+            <>
+              <button
+                type="button"
+                className="proto-side-panel__action-btn"
+                aria-label="Read the release notes"
+              >
+                <Icon name="list" size={12} aria-hidden />
+              </button>
+              {dismiss}
+            </>
+          }
+        />
+      </div>
+
+      <PrototypeSectionHeader>Every other release &mdash; row is the notes</PrototypeSectionHeader>
+      <div className="proto-glass-surface">
+        <PrototypeHomeRow
+          icon="burst"
+          title="What's new in Harvous"
+          aria-label="Read the release notes"
+          trailing={dismiss}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1449,6 +1502,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <StudyFeedScene />;
     case 'ds-21-welcome-3':
       return <Welcome3Scene />;
+    case 'ds-22-whats-new-row':
+      return <WhatsNewRowScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

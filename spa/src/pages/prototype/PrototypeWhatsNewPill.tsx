@@ -4,14 +4,17 @@
  * It sits in Activity's "Following" group with the church feed and the reading plan, because
  * that is where things from Harvous live rather than things from your own study.
  *
- * ## Why there is no dismiss control
+ * ## Putting it away is its own action
  *
- * It started with a trailing × like the founder letter's, and lost it: a plain chevron row —
- * the same shape as "12 notes need a folder" — carries one action, and this row only has one.
- * Opening the notes already counts as having seen the release, so a separate × was a second
- * control for an outcome the first one reaches. The cost is real and worth naming: the only
- * way to put this row away is to open it. That is tolerable because it puts itself away
- * anyway, at the next release, and never accumulates.
+ * It carries the same trailing pair as Today's passage: a shortcut to the second destination,
+ * and an × that removes it. Opening no longer counts as having read it.
+ *
+ * This is a reversal. The row previously had one control and dismissed itself when you used
+ * it, on the reasoning that reading the notes is already an answer and a separate × would be
+ * a second control for an outcome the first one reaches. That argument holds only while the
+ * row has one destination. Once it had two — the sheet and the notes — using one of them
+ * could no longer stand for having dealt with the row, and a row that vanishes when you were
+ * only glancing at half of it is worse than one that waits to be told.
  *
  * ## What dismissing means
  *
@@ -53,6 +56,7 @@
 import { appVersion } from '@/utils/app-version';
 import { releaseMarkerFor } from '@/utils/release-marker';
 import { useCallback } from 'react';
+import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useReleaseNotesUrl } from '../../hooks/useReleaseNotesUrl';
 import {
@@ -72,17 +76,19 @@ export default function PrototypeWhatsNewPill() {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
   });
 
-  /* Reading the notes is also an answer, so it counts as having seen this release. Without
-     this the row would still be sitting there when you came back from reading it.
+  const showsWelcomeSheet = releaseMarkerFor(version) === WELCOME_SHEET_RELEASE;
 
-     `releaseNotesUrl` belongs in the deps: it starts on the index and upgrades in place once
+  /* `releaseNotesUrl` belongs in the deps: it starts on the index and upgrades in place once
      the site answers, so a callback that captured only the first value would have pinned every
      click to the index and quietly wasted the lookup. */
+  const openNotes = useCallback(() => {
+    window.open(releaseNotesUrl, '_blank', 'noopener,noreferrer');
+  }, [releaseNotesUrl]);
+
   const open = useCallback(() => {
-    if (releaseMarkerFor(version) === WELCOME_SHEET_RELEASE) openWelcome3();
-    else window.open(releaseNotesUrl, '_blank', 'noopener,noreferrer');
-    dismiss();
-  }, [dismiss, releaseNotesUrl, version]);
+    if (showsWelcomeSheet) openWelcome3();
+    else openNotes();
+  }, [openNotes, showsWelcomeSheet]);
 
   if (!visible) return null;
 
@@ -90,8 +96,34 @@ export default function PrototypeWhatsNewPill() {
     <PrototypeHomeRow
       icon="burst"
       title="What's new in Harvous"
-      aria-label="Read the release notes for this release"
+      aria-label={showsWelcomeSheet ? 'See what is new in Harvous 3' : 'Read the release notes'}
       onClick={open}
+      trailing={
+        <>
+          {/* Only where the row itself goes somewhere else. On every other release the row is
+              already the notes, and this would be a button that repeats it. */}
+          {showsWelcomeSheet ? (
+            <button
+              type="button"
+              className="proto-side-panel__action-btn"
+              aria-label="Read the release notes"
+              title="Release notes"
+              onClick={openNotes}
+            >
+              <Icon name="list" size={12} aria-hidden />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="proto-side-panel__action-btn"
+            aria-label="Dismiss what's new"
+            title="Not now"
+            onClick={dismiss}
+          >
+            <Icon name="xmark" size={12} aria-hidden />
+          </button>
+        </>
+      }
     />
   );
 }
