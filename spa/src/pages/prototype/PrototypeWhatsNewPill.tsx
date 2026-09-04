@@ -29,7 +29,20 @@
  * a quiet way out to somewhere else. The version still prints in Settings, which is the one
  * audience that ever needs it.
  *
- * ## Where the link goes
+ * ## Where it goes
+ *
+ * On 3.0 it opens the welcome sheet rather than leaving for the site. That release renamed the
+ * three surfaces people navigate by, so the useful answer to "what's new" is the one that
+ * explains the rearrangement, and the sheet carries links to both the release page and the
+ * notes anyway. This row then doubles as the way back to a modal that otherwise shows itself
+ * exactly once — the sheet had no re-entry, and this row had no home for a release big enough
+ * to need one.
+ *
+ * Every other release goes straight out to the notes, as it always has: the sheet is about
+ * 3.0 specifically, and pointing a 3.4 notice at "Harvous 3 is here." would be a lie told by a
+ * component that had stopped being maintained. It reverts on its own.
+ *
+ * ## Which notes
  *
  * This version's own page when the site has one, the index when it does not. It used to be the
  * index always, because the app's version bumps on every commit and a build is routinely ahead
@@ -37,6 +50,8 @@
  * 404. The site now publishes which versions exist (`/release-notes/published.json`), so the
  * question is answerable and the specific page is offered only once it is known to be there.
  */
+import { appVersion } from '@/utils/app-version';
+import { releaseMarkerFor } from '@/utils/release-marker';
 import { useCallback } from 'react';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useReleaseNotesUrl } from '../../hooks/useReleaseNotesUrl';
@@ -45,11 +60,10 @@ import {
   PROTO_WHATS_NEW_PREVIEW_KEY,
 } from '../../layouts/proto-session-keys';
 import { useDismissibleRelease } from './useDismissibleFlag';
+import { openWelcome3 } from './welcome3-bridge';
 
-function appVersion(): string | undefined {
-  if (typeof window === 'undefined') return undefined;
-  return (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__;
-}
+/** The one release with a sheet of its own. */
+const WELCOME_SHEET_RELEASE = '3.0';
 
 export default function PrototypeWhatsNewPill() {
   const version = appVersion();
@@ -59,11 +73,16 @@ export default function PrototypeWhatsNewPill() {
   });
 
   /* Reading the notes is also an answer, so it counts as having seen this release. Without
-     this the row would still be sitting there when you came back from reading it. */
+     this the row would still be sitting there when you came back from reading it.
+
+     `releaseNotesUrl` belongs in the deps: it starts on the index and upgrades in place once
+     the site answers, so a callback that captured only the first value would have pinned every
+     click to the index and quietly wasted the lookup. */
   const open = useCallback(() => {
-    window.open(releaseNotesUrl, '_blank', 'noopener,noreferrer');
+    if (releaseMarkerFor(version) === WELCOME_SHEET_RELEASE) openWelcome3();
+    else window.open(releaseNotesUrl, '_blank', 'noopener,noreferrer');
     dismiss();
-  }, [dismiss]);
+  }, [dismiss, releaseNotesUrl, version]);
 
   if (!visible) return null;
 

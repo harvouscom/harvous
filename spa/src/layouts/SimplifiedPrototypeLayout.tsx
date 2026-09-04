@@ -5,6 +5,7 @@ import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcu
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import PrototypeSyncChip from '../components/PrototypeSyncChip';
 import PrototypeAppUpdateToast from '../components/PrototypeAppUpdateToast';
+import PrototypeWelcome3 from '../pages/prototype/PrototypeWelcome3';
 import PrototypeFeedbackToast from '../components/PrototypeFeedbackToast';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { syncPassageKnowledge } from '../lib/passage-knowledge-sync';
@@ -1069,6 +1070,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
         ) : null}
         {isGuest ? null : <PrototypeSyncChip userId={userId} />}
         <PrototypeAppUpdateToast />
+        {/* Sits beside the update toast because it answers the same question at a different
+            size, and holds the toast back while it is up so they never stack. */}
+        <PrototypeWelcome3 enabled={Boolean(userId) && !isGuest} />
         <PrototypeFeedbackToast />
         <PrototypeShortcutBridge />
         <KeyboardShortcutsInit />

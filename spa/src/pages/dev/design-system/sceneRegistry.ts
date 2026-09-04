@@ -246,6 +246,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-20-study-feed',
     visualBaseline: true,
   },
+  {
+    id: 'ds-21-welcome-3',
+    title: 'Harvous 3 welcome',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeWelcome3Sheet.tsx',
+      'spa/src/pages/prototype/PrototypeWelcome3.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-21-welcome-3',
+    visualBaseline: true,
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

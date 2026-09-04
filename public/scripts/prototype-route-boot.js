@@ -36,6 +36,39 @@
   }
 
   /*
+   * Was this browser already running Harvous before 3.0?
+   *
+   * Sampled here, once, because it is only answerable here. The question is "did anything
+   * write a Harvous key before this build did", and the 3.0 bundle starts answering it wrong
+   * the moment it caches the onboarding checklist a few hundred milliseconds from now. A
+   * React-side check would be racing its own app; running before the bundle means there is
+   * no race to lose.
+   *
+   * Latched rather than recomputed, and `'0'` is stored as deliberately as `'1'` — the
+   * absence of the key is what means "not asked yet", so a new browser has to record its own
+   * newness or it would look like an upgrader on its second visit.
+   *
+   * Deliberately ahead of the `?try=1` write below: a guest arriving for the first time would
+   * otherwise find the key that write had just left and count itself as an upgrade.
+   *
+   * Keep the key in sync with PROTO_UPGRADED_FROM_2_KEY in spa/src/layouts/proto-session-keys.ts.
+   */
+  var PROTO_UPGRADED_FROM_2_KEY = 'harvous-proto-upgraded-from-2';
+  try {
+    if (localStorage.getItem(PROTO_UPGRADED_FROM_2_KEY) === null) {
+      var sawHarvousBefore = false;
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && (k.indexOf('harvous-proto') === 0 || k.indexOf('harvous-prototype') === 0)) {
+          sawHarvousBefore = true;
+          break;
+        }
+      }
+      localStorage.setItem(PROTO_UPGRADED_FROM_2_KEY, sawHarvousBefore ? '1' : '0');
+    }
+  } catch (e) { /* ignore — without storage the welcome simply never shows, which is safe */ }
+
+  /*
    * A `?try=1` arrival is someone trying Harvous without an account.
    *
    * The marker has to be written here, before the bundle, because the shell's gate runs on the

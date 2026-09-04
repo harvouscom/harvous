@@ -18,6 +18,7 @@ import PrototypePaperStack from '../../prototype/PrototypePaperStack';
 import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
+import PrototypeWelcome3Sheet from '../../prototype/PrototypeWelcome3Sheet';
 import { buildStudyFeedDays, type StudyFeedItem } from '@/utils/study-feed-items';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
@@ -1377,6 +1378,33 @@ function StudyFeedScene() {
   );
 }
 
+/*
+ * The real sheet, opened. It is a one-time surface gated on a browser having run 2.x, so once
+ * anyone has dismissed it this scene is the only way left to look at it.
+ */
+function Welcome3Scene() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        Shown once, on the first 3.0 load, to a browser that was running Harvous before it.
+        Reuses the <code>/3/</code> hero from harvous.com. Close it and press Replay to watch
+        the numeral draw again.
+      </p>
+      <div className="pds-gallery-btn-row">
+        <button
+          type="button"
+          className="proto-shared-people-row__action"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? 'Close' : 'Replay'}
+        </button>
+      </div>
+      <PrototypeWelcome3Sheet open={open} onDismiss={() => setOpen(false)} />
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1419,6 +1447,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <NoteAudienceBarScene />;
     case 'ds-20-study-feed':
       return <StudyFeedScene />;
+    case 'ds-21-welcome-3':
+      return <Welcome3Scene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }
