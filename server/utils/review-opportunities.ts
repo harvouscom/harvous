@@ -16,7 +16,7 @@
  * query around it.
  */
 
-import { db, UserNodeStates, ReviewItems, NoteTags, sql, eq, and, gt, desc, inArray,
+import { db, UserNodeStates, ReviewItems, NoteTags, StudyThreadEntries, sql, eq, and, gt, desc, inArray, isNull,
   NoteFingerprints,
 } from '../db';
 import { isNoteFingerprintsTableMissing } from './pg-undefined-relation';
@@ -34,7 +34,11 @@ import {
   type ReviewCandidateNode,
 } from '@/utils/review-opportunity-scoring';
 import {
+  chapterKeyPartsFromNodeKey,
+  chapterReferenceLabel,
+  nodeKey as studyNodeKey,
   verseKeyPartsFromNodeKey,
+  verseNodesForReference,
   verseReferenceLabel,
   type NodeKind,
 } from '@/utils/study-bible-nodes';
@@ -54,13 +58,41 @@ const OVERFETCH = 3;
 /**
  * Node kind → the shape of question Review asks about it.
  *
- * Two entries, not four. `connection` and `thread` had open questions with nothing to mark, and
- * are Home suggestions now — see `REVIEW_ASKABLE_KINDS`.
+ * Three entries, not five. `connection` and `thread` had open questions with nothing to mark,
+ * and are Home suggestions now — see `REVIEW_ASKABLE_KINDS`.
  */
 const REVIEW_KIND_FOR_NODE: Record<string, ReviewAskableKind> = {
   verse: 'verse',
   note: 'note',
+  chapter: 'chapter',
 };
+
+/**
+ * Chapters the reader has marked or cited a verse in.
+ *
+ * A chapter node cannot see this: a highlight lands on the verses beneath it, and the chapter
+ * above only ever records the reading. One query over the reader's own marks, folded into the
+ * chapter keys they imply, so "read this once and stopped on a line in it" counts as the two
+ * acts the readiness gate asks for.
+ */
+async function loadHighlightedChapterKeys(userId: string): Promise<Set<string>> {
+  const keys = new Set<string>();
+  try {
+    const rows = await db
+      .select({ reference: StudyThreadEntries.scriptureReference })
+      .from(StudyThreadEntries)
+      .where(and(eq(StudyThreadEntries.userId, userId), isNull(StudyThreadEntries.parentNoteId)));
+    for (const row of rows) {
+      if (!row.reference) continue;
+      for (const chapter of verseNodesForReference(row.reference).chapters) {
+        keys.add(studyNodeKey.chapter(chapter));
+      }
+    }
+  } catch {
+    // A missing table or a bad reference costs the chapter one signal, never the whole refill.
+  }
+  return keys;
+}
 
 function parseTranslation(meta: string | null): string | null {
   if (!meta) return null;
@@ -112,7 +144,7 @@ export async function refillReviewQueue(
     const room = engineDailyRoom(recent.length);
     if (room <= 0) return [];
 
-    const [nodes, existing, fingerprints] = await Promise.all([
+    const [nodes, existing, fingerprints, highlightedChapterKeys] = await Promise.all([
       db
         .select()
         .from(UserNodeStates)
@@ -146,7 +178,9 @@ export async function refillReviewQueue(
           if (isNoteFingerprintsTableMissing(error)) return [];
           throw error;
         }),
+      loadHighlightedChapterKeys(userId),
     ]);
+    const signalContext = { highlightedChapterKeys };
 
     const meaningWeightByNoteId = new Map<string, number>(
       fingerprints.map((row) => [row.noteId, row.meaningWeight ?? 0]),
@@ -200,11 +234,12 @@ export async function refillReviewQueue(
      * `ENGINE_COLD_START_MIN_READY` nodes have been worked on. Adding an item by hand, and the
      * items a challenge creates, are unaffected — those are the reader asking.
      */
-    if (!engineHasEnoughReady(candidates, now, meaningWeightByNoteId)) return [];
+    if (!engineHasEnoughReady(candidates, now, meaningWeightByNoteId, signalContext)) return [];
 
     const picks = selectReviewBatch(candidates, {
       now,
       meaningWeightByNoteId,
+      signalContext,
       existingSourceKeys: new Set(existing.map((row) => row.sourceKey)),
       limit: room * OVERFETCH,
       perKindCap: ENGINE_PER_KIND_CAP * OVERFETCH,
@@ -230,6 +265,15 @@ export async function refillReviewQueue(
       const verseParts = kind === 'verse' ? verseKeyPartsFromNodeKey(pick.nodeKey) : null;
       if (kind === 'verse' && !verseParts) continue;
 
+      const chapterParts = kind === 'chapter' ? chapterKeyPartsFromNodeKey(pick.nodeKey) : null;
+      if (kind === 'chapter' && !chapterParts) continue;
+
+      const reference = verseParts
+        ? verseReferenceLabel(verseParts)
+        : chapterParts
+          ? chapterReferenceLabel(chapterParts)
+          : null;
+
       const result = await createReviewItem(
         userId,
         {
@@ -237,8 +281,10 @@ export async function refillReviewQueue(
           noteId: pick.noteId,
           // Only a connection ever had a second note, and the engine no longer makes those.
           secondaryNoteId: null,
-          scriptureReference: verseParts ? verseReferenceLabel(verseParts) : null,
-          translation: verseParts ? parseTranslation(pick.meta ?? null) : null,
+          scriptureReference: reference,
+          // The translation it was read in, off the node's own meta — so a chapter question is
+          // asked in the words the reader met it in.
+          translation: reference ? parseTranslation(pick.meta ?? null) : null,
           origin: 'engine',
           // Copied, not read live, so a row's stated reason never changes mid-sitting.
           sourceLabel: pick.lastSourceLabel,

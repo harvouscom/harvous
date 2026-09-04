@@ -58,16 +58,22 @@ export interface ReviewCandidateNode {
 }
 
 /**
- * The two kinds Review has an answerable question for.
+ * The three kinds Review has an answerable question for.
  *
- * Themes, people, places and chapters are tracked and read by Home, but the app has no honest
- * question to ask about them: "what do you remember about adoption?" is a quiz about doctrine,
- * not a return to the reader's own study, and this feature does not do that.
+ * Themes, people and places are tracked and read by Home, but the app has no honest question to
+ * ask about them: "what do you remember about adoption?" is a quiz about doctrine, not a return
+ * to the reader's own study, and this feature does not do that.
+ *
+ * **Chapters used to be on that list and are not any more, and the distinction is worth
+ * keeping straight.** The argument above was about *themes* — asking what a chapter is about
+ * would be the same quiz. What the chapter rungs actually ask is which verse is in it, how to
+ * finish one, what order they come in: the text's own questions, about a chapter this reader
+ * sat with. A chapter someone read twice is not doctrine and it is not passive.
  *
  * `connection` and `thread` left for a different reason — their questions were open, with no
  * answer to mark — and are Home suggestions now. See `REVIEW_ASKABLE_KINDS`.
  */
-export const ENGINE_NODE_KINDS: readonly NodeKind[] = ['verse', 'note'];
+export const ENGINE_NODE_KINDS: readonly NodeKind[] = ['verse', 'note', 'chapter'];
 
 /** At most two of one kind in a batch of three, so an offer is never three of the same shape. */
 export const ENGINE_PER_KIND_CAP = 2;
@@ -138,6 +144,17 @@ function stabilityDaysForNode(node: ReviewCandidateNode): number {
 export const ENGINE_MIN_NODE_AGE_DAYS = 3;
 
 /**
+ * The same gate for a chapter, and shorter, because reading is a different act from writing.
+ *
+ * Three days suits a note or a verse, where the node is created by an act the reader will
+ * remember making. A chapter node is created by turning to a chapter, and the question worth
+ * asking about it — what is in it, how a verse goes — is worth asking while the reading is
+ * still recent enough to be theirs. One day also matches `firstDueAtFor`, which never lets a
+ * chapter be asked the same day it was read.
+ */
+export const ENGINE_MIN_CHAPTER_AGE_DAYS = 1;
+
+/**
  * How many distinct deliberate acts a node needs before it is worth asking about.
  *
  * Two, from different acts — not two of the same. Seeing a thing repeatedly is not the same as
@@ -171,22 +188,55 @@ export const NOTE_MEANING_WEIGHT_FLOOR = 0.2;
 export type NodeReadiness = 'ready' | 'too-new' | 'too-few-signals' | 'too-thin';
 
 /**
+ * What the engine knows about a node beyond the node itself.
+ *
+ * One field today: whether the reader has marked or cited a verse inside a chapter, which the
+ * chapter node cannot see — highlights land on the verses beneath it. Passed in rather than
+ * read here, because this module is pure.
+ */
+export interface CommittedSignalContext {
+  /** Chapter node keys the reader has marked or cited a verse in. */
+  highlightedChapterKeys?: ReadonlySet<string>;
+}
+
+/**
  * Distinct deliberate acts recorded against a node.
  *
  * `reviewCount` is deliberately absent: a node that has been reviewed already has an item, and
  * counting it would let the engine argue for something it has already offered.
  *
- * **Exposure means different things to a note and to a verse**, which the counter's name hides.
+ * **Exposure means different things to each kind**, which the counter's name hides.
+ *
  * A note is exposed by being opened, which happens by accident; every other counter is where its
  * deliberate acts land. A verse node is only ever touched by *citing it in your own writing or
  * marking it while reading* — both writers record `exposure` (`process-scripture-references.ts`,
- * `study-threads.ts`) — so for a passage each exposure is already a deliberate act, and passive
- * reading lands on a `chapter` node, which Review never asks about.
+ * `study-threads.ts`) — so for a passage each exposure is already a deliberate act.
  *
- * Counting them the same way was checked against a real account and would have retired scripture
- * review entirely: of 51 verse nodes, 39 had no other signal at all and none had two.
+ * A chapter is the opposite of both: **its `exposure` is a glance and counts for nothing at
+ * all.** `recordReadingEvent` writes `revisit` for a read or a study dwell and `exposure` for a
+ * glance, so the split is already made at the point of recording, and the engine simply refuses
+ * the passive half. Two real reads make a chapter askable; fifty glances never do. A verse
+ * marked or cited inside it is one more act — the reader stopping on a line — and is the reason
+ * a chapter read once with something marked in it counts as well.
+ *
+ * Counting a verse's exposures like a note's was checked against a real account and would have
+ * retired scripture review entirely: of 51 verse nodes, 39 had no other signal at all and none
+ * had two.
  */
-export function countCommittedSignals(node: ReviewCandidateNode): number {
+export function countCommittedSignals(
+  node: ReviewCandidateNode,
+  context: CommittedSignalContext = {},
+): number {
+  if (node.nodeKind === 'chapter') {
+    // A read or a study dwell, at most twice; a glance is `exposure` and is worth nothing.
+    let signals = Math.min(2, Math.max(0, node.revisitCount));
+    if (context.highlightedChapterKeys?.has(node.nodeKey)) signals += 1;
+    return signals;
+  }
+  return countCommittedSignalsForNote(node);
+}
+
+function countCommittedSignalsForNote(node: ReviewCandidateNode): number {
   let signals = 0;
   if (node.revisitCount > 0) signals += 1;
   if (node.explicitConnectionCount > 0) signals += 1;
@@ -218,9 +268,12 @@ export function nodeReadiness(
   node: ReviewCandidateNode,
   now: Date,
   meaningWeight: number | null,
+  context: CommittedSignalContext = {},
 ): NodeReadiness {
-  if (daysBetween(node.firstStudiedAt, now) < ENGINE_MIN_NODE_AGE_DAYS) return 'too-new';
-  if (countCommittedSignals(node) < ENGINE_MIN_COMMITTED_SIGNALS) return 'too-few-signals';
+  const minAge =
+    node.nodeKind === 'chapter' ? ENGINE_MIN_CHAPTER_AGE_DAYS : ENGINE_MIN_NODE_AGE_DAYS;
+  if (daysBetween(node.firstStudiedAt, now) < minAge) return 'too-new';
+  if (countCommittedSignals(node, context) < ENGINE_MIN_COMMITTED_SIGNALS) return 'too-few-signals';
   if (node.nodeKind === 'note' && (meaningWeight ?? 0) < NOTE_MEANING_WEIGHT_FLOOR) {
     return 'too-thin';
   }
@@ -231,8 +284,9 @@ export function nodeIsReady(
   node: ReviewCandidateNode,
   now: Date,
   meaningWeight: number | null,
+  context: CommittedSignalContext = {},
 ): boolean {
-  return nodeReadiness(node, now, meaningWeight) === 'ready';
+  return nodeReadiness(node, now, meaningWeight, context) === 'ready';
 }
 
 /**
@@ -245,11 +299,22 @@ export function engineHasEnoughReady(
   nodes: readonly ReviewCandidateNode[],
   now: Date,
   meaningWeightByNoteId: ReadonlyMap<string, number>,
+  context: CommittedSignalContext = {},
 ): boolean {
   let ready = 0;
   for (const node of nodes) {
+    /*
+     * Chapters do not count toward the cold start.
+     *
+     * The gate asks whether this is an account someone has been *studying* in, and reading is
+     * the one signal that arrives without any writing at all. Counted here, a reader who has
+     * turned to five chapters and written nothing would unlock the engine and be asked about
+     * five chapters — which is the demo-of-a-feature the cold start exists to prevent. They
+     * still get chapter items once the account clears the gate on its own study.
+     */
+    if (node.nodeKind === 'chapter') continue;
     const weight = node.noteId ? meaningWeightByNoteId.get(node.noteId) ?? null : null;
-    if (nodeIsReady(node, now, weight)) {
+    if (nodeIsReady(node, now, weight, context)) {
       ready += 1;
       if (ready >= ENGINE_COLD_START_MIN_READY) return true;
     }
@@ -297,6 +362,8 @@ export interface SelectReviewBatchOptions {
    * offering everything.
    */
   meaningWeightByNoteId?: ReadonlyMap<string, number>;
+  /** Extra facts the nodes cannot see — see `CommittedSignalContext`. */
+  signalContext?: CommittedSignalContext;
 }
 
 /**
@@ -320,7 +387,12 @@ export function selectReviewBatch(
     .filter((node) => ENGINE_NODE_KINDS.includes(node.nodeKind))
     // Worth asking about at all, before worth asking about now.
     .filter((node) =>
-      nodeIsReady(node, options.now, node.noteId ? weights.get(node.noteId) ?? null : null),
+      nodeIsReady(
+        node,
+        options.now,
+        node.noteId ? weights.get(node.noteId) ?? null : null,
+        options.signalContext,
+      ),
     )
     .filter((node) => {
       const sourceKey = reviewSourceKeyForNode(node);

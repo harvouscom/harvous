@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   ENGINE_PER_KIND_CAP,
   NOTE_MEANING_WEIGHT_FLOOR,
+  ENGINE_MIN_CHAPTER_AGE_DAYS,
+  ENGINE_NODE_KINDS,
   countCommittedSignals,
   engineDailyRoom,
   engineHasEnoughReady,
@@ -370,5 +372,83 @@ describe('a tag the reader applied by hand', () => {
     // Tags live on notes. A verse node carrying one would be a bug, not a signal.
     const cited = verse('v', { exposureCount: 1, revisitCount: 0, manualTagCount: 5 });
     expect(countCommittedSignals(cited)).toBe(1);
+  });
+});
+
+describe('a chapter the reader has been through', () => {
+  /* `recordReadingEvent` writes `revisit` for a read or study dwell and `exposure` for a
+     glance, so the passive half is already separated at the point of recording. */
+  const chapter = (key: string, overrides: Partial<ReviewCandidateNode> = {}) =>
+    node({
+      nodeKind: 'chapter',
+      nodeKey: key,
+      exposureCount: 0,
+      revisitCount: 0,
+      firstStudiedAt: daysAgo(10),
+      lastSeenAt: daysAgo(3),
+      ...overrides,
+    });
+  const john3 = nodeKey.chapter({ book: 'John', chapter: 3 });
+
+  it('is a kind the engine now considers', () => {
+    expect(ENGINE_NODE_KINDS).toContain('chapter');
+  });
+
+  it('counts reads and never glances, however many', () => {
+    expect(countCommittedSignals(chapter(john3, { revisitCount: 2 }))).toBe(2);
+    expect(countCommittedSignals(chapter(john3, { exposureCount: 50 }))).toBe(0);
+    // Capped, so a chapter read twenty times cannot outweigh the gate's intent.
+    expect(countCommittedSignals(chapter(john3, { revisitCount: 20 }))).toBe(2);
+  });
+
+  it('counts a verse marked inside it as one more act', () => {
+    const context = { highlightedChapterKeys: new Set([john3]) };
+    expect(countCommittedSignals(chapter(john3, { revisitCount: 1 }), context)).toBe(2);
+    // A mark in some other chapter says nothing about this one.
+    expect(
+      countCommittedSignals(chapter(john3, { revisitCount: 1 }), {
+        highlightedChapterKeys: new Set([nodeKey.chapter({ book: 'Romans', chapter: 8 })]),
+      }),
+    ).toBe(1);
+  });
+
+  it('is ready after two reads and a day, and never on glances alone', () => {
+    expect(nodeReadiness(chapter(john3, { revisitCount: 2 }), NOW, null)).toBe('ready');
+    expect(nodeReadiness(chapter(john3, { exposureCount: 50 }), NOW, null)).toBe('too-few-signals');
+    expect(
+      nodeReadiness(chapter(john3, { revisitCount: 1 }), NOW, null, {
+        highlightedChapterKeys: new Set([john3]),
+      }),
+    ).toBe('ready');
+  });
+
+  it('waits a day, which is shorter than a note or a verse waits', () => {
+    const readToday = chapter(john3, { revisitCount: 2, firstStudiedAt: NOW });
+    expect(nodeReadiness(readToday, NOW, null)).toBe('too-new');
+    const yesterday = chapter(john3, {
+      revisitCount: 2,
+      firstStudiedAt: daysAgo(ENGINE_MIN_CHAPTER_AGE_DAYS),
+    });
+    expect(nodeReadiness(yesterday, NOW, null)).toBe('ready');
+  });
+
+  it('never unlocks the engine on its own', () => {
+    /*
+     * The cold start asks whether this is an account someone has been studying in, and reading
+     * is the one signal that arrives with no writing at all. Five read chapters and nothing
+     * else must not open the queue, or a new reader's first week is five chapter quizzes.
+     */
+    const chapters = [1, 2, 3, 4, 5, 6, 7].map((n) =>
+      chapter(nodeKey.chapter({ book: 'John', chapter: n }), { revisitCount: 2 }),
+    );
+    expect(engineHasEnoughReady(chapters, NOW, new Map())).toBe(false);
+  });
+
+  it('is picked once the account has cleared the gate on its own study', () => {
+    const picked = selectReviewBatch([chapter(john3, { revisitCount: 2 })], {
+      now: NOW,
+      existingSourceKeys: emptyKeys,
+    });
+    expect(picked.map((n) => n.nodeKey)).toEqual([john3]);
   });
 });
