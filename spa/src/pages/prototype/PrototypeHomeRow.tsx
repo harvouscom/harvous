@@ -173,32 +173,31 @@ export default function PrototypeHomeRow({
         className="proto-list-panel__row-text"
         style={marqueePace(Math.max(titleChars, metaChars))}
       >
-        {titleTrailing ? (
-          /*
-           * A mark that belongs to the subject rather than to the sentence under it.
-           *
-           * It cannot go inside the title: that line ellipsises, so a long title would cut the
-           * mark off before the words it is about. So the line becomes a flex row where the
-           * title takes what it needs and the mark keeps its width. The wrapper only appears
-           * when there is something to put in it, so every other row is untouched.
-           */
-          <span className="proto-list-panel__row-title-line">
-            <span
-              className="pds-list-title proto-list-panel__row-title proto-marquee"
-              style={marqueePace(titleChars)}
-            >
-              <span>{title}</span>
-            </span>
-            {titleTrailing}
+        <span
+          className="pds-list-title proto-list-panel__row-title proto-marquee"
+          style={marqueePace(titleChars)}
+        >
+          {/*
+            * A mark that belongs to the subject travels with the title, inside the same
+            * ellipsising span rather than beside it in a flex row.
+            *
+            * Beside it does not work: the title's intrinsic width resolves to zero in a flex
+            * row — the marquee's inner span reports nothing to measure — so a title sized to
+            * its content vanishes and the mark slides into its place. Made to grow instead, the
+            * title takes the whole line and pushes the mark to the far right, which is a
+            * different thing from a mark on a title.
+            *
+            * As inline content it simply follows the words, wraps never (the line is nowrap),
+            * and on a title long enough to overflow it is clipped with everything else — which
+            * is the right casualty, since by then the title is the thing being read.
+            */}
+          <span>
+            {title}
+            {titleTrailing ? (
+              <span className="proto-list-panel__row-title-mark">{titleTrailing}</span>
+            ) : null}
           </span>
-        ) : (
-          <span
-            className="pds-list-title proto-list-panel__row-title proto-marquee"
-            style={marqueePace(titleChars)}
-          >
-            <span>{title}</span>
-          </span>
-        )}
+        </span>
         {metaItems.length > 0 ? (
           <span
             className="proto-caption proto-list-panel__row-meta proto-marquee-self"

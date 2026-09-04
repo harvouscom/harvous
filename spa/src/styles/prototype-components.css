@@ -11458,35 +11458,9 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    wrap gets shortened or truncated, never taller. */
 .proto-church-tools__row-title,
 .proto-church-tools__row-meta,
-/*
- * The title and a mark that belongs to it, on one line.
- *
- * Only present when a row passes `titleTrailing`. The title keeps its ellipsis and gives up
- * width first; the mark keeps its own, because a status cut in half says nothing.
- */
-.proto-list-panel__row-title-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-/*
- * The title takes the line and the mark sits at its end.
- *
- * Not sized to its own content, which would put the mark snug against the words: the title's
- * intrinsic width resolves to zero inside a flex row — the marquee's inner span reports nothing
- * to measure — so a content-sized title disappears entirely and the mark slides to the left
- * edge where the title should be. Growing into the line restores exactly the block behaviour
- * the title had before, ellipsis and all, and lines the marks up into a column that is easier
- * to scan down than a ragged one anyway.
- */
-.proto-list-panel__row-title-line > .proto-list-panel__row-title {
-  flex: 1 1 auto;
-}
-
-.proto-list-panel__row-title-line > :not(.proto-list-panel__row-title) {
-  flex-shrink: 0;
+/* A mark travelling with the title — see `titleTrailing` in PrototypeHomeRow. */
+.proto-list-panel__row-title-mark {
+  margin-left: 6px;
 }
 
 .proto-list-panel__row-title,
