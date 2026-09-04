@@ -44,7 +44,9 @@ const PRICE_MONTHLY_LABEL = monthPlan ? `${formatPlanPrice(monthPlan)} per month
 const PRICE_ANNUAL_LABEL = yearPlan ? `${formatPlanPrice(yearPlan)} per year` : '';
 
 const ACTIVE_TAGLINE = `${PLAN_NAME} is active on your account. Here's a reminder of what it includes:`;
-const PURCHASE_TAGLINE = 'For when Bible study needs more than a private study Bible.';
+// Leads with returning to your own study, not with hosting: since 3.0 the thing
+// being bought works for one person on the day they pay, and doesn't wait on a group.
+const PURCHASE_TAGLINE = 'For study you come back to, and a group you can bring along.';
 
 type FoundingAvailability = {
   total: number;

@@ -4,14 +4,17 @@
  * It sits in Activity's "Following" group with the church feed and the reading plan, because
  * that is where things from Harvous live rather than things from your own study.
  *
- * ## Why there is no dismiss control
+ * ## Putting it away is its own action
  *
- * It started with a trailing × like the founder letter's, and lost it: a plain chevron row —
- * the same shape as "12 notes need a folder" — carries one action, and this row only has one.
- * Opening the notes already counts as having seen the release, so a separate × was a second
- * control for an outcome the first one reaches. The cost is real and worth naming: the only
- * way to put this row away is to open it. That is tolerable because it puts itself away
- * anyway, at the next release, and never accumulates.
+ * It carries the same trailing pair as Today's passage: a shortcut to the second destination,
+ * and an × that removes it. Opening no longer counts as having read it.
+ *
+ * This is a reversal. The row previously had one control and dismissed itself when you used
+ * it, on the reasoning that reading the notes is already an answer and a separate × would be
+ * a second control for an outcome the first one reaches. That argument holds only while the
+ * row has one destination. Once it had two — the sheet and the notes — using one of them
+ * could no longer stand for having dealt with the row, and a row that vanishes when you were
+ * only glancing at half of it is worse than one that waits to be told.
  *
  * ## What dismissing means
  *
@@ -29,7 +32,20 @@
  * a quiet way out to somewhere else. The version still prints in Settings, which is the one
  * audience that ever needs it.
  *
- * ## Where the link goes
+ * ## Where it goes
+ *
+ * On 3.0 it opens the welcome sheet rather than leaving for the site. That release renamed the
+ * three surfaces people navigate by, so the useful answer to "what's new" is the one that
+ * explains the rearrangement, and the sheet carries links to both the release page and the
+ * notes anyway. This row then doubles as the way back to a modal that otherwise shows itself
+ * exactly once — the sheet had no re-entry, and this row had no home for a release big enough
+ * to need one.
+ *
+ * Every other release goes straight out to the notes, as it always has: the sheet is about
+ * 3.0 specifically, and pointing a 3.4 notice at "Harvous 3 is here." would be a lie told by a
+ * component that had stopped being maintained. It reverts on its own.
+ *
+ * ## Which notes
  *
  * This version's own page when the site has one, the index when it does not. It used to be the
  * index always, because the app's version bumps on every commit and a build is routinely ahead
@@ -37,7 +53,10 @@
  * 404. The site now publishes which versions exist (`/release-notes/published.json`), so the
  * question is answerable and the specific page is offered only once it is known to be there.
  */
+import { appVersion } from '@/utils/app-version';
+import { releaseMarkerFor } from '@/utils/release-marker';
 import { useCallback } from 'react';
+import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useReleaseNotesUrl } from '../../hooks/useReleaseNotesUrl';
 import {
@@ -45,11 +64,10 @@ import {
   PROTO_WHATS_NEW_PREVIEW_KEY,
 } from '../../layouts/proto-session-keys';
 import { useDismissibleRelease } from './useDismissibleFlag';
+import { openWelcome3 } from './welcome3-bridge';
 
-function appVersion(): string | undefined {
-  if (typeof window === 'undefined') return undefined;
-  return (window as unknown as { __APP_VERSION__?: string }).__APP_VERSION__;
-}
+/** The one release with a sheet of its own. */
+const WELCOME_SHEET_RELEASE = '3.0';
 
 export default function PrototypeWhatsNewPill() {
   const version = appVersion();
@@ -58,12 +76,19 @@ export default function PrototypeWhatsNewPill() {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
   });
 
-  /* Reading the notes is also an answer, so it counts as having seen this release. Without
-     this the row would still be sitting there when you came back from reading it. */
-  const open = useCallback(() => {
+  const showsWelcomeSheet = releaseMarkerFor(version) === WELCOME_SHEET_RELEASE;
+
+  /* `releaseNotesUrl` belongs in the deps: it starts on the index and upgrades in place once
+     the site answers, so a callback that captured only the first value would have pinned every
+     click to the index and quietly wasted the lookup. */
+  const openNotes = useCallback(() => {
     window.open(releaseNotesUrl, '_blank', 'noopener,noreferrer');
-    dismiss();
-  }, [dismiss]);
+  }, [releaseNotesUrl]);
+
+  const open = useCallback(() => {
+    if (showsWelcomeSheet) openWelcome3();
+    else openNotes();
+  }, [openNotes, showsWelcomeSheet]);
 
   if (!visible) return null;
 
@@ -71,8 +96,34 @@ export default function PrototypeWhatsNewPill() {
     <PrototypeHomeRow
       icon="burst"
       title="What's new in Harvous"
-      aria-label="Read the release notes for this release"
+      aria-label={showsWelcomeSheet ? 'See what is new in Harvous 3' : 'Read the release notes'}
       onClick={open}
+      trailing={
+        <>
+          {/* Only where the row itself goes somewhere else. On every other release the row is
+              already the notes, and this would be a button that repeats it. */}
+          {showsWelcomeSheet ? (
+            <button
+              type="button"
+              className="proto-side-panel__action-btn"
+              aria-label="Read the release notes"
+              title="Release notes"
+              onClick={openNotes}
+            >
+              <Icon name="eye" size={12} aria-hidden />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="proto-side-panel__action-btn"
+            aria-label="Dismiss what's new"
+            title="Not now"
+            onClick={dismiss}
+          >
+            <Icon name="xmark" size={12} aria-hidden />
+          </button>
+        </>
+      }
     />
   );
 }

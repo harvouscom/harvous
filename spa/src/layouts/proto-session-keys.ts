@@ -16,6 +16,24 @@ export const PROTO_WHATS_NEW_DISMISSED_KEY = 'harvous-prototype-whats-new-dismis
 /** Dev-only: force the what's-new row for UI testing (`import.meta.env.DEV` only). */
 export const PROTO_WHATS_NEW_PREVIEW_KEY = 'harvous-prototype-whats-new-preview';
 
+/**
+ * Whether this browser was running Harvous before 3.0. `'1'` upgraded, `'0'` arrived new.
+ *
+ * Written by `public/scripts/prototype-route-boot.js` before the bundle loads, and never
+ * recomputed after. It has to be sampled there because the answer stops being available
+ * almost immediately: the question is whether any Harvous key predates this build, and this
+ * build starts writing its own within a render or two of starting up.
+ *
+ * Read it, never write it. Keep the literal in sync with the boot script.
+ */
+export const PROTO_UPGRADED_FROM_2_KEY = 'harvous-proto-upgraded-from-2';
+
+/** Client flag: user has seen the Harvous 3 welcome. One message, said once. */
+export const PROTO_WELCOME_3_DISMISSED_KEY = 'harvous-proto-welcome-3-dismissed';
+
+/** Dev-only: force the Harvous 3 welcome for UI testing (`import.meta.env.DEV` only). */
+export const PROTO_WELCOME_3_PREVIEW_KEY = 'harvous-proto-welcome-3-preview';
+
 /** Client flag: user dismissed the install web app card on prototype home. */
 export const PROTO_INSTALL_WEB_APP_DISMISSED_KEY = 'harvous-prototype-install-web-app-dismissed';
 

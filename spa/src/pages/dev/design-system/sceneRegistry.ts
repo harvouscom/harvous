@@ -257,6 +257,29 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-21-review-verdicts',
     visualBaseline: true,
   },
+  {
+    id: 'ds-22-welcome-3',
+    title: 'Harvous 3 welcome',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeWelcome3Sheet.tsx',
+      'spa/src/pages/prototype/PrototypeWelcome3.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-22-welcome-3',
+    visualBaseline: true,
+  },
+  {
+    id: 'ds-23-whats-new-row',
+    title: "What's new row",
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeWhatsNewPill.tsx',
+      'spa/src/pages/prototype/PrototypeHomeRow.tsx',
+    ],
+    screenshotSlug: 'ds-23-whats-new-row',
+    visualBaseline: true,
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

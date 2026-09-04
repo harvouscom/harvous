@@ -79,6 +79,13 @@ Reproduce by loading `/` and reading the browser's network log filtered to `/api
 `performance.getEntriesByType('resource')` returns **nothing** for these — something in the fetch
 path keeps them out of resource timing — so the network panel is the only way to count them.
 
+The count moves with what Home has to show: the same fixes measured 36 → 30 for a reader with 4
+suggestion cards and an empty review queue. Compare loads, not branches.
+
+Reading against the database requires `UserMetadata.foundingClaimedAt` to exist — see
+[RELEASE_CHECKLIST_3_0.md](../RELEASE_CHECKLIST_3_0.md). Without it `/api/user/get-profile` 500s
+and Home never composes, so any count taken is a count of a page that failed.
+
 The four duplicated reads found in that first count are in "Fixed" below. What is left is 31
 distinct endpoints, which is a different kind of problem: not one surface asking twice, but Home
 composing itself out of many small reads. Attacking that means merging endpoints or deferring
@@ -91,9 +98,9 @@ outstanding.
 
 ### An Activity load asked for four things twice — 2026-09-04
 
-40 requests became 31, on the load measured immediately before and after. The 42 in the section
-above was counted before the review-folds fix below, and a load or two of ordinary variance sits
-between the two numbers.
+40 requests became 31, on the load measured immediately before and after; the same fixes measured
+36 → 30 on a lighter load. The 42 in the section above was counted before the review-folds fix
+below, and a load or two of ordinary variance sits between the two numbers.
 
 Four separate duplications, one fix each, and the shape they had in common is that no single file
 looked wrong: every one of them was two correct callers of the same data with nothing between
@@ -114,11 +121,16 @@ deduplicated by React Query and the bug does not appear. It appears because each
 instance awaits its own `getToken()`, so the flips land in three separate commits. The test in
 `space-notes-auth-repair.test.tsx` staggers them for exactly that reason.
 
-**Six impression writes.** One `POST /api/recall/event` per visible suggestion card. They batch
-into a single `POST /api/recall/events` behind a queue flushed on the next macrotask, which is
-enough because the six calls arrive synchronously in one effect. Impressions only: an `open` is
-followed immediately by navigation away, and a `snooze` or `dismissed` is what suppresses a card
-on the reader's other devices, so neither can wait for a flush.
+**One impression write per visible suggestion card.** A `POST /api/recall/event` each — six of
+them on the Home that was first counted, four here. They batch into a single
+`POST /api/recall/events` behind a queue flushed on the next macrotask, which is enough because
+the calls arrive synchronously in one effect. A load whose cards paint in two waves sends two
+batches rather than one, and should: a card that appears later is a new impression, and a longer
+window to merge them would risk holding events through a navigation that drops them.
+
+Impressions only. An `open` is followed immediately by navigation away, and a `snooze` or
+`dismissed` is what suppresses a card on the reader's other devices, so neither can wait for a
+flush.
 
 **`GET /api/user/get-profile`, twice.** The prototype shell fetched its own copy to hydrate
 appearance and onboarding while `useProfile` fetched the same payload for everything else. The

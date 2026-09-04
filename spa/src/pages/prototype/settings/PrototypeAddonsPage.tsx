@@ -129,7 +129,7 @@ export default function PrototypeAddonsPage() {
     // Deliberately not "Founding price" here — founding is capped at 99 and may
     // already be gone. /upgrade owns that claim, where availability is live.
     if (!hasSharedSpaces) {
-      return PRICE_SUMMARY || 'Unlock Shared Spaces hosting';
+      return PRICE_SUMMARY || 'Unlock Review, Challenges, and hosting';
     }
     if (billing) {
       const status = formatBillingStatusLine(billing);

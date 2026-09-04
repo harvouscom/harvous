@@ -9678,6 +9678,356 @@ button.proto-appearance-hero__card {
   color: var(--pds-text-secondary);
 }
 
+/* ==========================================================================
+   Harvous 3 welcome  (PrototypeWelcome3Sheet)
+
+   The hero from harvous.com's /3/ page, in a modal. Kept close to the original on
+   purpose — same glyph, same gradient, same draw-then-fill timing — so the app and the
+   release page read as one announcement. If one moves, move both: harvous.com
+   src/pages/3.astro (.v3-hero*) is the other copy.
+   ========================================================================== */
+
+.proto-welcome3 {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  max-width: 520px;
+  border-radius: var(--pds-shell-frame-radius);
+  border: 0.5px solid var(--pds-border-modal-highlight);
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-sheet), inset 0 0.5px 0 var(--pds-bg-modal-inset-highlight);
+}
+
+/*
+ * Ruled ground under the numeral.
+ *
+ * The `round()` snaps the ~24px cell to a whole division of the container, so squares stay
+ * square and the grid never ends on a clipped half-cell at the sheet edge. `container-type`
+ * is what gives `cqw` something to measure — without it the whole expression collapses.
+ */
+.proto-welcome3__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  container-type: inline-size;
+  /* Dissolve toward the edges so it reads as ruled paper behind the numeral, not wallpaper. */
+  mask-image: radial-gradient(70% 70% at 50% 30%, #000 20%, transparent 100%);
+  -webkit-mask-image: radial-gradient(70% 70% at 50% 30%, #000 20%, transparent 100%);
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  /*
+   * The pool of visible ruling drifts on the same fourteen seconds as the numeral's lighting,
+   * so the two read as one light source rather than two separate animations. The grid itself
+   * never moves — travelling ruled lines are conspicuous, and would undo the whole point.
+   */
+  animation: proto-welcome3-ground 14000ms ease-in-out 2400ms infinite;
+}
+
+/*
+ * `mask-position`, not the gradient's own `at`.
+ *
+ * Animating `mask-image` between two gradients was the obvious way and does not work: the
+ * engine treats gradient images as discrete, so instead of drifting it snapped from one
+ * position to the other halfway through — worse than not animating at all. Position is a
+ * length and interpolates properly.
+ *
+ * Pixels rather than percentages: the mask is exactly the size of the box, so percentage
+ * offsets resolve against zero free space and would move nothing at all. `no-repeat` above
+ * stops the shifted mask tiling; the few pixels it uncovers at the edge are already fully
+ * transparent in the gradient, so nothing shows a seam.
+ */
+@keyframes proto-welcome3-ground {
+  0%,
+  100% {
+    mask-position: -8px 6px;
+    -webkit-mask-position: -8px 6px;
+  }
+  50% {
+    mask-position: 8px -6px;
+    -webkit-mask-position: 8px -6px;
+  }
+}
+
+.proto-welcome3__grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  --proto-welcome3-cell: calc(100cqw / round(nearest, 100cqw / 24px, 1));
+  /*
+   * Mixed off the text colour rather than a border token, because it has to work on both
+   * grounds and the border tokens only work on one. They derive from the canvas by scaling its
+   * lightness down, which gives contrast on a light sheet and none at all on a dark one — the
+   * ruling came out at oklch(0.206) over a 0.18 sheet, invisible. The text colour is the one
+   * value in the system already guaranteed to oppose the background, so a few percent of it
+   * lands dark-on-light and light-on-dark without a second branch.
+   */
+  --proto-welcome3-rule: color-mix(in srgb, var(--pds-text-primary) 8%, transparent);
+  background-image:
+    linear-gradient(to right, var(--proto-welcome3-rule) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--proto-welcome3-rule) 1px, transparent 1px);
+  background-size: var(--proto-welcome3-cell) var(--proto-welcome3-cell);
+}
+
+.proto-welcome3__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--pds-space-8) var(--pds-space-6) var(--pds-space-6);
+  gap: var(--pds-space-3);
+}
+
+.proto-welcome3__numeral {
+  display: block;
+  width: clamp(5rem, 22vw, 7.5rem);
+  height: auto;
+  /* The stroke is drawn outside the glyph's own bounds; the viewBox is padded for it and this
+     keeps that padding from being clipped. */
+  overflow: visible;
+  margin-bottom: var(--pds-space-2);
+}
+
+/*
+ * Draw, then fill.
+ *
+ * `pathLength="1"` normalises the dash maths so the offset is a fraction rather than the real
+ * path length. The fill starts while the stroke is still finishing — they overlap rather than
+ * hand off — and the stroke fades out as it arrives, so at rest nothing sits outside the
+ * glyph's true edge and the weight is exactly the font's.
+ */
+.proto-welcome3__numeral-path {
+  /* On the element rather than the glyph in `defs`, so the gleam below can wear its own. */
+  fill: url(#proto-welcome3-grad);
+  stroke: url(#proto-welcome3-grad);
+  stroke-width: 28;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  fill-opacity: 0;
+  stroke-opacity: 1;
+  animation:
+    proto-welcome3-draw 1400ms cubic-bezier(0.65, 0, 0.35, 1) 150ms both,
+    proto-welcome3-fill 800ms cubic-bezier(0.22, 1, 0.36, 1) 1250ms both;
+}
+
+@keyframes proto-welcome3-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes proto-welcome3-fill {
+  to {
+    fill-opacity: 1;
+    stroke-opacity: 0;
+  }
+}
+
+/*
+ * The light on the numeral keeps moving, very slowly.
+ *
+ * A second copy of the glyph, lit along a different axis, fading in and back out over
+ * fourteen seconds. Blending two smooth gradients gives another smooth gradient, so what the
+ * eye reads is not a second object but the light on the first one swinging.
+ *
+ * This replaced an arc that travelled the outline. That was subtle by every measurement —
+ * faint, brief, rare — and still wrong, because it was a discrete thing with edges and the
+ * eye tracks those no matter how quiet they are. Here nothing arrives or leaves and there is
+ * nothing to follow, which is why it can run continuously with no rest gap at all.
+ *
+ * Done this way because SVG gradient geometry is attributes, not CSS: `gradientTransform`,
+ * `x1`/`y1`/`x2`/`y2` and a stop's `offset` cannot be animated by a stylesheet. Cross-fading
+ * two copies gets the same result out of `fill-opacity`, which can.
+ */
+.proto-welcome3__numeral-drift {
+  fill: url(#proto-welcome3-grad-drift);
+  fill-opacity: 0;
+  /* Begins once the opening draw and fill have finished and had a beat to settle. */
+  animation: proto-welcome3-drift 14000ms ease-in-out 2400ms infinite;
+}
+
+@keyframes proto-welcome3-drift {
+  0%,
+  100% {
+    fill-opacity: 0;
+  }
+  50% {
+    fill-opacity: 1;
+  }
+}
+
+/*
+ * The copy arrives after the numeral has begun filling, not while it is still tracing —
+ * one thing at a time. The site drives this from an IntersectionObserver; there is no scroll
+ * inside a modal, so a plain delay says the same thing.
+ */
+.proto-welcome3__lead,
+.proto-welcome3__sub,
+.proto-welcome3__actions {
+  animation: proto-welcome3-arrive 1000ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.proto-welcome3__lead {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--pds-text-primary);
+  animation-delay: 1300ms;
+}
+
+/*
+ * This is where focus lands on open — see `data-proto-dialog-heading` in the component — not
+ * a place a person tabs to. The button rule up top only matches `button, [role='button']`, so
+ * a plain heading falls through to the browser default outline; on a sentence nobody can
+ * interact with, that reads as a rendering glitch rather than a focus indicator.
+ */
+.proto-welcome3__lead:focus-visible {
+  outline: none;
+}
+
+
+.proto-welcome3__sub {
+  margin: 0;
+  max-width: 34ch;
+  /* Evens the lines rather than letting the last one strand a single word, which is what this
+     copy does at phone width. Ignored by browsers that lack it, which just wrap as before. */
+  text-wrap: balance;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--pds-text-secondary);
+  animation-delay: 1450ms;
+}
+
+@keyframes proto-welcome3-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+/*
+ * Two peers, side by side. They are the same kind of destination — the story and the list —
+ * so stacking them would have implied a step down in kind that is not there. The accent fill
+ * carries the emphasis instead.
+ */
+.proto-welcome3__actions {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: var(--pds-space-2);
+  width: 100%;
+  max-width: 400px;
+  margin-top: var(--pds-space-4);
+  animation-delay: 1600ms;
+}
+
+.proto-welcome3__cta,
+.proto-welcome3__secondary {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--pds-space-3);
+  border-radius: var(--pds-radius-button);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.proto-welcome3__cta {
+  border: none;
+  color: #fff;
+  background: linear-gradient(171deg, #2bb5ff 7%, #006eff 93%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.3) inset,
+    0 10px 24px -10px rgba(0, 110, 255, 0.55);
+}
+
+/*
+ * The neutral half of the pair, styled as `proto-settings-btn--secondary` is: a filled chip,
+ * no border. A 0.5px hairline was the first attempt and disappeared next to a saturated pill —
+ * it read as loose text rather than the other button.
+ */
+.proto-welcome3__secondary {
+  border: none;
+  color: var(--pds-text-primary);
+  background: var(--pds-bg-input);
+}
+
+.proto-welcome3__secondary:hover {
+  background: var(--pds-bg-row-hover);
+}
+
+/*
+ * The only control that just closes. Both buttons below leave for a tab, so without this the
+ * answer "neither" would need a keyboard.
+ */
+.proto-welcome3__close {
+  position: absolute;
+  top: var(--pds-space-3);
+  right: var(--pds-space-3);
+  z-index: 2;
+}
+
+
+/*
+ * Bigger once the sheet stops being squeezed.
+ *
+ * The sheet is capped at 520px, so above this breakpoint it is always that width and there is
+ * no gradient to follow — two states, not a scale, which is why this is a media query rather
+ * than a clamp. At 24px the line sat too quiet under a numeral three times its height.
+ */
+@media (min-width: 601px) {
+  .proto-welcome3__lead {
+    font-size: 32px;
+  }
+
+  .proto-welcome3__sub {
+    font-size: 16px;
+  }
+}
+
+/*
+ * Reduced motion: the numeral arrives already drawn and filled, and the copy simply is there.
+ * Not optional — animation is the entire surface, so without this branch there is nothing.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .proto-welcome3__numeral-path {
+    animation: none;
+    stroke-dashoffset: 0;
+    fill-opacity: 1;
+    stroke-opacity: 0;
+  }
+
+  /* Settles on the first lighting and stays there. */
+  .proto-welcome3__numeral-drift {
+    animation: none;
+    fill-opacity: 0;
+  }
+
+  .proto-welcome3__grid {
+    animation: none;
+  }
+
+  .proto-welcome3__lead,
+  .proto-welcome3__sub,
+  .proto-welcome3__actions {
+    animation: none;
+  }
+}
+
 .proto-founder-letter-sheet {
   position: relative;
   width: 100%;
@@ -9745,7 +10095,8 @@ button.proto-appearance-hero__card {
  * the same object standing on its own.
  */
 .proto-founder-letter-sheet__close,
-.proto-votd-sheet__close {
+.proto-votd-sheet__close,
+.proto-welcome3__close {
   background: color-mix(in srgb, var(--pds-text-primary, #1d1d1f) 5%, transparent);
   border-radius: 8px;
 }

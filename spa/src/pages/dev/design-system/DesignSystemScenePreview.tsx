@@ -18,6 +18,8 @@ import PrototypePaperStack from '../../prototype/PrototypePaperStack';
 import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
+import PrototypeWelcome3Sheet from '../../prototype/PrototypeWelcome3Sheet';
+import PrototypeHomeRow from '../../prototype/PrototypeHomeRow';
 import { buildStudyFeedDays, type StudyFeedItem } from '@/utils/study-feed-items';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
@@ -1510,6 +1512,85 @@ function StudyFeedScene() {
   );
 }
 
+/*
+ * The real sheet, opened. It is a one-time surface gated on a browser having run 2.x, so once
+ * anyone has dismissed it this scene is the only way left to look at it.
+ */
+function Welcome3Scene() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        Shown once, on the first 3.0 load, to a browser that was running Harvous before it.
+        Reuses the <code>/3/</code> hero from harvous.com. Close it and press Replay to watch
+        the numeral draw again.
+      </p>
+      <div className="pds-gallery-btn-row">
+        <button
+          type="button"
+          className="proto-shared-people-row__action"
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? 'Close' : 'Replay'}
+        </button>
+      </div>
+      <PrototypeWelcome3Sheet open={open} onDismiss={() => setOpen(false)} />
+    </div>
+  );
+}
+
+/*
+ * Fixtures rather than the real `PrototypeWhatsNewPill`, for the same reason the toast scene
+ * uses one: the row shows for exactly one release per browser and reads the running build's
+ * version to decide its shape, so neither variant can be summoned on demand.
+ */
+function WhatsNewRowScene() {
+  const dismiss = (
+    <button type="button" className="proto-side-panel__action-btn" aria-label="Dismiss what's new">
+      <Icon name="xmark" size={12} aria-hidden />
+    </button>
+  );
+  return (
+    <div className="pds-gallery-stack">
+      <p className="pds-caption">
+        Sits in Activity&rsquo;s Following group. Opening it no longer puts it away &mdash; the{' '}
+        <code>&times;</code> does, and only for <em>this</em> release.
+      </p>
+
+      <PrototypeSectionHeader>On 3.0 &mdash; row opens the welcome sheet</PrototypeSectionHeader>
+      <div className="proto-glass-surface">
+        <PrototypeHomeRow
+          icon="burst"
+          title="What's new in Harvous"
+          aria-label="See what is new in Harvous 3"
+          trailing={
+            <>
+              <button
+                type="button"
+                className="proto-side-panel__action-btn"
+                aria-label="Read the release notes"
+              >
+                <Icon name="eye" size={12} aria-hidden />
+              </button>
+              {dismiss}
+            </>
+          }
+        />
+      </div>
+
+      <PrototypeSectionHeader>Every other release &mdash; row is the notes</PrototypeSectionHeader>
+      <div className="proto-glass-surface">
+        <PrototypeHomeRow
+          icon="burst"
+          title="What's new in Harvous"
+          aria-label="Read the release notes"
+          trailing={dismiss}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function DesignSystemScenePreview({ scene }: { scene: DesignSystemScene }) {
   switch (scene.id) {
     case 'ds-01-typography':
@@ -1554,6 +1635,10 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <StudyFeedScene />;
     case 'ds-21-review-verdicts':
       return <ReviewVerdictsScene />;
+    case 'ds-22-welcome-3':
+      return <Welcome3Scene />;
+    case 'ds-23-whats-new-row':
+      return <WhatsNewRowScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

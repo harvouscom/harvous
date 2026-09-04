@@ -21,6 +21,22 @@ html.harvous-prototype-route [class*='proto-'] button * {
 }
 
 /*
+ * Harvous 3 welcome — white label on the accent button.
+ *
+ * The blanket rule above matches `button[class*='proto-']` and forces `--pds-text-primary`
+ * with `!important`, which lands dark ink on the blue gradient. Restated here rather than in
+ * the component CSS because only an `!important` in this file can beat it.
+ *
+ * Worth knowing: this whole file is scoped to `html.harvous-prototype-route`, so the design
+ * gallery does not see any of it. A button that looks right at /__dev/design-system can still
+ * be wrong on the real route — check both.
+ */
+html.harvous-prototype-route button.proto-welcome3__cta,
+html.harvous-prototype-route button.proto-welcome3__cta * {
+  color: #fff !important;
+}
+
+/*
  * Offline badge — one neutral chip, both states.
  *
  * It sits inside the translation row's button, so the blanket rule above would otherwise
