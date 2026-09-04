@@ -950,7 +950,7 @@ export default function PrototypeReviewDock() {
           </>
         ) : clozeExercise && clozeExercise.blankLengths.length > 0 ? (
           /*
-           * Fill in the missing words, in the gaps themselves.
+           * Fill in the blanks, in the blanks themselves.
            *
            * The server has built this cloze since the rung shipped and nothing ever rendered it,
            * because the rung was not graded and the reveal arrived only after the reader had
@@ -979,7 +979,7 @@ export default function PrototypeReviewDock() {
                         next[index] = event.target.value;
                         setBlanks(next);
                       }}
-                      aria-label={`Missing word ${index + 1}`}
+                      aria-label={`Blank ${index + 1}`}
                       autoComplete="off"
                       spellCheck={false}
                       disabled={outcome.isPending}

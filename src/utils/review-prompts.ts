@@ -133,8 +133,13 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
    */
   'verse.recognize': (ctx) =>
     named(ctx, (s) => `Pick how ${s} begins.`, 'Pick how this verse begins.'),
+  /*
+   * "Blanks", here and everywhere. This one exercise was called three things: "the missing
+   * words" to a subscriber, "the gaps" to a free reader trying it, and "Missing word 3" to a
+   * screen reader — so the word someone learned on the sample was a word they never saw again.
+   */
   'verse.rebuild': (ctx) =>
-    named(ctx, (s) => `Fill in the missing words of ${s}.`, 'Fill in the missing words.'),
+    named(ctx, (s) => `Fill in the blanks in ${s}.`, 'Fill in the blanks.'),
   'verse.recall': (ctx) =>
     named(ctx, (s) => `Write ${s} from memory.`, 'Write this verse from memory.'),
   // The classic memory-verse aid: the first letter of every word, and nothing else.
@@ -236,7 +241,7 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'note.connect': 'Pick a note you linked',
   'note.annotation': 'Pick the passage you wrote this on',
   'verse.recognize': 'Pick how it begins',
-  'verse.rebuild': 'Fill in the missing words',
+  'verse.rebuild': 'Fill in the blanks',
   'verse.initials': 'Write it from first letters',
   'verse.recall': 'Write it from memory',
   'verse.keywords': 'Name three of its words',
@@ -245,7 +250,7 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'verse.altered': 'Find the changed word',
   'verse.sequence': 'Put it back in order',
   'verse.locate': 'Say where it is from',
-  'verse.book': 'Pick the book',
+  'verse.book': 'Pick the book it is from',
   'verse.connect': 'Pick the note you cited it in',
   'verse.theme': 'Pick the theme it carries',
   'verse.person': 'Pick who it is about',

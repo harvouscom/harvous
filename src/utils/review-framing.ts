@@ -213,6 +213,6 @@ export function fillFraming(spec: ReviewFramingSpec, now: Date = new Date()): st
     case 'pass':
       return 'Back for another pass.';
     case 'holding':
-      return 'Holding. Keep it that way.';
+      return 'You have this one. Keep it.';
   }
 }

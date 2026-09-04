@@ -124,6 +124,25 @@ export function reviewRowSource(
   return source === NOTE_WRITTEN_SOURCE ? null : source;
 }
 
+/**
+ * How well the reader holds this, for the row's meta line — or nothing.
+ *
+ * Two suppressions. "New" says nothing useful on a row that is by definition being asked for
+ * the first time. And where the framing line already speaks to the state, the row printed it
+ * twice: a durable item with no reader or curated fact to show read
+ * "Pick what comes next · You have this one. Keep it. · You have this", which is the app saying
+ * one thing in two registers and trusting neither.
+ */
+export function reviewRowRecallLabel(
+  item: { recallState?: string | null; framing?: { template: string } | null },
+  labels: Record<string, string>,
+): string | null {
+  const state = item.recallState;
+  if (!state || state === 'new') return null;
+  if (item.framing?.template === 'holding') return null;
+  return labels[state] ?? null;
+}
+
 /** When the subject is the answer, the row says which *kind* of thing it is and no more. */
 export const REVIEW_SUBJECT_HIDDEN_NOTE = 'One of your notes';
 export const REVIEW_SUBJECT_HIDDEN_VERSE = 'One of your passages';

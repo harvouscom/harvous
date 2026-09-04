@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { reviewRowSource, reviewRowSubtitle, writtenAtLabel, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { VERSE_LOCATE_STEP, VERSE_SEQUENCE_STEP } from '@/utils/review-prompts';
-import { rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
+import { reviewRowRecallLabel, rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
 
 const NOW = new Date('2026-09-02T12:00:00Z');
 
@@ -224,5 +224,31 @@ describe('a chapter row', () => {
     }
     // The prompt already names it, so nothing is repeated underneath.
     expect(reviewRowSubtitle({ ...item, ladderStep: 0 })).toBeNull();
+  });
+});
+
+describe('reviewRowRecallLabel', () => {
+  const labels = { fragile: 'Needs work', durable: 'You have this' };
+
+  it('says where the reader stands, in words they did not have to learn', () => {
+    expect(reviewRowRecallLabel({ recallState: 'fragile' }, labels)).toBe('Needs work');
+  });
+
+  it('says nothing on a row being asked for the first time', () => {
+    expect(reviewRowRecallLabel({ recallState: 'new' }, labels)).toBeNull();
+    expect(reviewRowRecallLabel({}, labels)).toBeNull();
+  });
+
+  it('leaves it to the framing line where that already said it', () => {
+    /*
+     * A durable item with no reader or curated fact to show read "Pick what comes next · You
+     * have this one. Keep it. · You have this" — one thing said twice in two registers.
+     */
+    expect(
+      reviewRowRecallLabel({ recallState: 'durable', framing: { template: 'holding' } }, labels),
+    ).toBeNull();
+    expect(
+      reviewRowRecallLabel({ recallState: 'durable', framing: { template: 'marked' } }, labels),
+    ).toBe('You have this');
   });
 });

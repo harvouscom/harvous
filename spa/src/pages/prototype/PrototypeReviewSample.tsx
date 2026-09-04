@@ -102,7 +102,7 @@ export default function PrototypeReviewSample({
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && filled && !answer.isPending) submit();
                     }}
-                    aria-label={`Missing word ${index + 1}`}
+                    aria-label={`Blank ${index + 1}`}
                     autoComplete="off"
                     spellCheck={false}
                     disabled={answer.isPending}

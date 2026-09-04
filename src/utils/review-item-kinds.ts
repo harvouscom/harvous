@@ -116,12 +116,20 @@ export function isRecallState(value: string): value is RecallState {
   return (RECALL_STATES as readonly string[]).includes(value);
 }
 
+/**
+ * The same five states, said the way a person would say them.
+ *
+ * "Still fragile", "Forming", "Holding" and "Slipping" were four different metaphors — glass,
+ * clay, grip, slope — for one axis, and three of them were the enum's own words promoted to a
+ * caption. None of them told the reader anything they could act on. These do: they say where
+ * you stand with the thing, in words nobody has to learn.
+ */
 export const RECALL_STATE_LABELS: Record<RecallState, string> = {
   new: 'New',
-  fragile: 'Still fragile',
-  forming: 'Forming',
-  durable: 'Holding',
-  slipping: 'Slipping',
+  fragile: 'Needs work',
+  forming: 'Coming back',
+  durable: 'You have this',
+  slipping: 'Slipping away',
 };
 
 /**

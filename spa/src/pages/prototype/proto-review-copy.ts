@@ -45,7 +45,7 @@ export const REVIEW_SECTION_TITLE = 'Review';
  * them a beat before the question arrived. First impressions were of an empty product.
  */
 /** Announced to a screen reader while the dots show; never printed. */
-export const REVIEW_LOADING_LABEL = 'Finding your next one';
+export const REVIEW_LOADING_LABEL = 'Finding your next review';
 export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
 
 /*
@@ -67,7 +67,7 @@ export const REVIEW_SEE_ALL_COPY = 'See all';
  */
 /* "Wrong" is on the voice doc's forbidden list; the caption says what the line is, not what the
    reader might be. */
-export const REVIEW_ALTERED_CAPTION = 'Altered — one word here is not what it says';
+export const REVIEW_ALTERED_CAPTION = 'One word here is not what it says';
 
 /** Said plainly above the restored verse, so the correction is unmistakable. */
 export const REVIEW_TRUTH_LABEL = 'As it actually reads';
@@ -131,11 +131,17 @@ export function reviewPartsAgainCopy(right: number, total: number): string {
   return right === 1 ? 'One of those is right. One more go.' : `${right} of those are right. One more go.`;
 }
 
-/** What a written verse reached, said without naming a word of it. */
+/**
+ * What a written verse reached, said without naming a word of it.
+ *
+ * "The words that carry it" was a coined term for content words — true, and no help at all to
+ * someone who cannot tell which those are. "Key words" is the same idea in words people
+ * already use.
+ */
 export function reviewReachedCopy(matched: number, total: number): string {
   return matched <= 0
-    ? 'None of the words that carry it yet.'
-    : `You reached ${matched} of the ${total} words that carry it.`;
+    ? 'None of its key words yet.'
+    : `You wrote ${matched} of its ${total} key words.`;
 }
 
 /** Above the answer, after the last go. */
@@ -146,16 +152,16 @@ export const REVIEW_ANSWER_LABEL = 'The answer';
  * with the index, not that they forgot something they knew, and the label says whose reading it
  * is rather than calling it the answer.
  */
-export const REVIEW_INDEX_ANSWER_LABEL = 'The index has this as';
+export const REVIEW_INDEX_ANSWER_LABEL = 'The reference works say';
 
 /** Said once, on the answer that moves something into durable recall. Never a score. */
 /**
  * A leech. Said once, plainly, with a way down: the ladder has been asking this one the same
  * way four times since it was last held, and a fifth is not going to work.
  */
-export const REVIEW_SLIPPING_COPY = 'This one keeps slipping. An easier ask next time?';
-export const REVIEW_STEP_BACK_COPY = 'Step back a rung';
-export const REVIEW_STEPPED_BACK_COPY = 'Stepped back. It comes back easier.';
+export const REVIEW_SLIPPING_COPY = 'This one keeps slipping away. An easier ask next time?';
+export const REVIEW_STEP_BACK_COPY = 'Make it easier';
+export const REVIEW_STEPPED_BACK_COPY = 'Done. It comes back easier next time.';
 /**
  * The way on from a result, and the way out.
  *
@@ -166,7 +172,7 @@ export const REVIEW_STEPPED_BACK_COPY = 'Stepped back. It comes back easier.';
 export const REVIEW_NEXT_COPY = 'Next one';
 export const REVIEW_ENOUGH_COPY = 'Enough for now';
 
-export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
+export const REVIEW_CROSSED_TO_HOLDING_COPY = 'You have this one now.';
 /** The first-letters rung asks for the whole verse, not a note about it. */
 export const REVIEW_INITIALS_PLACEHOLDER = 'Write the verse out';
 
@@ -210,7 +216,7 @@ export const CHALLENGE_RETIRED_COPY = 'The note this path was built on is gone.'
  */
 export const REVIEW_SAMPLE_EYEBROW_YOURS = 'From your own study';
 export const REVIEW_SAMPLE_EYEBROW_WELL_KNOWN = 'A verse to try it on';
-export const REVIEW_SAMPLE_PROMPT = 'Fill in the gaps.';
+export const REVIEW_SAMPLE_PROMPT = 'Fill in the blanks.';
 export const REVIEW_SAMPLE_AFTER = 'That is Review. It brings a verse back just before you would forget it.';
 export const REVIEW_PLUS_TITLE = 'Return to your study with Review';
 export const REVIEW_PLUS_META = 'Come back to your own notes on a schedule';

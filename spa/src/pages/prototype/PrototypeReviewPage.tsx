@@ -32,7 +32,12 @@ import {
 } from './proto-review-copy';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
 import { fillFraming } from '@/utils/review-framing';
-import { reviewRowSource, reviewRowSubject, reviewRowSubtitle } from '@/utils/review-row-subtitle';
+import {
+  reviewRowRecallLabel,
+  reviewRowSource,
+  reviewRowSubject,
+  reviewRowSubtitle,
+} from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
 import { prototypeChallengeRouteTo, prototypeHomeRouteTo } from '@/lib/prototype-path';
 
@@ -41,7 +46,7 @@ function rowMeta(item: ReviewItemView): (string | null)[] {
   return [
     item.task,
     item.framing ? fillFraming(item.framing) : reviewRowSource(item, subject),
-    item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
+    reviewRowRecallLabel(item, RECALL_STATE_LABELS),
   ];
 }
 
@@ -184,7 +189,7 @@ export default function PrototypeReviewPage() {
                   icon={reviewKindIcon(item.kind)}
                   title={item.noteLabel ?? item.scriptureReference ?? reviewRowSubtitle(item) ?? 'A note'}
                   meta={[
-                    item.recallState === 'new' ? null : RECALL_STATE_LABELS[item.recallState],
+                    reviewRowRecallLabel(item, RECALL_STATE_LABELS),
                   ]}
                   onOpen={() => openReviewDock(item.id)}
                   actions={reviewRowActions({
