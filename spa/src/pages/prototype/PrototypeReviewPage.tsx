@@ -10,6 +10,7 @@
  * "Put down" are things they set aside and might want back. No group carries a count in its
  * heading — the rows are right there to be counted by anyone who wants to.
  */
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 import { useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -25,7 +26,8 @@ import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   PLUS_BADGE_COPY,
-  REVIEW_EMPTY_COPY,
+  REVIEW_EMPTY_NOTHING_YET_BODY,
+  REVIEW_EMPTY_NOTHING_YET_TITLE,
   REVIEW_PLUS_META,
   REVIEW_PLUS_TITLE,
   REVIEW_RESUME_COPY,
@@ -139,7 +141,23 @@ export default function PrototypeReviewPage() {
           {/* No offer to "start reviewing": the engine fills the queue from what the reader
               has already studied, so an empty page means it found nothing quiet enough to ask
               about yet, not that they forgot to switch something on. */}
-          {nothingAtAll ? <p className="proto-feed-sheet__rest">{REVIEW_EMPTY_COPY}</p> : null}
+          {nothingAtAll ? (
+            /*
+             * Only ever the nothing-yet state, because this page lists items in every status:
+             * with none at all there is nothing scheduled either, and a reader who has items
+             * but none due sees them under "Coming back later" rather than an empty card.
+             *
+             * The dock's other state — up to date, back on Tuesday — belongs there, where the
+             * absence is a moment rather than a whole page.
+             */
+            <PrototypeListEmptyState
+              iconName="seedling"
+              title={REVIEW_EMPTY_NOTHING_YET_TITLE}
+              description={
+                <p className="proto-list-empty-state__line">{REVIEW_EMPTY_NOTHING_YET_BODY}</p>
+              }
+            />
+          ) : null}
 
           {waiting.length > 0 ? (
             <PrototypeHomeSection title="Waiting">

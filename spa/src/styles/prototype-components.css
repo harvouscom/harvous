@@ -22247,6 +22247,20 @@ button.proto-feed-sheet__stat:hover {
   white-space: normal;
 }
 
+/*
+ * Waiting, centred.
+ *
+ * The dots ship no alignment of their own and neither the dock body nor the card shell sets
+ * any, so they sat flush against the left edge of an otherwise empty card — reading as a
+ * fragment of something rather than as the card thinking. `.proto-home-loading` centres them
+ * the same way elsewhere.
+ */
+.proto-review-dock__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--pds-space-2) 0;
+}
+
 .proto-review-dock__empty,
 .proto-review-dock__handoff {
   margin: 0;

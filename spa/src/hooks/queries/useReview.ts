@@ -181,6 +181,8 @@ export function useReviewSession(options?: { enabled?: boolean }) {
       const data = await api.get<{
         items: ReviewItemView[];
         firstReveal?: ReviewRevealResponse;
+        /** Only sent when nothing is due: when the next scheduled thing comes back. */
+        nextDueAt?: string | null;
       }>('/api/review/session');
       /*
        * The first question's exercise came with the question, so seed the cache the dock is

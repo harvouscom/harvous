@@ -42,6 +42,7 @@ import {
   getReviewItem,
   listDueReviewItems,
   listReviewItems,
+  nextScheduledReviewAt,
   recordReviewEvent,
   setReviewItemStatus,
   stepBackReviewItem,
@@ -169,7 +170,19 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
         ? await buildReviewReveal(auth.userId, firstRow).catch(() => null)
         : null;
 
-    return c.json({ success: true, items, ...(firstReveal ? { firstReveal } : {}) });
+    /*
+     * With nothing due, when the next thing is scheduled — so the card can say why it is empty
+     * rather than leaving the reader to wonder whether it broke. Only on the empty path: a
+     * sitting with work in it pays nothing for a line it will not show.
+     */
+    const nextDueAt = items.length === 0 ? await nextScheduledReviewAt(auth.userId) : null;
+
+    return c.json({
+      success: true,
+      items,
+      ...(firstReveal ? { firstReveal } : {}),
+      ...(nextDueAt ? { nextDueAt: nextDueAt.toISOString() } : {}),
+    });
   } catch (error) {
     if (isReviewTableMissing(error)) return c.json({ success: true, items: [] });
     const standardError = handleAPIError(error, { endpoint: '/api/review/session', action: 'review_session' });

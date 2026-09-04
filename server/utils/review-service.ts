@@ -22,6 +22,7 @@ import {
   and,
   desc,
   eq,
+  gt,
   inArray,
   isNotNull,
   lte,
@@ -936,6 +937,28 @@ export async function listReviewItems(
     .where(where)
     .orderBy(ReviewItems.dueAt)
     .limit(200)) as ReviewItemRow[];
+}
+
+/**
+ * When the next thing is scheduled to come back, or null when nothing is.
+ *
+ * For the one line an empty queue is allowed to say. A date is not a count of what is owed —
+ * the thing this feature's vocabulary refuses — it is the opposite: a reason to put the app
+ * down. Only ever read when there is nothing due, so a normal sitting pays nothing for it, and
+ * it runs straight down the index the inbox already uses.
+ */
+export async function nextScheduledReviewAt(userId: string, now: Date = new Date()): Promise<Date | null> {
+  const row = first(
+    await db
+      .select({ dueAt: ReviewItems.dueAt })
+      .from(ReviewItems)
+      .where(
+        and(eq(ReviewItems.userId, userId), eq(ReviewItems.status, 'active'), gt(ReviewItems.dueAt, now)),
+      )
+      .orderBy(ReviewItems.dueAt)
+      .limit(1),
+  );
+  return row?.dueAt ? new Date(row.dueAt) : null;
 }
 
 export async function getReviewItem(userId: string, id: string): Promise<ReviewItemRow | null> {

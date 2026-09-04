@@ -326,6 +326,31 @@ export function firstDueAtFor(
   return firstDueAt(now, origin);
 }
 
+/**
+ * When the next scheduled thing comes back, for the line an empty queue shows.
+ *
+ * A weekday within the week and a date beyond it, because "in 5 days" makes the reader do
+ * arithmetic to find out whether that is before or after Sunday. Rendered on the client for
+ * the same reason `fillFraming` is: the weekday, the month name and the boundary between today
+ * and tomorrow all belong to the reader's own zone and locale, and the server has neither.
+ *
+ * Null when the date has already passed — there is nothing to promise about something that is
+ * due — or when it cannot be read.
+ */
+export function describeNextDue(iso: string | null | undefined, now: Date = new Date()): string | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (!Number.isFinite(at.getTime())) return null;
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(at) - startOf(now)) / MS_PER_DAY);
+  if (at.getTime() <= now.getTime()) return null;
+  if (days <= 0) return 'later today';
+  if (days === 1) return 'tomorrow';
+  if (days < 7) return `on ${at.toLocaleDateString(undefined, { weekday: 'long' })}`;
+  const sameYear = at.getFullYear() === now.getFullYear();
+  return `on ${at.toLocaleDateString(undefined, { day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }) })}`;
+}
+
 /** Human phrasing for the next return, for the one line the session shows after an answer. */
 export function describeNextReturn(intervalDays: number): string {
   if (intervalDays <= 1) return 'Back tomorrow';

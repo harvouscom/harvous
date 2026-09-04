@@ -13,6 +13,7 @@ import {
   deferReview,
   deriveRecallState,
   describeNextReturn,
+  describeNextDue,
   firstDueAt,
   firstDueAtFor,
   NEVER_LAPSES,
@@ -237,5 +238,31 @@ describe('firstDueAtFor', () => {
   });
   it('never counts a disagreement with the index as forgetting', () => {
     expect(NEVER_LAPSES.has('chapter.person')).toBe(true);
+  });
+});
+
+describe('describeNextDue', () => {
+  const NOW = new Date('2026-09-04T12:00:00');
+  const at = (iso: string) => describeNextDue(iso, NOW);
+
+  it('names a weekday within the week, because "in 5 days" is arithmetic', () => {
+    expect(at('2026-09-07T09:00:00')).toMatch(/^on \w+$/);
+  });
+
+  it('says today and tomorrow the way a person does', () => {
+    expect(at('2026-09-04T20:00:00')).toBe('later today');
+    expect(at('2026-09-05T06:00:00')).toBe('tomorrow');
+  });
+
+  it('gives a date once the weekday would be ambiguous', () => {
+    // At seven days the weekday named is today's own, so it stops being a memory and
+    // becomes a riddle.
+    expect(at('2026-09-11T09:00:00')).toMatch(/September|Sept|9/);
+  });
+
+  it('promises nothing about something already due, or a date it cannot read', () => {
+    expect(at('2026-09-04T11:00:00')).toBeNull();
+    expect(at('not a date')).toBeNull();
+    expect(describeNextDue(null, NOW)).toBeNull();
   });
 });

@@ -25,6 +25,8 @@
  * caret is the interruption this whole feature is supposed not to be.
  */
 import { maxAttemptsFor } from '@/utils/review-item-kinds';
+import { describeNextDue } from '@/utils/review-scheduling';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 import {
   echoMatchesAnswer,
   reviewAnswerEcho,
@@ -60,6 +62,10 @@ import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { buildReviewCardStackOrigin } from './paper-stack-origins';
 import {
   REVIEW_ECHO_LABEL,
+  REVIEW_EMPTY_NOTHING_YET_BODY,
+  REVIEW_EMPTY_NOTHING_YET_TITLE,
+  REVIEW_EMPTY_UP_TO_DATE_TITLE,
+  reviewNextDueCopy,
   REVIEW_ALMOST_COPY,
   REVIEW_ATTEMPT_PLACEHOLDER,
   REVIEW_EMPTY_COPY,
@@ -393,6 +399,26 @@ export default function PrototypeReviewDock() {
   const goesTotal = attemptsTotal ?? (item ? maxAttemptsFor(item.promptKey) : 0);
 
   const lastResult = reviewDock?.lastResult ?? null;
+  /*
+   * When the next scheduled thing comes back, for the empty card.
+   *
+   * Two sources, because neither alone is right at both moments. The session carries it for the
+   * dock opened with nothing already due — but a sitting is deliberately never refetched
+   * (`staleTime: Infinity`), or the queue would reshuffle under the reader mid-answer, so its
+   * copy is stale the instant they clear the last item. The active list is invalidated by every
+   * answer and is already in cache from Home, so it is the one that can speak after a sitting.
+   * The freshest wins; the weekday is rendered here because it is the reader's.
+   */
+  const scheduledQuery = useReviewItems('active', { enabled: open && !queued });
+  const nextDueFromItems = useMemo(() => {
+    const now = Date.now();
+    const soonest = (scheduledQuery.data?.items ?? [])
+      .map((i) => Date.parse(i.dueAt))
+      .filter((at) => Number.isFinite(at) && at > now)
+      .sort((a, b) => a - b)[0];
+    return soonest ? new Date(soonest).toISOString() : null;
+  }, [scheduledQuery.data]);
+  const nextDue = describeNextDue(nextDueFromItems ?? sessionQuery.data?.nextDueAt ?? null);
 
   /*
    * The result stays until the reader moves on.
@@ -903,14 +929,34 @@ export default function PrototypeReviewDock() {
              * thing you came to read, and by the time the eye has parsed it the question has
              * usually arrived — the dots say the same and ask for nothing.
              */
-            <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
+            <div className="proto-review-dock__loading">
+              <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
+            </div>
           ) : (
-            <>
-              <p className="proto-review-dock__empty">{REVIEW_EMPTY_COPY}</p>
-              {sitting.answered > 0 ? (
-                <p className="proto-caption">{sittingCloseLine(sitting)}</p>
-              ) : null}
-            </>
+            /*
+             * An empty card is a card that has to explain itself. This one used to be a single
+             * left-aligned sentence where every other empty surface in the app gets an icon, a
+             * title and a line saying what happens next — so "Nothing waiting" read as much
+             * like a fault as like a rest.
+             */
+            <PrototypeListEmptyState
+              iconName={nextDue ? 'circle-check' : 'seedling'}
+              title={nextDue ? REVIEW_EMPTY_UP_TO_DATE_TITLE : REVIEW_EMPTY_NOTHING_YET_TITLE}
+              description={
+                <>
+                  {nextDue ? (
+                    <p className="proto-list-empty-state__line">{reviewNextDueCopy(nextDue)}</p>
+                  ) : (
+                    <p className="proto-list-empty-state__line">{REVIEW_EMPTY_NOTHING_YET_BODY}</p>
+                  )}
+                  {/* What this sitting came to — the one number this feature counts, because it
+                      is what was done rather than what is owed. */}
+                  {sitting.answered > 0 ? (
+                    <p className="proto-list-empty-state__line">{sittingCloseLine(sitting)}</p>
+                  ) : null}
+                </>
+              }
+            />
           )
         ) : answeringOnNote ? (
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats
@@ -1306,7 +1352,9 @@ export default function PrototypeReviewDock() {
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
             {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
+            <div className="proto-review-dock__loading">
+              <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
+            </div>
           </>
         ) : !revealed ? (
           <>

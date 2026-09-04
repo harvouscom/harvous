@@ -11,7 +11,8 @@ await db
   .update(ReviewItems)
   .set({
     ladderStep: Number(arg('step') ?? 0),
-    dueAt: new Date(),
+    // `--in-days=3` pushes it into the future, for looking at the empty queue.
+    dueAt: new Date(Date.now() + Number(arg('in-days') ?? 0) * 86_400_000),
     reviewCount: 0,
     successStreak: 0,
     lapseCount: 0,

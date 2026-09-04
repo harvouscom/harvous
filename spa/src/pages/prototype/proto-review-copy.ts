@@ -48,6 +48,26 @@ export const REVIEW_SECTION_TITLE = 'Review';
 export const REVIEW_LOADING_LABEL = 'Finding your next review';
 export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
 
+/**
+ * The empty card, in two states, because "nothing due" and "nothing yet" are different facts
+ * and one sentence was answering for both.
+ *
+ * The up-to-date one says when the next thing comes back. That is the opposite of a count of
+ * what is owed: it is a reason to put the app down, said once, with a date the reader can hold
+ * the app to. It stays a statement about what is *scheduled* — the queue refills from study as
+ * it happens, so a promise that nothing will arrive before Tuesday is a promise this feature
+ * cannot keep.
+ *
+ * The nothing-yet one says where reviews come from, because a new reader looking at an empty
+ * feature has no way to know it is fed by their own study rather than by a button they missed.
+ */
+export const REVIEW_EMPTY_UP_TO_DATE_TITLE = 'You are up to date';
+export const REVIEW_EMPTY_NOTHING_YET_TITLE = 'Nothing to review yet';
+export const REVIEW_EMPTY_NOTHING_YET_BODY =
+  'Reviews come from your own study. Mark a verse or write a note, and they start showing up here.';
+export const REVIEW_EMPTY_SETTLED_BODY = 'Nothing waiting right now.';
+export const reviewNextDueCopy = (when: string) => `The next one comes back ${when}.`;
+
 /*
  * Both halves of one toggle, not a link.
  *
