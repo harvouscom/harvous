@@ -16,13 +16,32 @@
  * to catch that. Moving the code verbatim and passing the handlers in keeps the output
  * provably identical, and the descriptors can follow once there is a second caller to prove
  * them against.
+ *
+ * **What belongs here and what belongs in Review.** If a right answer exists and the reader
+ * could be wrong, it is Review; if the outcome is something new made or something organised,
+ * it is a Suggestion. Two kinds here sit on the line — `passage` and `highlight` both resurface
+ * something to re-read — so they step aside for a source Review has already taken up, and their
+ * eyebrows say extension rather than recall. The rule and the matcher live in
+ * `review-suggestion-handoff.ts`.
  */
 import type { RecallOpportunity } from './PrototypeRecallCarousel';
+import { stripHtmlForListPreview } from '@/utils/html-stripper';
+import { noteMarkPrompt } from '@/utils/note-mark-prompts';
+import { threadReflectPrompt } from '@/utils/thread-reflect-prompts';
 import { RECALL_KIND_ICONS } from './recall-kind-icons';
+import { activeReviewCoversReference } from '@/utils/review-suggestion-handoff';
+
+/** No Review, or nothing active in it: the same thing as far as these two kinds are concerned. */
+const EMPTY_REVIEW_REFERENCES: ReadonlySet<string> = new Set();
+const EMPTY_REVIEW_CHAPTER_KEYS: ReadonlySet<string> = new Set();
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { isNoteDeleted } from './proto-deleted-notes';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
+import { activeReviewCoversChapter } from '@/utils/review-suggestion-handoff';
+import { readingNoteEyebrow, readingNotePrompt } from '@/utils/reading-note-prompts';
+import { buildScripturePillWithQuoteHtml } from '../../lib/votd-scripture-pill-html';
+import type { ReadingNoteSuggestion } from '@/utils/prototype-home-trends';
 import {
   connectSuggestionRecallEyebrow,
   connectSuggestionRecallMeta,
@@ -92,7 +111,28 @@ export interface RecallCandidateInput {
   openCrossRefGap: any;
   handleRecallCompleted: any;
   searchGap: { query: string } | null | undefined;
+  /** A note worth going back into and marking. See `pickMarkNoteCandidate`. */
+  /**
+   * Passages with an active Review item, lowercased. The two resurfacing kinds step aside for
+   * these. Empty for a reader without Review, which is the same as having nothing active.
+   */
+  activeReviewReferences?: ReadonlySet<string>;
+  /**
+   * Chapters with an active *chapter* Review item, as `${book}|${chapter}`. The reading-note
+   * card steps aside for these and for nothing else — see `activeReviewCoversChapter`.
+   */
+  activeReviewChapterKeys?: ReadonlySet<string>;
+  /** The chapter read today or yesterday that no note cites yet. See `deriveReadingNote`. */
+  readingNote: ReadingNoteSuggestion | null | undefined;
+  markNote: SpaceNoteRow | null | undefined;
+  handleOpenMarkNote: (note: SpaceNoteRow) => boolean | void;
+  /** A named Thread worth thinking through. Carries the questions Review retired. */
+  reflectThread: { id: string; title: string; noteCount: number } | null | undefined;
+  handleOpenReflectThread: (threadId: string) => void;
 }
+
+/** Enough of a nameless note's opening to tell it from the next one, without wrapping. */
+const MARK_NOTE_TITLE_CHARS = 60;
 
 function pushAnnotateHighlightRecallCard(
   out: RecallOpportunity[],
@@ -121,15 +161,19 @@ function pushRevisitHighlightRecallCard(
   onOpenHighlight: (row: PrototypeHighlightStudyThreadRow) => boolean | void,
   usedHighlightIds: Set<string>,
   meta: string,
+  activeReviewReferences: ReadonlySet<string> = EMPTY_REVIEW_REFERENCES,
 ) {
   if (usedHighlightIds.has(highlight.id)) return;
+  // Review is already asking about this passage; a nudge to re-read it would be the same
+  // subject twice in one screen, with only one of the two able to mark an answer.
+  if (activeReviewCoversReference(highlight.scriptureReference, activeReviewReferences)) return;
   usedHighlightIds.add(highlight.id);
   out.push({
     id: highlight.id,
     kind: 'highlight',
     noteId: highlight.id,
     score: 0.55,
-    eyebrow: 'A highlight to revisit',
+    eyebrow: 'Worth a second look',
     title: prototypeHighlightListTitle(highlight),
     meta,
     iconName: highlightEntryKindIconName(highlight.entryKind),
@@ -140,9 +184,14 @@ function pushRevisitHighlightRecallCard(
 export function buildRecallCandidates(input: RecallCandidateInput): RecallOpportunity[] {
   const {
     searchGap,
+    activeReviewReferences = EMPTY_REVIEW_REFERENCES,
     deletedNoteKey,
     continueNote,
     revisitNote,
+    markNote,
+    handleOpenMarkNote,
+    reflectThread,
+    handleOpenReflectThread,
     revisitOnHome,
     spotlightHighlight,
     studyArc,
@@ -174,6 +223,8 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
     onOpenCreateThreadPrefill,
     startDraftNote,
     openCrossRefGap,
+    readingNote,
+    activeReviewChapterKeys = EMPTY_REVIEW_CHAPTER_KEYS,
     handleRecallCompleted,
   } = input;
 
@@ -223,6 +274,7 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
         onOpenHighlight,
         usedHighlightIds,
         prototypeHighlightSubtitlePreview(spotlightHighlight, spotlightHighlight.parentNoteTitle),
+        activeReviewReferences,
       );
     }
   }
@@ -271,13 +323,17 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
     });
   }
 
-  if (passageConnection) {
+  // Same handoff as the highlight card: a passage Review has taken up is not also a nudge here.
+  if (
+    passageConnection &&
+    !activeReviewCoversReference(passageConnection.displayRef, activeReviewReferences)
+  ) {
     const id = `passage:${passageConnection.displayRef}`;
     out.push({
       id,
       kind: 'passage',
       score: Math.min(1, passageConnection.noteCount / 8),
-      eyebrow: 'A passage you keep returning to',
+      eyebrow: 'Worth reading again',
       title: passageConnection.displayRef,
       meta: `Across ${passageConnection.noteCount} of your notes`,
       iconName: RECALL_KIND_ICONS.passage,
@@ -326,6 +382,7 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
           onOpenHighlight,
           usedHighlightIds,
           prototypeHighlightSubtitlePreview(revisitChapterHighlight, revisitChapterHighlight.parentNoteTitle),
+          activeReviewReferences,
         );
       } else {
         out.push({
@@ -350,6 +407,68 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
             }),
         });
       }
+    }
+  }
+
+  /*
+   * Write about what you read.
+   *
+   * The Bible reader has recorded every chapter turned to since it shipped, and Home never
+   * offered anything on the strength of it — a chapter read twice looked exactly like one never
+   * opened, because every other card here is derived from notes. This is the near half of the
+   * loop whose far half is the `chapter` review kind: read it, be invited to write about it
+   * while it is fresh, be asked about it later.
+   *
+   * The draft opens with the chapter as a pill, and — only where the reader marked a verse in
+   * that chapter — that verse quoted underneath. Their own choice or nothing: a note that
+   * opened with a verse chosen for them would be putting words in their mouth.
+   */
+  if (readingNote) {
+    const chapterKey = `${readingNote.book}|${readingNote.chapter}`;
+    const eyebrow = readingNoteEyebrow(readingNote.readAt);
+    if (eyebrow && !activeReviewCoversChapter(chapterKey, activeReviewChapterKeys)) {
+      const chapterRef = `${readingNote.book} ${readingNote.chapter}`;
+      const id = `readingNote:${readingNote.book}:${readingNote.chapter}`;
+      const translation = readingNote.translation?.trim() || 'NET';
+      const highlight = findHighlightForChapter(
+        highlightsWithRecency,
+        readingNote.book,
+        readingNote.chapter,
+      );
+      const quoteReference = highlight?.scriptureReference?.trim() || null;
+      const quoteText = highlight?.scripturePassageExcerpt?.trim() || null;
+      const quoted = Boolean(quoteReference && quoteText);
+      out.push({
+        id,
+        kind: 'readingNote',
+        isGenerative: true,
+        score: 0.6,
+        eyebrow,
+        title: chapterRef,
+        meta: readingNotePrompt(readingNote.book, readingNote.chapter),
+        iconName: RECALL_KIND_ICONS.readingNote,
+        onOpen: () =>
+          startDraftNote({
+            title: chapterRef,
+            contentHtml: buildScripturePillWithQuoteHtml(
+              // The verse they marked where they marked one, the chapter otherwise. The note is
+              // about the chapter either way — that is its title — but it opens at the line
+              // they already chose rather than at the top of thirty-six verses.
+              quoted ? quoteReference! : chapterRef,
+              quoted ? highlight?.scripturePassageTranslation?.trim() || translation : translation,
+              quoted
+                ? {
+                    reference: quoteReference!,
+                    text: quoteText!,
+                    accent: highlight?.highlightAccentRaw ?? null,
+                  }
+                : null,
+            ),
+            /* The id has to match this card's own, or the completion rests a suggestion that
+               was never shown. */
+            recall: { opportunityId: id, kind: 'readingNote' },
+          }),
+      });
     }
   }
 
@@ -441,6 +560,7 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
           onOpenHighlight,
           usedHighlightIds,
           prototypeHighlightSubtitlePreview(revisitGapHighlight, revisitGapHighlight.parentNoteTitle),
+          activeReviewReferences,
         );
       } else {
         const id = `crossref-gap:${topCrossRefGap.from.displayRef}|${topCrossRefGap.to.displayRef}`;
@@ -488,6 +608,64 @@ export function buildRecallCandidates(input: RecallCandidateInput): RecallOpport
             handleRecallCompleted(connectId, 'connectNotes', topConnectSuggestion.noteAId),
         });
       },
+    });
+  }
+
+  /*
+   * The five questions that used to be note reviews.
+   *
+   * They are here rather than in Review because none of them has a right answer — "what stuck
+   * with you?" is not something the app can mark you on, and asking it as a review made Review
+   * look like it was grading your reasons for writing. What the question actually wants is for
+   * you to go back into the note and mark the part that answers it, which is a suggestion.
+   *
+   * Last, and low-scored, because it is an invitation rather than a thread being picked up.
+   */
+  if (markNote && !out.some((o) => o.noteId === markNote.id)) {
+    out.push({
+      id: `mark:${markNote.id}`,
+      kind: 'markNote',
+      noteId: markNote.id,
+      prefetchNoteId: markNote.id,
+      score: 0.4,
+      eyebrow: 'Worth marking',
+      /*
+       * Its opening words when it has no name, not "New Note".
+       *
+       * The title is the only thing on this card that says *which* note, and a picker that
+       * prefers long-untouched notes will keep landing on untitled ones — a shelf of cards all
+       * reading "New Note" identifies nothing. Same reasoning as the review row's context line.
+       */
+      title:
+        stripServerAutoUntitledNoteTitleForDisplay(markNote.title?.trim() ?? '') ||
+        stripHtmlForListPreview(markNote.content ?? '').trim().slice(0, MARK_NOTE_TITLE_CHARS) ||
+        'New Note',
+      meta: noteMarkPrompt(markNote.id),
+      iconName: RECALL_KIND_ICONS.markNote,
+      onOpen: () => handleOpenMarkNote(markNote),
+    });
+  }
+
+  /*
+   * The questions Review used to ask about a Thread and a link.
+   *
+   * They left for the same reason the five note prompts did: there is no answer to mark. "What
+   * is still unresolved in your Covenant Thread?" is a good question and a bad review — the app
+   * cannot say whether you got it right. Here it is what it always was, an invitation.
+   *
+   * Last, and low-scored, like the mark-a-note card beside it: an invitation is not a thread
+   * being picked up.
+   */
+  if (reflectThread && !out.some((o) => o.id === `reflect:${reflectThread.id}`)) {
+    out.push({
+      id: `reflect:${reflectThread.id}`,
+      kind: 'reflectThread',
+      score: 0.4,
+      eyebrow: 'A Thread to think through',
+      title: reflectThread.title,
+      meta: threadReflectPrompt(reflectThread.id, reflectThread.title),
+      iconName: RECALL_KIND_ICONS.reflectThread,
+      onOpen: () => handleOpenReflectThread(reflectThread.id),
     });
   }
 

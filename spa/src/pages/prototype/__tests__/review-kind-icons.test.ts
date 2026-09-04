@@ -29,8 +29,11 @@ describe('review kind icons', () => {
     expect(distinct.size).toBe(3);
   });
 
-  it('keeps the scripture glyph that was already right', () => {
-    expect(REVIEW_KIND_ICONS.verse).toBe('book-open');
+  it('draws a passage the way the rest of the app draws one', () => {
+    // `scroll` is recall's `passage`/`continueBook` glyph and what a scriptureLink highlight
+    // wears. `book-open` means the reader, which is a different offer entirely.
+    expect(REVIEW_KIND_ICONS.verse).toBe('scroll');
+    expect(REVIEW_KIND_ICONS.verse).not.toBe('book-open');
   });
 
   it('draws a highlight with the highlighter', () => {

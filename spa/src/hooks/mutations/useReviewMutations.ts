@@ -35,6 +35,8 @@ export function useAddReviewItem() {
 }
 
 export interface ReviewOutcomeInput {
+  /** Which go this is, 1-based. Decides the interval, and whether a miss is final. */
+  attemptNumber?: number;
   itemId: string;
   outcome: ReviewOutcome;
   attempt?: string;
@@ -42,12 +44,50 @@ export interface ReviewOutcomeInput {
    * The two graded rungs of the verse ladder. When present the server marks the answer and
    * ignores `outcome` — the page has no answer key to check against, by design.
    */
-  answer?: { order?: number[]; option?: string };
+  answer?: {
+    order?: number[];
+    option?: string;
+    promptKey?: string;
+    wordIndex?: number;
+    words?: string[];
+    /** The verse written back from its first letters. */
+    text?: string;
+  };
 }
 
 export interface ReviewOutcomeResponse {
+  /** What the server recorded. On a graded rung this is its verdict, not what the page sent. */
+  outcome?: 'recalled' | 'almost' | 'revealed';
+  /** Whether the answer was right, where the server marked one. */
+  correct?: boolean;
+  /**
+   * False when a wrong answer still has a go left: nothing was written and the question stands.
+   * Absent on the ungraded rungs, which finalize immediately.
+   */
+  finalized?: boolean;
+  attemptsLeft?: number;
+  /** Goes used and allowed for the rung on screen, so the dock can draw them. */
+  attempts?: { used: number; total: number };
+  /** The option that was right, sent only once the question is over and only where it is one. */
+  correctAnswer?: string;
+  /**
+   * Which parts of the answer were right, aligned to what was submitted: the gaps, the words,
+   * the placed phrases, the words typed. Absent where one tap is the whole answer.
+   */
+  parts?: boolean[];
+  /** How much of a written verse was reached. A count, naming nothing. */
+  reached?: { matched: number; total: number };
+  /** This miss made it a leech: the dock offers a step back a rung instead of a fifth go. */
+  leech?: boolean;
   item: ReviewItemView;
   next: { intervalDays: number; dueAt: string; recallState: string; label: string };
+  /**
+   * The verse a rung withheld while it was asking, handed back now the question is answered.
+   *
+   * Only present on the rungs that hid it — putting the words back in order, and naming the
+   * reference. Absent everywhere else, including where the verse was on screen all along.
+   */
+  truth?: { verseText: string } | null;
 }
 
 /**
@@ -61,10 +101,11 @@ export interface ReviewOutcomeResponse {
 export function useReviewOutcome() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ itemId, outcome, attempt, answer }: ReviewOutcomeInput) =>
+    mutationFn: ({ itemId, outcome, attempt, attemptNumber, answer }: ReviewOutcomeInput) =>
       api.post<ReviewOutcomeResponse>(`/api/review/items/${encodeURIComponent(itemId)}/outcome`, {
         outcome,
         attempt,
+        attemptNumber,
         answer,
       }),
     onMutate: async ({ itemId }) => {
@@ -79,6 +120,16 @@ export function useReviewOutcome() {
     },
     onError: (_err, _input, context) => {
       if (context?.previous) queryClient.setQueryData(reviewSessionQueryKey, context.previous);
+    },
+    onSuccess: (data, _input, context) => {
+      /*
+       * A wrong answer with a go left is not an answer yet. `onMutate` has already taken the item
+       * out of the session so the next question can appear instantly on the common path, so a
+       * non-final attempt has to put it back — the reader is still looking at it.
+       */
+      if (data.finalized === false && context?.previous) {
+        queryClient.setQueryData(reviewSessionQueryKey, context.previous);
+      }
     },
     onSettled: () => {
       // Not the session: refetching it mid-sitting would pull in items answered on another
@@ -102,6 +153,18 @@ export function useDeferReview() {
   });
 }
 
+/** A leech steps back a rung, at the reader's request. Refused by the server on anything else. */
+export function useStepBackReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId }: { itemId: string }) =>
+      api.post<{ item: ReviewItemView }>(`/api/review/items/${encodeURIComponent(itemId)}/step-back`, {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
+    },
+  });
+}
+
 export function useSetReviewStatus() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -113,5 +176,22 @@ export function useSetReviewStatus() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
     },
+  });
+}
+
+
+/** Answer the sample. Writes nothing on the server, so there is nothing to invalidate. */
+export interface ReviewSampleAnswerResponse {
+  correct: boolean;
+  finalized: boolean;
+  attemptsLeft?: number;
+  reference?: string;
+  verseText?: string;
+}
+
+export function useAnswerReviewSample() {
+  return useMutation({
+    mutationFn: ({ day, words, attemptNumber }: { day: string; words: string[]; attemptNumber: number }) =>
+      api.post<ReviewSampleAnswerResponse>('/api/review/sample/answer', { day, words, attemptNumber }),
   });
 }

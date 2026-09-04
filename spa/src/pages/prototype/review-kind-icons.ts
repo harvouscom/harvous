@@ -27,8 +27,15 @@ export const REVIEW_KIND_ICONS: Record<ReviewItemKind, IconName> = {
    */
   note: 'note-sticky',
 
-  /** The one that was already right, and the reason the rest of this file exists. */
-  verse: 'book-open',
+  /*
+   * `scroll` — a passage, which is what the app calls it everywhere else: recall's `passage` and
+   * `continueBook`, and `highlightEntryKindIconName('scriptureLink')`.
+   *
+   * Not `book-open`, which in this same feed means *the reader* — the "Ruth 3 · where you left off
+   * reading" row two sections up. A review item is not an invitation to go and read; it is a
+   * question about a passage you already have.
+   */
+  verse: 'scroll',
 
   /*
    * `highlighter` — the thing itself.
@@ -48,6 +55,15 @@ export const REVIEW_KIND_ICONS: Record<ReviewItemKind, IconName> = {
    */
   connection: 'arrow-right-arrow-left',
   thread: 'arrow-right-arrow-left',
+
+  /*
+   * `book-open-reader` — a chapter you read.
+   *
+   * The docblock above reserves `book-open` for "go and read"; this is its sibling, the reader
+   * *at* the book, which is what a chapter item is about: not a passage you marked but a
+   * chapter you sat with.
+   */
+  chapter: 'book-open-reader',
 };
 
 export function reviewKindIcon(kind: ReviewItemKind): IconName {

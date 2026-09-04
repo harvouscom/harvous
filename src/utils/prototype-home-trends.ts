@@ -1,3 +1,4 @@
+import { dayIndex } from '@/utils/note-mark-prompts';
 import { normalizeDate } from './sorting';
 import { noteFolderMembershipLabels, type NoteFolderLabelSource } from './note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from './server-auto-untitled-note-display';
@@ -1660,6 +1661,16 @@ export const RECALL_KIND_TIER: Record<RecallOpportunityKind, number> = {
      also the only kind that reflects the reader's own words back at them, which is worth
      being quiet about until there is evidence it lands. */
   searchGap: 2,
+  /* The five questions that used to be note reviews. Unmeasured here, and starting where it
+     cannot take the head slot — the same restraint every new kind gets, and the rates above
+     are the argument for it. */
+  markNote: 2,
+  /* The Thread and link questions Review retired. Unmeasured here, and starting where it cannot
+     take the head slot — the restraint every new kind gets. */
+  reflectThread: 2,
+  /* Reading, which no card has ever been built on. Same restraint: a new signal starts where it
+     cannot take the head slot. */
+  readingNote: 2,
 };
 
 export function recallKindTier(kind: RecallOpportunityKind): number {
@@ -2105,6 +2116,83 @@ export function deriveContinueReading(
   return null;
 }
 
+// 1b-ii. Write about what you read ───────────────────────────────────────────────
+
+export interface ReadingNoteChapterInput {
+  book: string;
+  bookOrder: number;
+  chapter: number;
+  /** When it was last actually read — glances excluded. Null means it was only glanced at. */
+  lastReadAt: string | null;
+  translation?: string | null;
+}
+
+export interface ReadingNoteSuggestion {
+  book: string;
+  bookOrder: number;
+  chapter: number;
+  readAt: string;
+  translation: string | null;
+}
+
+/**
+ * The chapter worth writing about: the most recently read one, inside the window, that no note
+ * of theirs already cites.
+ *
+ * Three exclusions, each with a reason.
+ *
+ * **A glance is not a read.** `lastReadAt` is null for a chapter only ever glanced at, and the
+ * card says "you read this" — which would be untrue.
+ *
+ * **A chapter already cited is not a gap.** If a note quotes John 3, the reader has written
+ * about John 3, and offering to start one is offering something they already did. This is the
+ * same rule `deriveContinueBook` applies to its own candidates.
+ *
+ * **Old reading is not news.** Past the window the invitation stops being "while it is fresh"
+ * and becomes a chore list of everything unwritten, which is the shape this shelf refuses.
+ *
+ * The window is in **calendar days in the reader's own zone**, not elapsed hours, because that
+ * is how the card's eyebrow speaks — "you read this today", "yesterday". Measured in hours the
+ * two disagree: a chapter read at eight last night is twenty hours old, inside a two-day
+ * window, and two calendar days back if you open Home the morning after next. The card was
+ * then derived and silently dropped for want of an eyebrow. One notion of a day, used by both.
+ */
+export function deriveReadingNote(
+  input: {
+    readChapters: readonly ReadingNoteChapterInput[];
+    /** `${book}|${chapter}` for every chapter the reader's notes cite. */
+    citedChapterKeys: ReadonlySet<string>;
+    windowDays?: number;
+  },
+  now: Date = new Date(),
+): ReadingNoteSuggestion | null {
+  // 1: today or yesterday, which is exactly what the eyebrow can say.
+  const windowDays = input.windowDays ?? 1;
+  const today = dayIndex(now);
+  let best: ReadingNoteSuggestion | null = null;
+  let bestAt = -Infinity;
+
+  for (const chapter of input.readChapters) {
+    if (!chapter.lastReadAt || !chapter.book || !Number.isInteger(chapter.chapter)) continue;
+    const readAt = new Date(chapter.lastReadAt);
+    const at = readAt.getTime();
+    if (!Number.isFinite(at)) continue;
+    const age = today - dayIndex(readAt);
+    if (age < 0 || age > windowDays) continue;
+    if (input.citedChapterKeys.has(`${chapter.book}|${chapter.chapter}`)) continue;
+    if (at <= bestAt) continue;
+    bestAt = at;
+    best = {
+      book: chapter.book,
+      bookOrder: chapter.bookOrder,
+      chapter: chapter.chapter,
+      readAt: chapter.lastReadAt,
+      translation: chapter.translation ?? null,
+    };
+  }
+  return best;
+}
+
 /** Home card copy for continue-reading. */
 /**
  * Names the place the row will actually land you.
@@ -2428,6 +2516,77 @@ export function pickBareHighlight<T extends BareHighlightInput>(highlights: T[])
   const unannotated = highlights.filter((h) => isHighlightUnannotated(h) && isAnnotatableHighlight(h));
   if (unannotated.length === 0) return undefined;
   return [...unannotated].sort((a, b) => (a.recencyMs ?? 0) - (b.recencyMs ?? 0))[0];
+}
+
+/** A note that could be marked, and the fields that decide whether it is worth suggesting. */
+export interface MarkNoteInput {
+  id: string;
+  title?: string | null;
+  content?: string | null;
+  contentLength?: number | null;
+  contentEncrypted?: boolean | null;
+  noteType?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+
+/**
+ * Below this a note has not said enough for "what stuck with you?" to have an answer.
+ *
+ * Measured on the visible text, never on the stored HTML. A note holding one mention pill is
+ * 503 characters of inline style around a single word, and the first version of this picker
+ * duly offered it — a card inviting you to mark a note with nothing in it to mark.
+ */
+export const MARK_NOTE_MIN_CHARS = 280;
+
+/**
+ * The note to invite marking, or undefined when none is worth asking about.
+ *
+ * This is where the five reflective review prompts landed. Review could not grade them, and
+ * what they actually want is for you to go back in and mark the part that answers them — so the
+ * card opens a note you have written a fair amount in and never marked anything in.
+ *
+ * `markedNoteIds` is what the caller knows about, not what exists. Highlights load a page at a
+ * time, so an old note whose marks are not in memory can be suggested despite having some. That
+ * is the failure this picker is willing to have: the cost is a card inviting you into a note you
+ * have already marked, which is a wasted suggestion and nothing worse. Preferring the oldest
+ * matters more than being certain — the recent notes are the ones whose highlights *are* loaded.
+ */
+/** How much a reader would actually see: tags dropped, entities decoded, whitespace collapsed. */
+function visibleTextLength(html: string): number {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&[a-z]+;|&#\d+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim().length;
+}
+
+export function pickMarkNoteCandidate<T extends MarkNoteInput>(
+  notes: readonly T[],
+  markedNoteIds: ReadonlySet<string>,
+  excludeIds: ReadonlySet<string> = new Set(),
+): T | undefined {
+  const eligible = notes.filter((note) => {
+    if (markedNoteIds.has(note.id) || excludeIds.has(note.id)) return false;
+    // Encrypted bodies cannot be measured, and scripture notes are not the reader's own writing.
+    if (note.contentEncrypted) return false;
+    if (note.noteType === 'scripture') return false;
+    // `contentLength` is the stored HTML's length, which is why it is only a ceiling here: a
+    // note too short even before the markup is stripped cannot pass, and everything else has to
+    // be measured properly.
+    if ((note.contentLength ?? Number.POSITIVE_INFINITY) < MARK_NOTE_MIN_CHARS) return false;
+    if (!note.content) return false;
+    return visibleTextLength(note.content) >= MARK_NOTE_MIN_CHARS;
+  });
+  if (!eligible.length) return undefined;
+
+  // Oldest first: a note written this morning does not need to be revisited, and its highlights
+  // are the ones most likely to be loaded if it has any.
+  return [...eligible].sort((a, b) => {
+    const at = Date.parse(a.updatedAt ?? a.createdAt ?? '') || 0;
+    const bt = Date.parse(b.updatedAt ?? b.createdAt ?? '') || 0;
+    return at - bt;
+  })[0];
 }
 
 // 5. Reflection prompt (season / theme) ───────────────────────────────────────────

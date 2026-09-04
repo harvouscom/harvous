@@ -127,6 +127,34 @@ export function verseReferenceLabel(parts: VerseKeyParts): string {
   return `${parts.book} ${parts.chapter}:${parts.verse}`;
 }
 
+/** "John 3" — the label a chapter node carries, and the reference a chapter review item stores. */
+export function chapterReferenceLabel(parts: ChapterKeyParts): string {
+  return `${parts.book} ${parts.chapter}`;
+}
+
+/** The `{book, chapter}` behind a `chapter:` key, or null if it is not one. */
+export function chapterKeyPartsFromNodeKey(key: string): ChapterKeyParts | null {
+  const parsed = parseNodeKey(key);
+  if (!parsed || parsed.kind !== 'chapter' || parsed.parts.length !== 2) return null;
+  const chapter = Number(parsed.parts[1]);
+  if (!parsed.parts[0] || !Number.isInteger(chapter) || chapter < 1) return null;
+  return { book: parsed.parts[0], chapter };
+}
+
+/**
+ * A reference that names a whole chapter and nothing finer — "John 3", or "John 3:1-36" spelled
+ * out — as its canonical parts. Null for a verse, a partial range, or anything crossing chapters:
+ * a chapter review is about the chapter, and "John 3:16" is a verse item's business.
+ *
+ * Goes through `verseNodesForReference` rather than the parser directly so the book comes back
+ * canonical ("Psalm 23" and "Psalms 23" are one chapter) and the whole-chapter rule is decided
+ * in exactly one place.
+ */
+export function chapterKeyPartsFromReference(reference: string): ChapterKeyParts | null {
+  const { verses, chapters } = verseNodesForReference(reference);
+  return verses.length === 0 && chapters.length === 1 ? chapters[0] : null;
+}
+
 export type VerseNodesResult = {
   verses: VerseKeyParts[];
   chapters: ChapterKeyParts[];
@@ -219,7 +247,8 @@ export function verseNodesForReference(
  *
  * Deliberately mirrors `reviewSourceKey` in server/utils/review-service.ts rather than importing
  * it — that module reaches for the database — and a test asserts the two agree. Returns null for
- * kinds Review has no question for (chapter, theme, person, place).
+ * kinds Review has no question for (theme, person, place). A chapter's source key is its node
+ * key: there is one canonical spelling of a chapter, so nothing needs lowercasing.
  */
 export function reviewSourceKeyForNode(input: {
   nodeKind: NodeKind;
@@ -243,6 +272,10 @@ export function reviewSourceKeyForNode(input: {
       if (!a || !b) return null;
       // review-service joins the pair with ':' where the node key uses '|'; both are sorted.
       return `connection:${a}:${b}`;
+    }
+    case 'chapter': {
+      const parts = chapterKeyPartsFromNodeKey(input.nodeKey);
+      return parts ? nodeKey.chapter(parts) : null;
     }
     default:
       return null;

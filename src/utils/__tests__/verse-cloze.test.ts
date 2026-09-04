@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildVerseCloze, verseCue } from '../verse-cloze';
+import {
+  buildVerseCloze,
+  clozeSegments,
+  gradeVerseRebuild,
+  verseClozeRatio,
+  verseCue,
+} from '../verse-cloze';
 
 const JOHN_15_5 =
   'I am the vine; you are the branches. Whoever abides in me and I in him, he it is that bears much fruit, for apart from me you can do nothing.';
@@ -80,5 +86,134 @@ describe('verseCue', () => {
 
   it('is empty for empty text', () => {
     expect(verseCue('')).toBe('');
+  });
+});
+
+describe('verseClozeRatio', () => {
+  it('hides more each time a verse comes back round', () => {
+    expect(verseClozeRatio(0)).toBeLessThan(verseClozeRatio(1));
+    expect(verseClozeRatio(1)).toBeLessThan(verseClozeRatio(2));
+  });
+
+  it('stops rising, because writing it from memory is already a rung', () => {
+    /*
+     * `verse.recall` asks for the whole verse. A cloze that hides more than three content words
+     * in five stops being a prompt and becomes that rung with extra steps.
+     */
+    expect(verseClozeRatio(3)).toBe(verseClozeRatio(2));
+    expect(verseClozeRatio(99)).toBeLessThanOrEqual(0.6);
+  });
+
+  it('tolerates a nonsense pass', () => {
+    expect(verseClozeRatio(-2)).toBe(verseClozeRatio(0));
+    expect(verseClozeRatio(Number.NaN)).toBe(verseClozeRatio(0));
+  });
+
+  it('actually blanks more of a verse at a higher pass', () => {
+    const text =
+      'I am the vine you are the branches the one who remains in me and I in him bears much fruit because apart from me you can accomplish nothing';
+    const low = buildVerseCloze(text, 'seed:1', verseClozeRatio(0));
+    const high = buildVerseCloze(text, 'seed:2', verseClozeRatio(2));
+    expect(high.blanks.length).toBeGreaterThan(low.blanks.length);
+  });
+});
+
+describe('a blank never mangles the words around it', () => {
+  it('leaves a hyphen-joined pair alone rather than eating the dash', () => {
+    /*
+     * Found by walking a later erosion pass, where more blanks meant a better chance of
+     * hitting one. `me—and` is a single whitespace-delimited token holding two words; the
+     * dash is stripped from the middle to give `meand`, which the token does not contain, and
+     * the gap printed `_____nd`.
+     */
+    const text = 'The one who remains in me—and I in him—bears much fruit today always';
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const cloze = buildVerseCloze(text, seed, 0.6);
+      expect(cloze.display).toContain('me—and');
+      expect(cloze.display).not.toMatch(/_nd\b/);
+    }
+  });
+
+  it('keeps punctuation on both sides of the gap', () => {
+    const cloze = buildVerseCloze('“Rejoice always, pray continually, everywhere”', 'a', 0.6);
+    expect(cloze.display.startsWith('“')).toBe(true);
+    expect(cloze.display.trimEnd().endsWith('”')).toBe(true);
+  });
+});
+
+describe('gradeVerseRebuild', () => {
+  const cloze = buildVerseCloze(JOHN_15_5, 'seed:1', 0.3);
+
+  it('accepts the missing words in the order they were taken out', () => {
+    expect(gradeVerseRebuild(cloze, cloze.blanks.map((b) => b.word))).toBe(true);
+  });
+
+  it('does not care about case or punctuation', () => {
+    /*
+     * The question is whether the word was remembered, not how it was typed. A reader filling
+     * gaps from memory should not be marked down for a capital or a missing apostrophe.
+     */
+    expect(
+      gradeVerseRebuild(cloze, cloze.blanks.map((b) => ` ${b.word.toUpperCase()}, `)),
+    ).toBe(true);
+  });
+
+  it('marks the right words in the wrong order wrong', () => {
+    // Order is the exercise: "vine … branches" is not "branches … vine".
+    const reversed = [...cloze.blanks.map((b) => b.word)].reverse();
+    const distinct = new Set(reversed).size > 1;
+    if (distinct) expect(gradeVerseRebuild(cloze, reversed)).toBe(false);
+  });
+
+  it('marks a short answer wrong rather than passing what was filled in', () => {
+    expect(gradeVerseRebuild(cloze, cloze.blanks.slice(1).map((b) => b.word))).toBe(false);
+    expect(gradeVerseRebuild(cloze, [])).toBe(false);
+  });
+
+  it('marks a verse with nothing blanked wrong rather than vacuously right', () => {
+    expect(gradeVerseRebuild({ tokens: [], blanks: [], display: '' }, [])).toBe(false);
+  });
+});
+
+describe('clozeSegments', () => {
+  const cloze = buildVerseCloze(JOHN_15_5, 'seed:1', 0.3);
+  const split = clozeSegments(cloze);
+
+  it('gives one more piece of text than there are gaps', () => {
+    expect(split.segments).toHaveLength(cloze.blanks.length + 1);
+    expect(split.blankLengths).toHaveLength(cloze.blanks.length);
+  });
+
+  it('rebuilds the verse exactly when the missing words are put back', () => {
+    /*
+     * The real invariant, and the one that caught a stray space before a full stop: the pieces
+     * concatenate with no spacing added, because the spacing is already in them.
+     */
+    const rebuilt = split.segments
+      .map((seg, i) => (i < cloze.blanks.length ? seg + cloze.blanks[i].word : seg))
+      .join('');
+    expect(rebuilt).toBe(cloze.tokens.join(' '));
+  });
+
+  it('never puts a missing word in the visible text', () => {
+    for (const blank of cloze.blanks) {
+      for (const segment of split.segments) {
+        expect(segment.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))).not.toContain(
+          blank.word,
+        );
+      }
+    }
+  });
+
+  it('keeps punctuation attached to the text, not to the gap', () => {
+    // A blank standing for `branches` in `branches.` leaves the stop at the head of the next
+    // piece, so the reader types a word and the sentence still ends properly.
+    const punctuated = buildVerseCloze('I am the vine you are the branches. Remain in me', 'p', 0.6);
+    const pieces = clozeSegments(punctuated);
+    expect(pieces.blankLengths.every((n) => n >= 3)).toBe(true);
+    const rebuilt = pieces.segments
+      .map((seg, i) => (i < punctuated.blanks.length ? seg + punctuated.blanks[i].word : seg))
+      .join('');
+    expect(rebuilt).toBe(punctuated.tokens.join(' '));
   });
 });

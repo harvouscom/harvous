@@ -1271,6 +1271,139 @@ const MARK_SAMPLE = 'the light shines in the darkness';
  * somewhere merely visited — and that needs a day holding both. A real account's day is
  * whatever happened, which on most mornings is a chapter and nothing else.
  */
+/**
+ * How an answered Review question reads: the verdict on each part, and the goes it has.
+ *
+ * One grammar across every exercise — right is the accent gradient, wrong is the destructive
+ * red, carried on the element's own edge rather than in a badge beside it. The dots are the
+ * only progress indicator in the app; they exist because a bar for a two-or-three step count
+ * reads as a task being set, which the onboarding dock found first.
+ */
+function ReviewVerdictsScene() {
+  return (
+    <div className="pds-stack" style={{ gap: 20, maxWidth: 520 }}>
+      <div>
+        <p className="pds-caption">Goes</p>
+        <span className="proto-review-dock__goes" aria-label="Attempt 2 of 3">
+          <span className="proto-review-dock__go" data-spent aria-hidden />
+          <span className="proto-review-dock__go" data-current aria-hidden />
+          <span className="proto-review-dock__go" aria-hidden />
+        </span>
+      </div>
+
+      <div>
+        <p className="pds-caption">Gaps, marked per gap</p>
+        <p className="proto-challenge__cloze">
+          {'I am the vine; you are the '}
+          <input
+            className="proto-review-dock__blank"
+            data-answer="right"
+            defaultValue="branches"
+            style={{ width: '9ch' }}
+            readOnly
+          />
+          {'. The one who remains in me bears much '}
+          <input
+            className="proto-review-dock__blank"
+            data-answer="wrong"
+            defaultValue="peace"
+            style={{ width: '6ch' }}
+            readOnly
+          />
+          {'.'}
+        </p>
+      </div>
+
+      <div>
+        <p className="pds-caption">Options</p>
+        <div className="proto-review-dock__chips">
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
+            data-correct
+          >
+            <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
+              A
+            </kbd>
+            <span className="proto-review-dock__choice-label">I am the vine; you are the branches.</span>
+          </button>
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
+            data-missed
+            disabled
+          >
+            <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
+              B
+            </kbd>
+            <span className="proto-review-dock__choice-label">The LORD is my shepherd.</span>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p className="pds-caption">What you wrote</p>
+        <p className="proto-review-dock__verse proto-review-dock__verse--yours">
+          <span data-answer="right">vine</span> and the <span data-answer="right">branches</span> and
+          something about <span data-answer="right">fruit</span>
+        </p>
+      </div>
+
+      <div>
+        {/* One tapped thing, which may be marked either way — the reader watched this chip turn
+            red a second ago, so the recap agrees with what they saw. */}
+        <p className="pds-caption">What you picked</p>
+        <p className="proto-review-dock__verse proto-review-dock__verse--yours proto-review-dock__verse--pick">
+          <span data-answer="wrong">To all those loved by God in Rome…</span>
+        </p>
+      </div>
+
+      <div>
+        <p className="pds-caption">The order you put them in</p>
+        <ol className="proto-review-dock__verse proto-review-dock__verse--yours proto-review-dock__echo-rows">
+          <li data-answer="right">I am the vine</li>
+          <li data-answer="wrong">bears much fruit</li>
+          <li data-answer="wrong">you are the branches</li>
+        </ol>
+      </div>
+
+      <div>
+        {/* The shared-spaces author chip with a status glyph where the face goes. The glyph
+            carries the state; the label never does. */}
+        <p className="pds-caption">How well you hold it</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span className="proto-recall-chip" data-state="fragile">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="seedling" size={10} />
+            </span>
+            Still learning
+          </span>
+          <span className="proto-recall-chip" data-state="durable">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="check" size={10} />
+            </span>
+            You know this
+          </span>
+          <span className="proto-recall-chip" data-state="slipping">
+            <span className="proto-recall-chip__mark" aria-hidden>
+              <Icon name="clock-rotate-left" size={10} />
+            </span>
+            Slipping away
+          </span>
+        </div>
+      </div>
+
+      <div>
+        {/* The question, recapped above its own answer: quieter than the ask it repeats. */}
+        <p className="pds-caption">The question, recapped</p>
+        <p className="proto-review-dock__prompt proto-review-dock__prompt--asked">
+          Pick how John 15:5 begins.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function StudyFeedScene() {
   const dayStart = new Date(2026, 7, 25, 8, 0, 0);
   const at = (minutes: number) => new Date(dayStart.getTime() + minutes * 60_000).toISOString();
@@ -1419,6 +1552,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <NoteAudienceBarScene />;
     case 'ds-20-study-feed':
       return <StudyFeedScene />;
+    case 'ds-21-review-verdicts':
+      return <ReviewVerdictsScene />;
     default:
       return <p className="pds-caption">Unknown design-system scene.</p>;
   }

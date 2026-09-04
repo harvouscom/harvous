@@ -129,6 +129,9 @@ export const ADDITIVE_REVIEW_CHALLENGES_DDL = [
   `ALTER TABLE "ReviewEvents" ENABLE ROW LEVEL SECURITY`,
   `ALTER TABLE "Challenges" ENABLE ROW LEVEL SECURITY`,
   `ALTER TABLE "UserNodeStates" ENABLE ROW LEVEL SECURITY`,
+  // Part four: a scheduler that remembers. Both defaulted, so existing rows are untouched.
+  `ALTER TABLE "ReviewItems" ADD COLUMN IF NOT EXISTS "lapseCount" integer NOT NULL DEFAULT 0`,
+  `ALTER TABLE "ReviewItems" ADD COLUMN IF NOT EXISTS "lastRungKey" text`,
 ] as const;
 
 export async function runAddReviewChallengesSchema(

@@ -114,11 +114,6 @@
   font-weight: 600;
 }
 
-.pds-gallery__subtitle {
-  margin: 0 0 var(--pds-space-4);
-  color: var(--pds-text-secondary);
-}
-
 .pds-gallery__phase {
   margin-bottom: var(--pds-space-4);
 }

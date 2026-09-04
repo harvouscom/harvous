@@ -12,10 +12,33 @@
  * and the strategy doc names that failure mode explicitly.
  */
 
+import type { ReviewEchoManner } from '@/utils/review-answer-echo';
+
 export const REVIEW_START_COPY = 'Start';
 export const REVIEW_DEFER_COPY = 'Not now';
 export const REVIEW_PAUSE_COPY = 'Pause this';
 export const REVIEW_RESUME_COPY = 'Start again';
+
+/**
+ * The fold over what the reader put aside, on Home.
+ *
+ * "Paused" and "put down" are two different acts — a season, and a decision — but one drawer:
+ * both are things taken out of the queue, and both are picked back up the same way. Naming the
+ * count is the point of the fold, since a drawer you cannot see into is one you never open.
+ */
+export const reviewSetAsideCopy = (count: number) =>
+  count === 1 ? '1 you put aside' : `${count} you put aside`;
+
+/**
+ * The fold over what is scheduled but not due.
+ *
+ * Named by when rather than by count alone — "3 coming back later" is a fact about the queue's
+ * shape, not a debt. It is the one group Home hid entirely: with nothing due the section used
+ * to disappear, taking every scheduled item with it, and the page that used to list them is
+ * gone.
+ */
+export const reviewComingBackCopy = (count: number) =>
+  count === 1 ? '1 coming back later' : `${count} coming back later`;
 export const REVIEW_REMOVE_COPY = 'Remove from Review';
 export const REVIEW_MORE_COPY = 'More';
 
@@ -35,9 +58,61 @@ export const REVIEW_SECTION_TITLE = 'Review';
  * Not "0 items due". The point of an empty inbox is that there is nothing to do, and the way
  * to say that is to say it.
  */
+/**
+ * Opening the dock, before the queue has answered.
+ *
+ * Not the empty state, which is what used to show here: "Nothing waiting" is a claim, and
+ * making it while the request is still in flight told the reader the feature had nothing for
+ * them a beat before the question arrived. First impressions were of an empty product.
+ */
+/** Announced to a screen reader while the dots show; never printed. */
+export const REVIEW_LOADING_LABEL = 'Finding your next review';
 export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
 
+/**
+ * The empty card, in two states, because "nothing due" and "nothing yet" are different facts
+ * and one sentence was answering for both.
+ *
+ * The up-to-date one says when the next thing comes back. That is the opposite of a count of
+ * what is owed: it is a reason to put the app down, said once, with a date the reader can hold
+ * the app to. It stays a statement about what is *scheduled* — the queue refills from study as
+ * it happens, so a promise that nothing will arrive before Tuesday is a promise this feature
+ * cannot keep.
+ *
+ * The nothing-yet one says where reviews come from, because a new reader looking at an empty
+ * feature has no way to know it is fed by their own study rather than by a button they missed.
+ */
+export const REVIEW_EMPTY_UP_TO_DATE_TITLE = 'You are up to date';
+export const REVIEW_EMPTY_NOTHING_YET_TITLE = 'Nothing to review yet';
+export const REVIEW_EMPTY_NOTHING_YET_BODY =
+  'Reviews come from your own study. Mark a verse or write a note, and they start showing up here.';
+export const REVIEW_EMPTY_SETTLED_BODY = 'Nothing waiting right now.';
+export const reviewNextDueCopy = (when: string) => `The next one comes back ${when}.`;
+
+/*
+ * Both halves of one toggle, not a link.
+ *
+ * "See all" used to navigate to a Review page, which is the thing this feature spent a whole
+ * redesign getting away from: a question about your study belongs beside your study, not on a
+ * destination you have to come back from. It opens the rest of the list where it already is.
+ */
 export const REVIEW_SEE_ALL_COPY = 'See all';
+
+/**
+ * The caption on the altered block itself.
+ *
+ * The prompt already says one word has been changed. This says it a second time, on the words,
+ * because the prompt can be scrolled past, cropped out of a screenshot, or skipped by someone
+ * tapping straight at the text — and the one thing this rung must never do is let an altered
+ * line be read as Scripture.
+ */
+/* "Wrong" is on the voice doc's forbidden list; the caption says what the line is, not what the
+   reader might be. */
+export const REVIEW_ALTERED_CAPTION = 'One word here is not what it says';
+
+/** Said plainly above the restored verse, so the correction is unmistakable. */
+export const REVIEW_TRUTH_LABEL = 'As it actually reads';
+export const REVIEW_SEE_LESS_COPY = 'Show fewer';
 
 /* The note's ⋯ menu is the one place this is offered. The Review card briefly carried a `+`
    for it too, which was disabled everywhere the card usually sits and explained itself to
@@ -55,30 +130,113 @@ export const REVIEW_ALMOST_COPY = 'I almost had it';
  */
 export const REVIEW_REVEAL_COPY = 'Check my note';
 export const REVIEW_REVEAL_VERSE_COPY = 'Check the verse';
+export const REVIEW_REVEAL_CHAPTER_COPY = 'Check the chapter';
 export const REVIEW_REVEAL_THREAD_COPY = 'Open the Thread';
 export const REVIEW_REVEAL_CONNECTION_COPY = 'Check my notes';
 /** After revealing cold: the honest answer is that it needed looking at. */
 export const REVIEW_REVEALED_ACK_COPY = 'Got it now';
 
 /**
- * The word the dock says back after an answer, before the next return.
+ * What the dock says back after an answer, before the next return.
  *
- * Past tense and one word each, because this is a receipt rather than praise. "Well done" for
- * remembering a verse is the app grading a spiritual practice, which is what the whole feature
- * is built not to do.
+ * Said the way a person would, not the way the schedule names it: "Recalled." was the outcome
+ * enum with a full stop on it, and BRAND_VOICE.md's rule against systematic language applies
+ * to a card that is talking to someone about a verse. Still a receipt rather than praise —
+ * "well done" for remembering Scripture is the app grading a spiritual practice — and still
+ * inside the forbidden-words list: nothing here says wrong, fail or mistake, because a miss on
+ * a verse is not one.
  */
 export const REVIEW_OUTCOME_ACK_COPY: Record<'recalled' | 'almost' | 'revealed', string> = {
-  recalled: 'Recalled.',
-  almost: 'Almost.',
-  revealed: 'Read again.',
+  recalled: 'You had it.',
+  almost: 'Got there.',
+  revealed: 'Not this time.',
 };
 
 /** The graded rungs: the reader has arranged or chosen, and asks the app to mark it. */
 export const REVIEW_CHECK_COPY = 'Check it';
 
+/** Said after a wrong answer that still has a go left. No scolding, no exclamation. */
+export const REVIEW_TRY_AGAIN_COPY = 'Not that one. One more go.';
+
+/**
+ * The same beat, but specific, where the answer had parts to mark.
+ *
+ * "Not that one" is all you can say about a tap. Where the reader filled four gaps or named
+ * three words, saying how many landed is the difference between a colour and a correction —
+ * and it is what makes the second go about the part they actually missed. Counting words are
+ * fine here: this counts what went right, not what is owed.
+ */
+export function reviewPartsAgainCopy(right: number, total: number): string {
+  if (right <= 0) return 'None of those yet. One more go.';
+  if (right === total) return 'All there. One more go.';
+  return right === 1 ? 'One of those is right. One more go.' : `${right} of those are right. One more go.`;
+}
+
+/**
+ * What a written verse reached, said without naming a word of it.
+ *
+ * "The words that carry it" was a coined term for content words — true, and no help at all to
+ * someone who cannot tell which those are. "Key words" is the same idea in words people
+ * already use.
+ */
+export function reviewReachedCopy(matched: number, total: number): string {
+  return matched <= 0
+    ? 'None of its key words yet.'
+    : `You wrote ${matched} of its ${total} key words.`;
+}
+
+/** Above the answer, after the last go. */
+export const REVIEW_ANSWER_LABEL = 'The answer';
+
+/**
+ * The same slot on the rungs keyed to the curated index. A miss there means the reader disagreed
+ * with the index, not that they forgot something they knew, and the label says whose reading it
+ * is rather than calling it the answer.
+ */
+export const REVIEW_INDEX_ANSWER_LABEL = 'The reference works say';
+
 /** Said once, on the answer that moves something into durable recall. Never a score. */
-export const REVIEW_CROSSED_TO_HOLDING_COPY = 'This one is holding now.';
-export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember, if you want to';
+/**
+ * A leech. Said once, plainly, with a way down: the ladder has been asking this one the same
+ * way four times since it was last held, and a fifth is not going to work.
+ */
+export const REVIEW_SLIPPING_COPY = 'This one keeps slipping away. An easier ask next time?';
+export const REVIEW_STEP_BACK_COPY = 'Make it easier';
+export const REVIEW_STEPPED_BACK_COPY = 'Done. It comes back easier next time.';
+/**
+ * The way on from a result, and the way out.
+ *
+ * Both are offered because a sitting is not a queue to clear: stopping after one is a complete
+ * act, and the card should not imply otherwise by only offering "next". "Enough for now" is the
+ * same voice as the rest — no count of what is left, no suggestion that leaving is quitting.
+ */
+export const REVIEW_NEXT_COPY = 'Next one';
+export const REVIEW_ENOUGH_COPY = 'Enough for now';
+
+export const REVIEW_CROSSED_TO_HOLDING_COPY = 'You have this one now.';
+/** The first-letters rung asks for the whole verse, not a note about it. */
+export const REVIEW_INITIALS_PLACEHOLDER = 'Write the verse out';
+
+/*
+ * "if you want to" was honest while nothing marked the answer, and wrong the moment something
+ * did. The ask is direct now, and what you write comes back beside the verse afterwards.
+ */
+export const REVIEW_ATTEMPT_PLACEHOLDER = 'Write what you remember';
+export const REVIEW_YOUR_WORDS_LABEL = 'What you wrote';
+
+/**
+ * The heading above the reader's own answer on the result card, by what they actually did.
+ *
+ * Four, because "what you wrote" over three tapped chips is not what happened, and the result
+ * is meant to be a recap of the moment rather than a generic slot. `wrote` reuses the constant
+ * above so the free-recall card keeps the words it always had.
+ */
+export const REVIEW_ECHO_LABEL: Record<ReviewEchoManner, string> = {
+  picked: 'What you picked',
+  ordered: 'The order you put them in',
+  filled: 'What you filled in',
+  wrote: REVIEW_YOUR_WORDS_LABEL,
+};
 
 export const CHALLENGE_STEP_DONE_COPY = 'Done';
 export const CHALLENGE_STEP_SKIP_COPY = 'Skip this';
@@ -91,6 +249,27 @@ export const CHALLENGE_START_COPY = 'Start';
 export const CHALLENGE_RETIRED_COPY = 'The note this path was built on is gone.';
 
 /** Plus prompts. One line, no exclamation, no urgency. */
+/**
+ * The sample. One real question for an account that does not have Review, so the paywall row
+ * has a thing above it to have tried. Eyebrows say whose verse it is — the reader's own study
+ * where anything of theirs fits, a well-known one otherwise — because "a verse from your study"
+ * over John 3:16 they never cited would be a lie in the first line.
+ */
+export const REVIEW_SAMPLE_EYEBROW_YOURS = 'From your own study';
+export const REVIEW_SAMPLE_EYEBROW_WELL_KNOWN = 'A verse to try it on';
+export const REVIEW_SAMPLE_PROMPT = 'Fill in the blanks.';
+/**
+ * After the sample is answered, in the reader's second person rather than the app's third.
+ *
+ * "That is Review." names the feature at someone who has not bought it, which is the app
+ * talking about itself. What they just did is the argument: they answered a question about
+ * their own passage and it was marked. This says what that becomes.
+ */
+export const REVIEW_SAMPLE_AFTER =
+  'Review brings your own study back, just before you would lose it — asked a different way each time.';
+/** The offer, once. Both ways out, so the card is a question rather than a toll gate. */
+export const REVIEW_SAMPLE_SEE_PLUS = 'See Plus';
+export const REVIEW_SAMPLE_NOT_NOW = 'Not now';
 export const REVIEW_PLUS_TITLE = 'Return to your study with Review';
 export const REVIEW_PLUS_META = 'Come back to your own notes on a schedule';
 export const PLUS_BADGE_COPY = 'Plus';

@@ -85,6 +85,9 @@ import {
   type HomeTopPassage,
   type HomeTopTag,
   type HomeTopThread,
+  pickMarkNoteCandidate,
+  MARK_NOTE_MIN_CHARS,
+  type MarkNoteInput,
 } from '../prototype-home-trends';
 
 describe('pickContinueNote', () => {
@@ -2305,5 +2308,71 @@ describe('deriveStudyArcsFromNodes', () => {
   it('ignores a theme not touched inside the window', () => {
     const stale = themeNode('Adoption', { firstStudiedAt: daysAgo(900), lastSeenAt: daysAgo(700) });
     expect(deriveStudyArcsFromNodes([stale], { nowMs: NOW })).toEqual([]);
+  });
+});
+
+describe('pickMarkNoteCandidate', () => {
+  const body = 'x'.repeat(MARK_NOTE_MIN_CHARS);
+  const note = (id: string, over: Partial<MarkNoteInput> = {}): MarkNoteInput => ({
+    id,
+    content: body,
+    updatedAt: '2026-06-01T00:00:00Z',
+    ...over,
+  });
+
+  it('picks a note with enough written in it and nothing marked', () => {
+    expect(pickMarkNoteCandidate([note('a')], new Set())?.id).toBe('a');
+  });
+
+  it('leaves alone a note that has already been marked', () => {
+    expect(pickMarkNoteCandidate([note('a')], new Set(['a']))).toBeUndefined();
+  });
+
+  it('says nothing rather than asking about a note with barely anything in it', () => {
+    // "What stuck with you?" needs something to have stuck.
+    expect(pickMarkNoteCandidate([note('a', { content: 'Romans 8' })], new Set())).toBeUndefined();
+  });
+
+  it('measures what is written, not the markup around it', () => {
+    /*
+     * The note that caught this held one mention pill: 503 characters of inline style wrapped
+     * around a single word. It passed a length check on the stored HTML, and the card invited
+     * the reader to mark a note with nothing in it to mark.
+     */
+    const pill =
+      '<p><span data-mention-kind="note" data-mention-id="note_1783229089806" ' +
+      'data-mention-space-id="space_1783197526569" class="mention-pill" ' +
+      'style="padding: 2px 8px; border-radius: 12px; display: inline-flex; ' +
+      'align-items: center; gap: 4px; font-weight: 500; font-style: normal; ' +
+      'text-decoration: none; white-space: nowrap; vertical-align: baseline">Romans</span></p>';
+    expect(pill.length).toBeGreaterThan(MARK_NOTE_MIN_CHARS);
+    expect(pickMarkNoteCandidate([note('a', { content: pill })], new Set())).toBeUndefined();
+  });
+
+  it('says nothing when the body was never sent, rather than guessing from its length', () => {
+    const row = note('a', { content: null, contentLength: MARK_NOTE_MIN_CHARS + 10 });
+    expect(pickMarkNoteCandidate([row], new Set())).toBeUndefined();
+  });
+
+  it('skips what it cannot read or does not own', () => {
+    expect(pickMarkNoteCandidate([note('a', { contentEncrypted: true })], new Set())).toBeUndefined();
+    expect(pickMarkNoteCandidate([note('a', { noteType: 'scripture' })], new Set())).toBeUndefined();
+  });
+
+  it('prefers the oldest, which is both the one worth revisiting and the safest guess', () => {
+    /*
+     * Safest because `markedNoteIds` is only what the caller has loaded. A note written this
+     * morning does not need revisiting, and an old note's highlights are the ones most likely
+     * to be missing from memory — so age is doing two jobs here.
+     */
+    const picked = pickMarkNoteCandidate(
+      [note('new', { updatedAt: '2026-09-01T00:00:00Z' }), note('old', { updatedAt: '2025-01-01T00:00:00Z' })],
+      new Set(),
+    );
+    expect(picked?.id).toBe('old');
+  });
+
+  it('honours an exclusion, so one note is not two cards', () => {
+    expect(pickMarkNoteCandidate([note('a'), note('b')], new Set(), new Set(['a']))?.id).toBe('b');
   });
 });

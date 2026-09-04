@@ -144,8 +144,34 @@ export type StudyFeedItem =
 export interface StudyFeedResponse {
   success: boolean;
   items: StudyFeedItem[];
+  /**
+   * Reviews answered inside the same window, as bare timestamps — never feed rows.
+   *
+   * Answering a review is not a moment on the day the way writing a note is, and ten rows of
+   * "reviewed John 15:5" would bury the study the feed is for. The day's sentence counts them
+   * instead. Bucketing is the client's, since only it knows the reader's zone.
+   */
+  reviewAnswers?: StudyFeedReviewAnswer[];
   /** ISO timestamp to pass back as `before`, or null at the end of the trail. */
   nextCursor: string | null;
+}
+
+/** One answered review: when, and whether it was held. Nothing about what was asked. */
+export interface StudyFeedReviewAnswer {
+  at: string;
+  held: boolean;
+  /**
+   * What was asked about — a scripture reference or a note's title, the same names the feed
+   * prints on its reading and writing rows. Never an id, and never what the reader typed.
+   */
+  label?: string | null;
+}
+
+/** Pages do not overlap — each is cut by the `before` cursor — so this is a concat. */
+export function mergeStudyFeedReviewAnswers(
+  pages: (StudyFeedReviewAnswer[] | undefined)[],
+): StudyFeedReviewAnswer[] {
+  return pages.flatMap((page) => page ?? []);
 }
 
 /** All / just my own study / one space. Serialized as `all`, `home`, `space:<id>`. */

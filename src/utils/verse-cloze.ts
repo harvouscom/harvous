@@ -17,7 +17,8 @@
  * "the" removed tests typing, not memory — and blanking them makes the verse unreadable as a
  * cue, which defeats the rung.
  */
-const STOPWORDS = new Set([
+/** Words too common to be a fair thing to recall. Shared by every text-keyed rung. */
+export const STOPWORDS = new Set([
   'the', 'and', 'for', 'but', 'not', 'you', 'your', 'his', 'her', 'him', 'she', 'they',
   'them', 'their', 'this', 'that', 'these', 'those', 'with', 'from', 'into', 'unto',
   'shall', 'will', 'have', 'has', 'had', 'was', 'were', 'are', 'been', 'being', 'who',
@@ -26,7 +27,7 @@ const STOPWORDS = new Set([
 ]);
 
 /** Below this a word is too small to be worth retrieving. */
-const MIN_BLANK_LENGTH = 4;
+export const MIN_BLANK_LENGTH = 4;
 
 /** Never blank the opening words — the reader needs a way in. */
 const LEAD_IN_WORDS = 2;
@@ -66,7 +67,25 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-function bareWord(token: string): string {
+/**
+ * A well-mixed index into `count`, from a seed.
+ *
+ * `hashSeed(seed) % count` looks equivalent and is not, for a reason worth writing down: FNV-1a
+ * multiplies by an odd prime, so the multiply never changes the low bit, and the final low bit is
+ * just the XOR of every character's low bit. A `% 2` draw is therefore a parity of the seed's
+ * characters rather than a hash of it — and since these seeds are `${id}:${step}`, every step
+ * with the same digit parity draws the same member. On the ladder that meant a two-member family
+ * showed one of its members and never the other, forever, for a given item: `chapter.person`
+ * was unreachable, and on maintenance passes so was one of rebuild/initials.
+ *
+ * Running the hash through mulberry32 mixes the low bits back in. Same seed, same answer.
+ */
+export function seededIndex(seed: string, count: number): number {
+  if (count <= 1) return 0;
+  return Math.min(count - 1, Math.floor(mulberry32(hashSeed(seed))() * count));
+}
+
+export function bareWord(token: string): string {
   return token.replace(/[^\p{L}\p{N}'-]/gu, '');
 }
 
@@ -80,6 +99,23 @@ function bareWord(token: string): string {
  * target of 9. Every content word gone.
  */
 const MAX_BLANK_SHARE = 0.6;
+
+/**
+ * How much of a verse to hide on a given maintenance pass.
+ *
+ * A verse that has been round the ladder does not need the same gaps back; it needs bigger
+ * ones. Three steps and then a ceiling, because `verse.recall` — write it from memory — is
+ * already the 100% rung, and a cloze that hides more than three content words in five stops
+ * being a prompt and becomes that rung with extra steps.
+ *
+ * Driven by the pass, never by `reviewCount`: the count rises on every answer, so ten near
+ * misses would hand someone a mostly-blank verse they have never once recalled.
+ */
+export function verseClozeRatio(pass: number): number {
+  const steps = [0.3, 0.45, 0.6];
+  const index = Math.min(steps.length - 1, Math.max(0, Math.trunc(Number.isFinite(pass) ? pass : 0)));
+  return Math.min(MAX_BLANK_SHARE, steps[index]);
+}
 
 /**
  * Build the exercise.
@@ -104,6 +140,15 @@ export function buildVerseCloze(text: string, seed: string, ratio = 0.3): VerseC
     const word = bareWord(tokens[i]);
     if (word.length < MIN_BLANK_LENGTH) continue;
     if (STOPWORDS.has(word.toLowerCase())) continue;
+    /*
+     * Only tokens whose word sits contiguously inside them.
+     *
+     * `me—and` is one whitespace-delimited token holding two words, and `bareWord` strips the
+     * em-dash from the middle to give `meand` — a string the token does not contain. Blanking
+     * it printed `_____nd`, eating the dash and half the second word. Rare enough to skip
+     * rather than to re-tokenise around, and skipping is what keeps the verse readable.
+     */
+    if (!tokens[i].includes(word)) continue;
     eligible.push(i);
   }
 
@@ -134,9 +179,13 @@ export function buildVerseCloze(text: string, seed: string, ratio = 0.3): VerseC
     .map((token, i) => {
       if (!blankSet.has(i)) return token;
       const word = bareWord(token);
-      // Keep trailing punctuation outside the gap so the sentence still scans.
-      const trailing = token.slice(token.lastIndexOf(word) + word.length);
-      return `${'_'.repeat(Math.max(3, word.length))}${trailing}`;
+      // Punctuation stays outside the gap, on both sides, so the sentence still scans: an
+      // opening quote or bracket belongs to the verse, not to the word being recalled.
+      const at = token.indexOf(word);
+      if (at < 0) return '_'.repeat(Math.max(3, word.length));
+      const leading = token.slice(0, at);
+      const trailing = token.slice(at + word.length);
+      return `${leading}${'_'.repeat(Math.max(3, word.length))}${trailing}`;
     })
     .join(' ');
 
@@ -160,4 +209,91 @@ export function verseCue(text: string, words = 4): string {
     .replace(/^[“”"'‘’]+/, '')
     .replace(/[“”"'‘’]+$/, '')
     .trim();
+}
+
+/**
+ * Did the reader fill the gaps with the words that belong in them?
+ *
+ * Position by position, because order is the exercise: "vine … branches" and "branches … vine"
+ * are not the same answer, and a set comparison would call them both right.
+ *
+ * Compared loosely. The blanks hold bare words already, and someone typing the missing words of
+ * a verse should not be marked down for capitalising one or leaving off an apostrophe — the
+ * question is whether they remembered the word, not how they typed it. This is the only graded
+ * rung whose answer key is the Scripture text itself rather than something the reader committed;
+ * that is fine, because the text is not a machine's reading of anything.
+ */
+export function gradeVerseRebuild(cloze: VerseCloze, answers: readonly string[]): boolean {
+  return markVerseRebuild(cloze, answers).correct;
+}
+
+/**
+ * The same marking, per gap, so a wrong answer can say *which* word missed.
+ *
+ * `.every` threw this away for free: the comparison was already made per blank and then
+ * collapsed to one boolean, which is why a reader who missed one word of four saw all four turn
+ * the same red. Telling them which one does make the retry easier, and that is the point —
+ * feedback you cannot act on is not feedback.
+ */
+export function markVerseRebuild(
+  cloze: VerseCloze,
+  answers: readonly string[],
+): { correct: boolean; parts: boolean[] } {
+  if (cloze.blanks.length === 0) return { correct: false, parts: [] };
+  const parts = cloze.blanks.map((blank, index) => sameWord(answers[index], blank.word));
+  return { correct: answers.length === cloze.blanks.length && parts.every(Boolean), parts };
+}
+
+function sameWord(a: string | undefined, b: string): boolean {
+  return normaliseWord(a ?? '') === normaliseWord(b) && normaliseWord(b).length > 0;
+}
+
+function normaliseWord(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+/** The verse split at its gaps, so the gaps can be inputs rather than a picture of inputs. */
+export interface VerseClozeSegments {
+  /** `blanks.length + 1` pieces of visible text; a piece may be empty at either end. */
+  segments: string[];
+  /** How many characters each gap stood for, which is what sizes the input. */
+  blankLengths: number[];
+}
+
+/**
+ * Split a cloze into the text either side of each gap.
+ *
+ * `display` renders the gaps as underscore runs, which is fine to look at and impossible to type
+ * into. Handing the client the pieces lets it put a real input where each gap is, so the reader
+ * fills the verse in place instead of retyping the missing words into a box underneath and
+ * trusting they got the order right.
+ *
+ * Punctuation stays outside the gap, exactly as `display` puts it: a blank standing for
+ * `branches` in `branches.` leaves the full stop at the head of the next segment.
+ */
+export function clozeSegments(cloze: VerseCloze): VerseClozeSegments {
+  const blankAt = new Map(cloze.blanks.map((b) => [b.index, b.word]));
+  const blankLengths: number[] = [];
+
+  /*
+   * Marked and split, rather than assembled piece by piece.
+   *
+   * Building the pieces by hand meant deciding at every seam whether a space belonged, and the
+   * first version put one before the full stop that follows a gap. Writing the whole line with a
+   * marker where each gap goes and splitting on it makes the spacing correct by construction:
+   * the pieces concatenate back to the verse exactly, with the missing words dropped in.
+   */
+  const MARK = '\u0000';
+  const line = cloze.tokens
+    .map((token, index) => {
+      const word = blankAt.get(index);
+      if (word === undefined) return token;
+      const at = token.indexOf(word);
+      blankLengths.push(Math.max(3, word.length));
+      if (at < 0) return MARK;
+      return `${token.slice(0, at)}${MARK}${token.slice(at + word.length)}`;
+    })
+    .join(' ');
+
+  return { segments: line.split(MARK), blankLengths };
 }

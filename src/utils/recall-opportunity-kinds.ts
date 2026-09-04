@@ -15,6 +15,9 @@ export const RECALL_OPPORTUNITY_KINDS = [
   'crossrefGap',
   'connectNotes',
   'searchGap',
+  'markNote',
+  'reflectThread',
+  'readingNote',
 ] as const;
 
 export type RecallOpportunityKind = (typeof RECALL_OPPORTUNITY_KINDS)[number];
@@ -96,6 +99,8 @@ export const NOTE_CREATING_RECALL_KINDS: readonly RecallOpportunityKind[] = [
   'reflection',
   'crossrefGap',
   'searchGap',
+  // Opens a draft seeded with the chapter you read, and the verse you marked in it.
+  'readingNote',
 ];
 
 export function recallKindCreatesNote(kind: RecallOpportunityKind): boolean {
@@ -122,6 +127,9 @@ export const RECALL_KIND_LABELS: Record<RecallOpportunityKind, string> = {
   crossrefGap: 'Cross-ref gap',
   connectNotes: 'Connect notes',
   searchGap: 'Unanswered search',
+  markNote: 'Mark a note',
+  reflectThread: 'Reflect on a Thread',
+  readingNote: 'Write about a chapter',
 };
 
 export function recallKindDisplayLabel(kind: string): string {

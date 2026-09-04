@@ -3,6 +3,7 @@
  * what does the edge say" decisions can be tested without rendering a carousel.
  */
 
+import { reviewResultSubject } from '@/utils/review-answer-echo';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { recallKindDisplayLabel } from '@/utils/recall-opportunity-kinds';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
@@ -107,6 +108,7 @@ export function buildReviewCardStackOrigin(
     id: string;
     prompt: string;
     noteTitle: string | null;
+    noteLabel?: string | null;
     secondaryNoteTitle: string | null;
     scriptureReference: string | null;
     recallState?: string;
@@ -127,6 +129,8 @@ export function buildReviewCardStackOrigin(
       attempted: reveal.attempted,
       attempt: reveal.attempt,
       recallState: item.recallState,
+      prompt: item.prompt,
+      subject: reviewResultSubject(item),
     },
     label: 'Review',
     icon: 'arrows-rotate',

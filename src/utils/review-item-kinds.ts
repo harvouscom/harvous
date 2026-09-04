@@ -9,19 +9,41 @@
  */
 
 /**
- * The five shapes of a review item, which are five different questions.
+ * The six shapes of a review item, which are six different questions.
  *
  * `note` asks what you observed. `highlight` asks why you marked it. `connection` asks why
  * you linked two notes — the only kind with two note ids. `thread` asks what the whole
  * cluster is forming, and is keyed by the representative note the graph picked. `verse` is
- * the memory ladder, and the only kind whose prompt changes as you succeed at it.
+ * the memory ladder, whose prompt changes as you succeed at it. `chapter` is the newest: a
+ * chapter you sat with in the Bible reader, asked about from its own text and the curated
+ * index — the reading half of the loop that Home's "write about what you read" card opens.
  */
-export const REVIEW_ITEM_KINDS = ['note', 'highlight', 'connection', 'thread', 'verse'] as const;
+export const REVIEW_ITEM_KINDS = ['note', 'highlight', 'connection', 'thread', 'verse', 'chapter'] as const;
 
 export type ReviewItemKind = (typeof REVIEW_ITEM_KINDS)[number];
 
 export function isReviewItemKind(value: string): value is ReviewItemKind {
   return (REVIEW_ITEM_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * The kinds Review still has an answerable question for.
+ *
+ * `highlight`, `connection` and `thread` asked open questions — "why did you connect these?",
+ * "what is taking shape across your Thread?" — which are the same shape the note prompts were
+ * retired for. They are worth asking; they are not worth *marking*, and a queue that mixes
+ * things you can be right about with things you cannot is not a review.
+ *
+ * They went where the note prompts went: Home, as a suggestion. `REVIEW_ITEM_KINDS` keeps all
+ * five because rows for the retired kinds exist in the table and their source keys must keep
+ * resolving — this is about what may be *created*, not about what may be read.
+ */
+export const REVIEW_ASKABLE_KINDS = ['note', 'verse', 'chapter'] as const;
+
+export type ReviewAskableKind = (typeof REVIEW_ASKABLE_KINDS)[number];
+
+export function isReviewAskableKind(value: string): value is ReviewAskableKind {
+  return (REVIEW_ASKABLE_KINDS as readonly string[]).includes(value);
 }
 
 /**
@@ -80,7 +102,13 @@ export function isReviewItemStatus(value: string): value is ReviewItemStatus {
  * retention" is a score, and scoring someone's grasp of Scripture is exactly what this
  * product does not do.
  */
-export const RECALL_STATES = ['new', 'fragile', 'forming', 'durable'] as const;
+/**
+ * `slipping` is the fifth, and the one place Review says a thing is not working rather than
+ * asking it again: an item missed four times after being held. It is derived, like the rest,
+ * from the lapse count in `review-scheduling.ts`, and it clears when the reader steps the
+ * item back a rung or holds it again.
+ */
+export const RECALL_STATES = ['new', 'fragile', 'forming', 'durable', 'slipping'] as const;
 
 export type RecallState = (typeof RECALL_STATES)[number];
 
@@ -88,11 +116,26 @@ export function isRecallState(value: string): value is RecallState {
   return (RECALL_STATES as readonly string[]).includes(value);
 }
 
+/**
+ * Five states, three things worth saying.
+ *
+ * The words came from the model rather than from the reader: "Still fragile", "Forming",
+ * "Holding" and "Slipping" were four metaphors — glass, clay, grip, slope — for one axis, and
+ * three were the enum's own values promoted to a caption. The first rewrite kept the shape and
+ * fixed the words, which was not enough: "Needs work" is a school report about the reader, and
+ * "Coming back" says nothing at all.
+ *
+ * So the shape goes too. `fragile` and `forming` differ by whether you have got something right
+ * once or twice running, and nobody needs to be told that difference about their own study —
+ * both are still learning it. What is left is the three states a person would actually name:
+ * learning it, knowing it, losing it.
+ */
 export const RECALL_STATE_LABELS: Record<RecallState, string> = {
   new: 'New',
-  fragile: 'Still fragile',
-  forming: 'Forming',
-  durable: 'Holding',
+  fragile: 'Still learning',
+  forming: 'Still learning',
+  durable: 'You know this',
+  slipping: 'Slipping away',
 };
 
 /**
@@ -185,7 +228,59 @@ export function isChallengeStepKind(value: string): value is ChallengeStepKind {
  * fits under the Continue shelf without pushing the day's record off the first screen, and it
  * means the inbox can never be the biggest thing on Activity.
  */
+/**
+ * How many goes a graded rung allows before it shows the answer.
+ *
+ * Being told "back in 4 days" the instant you slip teaches nothing; trying again while the
+ * question is still in front of you is where the repetition does its work. How many goes it took
+ * is what sets the interval, so the schedule still reflects how well it went.
+ *
+ * **The number depends on the exercise, and the reason is the guessing floor.** Four options
+ * with one spent leaves three, then two: a third go at a tap is nearly a giveaway, and a fourth
+ * would hand it over. Nothing typed has that floor — a second wrong guess at a word you cannot
+ * remember is still a wrong guess — so the rungs that ask the reader to produce something get
+ * one more, which is where the retrieval actually happens. No document specifies a number; this
+ * is argued from the exercises.
+ *
+ * `REVIEW_MAX_ATTEMPTS` remains the ceiling every bound and clamp is written against.
+ */
+export const REVIEW_MAX_ATTEMPTS = 3;
+
+/** Rungs whose answer is one of four on screen. A third go there is not an attempt. */
+const CHOICE_ATTEMPTS = 2;
+const PRODUCED_ATTEMPTS = 3;
+
+const CHOICE_RUNGS = new Set<string>([
+  'verse.recognize',
+  'verse.next',
+  'verse.before',
+  'verse.locate',
+  'verse.book',
+  'verse.connect',
+  'verse.theme',
+  'verse.person',
+  'verse.crossref',
+  'note.recognize',
+  'note.passage',
+  'note.connect',
+  'note.annotation',
+  'chapter.verse',
+  'chapter.person',
+]);
+
+export function maxAttemptsFor(promptKey: string | null | undefined): number {
+  return promptKey && CHOICE_RUNGS.has(promptKey) ? CHOICE_ATTEMPTS : PRODUCED_ATTEMPTS;
+}
+
 export const REVIEW_INBOX_MAX_ROWS = 3;
+
+/**
+ * Extra rows read so that a note with nothing to ask about costs no slot.
+ *
+ * Items made before the note ladder existed can carry no question, and they are dropped while
+ * views are built. Without slack, three such rows at the front of the queue empty the inbox.
+ */
+export const REVIEW_INBOX_UNASKABLE_SLACK = 4;
 
 /** One sitting, not a queue to clear. Deliberately below what a keen reader could manage. */
 export const REVIEW_SESSION_CAP = 10;

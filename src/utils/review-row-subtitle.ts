@@ -1,4 +1,5 @@
 import { NOTE_WRITTEN_SOURCE } from '@/utils/study-bible-source-copy';
+import { NOTE_RECOGNIZE_STEP, verseRungFor } from '@/utils/review-prompts';
 
 /**
  * The line under a review question that says *which* thing is being asked about.
@@ -31,6 +32,9 @@ const WRITTEN_PREFIX = 'Written ';
 
 export interface ReviewRowSubtitleInput {
   prompt: string;
+  /** Needed to know whether this row's question is one with a right answer. */
+  kind?: string | null;
+  ladderStep?: number | null;
   /** Server-resolved: title, else the note's opening line, else the passage it cites. */
   noteLabel?: string | null;
   /** The note's own opening words. Preferred over everything else — it is the context line. */
@@ -62,6 +66,17 @@ export function reviewRowSubtitle(
   item: ReviewRowSubtitleInput,
   now: Date = new Date(),
 ): string | null {
+  /*
+   * Nothing at all when the identity line *is* the answer — "Where is this from?" with
+   * "John 15:5" underneath is not a question, and neither is "Which of your notes says this?"
+   * above the note's name.
+   *
+   * Only those two rungs. Suppressing it for every graded rung was too much: "What did you link
+   * this to?" with nothing beneath it does not say which note is being asked about, so the
+   * reader cannot answer it either. A right answer is not a reason to withhold the question.
+   */
+  if (rungIdentityIsTheAnswer(item)) return null;
+
   // The note's own words win outright: the question above names the note, this shows it.
   const context = item.noteContext?.trim();
   if (context) return context;
@@ -94,10 +109,96 @@ export function reviewRowSubtitle(
  * Romans 1:7 in a note", "You linked these notes", "You opened this again".
  */
 export function reviewRowSource(
-  item: { sourceLabel?: string | null },
+  item: { sourceLabel?: string | null; kind?: string | null; ladderStep?: number | null },
   subtitle: string | null,
 ): string | null {
   const source = item.sourceLabel?.trim() || null;
-  if (!source || !subtitle) return source;
+  if (!source) return null;
+  /*
+   * A verse's reason names the verse — "Marked Romans 1:7 in a note" — and on the rung that asks
+   * where a fragment is from, that is the answer printed under the question. The identity line is
+   * already suppressed there; the reason has to go with it.
+   */
+  if (item.kind === 'verse' && rungIdentityIsTheAnswer(item)) return null;
+  if (!subtitle) return source;
   return source === NOTE_WRITTEN_SOURCE ? null : source;
+}
+
+/**
+ * How well the reader holds this, for the row's meta line — or nothing.
+ *
+ * Two suppressions. "New" says nothing useful on a row that is by definition being asked for
+ * the first time. And where the framing line already speaks to the state, the row printed it
+ * twice: a durable item with no reader or curated fact to show read
+ * "Pick what comes next · You have this one. Keep it. · You have this", which is the app saying
+ * one thing in two registers and trusting neither.
+ */
+export function reviewRowRecallLabel(
+  item: { recallState?: string | null; framing?: { template: string } | null },
+  labels: Record<string, string>,
+): string | null {
+  const state = item.recallState;
+  if (!state || state === 'new') return null;
+  if (item.framing?.template === 'holding') return null;
+  return labels[state] ?? null;
+}
+
+/** When the subject is the answer, the row says which *kind* of thing it is and no more. */
+export const REVIEW_SUBJECT_HIDDEN_NOTE = 'One of your notes';
+export const REVIEW_SUBJECT_HIDDEN_VERSE = 'One of your passages';
+
+/**
+ * What the row leads with: the thing being reviewed, not the question about it.
+ *
+ * Home has always read this way — "A passage you keep returning to · Across 5 of your notes" —
+ * and Review had it inverted, with the question as the title and the subject demoted underneath,
+ * so a shelf of rows read as questions about nothing in particular.
+ *
+ * On the two rungs whose answer *is* the subject, this says only what kind of thing it is. Naming
+ * it there would print the answer on the row.
+ */
+export function reviewRowSubject(
+  item: ReviewRowSubtitleInput & { kind?: string | null },
+  now: Date = new Date(),
+): string {
+  if (rungIdentityIsTheAnswer(item)) {
+    return item.kind === 'verse' ? REVIEW_SUBJECT_HIDDEN_VERSE : REVIEW_SUBJECT_HIDDEN_NOTE;
+  }
+
+  const reference = item.scriptureReference?.trim();
+  // A passage or a chapter leads with its address — "John 15:5", "John 3".
+  if ((item.kind === 'verse' || item.kind === 'chapter') && reference) return reference;
+
+  const named = item.noteLabel?.trim() || item.noteTitle?.trim() || reference;
+  if (named) return named;
+
+  // Last resort, and only that: it says when, not what.
+  const written = item.noteWrittenAt ? writtenAtLabel(item.noteWrittenAt, now) : null;
+  if (written) return `${WRITTEN_PREFIX}${written}`;
+
+  return REVIEW_SUBJECT_HIDDEN_NOTE;
+}
+
+/**
+ * Is this row's question one the app marks?
+ *
+ * Every note rung is a multiple choice. Two verse rungs are: put the phrases back in order, and
+ * say which passage a fragment came from. On all of them the row's usual context line would
+ * give the answer away before the reader opened the card.
+ */
+export function rungIdentityIsTheAnswer(item: {
+  kind?: string | null;
+  ladderStep?: number | null;
+  /** The resolved rung, when the caller has it. A step alone can only name the family default. */
+  promptKey?: string | null;
+}): boolean {
+  // "Which of your notes says this?" — the note's identity is the whole answer.
+  if (item.kind === 'note') return item.ladderStep === NOTE_RECOGNIZE_STEP;
+  // A chapter is named in every one of its prompts and is never the answer to any of them.
+  if (item.kind !== 'verse') return false;
+  // "Where is this from?" — so is the reference. The server's resolved rung wins: with families a
+  // step can wear several rungs, and only the one that was actually asked is the truth.
+  const key = item.promptKey ?? verseRungFor(item.ladderStep ?? 0).key;
+  // The reference, or the book: either names the answer.
+  return key === 'verse.locate' || key === 'verse.book';
 }

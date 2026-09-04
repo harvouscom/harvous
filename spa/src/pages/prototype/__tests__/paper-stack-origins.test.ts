@@ -220,7 +220,28 @@ describe('buildReviewCardStackOrigin', () => {
   it('carries the item and the attempt, which is what the edge answers with', () => {
     const origin = buildReviewCardStackOrigin(item(), { attempted: true, attempt: 'adoption' }, { to: '/' });
     expect(origin.kind).toBe('reviewCard');
-    expect(origin.review).toEqual({ itemId: 'review_1', attempted: true, attempt: 'adoption' });
+    expect(origin.review).toMatchObject({ itemId: 'review_1', attempted: true, attempt: 'adoption' });
+  });
+
+  it('carries the question, so the result can recap what was asked', () => {
+    /*
+     * Answering from the stack's edge clears the stack, so the dock renders the result for a
+     * card that is already gone. Without these the result arrived as a bare verdict with no
+     * question above it — which is the thing that made a result card unreadable everywhere.
+     */
+    const origin = buildReviewCardStackOrigin(item(), { attempted: false }, { to: '/' });
+    expect(origin.review?.prompt).toBe('Before opening it, what did you observe in My journey?');
+    // The question already names the note, so the subject line would say it twice.
+    expect(origin.review?.subject).toBeNull();
+  });
+
+  it('names the subject where the question does not', () => {
+    const origin = buildReviewCardStackOrigin(
+      item({ prompt: 'Pick the note this line is from.', noteTitle: 'My journey' }),
+      { attempted: false },
+      { to: '/' },
+    );
+    expect(origin.review?.subject).toBe('My journey');
   });
 
   it('titles the card with the question, not the note', () => {

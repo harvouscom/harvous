@@ -246,6 +246,17 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     screenshotSlug: 'ds-20-study-feed',
     visualBaseline: true,
   },
+  {
+    id: 'ds-21-review-verdicts',
+    title: 'Review verdicts',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeReviewDock.tsx',
+      'spa/src/styles/prototype-components.css',
+    ],
+    screenshotSlug: 'ds-21-review-verdicts',
+    visualBaseline: true,
+  },
 ];
 
 export function isDesignSystemCoreScene(id: string): boolean {

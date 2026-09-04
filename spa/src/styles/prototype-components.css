@@ -1032,17 +1032,7 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   line-height: 1.2;
 }
 
-.proto-toolbar-folder-chip__extra {
-  flex-shrink: 0;
-  color: var(--pds-text-secondary);
-  font-size: var(--pds-toolbar-folder-chip-font-size);
-  font-weight: 500;
-  font-variation-settings: var(--pds-font-body-variation-toolbar-chip);
-  line-height: 1.2;
-}
-
 .proto-toolbar-folder-chip__label,
-.proto-toolbar-folder-chip__extra,
 .proto-toolbar-folder-chip__icon {
   font-family: inherit !important;
 }
@@ -1334,7 +1324,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 
 /* Icon-only orbs — kill font strut so SVG glyphs center in the circle (iOS Safari). */
 .proto-toolbar-icon-btn:not(:has(.proto-profile-orb__photo)),
-.proto-daily-passage-pill__orb,
 .proto-appearance-preview__check-orb {
   line-height: 0;
 }
@@ -1345,10 +1334,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   align-items: center;
   justify-content: center;
   line-height: 0;
-}
-.proto-daily-passage-pill__orb svg {
-  flex-shrink: 0;
-  display: block;
 }
 
 .proto-toolbar-icon-btn:hover {
@@ -2047,7 +2032,6 @@ html.harvous-proto-wallpaper-color .proto-sidebar-list-view__trigger[aria-expand
   flex-shrink: 0;
   padding: 8px 14px 8px;
 }
-
 
 .proto-sidebar-back-row + .proto-sidebar-search {
   padding-top: 2px;
@@ -5465,25 +5449,6 @@ html.harvous-prototype-route
   overscroll-behavior: contain;
 }
 
-.proto-settings__nav-footer {
-  flex-shrink: 0;
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 0.5px solid var(--pds-border);
-}
-
-.proto-settings__admin-shortcut {
-  align-items: flex-start;
-}
-
-.proto-settings__admin-shortcut-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
 .proto-settings__admin-shortcut-sub {
   font-family: var(--pds-font-body);
   font-size: 0.75rem;
@@ -6043,11 +6008,20 @@ a.proto-copy-row__value:hover {
   flex-direction: column;
 }
 
+/*
+ * One shared link, on two lines instead of four.
+ *
+ * It used to stack a title, a meta line, the share URL in a monospace face, and a row of text
+ * actions — then put Copy beside all of it. The URL was the heaviest thing in the row and the
+ * least use: every link reads `/shared/note/<id>`, so it identified nothing the title did not,
+ * while looking like a config file. Centred now, with the text on the left and everything you
+ * can do on the right.
+ */
 .proto-sharing-card {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 12px;
+  padding: 10px 12px;
   min-width: 0;
 }
 
@@ -6058,7 +6032,20 @@ a.proto-copy-row__value:hover {
 .proto-sharing-card .proto-settings-list-row__leading {
   color: var(--pds-text-primary);
   flex-shrink: 0;
-  margin-top: 1px;
+}
+
+/*
+ * The actions, held together at the end of the row.
+ *
+ * `flex-shrink: 0` against the global reset is what keeps them on one line as the title grows;
+ * the text column beside them is the part that gives.
+ */
+.proto-sharing-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .proto-sharing-card__main {
@@ -6082,31 +6069,10 @@ a.proto-copy-row__value:hover {
   color: var(--pds-accent);
 }
 
-.proto-sharing-card__meta,
-.proto-sharing-card__url {
+.proto-sharing-card__meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.proto-sharing-card__url {
-  color: var(--pds-text-tertiary);
-  font-family: var(--pds-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
-  font-size: 11px;
-  line-height: 1.35;
-  text-decoration: none;
-}
-
-.proto-sharing-card__url:hover {
-  color: var(--pds-accent);
-}
-
-.proto-sharing-card__inline-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 10px;
-  margin-top: 2px;
 }
 
 .proto-sharing-card__text-action {
@@ -6136,21 +6102,15 @@ a.proto-copy-row__value:hover {
   color: var(--pds-accent);
 }
 
-.proto-sharing-card__confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 2px;
-}
-
+/* The question sits in the actions row it replaces, so the row keeps its height. */
 .proto-sharing-card__confirm-prompt {
   color: var(--pds-text-secondary);
   font: 500 11px/1.35 var(--pds-font-body);
+  text-align: right;
 }
 
-.proto-sharing-card > .proto-thread-review__dismiss {
+.proto-sharing-card__actions > .proto-thread-review__dismiss {
   flex-shrink: 0;
-  margin-top: 1px;
 }
 
 .proto-sharing-deleted {
@@ -6561,7 +6521,6 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 .proto-pin-entry--settings .proto-pin-entry__error {
   text-align: left;
 }
-
 
 .proto-lock-pin-settings__body {
   padding: 16px;
@@ -7231,11 +7190,6 @@ button.proto-home-card--tappable:focus-visible {
   gap: 4px;
   min-width: 0;
   max-width: 100%;
-}
-
-.proto-home-card__meta-sep {
-  color: var(--pds-text-tertiary);
-  user-select: none;
 }
 
 /*
@@ -7910,7 +7864,6 @@ html.harvous-proto-wallpaper-color .proto-votd-sheet {
   overflow-y: auto;
   padding: 20px;
 }
-
 
 .proto-votd-sheet__html {
   font-family: var(--pds-font-body);
@@ -8750,7 +8703,6 @@ button.proto-appearance-hero__card {
   --proto-trail-spine-color: oklch(from var(--pds-text-primary) l c h / 0.26);
 }
 
-
 :root[data-color-scheme='dark'] .proto-thread-trail {
   --proto-trail-dot-surface: color-mix(in oklch, var(--pds-bg-card, var(--pds-bg-page)) 86%, white 14%);
 }
@@ -8761,7 +8713,6 @@ button.proto-appearance-hero__card {
   :root:not([data-color-scheme='light']) .proto-thread-trail__spine {
     --proto-trail-spine-color: oklch(from var(--pds-text-primary) l c h / 0.26);
   }
-
 
   :root:not([data-color-scheme='light']) .proto-thread-trail {
     --proto-trail-dot-surface: color-mix(in oklch, var(--pds-bg-card, var(--pds-bg-page)) 86%, white 14%);
@@ -8862,12 +8813,6 @@ button.proto-appearance-hero__card {
 .proto-thread-trail__step:hover .proto-side-panel__disconnect-row-btn,
 .proto-thread-trail__step:focus-within .proto-side-panel__disconnect-row-btn {
   opacity: 1;
-}
-
-.proto-thread-trail__also {
-  margin-top: 6px;
-  padding-top: 8px;
-  border-top: 0.5px solid var(--pds-border-control);
 }
 
 /* ── Thread trail inside the tool-group card ─────────────────────────────────
@@ -9013,25 +8958,8 @@ button.proto-appearance-hero__card {
   }
 }
 
-/* Sits in the scrolling list, so it needs the gutter the rows used to have. */
-
-.proto-thread-trail__also-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.proto-thread-trail__also .proto-thread-trail__step {
-  grid-template-columns: 1fr;
-  padding-left: 0;
-}
-
 .proto-thread-trail__also .proto-thread-trail__orb {
   display: none;
-}
-
-.proto-thread-trail__also .proto-thread-trail__step-body:hover {
-  background: var(--pds-bg-row-hover);
 }
 
 .proto-sidebar-thread-trail {
@@ -9140,34 +9068,6 @@ button.proto-appearance-hero__card {
 
 .proto-thread-trail__drag-handle:active {
   cursor: grabbing;
-}
-
-/* Connect action */
-.proto-side-panel__connect {
-  padding: 4px 8px 8px;
-  border-top: 0.5px solid var(--pds-border-control);
-  margin-top: 8px;
-}
-
-.proto-side-panel__connect-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
-  border-radius: var(--pds-radius-row);
-  border: none;
-  background: transparent;
-  color: var(--pds-text-secondary);
-  font-family: var(--pds-font-body);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.1s ease, color 0.1s ease;
-}
-
-.proto-side-panel__connect-btn:hover {
-  background: var(--pds-bg-row-hover);
-  color: var(--pds-text-primary);
 }
 
 /* Disconnect button on a note row.
@@ -11642,6 +11542,11 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    wrap gets shortened or truncated, never taller. */
 .proto-church-tools__row-title,
 .proto-church-tools__row-meta,
+/* A mark travelling with the title — see `titleTrailing` in PrototypeHomeRow. */
+.proto-list-panel__row-title-mark {
+  margin-left: 6px;
+}
+
 .proto-list-panel__row-title,
 .proto-list-panel__row-meta {
   margin: 0;
@@ -12927,19 +12832,6 @@ p.proto-teaching-plan__divider {
   border: 1.5px solid var(--pds-bg-popover-solid);
 }
 
-.proto-create-shared-space__edit-badge svg {
-  width: 10px;
-  height: 10px;
-  display: block;
-  overflow: visible;
-  color: var(--pds-text-primary);
-  fill: var(--pds-text-primary) !important;
-}
-
-.proto-create-shared-space__edit-badge path {
-  fill: var(--pds-text-primary) !important;
-}
-
 /* Top-left on hero — clear of close (top-right) and letter overlap (bottom). */
 .proto-create-shared-space__hero-hit .proto-create-shared-space__edit-badge {
   top: 10px;
@@ -12948,22 +12840,12 @@ p.proto-teaching-plan__divider {
   height: 24px;
 }
 
-.proto-create-shared-space__hero-hit .proto-create-shared-space__edit-badge svg {
-  width: 11px;
-  height: 11px;
-}
-
 /* Inset on the color tile so scroll containers can't clip it. */
 .proto-create-shared-space__icon-hit .proto-create-shared-space__edit-badge {
   right: 1px;
   bottom: 1px;
   width: 18px;
   height: 18px;
-}
-
-.proto-create-shared-space__icon-hit .proto-create-shared-space__edit-badge svg {
-  width: 9px;
-  height: 9px;
 }
 
 .proto-create-shared-space__title-input {
@@ -13390,6 +13272,62 @@ html.harvous-prototype-route
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+}
+
+/*
+ * How well the reader holds something, on a review row.
+ *
+ * The shared-spaces author chip, which already rides in a row's meta line on the space hub —
+ * same 999px pill, same 11px/600 label — with a status glyph in front of the words. A bare
+ * glyph rather than one in a disc: at this size the circle was a second shape competing with
+ * the pill around it, and the icon reads on its own. `.proto-home-greeting__chip` sets the
+ * precedent for a leading icon with no badge.
+ *
+ * The glyph carries the state and the label never does. A fully tinted pill at the end of every
+ * row would be a scoreboard, and grading someone's grasp of Scripture at a glance is the one
+ * thing this feature refuses to do.
+ */
+.proto-recall-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: 999px;
+  background: var(--pds-bg-chip);
+  color: var(--pds-text-primary);
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.proto-recall-chip__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/*
+ * Every state's colour carries `!important` and an attribute selector, for one reason.
+ *
+ * A row is a `<button>`, and global.css forces `button * { color: … !important }` on everything
+ * inside one. The glyph is drawn with `currentColor`, so without this all three states come out
+ * the same grey. `!important` alone is not enough either: among important declarations the more
+ * specific selector wins, and that global rule out-specifies a lone class.
+ */
+.proto-recall-chip[data-state] .proto-recall-chip__mark {
+  color: var(--pds-text-secondary) !important;
+}
+
+.proto-recall-chip[data-state='durable'] .proto-recall-chip__mark {
+  color: var(--pds-accent-gradient-end) !important;
+}
+
+.proto-recall-chip[data-state='slipping'] .proto-recall-chip__mark {
+  color: var(--pds-destructive) !important;
 }
 
 /* Owner / You markers — subtle neutral pill (matches our chip language). */
@@ -13913,18 +13851,6 @@ html.harvous-prototype-route
   background: transparent;
 }
 
-/* Shared HTML5 drag ghost base: see src/styles/html5-drag-preview.css */
-
-.proto-space-switcher__drag-preview {
-  display: flex;
-  align-items: stretch;
-  min-width: 0;
-}
-
-.proto-space-switcher__drag-preview .proto-space-switcher__drag-handle {
-  opacity: 0.7;
-}
-
 .proto-space-switcher__drag-preview .proto-space-switcher__row-item {
   background: transparent;
 }
@@ -14011,10 +13937,6 @@ html.harvous-prototype-route
   background: transparent !important;
 }
 
-.proto-space-switcher__drop-tail {
-  height: 8px;
-}
-
 .proto-space-switcher__footer {
   padding: 8px 12px 10px;
   border-top: 0.5px solid var(--pds-border);
@@ -14027,48 +13949,12 @@ html.harvous-prototype-route
   color: var(--pds-text-primary);
 }
 
-/* Create form — a highlighted inset that previews the space as a list row. */
-.proto-space-switcher__create-form {
-  margin: 4px 6px 6px;
-  padding: 10px;
-  border-radius: 8px;
-  background: var(--pds-bg-input);
-  border: 0.5px solid var(--pds-border);
-  min-width: 0;
-  overflow: hidden;
-}
-
 /* Live preview row — mirrors the list item (icon tile + title). */
 .proto-space-switcher__preview {
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 0 2px 8px;
-}
-
-.proto-space-switcher__preview-title {
-  flex: 1;
-  min-width: 0;
-}
-
-.proto-space-switcher__create-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 7px 9px;
-  border-radius: 8px;
-  border: 1px solid var(--pds-border);
-  background: var(--pds-bg-popover-solid, var(--site-card));
-  font: inherit;
-  font-size: 13px;
-  color: var(--pds-text-primary);
-  outline: none;
-}
-
-.proto-space-switcher__create-input:focus,
-.proto-space-switcher__create-input:focus-visible {
-  outline: none;
-  border-color: var(--pds-accent);
-  box-shadow: inset 0 0 0 1px var(--pds-accent);
 }
 
 .proto-space-switcher__create-colors {
@@ -14955,7 +14841,6 @@ html.harvous-prototype-route
 
 /* Role for a pending invite. Sized to its content so the email field keeps the
    room — the address is the part that needs space. */
-
 
 /* Role select — same treatment as `.hmc-church-picker__select`: the native
    chevron differs per browser, so it is suppressed and redrawn. */
@@ -16883,7 +16768,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   border-radius: 2px;
   background: color-mix(in oklab, var(--pds-text-primary) 13%, transparent);
 }
-
 
 .proto-import-drop__title {
   margin: 0;
@@ -19645,7 +19529,6 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   flex: 0 0 auto;
 }
 
-
 /* Verse numbers off — the locator goes away, the prose does not reflow, because the
    number keeps its box. Hiding it entirely would shift every verse's first word. */
 .harvous-reader-hide-verse-nums .pds-reader-verse-num {
@@ -19718,7 +19601,6 @@ html.harvous-prototype-route button[class*='proto-'] .proto-appearance-preview__
 html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexic'] {
   font-family: var(--pds-font-choice-dyslexic) !important;
 }
-
 
 /* Face tiles inside the reader inspector — the settings carousel at panel scale. It already
    scrolls horizontally, so five tiles in a 300px panel need no wrapping or shrinking. */
@@ -21202,6 +21084,9 @@ button.proto-feed-sheet__stat:hover {
   padding: var(--pds-space-10) 0;
   color: var(--pds-text-muted);
   font-size: 14px;
+  text-align: center;
+  /* Balanced rather than ragged: it is one sentence holding the foot of the sheet. */
+  text-wrap: pretty;
 }
 
 /* The day's own controls, at the head of its page. */
@@ -21322,9 +21207,18 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
   font-size: 13px;
   line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  /*
+   * One line, and a plain ellipsis rather than `-webkit-line-clamp: 1` — the same reasoning the
+   * planner card records: clamping keeps `white-space: normal`, so the line breaks at a word
+   * boundary before it truncates and a long first word can swallow most of the preview. Cutting
+   * mid-word says more.
+   *
+   * One rather than two because these rows are a glance at the day, not the note. Two lines of a
+   * long note pushed the rows beneath it down and made the feed read as a wall of prose.
+   */
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   overflow: hidden;
 }
 
@@ -21417,7 +21311,6 @@ button.proto-feed-sheet__stat:hover {
   justify-content: center;
 }
 
-
 /* ─── Highlight kinds, in the search panel ────────────────────────────────────
  *
  * The sidebar filters highlights with a chip row. The panel uses the switch instead —
@@ -21484,7 +21377,6 @@ button.proto-feed-sheet__stat:hover {
   outline: 2px solid var(--pds-accent);
   outline-offset: -2px;
 }
-
 
 /* ─── The day arriving ────────────────────────────────────────────────────────
  *
@@ -21800,7 +21692,6 @@ button.proto-feed-sheet__stat:hover {
   backdrop-filter: none;
 }
 
-
 /* ─── Review and Challenges ──────────────────────────────────────────────────
  *
  * Two surfaces and one row, all wearing chrome that already exists. The Review section is a
@@ -21859,6 +21750,49 @@ button.proto-feed-sheet__stat:hover {
  * Body face rather than the heading face: it is a sentence addressed to the reader, and setting
  * it as a title made the dock read like an article about their note.
  */
+/*
+ * A question arrives in the order it is read: the prompt, then what it is about, then the
+ * options.
+ *
+ * Everything used to appear at once the instant the payload landed, so the eye had to find
+ * the question among four similar-looking chips. The delays are small — this is a hint about
+ * reading order, not an animation to watch — and they key off the question, so answering one
+ * and moving to the next plays it again.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .proto-review-dock__body > * {
+    animation: proto-review-enter 220ms ease both;
+  }
+
+  .proto-review-dock__prompt {
+    animation-delay: 0ms;
+  }
+
+  .proto-review-dock__subject,
+  .proto-challenge__cloze,
+  .proto-review-dock__verse,
+  .proto-review-dock__altered {
+    animation-delay: 60ms;
+  }
+
+  .proto-review-dock__chips,
+  .proto-review-dock__attempt,
+  .proto-review-dock__actions {
+    animation-delay: 120ms;
+  }
+}
+
+@keyframes proto-review-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .proto-review-dock__prompt {
   margin: 0;
   font-family: var(--pds-font-body);
@@ -21896,10 +21830,48 @@ button.proto-feed-sheet__stat:hover {
  * reader choose which one to read.
  */
 .proto-review-dock__result {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--pds-space-2);
+  display: grid;
+  gap: 10px;
   animation: proto-review-result-in 0.24s ease both;
+}
+
+/* A label and the text it names, kept together as one block. */
+.proto-review-dock__answer {
+  display: grid;
+  gap: 4px;
+}
+
+.proto-review-dock__answer > .proto-review-dock__truth-label,
+.proto-review-dock__answer > .proto-review-dock__verse {
+  margin: 0;
+}
+
+/* The check and the verdict on one line, the icon centred on the text. */
+/*
+ * How it went, set apart from the answer above and the way on below.
+ *
+ * Hairlines rather than spacing alone: the card holds three different kinds of thing after an
+ * answer — what the verse says, how it went, what to do next — and without a rule between them
+ * they read as one paragraph of mixed weights.
+ */
+.proto-review-dock__verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--pds-space-2);
+  padding: var(--pds-space-2) 0;
+  border-top: 0.5px solid var(--pds-border-on-paper);
+  border-bottom: 0.5px solid var(--pds-border-on-paper);
+}
+
+.proto-review-dock__verdict-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  /*
+   * Bare, not in an orb, and the colour of the words beside it: an orb reads as a badge
+   * awarded for a spiritual practice, and a coloured glyph makes the line a verdict twice —
+   * the glyph already says which way it went; the words do not need it repeated in red.
+   */
+  color: var(--pds-text-secondary);
 }
 
 @keyframes proto-review-result-in {
@@ -21924,9 +21896,9 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
 }
 
+/* One weight across the line: the icon carries the verdict, so the words need not shout it. */
 .proto-review-dock__result-outcome {
-  color: var(--pds-text-primary);
-  font-weight: 600;
+  color: var(--pds-text-secondary);
 }
 
 /* Said once, on the answer that earns it. Accent rather than a badge — a badge would be a
@@ -21950,6 +21922,476 @@ button.proto-feed-sheet__stat:hover {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/*
+ * An option reads left, and its words wrap rather than run off the card.
+ *
+ * `.proto-settings-btn` is built for a full-width action button: `width: 100%` with its
+ * content centred. That is right for "Check it" and wrong for a sentence — on a narrow card a
+ * verse opening overflowed *both* edges at once, taking the letter keycap off the left with
+ * it, so option A had no A and began mid-word. Found at 375px; on a desktop card the openings
+ * happened to fit.
+ *
+ * Doubled selector to out-specify the button's own rule. `anywhere` rather than `break-word`
+ * because it also lets the label shrink below its longest word, which is what allows the flex
+ * row to give the text a narrower box instead of overflowing one.
+ */
+.proto-review-dock__choice.proto-review-dock__choice {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/*
+ * `flex: 1 1 auto` because a global `* { flex-shrink: 0 }` reset is in force.
+ *
+ * That is the whole reason the words could not wrap: the label was `flex: 0 0 auto`, so its
+ * box stayed at the full width of the sentence no matter how narrow the card got, and the text
+ * simply hung outside it. `min-width: 0` and `overflow-wrap` are the usual pair for letting a
+ * flex item narrow, and neither does anything until the item is allowed to shrink at all.
+ */
+.proto-review-dock__choice-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A gap in a cloze, which is a real input rather than a picture of one.
+ *
+ * Sits on the line it interrupts: no border box, just the underline the underscores used to
+ * draw, so the verse still reads as a verse while it is being filled in.
+ */
+/*
+ * A gap to type into. The line under it is the whole affordance, so it is drawn from the text
+ * colour rather than the canvas — the control-edge tokens are derived from the paper and come
+ * out around 0.22 alpha, which on this ground is barely a line at all.
+ *
+ * **The line is a background, not a border.** `global.css` carries a blanket
+ * `input:focus { border: none !important }`, so the underline vanished the instant you typed
+ * in a gap and the box lost its 1.5px — the jump you can see when tabbing between blanks. A
+ * background cannot be stripped that way, and with no border in either state there is nothing
+ * left to change height.
+ *
+ * Focused, it takes the same two blues as the accent button and drifts: a gradient twice the
+ * width sliding back and forth, mirrored so the loop has no seam, and only where motion is
+ * welcome.
+ */
+.proto-review-dock__blank {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--pds-border-on-paper),
+    var(--pds-border-on-paper)
+  );
+  background-size: 100% 1.5px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  padding: 0 2px 2px;
+  margin: 0 1px;
+  font: inherit;
+  color: var(--pds-text-primary);
+  text-align: center;
+}
+
+.proto-review-dock__blank:focus {
+  outline: none;
+  background-image: linear-gradient(
+    90deg,
+    var(--pds-accent-gradient-start) 7%,
+    var(--pds-accent-gradient-end) 50%,
+    var(--pds-accent-gradient-start) 93%
+  );
+  background-size: 200% 1.5px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .proto-review-dock__blank:focus {
+    animation: proto-review-blank-drift 2.4s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes proto-review-blank-drift {
+  from {
+    background-position: 0 100%;
+  }
+  to {
+    background-position: 100% 100%;
+  }
+}
+
+.proto-review-dock__blank:disabled {
+  opacity: 0.6;
+}
+
+/*
+ * The altered verse, which must not look like a verse.
+ *
+ * Everything the scripture panel does, this deliberately does not: no reading face, no quiet
+ * grey ground, no pill chrome. It takes a warning tint and a marked edge instead, so a line
+ * that misquotes Scripture cannot be mistaken for it at a glance or in a screenshot. The
+ * caption above the words says the same thing in words.
+ */
+.proto-review-dock__altered {
+  margin: 0;
+  padding: 8px 12px 10px;
+  border-radius: var(--pds-radius-row);
+  border: 0.5px dashed var(--pds-border-control-medium);
+  background: color-mix(in srgb, var(--pds-highlight-warm-amber) 8%, transparent);
+}
+
+.proto-review-dock__altered-caption {
+  margin: 0 0 6px;
+  color: var(--pds-text-secondary);
+}
+
+.proto-review-dock__altered-text {
+  margin: 0;
+  font-family: var(--pds-font-body);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* Each word is its own target, so answering is a tap on the word rather than a menu about it. */
+.proto-review-dock__altered-word {
+  appearance: none;
+  border: 0;
+  background: none;
+  /* No horizontal margin: the spaces between words are real text nodes now, and a margin on
+     top of them spaced the line out like a puzzle grid. */
+  padding: 1px 1px;
+  margin: 0;
+  border-radius: 3px;
+  font: inherit;
+  color: var(--pds-text-primary);
+  cursor: pointer;
+}
+
+.proto-review-dock__altered-word:hover:not(:disabled),
+.proto-review-dock__altered-word:focus-visible {
+  background: color-mix(in srgb, var(--pds-text-primary) 8%, transparent);
+}
+
+.proto-review-dock__altered-word:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Above the restored verse, so the correction is unmistakable rather than a silent swap. */
+.proto-review-dock__truth-label {
+  margin: 0 0 4px;
+  color: var(--pds-text-secondary);
+}
+
+/*
+ * A lettered option, which is what makes a row of buttons read as a question.
+ *
+ * The keycap is the toolbar's own `.proto-kbd`, not a new lozenge: the letters are real
+ * shortcuts, and a key that looks like a key everywhere else in the app should look like one
+ * here. `--compact` is the size that fits inside a 28px control without setting its height.
+ */
+/*
+ * The chip's own class doubled, because `.proto-settings-btn--compact` sets `padding: 0 12px`
+ * further down this file and would win on source order alone — the same shape of collision the
+ * verdict colours hit with that variant's `!important` colour.
+ */
+.proto-review-dock__choice.proto-review-dock__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  /* The keycap is its own round shape with its own edge, so the chip's padding only has to
+     clear it — any more and the cap floats in a gutter instead of starting the option. */
+  padding-left: 4px;
+}
+
+/*
+ * How an answer went, said in colour: the accent blue for right, the destructive red for
+ * wrong. It is only ever the server's verdict — the page holds no answer key — and it lasts a
+ * beat before the result takes the card.
+ */
+/*
+ * `!important` and a ring rather than a border, because the chip is a `proto-settings-btn`:
+ * that class sets `border: 0` — so a border-colour paints nothing — and its secondary variant
+ * sets `color` with `!important`, which quietly beat the first version of these rules. The
+ * verdict has to out-shout the variant to be seen at all.
+ */
+.proto-review-dock__choice[data-missed] {
+  /*
+   * Solid, like the right answer's blue: a tint with a ring read as "disabled", not "spent". The
+   * red is the destructive *button's* gradient rather than the flat token — the token is the
+   * deep red of a warning, and this is an option that has been used, in the same family as the
+   * blue one beside it that was right.
+   */
+  background: linear-gradient(180deg, #f05252 0%, #d42828 55%, #be1f1f 100%);
+  box-shadow: var(--pds-shadow-destructive-button);
+  color: var(--pds-on-accent) !important;
+  opacity: 1;
+}
+
+/*
+ * The words paint themselves. Whatever wins `color` on this button — and something outside this
+ * file does, with `!important`, because even an inline important white computes back to the
+ * text colour — `-webkit-text-fill-color` is what the glyphs are actually drawn with.
+ *
+ * On the button as well as on the label, because not every chip has a label span: the ordering
+ * rung's placed phrases are bare text inside the button, and wore the same solid red and blue
+ * with the text left dark. A rule aimed only at the span fixed the multiple-choice chips and
+ * left the ones next door unreadable.
+ */
+.proto-review-dock__choice[data-missed],
+.proto-review-dock__choice[data-correct],
+.proto-review-dock__choice[data-missed] .proto-review-dock__choice-label,
+.proto-review-dock__choice[data-correct] .proto-review-dock__choice-label {
+  -webkit-text-fill-color: var(--pds-on-accent);
+}
+
+/*
+ * The strike is drawn on the label where there is one, and on the button where there is not, so
+ * it takes the same white as the words either way.
+ */
+.proto-review-dock__choice[data-missed],
+.proto-review-dock__choice[data-missed] .proto-review-dock__choice-label {
+  text-decoration: line-through;
+  text-decoration-color: var(--pds-on-accent);
+  text-decoration-thickness: 1.5px;
+}
+
+/* Never twice: a struck label inside a struck button draws two lines through the same words. */
+.proto-review-dock__choice[data-missed]:has(.proto-review-dock__choice-label) {
+  text-decoration: none;
+}
+
+/* The disc on a spent chip: a shade of the red, so the white letter has something to sit on. */
+.proto-review-dock__choice[data-missed] .proto-review-dock__choice-key {
+  background: color-mix(in oklab, #000 18%, transparent);
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
+}
+
+.proto-review-dock__choice[data-correct] {
+  background: var(--pds-bg-accent-button);
+  box-shadow: var(--pds-shadow-accent-button);
+  color: var(--pds-on-accent) !important;
+}
+
+/* The gap's line carries its verdict, the same line that carries focus. */
+.proto-review-dock__blank[data-answer='wrong'] {
+  background-image: linear-gradient(90deg, var(--pds-destructive), var(--pds-destructive));
+  color: var(--pds-destructive);
+}
+
+.proto-review-dock__blank[data-answer='right'] {
+  background-image: linear-gradient(
+    90deg,
+    var(--pds-accent-gradient-start) 7%,
+    var(--pds-accent-gradient-end) 93%
+  );
+  background-size: 100% 1.5px;
+}
+
+/* The word you tapped on the altered rung, once the server has marked the tap. */
+.proto-review-dock__altered-word[data-answer='wrong'] {
+  background: var(--pds-destructive-bg-strong);
+  color: var(--pds-destructive);
+}
+
+.proto-review-dock__altered-word[data-answer='right'] {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+}
+
+/*
+ * The goes a question has, one dot each.
+ *
+ * Not a bar and not a count: the onboarding dock already found that a bar for a small set reads
+ * as a task the app is setting, and this feature's vocabulary avoids counting what is owed. A
+ * dot that has gone out says "that one is used" and says nothing else.
+ */
+.proto-review-dock__goes {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.proto-review-dock__go {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pds-border-on-paper);
+}
+
+.proto-review-dock__go[data-current] {
+  background: var(--pds-accent-indicator);
+}
+
+.proto-review-dock__go[data-spent] {
+  background: color-mix(in oklab, var(--pds-destructive) 40%, transparent);
+}
+
+/* A word of theirs that landed in the verse. Marked, not highlighted: this is a reading, not a
+   correction sheet, and the words that missed are simply left as they wrote them. */
+.proto-review-dock__verse--yours span[data-answer='right'],
+.proto-review-dock__echo-rows li[data-answer='right'] {
+  color: var(--pds-accent-gradient-end);
+  font-style: normal;
+  font-weight: 600;
+}
+
+/*
+ * A choice of theirs that missed.
+ *
+ * Only on the layouts that echo a discrete choice — one tapped option, or phrases put in an
+ * order — because the reader watched those turn red as chips a second ago and the recap should
+ * agree with what they saw. Their own prose is left alone by the rule above: marking every
+ * unmatched word of someone's writing is the correction sheet that rule exists to refuse.
+ */
+.proto-review-dock__echo-rows li[data-answer='wrong'],
+.proto-review-dock__verse--pick span[data-answer='wrong'] {
+  color: var(--pds-destructive);
+  font-style: normal;
+}
+
+/* The order they put them in, read down the page as they built it. */
+.proto-review-dock__echo-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  counter-reset: proto-echo-row;
+}
+
+.proto-review-dock__echo-rows li {
+  counter-increment: proto-echo-row;
+}
+
+/* The position, so a wrong order reads as "this one was third" rather than as a wrong phrase. */
+.proto-review-dock__echo-rows li::before {
+  content: counter(proto-echo-row) '. ';
+  color: var(--pds-text-tertiary);
+  font-style: normal;
+}
+
+/*
+ * The question, recapped above its own answer.
+ *
+ * Quieter and smaller than the prompt it repeats — it is context now, not the ask — and clamped
+ * to two lines so a long question cannot push "Next one" below the fold of a card that already
+ * scrolls.
+ */
+.proto-review-dock__prompt--asked {
+  font-size: 14px;
+  color: var(--pds-text-secondary);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* What the reader typed, shown back beside the verse: theirs, so not in the reading face. */
+.proto-review-dock__verse--yours {
+  font-style: italic;
+  color: var(--pds-text-secondary);
+}
+
+/* The free-recall box carries its verdict on its edge, the way a gap carries it on its line. */
+.proto-review-dock__attempt[data-answer='wrong'] {
+  border-color: color-mix(in oklab, var(--pds-destructive) 55%, transparent);
+}
+
+.proto-review-dock__attempt[data-answer='right'] {
+  border-color: var(--pds-accent-gradient-end);
+}
+
+/* An answered gap keeps its verdict rather than flashing back to focus blue under the caret. */
+.proto-review-dock__blank[data-answer]:focus {
+  animation: none;
+}
+
+.proto-review-dock__blank[data-answer='wrong']:focus {
+  background-image: linear-gradient(90deg, var(--pds-destructive), var(--pds-destructive));
+  background-size: 100% 1.5px;
+}
+
+.proto-review-dock__retry {
+  margin: 0;
+  color: var(--pds-text-secondary);
+}
+
+/* The sample: one question in the section, for an account without the feature. */
+.proto-review-sample {
+  display: grid;
+  gap: 8px;
+  padding: var(--pds-space-3) var(--pds-space-3) var(--pds-space-2);
+}
+
+.proto-review-sample__eyebrow {
+  margin: 0;
+}
+
+
+/* A leech's way down: the line, then the two offers, set off from the verdict above. */
+/* A leech's way down, indented to the verdict's text rather than its icon. */
+.proto-review-dock__slipping {
+  display: grid;
+  gap: 8px;
+  padding-left: calc(22px + 6px + var(--pds-space-2));
+}
+
+/*
+ * A circle, like every other small round marker in the app.
+ *
+ * `.proto-kbd` is a keyboard cap — a rounded rectangle, sized by its content, because a chord
+ * like "⌘K" has to fit. Here it always holds one letter, so it is a disc: equal width and
+ * height, no border to make it look like a key, and the letter centred in it.
+ */
+.proto-review-dock__choice-key {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  /* Dimmer than the answer it points at: the letter is a way in, not part of the reading. */
+  color: var(--pds-text-secondary);
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+/*
+ * Hover lands on the keycap rather than the chip.
+ *
+ * A row of options is a row of similar shapes, and a whole-chip tint was too quiet to say which
+ * one the pointer is on. The cap is the smallest thing that can carry it, it is already the
+ * thing a keyboard would press, and taking the accent gradient makes hovering and pressing A
+ * look like the same act.
+ */
+.proto-review-dock__choice:hover:not(:disabled) .proto-review-dock__choice-key,
+.proto-review-dock__choice:focus-visible .proto-review-dock__choice-key {
+  background: var(--pds-bg-accent-button);
+  color: var(--pds-on-accent);
+  /* Belt and braces: a `kbd` is one of the elements a UA may paint with its own fill. */
+  -webkit-text-fill-color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
+}
+
+/* A marked chip keeps its verdict: the pointer must not repaint an answer already given. */
+.proto-review-dock__choice[data-correct] .proto-review-dock__choice-key {
+  background: color-mix(in oklab, #fff 22%, transparent);
+  box-shadow: none;
+  color: var(--pds-on-accent);
+  -webkit-text-fill-color: var(--pds-on-accent);
+}
+
+.proto-review-dock__choice:disabled .proto-review-dock__choice-key {
+  opacity: 0.5;
 }
 
 /* Where the placed phrases gather, numbered so the order the reader built is visible. */
@@ -21980,6 +22422,20 @@ button.proto-feed-sheet__stat:hover {
   flex: 1;
   text-align: left;
   white-space: normal;
+}
+
+/*
+ * Waiting, centred.
+ *
+ * The dots ship no alignment of their own and neither the dock body nor the card shell sets
+ * any, so they sat flush against the left edge of an otherwise empty card — reading as a
+ * fragment of something rather than as the card thinking. `.proto-home-loading` centres them
+ * the same way elsewhere.
+ */
+.proto-review-dock__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--pds-space-2) 0;
 }
 
 .proto-review-dock__empty,
@@ -22056,12 +22512,53 @@ button.proto-feed-sheet__stat:hover {
   gap: var(--pds-space-2);
 }
 
+/*
+ * The thing the question is about, set apart from the question.
+ *
+ * A quoted verse used to sit as bare text between the prompt and the options, so a rung read as
+ * one continuous paragraph and the reader had to work out which part they were being asked
+ * about. The panel is the same recipe as `.scripture-pill-chrome__attribution` — 3% of the text
+ * colour, not a grey of its own — so it holds up in either theme and against the shell's
+ * gradient, which a fixed grey would not.
+ */
 .proto-review-dock__verse,
 .proto-challenge__verse {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--pds-radius-row);
+  background: color-mix(in srgb, var(--pds-text-primary) 3%, transparent);
   font-family: var(--pds-font-body);
   font-size: 14px;
   line-height: 1.6;
   color: var(--pds-text-primary);
+}
+
+/*
+ * Scripture reads in the reading face, as it does everywhere else it is quoted.
+ *
+ * Only on the quotes that are actually scripture. `note.recognize` puts the reader's own prose
+ * in this same slot, and dressing someone's notes as scripture is the one thing this treatment
+ * must not do.
+ *
+ * The size is the dock's, not the reader's: `--pds-reader-font-size` is a reading preference
+ * that goes up to a size meant for a full column, and a card three lines tall is not that.
+ * What carries over is the face and its variation settings, which is what makes it *read* as
+ * scripture.
+ */
+.proto-review-dock__verse--scripture,
+.proto-challenge__verse--scripture {
+  font-family: var(--pds-font-reading);
+  font-variation-settings: var(--pds-font-reading-variation);
+  font-synthesis: weight;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* The inline locator stays on the body face, exactly as the reader keeps its own. */
+.proto-review-dock__verse--scripture sup.verse-num,
+.proto-challenge__verse--scripture sup.verse-num {
+  font-family: var(--pds-font-body);
+  color: var(--pds-text-tertiary);
 }
 
 /*

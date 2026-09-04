@@ -11,6 +11,7 @@
  * by what it is, and what happened to it is said once, quietly, over the group.
  */
 
+import { reviewDayRevisitedCopy, type ReviewDaySubjects } from '@/utils/review-activity-summary';
 import type { IconName } from '@/components/react/Icon';
 import { studyFeedItemWeight, type StudyFeedItem, type StudyFeedSubject } from '@/utils/study-feed-items';
 
@@ -187,6 +188,13 @@ export interface StudyFeedDayStat {
 }
 
 export interface StudyFeedDaySummary {
+  /**
+   * What the reader came back to, said as its own clause rather than a stat.
+   *
+   * A bare "John 15:5" among "1 note, 3 passages" reads as another thing counted; the point is
+   * that they returned to it, and that needs the verb.
+   */
+  revisited?: { lead: string; named: string[]; tail: string } | null;
   /** The opening words, before the first chip. */
   lead: string;
   stats: StudyFeedDayStat[];
@@ -215,9 +223,14 @@ function plural(n: number, one: string, many: string): string {
  */
 export function summarizeStudyFeedDay(
   items: StudyFeedItem[],
-  options: { isToday: boolean; partsCount: number },
+  options: { isToday: boolean; partsCount: number; revisited?: ReviewDaySubjects | null },
 ): StudyFeedDaySummary | null {
-  if (items.length === 0) return null;
+  /*
+   * A day of reviews and nothing else is still a day of study, and it is the shape the reader
+   * on a busy week is most likely to have. The first cut bailed here on an empty item list and
+   * the chip never appeared on exactly those days.
+   */
+  if (items.length === 0 && !(options.revisited?.answered ?? 0)) return null;
 
   const written = items.filter((i) => studyFeedItemWeight(i.kind) === 'card');
   const marks = items.filter(
@@ -236,6 +249,12 @@ export function summarizeStudyFeedDay(
   if (reads.length > 0) {
     stats.push({ key: 'reads', label: plural(reads.length, 'passage', 'passages') });
   }
+  /*
+   * Reviews come before "notes revisited" and can push it out. Answering a question about
+   * something is a stronger account of the day than opening it again, and the cap of three
+   * holds either way — a sentence with four chips in it stops being a sentence.
+   */
+
   if (returns.length > 0 && stats.length < 3) {
     stats.push({ key: 'returns', label: `${plural(returns.length, 'note', 'notes')} revisited` });
   }
@@ -262,7 +281,21 @@ export function summarizeStudyFeedDay(
    */
   // "Today" rather than "So far today": the tail already says "so far", and the sentence
   // was arriving with it at both ends.
-  const lead = options.isToday ? 'Today' : 'You spent this day';
+  /*
+   * "Today 1 note so far" needs a verb when there is nothing to count: on a day whose only
+   * record is the reviews, the lead runs straight into the clause that names them.
+   */
+  /*
+   * On a day whose only record is the reviews the clause is the sentence, and it opens with the
+   * verb: the sheet's own header already says which day this is, so "Today you came back to…"
+   * says it twice and reads like a log entry.
+   */
+  const revisitedOnly = stats.length === 0 && Boolean(options.revisited?.named.length);
+  const lead = revisitedOnly
+    ? 'You came back to'
+    : options.isToday
+      ? 'Today'
+      : 'You spent this day';
   const tail = options.isToday
     ? options.partsCount > 1
       ? ', across the day'
@@ -273,5 +306,11 @@ export function summarizeStudyFeedDay(
         ? ', from morning through evening'
         : ' of study';
 
-  return { lead, stats, focus: options.isToday ? focus : null, tail };
+  return {
+    lead,
+    stats,
+    focus: options.isToday ? focus : null,
+    tail,
+    revisited: reviewDayRevisitedCopy(options.revisited),
+  };
 }

@@ -88,8 +88,7 @@ html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-side
 html.harvous-prototype-route button.proto-sidebar-seg__btn,
 html.harvous-prototype-route button.proto-sidebar-seg__btn .proto-sidebar-seg__label,
 html.harvous-prototype-route button.proto-toolbar-folder-chip,
-html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label,
-html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__extra {
+html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label {
   font-variation-settings: var(--pds-font-body-variation-toolbar-chip) !important;
 }
 
@@ -149,10 +148,6 @@ html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-ite
   color: var(--pds-text-secondary) !important;
 }
 
-html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-sep {
-  color: var(--pds-text-tertiary) !important;
-}
-
 /* List row preview lines inside buttons — beat blanket `button *` primary above.
    Timestamp stays secondary; excerpt body uses list-preview (native secondary / tertiary). */
 html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,
@@ -180,10 +175,8 @@ html.harvous-prototype-route button.proto-note-row__main .pds-list-preview .pds-
 html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview .pds-list-timestamp,
 html.harvous-prototype-route button.proto-thread-trail__step-main .proto-note-row__preview .pds-list-timestamp,
 html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-preview .pds-list-timestamp,
-html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .pds-list-preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview .pds-list-timestamp,
-html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .proto-inspector-activity__subject-row .pds-list-timestamp {
   color: var(--pds-text-secondary) !important;
 }

@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   ENGINE_PER_KIND_CAP,
+  NOTE_MEANING_WEIGHT_FLOOR,
+  ENGINE_MIN_CHAPTER_AGE_DAYS,
+  ENGINE_NODE_KINDS,
+  countCommittedSignals,
   engineDailyRoom,
+  engineHasEnoughReady,
+  nodeReadiness,
   intentScore,
   scoreNode,
   selectReviewBatch,
@@ -17,8 +23,12 @@ function node(overrides: Partial<ReviewCandidateNode> & Pick<ReviewCandidateNode
     label: null,
     noteId: null,
     secondaryNoteId: null,
-    exposureCount: 1,
-    revisitCount: 0,
+    /*
+     * Ready by default, so these tests keep asking what they were written to ask — how nodes are
+     * scored and picked, not whether they clear the gate. `nodeReadiness` has its own block.
+     */
+    exposureCount: 2,
+    revisitCount: 1,
     explicitConnectionCount: 0,
     expansionCount: 0,
     synthesisCount: 0,
@@ -37,6 +47,9 @@ function node(overrides: Partial<ReviewCandidateNode> & Pick<ReviewCandidateNode
 
 const verse = (key: string, overrides: Partial<ReviewCandidateNode> = {}) =>
   node({ nodeKind: 'verse', nodeKey: key, ...overrides });
+
+const noteNode = (id: string, overrides: Partial<ReviewCandidateNode> = {}) =>
+  node({ nodeKind: 'note', nodeKey: nodeKey.note(id), noteId: id, ...overrides });
 
 const emptyKeys = new Set<string>();
 
@@ -121,7 +134,12 @@ describe('selectReviewBatch', () => {
       verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 4 })),
       node({ nodeKind: 'note', nodeKey: nodeKey.note('n1'), noteId: 'n1' }),
     ];
-    const picked = selectReviewBatch(candidates, { now: NOW, existingSourceKeys: emptyKeys });
+    const picked = selectReviewBatch(candidates, {
+      now: NOW,
+      existingSourceKeys: emptyKeys,
+      // The note needs a fingerprint to clear the meaning floor; verses need none.
+      meaningWeightByNoteId: new Map([['n1', 0.5]]),
+    });
     const verses = picked.filter((p) => p.nodeKind === 'verse');
     expect(picked).toHaveLength(3);
     expect(verses.length).toBeLessThanOrEqual(ENGINE_PER_KIND_CAP);
@@ -178,5 +196,259 @@ describe('engineDailyRoom', () => {
     expect(engineDailyRoom(2)).toBe(1);
     expect(engineDailyRoom(3)).toBe(0);
     expect(engineDailyRoom(9)).toBe(0);
+  });
+});
+
+describe('nodeReadiness', () => {
+  const ready = { exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(30) };
+
+  it('turns away a node younger than a memory', () => {
+    /*
+     * The engine had no age gate: something touched once, twenty-five hours ago, and never
+     * returned to was fully eligible — and since learning need is measured from `lastSeenAt`,
+     * an abandoned node kept climbing the queue the longer it was ignored.
+     */
+    expect(nodeReadiness(verse('v', { ...ready, firstStudiedAt: daysAgo(2) }), NOW, null)).toBe('too-new');
+    expect(nodeReadiness(verse('v', { ...ready, firstStudiedAt: daysAgo(3) }), NOW, null)).toBe('ready');
+  });
+
+  it('does not mistake opening a note often for doing something with it', () => {
+    const seenALot = node({
+      nodeKind: 'note',
+      nodeKey: 'note:n1',
+      noteId: 'n1',
+      firstStudiedAt: daysAgo(30),
+      exposureCount: 9,
+      revisitCount: 0,
+      expansionCount: 0,
+      explicitConnectionCount: 0,
+      synthesisCount: 0,
+    });
+    expect(nodeReadiness(seenALot, NOW, 0.5)).toBe('too-few-signals');
+    // Two opens plus one deliberate act is two distinct signals, which is enough.
+    expect(
+      nodeReadiness(
+        node({
+          nodeKind: 'note',
+          nodeKey: 'note:n1',
+          noteId: 'n1',
+          firstStudiedAt: daysAgo(30),
+          exposureCount: 2,
+          revisitCount: 0,
+          expansionCount: 1,
+        }),
+        NOW,
+        0.5,
+      ),
+    ).toBe('ready');
+  });
+
+  it('reads exposure differently for a passage than for a note', () => {
+    /*
+     * Checked against a real account, where it would otherwise have retired scripture review
+     * entirely: of 51 verse nodes, 39 had no signal but exposure and none had two of anything.
+     *
+     * A note is exposed by being opened, which happens by accident. A verse node is only ever
+     * touched by citing it in your own writing or marking it while reading — both of which the
+     * writers record as `exposure` — so for a passage each one is already a deliberate act.
+     * Passive reading lands on a `chapter` node, which Review never asks about.
+     */
+    const citedTwice = verse('v', {
+      firstStudiedAt: daysAgo(30),
+      exposureCount: 2,
+      revisitCount: 0,
+    });
+    expect(countCommittedSignals(citedTwice)).toBe(2);
+    expect(nodeReadiness(citedTwice, NOW, null)).toBe('ready');
+
+    // Once is not a habit.
+    const citedOnce = { ...citedTwice, exposureCount: 1 };
+    expect(countCommittedSignals(citedOnce)).toBe(1);
+    expect(nodeReadiness(citedOnce, NOW, null)).toBe('too-few-signals');
+
+    // A note opened twice is one signal, not two — opening is not a deliberate act.
+    const openedTwice = node({
+      nodeKind: 'note',
+      nodeKey: 'note:n1',
+      noteId: 'n1',
+      firstStudiedAt: daysAgo(30),
+      exposureCount: 2,
+      revisitCount: 0,
+    });
+    expect(countCommittedSignals(openedTwice)).toBe(1);
+  });
+
+  it('counts each kind of act once, never twice', () => {
+    // A verse: exposure saturates at two however high it climbs, plus the revisit.
+    expect(countCommittedSignals(verse('v', { exposureCount: 30, revisitCount: 12 }))).toBe(3);
+    expect(
+      countCommittedSignals(
+        node({
+          nodeKind: 'note',
+          nodeKey: 'note:n1',
+          exposureCount: 1,
+          revisitCount: 1,
+          expansionCount: 1,
+          synthesisCount: 1,
+        }),
+      ),
+    ).toBe(3);
+  });
+
+  it('never counts having been reviewed as a reason to review', () => {
+    const reviewed = node({
+      nodeKind: 'note',
+      nodeKey: 'note:n1',
+      noteId: 'n1',
+      firstStudiedAt: daysAgo(30),
+      exposureCount: 1,
+      revisitCount: 0,
+      reviewCount: 9,
+    });
+    expect(countCommittedSignals(reviewed)).toBe(0);
+    expect(nodeReadiness(reviewed, NOW, 0.5)).toBe('too-few-signals');
+  });
+
+  it('holds a note to the meaning floor, and a verse to none', () => {
+    const thin = node({ nodeKind: 'note', nodeKey: 'note:n1', noteId: 'n1', ...ready });
+    expect(nodeReadiness(thin, NOW, 0.19)).toBe('too-thin');
+    expect(nodeReadiness(thin, NOW, NOTE_MEANING_WEIGHT_FLOOR)).toBe('ready');
+    // No fingerprint is not a pass.
+    expect(nodeReadiness(thin, NOW, null)).toBe('too-thin');
+    // A verse has no fingerprint and needs none: citing it is the deliberate act.
+    expect(nodeReadiness(verse('v', ready), NOW, null)).toBe('ready');
+  });
+});
+
+describe('engineHasEnoughReady', () => {
+  const readyVerse = (key: string) =>
+    verse(key, { exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(30) });
+
+  it('holds the engine back until the account has been studied in', () => {
+    const four = ['a', 'b', 'c', 'd'].map(readyVerse);
+    expect(engineHasEnoughReady(four, NOW, new Map())).toBe(false);
+    expect(engineHasEnoughReady([...four, readyVerse('e')], NOW, new Map())).toBe(true);
+  });
+
+  it('counts a node Review has already asked about', () => {
+    // Already being in the queue still says this is an account someone studies in.
+    const nodes = ['a', 'b', 'c', 'd', 'e'].map(readyVerse);
+    expect(engineHasEnoughReady(nodes, NOW, new Map())).toBe(true);
+  });
+
+  it('does not count nodes that are not ready', () => {
+    const newish = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      verse(k, { exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(1) }),
+    );
+    expect(engineHasEnoughReady(newish, NOW, new Map())).toBe(false);
+  });
+});
+
+describe('a tag the reader applied by hand', () => {
+  it('counts as one signal on a note, however many tags there are', () => {
+    /*
+     * Filing a note under a tag is a deliberate act about that note — the readiness gate's whole
+     * question. Three tags is still one decision to file it, so it does not buy three signals.
+     */
+    const filed = noteNode('n', { exposureCount: 0, revisitCount: 0, manualTagCount: 1 });
+    expect(countCommittedSignals(filed)).toBe(1);
+    expect(countCommittedSignals({ ...filed, manualTagCount: 3 })).toBe(1);
+    expect(countCommittedSignals({ ...filed, manualTagCount: 0 })).toBe(0);
+  });
+
+  it('can be the signal that makes a note ready, alongside one other', () => {
+    const opened = noteNode('n', {
+      firstStudiedAt: daysAgo(30),
+      exposureCount: 2,
+      revisitCount: 0,
+      manualTagCount: 0,
+    });
+    // A real meaning weight, since the thinness gate is a separate question from this one.
+    expect(nodeReadiness(opened, NOW, 0.6)).toBe('too-few-signals');
+    expect(nodeReadiness({ ...opened, manualTagCount: 2 }, NOW, 0.6)).toBe('ready');
+  });
+
+  it('says nothing about a passage, which has no tags of its own', () => {
+    // Tags live on notes. A verse node carrying one would be a bug, not a signal.
+    const cited = verse('v', { exposureCount: 1, revisitCount: 0, manualTagCount: 5 });
+    expect(countCommittedSignals(cited)).toBe(1);
+  });
+});
+
+describe('a chapter the reader has been through', () => {
+  /* `recordReadingEvent` writes `revisit` for a read or study dwell and `exposure` for a
+     glance, so the passive half is already separated at the point of recording. */
+  const chapter = (key: string, overrides: Partial<ReviewCandidateNode> = {}) =>
+    node({
+      nodeKind: 'chapter',
+      nodeKey: key,
+      exposureCount: 0,
+      revisitCount: 0,
+      firstStudiedAt: daysAgo(10),
+      lastSeenAt: daysAgo(3),
+      ...overrides,
+    });
+  const john3 = nodeKey.chapter({ book: 'John', chapter: 3 });
+
+  it('is a kind the engine now considers', () => {
+    expect(ENGINE_NODE_KINDS).toContain('chapter');
+  });
+
+  it('counts reads and never glances, however many', () => {
+    expect(countCommittedSignals(chapter(john3, { revisitCount: 2 }))).toBe(2);
+    expect(countCommittedSignals(chapter(john3, { exposureCount: 50 }))).toBe(0);
+    // Capped, so a chapter read twenty times cannot outweigh the gate's intent.
+    expect(countCommittedSignals(chapter(john3, { revisitCount: 20 }))).toBe(2);
+  });
+
+  it('counts a verse marked inside it as one more act', () => {
+    const context = { highlightedChapterKeys: new Set([john3]) };
+    expect(countCommittedSignals(chapter(john3, { revisitCount: 1 }), context)).toBe(2);
+    // A mark in some other chapter says nothing about this one.
+    expect(
+      countCommittedSignals(chapter(john3, { revisitCount: 1 }), {
+        highlightedChapterKeys: new Set([nodeKey.chapter({ book: 'Romans', chapter: 8 })]),
+      }),
+    ).toBe(1);
+  });
+
+  it('is ready after two reads and a day, and never on glances alone', () => {
+    expect(nodeReadiness(chapter(john3, { revisitCount: 2 }), NOW, null)).toBe('ready');
+    expect(nodeReadiness(chapter(john3, { exposureCount: 50 }), NOW, null)).toBe('too-few-signals');
+    expect(
+      nodeReadiness(chapter(john3, { revisitCount: 1 }), NOW, null, {
+        highlightedChapterKeys: new Set([john3]),
+      }),
+    ).toBe('ready');
+  });
+
+  it('waits a day, which is shorter than a note or a verse waits', () => {
+    const readToday = chapter(john3, { revisitCount: 2, firstStudiedAt: NOW });
+    expect(nodeReadiness(readToday, NOW, null)).toBe('too-new');
+    const yesterday = chapter(john3, {
+      revisitCount: 2,
+      firstStudiedAt: daysAgo(ENGINE_MIN_CHAPTER_AGE_DAYS),
+    });
+    expect(nodeReadiness(yesterday, NOW, null)).toBe('ready');
+  });
+
+  it('never unlocks the engine on its own', () => {
+    /*
+     * The cold start asks whether this is an account someone has been studying in, and reading
+     * is the one signal that arrives with no writing at all. Five read chapters and nothing
+     * else must not open the queue, or a new reader's first week is five chapter quizzes.
+     */
+    const chapters = [1, 2, 3, 4, 5, 6, 7].map((n) =>
+      chapter(nodeKey.chapter({ book: 'John', chapter: n }), { revisitCount: 2 }),
+    );
+    expect(engineHasEnoughReady(chapters, NOW, new Map())).toBe(false);
+  });
+
+  it('is picked once the account has cleared the gate on its own study', () => {
+    const picked = selectReviewBatch([chapter(john3, { revisitCount: 2 })], {
+      now: NOW,
+      existingSourceKeys: emptyKeys,
+    });
+    expect(picked.map((n) => n.nodeKey)).toEqual([john3]);
   });
 });
