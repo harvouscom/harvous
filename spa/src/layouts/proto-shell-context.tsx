@@ -453,6 +453,10 @@ export type ReviewDockResult = {
    * shuffled phrases and no verse is not how a review should end.
    */
   verseText?: string | null;
+  /** Which of the reader's own words landed, indexed to their typed answer. */
+  attemptParts?: boolean[] | null;
+  /** How much of the verse that answer reached. A count; it names no word. */
+  reached?: { matched: number; total: number } | null;
   /**
    * What the reader typed, when the rung asked them to write the verse out.
    *

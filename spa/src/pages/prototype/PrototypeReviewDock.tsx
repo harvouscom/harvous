@@ -72,6 +72,8 @@ import {
   REVIEW_TRUTH_LABEL,
   REVIEW_YOUR_WORDS_LABEL,
   REVIEW_TRY_AGAIN_COPY,
+  reviewPartsAgainCopy,
+  reviewReachedCopy,
   REVIEW_ANSWER_LABEL,
   REVIEW_INDEX_ANSWER_LABEL,
   REVIEW_INITIALS_PLACEHOLDER,
@@ -329,8 +331,38 @@ export default function PrototypeReviewDock() {
    * that it disappeared. `settled` holds the answered question on screen for a beat with its
    * line in the accent blue, then the result takes over.
    */
-  const [verdict, setVerdict] = useState<{ state: 'right' | 'wrong'; option: string | null } | null>(null);
+  /** Words already tried and wrong on the altered rung, by index. Spent, like a spent chip. */
+  const [spentWords, setSpentWords] = useState<number[]>([]);
+  const [verdict, setVerdict] = useState<{
+    state: 'right' | 'wrong';
+    option: string | null;
+    /** Per part of what was submitted; absent on rungs whose answer is a single tap. */
+    parts?: boolean[];
+    reached?: { matched: number; total: number };
+  } | null>(null);
+  /*
+   * A part's own verdict, falling back to the whole answer's. A right answer is right in every
+   * part, so only a miss ever differs — which is the case the reader needs broken down.
+   */
+  const partState = (index: number): 'right' | 'wrong' | undefined => {
+    if (!verdict) return undefined;
+    if (!verdict.parts) return verdict.state;
+    return verdict.parts[index] ? 'right' : 'wrong';
+  };
   const handoverRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /*
+   * One line after a miss, said as specifically as the answer allows: how many parts landed
+   * where there were parts, "not that one" where the answer was a single tap.
+   */
+  const retryLine =
+    verdict?.state === 'wrong' ? (
+      <p className="proto-caption proto-review-dock__retry">
+        {verdict.parts && verdict.parts.length > 1
+          ? reviewPartsAgainCopy(verdict.parts.filter(Boolean).length, verdict.parts.length)
+          : REVIEW_TRY_AGAIN_COPY}
+      </p>
+    ) : null;
 
   const lastResult = reviewDock?.lastResult ?? null;
 
@@ -358,6 +390,7 @@ export default function PrototypeReviewDock() {
     setBlanks([]);
     setAttemptNumber(1);
     setMissed([]);
+    setSpentWords([]);
     setVerdict(null);
   }, [item?.id]);
 
@@ -424,16 +457,27 @@ export default function PrototypeReviewDock() {
              */
             if (data.finalized === false) {
               setAttemptNumber((n) => n + 1);
-              setVerdict({ state: 'wrong', option: picked });
+              setVerdict({ state: 'wrong', option: picked, parts: data.parts, reached: data.reached });
               if (graded?.option) setMissed((m) => [...m, graded.option!]);
+              // The altered rung answers with an index, not an option, so it never entered
+              // `missed` — a word tapped wrongly stayed live and unmarked on the second go.
+              if (Number.isInteger(graded?.wordIndex)) setSpentWords((w) => [...w, graded!.wordIndex!]);
               return;
             }
             // Marked, and shown as marked before the card moves on. Only where the server
             // actually marked something: an ungraded rung has no verdict to colour.
             if (typeof data.correct === 'boolean') {
-              setVerdict({ state: data.correct ? 'right' : 'wrong', option: picked });
+              setVerdict({
+                state: data.correct ? 'right' : 'wrong',
+                option: picked,
+                parts: data.parts,
+                reached: data.reached,
+              });
               // The last wrong pick is spent like the ones before it, and reads the same.
               if (!data.correct && graded?.option) setMissed((m) => [...m, graded.option!]);
+              if (!data.correct && Number.isInteger(graded?.wordIndex)) {
+                setSpentWords((w) => [...w, graded!.wordIndex!]);
+              }
             }
             const crossedToDurable =
               item.recallState !== 'durable' && data.next.recallState === 'durable';
@@ -449,6 +493,8 @@ export default function PrototypeReviewDock() {
                 verseText: data.truth?.verseText ?? null,
                 correctAnswer: data.correctAnswer ?? null,
                 attempt: FREE_RECALL_RUNGS.has(item.promptKey) ? attempt.trim() || null : null,
+                attemptParts: FREE_RECALL_RUNGS.has(item.promptKey) ? (data.parts ?? null) : null,
+                reached: data.reached ?? null,
                 fromIndex: INDEX_KEYED_RUNGS.has(item.promptKey),
                 leech: data.leech === true,
                 itemId: item.id,
@@ -624,13 +670,30 @@ export default function PrototypeReviewDock() {
               </div>
             ) : null}
             {lastResult.attempt ? (
+              /*
+               * Their sentence, with the words that landed marked. The marks index their own
+               * typing, so this says how much of the verse they reached without printing the
+               * verse's vocabulary at them — the verse itself is directly below, in full.
+               */
               <div className="proto-review-dock__answer">
                 <p className="proto-caption proto-review-dock__truth-label">
                   {REVIEW_YOUR_WORDS_LABEL}
                 </p>
                 <p className="proto-review-dock__verse proto-review-dock__verse--yours">
-                  {lastResult.attempt}
+                  {lastResult.attempt.split(/\s+/).map((word, index) => (
+                    <Fragment key={`${index}-${word}`}>
+                      {index > 0 ? ' ' : null}
+                      <span data-answer={lastResult.attemptParts?.[index] ? 'right' : undefined}>
+                        {word}
+                      </span>
+                    </Fragment>
+                  ))}
                 </p>
+                {lastResult.reached ? (
+                  <p className="proto-caption proto-review-dock__retry">
+                    {reviewReachedCopy(lastResult.reached.matched, lastResult.reached.total)}
+                  </p>
+                ) : null}
               </div>
             ) : null}
             {lastResult.verseText ? (
@@ -739,9 +802,7 @@ export default function PrototypeReviewDock() {
             ) : noteChoice.fragment ? (
               <p className="proto-review-dock__verse">“{noteChoice.fragment}”</p>
             ) : null}
-            {attemptNumber > 1 ? (
-              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
-            ) : null}
+            {retryLine}
             <ReviewChoiceChips
               options={noteChoice.options}
               disabled={outcome.isPending}
@@ -773,7 +834,7 @@ export default function PrototypeReviewDock() {
                     <input
                       type="text"
                       className="proto-review-dock__blank"
-                      data-answer={verdict?.state ?? undefined}
+                      data-answer={partState(index)}
                       style={{ width: `${Math.max(4, clozeExercise.blankLengths[index]) + 1}ch` }}
                       value={blanks[index] ?? ''}
                       onChange={(event) => {
@@ -790,6 +851,7 @@ export default function PrototypeReviewDock() {
                 </Fragment>
               ))}
             </p>
+            {retryLine}
             <div className="proto-review-dock__actions">
               <button
                 type="button"
@@ -821,8 +883,8 @@ export default function PrototypeReviewDock() {
                   <button
                     type="button"
                     className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
-                    data-missed={verdict?.state === 'wrong' ? '' : undefined}
-                    data-correct={verdict?.state === 'right' ? '' : undefined}
+                    data-missed={partState(position) === 'wrong' ? '' : undefined}
+                    data-correct={partState(position) === 'right' ? '' : undefined}
                     disabled={outcome.isPending}
                     onClick={() => setPlaced((current) => current.filter((_, i) => i !== position))}
                   >
@@ -845,6 +907,7 @@ export default function PrototypeReviewDock() {
                 ),
               )}
             </div>
+            {retryLine}
             <div className="proto-review-dock__actions">
               <button
                 type="button"
@@ -883,8 +946,14 @@ export default function PrototypeReviewDock() {
                       type="button"
                       className="proto-review-dock__altered-word"
                       /* The index identifies the word, so the one just tapped wears the verdict. */
-                      data-answer={verdict?.option === String(index) ? verdict.state : undefined}
-                      disabled={outcome.isPending}
+                      data-answer={
+                        spentWords.includes(index)
+                          ? 'wrong'
+                          : verdict?.option === String(index)
+                            ? verdict.state
+                            : undefined
+                      }
+                      disabled={outcome.isPending || spentWords.includes(index)}
                       onClick={() =>
                         answer(
                           'almost',
@@ -916,6 +985,7 @@ export default function PrototypeReviewDock() {
               onChange={(event) => setAttempt(event.target.value)}
               rows={3}
             />
+            {retryLine}
             <div className="proto-review-dock__actions">
               <button
                 type="button"
@@ -938,7 +1008,7 @@ export default function PrototypeReviewDock() {
                   <input
                     type="text"
                     className="proto-review-dock__blank"
-                    data-answer={verdict?.state ?? undefined}
+                    data-answer={partState(index)}
                     style={{ width: '10ch' }}
                     value={blanks[index] ?? ''}
                     onChange={(event) => {
@@ -954,6 +1024,7 @@ export default function PrototypeReviewDock() {
                 </Fragment>
               ))}
             </p>
+            {retryLine}
             <div className="proto-review-dock__actions">
               <button
                 type="button"
@@ -978,9 +1049,7 @@ export default function PrototypeReviewDock() {
              screen. */
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {attemptNumber > 1 ? (
-              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
-            ) : null}
+            {retryLine}
             <ReviewChoiceChips
               options={beforeExercise.options}
               disabled={outcome.isPending}
@@ -1001,9 +1070,7 @@ export default function PrototypeReviewDock() {
             {verseMarkup ? (
               <p className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
             ) : null}
-            {attemptNumber > 1 ? (
-              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
-            ) : null}
+            {retryLine}
             <ReviewChoiceChips
               options={contextChoice.options}
               disabled={outcome.isPending}
@@ -1024,9 +1091,7 @@ export default function PrototypeReviewDock() {
             {verseMarkup ? (
               <p className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
             ) : null}
-            {attemptNumber > 1 ? (
-              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
-            ) : null}
+            {retryLine}
             <ReviewChoiceChips
               options={nextExercise.options}
               disabled={outcome.isPending}
@@ -1040,9 +1105,7 @@ export default function PrototypeReviewDock() {
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
             <p className="proto-review-dock__verse proto-review-dock__verse--scripture">“{locateExercise.phrase}…”</p>
-            {attemptNumber > 1 ? (
-              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
-            ) : null}
+            {retryLine}
             <ReviewChoiceChips
               options={locateExercise.options}
               disabled={outcome.isPending}
@@ -1068,9 +1131,7 @@ export default function PrototypeReviewDock() {
               rows={3}
               disabled={outcome.isPending}
             />
-            {verdict?.state === 'wrong' ? (
-              <p className="proto-caption proto-review-dock__retry">{REVIEW_TRY_AGAIN_COPY}</p>
-            ) : null}
+            {retryLine}
             <div className="proto-review-dock__actions">
               <button
                 type="button"
@@ -1108,6 +1169,7 @@ export default function PrototypeReviewDock() {
               * "whether they attempt recall before revealing a note" is something to infer from
               * behaviour, not to ask about. Writing something is the attempt.
               */}
+            {retryLine}
             <div className="proto-review-dock__actions">
               <button
                 type="button"

@@ -68,6 +68,13 @@ export interface ReviewOutcomeResponse {
   attemptsLeft?: number;
   /** The option that was right, sent only once the question is over and only where it is one. */
   correctAnswer?: string;
+  /**
+   * Which parts of the answer were right, aligned to what was submitted: the gaps, the words,
+   * the placed phrases, the words typed. Absent where one tap is the whole answer.
+   */
+  parts?: boolean[];
+  /** How much of a written verse was reached. A count, naming nothing. */
+  reached?: { matched: number; total: number };
   /** This miss made it a leech: the dock offers a step back a rung instead of a fifth go. */
   leech?: boolean;
   item: ReviewItemView;

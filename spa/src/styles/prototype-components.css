@@ -21911,6 +21911,14 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-on-accent);
 }
 
+/* A word of theirs that landed in the verse. Marked, not highlighted: this is a reading, not a
+   correction sheet, and the words that missed are simply left as they wrote them. */
+.proto-review-dock__verse--yours span[data-answer='right'] {
+  color: var(--pds-accent-gradient-end);
+  font-style: normal;
+  font-weight: 600;
+}
+
 /* What the reader typed, shown back beside the verse: theirs, so not in the reading face. */
 .proto-review-dock__verse--yours {
   font-style: italic;

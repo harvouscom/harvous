@@ -108,6 +108,27 @@ export const REVIEW_CHECK_COPY = 'Check it';
 /** Said after a wrong answer that still has a go left. No scolding, no exclamation. */
 export const REVIEW_TRY_AGAIN_COPY = 'Not that one. One more go.';
 
+/**
+ * The same beat, but specific, where the answer had parts to mark.
+ *
+ * "Not that one" is all you can say about a tap. Where the reader filled four gaps or named
+ * three words, saying how many landed is the difference between a colour and a correction —
+ * and it is what makes the second go about the part they actually missed. Counting words are
+ * fine here: this counts what went right, not what is owed.
+ */
+export function reviewPartsAgainCopy(right: number, total: number): string {
+  if (right <= 0) return 'None of those yet. One more go.';
+  if (right === total) return 'All there. One more go.';
+  return right === 1 ? 'One of those is right. One more go.' : `${right} of those are right. One more go.`;
+}
+
+/** What a written verse reached, said without naming a word of it. */
+export function reviewReachedCopy(matched: number, total: number): string {
+  return matched <= 0
+    ? 'None of the words that carry it yet.'
+    : `You reached ${matched} of the ${total} words that carry it.`;
+}
+
 /** Above the answer, after the last go. */
 export const REVIEW_ANSWER_LABEL = 'The answer';
 

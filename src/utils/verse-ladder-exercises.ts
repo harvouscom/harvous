@@ -118,8 +118,16 @@ export function gradeVerseSequence(
   exercise: VerseSequenceExercise,
   answer: readonly number[],
 ): boolean {
-  if (answer.length !== exercise.order.length) return false;
-  return exercise.order.every((expected, index) => answer[index] === expected);
+  return markVerseSequence(exercise, answer).correct;
+}
+
+/** Per placed position, so the phrases already in the right place can stay there. */
+export function markVerseSequence(
+  exercise: VerseSequenceExercise,
+  answer: readonly number[],
+): { correct: boolean; parts: boolean[] } {
+  const parts = exercise.order.map((expected, index) => answer[index] === expected);
+  return { correct: answer.length === exercise.order.length && parts.every(Boolean), parts };
 }
 
 // ─── Locate: which passage is this from? ─────────────────────────────────────
@@ -393,7 +401,42 @@ export function verseRecallCoverage(text: string, attempt: string): number {
 }
 
 export function gradeVerseRecall(text: string, attempt: string, minShare: number): boolean {
-  return verseRecallCoverage(text, attempt) >= minShare;
+  return markVerseRecall(text, attempt, minShare).correct;
+}
+
+/**
+ * How much of the verse the reader reached, and which of *their own* words landed.
+ *
+ * `parts` indexes the words they typed, not the verse's — so showing it back marks their
+ * sentence rather than handing over the verse's vocabulary. `reached` is the count that lets
+ * the card say "five of the nine words that carry it" without naming any of them.
+ */
+export function markVerseRecall(
+  text: string,
+  attempt: string,
+  minShare: number,
+): { correct: boolean; parts: boolean[]; reached: { matched: number; total: number } } {
+  const wanted = contentWords(text).map(normaliseWord);
+  const written = attempt.trim().split(/\s+/).filter(Boolean);
+  const parts: boolean[] = [];
+  let matched = 0;
+  let i = 0;
+  for (const word of written) {
+    const at = wanted.indexOf(normaliseWord(word), i);
+    if (at === -1) {
+      parts.push(false);
+      continue;
+    }
+    parts.push(true);
+    matched += 1;
+    i = at + 1;
+  }
+  const total = wanted.length;
+  return {
+    correct: total > 0 && matched / total >= minShare,
+    parts,
+    reached: { matched, total },
+  };
 }
 
 /** "Name three words from this verse." Free recall: the lightest rung on the ladder. */
@@ -410,11 +453,30 @@ export function buildVerseKeywords(text: string): VerseKeywordsExercise | null {
 
 /** Each typed word is a distinct content word of the verse, in any order. */
 export function gradeVerseKeywords(text: string, words: readonly string[]): boolean {
+  return markVerseKeywords(text, words).correct;
+}
+
+/**
+ * Per word, aligned to the three inputs on screen.
+ *
+ * A word already used counts as wrong rather than as a second hit on the same one — three
+ * inputs asking for three words of the verse, not one word typed three times. This is the
+ * safest of all the per-part verdicts: every word judged is a word the reader produced, so
+ * nothing about the rest of the verse is given away.
+ */
+export function markVerseKeywords(
+  text: string,
+  words: readonly string[],
+): { correct: boolean; parts: boolean[] } {
   const wanted = new Set(contentWords(text).map(normaliseWord));
-  const given = new Set(words.map(normaliseWord).filter(Boolean));
-  if (given.size < VERSE_KEYWORDS_COUNT) return false;
-  for (const word of given) if (!wanted.has(word)) return false;
-  return true;
+  const seen = new Set<string>();
+  const parts = words.map((word) => {
+    const normalised = normaliseWord(word);
+    if (!normalised || seen.has(normalised) || !wanted.has(normalised)) return false;
+    seen.add(normalised);
+    return true;
+  });
+  return { correct: parts.length >= VERSE_KEYWORDS_COUNT && parts.every(Boolean), parts };
 }
 
 /**

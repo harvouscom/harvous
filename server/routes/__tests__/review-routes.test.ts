@@ -422,7 +422,9 @@ describe('the fill-in-the-gaps rung', () => {
 
   it('marks the filled-in words on the server', () => {
     const grader = service().slice(service().indexOf('export async function gradeVerseAnswer'));
-    expect(grader).toContain('gradeVerseRebuild');
+    // `markVerseRebuild` is `gradeVerseRebuild` keeping what it already computed: the same
+    // per-blank comparison, returned per blank so a miss can say which word it was.
+    expect(grader).toContain('markVerseRebuild');
     expect(grader).toMatch(/isRebuild/);
   });
 
@@ -665,5 +667,35 @@ describe('the sample, for an account without Review', () => {
 
   it('accepts only a calendar day from the page, and falls back rather than trusting it', () => {
     expect(sampleRoutes()).toMatch(/\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(raw\)/);
+  });
+});
+
+describe('what a miss is allowed to say', () => {
+  const route = () => source('server/routes/review.ts');
+  const outcome = () => route().slice(route().indexOf("'/api/review/items/:id/outcome'"));
+
+  it('sends the per-part marks on a miss that still has a go left', () => {
+    /*
+     * The whole point of the retry: it should be about the part that was actually missed. The
+     * parts index what the reader submitted, so nothing here names anything they did not write.
+     */
+    const early = outcome().slice(0, outcome().indexOf('applyReviewOutcome'));
+    expect(early).toContain('finalized: false');
+    expect(early).toMatch(/graded\.parts \? \{ parts: graded\.parts \}/);
+    expect(early).toMatch(/graded\.reached \? \{ reached: graded\.reached \}/);
+  });
+
+  it('still writes nothing on that path', () => {
+    // Adding fields to the early return must not have moved it after the write.
+    const at = outcome().indexOf('finalized: false');
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeLessThan(outcome().indexOf('applyReviewOutcome'));
+  });
+
+  it('never sends the answer key alongside the marks', () => {
+    // `parts` is a verdict on the reader's own submission; the verse itself only ever comes
+    // back through `truth`, once the question is over.
+    expect(outcome()).not.toMatch(/parts:.*blank\.word/);
+    expect(outcome()).not.toContain('cloze.blanks');
   });
 });

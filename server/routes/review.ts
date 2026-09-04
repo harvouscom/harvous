@@ -295,6 +295,10 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         correct: false,
         finalized: false,
         attemptsLeft: REVIEW_MAX_ATTEMPTS - attemptNumber,
+        // What was right, so the next go can be about what was not. The parts index the
+        // reader's own submission; nothing here names anything they did not write.
+        ...(graded.parts ? { parts: graded.parts } : {}),
+        ...(graded.reached ? { reached: graded.reached } : {}),
       });
     }
 
@@ -341,6 +345,8 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       ...(graded && !graded.correct && graded.correctAnswer
         ? { correctAnswer: graded.correctAnswer }
         : {}),
+      ...(graded?.parts ? { parts: graded.parts } : {}),
+      ...(graded?.reached ? { reached: graded.reached } : {}),
       item: (await buildReviewItemViews(auth.userId, [updated]))[0],
       ...(truth ? { truth: { verseText: truth } } : {}),
       ...(leech ? { leech: true } : {}),

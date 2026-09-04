@@ -206,9 +206,24 @@ export function verseCue(text: string, words = 4): string {
  * that is fine, because the text is not a machine's reading of anything.
  */
 export function gradeVerseRebuild(cloze: VerseCloze, answers: readonly string[]): boolean {
-  if (cloze.blanks.length === 0) return false;
-  if (answers.length !== cloze.blanks.length) return false;
-  return cloze.blanks.every((blank, index) => sameWord(answers[index], blank.word));
+  return markVerseRebuild(cloze, answers).correct;
+}
+
+/**
+ * The same marking, per gap, so a wrong answer can say *which* word missed.
+ *
+ * `.every` threw this away for free: the comparison was already made per blank and then
+ * collapsed to one boolean, which is why a reader who missed one word of four saw all four turn
+ * the same red. Telling them which one does make the retry easier, and that is the point —
+ * feedback you cannot act on is not feedback.
+ */
+export function markVerseRebuild(
+  cloze: VerseCloze,
+  answers: readonly string[],
+): { correct: boolean; parts: boolean[] } {
+  if (cloze.blanks.length === 0) return { correct: false, parts: [] };
+  const parts = cloze.blanks.map((blank, index) => sameWord(answers[index], blank.word));
+  return { correct: answers.length === cloze.blanks.length && parts.every(Boolean), parts };
 }
 
 function sameWord(a: string | undefined, b: string): boolean {

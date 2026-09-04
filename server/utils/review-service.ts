@@ -86,6 +86,9 @@ import {
   gradeVerseNext,
   gradeVerseRecall,
   gradeVerseSequence,
+  markVerseKeywords,
+  markVerseRecall,
+  markVerseSequence,
   readerSpanFragment,
   type VerseNextExercise,
   verseRecallCoverage,
@@ -95,7 +98,16 @@ import {
   gradeVerseAltered,
   type VerseAlteredExercise,
 } from '@/utils/verse-altered';
-import { clozeSegments, gradeVerseRebuild, hashSeed, verseClozeRatio, buildVerseCloze, verseCue, type VerseCloze } from '@/utils/verse-cloze';
+import {
+  buildVerseCloze,
+  clozeSegments,
+  gradeVerseRebuild,
+  hashSeed,
+  markVerseRebuild,
+  type VerseCloze,
+  verseClozeRatio,
+  verseCue,
+} from '@/utils/verse-cloze';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
@@ -1895,16 +1907,15 @@ export async function gradeVerseAnswer(
     };
   }
   if (FREE_RECALL_KEYS.has(rung.key) && typeof answer.text === 'string') {
-    return {
-      correct: gradeVerseRecall(material.text, answer.text, RECALL_MIN_SHARE),
-      correctAnswer: null,
-    };
+    const marked = markVerseRecall(material.text, answer.text, RECALL_MIN_SHARE);
+    return { correct: marked.correct, correctAnswer: null, parts: marked.parts, reached: marked.reached };
   }
   if (rung.key === 'verse.initials' && typeof answer.text === 'string') {
     return { correct: gradeVerseInitials(material.text, answer.text), correctAnswer: null };
   }
   if (rung.key === 'verse.keywords' && Array.isArray(answer.words)) {
-    return { correct: gradeVerseKeywords(material.text, answer.words), correctAnswer: null };
+    const marked = markVerseKeywords(material.text, answer.words);
+    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
   }
   if (rung.key === 'verse.before' && typeof answer.option === 'string') {
     const exercise = await buildVerseBeforeFor(item, material.text, seedForRung);
@@ -1942,7 +1953,8 @@ export async function gradeVerseAnswer(
       `${item.id}:${item.ladderStep}`,
       verseClozeRatio(rung.pass),
     );
-    return { correct: gradeVerseRebuild(cloze, answer.words!), correctAnswer: null };
+    const marked = markVerseRebuild(cloze, answer.words!);
+    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
   }
 
   if (isAltered) {
@@ -1968,7 +1980,8 @@ export async function gradeVerseAnswer(
   if (isSequence) {
     const exercise = buildVerseSequence(text, seed);
     if (!exercise) return null;
-    return { correct: gradeVerseSequence(exercise, answer.order!), correctAnswer: null };
+    const marked = markVerseSequence(exercise, answer.order!);
+    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
   }
 
   const pool = await listUserVerseReferences(userId, item.scriptureReference);
@@ -2278,6 +2291,14 @@ async function buildNoteExercise(
 export interface GradedAnswer {
   correct: boolean;
   correctAnswer: string | null;
+  /**
+   * Which parts of the answer were right, aligned to what the reader submitted — the gaps they
+   * filled, the words they named, the phrases they placed, the words they wrote. Absent on the
+   * rungs that have no parts: one tap has nothing to break down.
+   */
+  parts?: boolean[];
+  /** How much of the verse a written answer reached. Names nothing; it is a count. */
+  reached?: { matched: number; total: number };
 }
 
 export async function gradeNoteAnswer(
