@@ -37,13 +37,15 @@ export default function PrototypeReviewRow({
   icon,
   title,
   meta,
+  titleTrailing,
   onOpen,
   actions,
 }: {
   icon: IconName;
   title: string;
-  /** Strings, or a node — the recall state rides here as a chip. See `PrototypeHomeRow`. */
   meta: ReactNode[];
+  /** A mark on the title's own line — the recall state rides here. See `PrototypeHomeRow`. */
+  titleTrailing?: ReactNode;
   onOpen: () => void;
   /** Empty renders no overflow at all — a row with nothing to answer needs no menu. */
   actions: StudyInboxRowAction[];
@@ -95,6 +97,7 @@ export default function PrototypeReviewRow({
       icon={icon}
       title={title}
       meta={meta}
+      titleTrailing={titleTrailing}
       onClick={onOpen}
       trailing={
         actions.length > 0 ? (

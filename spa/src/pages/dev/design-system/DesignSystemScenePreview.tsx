@@ -1368,25 +1368,25 @@ function ReviewVerdictsScene() {
       </div>
 
       <div>
-        {/* The shared-spaces author chip with a status glyph where the face goes. The disc
+        {/* The shared-spaces author chip with a status glyph where the face goes. The glyph
             carries the state; the label never does. */}
         <p className="pds-caption">How well you hold it</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <span className="proto-recall-chip" data-state="fragile">
             <span className="proto-recall-chip__mark" aria-hidden>
-              <Icon name="seedling" size={9} />
+              <Icon name="seedling" size={10} />
             </span>
             Still learning
           </span>
           <span className="proto-recall-chip" data-state="durable">
             <span className="proto-recall-chip__mark" aria-hidden>
-              <Icon name="check" size={9} />
+              <Icon name="check" size={10} />
             </span>
             You know this
           </span>
           <span className="proto-recall-chip" data-state="slipping">
             <span className="proto-recall-chip__mark" aria-hidden>
-              <Icon name="clock-rotate-left" size={9} />
+              <Icon name="clock-rotate-left" size={10} />
             </span>
             Slipping away
           </span>

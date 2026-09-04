@@ -32,6 +32,14 @@ export type HomeRowProps = {
    */
   iconNode?: ReactNode;
   title: ReactNode;
+  /**
+   * A small mark on the title's own line — a status, a badge — rather than in the meta.
+   *
+   * For anything that is *about the subject* instead of about why the row is here. On a review
+   * row the meta is a sentence ("Cross-referenced 28 times."), and a status appended to it as
+   * one more dot-separated fragment reads as another clause of that sentence.
+   */
+  titleTrailing?: ReactNode;
   /** Meta items; falsy ones are skipped so callers can pass optionals straight through. */
   meta?: ReadonlyArray<ReactNode | null | undefined | false | ''>;
   onClick?: MouseEventHandler<HTMLButtonElement>;
@@ -126,6 +134,7 @@ export default function PrototypeHomeRow({
   icon,
   iconNode,
   title,
+  titleTrailing,
   meta,
   onClick,
   onMouseEnter,
@@ -164,12 +173,32 @@ export default function PrototypeHomeRow({
         className="proto-list-panel__row-text"
         style={marqueePace(Math.max(titleChars, metaChars))}
       >
-        <span
-          className="pds-list-title proto-list-panel__row-title proto-marquee"
-          style={marqueePace(titleChars)}
-        >
-          <span>{title}</span>
-        </span>
+        {titleTrailing ? (
+          /*
+           * A mark that belongs to the subject rather than to the sentence under it.
+           *
+           * It cannot go inside the title: that line ellipsises, so a long title would cut the
+           * mark off before the words it is about. So the line becomes a flex row where the
+           * title takes what it needs and the mark keeps its width. The wrapper only appears
+           * when there is something to put in it, so every other row is untouched.
+           */
+          <span className="proto-list-panel__row-title-line">
+            <span
+              className="pds-list-title proto-list-panel__row-title proto-marquee"
+              style={marqueePace(titleChars)}
+            >
+              <span>{title}</span>
+            </span>
+            {titleTrailing}
+          </span>
+        ) : (
+          <span
+            className="pds-list-title proto-list-panel__row-title proto-marquee"
+            style={marqueePace(titleChars)}
+          >
+            <span>{title}</span>
+          </span>
+        )}
         {metaItems.length > 0 ? (
           <span
             className="proto-caption proto-list-panel__row-meta proto-marquee-self"

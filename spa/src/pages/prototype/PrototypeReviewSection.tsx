@@ -230,10 +230,10 @@ export default function PrototypeReviewSection() {
             item.task,
             // What this is to the reader, when the app can say; its provenance when it cannot.
             item.framing ? fillFraming(item.framing) : reviewRowSource(item, reviewRowSubject(item)),
-            // The recall state as a word, never a percentage — and only where the framing line
-            // has not already said it. See `reviewRowRecallLabel`.
-            recallChip(item),
           ]}
+          /* The state belongs to the passage, not to the sentence saying why the row is here —
+             so it sits with the title. See `reviewRowRecallLabel` for when it says nothing. */
+          titleTrailing={recallChip(item)}
           onOpen={() => openInDock(item.id)}
           actions={reviewRowActions({
             onDefer: () => defer.mutate(item.id),

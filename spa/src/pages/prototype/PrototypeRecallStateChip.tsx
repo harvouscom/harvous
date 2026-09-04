@@ -1,11 +1,9 @@
 /**
  * How well the reader holds something, as a chip rather than a bare word at the end of a line.
  *
- * The shared-spaces people row is the pattern: a small round disc where a face would go, and a
- * quiet label beside it, in the neutral pill language `.proto-shared-people-row__tag` already
- * uses. Here the disc carries an icon for the state instead of someone's initial — a seedling
- * for something being learned, a check for something known, a turned-back clock for something
- * being lost.
+ * The shared-spaces author chip is the pattern: the same neutral pill, the same small bold
+ * label. Here a status glyph leads instead of a face — a seedling for something being learned,
+ * a check for something known, a turned-back clock for something being lost.
  *
  * Why a chip at all. The state was the third `·`-separated fragment on a caption line, sitting
  * after a sentence and reading as another clause of it — "Cross-referenced 28 times · Needs
@@ -13,7 +11,7 @@
  * than the verse. A chip separates them by shape, so the eye takes the sentence as provenance
  * and the chip as status without reading either twice.
  *
- * The colour is on the disc and nowhere else. The label stays the caption's own grey, because a
+ * The colour is on the glyph and nowhere else. The label stays the caption's own grey, because a
  * fully tinted pill at the end of every row would be a scoreboard, and the one thing this
  * feature refuses to do is grade someone's grasp of Scripture at a glance.
  */
@@ -46,7 +44,7 @@ export default function PrototypeRecallStateChip({
   return (
     <span className="proto-recall-chip" data-state={state}>
       <span className="proto-recall-chip__mark" aria-hidden>
-        <Icon name={RECALL_STATE_ICONS[state]} size={9} />
+        <Icon name={RECALL_STATE_ICONS[state]} size={10} />
       </span>
       {label}
     </span>

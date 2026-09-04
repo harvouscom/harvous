@@ -11458,6 +11458,37 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    wrap gets shortened or truncated, never taller. */
 .proto-church-tools__row-title,
 .proto-church-tools__row-meta,
+/*
+ * The title and a mark that belongs to it, on one line.
+ *
+ * Only present when a row passes `titleTrailing`. The title keeps its ellipsis and gives up
+ * width first; the mark keeps its own, because a status cut in half says nothing.
+ */
+.proto-list-panel__row-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/*
+ * The title takes the line and the mark sits at its end.
+ *
+ * Not sized to its own content, which would put the mark snug against the words: the title's
+ * intrinsic width resolves to zero inside a flex row — the marquee's inner span reports nothing
+ * to measure — so a content-sized title disappears entirely and the mark slides to the left
+ * edge where the title should be. Growing into the line restores exactly the block behaviour
+ * the title had before, ellipsis and all, and lines the marks up into a column that is easier
+ * to scan down than a ragged one anyway.
+ */
+.proto-list-panel__row-title-line > .proto-list-panel__row-title {
+  flex: 1 1 auto;
+}
+
+.proto-list-panel__row-title-line > :not(.proto-list-panel__row-title) {
+  flex-shrink: 0;
+}
+
 .proto-list-panel__row-title,
 .proto-list-panel__row-meta {
   margin: 0;
@@ -13188,23 +13219,21 @@ html.harvous-prototype-route
 /*
  * How well the reader holds something, on a review row.
  *
- * The same chip the shared spaces use for a person — `.proto-shared-author-chip` above, which
- * already rides in a row's meta line on the space hub — with a status glyph where the face
- * goes. Every metric is taken from it rather than re-guessed: the 999px pill, the 11px/600
- * label, the asymmetric padding that tucks the disc against the left edge, the 14px circle.
- * Its `margin-right` is not, because that chip precedes a preview while this one ends a line
- * and the separator already spaces it.
+ * The shared-spaces author chip, which already rides in a row's meta line on the space hub —
+ * same 999px pill, same 11px/600 label — with a status glyph in front of the words. A bare
+ * glyph rather than one in a disc: at this size the circle was a second shape competing with
+ * the pill around it, and the icon reads on its own. `.proto-home-greeting__chip` sets the
+ * precedent for a leading icon with no badge.
  *
- * The disc carries the state and the label never does. Learning it is an outline, the way the
- * base avatar is; knowing it and losing it are solid. A fully tinted pill at the end of every
+ * The glyph carries the state and the label never does. A fully tinted pill at the end of every
  * row would be a scoreboard, and grading someone's grasp of Scripture at a glance is the one
  * thing this feature refuses to do.
  */
 .proto-recall-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 1px 8px 1px 4px;
+  gap: 4px;
+  padding: 1px 8px;
   border: 0.5px solid var(--pds-border-control);
   border-radius: 999px;
   background: var(--pds-bg-chip);
@@ -13221,36 +13250,26 @@ html.harvous-prototype-route
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 0.5px solid color-mix(in oklch, currentColor 30%, transparent);
 }
 
 /*
  * Every state's colour carries `!important` and an attribute selector, for one reason.
  *
  * A row is a `<button>`, and global.css forces `button * { color: … !important }` on everything
- * inside one. The glyph is drawn with `currentColor`, so without this the disc fills with its
- * state colour and the icon on top stays grey — all three states looking alike. `!important`
- * alone is not enough either: among important declarations the more specific selector wins, and
- * that global rule out-specifies a lone class. Matching the shape of the two below is what makes
- * this one land.
+ * inside one. The glyph is drawn with `currentColor`, so without this all three states come out
+ * the same grey. `!important` alone is not enough either: among important declarations the more
+ * specific selector wins, and that global rule out-specifies a lone class.
  */
 .proto-recall-chip[data-state] .proto-recall-chip__mark {
   color: var(--pds-text-secondary) !important;
 }
 
 .proto-recall-chip[data-state='durable'] .proto-recall-chip__mark {
-  border-color: transparent;
-  background: var(--pds-accent-gradient-end);
-  color: var(--pds-on-accent) !important;
+  color: var(--pds-accent-gradient-end) !important;
 }
 
 .proto-recall-chip[data-state='slipping'] .proto-recall-chip__mark {
-  border-color: transparent;
-  background: var(--pds-destructive);
-  color: var(--pds-on-accent) !important;
+  color: var(--pds-destructive) !important;
 }
 
 /* Owner / You markers — subtle neutral pill (matches our chip language). */

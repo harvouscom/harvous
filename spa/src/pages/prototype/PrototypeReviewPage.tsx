@@ -56,7 +56,6 @@ function rowMeta(item: ReviewItemView): ReactNode[] {
   return [
     item.task,
     item.framing ? fillFraming(item.framing) : reviewRowSource(item, subject),
-    recallChip(item),
   ];
 }
 
@@ -190,6 +189,7 @@ export default function PrototypeReviewPage() {
                   icon={reviewKindIcon(item.kind)}
                   title={item.prompt}
                   meta={rowMeta(item)}
+                  titleTrailing={recallChip(item)}
                   onOpen={() => openReviewDock(item.id)}
                   actions={reviewRowActions({
                     onDefer: () => defer.mutate(item.id),
@@ -229,9 +229,9 @@ export default function PrototypeReviewPage() {
                   key={item.id}
                   icon={reviewKindIcon(item.kind)}
                   title={item.noteLabel ?? item.scriptureReference ?? reviewRowSubtitle(item) ?? 'A note'}
-                  meta={[
-                    recallChip(item),
-                  ]}
+                  /* Nothing to say about a row that is only waiting; the state is the point. */
+                  meta={[]}
+                  titleTrailing={recallChip(item)}
                   onOpen={() => openReviewDock(item.id)}
                   actions={reviewRowActions({
                     onDefer: () => defer.mutate(item.id),
