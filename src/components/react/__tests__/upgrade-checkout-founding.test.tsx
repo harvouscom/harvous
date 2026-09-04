@@ -11,7 +11,13 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import UpgradeCheckoutButton from '../UpgradeCheckoutButton';
 
-const ENV_KEYS = ['VITE_POLAR_PLUS_PRODUCT_MONTHLY', 'VITE_POLAR_PLUS_PRODUCT_ANNUAL'] as const;
+/*
+ * The unprefixed names, because those are the ones `envProduct` reads from `process.env`;
+ * the `VITE_`-prefixed pair it falls back to lives on `import.meta.env`, which a test cannot
+ * reach by assigning to `process.env`. Setting the prefixed names here passed only on a machine
+ * whose `.env` already supplied real product ids, and failed in CI, where nothing did.
+ */
+const ENV_KEYS = ['POLAR_PLUS_PRODUCT_MONTHLY', 'POLAR_PLUS_PRODUCT_ANNUAL'] as const;
 
 function mockPlans(founding: {
   available: boolean;
