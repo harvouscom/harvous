@@ -237,7 +237,18 @@ export const CHALLENGE_RETIRED_COPY = 'The note this path was built on is gone.'
 export const REVIEW_SAMPLE_EYEBROW_YOURS = 'From your own study';
 export const REVIEW_SAMPLE_EYEBROW_WELL_KNOWN = 'A verse to try it on';
 export const REVIEW_SAMPLE_PROMPT = 'Fill in the blanks.';
-export const REVIEW_SAMPLE_AFTER = 'That is Review. It brings a verse back just before you would forget it.';
+/**
+ * After the sample is answered, in the reader's second person rather than the app's third.
+ *
+ * "That is Review." names the feature at someone who has not bought it, which is the app
+ * talking about itself. What they just did is the argument: they answered a question about
+ * their own passage and it was marked. This says what that becomes.
+ */
+export const REVIEW_SAMPLE_AFTER =
+  'Review brings your own study back, just before you would lose it — asked a different way each time.';
+/** The offer, once. Both ways out, so the card is a question rather than a toll gate. */
+export const REVIEW_SAMPLE_SEE_PLUS = 'See Plus';
+export const REVIEW_SAMPLE_NOT_NOW = 'Not now';
 export const REVIEW_PLUS_TITLE = 'Return to your study with Review';
 export const REVIEW_PLUS_META = 'Come back to your own notes on a schedule';
 export const PLUS_BADGE_COPY = 'Plus';

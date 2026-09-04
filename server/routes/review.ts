@@ -313,7 +313,8 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
      *
      * Getting one wrong and being told "back in 4 days" teaches nothing — the whole point of
      * spaced repetition is that trying again *now*, and then seeing the right answer, is where
-     * the learning happens. So a graded rung gets two goes, and how many it took is what decides
+     * the learning happens. So a graded rung gets two goes or three — see `maxAttemptsFor` — and
+     * how many it took is what decides
      * the interval:
      *
      *   right first time   → recalled  (a fortnight)
@@ -501,7 +502,8 @@ route.post('/api/review/sample/answer', requireAuth, rateLimit('write'), async (
       : [];
     const graded = await gradeReviewSample(auth.userId, day, words);
     if (!graded) return c.json({ error: 'No sample today', code: 'REVIEW_SAMPLE_UNAVAILABLE' }, 404);
-    // Same two-attempt rule as the real thing: a miss with a go left keeps the question up
+    // Same attempt rule as the real thing — three, for a rung the reader types into: a miss
+    // with a go left keeps the question up
     // and shows nothing; only the final answer brings the verse out.
     if (!graded.correct && attemptNumber < sampleAttempts) {
       return c.json({ success: true, correct: false, finalized: false, attemptsLeft: sampleAttempts - attemptNumber });

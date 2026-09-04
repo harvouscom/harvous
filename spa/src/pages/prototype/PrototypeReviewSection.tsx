@@ -109,7 +109,17 @@ export default function PrototypeReviewSection() {
   const challengesQuery = useChallenges('active');
   // The sample: fetched only for an account that lacks the feature (the hook gates on that).
   const hasAnyFeature = review.has || challengesFeature.has;
-  const sampleQuery = useReviewSample({ enabled: review.ready && !hasAnyFeature && !plusPromptDismissed });
+  /*
+   * Fetched for anyone without the feature, dismissed offer or not.
+   *
+   * It used to be gated on the same flag as the Plus row, so hiding the offer deleted the one
+   * real question a free reader can answer — the try and the ad taken away by one tap on the
+   * ad. Hiding an offer is not asking to be shown less of the product.
+   */
+  const sampleQuery = useReviewSample({ enabled: review.ready && !hasAnyFeature });
+  /* Once the sample has been answered it carries the offer itself; a row underneath repeating
+     it is the same pitch twice on one screen. */
+  const [sampleAnswered, setSampleAnswered] = useState(false);
   const defer = useDeferReview();
   const setStatus = useSetReviewStatus();
 
@@ -121,17 +131,23 @@ export default function PrototypeReviewSection() {
   if (!hasAny) {
     // Still loading is not "no" — a subscriber must never be shown a paywall on a cold load.
     if (!review.ready) return null;
-    if (plusPromptDismissed) return null;
+    const sample = sampleQuery.data?.sample ?? null;
+    // With the offer dismissed and no question to try, there is nothing left to show.
+    if (plusPromptDismissed && !sample) return null;
     return (
       <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
         {/* The thing to have tried, above the row that says what it costs. */}
-        {sampleQuery.data?.sample ? (
+        {sample ? (
           <PrototypeReviewSample
-            sample={sampleQuery.data.sample}
+            sample={sample}
             day={reviewSampleDayKey()}
             maxAttempts={REVIEW_MAX_ATTEMPTS}
+            onSeePlus={() => void navigate({ to: '/upgrade' })}
+            onNotNow={dismissPlusPrompt}
+            onAnswered={() => setSampleAnswered(true)}
           />
         ) : null}
+        {plusPromptDismissed || sampleAnswered ? null : (
         <PrototypeHomeRow
           icon="arrows-rotate"
           title={REVIEW_PLUS_TITLE}
@@ -154,6 +170,7 @@ export default function PrototypeReviewSection() {
             </span>
           }
         />
+        )}
       </PrototypeHomeSection>
     );
   }

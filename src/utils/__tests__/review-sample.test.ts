@@ -11,11 +11,37 @@ const VERSE =
   'For this is the way God loved the world: He gave his one and only Son, so that everyone who believes in him will not perish but have eternal life.';
 
 describe('pickSampleReference', () => {
-  it('takes the reader own passage first, and says so', () => {
-    expect(pickSampleReference({ ownReferences: ['John 15:5', 'Romans 8:15'], seed: 's' })).toEqual({
-      reference: 'John 15:5',
-      source: 'yours',
-    });
+  it('takes a passage of the reader own, and says so', () => {
+    const picked = pickSampleReference({ ownReferences: ['John 15:5', 'Romans 8:15'], seed: 's' });
+    expect(picked.source).toBe('yours');
+    expect(['John 15:5', 'Romans 8:15']).toContain(picked.reference);
+  });
+
+  it('rotates the reader own passages too, rather than one verse forever', () => {
+    /*
+     * This took the *first* usable reference, so a reader with any passage at all met the
+     * identical verse every morning with only the blanks moving — while the docblock promised
+     * the opposite. The one question a free account is offered was the same question forever.
+     */
+    const own = ['John 15:5', 'Romans 8:15', 'Psalms 62:5', 'Ephesians 2:8'];
+    const seen = new Set(
+      ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06'].map(
+        (day) => pickSampleReference({ ownReferences: own, seed: `sample:u:${day}` }).reference,
+      ),
+    );
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it('is the same verse all day, so an answer answers the question on screen', () => {
+    const own = ['John 15:5', 'Romans 8:15', 'Psalms 62:5'];
+    const seed = 'sample:u:2026-09-04';
+    expect(pickSampleReference({ ownReferences: own, seed })).toEqual(
+      pickSampleReference({ ownReferences: own, seed }),
+    );
+  });
+
+  it('ignores blank references rather than offering an empty question', () => {
+    expect(pickSampleReference({ ownReferences: ['  ', ''], seed: 's' }).source).toBe('well-known');
   });
 
   it('falls back to a verse most people half-know, and says that too', () => {

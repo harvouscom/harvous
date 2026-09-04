@@ -2,9 +2,9 @@
  * One taste of Review for an account that does not have it.
  *
  * The line that had to be drawn: a sample is a real, marked question or it is a screenshot.
- * A screenshot is what every paywall already shows. So this is the fill-in-the-gaps rung —
+ * A screenshot is what every paywall already shows. So this is the fill-in-the-blanks rung —
  * the one people picture when they think "commit a verse to memory" — built and graded by
- * the same code the paid feature uses, on the same two-attempt rule, with the verse shown
+ * the same code the paid feature uses, on the same attempt rule it uses, with the verse shown
  * afterwards the way it always is.
  *
  * What it is deliberately not. Not a queue: nothing is written, no ReviewItems row, no event,
@@ -18,7 +18,7 @@
  * the morning is the answer to the question still on screen in the afternoon, and the grader
  * rebuilds exactly what was asked.
  */
-import { buildVerseCloze, clozeSegments, gradeVerseRebuild, hashSeed, type VerseClozeSegments } from './verse-cloze';
+import { buildVerseCloze, clozeSegments, gradeVerseRebuild, seededIndex, type VerseClozeSegments } from './verse-cloze';
 
 /** Where nothing of the reader's own is usable: verses most people half-know already. */
 export const SAMPLE_FALLBACK_REFERENCES = ['John 3:16', 'Psalm 23:1', 'Romans 8:28', 'Philippians 4:13'] as const;
@@ -44,17 +44,22 @@ export function sampleSeed(userId: string, dayKey: string): string {
 /**
  * Which verse to ask about.
  *
- * The reader's own passage first — the one with the most study behind it, as the caller
- * ranks them — and only where its text is long enough to hide a few words. Otherwise a
- * well-known verse, chosen by the day so a second look is not the same verse forever.
+ * The reader's own passages first, and only where the text is long enough to hide a few words;
+ * a well-known verse where nothing of theirs fits.
+ *
+ * **Chosen by the day on both paths.** This took the *first* usable reference of their own, so
+ * a reader with any passage at all met the identical verse every morning — only the blanks
+ * moving — while the docblock promised the opposite. The one question a free account is
+ * offered was the same question forever, which is a poor argument for a feature whose whole
+ * claim is that it varies what it asks.
  */
 export function pickSampleReference(input: {
   ownReferences: readonly string[];
   seed: string;
 }): ReviewSampleSpec {
-  const own = input.ownReferences.find((reference) => reference.trim().length > 0);
-  if (own) return { reference: own.trim(), source: 'yours' };
-  const fallback = SAMPLE_FALLBACK_REFERENCES[hashSeed(input.seed) % SAMPLE_FALLBACK_REFERENCES.length];
+  const own = input.ownReferences.map((reference) => reference.trim()).filter(Boolean);
+  if (own.length) return { reference: own[seededIndex(input.seed, own.length)], source: 'yours' };
+  const fallback = SAMPLE_FALLBACK_REFERENCES[seededIndex(input.seed, SAMPLE_FALLBACK_REFERENCES.length)];
   return { reference: fallback, source: 'well-known' };
 }
 

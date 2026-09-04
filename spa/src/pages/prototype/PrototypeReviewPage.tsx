@@ -11,6 +11,7 @@
  * heading — the rows are right there to be counted by anyone who wants to.
  */
 import PrototypeListEmptyState from './PrototypeListEmptyState';
+import PrototypeReviewSample from './PrototypeReviewSample';
 import { useMemo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -18,7 +19,12 @@ import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
-import { useReviewItems, type ReviewItemView } from '../../hooks/queries/useReview';
+import {
+  useReviewItems,
+  useReviewSample,
+  reviewSampleDayKey,
+  type ReviewItemView,
+} from '../../hooks/queries/useReview';
 import { useChallenges } from '../../hooks/queries/useChallenges';
 import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
@@ -32,7 +38,7 @@ import {
   REVIEW_PLUS_TITLE,
   REVIEW_RESUME_COPY,
 } from './proto-review-copy';
-import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
+import { RECALL_STATE_LABELS, REVIEW_MAX_ATTEMPTS } from '@/utils/review-item-kinds';
 import { fillFraming } from '@/utils/review-framing';
 import {
   reviewRowRecallLabel,
@@ -61,6 +67,9 @@ export default function PrototypeReviewPage() {
   const challengesQuery = useChallenges('active');
   const defer = useDeferReview();
   const setStatus = useSetReviewStatus();
+  /* The one real question a free reader can try. The hook gates itself on not having the
+     feature, so a subscriber fetches nothing. */
+  const sampleQuery = useReviewSample({ enabled: review.ready && !review.has });
 
   const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
   const now = Date.now();
@@ -96,13 +105,25 @@ export default function PrototypeReviewPage() {
               </p>
             ) : (
               <PrototypeHomeSection title="Review">
-                <PrototypeHomeRow
-                  icon="arrows-rotate"
-                  title={REVIEW_PLUS_TITLE}
-                  meta={[REVIEW_PLUS_META]}
-                  onClick={() => void navigate({ to: '/upgrade' })}
-                  trailing={<span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>}
-                />
+                {/* The same real question Activity offers. This page showed the price with
+                    nothing above it to have tried, which is a description asking to be bought. */}
+                {sampleQuery.data?.sample ? (
+                  <PrototypeReviewSample
+                    sample={sampleQuery.data.sample}
+                    day={reviewSampleDayKey()}
+                    maxAttempts={REVIEW_MAX_ATTEMPTS}
+                    onSeePlus={() => void navigate({ to: '/upgrade' })}
+                    onNotNow={() => void navigate({ to: prototypeHomeRouteTo() })}
+                  />
+                ) : (
+                  <PrototypeHomeRow
+                    icon="arrows-rotate"
+                    title={REVIEW_PLUS_TITLE}
+                    meta={[REVIEW_PLUS_META]}
+                    onClick={() => void navigate({ to: '/upgrade' })}
+                    trailing={<span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>}
+                  />
+                )}
               </PrototypeHomeSection>
             )}
           </div>
