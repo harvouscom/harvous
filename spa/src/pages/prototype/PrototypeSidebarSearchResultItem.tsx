@@ -92,7 +92,14 @@ export default function PrototypeSidebarSearchResultItem({
         />
       );
     case 'scripturePassage':
-      return <ScripturePassageSearchResultItem result={result} active={active} onActivate={onActivate} />;
+      return (
+        <ScripturePassageSearchResultItem
+          result={result}
+          active={active}
+          onActivate={onActivate}
+          leadIcon={leadIcon}
+        />
+      );
     default:
       return null;
   }
@@ -253,7 +260,7 @@ export type SearchResultSelection = {
   } | null;
 };
 
-function collectionIconName(kind: SidebarSearchResult['kind']): string {
+function collectionIconName(kind: SidebarSearchResult['kind']): IconName {
   switch (kind) {
     case 'folder':
       return 'folder';
@@ -269,6 +276,26 @@ function collectionIconName(kind: SidebarSearchResult['kind']): string {
     default:
       return 'folder';
   }
+}
+
+/**
+ * The glyph a result wears in a column of its own, for the lists that mix kinds.
+ *
+ * Built from the same two tables the rows already read inline, so a row cannot wear one
+ * mark on its own tab and a different one where it is mixed in with the rest.
+ *
+ * Notes are why this has to be a function rather than the caller's lookup: every other
+ * kind draws an inline glyph when there is no lead column, and a note draws none. So in a
+ * mixed list a note was the one row carrying nothing at all to say what it was — which is
+ * how a note and a folder of the same name came to look like the same row twice.
+ */
+export function searchResultLeadIcon(result: SidebarSearchResult): IconName {
+  if (result.kind === 'note') return 'note-sticky';
+  if (result.kind === 'highlight') return highlightEntryKindIconName(result.highlightEntryKind);
+  /* A passage in the index is a place you open, the same as the reference row that hoists
+     above it — the subtitle is what separates "1 note" from "Read passage". */
+  if (result.kind === 'scripturePassage') return 'book-open';
+  return collectionIconName(result.kind);
 }
 
 function InlineKindSearchResultItem({
@@ -324,14 +351,25 @@ function ScripturePassageSearchResultItem({
   result,
   active,
   onActivate,
+  leadIcon,
 }: {
   result: SidebarSearchResult;
   active: boolean;
   onActivate: () => void;
+  leadIcon?: IconName;
 }) {
   return (
     <li className="proto-note-row-item" data-active={active ? 'true' : 'false'}>
-      <button type="button" className="proto-note-row__main" onClick={onActivate}>
+      <button
+        type="button"
+        className={`proto-note-row__main${leadIcon ? ' proto-note-row__main--lead' : ''}`}
+        onClick={onActivate}
+      >
+        {leadIcon ? (
+          <span className="proto-note-row__lead-icon" aria-hidden>
+            <Icon name={leadIcon} size={13} />
+          </span>
+        ) : null}
         <div className="proto-note-row__title-line">
           <span className="pds-list-title proto-note-row__title-text">{result.title}</span>
         </div>

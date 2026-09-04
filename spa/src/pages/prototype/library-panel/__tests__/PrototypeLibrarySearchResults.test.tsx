@@ -177,6 +177,51 @@ describe('the tab is the type filter', () => {
   });
 });
 
+/**
+ * The glyph column, which is what tells two rows of different kinds apart.
+ *
+ * Worth pinning because the failure is silent and reads as a data bug rather than a
+ * rendering one: a folder and a thread of the same name become two identical lines, and
+ * the reader concludes the search is returning duplicates. Notes are the sharp edge —
+ * every other kind falls back to an inline glyph when there is no lead column, and a note
+ * falls back to nothing at all.
+ */
+describe('the lead glyph', () => {
+  beforeEach(() => {
+    state.notes = [note('n1', 'Grace abounds', 'Sermons')];
+  });
+
+  it('marks every row in a list that mixes kinds', () => {
+    const { container } = renderResults({ query: 'Sermons', tab: 'all' });
+
+    const rows = [...container.querySelectorAll('.proto-note-list li')];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.querySelector('.proto-note-row__lead-icon')).toBeTruthy();
+    }
+  });
+
+  it('stays off a tab holding one kind, and comes back for everywhere else', () => {
+    /* A single-kind tab would wear the same mark on every row — an indent that repeats
+       what the tab already says. The group below it is mixed by definition. */
+    renderResults({ query: 'Sermons', tab: 'notes' });
+
+    const notesGroup = screen
+      .getByRole('heading', { name: 'Notes' })
+      .closest('.proto-library-results__group');
+    expect(notesGroup?.querySelector('.proto-note-row__lead-icon')).toBeNull();
+
+    const elsewhere = screen
+      .getByRole('heading', { name: 'Everywhere else' })
+      .closest('.proto-library-results__group');
+    const elsewhereRows = [...(elsewhere?.querySelectorAll('.proto-note-list li') ?? [])];
+    expect(elsewhereRows.length).toBeGreaterThan(0);
+    for (const row of elsewhereRows) {
+      expect(row.querySelector('.proto-note-row__lead-icon')).toBeTruthy();
+    }
+  });
+});
+
 describe('the passage the query names', () => {
   it('survives a tab with nothing else in it', () => {
     // Nothing is indexed, so the tab has no matches of its own. Painting "no references

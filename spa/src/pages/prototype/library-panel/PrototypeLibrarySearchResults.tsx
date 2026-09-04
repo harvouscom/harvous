@@ -38,7 +38,9 @@ import { bookSlug } from '@/utils/bible-book-chapters';
 import { prototypeReadRouteTo } from '@/lib/prototype-path';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import ProtoKbdChord from '../ProtoKbdChord';
-import PrototypeSidebarSearchResultItem from '../PrototypeSidebarSearchResultItem';
+import PrototypeSidebarSearchResultItem, {
+  searchResultLeadIcon,
+} from '../PrototypeSidebarSearchResultItem';
 import { PrototypeListNoMatchEmptyState } from '../PrototypeListEmptyState';
 import { SIDEBAR_NO_MATCH_COPY } from '../sidebar-no-match-copy';
 import { fuzzyFilter, fuzzyMatches } from '../fuzzy-search';
@@ -600,6 +602,10 @@ export default function PrototypeLibrarySearchResults({
                   onActivate={() => activate(result)}
                   notesById={data.notesById}
                   highlightsById={highlightsById}
+                  /* Only where the list can hold more than one kind. On a single-kind tab
+                     every row would wear the same mark, which indents the whole list to
+                     repeat what the tab already says. */
+                  leadIcon={tab === 'all' ? searchResultLeadIcon(result) : undefined}
                 />
               ))}
             </ul>
@@ -622,6 +628,9 @@ export default function PrototypeLibrarySearchResults({
                   onActivate={() => activate(result)}
                   notesById={data.notesById}
                   highlightsById={highlightsById}
+                  /* Always, here: this group is everything the tab excluded, so it is
+                     mixed by definition. */
+                  leadIcon={searchResultLeadIcon(result)}
                 />
               ))}
             </ul>
