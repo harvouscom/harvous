@@ -16,7 +16,7 @@
  * can sign in; use `useHarvousIdentity().isGuest` to show nothing at all instead.
  */
 
-import type { FeatureKey } from '@/lib/billing-plans';
+import { isFeatureWithheld, type FeatureKey } from '@/lib/billing-plans';
 import { useSubscriptionStatus } from './queries/useSubscriptionStatus';
 
 export interface FeatureAccess {
@@ -28,6 +28,14 @@ export interface FeatureAccess {
 
 export function useHasFeature(key: FeatureKey): FeatureAccess {
   const { data, isSuccess } = useSubscriptionStatus();
+  /*
+   * A withheld feature is settled immediately, and settled as "no".
+   *
+   * `ready: true` rather than waiting on the query matters: every gate here is written as
+   * "render nothing until ready", so reporting a withheld feature as still-loading would
+   * leave surfaces in a permanent maybe rather than cleanly hidden.
+   */
+  if (isFeatureWithheld(key)) return { has: false, ready: true };
   return {
     has: Boolean(data?.entitlements?.includes(key)),
     ready: isSuccess,

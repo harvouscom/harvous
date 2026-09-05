@@ -63,6 +63,29 @@
 export const FEATURE_KEYS = ['shared_spaces', 'review', 'challenges', 'connector'] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
+/**
+ * Features that read as absent for everyone, whatever their entitlements say.
+ *
+ * This is the switch that hides a shipped feature, and it exists because removing a key from
+ * a plan does **not** hide anything: `listActiveFeatureKeys` reads rows from `Entitlements`,
+ * so every account already holding one keeps its access, and the surfaces stay up for exactly
+ * the people most likely to be surprised by them. Both enforcement points consult this — the
+ * server's `hasEntitlementForUserId` and the client's `useHasFeature` — so a withheld feature
+ * is closed at the API and invisible in the UI from one line.
+ *
+ * `challenges` is here because what shipped in 3.0 — a five-step guided path through study
+ * the reader already wrote — is closer to a suggestion with a route attached than to the
+ * timed, social thing the name promises, and it deserves designing on purpose rather than
+ * launching by accident. Nothing is deleted: five routes, two pages and four templates stay
+ * exactly as they are. See docs/future/CHALLENGES_AS_SUGGESTIONS.md.
+ */
+export const WITHHELD_FEATURES: readonly FeatureKey[] = ['challenges'];
+
+/** Is this feature switched off for everyone, regardless of what they hold? */
+export function isFeatureWithheld(key: FeatureKey): boolean {
+  return WITHHELD_FEATURES.includes(key);
+}
+
 export type PlanInterval = 'month' | 'year';
 export type PlanKey = 'plus' | 'connector' | 'church';
 
@@ -113,11 +136,10 @@ export interface PlanDefinition {
 }
 
 /**
- * Plus grants every consumer feature — one price, no matrix. `review` and
- * `challenges` are granted from day one even though those products haven't
- * shipped: nothing gates on them yet, and issuing the rows now means existing
- * subscribers need no backfill when they do land. Seasons ride `challenges`;
- * there is deliberately no `season_pass` key (Plus includes every season).
+ * Plus grants every consumer feature — one price, no matrix. `review` and `challenges` are
+ * both granted, including while Challenges is withheld (see `WITHHELD_FEATURES`): issuing
+ * the row regardless is what means nobody needs a backfill on the day it is turned back on.
+ * Seasons ride `challenges`; there is deliberately no `season_pass` key.
  */
 const PLUS_FEATURES = ['shared_spaces', 'review', 'challenges'] as const satisfies readonly FeatureKey[];
 

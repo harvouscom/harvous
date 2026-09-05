@@ -30,6 +30,7 @@ import {
   limitsForFeatures,
   planForProductId,
   isFeatureKey,
+  isFeatureWithheld,
   isChurchProductId,
   foundingOffer,
   FOUNDING_CAP,
@@ -59,6 +60,10 @@ async function listActiveFeatureKeys(userId: string): Promise<FeatureKey[]> {
 }
 
 export async function hasEntitlementForUserId(userId: string, key: FeatureKey): Promise<boolean> {
+  // A withheld feature is closed to everyone, including accounts that hold a live row for it.
+  // Checked before the query rather than after, so hiding a feature also stops paying for the
+  // read that would only be discarded.
+  if (isFeatureWithheld(key)) return false;
   const keys = await listActiveFeatureKeys(userId);
   return keys.includes(key);
 }

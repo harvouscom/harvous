@@ -1,6 +1,8 @@
 # Harvous Reviews, Challenges, and Season Pass
 
-> **Status (September 2026): Reviews and personal Challenges shipped in v3.0. Season Pass did not.**
+> **Status (September 2026): Reviews shipped in v3.0. Personal Challenges shipped and was then
+> withheld the same day — see [CHALLENGES_AS_SUGGESTIONS.md](./CHALLENGES_AS_SUGGESTIONS.md) for
+> why, and for the one line that turns it back on. Season Pass did not ship.**
 >
 > This doc is canonical for the product thesis, and it supersedes the Mistral-based Review
 > runtime in [SCRIPTURE_AI_GROUNDING_PHASE_5.md](./SCRIPTURE_AI_GROUNDING_PHASE_5.md). The
@@ -20,6 +22,7 @@
 > | The engine that fills the queue from it, ≤3 a rolling day | `server/utils/review-opportunities.ts`, `src/utils/review-opportunity-scoring.ts` |
 > | Personal challenges (4 templates) | `src/utils/challenge-templates.ts`, `server/utils/challenge-service.ts` |
 > | Plus gating on `review` / `challenges` | `server/middleware/require-feature.ts`, `useHasFeature` |
+> | The switch that withholds `challenges` from everyone | `WITHHELD_FEATURES` in `src/lib/billing-plans.ts` |
 >
 > **What is not built, and why**
 >

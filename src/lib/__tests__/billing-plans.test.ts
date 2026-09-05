@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  isFeatureKey,
+  isFeatureWithheld,
+  WITHHELD_FEATURES,
   FEATURE_KEYS,
   FOUNDING_CAP,
   UNLIMITED,
@@ -122,6 +125,30 @@ describe('pricing model', () => {
     );
     expect(connector('month')?.features).toEqual(['connector']);
     expect(connector('month')?.features).not.toContain('shared_spaces');
+  });
+
+  /*
+   * What actually hides Challenges.
+   *
+   * Note that Plus still *grants* the key above — that is deliberate, so every subscriber
+   * already holds a live row and none of them needs a backfill on the day it returns. The
+   * withholding is a separate switch, and it has to be, because dropping a key from a plan
+   * hides nothing: `listActiveFeatureKeys` reads rows from `Entitlements`, so anyone already
+   * holding one keeps their access. That was tried first and left the feature up for exactly
+   * the accounts most likely to be surprised by it.
+   *
+   * Both enforcement points read `isFeatureWithheld` — `hasEntitlementForUserId` on the server
+   * and `useHasFeature` on the client. Deleting this test to make a change pass is the mistake
+   * it exists to catch; remove it when Challenges is deliberately turned back on.
+   */
+  it('challenges is withheld from everyone, whatever they hold', () => {
+    expect(isFeatureWithheld('challenges')).toBe(true);
+    expect(WITHHELD_FEATURES).toContain('challenges');
+    // The paid feature on the same surface must not be caught by the same switch.
+    expect(isFeatureWithheld('review')).toBe(false);
+    expect(isFeatureWithheld('shared_spaces')).toBe(false);
+    // Still a real key, so a row issued before this reads rather than throwing.
+    expect(isFeatureKey('challenges')).toBe(true);
   });
 
   it('Connector grants no hosting limits', () => {
