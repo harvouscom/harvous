@@ -101,18 +101,24 @@ function formatWebflowDate(date) {
   return `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${pad(d.getUTCDate())} ${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} GMT+0000 (Coordinated Universal Time)`;
 }
 
-function categoryIntro(category) {
-  switch (category) {
-    case "Feature":
-      return "We've added a new feature: ";
-    case "Fix":
-      return "We've fixed an issue: ";
-    case "Improvement":
-      return "We've made an improvement: ";
-    default:
-      return "";
-  }
-}
+/**
+ * No prose prefix any more.
+ *
+ * This used to return "We've added a new feature: ", "We've fixed an issue: " or "We've made an
+ * improvement: " to open the published description. Two things were wrong with it.
+ *
+ * It duplicated the row: every entry already carries a `Category` column with exactly that
+ * classification, so the sentence restated in prose what the field next to it already said.
+ *
+ * Worse, it asserted a shape the subject often did not have. "We've added a new feature: $6/mo
+ * and $36/yr, and the founding discount retired" published a price *cut* as an addition, and
+ * "We've fixed an issue: The font control says what it changes, and where" reads as a bug
+ * report about a sentence that is describing the new label. The prefix was chosen from the
+ * commit type, which says how the change was committed, not what happened to the reader.
+ *
+ * The description is now the subject alone. Still a commit subject — the honest fix for that is
+ * a human or /marketing-agent rewriting the row, which is why these export as `Draft: true`.
+ */
 
 function capitalizeFirst(text) {
   if (!text) return text;
@@ -129,10 +135,9 @@ function createSlug(name, version, index) {
   return `${base}-${hash}`;
 }
 
-function buildCommitMessageHtml(title, category) {
-  const intro = categoryIntro(category);
+function buildCommitMessageHtml(title) {
   const line = capitalizeFirst(title.replace(/^-\s*/, "").trim());
-  return `<p>${intro}${line}</p>`;
+  return `<p>${line}</p>`;
 }
 
 function inferCategoryFromLine(line) {
@@ -261,7 +266,7 @@ function parseCsvRows(text) {
 
 function buildCsvRow({ title, slug, version, date, category }) {
   const webflowDate = formatWebflowDate(date);
-  const html = buildCommitMessageHtml(title, category);
+  const html = buildCommitMessageHtml(title);
   const itemId = randomBytes(12).toString("hex");
 
   return [
