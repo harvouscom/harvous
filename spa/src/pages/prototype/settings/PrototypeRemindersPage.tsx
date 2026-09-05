@@ -33,6 +33,7 @@ import {
   fetchPushStatus,
   getPushSupport,
   sendTestReminder,
+  testSendToastMessage,
   type PushStatus,
   type PushSupport,
 } from '../../../lib/push-reminders';
@@ -252,16 +253,16 @@ export default function PrototypeRemindersPage() {
     } finally {
       setBusy(false);
     }
-  }, [refreshStatus]);
+  }, [refreshStatus, support]);
 
   const handleTest = useCallback(async () => {
     setBusy(true);
     try {
       const result = await sendTestReminder();
       if (result.sent === 0) {
-        toast.error('No device could be reached. Try turning reminders on again.');
+        toast.error('No device could be reached. Turn reminders on again.');
       } else {
-        toast.success(`Sent to ${result.sent} device${result.sent === 1 ? '' : 's'}.`);
+        toast.success(testSendToastMessage(support));
       }
       refreshStatus();
     } catch {

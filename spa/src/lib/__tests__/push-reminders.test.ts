@@ -7,7 +7,7 @@
  * one thing that fixes it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getPushSupport } from '../push-reminders';
+import { getPushSupport, testSendToastMessage } from '../push-reminders';
 
 const IOS_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
@@ -94,5 +94,28 @@ describe('getPushSupport', () => {
   it('lets an installed iOS Home Screen app through to the prompt', () => {
     setup({ userAgent: IOS_UA, standalone: true });
     expect(getPushSupport()).toBe('default');
+  });
+});
+
+describe('testSendToastMessage', () => {
+  it('tells an iPhone user the one thing that is not obvious', () => {
+    // iOS suppresses a notification while its own app is in the foreground, so standing
+    // still looks exactly like the feature being broken.
+    setup({ userAgent: IOS_UA, standalone: true, permission: 'granted' });
+    expect(testSendToastMessage()).toBe('Sent. Leave Harvous to see it.');
+  });
+
+  it('does not tell a desktop user to leave, where the banner appears anyway', () => {
+    setup({ permission: 'granted' });
+    expect(testSendToastMessage()).toBe('Sent. It should appear in a moment.');
+  });
+
+  it('never reports a device count', () => {
+    // "Sent to 2 devices" leads with a number that a reinstall makes wrong, and answers a
+    // question nobody asked at that moment. The settings row states it instead.
+    setup({ userAgent: IOS_UA, standalone: true, permission: 'granted' });
+    expect(testSendToastMessage()).not.toMatch(/\d/);
+    setup({ permission: 'granted' });
+    expect(testSendToastMessage()).not.toMatch(/\d/);
   });
 });

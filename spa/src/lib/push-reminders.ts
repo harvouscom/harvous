@@ -235,3 +235,20 @@ export interface SendTestResult {
 export function sendTestReminder(): Promise<SendTestResult> {
   return api.post<SendTestResult>('/api/push/send-test');
 }
+
+/**
+ * What to say after a test send.
+ *
+ * Not a device count. "Sent to 2 devices" leads with a number that is easy to get wrong — a
+ * reinstalled Home Screen app leaves its old subscription behind, and the push service keeps
+ * accepting it — and it answers a question nobody asked at that moment. How many devices are
+ * reachable is a considered fact that belongs on the settings row, which states it.
+ *
+ * What someone actually needs after pressing the button is what to do next, and on iOS that
+ * is not obvious: a notification is suppressed while its own app is in the foreground, so
+ * staying put looks exactly like the feature being broken.
+ */
+export function testSendToastMessage(support: PushSupport = getPushSupport()): string {
+  const onIosApp = isIOS() && isPWA() && support === 'granted';
+  return onIosApp ? 'Sent. Leave Harvous to see it.' : 'Sent. It should appear in a moment.';
+}
