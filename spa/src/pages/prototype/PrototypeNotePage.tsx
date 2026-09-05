@@ -70,13 +70,7 @@ import {
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { toast } from '@/utils/toast';
 import { toastError } from '../../lib/error-copy';
-import {
-  dismissPurpose,
-  getComposePurpose,
-  isPurposeDismissed,
-  notePurposeModel,
-  setComposePurpose,
-} from '../../lib/compose-purpose';
+import { dismissPurpose, isPurposeDismissed, notePurposeModel } from '../../lib/compose-purpose';
 import {
   noteAudienceLabel,
   resolveCoEditFollower,
@@ -338,6 +332,8 @@ export default function PrototypeNotePage() {
     setComposePersistedNoteId,
     composeDraftActive,
     composeSeed,
+    composePurpose: sessionComposePurpose,
+    clearComposePurpose,
     composeSessionEpoch,
     composeTargetSpaceIdOverride,
     clearComposeTargetSpaceIdOverride,
@@ -1761,11 +1757,8 @@ export default function PrototypeNotePage() {
     fact anyone else needs.
   */
   const [purposeDismissals, setPurposeDismissals] = useState(0);
-  const composePurpose = useMemo(
-    () => (isDraft || composeDraftActive ? getComposePurpose() : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isDraft, composeDraftActive, purposeDismissals],
-  );
+  /* Shell state, epoch-gated to this compose session — see `composePurpose` on the shell. */
+  const composePurpose = isDraft || composeDraftActive ? sessionComposePurpose : null;
   const notePurpose = useMemo(
     () =>
       notePurposeModel({
@@ -1811,13 +1804,12 @@ export default function PrototypeNotePage() {
     ],
   );
   const handleDismissPurpose = useCallback(() => {
-    dismissPurpose(isDraft ? null : noteId);
-    /* A draft's purpose lives in sessionStorage, so clearing it *is* the
-       dismissal; a saved note's is a localStorage key. Either way the memo
-       above needs a reason to re-run. */
-    if (isDraft) setComposePurpose(null);
+    /* A session purpose is shell state, so clearing it *is* the dismissal; a saved
+       note's is a localStorage key, and the memo above needs a reason to re-run. */
+    clearComposePurpose();
+    if (!isDraft) dismissPurpose(noteId);
     setPurposeDismissals((n) => n + 1);
-  }, [isDraft, noteId]);
+  }, [clearComposePurpose, isDraft, noteId]);
 
   const audienceBarMode = useMemo(
     () =>

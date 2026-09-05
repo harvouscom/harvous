@@ -21,6 +21,7 @@ import PrototypeBrowseTemplatesSheet, {
   type EditableNoteTemplate,
 } from './PrototypeBrowseTemplatesSheet';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 
 export type PrototypeInspectorTemplatesSectionProps = {
   spaceId?: string | null;
@@ -57,6 +58,7 @@ export default function PrototypeInspectorTemplatesSection({
   onApply,
   onTemplateProvenanceChange,
 }: PrototypeInspectorTemplatesSectionProps) {
+  const { clearComposePurpose } = useProtoShell();
   const [browseOpen, setBrowseOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -180,6 +182,8 @@ export default function PrototypeInspectorTemplatesSection({
         spaceId: nextSpaceId,
         orgId: toChurch ? listOrgId : null,
       });
+      /* "Creating a template" has been done; the banner has nothing left to say. */
+      clearComposePurpose();
       closeSavePanel();
       toast.success(
         toChurch

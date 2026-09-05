@@ -55,7 +55,11 @@ import { PrototypeSectionHeader } from './design-system';
 import { noteParamSlug } from './proto-route-slugs';
 import { isConfirmedForeignNote } from './proto-note-ownership';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
-import type { ApplyableNoteTemplate } from '../../hooks/queries/useNoteTemplates';
+import {
+  flattenNoteTemplatesForPicker,
+  useNoteTemplates,
+  type ApplyableNoteTemplate,
+} from '../../hooks/queries/useNoteTemplates';
 import {
   NOTE_TEMPLATE_ICON_NAME,
   resolveNoteTemplateIconColor,
@@ -261,6 +265,19 @@ export default function PrototypeInspectorPane({
     ''
   ).trim();
   const showTemplateFrom = Boolean(templateFromId && templateFromName);
+  /*
+   * The note row carries the template's id and name, not its colour, and the resolver's
+   * fallback for an unknown id is a hash of that id — so a saved template's tile here was an
+   * arbitrary colour that had nothing to do with the one chosen when it was saved. Same query
+   * key the Browse sheet uses, so this is the cache it already filled, not a second fetch.
+   */
+  const { data: templatesData } = useNoteTemplates(templates?.spaceId ?? null, showTemplateFrom);
+  const templateFromIconColor = useMemo(
+    () =>
+      flattenNoteTemplatesForPicker(templatesData).find((t) => t.id === templateFromId)?.iconColor ??
+      null,
+    [templatesData, templateFromId],
+  );
 
   const linkedFromNotes = note.linkedFromNotes ?? [];
   const linkedToNotes = note.linkedToNotes ?? [];
@@ -279,7 +296,7 @@ export default function PrototypeInspectorPane({
         <span className="proto-inspector-template-from">
           <span className="proto-inspector-template-from__icon" aria-hidden>
             <ProtoSpaceMenuIcon
-              color={resolveNoteTemplateIconColor(templateFromId)}
+              color={resolveNoteTemplateIconColor(templateFromId, templateFromIconColor)}
               iconName={NOTE_TEMPLATE_ICON_NAME}
               size={16}
               radius={4}

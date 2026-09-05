@@ -38,6 +38,7 @@ import {
   type ProtoLocation,
 } from './proto-location';
 import type { ScriptureDrillState } from '../pages/prototype/sidebar-universal-search';
+import type { ComposePurpose } from '../lib/compose-purpose';
 import { setComposeGroupThreadId } from '../lib/compose-group-thread';
 
 /**
@@ -708,12 +709,22 @@ type ProtoShellContextValue = {
   beginPrototypeComposeSession: (options?: {
     targetSpaceId?: string;
     seed?: PrototypeComposeSeed;
+    /** What this note is *for* — see `compose-purpose.ts`. Session-scoped like the seed. */
+    purpose?: ComposePurpose;
   }) => number;
   /**
    * Seed for the *current* compose session, or null. Already epoch-checked — a seed left over
    * from a previous session reads as null here rather than leaking into this note.
    */
   composeSeed: PrototypeComposeSeed | null;
+  /**
+   * Purpose of the *current* compose session, or null — epoch-checked exactly like the seed.
+   * It used to be a bare sessionStorage key that nothing consumed, so "Creating a template"
+   * followed the reader into every note they started for the rest of the tab.
+   */
+  composePurpose: ComposePurpose | null;
+  /** The intention was fulfilled (template saved) or dismissed: stop showing it for this session. */
+  clearComposePurpose: () => void;
   /** Non-null while a sheet is stacked over an origin paper (reader, Home card, note). */
   /**
    * The Review dock — one question, floating at the foot of the pane on every view.
@@ -892,6 +903,10 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    */
   const [composeSeedState, setComposeSeedState] = useState<{
     seed: PrototypeComposeSeed;
+    epoch: number;
+  } | null>(null);
+  const [composePurposeState, setComposePurposeState] = useState<{
+    seed: ComposePurpose;
     epoch: number;
   } | null>(null);
   /**
@@ -1662,7 +1677,11 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     setComposeDraftActive(false);
   }, []);
   const beginPrototypeComposeSession = useCallback(
-    (options?: { targetSpaceId?: string; seed?: PrototypeComposeSeed }) => {
+    (options?: {
+      targetSpaceId?: string;
+      seed?: PrototypeComposeSeed;
+      purpose?: ComposePurpose;
+    }) => {
       // Synchronous, at click time — see shouldClearStaleComposeDraftOnSessionStart. The
       // equivalent clear in resetComposeSessionState runs in a passive effect, which React
       // commits *after* the remounted editor's layout effect has already restored the draft.
@@ -1684,16 +1703,21 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       // Stamped with the epoch it was created for, and set in the same synchronous pass, so
       // the editor that mounts for *this* session is the only one that can read it.
       setComposeSeedState(options?.seed ? { seed: options.seed, epoch: next } : null);
+      setComposePurposeState(options?.purpose ? { seed: options.purpose, epoch: next } : null);
       return next;
     },
     [],
   );
+  const clearComposePurpose = useCallback(() => {
+    setComposePurposeState(null);
+  }, []);
   /**
    * Epoch-gated read. A seed belongs to exactly one compose session; once the epoch moves on it
    * reads as absent, so it can never surface in a later note. Same guard shape as
    * `liveNoteSnapshot`, and the reason a seed is safe where a compose *draft* was not.
    */
   const composeSeed = resolveComposeSeed(composeSeedState, composeSessionEpoch);
+  const composePurpose = resolveComposeSeed(composePurposeState, composeSessionEpoch);
 
   /*
    * Opening with no id keeps whichever item was already up, so the toolbar and a row on the
@@ -1858,6 +1882,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       clearComposeDraftActive,
       composeSessionEpoch,
       composeSeed,
+      composePurpose,
+      clearComposePurpose,
       composeTargetSpaceIdOverride,
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,
@@ -1960,6 +1986,8 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       clearComposeDraftActive,
       composeSessionEpoch,
       composeSeed,
+      composePurpose,
+      clearComposePurpose,
       composeTargetSpaceIdOverride,
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,

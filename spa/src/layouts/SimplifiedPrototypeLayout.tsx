@@ -63,6 +63,7 @@ import type { ReviewOutcome } from '@/utils/review-item-kinds';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
+import type { ComposePurpose } from '../lib/compose-purpose';
 import {
   morphFromIfStillPlaced,
   noteDockReturnSearch,
@@ -1357,7 +1358,7 @@ function PrototypeShortcutBridge() {
       isDraftNoteRoute,
     });
 
-  const createPrototypeNote = useCallback(() => {
+  const createPrototypeNote = useCallback((purpose?: ComposePurpose) => {
     const targetSpaceId = resolveVisibleComposeTarget({
       homeSpaceId,
       activeSpaceId,
@@ -1366,7 +1367,7 @@ function PrototypeShortcutBridge() {
     });
     if (!targetSpaceId) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    beginPrototypeComposeSession({ targetSpaceId });
+    beginPrototypeComposeSession({ targetSpaceId, ...(purpose ? { purpose } : {}) });
     navigate.navigate({ to: prototypeHomeRouteTo() });
   }, [
     activeSpaceId,
@@ -1500,7 +1501,10 @@ function PrototypeShortcutBridge() {
   }, [homeSpaceId, shellModeNav]);
 
   useEffect(() => {
-    const onNewNote = () => createPrototypeNote();
+    const onNewNote = (event: Event) => {
+      const purpose = (event as CustomEvent<{ purpose?: ComposePurpose }>).detail?.purpose;
+      createPrototypeNote(purpose === 'template' ? 'template' : undefined);
+    };
     const onToggleSidebar = () => togglePrototypeSidebar();
     const onToggleInspector = () => {
       if (!showNoteDetailsOrb) return;
