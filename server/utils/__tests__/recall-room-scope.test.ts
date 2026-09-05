@@ -37,6 +37,12 @@ vi.mock('../../db', () => {
 
 vi.mock('@/utils/ids', () => ({ generateTimestampId: () => 'id' }));
 vi.mock('./note-recall-state', () => ({ recordNoteRecallEngaged: vi.fn() }));
+/* Recording a recall event also touches the study-bible layer, which arrived on
+   main after this test was written and drags the whole note-read stack in behind
+   it. Stubbed rather than fed: the subject here is which room a read answers
+   for, and the db mock above is deliberately the four columns that question
+   needs. */
+vi.mock('../study-bible-layer', () => ({ noteTouch: vi.fn(), touchNodes: vi.fn() }));
 
 const { resolveRecallRoomScope } = await import('../record-recall-event');
 

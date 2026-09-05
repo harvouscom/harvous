@@ -1327,7 +1327,13 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
   const [lastChannelId, setLastChannelId] = useState<string | null>(null);
   const services = plannerFixtures();
   const accentFor = buildSeriesAccentLookup(PLANNER_SERIES);
-  const readOnlyReason = canWrite ? null : ('lapsed' as const);
+  /* The planner views take the sentence now, not the reason code — the church
+     lane's wording for a paused pilot, which is what this scene previews. */
+  const readOnlyMessage = canWrite
+    ? null
+    : 'This plan is read-only while the church pilot is paused.';
+  /* The church lane's noun. The views say "Plan a sermon" with it. */
+  const plannerItemNoun = 'sermon';
   const noop = () => undefined;
 
   return (
@@ -1351,7 +1357,7 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
               serviceTimes={PLANNER_SERVICE_TIMES}
               accentFor={accentFor}
               canWrite={canWrite}
-              readOnlyReason={readOnlyReason}
+              readOnlyMessage={readOnlyMessage}
               defaultDay={0}
               selection={selection}
               onSelect={setSelection}
@@ -1363,6 +1369,8 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
               serviceTimes={PLANNER_SERVICE_TIMES}
               accentFor={accentFor}
               canWrite={canWrite}
+              readOnlyMessage={readOnlyMessage}
+              itemNoun={plannerItemNoun}
               selection={selection}
               onSelect={setSelection}
               onMoveToDate={noop}
@@ -1373,7 +1381,8 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
               serviceTimes={PLANNER_SERVICE_TIMES}
               accentFor={accentFor}
               canWrite={canWrite}
-              readOnlyReason={readOnlyReason}
+              readOnlyMessage={readOnlyMessage}
+              itemNoun={plannerItemNoun}
               selection={selection}
               onSelect={setSelection}
             />
@@ -1384,6 +1393,8 @@ function PlannerScene({ view, canWrite = true }: { view: PlannerView; canWrite?:
               accentFor={accentFor}
               openSeriesId={null}
               canWrite={canWrite}
+              readOnlyMessage={readOnlyMessage}
+              itemNoun={plannerItemNoun}
               onOpen={noop}
               onNewSeries={noop}
             />
