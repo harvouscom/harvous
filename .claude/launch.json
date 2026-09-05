@@ -122,6 +122,16 @@
       ],
       "port": 4329,
       "autoPort": false
+    },
+    {
+      "name": "reminders-phone-built",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "VITE_API_PROXY_TARGET=http://localhost:3004 npx vite preview --port 4332 --strictPort"
+      ],
+      "port": 4332,
+      "autoPort": false
     }
   ]
 }
