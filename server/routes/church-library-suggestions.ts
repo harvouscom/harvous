@@ -23,11 +23,9 @@ import {
   and,
   eq,
   desc,
-  inArray,
   Churches,
   LibraryItems,
   LibraryItemSuggestions,
-  UserMetadata,
 } from '../db';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
@@ -43,6 +41,7 @@ import {
   ensureChurchLibrary,
   resolveChurchLibraryViewer,
 } from '../utils/church-library-access';
+import { displayNamesFor } from '../utils/suggestion-display-names';
 
 const app = new Hono();
 
@@ -241,37 +240,6 @@ app.get('/api/church/library/suggestions', requireAuth, async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-
-/**
- * Display names for the queue.
- *
- * The only place in any church-facing route that reads a user column, and it
- * reads exactly one. Falls back to a neutral label rather than an id, so a
- * missing profile never leaks a raw Clerk id into staff UI.
- */
-async function displayNamesFor(userIds: readonly string[]): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  const unique = [...new Set(userIds)];
-  if (unique.length === 0) return out;
-
-  const rows = await db
-    .select({
-      userId: UserMetadata.userId,
-      firstName: UserMetadata.firstName,
-      lastName: UserMetadata.lastName,
-    })
-    .from(UserMetadata)
-    .where(inArray(UserMetadata.userId, unique));
-
-  for (const row of rows) {
-    const name = [row.firstName, row.lastName]
-      .map((part) => (part ?? '').trim())
-      .filter(Boolean)
-      .join(' ');
-    if (name) out.set(row.userId, name);
-  }
-  return out;
-}
 
 // ─── POST /api/church/library/suggestions/review ────────────────────────────
 /**

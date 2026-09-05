@@ -292,18 +292,25 @@ describe('suggestion box', () => {
     expect(mine).not.toContain('reviewedByUserId');
   });
 
-  it('keeps the only user-column read in this one file', () => {
+  it('keeps the only user-column read behind one helper, imported by the two suggestion routes alone', () => {
     // "Review is never shared" protects observed behaviour; a submission is a
     // different kind of fact. The exception must not spread — if another
     // church-facing route starts reading names, this test should be the thing
-    // that makes someone justify it.
-    const text = suggestions();
-    expect(text).toContain('UserMetadata.firstName');
+    // that makes someone justify it. The read itself lives in
+    // suggestion-display-names.ts; the church library box and the space
+    // study box are its only importers.
+    expect(source('server/utils/suggestion-display-names.ts')).toContain('UserMetadata.firstName');
+    expect(suggestions()).toContain("from '../utils/suggestion-display-names'");
+    expect(source('server/routes/space-study-suggestions.ts')).toContain(
+      "from '../utils/suggestion-display-names'",
+    );
     for (const path of [
       'server/routes/church-library.ts',
       'server/routes/church-space-library.ts',
     ]) {
-      expect(source(path), `${path} reads a user column`).not.toContain('UserMetadata');
+      const text = source(path);
+      expect(text, `${path} reads a user column`).not.toContain('UserMetadata');
+      expect(text, `${path} imports the name helper`).not.toContain('suggestion-display-names');
     }
   });
 

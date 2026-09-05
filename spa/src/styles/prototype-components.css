@@ -23012,3 +23012,44 @@ button.proto-feed-sheet__stat:hover {
   line-height: 1.8;
   color: var(--pds-text-primary);
 }
+
+/* ── What's next — the room's suggestion box ────────────────────────────────
+   Three stacked sections (queue, form, yours) in one sheet. Rows reuse the
+   church-tools row and the library suggestion's action pair, so a leader who
+   has reviewed resources already knows what these buttons do. */
+.proto-space-suggestions__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.proto-space-suggestions__section + .proto-space-suggestions__section {
+  padding-top: 12px;
+  border-top: 1px solid var(--pds-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+.proto-space-suggestions__kinds {
+  margin-bottom: 8px;
+}
+
+.proto-space-suggestions__kinds .proto-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Same reason as the library queue: inline beside the row, the quiet action
+   sizes to its own text rather than the sheet's full width. */
+.proto-space-suggestions .proto-church-tools__row .proto-sheet-quiet-action {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.proto-space-suggestions-popover {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.proto-space-suggestions-popover .proto-connect-note-sheet--popover {
+  max-height: min(78vh, 720px);
+  overflow-y: auto;
+}

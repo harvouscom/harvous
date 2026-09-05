@@ -16,6 +16,12 @@ import {
 import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import { resolveJoinHeroBackground, resolveJoinHeroImageUrl } from '../../lib/space-cover-display';
 import { useUpdateSharedSpace } from '../../hooks/mutations/useUpdateSharedSpace';
+import {
+  parseStudyPlanningMode,
+  STUDY_PLANNING_MODE_LABELS,
+  STUDY_PLANNING_MODES,
+  type StudyPlanningMode,
+} from '@/utils/space-study-planning';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
@@ -56,6 +62,7 @@ export default function PrototypeSpaceSettingsSection({
   initialCoverVariant,
   initialPublishCadence,
   initialCadenceStale = false,
+  initialStudyPlanningMode = 'off',
   onSaved,
   /** Shared Spaces: people. Ministry channels: rss. */
   iconName = 'user-group',
@@ -72,6 +79,8 @@ export default function PrototypeSpaceSettingsSection({
   initialPublishCadence?: PublishCadence | string | null;
   /** Observed lag vs declared cadence — staff-only soft hint. */
   initialCadenceStale?: boolean;
+  /** Shared rooms: whether members may say what the room studies next. */
+  initialStudyPlanningMode?: StudyPlanningMode | string | null;
   onSaved?: (title: string) => void;
   iconName?: IconName;
   ministryChannel?: boolean;
@@ -92,6 +101,9 @@ export default function PrototypeSpaceSettingsSection({
   const [description, setDescription] = useState(initialDescription ?? '');
   const [publishCadence, setPublishCadence] = useState<PublishCadence | ''>(
     () => parsePublishCadence(initialPublishCadence) ?? '',
+  );
+  const [studyPlanningMode, setStudyPlanningMode] = useState<StudyPlanningMode>(() =>
+    parseStudyPlanningMode(initialStudyPlanningMode),
   );
   const updateSpace = useUpdateSharedSpace();
   const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light' as const);
@@ -126,15 +138,21 @@ export default function PrototypeSpaceSettingsSection({
     setPublishCadence(parsePublishCadence(initialPublishCadence) ?? '');
   }, [initialPublishCadence, spaceId]);
 
+  useEffect(() => {
+    setStudyPlanningMode(parseStudyPlanningMode(initialStudyPlanningMode));
+  }, [initialStudyPlanningMode, spaceId]);
+
   const normalizedDescription = description.trim();
   const initialDescriptionNorm = (initialDescription ?? '').trim();
   const initialCadenceNorm = parsePublishCadence(initialPublishCadence) ?? '';
+  const initialStudyPlanningNorm = parseStudyPlanningMode(initialStudyPlanningMode);
   const dirty =
     title.trim() !== initialTitle.trim() ||
     color !== (initialColor || 'blue') ||
     coverVariant !== baselineVariant ||
     normalizedDescription !== initialDescriptionNorm ||
-    (ministryChannel && publishCadence !== initialCadenceNorm);
+    (ministryChannel && publishCadence !== initialCadenceNorm) ||
+    (!ministryChannel && studyPlanningMode !== initialStudyPlanningNorm);
   const staleHint =
     ministryChannel && initialCadenceStale && publishCadence === initialCadenceNorm
       ? staffCadenceStaleHint(publishCadence || null)
@@ -177,6 +195,11 @@ export default function PrototypeSpaceSettingsSection({
            omitted field means "leave it alone" to the update route, so saving
            the room's name cannot disturb its rhythm. */
         ...(ministryChannel ? { publishCadence: publishCadence || null } : {}),
+        /* Sent only when it changed: the route refuses it on a channel, and an
+           unchanged value has nothing to say. */
+        ...(!ministryChannel && studyPlanningMode !== initialStudyPlanningNorm
+          ? { studyPlanningMode }
+          : {}),
       },
       {
         onSuccess: () => {
@@ -237,7 +260,28 @@ export default function PrototypeSpaceSettingsSection({
             <p className="proto-caption proto-shared-space-settings__cadence-hint">{staleHint}</p>
           ) : null}
         </div>
-      ) : null}
+      ) : (
+        <div className="proto-shared-space-settings__field">
+          <label htmlFor="proto-space-settings-study-planning">What we study next</label>
+          <select
+            id="proto-space-settings-study-planning"
+            value={studyPlanningMode}
+            onChange={(e) => setStudyPlanningMode(parseStudyPlanningMode(e.target.value))}
+          >
+            {STUDY_PLANNING_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {STUDY_PLANNING_MODE_LABELS[mode]}
+              </option>
+            ))}
+          </select>
+          {/* Said here, before anyone turns it on: the suggestion is attributed. */}
+          <p className="proto-caption proto-shared-space-settings__cadence-hint">
+            {studyPlanningMode === 'suggest'
+              ? 'Suggestions go to whoever runs the room, with the member’s name on them. You choose what becomes the next study.'
+              : 'Let members propose a passage, a note, or an idea for what the room studies next.'}
+          </p>
+        </div>
+      )}
       <div className="proto-shared-space-settings__field">
         <label>Color &amp; background</label>
         <div

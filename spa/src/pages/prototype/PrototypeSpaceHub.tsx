@@ -46,6 +46,7 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
+import PrototypeSpaceStudySuggestionsSheet from './PrototypeSpaceStudySuggestionsSheet';
 import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -55,6 +56,11 @@ import { ProtoToolsRowList, type ProtoToolRow } from './proto-tools-registry';
 import { companionToolRow } from '../../lib/space-companion';
 import { spaceLibraryMeta, useSpaceLibrary } from '../../hooks/queries/useSpaceLibrary';
 import { useChurchSpacePlan } from '../../hooks/queries/useChurchSpacePlan';
+import {
+  spaceStudySuggestionsToolMeta,
+  useMySpaceStudySuggestions,
+  useSpaceStudySuggestionQueue,
+} from '../../hooks/queries/useSpaceStudySuggestions';
 import { markPendingPlannerIntent } from '../../lib/pending-planner-intent';
 import { localTodayIso } from '../../lib/church-services';
 import { parseLocalDateInput } from '../../lib/proto-date-picker';
@@ -260,6 +266,7 @@ function PrototypeSpaceHubLive() {
    */
   const [peopleView, setPeopleView] = useState<'letter' | 'details' | 'invites'>('letter');
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const toolsButtonRef = useRef<HTMLButtonElement | null>(null);
   const toolsCardRef = useRef<HTMLDivElement | null>(null);
   const { position: toolsPosition, sync: syncToolsPosition } = useProtoAnchoredPopoverPosition(
@@ -404,6 +411,28 @@ function PrototypeSpaceHubLive() {
     if (services.length === 0) return 'Nothing planned yet';
     return `${services.length} planned`;
   }, [spacePlan.data?.services]);
+  /*
+    What's next — the room's suggestion box. Opt-in per room, and shared rooms
+    only: a channel publishes rather than decides, and a personal space has
+    nobody to ask. Whether this viewer reviews is the server's verdict — the
+    queue answers 403 to a member, which reads here as "not a reviewer", the
+    same way a refused plan reads above.
+  */
+  const studyPlanningOn =
+    space?.studyPlanningMode === 'suggest' && ministryMeta.type === 'shared' && !isMinistryChannel;
+  const suggestionQueue = useSpaceStudySuggestionQueue(activeSpaceId ?? null, {
+    enabled: studyPlanningOn && canManageThreads,
+  });
+  const mySuggestions = useMySpaceStudySuggestions(activeSpaceId ?? null, {
+    enabled: studyPlanningOn,
+  });
+  const canReviewSuggestions = studyPlanningOn && canManageThreads && !suggestionQueue.isError;
+  const suggestionsMeta = spaceStudySuggestionsToolMeta({
+    canReview: canReviewSuggestions,
+    queue: suggestionQueue.data?.suggestions,
+    mine: mySuggestions.data?.suggestions,
+  });
+
   const spaceToolRows = useMemo<ProtoToolRow[]>(() => {
     const rows: ProtoToolRow[] = [];
     /* Offered to every member, not only whoever curates it — "what do we read
@@ -449,8 +478,21 @@ function PrototypeSpaceHubLive() {
         },
       });
     }
+    /* Offered to every member once the room has turned it on — suggesting is
+       the member's half, and the row is how they find it. */
+    if (studyPlanningOn) {
+      rows.push({
+        key: 'space-suggestions',
+        icon: 'inbox',
+        title: "What's next",
+        meta: suggestionsMeta,
+        onSelect: () => setSuggestionsOpen(true),
+      });
+    }
     return rows;
   }, [
+    studyPlanningOn,
+    suggestionsMeta,
     spaceLibraryCount,
     canManageSpaceLibrary,
     spaceLibrary.data?.items,
@@ -1284,6 +1326,7 @@ function PrototypeSpaceHubLive() {
         spaceMeetingTime={space?.meetingTime ?? null}
         spaceMeetingKind={space?.meetingKind ?? null}
         spaceMeetingUrl={space?.meetingUrl ?? null}
+        spaceStudyPlanningMode={space?.studyPlanningMode ?? null}
         viewerIsOwner={isSpaceOwner}
         viewerCanModerate={canModerateChannel}
         ministryChannel={isMinistryChannel}
@@ -1291,6 +1334,15 @@ function PrototypeSpaceHubLive() {
           Boolean(ministryMeta.orgId) && (canChurchForSpace('manage_staff') || isSpaceOwner)
         }
       />
+      {studyPlanningOn && activeSpaceId ? (
+        <PrototypeSpaceStudySuggestionsSheet
+          open={suggestionsOpen}
+          onOpenChange={setSuggestionsOpen}
+          spaceId={activeSpaceId}
+          spaceTitle={spaceTitle}
+          canReview={canReviewSuggestions}
+        />
+      ) : null}
       <PrototypeCreateSharedThreadSheet
         open={createThreadOpen}
         onOpenChange={setCreateThreadOpen}

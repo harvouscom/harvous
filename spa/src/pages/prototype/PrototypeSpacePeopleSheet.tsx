@@ -65,6 +65,8 @@ export interface PrototypeSpacePeopleSheetProps {
   spaceMeetingKind?: import('@/utils/space-meeting-rhythm').MeetingKind | null;
   /** The room's standing video link. Members only. */
   spaceMeetingUrl?: string | null;
+  /** Shared rooms: whether members may say what the room studies next. */
+  spaceStudyPlanningMode?: import('@/utils/space-study-planning').StudyPlanningMode | null;
   /**
    * Which screen to open on.
    *
@@ -159,6 +161,7 @@ export default function PrototypeSpacePeopleSheet({
   initialView = 'letter',
   spaceDetail: spaceDetailProp = null,
   spaceMeetingUrl = null,
+  spaceStudyPlanningMode = null,
   viewerIsOwner = false,
   viewerCanModerate = false,
   ministryChannel = false,
@@ -754,6 +757,7 @@ export default function PrototypeSpacePeopleSheet({
           initialCoverBgLight={spaceCoverBgLight}
           initialPublishCadence={spacePublishCadence}
           initialCadenceStale={spaceCadenceStale}
+          initialStudyPlanningMode={spaceStudyPlanningMode}
           onSaved={setSpaceTitle}
           iconName={ministryChannel ? 'rss' : 'user-group'}
           ministryChannel={ministryChannel}
