@@ -94,6 +94,7 @@
     "push:schema:apply": "tsx server/scripts/add-push-reminders-schema.ts --apply",
     "push:vapid-keys": "web-push generate-vapid-keys",
     "push:preview": "tsx server/scripts/preview-reminder-payload.ts",
+    "push:rehearse": "tsx server/scripts/reminder-policy-rehearsal.ts",
     "space-plans:schema": "tsx server/scripts/add-space-owned-plans-schema.ts",
     "space-plans:schema:apply": "tsx server/scripts/add-space-owned-plans-schema.ts --apply",
     "series:schema": "tsx server/scripts/add-series-presentation-schema.ts",
