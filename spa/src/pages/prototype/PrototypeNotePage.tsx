@@ -334,6 +334,7 @@ export default function PrototypeNotePage() {
     composeSeed,
     composePurpose: sessionComposePurpose,
     clearComposePurpose,
+    clearComposeDraftActive,
     composeSessionEpoch,
     composeTargetSpaceIdOverride,
     clearComposeTargetSpaceIdOverride,
@@ -1131,41 +1132,95 @@ export default function PrototypeNotePage() {
       const draftContent = hasLiveNoteSnapshot
         ? liveNoteSnapshot.content
         : (seed?.contentHtml ?? '');
-      const targetNoteId = isDraft
-        ? await persistDraftNoteRef.current?.(
-            draftTitle,
-            draftContent,
-            undefined,
-            'expand-scripture-to-reader',
-          )
-        : noteId;
-      if (!targetNoteId) return;
+      let targetNoteId: string | null;
+      if (isGuest) {
+        /*
+         * A guest's note never leaves the device — the same rule `handleNoteSave` applies,
+         * and the same ref, so the autosave that follows updates this note rather than
+         * filing a second one. `persistDraftNote` below needs a space a guest does not have,
+         * and returning its null here was what made this button do nothing for them.
+         */
+        if (!isDraft) {
+          targetNoteId = noteId;
+        } else if (guestDraftIdRef.current) {
+          updateGuestNote(guestDraftIdRef.current, { title: draftTitle, contentHtml: draftContent });
+          targetNoteId = guestDraftIdRef.current;
+        } else if (isEffectivelyEmptyPrototypeNote(draftTitle, draftContent)) {
+          targetNoteId = null;
+        } else {
+          const saved = addGuestNote({ title: draftTitle, contentHtml: draftContent });
+          if (saved) guestDraftIdRef.current = saved.id;
+          targetNoteId = saved?.id ?? null;
+        }
+      } else {
+        targetNoteId = isDraft
+          ? ((await persistDraftNoteRef.current?.(
+              draftTitle,
+              draftContent,
+              undefined,
+              'expand-scripture-to-reader',
+            )) ?? null)
+          : noteId;
+      }
 
-      stackNote(
-        buildNoteDockOrigin({
-          noteId: targetNoteId,
-          noteTitle: liveNoteSnapshot.title || note?.title,
-          reference,
-          translation,
-          spaceId: contextSpaceId,
-          morphFrom:
-            rect && rect.width > 0 && rect.height > 0
-              ? {
-                  top: Math.round(rect.top),
-                  left: Math.round(rect.left),
-                  width: Math.round(rect.width),
-                  height: Math.round(rect.height),
-                  dockPlacement: readPaperStackDockPlacement() ?? '',
-                }
-              : undefined,
-        }),
-        targetNoteId,
-      );
+      /*
+       * The draft has its address now, so the compose session is over — and it has to be
+       * ended here, not left to its own devices. Two of those devices were what made this
+       * button look dead on a note started from the reader:
+       *
+       * - The idle URL catch-up (`flushPendingComposeUrlReplace`) was still armed, and it
+       *   fired on the very focus change the expand causes — a `replace` to `/{slug}` that
+       *   landed *after* the reader navigation and put the note back over the chapter.
+       *   The stack's `returnTo` already carries that address, so the catch-up has no job.
+       * - `composeDraftActive` only clears when the path leaves `/`, and a draft started from
+       *   a verse never was on `/`; while it stayed set the layout kept hosting the editor
+       *   over every read path, so the chapter opened underneath a note nobody could see past.
+       */
+      if (isDraft && targetNoteId) {
+        pendingComposeUrlReplaceRef.current = null;
+        if (composeUrlIdleTimerRef.current) {
+          clearTimeout(composeUrlIdleTimerRef.current);
+          composeUrlIdleTimerRef.current = null;
+        }
+        setComposePersistedNoteId(null);
+        clearComposeDraftActive();
+      }
+
+      /*
+       * No note to come back to (a draft that could not be saved) is not a reason to keep
+       * the reader shut: the chapter opens either way, it just opens without the edge. A
+       * silent return here read as a broken button.
+       */
+      if (targetNoteId) {
+        stackNote(
+          buildNoteDockOrigin({
+            noteId: targetNoteId,
+            noteTitle: liveNoteSnapshot.title || note?.title,
+            reference,
+            translation,
+            spaceId: contextSpaceId,
+            morphFrom:
+              rect && rect.width > 0 && rect.height > 0
+                ? {
+                    top: Math.round(rect.top),
+                    left: Math.round(rect.left),
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height),
+                    dockPlacement: readPaperStackDockPlacement() ?? '',
+                  }
+                : undefined,
+          }),
+          targetNoteId,
+        );
+      }
       void navigate(landAgain(route));
     },
     [
+      isGuest,
       isDraft,
       noteId,
+      setComposePersistedNoteId,
+      clearComposeDraftActive,
       hasLiveNoteSnapshot,
       liveNoteSnapshot.title,
       liveNoteSnapshot.content,
