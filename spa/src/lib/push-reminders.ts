@@ -17,6 +17,7 @@
  * Deliberately dependency-free and small: the shell imports it for badge clearing and the
  * subscription re-sync, so anything heavy here would land in the eager bundle.
  */
+import { reportDiagnosticEvent } from '@/utils/diagnostics-client';
 import { api } from './api';
 import { isPWA } from '@/utils/content-list-helpers';
 import { isIOS } from '@/utils/platform-detect';
@@ -146,10 +147,26 @@ export async function enablePushReminders(): Promise<EnableResult> {
     stampResync();
     return { ok: true, support: 'granted', deviceCount };
   } catch (error) {
+    /*
+     * Subscribing can fail after permission was granted, and the browser's own words for it
+     * are not fit to show anyone — "Registration failed - push service error" is the string
+     * Chromium produces. It is also not a rare case: Brave ships with Google's push messaging
+     * switched off by default, so every Brave user meets this until they turn it on, and any
+     * network that blocks the push endpoint produces the same thing.
+     *
+     * So the reader gets a sentence they can act on, and the raw text goes where it is
+     * useful instead.
+     */
+    const raw = error instanceof Error ? error.message : String(error);
+    reportDiagnosticEvent({
+      source: 'client_js',
+      severity: 'warning',
+      message: `[push-nav] subscribe failed: ${raw}`,
+    });
     return {
       ok: false,
       support: 'granted',
-      error: error instanceof Error ? error.message : 'Could not turn on reminders.',
+      error: 'Your browser would not complete the setup. Some browsers turn push messaging off by default.',
     };
   }
 }

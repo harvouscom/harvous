@@ -265,8 +265,18 @@ export default function PrototypeRemindersPage() {
         toast.success(testSendToastMessage(support));
       }
       refreshStatus();
-    } catch {
-      toast.error('Could not send a test reminder.');
+    } catch (error) {
+      /*
+       * Show what the server said, when it said something worth reading.
+       *
+       * The one failure a person will actually meet here is the once-a-minute limit, and it
+       * comes back explaining itself — "Give it a minute before sending another test."
+       * Swallowing that and printing "Could not send a test reminder" turned a deliberate
+       * limit into what looked like a broken feature, which is exactly how it was read.
+       */
+      const message = error instanceof Error && error.message ? error.message : '';
+      const looksLikeHttpCode = /^HTTP \d+$/.test(message);
+      toast.error(message && !looksLikeHttpCode ? message : 'Could not send a test reminder.');
     } finally {
       setBusy(false);
     }
