@@ -479,3 +479,21 @@ html.harvous-prototype-route h2.proto-votd-sheet__reference-row .proto-votd-shee
 html.harvous-prototype-route .proto-settings-modal__title {
   color: var(--pds-text-primary) !important;
 }
+
+/*
+ * The sheet title, and the only rounded text in the app.
+ *
+ * It has to live here rather than beside the rule it belongs to: `.proto-shell *` in
+ * prototype-tokens.css sets `font-variation-settings` on every descendant of the shell, and
+ * `.proto-shell *` and `.proto-feed-sheet__day` have identical specificity — so the component
+ * rule loses on source order alone and the heading silently renders at "ROND" 0. Same reason
+ * every other block in this file exists.
+ *
+ * The feed's day heading and the Settings title are listed together because they agree on
+ * purpose, not because one owns the other.
+ */
+html.harvous-prototype-route .proto-feed-sheet__day,
+html.harvous-prototype-route .proto-settings-modal__title {
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-sheet-title) !important;
+}

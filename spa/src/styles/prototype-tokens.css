@@ -694,6 +694,20 @@
   --pds-font-body-variation-list-title: "ROND" 0, "wght" 500, "opsz" 15;
   --pds-font-body-variation-list-preview: "ROND" 0, "wght" 400, "opsz" 12;
   --pds-font-body-variation-list-timestamp: "ROND" 0, "wght" 500, "opsz" 12;
+  /*
+   * The one rounded face in the app: the title that names what you are looking at.
+   *
+   * Every other token here pins "ROND" 0 deliberately — Google Sans Flex is drawn square by
+   * default and the interface stays that way. The rounded axis is spent in exactly one place,
+   * on the sheet title, so it reads as a voice rather than a theme. `wght` and `opsz` are named
+   * because font-variation-settings overrides font-weight once it is set; 700 and 20 match what
+   * both rules already declare.
+   *
+   * Shared by the feed's day heading and the Settings title, which agree on purpose. A token is
+   * the right amount of coupling for that — it says "these two use the same voice" without a
+   * shared class that would drag one surface's layout onto the other.
+   */
+  --pds-font-body-variation-sheet-title: "ROND" 100, "wght" 700, "opsz" 20;
   --pds-font-mono:    ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   /* Chrome dimensions */
