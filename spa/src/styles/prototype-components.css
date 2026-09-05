@@ -7457,8 +7457,10 @@ button.proto-home-card--tappable:focus-visible {
    between the steps working and appearing to be wrong. */
 .proto-install-web-app-sheet__browser {
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
+  /* Centred on the tile now rather than hung from the first line: the icon is
+     26px against a 13px line, so aligning their tops left it floating. */
+  align-items: center;
+  gap: 10px;
   margin: 0 0 14px;
   font-family: var(--pds-font-body);
   font-size: 0.8125rem;
@@ -7471,11 +7473,22 @@ button.proto-home-card--tappable:focus-visible {
   font-weight: 600;
 }
 
+/* An app tile, because that is what the reader is looking for on their own home
+   screen: the platform's rounded white square with the browser's mark on it.
+   The hairline and the small shadow are what stop it reading as a sticker on a
+   white sheet. */
 .proto-install-web-app-sheet__browser-icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  margin-top: 1px;
-  color: var(--pds-text-primary);
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.16),
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.08);
 }
 
 /* Without this the sentence sets its own width and runs under the sheet's edge.

@@ -35,8 +35,6 @@ import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 */
 import appleSvg from '@fortawesome/fontawesome-free/svgs/brands/apple.svg?raw';
 import androidSvg from '@fortawesome/fontawesome-free/svgs/brands/android.svg?raw';
-import safariSvg from '@fortawesome/fontawesome-free/svgs/brands/safari.svg?raw';
-import chromeSvg from '@fortawesome/fontawesome-free/svgs/brands/chrome.svg?raw';
 /* iOS's Share control: a box with an arrow leaving it, which is the shape a
    reader is hunting for in Safari's bottom bar — not FA's `share` swoosh. */
 import shareIosSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-up-from-bracket.svg?raw';
@@ -44,8 +42,6 @@ import shareIosSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-up-from-
 const LOCAL_GLYPHS = {
   apple: appleSvg,
   android: androidSvg,
-  safari: safariSvg,
-  chrome: chromeSvg,
   'share-ios': shareIosSvg,
 } as const;
 
@@ -77,6 +73,52 @@ function BrandGlyph({ name, size = 16 }: { name: LocalGlyphName; size?: number }
   );
 }
 
+/**
+ * The browser, as its icon appears on the reader's own device.
+ *
+ * Drawn here rather than taken from the icon set, because the set's brand marks
+ * are single-colour silhouettes: a flat grey disc says "a browser" where the
+ * reader is looking for the *thing on their home screen*. Both are the marks
+ * they are about to tap — Safari's blue compass, Chrome's four-colour wheel —
+ * sitting on the rounded white tile the platform draws under them.
+ *
+ * Small enough to be a label, not an advertisement: this appears once, at 24px,
+ * beside the sentence naming which browser the steps below belong to.
+ */
+function BrowserAppIcon({ browser }: { browser: 'safari' | 'chrome' }) {
+  if (browser === 'safari') {
+    return (
+      <svg viewBox="0 0 24 24" width="20" height="20" role="img" aria-hidden focusable="false">
+        <defs>
+          {/* Lighter at the top, as the icon is on the device. */}
+          <linearGradient id="harvous-safari-face" x1="12" y1="1" x2="12" y2="23" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#19B9FF" />
+            <stop offset="1" stopColor="#0A6FE0" />
+          </linearGradient>
+        </defs>
+        <circle cx="12" cy="12" r="11" fill="url(#harvous-safari-face)" />
+        <circle cx="12" cy="12" r="9.1" fill="none" stroke="#ffffff" strokeWidth="0.9" opacity="0.85" />
+        {/* The needle: red to the north-east, white to the south-west, widest
+            where the two halves meet. */}
+        <path d="M17.7 6.3 13.7 13.7 10.3 10.3Z" fill="#FF4133" />
+        <path d="M6.3 17.7 10.3 10.3 13.7 13.7Z" fill="#ffffff" />
+      </svg>
+    );
+  }
+
+  /* Three 120° sectors around the centre, then the white ring and the blue
+     hub — the wheel's actual construction, so it reads correctly at 20px. */
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" role="img" aria-hidden focusable="false">
+      <path d="M1.61 6A12 12 0 0 1 22.39 6L12 12Z" fill="#EA4335" />
+      <path d="M22.39 6A12 12 0 0 1 12 24L12 12Z" fill="#FBBC05" />
+      <path d="M12 24A12 12 0 0 1 1.61 6L12 12Z" fill="#34A853" />
+      <circle cx="12" cy="12" r="6.4" fill="#ffffff" />
+      <circle cx="12" cy="12" r="5.1" fill="#4285F4" />
+    </svg>
+  );
+}
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -103,7 +145,7 @@ const PLATFORMS: Array<{
   value: StepPlatform;
   label: string;
   icon: LocalGlyphName;
-  browser: { name: string; icon: LocalGlyphName; note: string };
+  browser: { name: string; icon: 'safari' | 'chrome'; note: string };
   steps: InstallStep[];
 }> = [
   {
@@ -358,7 +400,7 @@ export default function PrototypeInstallWebAppSheet({ open, onClose, platform, o
 
           <p className="proto-install-web-app-sheet__browser">
             <span className="proto-install-web-app-sheet__browser-icon" aria-hidden>
-              <BrandGlyph name={active.browser.icon} size={16} />
+              <BrowserAppIcon browser={active.browser.icon} />
             </span>
             <span className="proto-install-web-app-sheet__browser-text">
               <strong>In {active.browser.name}.</strong> {active.browser.note}
