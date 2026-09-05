@@ -62,13 +62,25 @@ export interface GuestNote {
   updatedAt: string;
 }
 
+/**
+ * A guest's settings, for the ones that are theirs to keep.
+ *
+ * Only what reading needs. A member's preferences live on `UserMetadata`, which is why the
+ * translation switch used to POST, 401, and silently revert for a guest — the chapter in
+ * front of them changed, and the next one opened in the old version.
+ */
+export interface GuestPrefs {
+  defaultTranslation?: string;
+}
+
 interface GuestStore {
   version: number;
   highlights: GuestHighlight[];
   notes: GuestNote[];
+  prefs: GuestPrefs;
 }
 
-const EMPTY: GuestStore = { version: STORE_VERSION, highlights: [], notes: [] };
+const EMPTY: GuestStore = { version: STORE_VERSION, highlights: [], notes: [], prefs: {} };
 
 /**
  * The parsed store, held so repeated reads hand back the same array identity.
@@ -92,6 +104,8 @@ function read(): GuestStore {
       version: STORE_VERSION,
       highlights: Array.isArray(parsed.highlights) ? parsed.highlights : [],
       notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+      /* Absent in a store written before prefs existed — an empty object, not a migration. */
+      prefs: parsed.prefs && typeof parsed.prefs === 'object' ? parsed.prefs : {},
     };
   } catch {
     /* unreadable or corrupt — an empty store beats a broken reader */
@@ -221,6 +235,16 @@ export function updateGuestNote(
 export function deleteGuestNote(id: string): void {
   const store = read();
   write({ ...store, notes: store.notes.filter((n) => n.id !== id) });
+}
+
+export function guestPrefs(): GuestPrefs {
+  return read().prefs;
+}
+
+/** Merge one setting. Same write path as everything else, so subscribers hear it. */
+export function setGuestPrefs(updates: GuestPrefs): void {
+  const store = read();
+  write({ ...store, prefs: { ...store.prefs, ...updates } });
 }
 
 /** What the guest has to lose by walking away — the exit prompt says this out loud. */

@@ -800,7 +800,11 @@ export default function PrototypeNotePage() {
     than widening it, because the co-edit and pen logic below means "this saved note is
     mine" and must keep meaning exactly that.
   */
-  const viewerIsAuthor = isDraft || isOwnNote;
+  /* A guest is the author of everything they can open: their notes never leave the device,
+     and `guestNoteDetail` carries no `isOwnNote` — so without this the "Saved on this device"
+     line below vanished the moment the note was reopened, which is exactly when someone asks
+     where it went. */
+  const viewerIsAuthor = isDraft || isOwnNote || isGuest;
 
   /*
     Where this note lives.

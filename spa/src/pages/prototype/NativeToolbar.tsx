@@ -136,7 +136,9 @@ export function resolveNativeToolbarContextCapabilities(options: {
   if (options.isGuest) {
     return {
       canOrganize: true,
-      canPin: true,
+      /* Pinning is a column on a row the server owns, and there is no local stand-in for
+         it — the menu item 401'd. Organizing a local note is still coherent. */
+      canPin: false,
       canRemove: false,
       canShare: false,
     };
@@ -495,7 +497,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
           spaceGlyph={spaceGlyph}
           spaceLabel={activeSpaceTitleForChip ?? (activeChurchOrgId ? 'My Church' : 'My Home')}
           spaceMenuOpen={spaceMenuOpen}
-          onOpenSpaceMenu={() => setSpaceMenuOpen((open) => !open)}
+          /* No menu exists for them, so the segment must not advertise one. */
+          hasSpaceMenu={!isGuest}
+          onOpenSpaceMenu={() => {
+            /*
+             * `SpaceSwitcherMenu` renders nothing without a home space, which for a guest is
+             * permanent — so the second press on the Activity segment opened no menu, while
+             * the button went on claiming `aria-expanded` over one. Spaces are an account's.
+             */
+            if (isGuest) {
+              offerGuestAccount('Spaces');
+              return;
+            }
+            setSpaceMenuOpen((open) => !open);
+          }}
           spaceMenuTriggerRef={activitySegmentRef}
         />
         {/* Renders no trigger of its own — the Activity segment above is the button, and

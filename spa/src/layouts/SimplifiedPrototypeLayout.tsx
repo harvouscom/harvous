@@ -64,6 +64,9 @@ import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
 import type { ComposePurpose } from '../lib/compose-purpose';
+import { offerGuestAccount } from '../lib/guest-gate';
+import { guestPrefs } from '../lib/guest-store';
+import { updateCachedProfileData } from '@/utils/profile-cache';
 import {
   morphFromIfStillPlaced,
   noteDockReturnSearch,
@@ -160,7 +163,12 @@ export default function SimplifiedPrototypeLayout() {
   useGuestAdoption();
   // The checklist has nothing to wait for when there is no account — see the function's note.
   useEffect(() => {
-    if (identity.isGuest) hydrateOnboardingForGuest();
+    if (!identity.isGuest) return;
+    hydrateOnboardingForGuest();
+    /* The reader reads its default off the profile cache, which is sessionStorage and empty
+       for a guest on every new tab. Their choice lives in the guest store, which is not. */
+    const saved = guestPrefs().defaultTranslation;
+    if (saved) updateCachedProfileData({ defaultTranslation: saved });
   }, [identity.isGuest]);
 
   // Warm the Library panel's chunk on idle, so its first open is not its slowest.
@@ -1288,6 +1296,9 @@ function DrawerOverlay({ onClose }: { onClose: () => void }) {
 
 function PrototypeShortcutBridge() {
   const navigate = useRouter();
+  /* The chords answer to the same rule the toolbar does: a guest can read, move around and
+     write, and everything else explains itself rather than going quiet. */
+  const { isGuest } = useHarvousIdentity();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // Mirrors NativeToolbar's derivation. Without this, reading a foreign author's
   // note in a shared space (any non-owner member) fetched details unscoped here,
@@ -1365,11 +1376,17 @@ function PrototypeShortcutBridge() {
       sidebarLayer,
       sidebarListSpaceScope,
     });
-    if (!targetSpaceId) return;
+    /* A guest composes into no space at all — the note is saved to this device. Without
+       this exemption N was dead for them while the toolbar's own button worked. */
+    if (!targetSpaceId && !isGuest) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    beginPrototypeComposeSession({ targetSpaceId, ...(purpose ? { purpose } : {}) });
+    beginPrototypeComposeSession({
+      ...(targetSpaceId ? { targetSpaceId } : {}),
+      ...(purpose ? { purpose } : {}),
+    });
     navigate.navigate({ to: prototypeHomeRouteTo() });
   }, [
+    isGuest,
     activeSpaceId,
     beginPrototypeComposeSession,
     closeDrawer,
@@ -1415,6 +1432,10 @@ function PrototypeShortcutBridge() {
    * sweep across the shell and the native parity tests, and the fossil is documented here.
    */
   const focusPrototypeSidebarSearch = useCallback(() => {
+    if (isGuest) {
+      offerGuestAccount('Search');
+      return;
+    }
     /* Opened by a chord, so there is no chip box to grow from — clearing the last one
        makes the panel fade in rather than morph out of a control nobody touched.
        Focus is the field's own `autoFocus`; a `querySelector` after a frame raced the
@@ -1422,7 +1443,7 @@ function PrototypeShortcutBridge() {
     clearLibraryChipRect();
     /* This chord *is* a search, so the caret goes where the query will. */
     openLibraryPanel({ tab: 'all', drill: null, autoFocusSearch: true });
-  }, [openLibraryPanel]);
+  }, [isGuest, openLibraryPanel]);
 
   /*
    * ⇧← / ⇧→ walks sections of whichever browse surface is actually up.
@@ -1434,6 +1455,10 @@ function PrototypeShortcutBridge() {
    */
   const cycleListMode = useCallback(
     (step: number) => {
+      if (isGuest) {
+        offerGuestAccount('Search');
+        return;
+      }
       if (libraryPanelView) {
         setLibraryPanelView(cycleLibraryTab(libraryPanelView, step >= 0 ? 1 : -1));
         return;
@@ -1457,6 +1482,7 @@ function PrototypeShortcutBridge() {
     [
       desktopSidebarCollapsed,
       ensureSidebarExpanded,
+      isGuest,
       isMobileSidebar,
       libraryPanelView,
       openLibraryPanel,
@@ -1473,16 +1499,24 @@ function PrototypeShortcutBridge() {
    * the shell switch it sits under.
    */
   const showActivity = useCallback(() => {
-    if (!homeSpaceId) return;
+    /* `homeSpaceId` is a moment during boot for a member and permanent for a guest, so
+       gating on it alone made ⇧H dead for a whole visit. Moving around needs no space. */
+    if (!homeSpaceId && !isGuest) return;
     shellModeNav.openActivity();
-  }, [homeSpaceId, shellModeNav]);
+  }, [homeSpaceId, isGuest, shellModeNav]);
 
   /* ⇧L opens the Library, which is where lists live now. Browsing, so no caret — the
      arrow keys belong to the list here, not to a text cursor. */
   const showListLayer = useCallback(() => {
+    /* The same answer the Library chip gives — see `offerGuestAccount('Search')` there.
+       The chords used to walk straight past that gate into a panel with nothing to read. */
+    if (isGuest) {
+      offerGuestAccount('Search');
+      return;
+    }
     clearLibraryChipRect();
     openLibraryPanel({ tab: 'all', drill: null });
-  }, [openLibraryPanel]);
+  }, [isGuest, openLibraryPanel]);
 
   /*
    * The toolbar's shell switch, driven from the keyboard — the same hook, so the chords and
@@ -1495,10 +1529,12 @@ function PrototypeShortcutBridge() {
    * which is what "back" means to someone who was in a note when they pressed it.
    */
   const toggleReader = useCallback(() => {
-    if (!homeSpaceId) return;
+    /* Reading is the whole product for a guest, and this chord was the one door they
+       could not use — a chapter needs no space. */
+    if (!homeSpaceId && !isGuest) return;
     if (shellModeNav.mode === 'reader') shellModeNav.leaveReader();
     else shellModeNav.openReader();
-  }, [homeSpaceId, shellModeNav]);
+  }, [homeSpaceId, isGuest, shellModeNav]);
 
   useEffect(() => {
     const onNewNote = (event: Event) => {

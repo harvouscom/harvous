@@ -161,7 +161,7 @@ export function useCreateChapterHighlight(
         // guest does not have, so without this the checklist would never tick the step they
         // just finished.
         markOnboardingStep('highlight');
-        return addGuestHighlight({
+        const saved = addGuestHighlight({
           book,
           chapter,
           translation,
@@ -170,6 +170,14 @@ export function useCreateChapterHighlight(
           spanKey: input.spanKey ?? null,
           excerpt: input.excerpt ?? '',
         });
+        /*
+         * Wrapped exactly as the POST answers, which is what the comment above always
+         * claimed and the code did not do. Callers read `result.highlight.id` — the bare
+         * row made that `undefined`, so a guest's first Annotate on a verse got no entry
+         * id, and the mini-note they typed was held in a pending ref and never written.
+         * It only appeared to work the second time, off the stored id.
+         */
+        return { success: true, highlight: saved };
       }
       if (!spaceId) throw new Error('No space to save this highlight to yet');
       const res = await fetch('/api/scripture/highlights', {

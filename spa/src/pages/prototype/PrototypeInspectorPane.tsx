@@ -38,6 +38,8 @@ import ProtoNoteSearch from './ProtoNoteSearch';
 import { useNavigationSharedSpaceAccess } from '../../hooks/queries/useNavigation';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import PrototypeFolderTagEditor from './PrototypeFolderTagEditor';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { offerGuestAccount } from '../../lib/guest-gate';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import SharedNoteActivityPanel from './SharedNoteActivityPanel';
@@ -69,6 +71,25 @@ import {
   DELETE_NOTE_EVERYWHERE_CONFIRMATION,
   REMOVE_NOTE_FROM_SPACE_CONFIRMATION as SHARED_REMOVE_NOTE_FROM_SPACE_CONFIRMATION,
 } from './proto-destructive-copy';
+
+/**
+ * A section a guest can see but not use yet.
+ *
+ * Shown rather than hidden: the inspector is where someone learns what a note *has*, and a
+ * missing section teaches nothing. The editors behind these all write through the server, so
+ * for a guest they used to 401 and roll back — a row that looked like it worked and did not.
+ */
+function PrototypeInspectorGuestRow({ what }: { what: string }) {
+  return (
+    <button
+      type="button"
+      className="proto-inspector-templates__action-secondary"
+      onClick={() => offerGuestAccount(what)}
+    >
+      {what} need a free account
+    </button>
+  );
+}
 
 /**
  * What the pane hands the templates section — which is exactly what the section takes.
@@ -254,6 +275,7 @@ export default function PrototypeInspectorPane({
     },
     [queryClient, note.id],
   );
+  const { isGuest } = useHarvousIdentity();
   const templateFromId = (
     templates?.startedFromTemplateId ??
     note.startedFromTemplateId ??
@@ -400,11 +422,15 @@ export default function PrototypeInspectorPane({
         <>
       <section className="proto-inspector-section">
         <PrototypeSectionHeader>Tags</PrototypeSectionHeader>
-        <PrototypeFolderTagEditor
-          note={note}
-          contextSpaceId={contextSpaceId}
-          tagsOnly
-        />
+        {isGuest ? (
+          <PrototypeInspectorGuestRow what="Tags" />
+        ) : (
+          <PrototypeFolderTagEditor
+            note={note}
+            contextSpaceId={contextSpaceId}
+            tagsOnly
+          />
+        )}
       </section>
 
       {/*
@@ -508,11 +534,15 @@ export default function PrototypeInspectorPane({
 
       <section className="proto-inspector-section">
         <PrototypeSectionHeader>Folders</PrototypeSectionHeader>
-        <PrototypeFolderTagEditor
-          note={note}
-          contextSpaceId={contextSpaceId}
-          folderOnly
-        />
+        {isGuest ? (
+          <PrototypeInspectorGuestRow what="Folders" />
+        ) : (
+          <PrototypeFolderTagEditor
+            note={note}
+            contextSpaceId={contextSpaceId}
+            folderOnly
+          />
+        )}
       </section>
 
 

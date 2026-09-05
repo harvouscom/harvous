@@ -22,6 +22,8 @@ import PrototypeBrowseTemplatesSheet, {
 } from './PrototypeBrowseTemplatesSheet';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { offerGuestAccount } from '../../lib/guest-gate';
 
 export type PrototypeInspectorTemplatesSectionProps = {
   spaceId?: string | null;
@@ -59,6 +61,7 @@ export default function PrototypeInspectorTemplatesSection({
   onTemplateProvenanceChange,
 }: PrototypeInspectorTemplatesSectionProps) {
   const { clearComposePurpose } = useProtoShell();
+  const { isGuest } = useHarvousIdentity();
   const [browseOpen, setBrowseOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
@@ -209,7 +212,19 @@ export default function PrototypeInspectorTemplatesSection({
     <section className="proto-inspector-section">
       <PrototypeSectionHeader>Templates</PrototypeSectionHeader>
 
-      {!saveOpen ? (
+      {isGuest ? (
+        /* Both actions here write to the server: saving one is a row, and the list is the
+           account's. The offer is the honest version of a button that returned a 401. */
+        <div className="proto-inspector-templates__actions">
+          <button
+            type="button"
+            className="proto-inspector-templates__action-secondary"
+            onClick={() => offerGuestAccount('Templates')}
+          >
+            Templates need a free account
+          </button>
+        </div>
+      ) : !saveOpen ? (
         <div className="proto-inspector-templates__actions">
           {isEmpty ? (
             <button type="button" className="proto-inspector-templates__action" onClick={openBrowse}>

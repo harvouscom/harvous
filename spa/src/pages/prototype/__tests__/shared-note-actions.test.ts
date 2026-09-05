@@ -567,9 +567,14 @@ describe('shared permission and Thread picker policies', () => {
     ).toEqual({ canOrganize: true, canPin: true, canRemove: false, canShare: true });
   });
 
-  it('withholds sharing from a guest, and only sharing', () => {
-    // A guest's note lives in their browser and nowhere else, so there is no link to hand out.
-    // Organizing and pinning it are still coherent, so they stay.
+  it('withholds sharing and pinning from a guest', () => {
+    /*
+     * A guest's note lives in their browser and nowhere else, so there is no link to hand
+     * out. Pinning was left on here on the reasoning that it is still coherent for a local
+     * note — but it is not local: the item fired `PATCH` at a row the server has never seen
+     * and answered "Could not update pin", and there is no on-device pin to stand in for it.
+     * Organizing stays, because a folder is written into the note itself.
+     */
     expect(
       resolveNativeToolbarContextCapabilities({
         hasSharedContext: false,
@@ -578,7 +583,7 @@ describe('shared permission and Thread picker policies', () => {
         isSpaceOwner: false,
         isGuest: true,
       }),
-    ).toEqual({ canOrganize: true, canPin: true, canRemove: false, canShare: false });
+    ).toEqual({ canOrganize: true, canPin: false, canRemove: false, canShare: false });
   });
 
   it('uses explicit-context membership instead of active-shell ownership', () => {

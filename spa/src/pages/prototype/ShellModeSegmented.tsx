@@ -37,6 +37,7 @@ export default function ShellModeSegmented({
   spaceGlyph,
   spaceLabel,
   spaceMenuOpen = false,
+  hasSpaceMenu = true,
   onOpenSpaceMenu = () => {},
   spaceMenuTriggerRef,
   unseenLabel = null,
@@ -67,6 +68,9 @@ export default function ShellModeSegmented({
    * meaning reaches anyone is through this half's label. Null means no dot.
    */
   unseenLabel?: string | null;
+  /** Whether pressing this on Activity actually opens a menu — false for a guest, who has
+      no spaces to switch between and gets an explanation instead. */
+  hasSpaceMenu?: boolean;
 }) {
   /*
    * The Activity half says what it will do, which changes with where you are. On Activity
@@ -74,7 +78,7 @@ export default function ShellModeSegmented({
    * describing the job it no longer has.
    */
   const activityBase =
-    mode === 'activity' ? `${spaceLabel ?? 'My Home'} — switch space` : 'Activity';
+    mode === 'activity' && hasSpaceMenu ? `${spaceLabel ?? 'My Home'} — switch space` : 'Activity';
   /* Comma, not a third dash — the base label already spends two on naming its two jobs. */
   const activityLabel = unseenLabel ? `${activityBase}, ${unseenLabel}` : activityBase;
   const noteLabel = hasNoteToResume
@@ -110,8 +114,8 @@ export default function ShellModeSegmented({
           /* Names the second job, or only the people who click twice ever find it. */
           title={activityLabel}
           aria-label={activityLabel}
-          aria-haspopup="menu"
-          aria-expanded={spaceMenuOpen}
+          aria-haspopup={hasSpaceMenu ? 'menu' : undefined}
+          aria-expanded={hasSpaceMenu ? spaceMenuOpen : undefined}
           disabled={disabled}
           /*
            * Two jobs, resolved by where you already are — the same bargain the space
