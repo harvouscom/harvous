@@ -21271,28 +21271,40 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   padding-bottom: var(--pds-space-5);
   --proto-feed-fade: 14px;
   /*
-   * Bottom only. The fade says "there is more below", and at the bottom that is true — the
-   * content runs to the sheet's edge and the softening is what tells you so.
+   * Bottom always; top only once there is something under it.
    *
-   * At the top it said nothing, because there is nothing up there to scroll under:
-   * `.proto-feed-sheet__head` is a static flex row above this box, not a sticky overlay, so
-   * the first line never passes beneath anything. All the top half did was dim whatever came
-   * first — the day's opening section on Activity, the greeting on a guest's sheet — and the
-   * `padding-bottom` above carried a matching `padding-top` in its comment but never in the
-   * rule, which is the tell that this was half-written from the start.
+   * The bottom fade says "there is more below", and at the bottom that is always true — the
+   * content runs to the sheet's edge and the softening is what tells you so. A top fade that
+   * was on all the time said nothing: `.proto-feed-sheet__head` is a static row above this
+   * box, not a sticky overlay, so at rest the first line never passes beneath anything, and
+   * all a permanent top fade did was dim whatever came first — the greeting. That is why it
+   * was removed.
+   *
+   * The case it was removed for is `scrollTop === 0`. Once you have scrolled, the top edge is
+   * exactly a place content passes under, and the same softening is exactly as informative
+   * there as it is at the bottom — "there is more above". So the top fade keys on
+   * `data-scrolled`, which Activity's scroller sets on itself. At rest the top stop is 0 and
+   * the gradient starts hard, which is the same as no fade; scrolled, it opens to the fade.
    */
+  --proto-feed-fade-top: 0px;
   -webkit-mask-image: linear-gradient(
     to bottom,
-    #000 0,
+    transparent 0,
+    #000 var(--proto-feed-fade-top),
     #000 calc(100% - var(--proto-feed-fade)),
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
-    #000 0,
+    transparent 0,
+    #000 var(--proto-feed-fade-top),
     #000 calc(100% - var(--proto-feed-fade)),
     transparent 100%
   );
+}
+
+.proto-feed-sheet__body[data-scrolled] {
+  --proto-feed-fade-top: var(--proto-feed-fade);
 }
 
 /*

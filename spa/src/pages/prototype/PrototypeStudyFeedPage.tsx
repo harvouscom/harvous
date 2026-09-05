@@ -709,7 +709,18 @@ export default function PrototypeStudyFeedPage() {
             </div>
           </header>
 
-          <div className="proto-feed-sheet__body">
+          {/*
+            * `data-scrolled` drives the top fade — see `.proto-feed-sheet__body` in CSS. Set
+            * straight on the element rather than through state: this page is large, and a
+            * re-render on every scroll event would be a high price for one attribute.
+            */}
+          <div
+            className="proto-feed-sheet__body"
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              el.toggleAttribute('data-scrolled', el.scrollTop > 0);
+            }}
+          >
             {/*
               * Today opens with the greeting the sidebar opens with — the same sentence, the
               * same chips, one component. Only today: it is written in the present tense
