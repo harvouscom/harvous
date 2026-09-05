@@ -27,7 +27,11 @@ export interface SubscriptionStatusResponse {
   hasSharedSpaces: boolean;
   /** Connector — a separate product with its own subscription, not a Plus tier. */
   hasConnector?: boolean;
-  /** On the capped founding price ($30/yr, first 99). Founding and standard Plus share planKey 'plus'. */
+  /**
+   * Claimed the founding offer while it existed (first 99). The offer is retired
+   * — see `foundingOffer()` — but this stays true for anyone who took it, and
+   * Founding and standard Plus share planKey 'plus'.
+   */
   isFounding?: boolean;
   entitlements: FeatureKey[];
   planKey: PlanKey | null;

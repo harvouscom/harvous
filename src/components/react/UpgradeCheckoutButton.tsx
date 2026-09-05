@@ -5,6 +5,7 @@ import {
   planFor,
   type PlanDefinition,
 } from '@/lib/billing-plans';
+import { billingErrorMessage, BILLING_FALLBACK_MESSAGE } from '@/lib/billing-errors';
 import { trackCheckoutStarted } from '@/utils/analytics';
 import { recordAudiencefulMilestoneOnce } from '@/utils/audienceful-milestones-client';
 
@@ -28,7 +29,7 @@ type FoundingAvailability = {
 type PlanOption = {
   id: string;
   productId: string;
-  /** Short chip label, e.g. "$49/yr". */
+  /** Short chip label, e.g. "$36/yr". */
   chip: string;
   /** Full accessible name for the option. */
   label: string;
@@ -73,6 +74,15 @@ function PlanToggle({
     </div>
   );
 }
+
+/**
+ * A failure with copy already written for the person reading it.
+ *
+ * The distinction matters because the other errors that reach the same catch —
+ * `TypeError: Failed to fetch`, a JSON parse failure — carry text meant for a
+ * developer. Only messages raised as this class are shown as-is.
+ */
+class CheckoutMessage extends Error {}
 
 function preferredTheme(): 'light' | 'dark' {
   if (typeof document !== 'undefined' && document.documentElement.dataset.theme) {
@@ -213,19 +223,22 @@ export default function UpgradeCheckoutButton({
           // so nothing to re-select — reloading availability drops the
           // first-year price off the annual chip.
           await loadFounding();
-          throw new Error('The founding price was just claimed. Standard pricing is shown.');
+          throw new CheckoutMessage('The founding price was just claimed. Standard pricing is shown.');
         }
-        throw new Error(body.error || 'Unable to start checkout');
+        // Never `body.error` on its own: a 502 from the gateway, or any failure
+        // whose text came from Polar rather than from us, would be printed at
+        // the user. Only codes this app assigns carry showable copy.
+        throw new CheckoutMessage(billingErrorMessage(body));
       }
 
       const { url } = (await res.json()) as { url: string };
-      if (!url) throw new Error('Unable to start checkout');
+      if (!url) throw new CheckoutMessage(BILLING_FALLBACK_MESSAGE);
 
       const checkoutUrl = new URL(url);
       checkoutUrl.searchParams.set('theme', preferredTheme());
       window.location.assign(checkoutUrl.toString());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to start checkout');
+      setError(err instanceof CheckoutMessage ? err.message : BILLING_FALLBACK_MESSAGE);
       setIsStarting(false);
     }
   }, [loadFounding, selected]);

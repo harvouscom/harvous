@@ -260,9 +260,10 @@ export default function UpgradePageContent({
               ))}
             </ul>
 
-            {/* Nothing is promised when nothing is coming. Review and Challenges shipped in
-                3.0 and moved into the list above; a heading over an empty list would be the
-                page advertising a blank. */}
+            {/* Nothing is promised when nothing is coming. Review shipped in 3.0 and moved
+                into the list above, and Challenges is gated but deliberately unadvertised, so
+                neither is pending; a heading over an empty list would be the page advertising
+                a blank. */}
             {PLUS_COMING_SOON_FEATURE_BULLETS.length > 0 ? (
               <>
                 <p className="public-addon-letter__coming-label">Coming soon</p>

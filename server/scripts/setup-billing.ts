@@ -36,22 +36,23 @@ type DesiredProduct = {
  * a duplicate product instead of failing. `npm run billing:verify` is what
  * catches the drift.
  *
- * Founding is not here on purpose: since 3.0 it is a `duration: once` discount
- * on the annual product, not a product. Create it in the Polar dashboard with
- * `max_redemptions` equal to `FOUNDING_CAP`, restricted to the annual product,
- * and put its id in POLAR_PLUS_FOUNDING_DISCOUNT_ID.
+ * Founding is not here because it is retired — see `foundingOffer()`, which
+ * returns null unconditionally now that annual is half the monthly rate. No
+ * discount needs creating, and POLAR_PLUS_FOUNDING_DISCOUNT_ID is read by
+ * nothing; any discount still live in the Polar dashboard should be archived
+ * so it cannot be redeemed from a stale link.
  */
 const DESIRED: DesiredProduct[] = [
   {
     name: 'Harvous Plus (Monthly)',
     interval: 'month',
-    amountCents: 700,
+    amountCents: 600,
     envVar: 'POLAR_PLUS_PRODUCT_MONTHLY',
   },
   {
     name: 'Harvous Plus (Annual)',
     interval: 'year',
-    amountCents: 4900,
+    amountCents: 3600,
     envVar: 'POLAR_PLUS_PRODUCT_ANNUAL',
   },
   {
@@ -197,11 +198,26 @@ async function main() {
   }
 
   if (envOut.length) {
-    console.log('\n─── Put these in env (Netlify for production) ───');
-    for (const line of envOut) console.log(line);
-    for (const line of envOut) {
-      if (VITE_MIRROR_PREFIXES.some((prefix) => line.startsWith(prefix))) {
-        console.log(`VITE_${line}`);
+    // Netlify is gone from this path: the API is Fly (fly.toml, fly-deploy.yml)
+    // and the SPA is built by .github/workflows/cloudflare-deploy.yml, which has
+    // no Netlify build role to inherit env from — it reads GitHub repo secrets
+    // directly. Every line below is server-side; only the VITE_ mirrors also
+    // need to exist as a GitHub secret for the Cloudflare build.
+    console.log('\n─── Fly (server) — `server/routes/billing.ts` reads these unprefixed ───');
+    console.log(`fly secrets set ${envOut.join(' ')}`);
+
+    const viteLines = envOut.filter((line) =>
+      VITE_MIRROR_PREFIXES.some((prefix) => line.startsWith(prefix)),
+    );
+    if (viteLines.length) {
+      console.log(
+        '\n─── GitHub Actions repo secrets — cloudflare-deploy.yml bakes these into the SPA at build time ───',
+      );
+      for (const line of viteLines) {
+        const eq = line.indexOf('=');
+        const key = line.slice(0, eq);
+        const value = line.slice(eq + 1);
+        console.log(`gh secret set VITE_${key} --body "${value}"`);
       }
     }
   }
