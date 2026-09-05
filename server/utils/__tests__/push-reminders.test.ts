@@ -114,12 +114,18 @@ describe('dueKindFor', () => {
     expect(dueKindFor({ ...settings, midweek: false }, wednesdayAt(8))).toBeNull();
   });
 
-  it('cannot produce two kinds on one day, because midweek is never Sunday', () => {
-    // midweekDay is typed 1..6, so the only weekday that can match Sunday is the Sunday
-    // switch itself. This asserts the consequence rather than the type.
-    for (let day = 1; day <= 6; day += 1) {
+  it('cannot produce two kinds on one day, because midweek is only Tue-Thu', () => {
+    // The type allows 2..4 only, so no midweek day can collide with Sunday. This asserts the
+    // consequence rather than the type.
+    for (const day of [2, 3, 4] as const) {
       const parts = { hour: 8, weekday: 0, localDate: '2026-09-06' };
-      expect(dueKindFor({ ...settings, midweekDay: day as 1 | 2 | 3 | 4 | 5 | 6 }, parts)).toBe('sunday');
+      expect(dueKindFor({ ...settings, midweekDay: day }, parts)).toBe('sunday');
+    }
+  });
+
+  it('never fires midweek on a Monday, Friday or Saturday', () => {
+    for (const weekday of [1, 5, 6]) {
+      expect(dueKindFor(settings, { hour: 8, weekday, localDate: '2026-09-07' })).toBeNull();
     }
   });
 });

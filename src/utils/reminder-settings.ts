@@ -10,8 +10,14 @@
  * raise it. A field for "how many" would be an invitation to send more.
  */
 
-/** 1 = Monday … 6 = Saturday. Sunday is its own switch, so it can never be the midweek day. */
-export type MidweekDay = 1 | 2 | 3 | 4 | 5 | 6;
+/**
+ * Tuesday, Wednesday or Thursday — the days that are actually midweek.
+ *
+ * Narrower than "any day that isn't Sunday" on purpose. Monday and Saturday sit against the
+ * weekend and read as the start or end of one, not the middle; Friday belongs to the weekend
+ * for most people. Offering six choices invited the reader to pick a day the label contradicts.
+ */
+export type MidweekDay = 2 | 3 | 4;
 
 export interface ReminderSettings {
   sunday: boolean;
@@ -41,13 +47,13 @@ export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
 export const REMINDER_HOUR_MIN = 5;
 export const REMINDER_HOUR_MAX = 20;
 
+/** In order, and the single source for both the label and the picker's options. */
+export const MIDWEEK_DAYS: readonly MidweekDay[] = [2, 3, 4];
+
 const MIDWEEK_DAY_LABELS: Record<MidweekDay, string> = {
-  1: 'Monday',
   2: 'Tuesday',
   3: 'Wednesday',
   4: 'Thursday',
-  5: 'Friday',
-  6: 'Saturday',
 };
 
 export function midweekDayLabel(day: MidweekDay): string {
@@ -55,7 +61,7 @@ export function midweekDayLabel(day: MidweekDay): string {
 }
 
 function isMidweekDay(value: unknown): value is MidweekDay {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 6;
+  return value === 2 || value === 3 || value === 4;
 }
 
 function isHour(value: unknown): value is number {

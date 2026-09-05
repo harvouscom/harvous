@@ -19,10 +19,22 @@ describe('reminder-settings', () => {
     expect(validateReminderSettingsInput(valid)).toEqual({ ...valid, pausedByPolicy: null });
   });
 
-  it('rejects a midweek day outside Monday through Saturday', () => {
-    // Sunday has its own switch — allowing 0 here would let both fire on the same day.
-    expect(validateReminderSettingsInput({ ...valid, midweekDay: 0 })).toBeNull();
-    expect(validateReminderSettingsInput({ ...valid, midweekDay: 7 })).toBeNull();
+  it('accepts only Tuesday, Wednesday and Thursday as the midweek day', () => {
+    // "Midweek" is a claim about the day. Monday and Saturday sit against the weekend, and
+    // Friday belongs to it — offering them let the picker contradict its own label. Sunday
+    // has its own switch, so 0 would also let both kinds fire on one day.
+    for (const day of [2, 3, 4]) {
+      expect(validateReminderSettingsInput({ ...valid, midweekDay: day })).not.toBeNull();
+    }
+    for (const day of [0, 1, 5, 6, 7]) {
+      expect(validateReminderSettingsInput({ ...valid, midweekDay: day })).toBeNull();
+    }
+  });
+
+  it('rejects a stored day that is no longer offered', () => {
+    // An account that picked Friday before the choice narrowed reads as "never set", which
+    // the tick treats as off rather than sending on a day the label denies.
+    expect(parseReminderSettings(JSON.stringify({ ...valid, midweekDay: 5 }))).toBeNull();
   });
 
   it('rejects a non-integer or out-of-range hour', () => {
@@ -41,7 +53,7 @@ describe('reminder-settings', () => {
   });
 
   it('round-trips through serialize and parse', () => {
-    const settings = { ...valid, midweekDay: 5 as const, hour: 6, pausedByPolicy: null };
+    const settings = { ...valid, midweekDay: 4 as const, hour: 6, pausedByPolicy: null };
     expect(parseReminderSettings(serializeReminderSettings(settings))).toEqual(settings);
   });
 

@@ -17,6 +17,7 @@ import { toast } from '@/utils/toast';
 import { getInstallPlatform } from '@/utils/platform-detect';
 import {
   DEFAULT_REMINDER_SETTINGS,
+  MIDWEEK_DAYS,
   REMINDER_HOUR_MAX,
   REMINDER_HOUR_MIN,
   formatReminderHour,
@@ -41,8 +42,6 @@ import { SettingsGroup, SettingsIntro, SettingsRow, SettingsShell } from './Sett
 
 /** Debounce on the schedule writes: a run of taps on the hour select is one edit, not six. */
 const SAVE_DEBOUNCE_MS = 500;
-
-const MIDWEEK_DAYS: MidweekDay[] = [1, 2, 3, 4, 5, 6];
 
 function hourOptions(): number[] {
   const hours: number[] = [];
@@ -140,7 +139,7 @@ function DaySegmented({
             className={`proto-appearance-segmented__btn${value === day ? ' proto-appearance-segmented__btn--active' : ''}`}
             onClick={() => onChange(day)}
           >
-            {midweekDayLabel(day).slice(0, 3)}
+            {midweekDayLabel(day)}
           </button>
         ))}
       </div>
@@ -281,8 +280,7 @@ export default function PrototypeRemindersPage() {
   return (
     <SettingsShell>
       <SettingsIntro>
-        A nudge on Sunday morning and once midweek, carrying the day&rsquo;s verse or the chapter you
-        left. Never more than two a week.
+        Sunday morning and midweek, carrying the day&rsquo;s verse or where you left off.
       </SettingsIntro>
 
       {support === 'unsupported' ? (
@@ -467,8 +465,8 @@ export default function PrototypeRemindersPage() {
 
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '4px 2px 0' }}>
         {status?.recentSummary ? `${status.recentSummary}. ` : ''}
-        You won&rsquo;t get one on a day you have already opened Harvous, and reminders pause
-        themselves if they go unopened.
+        Never more than two a week. You won&rsquo;t get one on a day you have already opened
+        Harvous, and reminders pause themselves if they go unopened.
       </p>
 
       <PrototypeInstallWebAppSheet open={sheetOpen} onClose={() => setSheetOpen(false)} platform={platform} />

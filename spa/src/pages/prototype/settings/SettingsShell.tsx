@@ -5,6 +5,13 @@ import { toast } from '@/utils/toast';
 /**
  * Optional intro under the settings header. Prefer omitting when the nav title
  * already explains the page — keep only for non-obvious behavior (e.g. PIN, Shift hints).
+ *
+ * Two rendered lines maximum, measured at the narrowest width the page renders at (the
+ * mobile settings sheet, ~335px), not at desktop — copy that fits the modal often wraps to
+ * three there. Not enforced with a line clamp on purpose: a clamp would
+ * silently truncate the third line, and copy nobody can read is worse than copy that is too
+ * long. Write to the limit instead — anything that will not fit belongs in a row's sublabel
+ * or the footnote under the groups, both of which have room.
  */
 export function SettingsIntro({ children }: { children: ReactNode }) {
   return (
