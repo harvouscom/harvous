@@ -7272,6 +7272,10 @@ button.proto-home-card--tappable:focus-visible {
 
 /* Mobile home — Add to Home Screen card (main pane empty state). */
 .proto-install-web-app-card {
+  cursor: pointer;
+  transition:
+    background 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.38s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   flex-shrink: 0;
   width: fit-content;
@@ -7287,7 +7291,53 @@ button.proto-home-card--tappable:focus-visible {
   pointer-events: auto;
 }
 
+/* The same lift a tappable home card takes, so a card that responds looks like
+   the others that do. */
+.proto-install-web-app-card:hover {
+  background: var(--pds-bg-control-strong);
+  box-shadow:
+    0 2px 4px rgba(60, 64, 67, 0.08),
+    0 8px 18px -10px rgba(60, 64, 67, 0.12),
+    var(--pds-glass-rim);
+}
+
+@media (prefers-color-scheme: dark) {
+  html.harvous-prototype-route:not([data-color-scheme='light']) .proto-install-web-app-card:hover,
+  html[data-color-scheme='dark'].harvous-prototype-route .proto-install-web-app-card:hover {
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.22),
+      0 8px 18px -10px rgba(0, 0, 0, 0.3),
+      var(--pds-glass-rim);
+  }
+}
+
+/* Covers the card, under its contents. The three real controls are lifted
+   above it so their own taps still reach them; everything else — the heading,
+   the padding, the empty corners — belongs to this. */
+.proto-install-web-app-card__surface-tap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.proto-install-web-app-card .proto-daily-passage-pill__dismiss,
+.proto-install-web-app-card__install,
+.proto-install-web-app-card__learn {
+  position: relative;
+  z-index: 2;
+}
+
 .proto-install-web-app-card__heading {
+  /* Lets a tap on the words reach the card's own layer under them. The
+     heading is not selectable text anyone needs — it is the card's label, and
+     the whole card is the target now. */
+  pointer-events: none;
   margin: 0;
   overflow: visible;
   text-overflow: unset;
@@ -7315,8 +7365,10 @@ button.proto-home-card--tappable:focus-visible {
   cursor: pointer;
 }
 
+/* No underline on hover: the whole card lifts now, which says "this responds"
+   without turning a call to action into a link. */
 .proto-install-web-app-card__learn:hover {
-  text-decoration: underline;
+  opacity: 0.72;
 }
 
 .proto-install-web-app-card__learn:focus-visible {

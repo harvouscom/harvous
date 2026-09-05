@@ -47,6 +47,11 @@ export default function PrototypeInstallWebAppCard() {
      Dismissed: the prompt is spent, `canInstall` flips false on its own, and
      the card falls back to the written steps — Chrome offers a fresh prompt on
      a later visit. */
+  const openSheet = useCallback(() => {
+    setSheetRequested(true);
+    setSheetOpen(true);
+  }, []);
+
   const installNow = useCallback(() => {
     void install().then((outcome) => {
       if (outcome === 'accepted') dismissFlag();
@@ -62,6 +67,29 @@ export default function PrototypeInstallWebAppCard() {
         role="region"
         aria-label="Add Harvous to your home screen for a more app-like experience"
       >
+        {/*
+          The card's own tap, as a layer under its contents rather than a
+          wrapper around them: the card holds three real controls, and a button
+          containing buttons is invalid markup that browsers resolve by dropping
+          one of them.
+
+          Hidden from assistive tech and skipped by the keyboard on purpose. It
+          repeats what "Learn how" below already does, and a screen reader
+          meeting the same action twice — once unlabelled — is worse served than
+          by the one labelled control it can reach.
+
+          It opens the explainer rather than installing, even where the one-tap
+          path exists: a stray tap on a large card should not put a system
+          dialog on the screen. Installing stays with the button that says so.
+        */}
+        <button
+          type="button"
+          className="proto-install-web-app-card__surface-tap"
+          aria-hidden
+          tabIndex={-1}
+          onClick={openSheet}
+        />
+
         <button type="button" className="proto-daily-passage-pill__dismiss" aria-label="Dismiss" onClick={dismiss}>
           <Icon name="xmark" size={10} aria-hidden />
           <span>Dismiss</span>
@@ -87,10 +115,7 @@ export default function PrototypeInstallWebAppCard() {
           type="button"
           className="proto-install-web-app-card__learn"
           aria-label="Learn how to add Harvous to your home screen"
-          onClick={() => {
-            setSheetRequested(true);
-            setSheetOpen(true);
-          }}
+          onClick={openSheet}
         >
           {/* Kept beside the one-tap path rather than replaced by it: a reader
               who wants to know what the button is about to do still has a way
