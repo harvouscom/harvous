@@ -72,6 +72,14 @@ describe('push routes', () => {
     expect(push()).toContain("row.outcome === 'dismissed' && outcome === 'clicked'");
   });
 
+  it('never caches a "not configured yet" answer', () => {
+    // Deploy order: if the app ships before the secrets reach the server, a cached false
+    // would leave clients unable to subscribe for a day after the keys are actually in
+    // place, with nothing on screen to explain it.
+    const block = routeBlock(push(), "app.get('/api/push/vapid-public-key'");
+    expect(block).toContain("configured ? 'public, max-age=86400' : 'no-store'");
+  });
+
   it('gates the tick trigger on the cron bearer outside development', () => {
     const block = routeBlock(push(), "app.post('/api/push/run-reminders'");
     expect(block).toContain('isCronAuthed(c)');

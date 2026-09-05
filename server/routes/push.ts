@@ -80,12 +80,22 @@ function readSubscription(raw: unknown): { endpoint: string; p256dh: string; aut
 
 // ─── GET /api/push/vapid-public-key ──────────────────────────────────────────
 // Public by design: it is the *public* half of the VAPID pair, and the client needs it before
-// it can subscribe. Cached for a day — it changes only when the keys are rotated.
+// it can subscribe.
 
 app.get('/api/push/vapid-public-key', (c) => {
   const key = vapidPublicKey();
-  c.res.headers.set('Cache-Control', 'public, max-age=86400');
-  return c.json({ publicKey: key, configured: isPushConfigured() });
+  const configured = isPushConfigured();
+  /*
+   * A day's caching for a real key, which changes only on rotation — but never for "not
+   * configured yet".
+   *
+   * Deploy order makes this matter. If the app ships before the VAPID secrets reach the
+   * server, every client that loads it caches `configured: false` and cannot subscribe for
+   * the next 24 hours, long after the secrets are in place, with nothing on screen to
+   * explain it. A missing answer must not be a sticky one.
+   */
+  c.res.headers.set('Cache-Control', configured ? 'public, max-age=86400' : 'no-store');
+  return c.json({ publicKey: key, configured });
 });
 
 // ─── POST /api/push/subscribe ────────────────────────────────────────────────
