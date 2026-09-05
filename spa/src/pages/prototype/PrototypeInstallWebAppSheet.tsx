@@ -1,62 +1,238 @@
-import { useEffect, type ReactNode } from 'react';
+/**
+ * How to put Harvous on a phone's home screen.
+ *
+ * Two things a reader needs that plain prose was not giving them: which
+ * platform these steps are for, and what the thing they are meant to tap looks
+ * like. So the platform is a segmented control rather than two stacked
+ * headings, and every step carries the glyph of the control it names — the
+ * share square, the three-dot menu — beside a numbered marker.
+ *
+ * **The browser line is the one that saves people.** On iOS only Safari can add
+ * to the home screen; a reader following these steps in Chrome finds no such
+ * menu item and concludes the app is broken. That is said under the toggle,
+ * before the steps, rather than left to be discovered at step two.
+ *
+ * The detected platform preselects the toggle, and both halves are always
+ * offered: detection is a guess (a desktop preview, an iPad reporting as a Mac,
+ * someone reading their partner's phone), and being wrong should cost a tap
+ * rather than hiding the steps that apply.
+ */
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
+import { safeRenderHtml } from '@/utils/content-renderer';
+import { useInstallPrompt } from '../../lib/install-prompt';
+import { appearanceCompanionImage } from '../../lib/appearance-companion-image';
+import { getColorSchemeSnapshot, subscribeColorScheme } from '../../lib/prototype-background';
 import type { InstallPlatform } from '@/utils/platform-detect';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
+/*
+  Five marks that live here rather than in the shared `Icon` registry.
+  That registry inlines every SVG it knows into the initial bundle, and these
+  are used on exactly one surface — a sheet most sessions never open. Held
+  locally, they ride this file's chunk instead of charging sign-in for the
+  Safari logo. Font Awesome Free ships the brand marks under CC BY 4.0.
+*/
+import appleSvg from '@fortawesome/fontawesome-free/svgs/brands/apple.svg?raw';
+import androidSvg from '@fortawesome/fontawesome-free/svgs/brands/android.svg?raw';
+import safariSvg from '@fortawesome/fontawesome-free/svgs/brands/safari.svg?raw';
+import chromeSvg from '@fortawesome/fontawesome-free/svgs/brands/chrome.svg?raw';
+/* iOS's Share control: a box with an arrow leaving it, which is the shape a
+   reader is hunting for in Safari's bottom bar — not FA's `share` swoosh. */
+import shareIosSvg from '@fortawesome/fontawesome-free/svgs/solid/arrow-up-from-bracket.svg?raw';
+
+const LOCAL_GLYPHS = {
+  apple: appleSvg,
+  android: androidSvg,
+  safari: safariSvg,
+  chrome: chromeSvg,
+  'share-ios': shareIosSvg,
+} as const;
+
+type LocalGlyphName = keyof typeof LOCAL_GLYPHS;
+
+/* One stable `{ __html }` per name+size, for the reason the shared Icon keeps
+   one: React re-applies innerHTML whenever the object identity changes. */
+const glyphMarkup = new Map<string, { __html: string }>();
+
+function glyphHtml(name: LocalGlyphName, size: number): { __html: string } {
+  const key = `${name}|${size}`;
+  let markup = glyphMarkup.get(key);
+  if (!markup) {
+    const sized = LOCAL_GLYPHS[name]
+      .replace(/<svg\s+/, `<svg fill="currentColor" width="${size}" height="${size}" style="display:block" `);
+    markup = { __html: safeRenderHtml(sized) };
+    glyphMarkup.set(key, markup);
+  }
+  return markup;
+}
+
+function BrandGlyph({ name, size = 16 }: { name: LocalGlyphName; size?: number }) {
+  return (
+    <span
+      aria-hidden
+      style={{ display: 'inline-flex', width: size, height: size, color: 'inherit' }}
+      dangerouslySetInnerHTML={glyphHtml(name, size)}
+    />
+  );
+}
 
 type Props = {
   open: boolean;
   onClose: () => void;
   platform: InstallPlatform;
+  /** Called when Chrome reports the install was accepted, so the card can go. */
+  onInstalled?: () => void;
 };
 
-function InstallStepsList({ children }: { children: ReactNode }) {
-  return <ol className="proto-install-web-app-sheet__steps">{children}</ol>;
-}
+/** The two platforms with steps. `other` picks a side rather than showing none. */
+type StepPlatform = 'ios' | 'android';
 
-function IosSteps() {
+type StepGlyph =
+  | { kind: 'icon'; name: 'plus' | 'check' | 'ellipsis-vertical' }
+  | { kind: 'local'; name: LocalGlyphName };
+
+type InstallStep = {
+  /** What to do, with the control's own name in bold where there is one. */
+  text: React.ReactNode;
+  /** The glyph of the thing being tapped; omitted when a step names no control. */
+  glyph?: StepGlyph;
+};
+
+const PLATFORMS: Array<{
+  value: StepPlatform;
+  label: string;
+  icon: LocalGlyphName;
+  browser: { name: string; icon: LocalGlyphName; note: string };
+  steps: InstallStep[];
+}> = [
+  {
+    value: 'ios',
+    label: 'iPhone',
+    icon: 'apple',
+    browser: {
+      name: 'Safari',
+      icon: 'safari',
+      /* Said because the steps below are Safari's. Chrome, Firefox and Edge
+         on iOS can install too — that has been true since iOS 16.4 — but each
+         puts the item somewhere else, so naming the browser the steps describe
+         is the honest version of this warning. Claiming they cannot would be
+         wrong, and wrong in a way a reader can catch. */
+      note: 'Other browsers can do this too, but the menu sits somewhere else.',
+    },
+    steps: [
+      { text: <>Tap <strong>Share</strong> in the bottom bar</>, glyph: { kind: 'local', name: 'share-ios' } },
+      { text: <>Scroll down and tap <strong>Add to Home Screen</strong></>, glyph: { kind: 'icon', name: 'plus' } },
+      { text: <>Tap <strong>Add</strong></>, glyph: { kind: 'icon', name: 'check' } },
+    ],
+  },
+  {
+    value: 'android',
+    label: 'Android',
+    icon: 'android',
+    browser: {
+      name: 'Chrome',
+      icon: 'chrome',
+      note: 'Other browsers may word this differently.',
+    },
+    steps: [
+      { text: <>Tap the menu in the top corner</>, glyph: { kind: 'icon', name: 'ellipsis-vertical' } },
+      { text: <>Tap <strong>Install app</strong> or <strong>Add to Home Screen</strong></>, glyph: { kind: 'icon', name: 'plus' } },
+      /* Which label the confirm carries depends on the Chrome version and
+         which of the two menu items was tapped, so the step names both rather
+         than betting on one. */
+      { text: <>Confirm with <strong>Install</strong> or <strong>Add</strong></>, glyph: { kind: 'icon', name: 'check' } },
+    ],
+  },
+];
+
+/**
+ * A sliver of the reader's own appearance above the title.
+ *
+ * The same picture their canvas is wearing, or the one the catalogue pairs with
+ * the colour they chose — see `appearance-companion-image`. A band above the
+ * header rather than a wash behind it, which is how a room wears its cover, and
+ * the reason is contrast: over the title the picture would have to be faded to
+ * about a third before `--pds-text-primary` was safe on the busiest frame in
+ * the catalogue, and a third of a photograph is a smudge. Given its own strip
+ * it can be itself, and the title keeps the contrast it always had.
+ *
+ * Held back until the file has decoded, the way the space hero is: the paired
+ * image is already cached when it is their wallpaper, and worth one frame of
+ * patience when it is not.
+ */
+function HeaderSliver() {
+  const mode = useSyncExternalStore(
+    subscribeColorScheme,
+    getColorSchemeSnapshot,
+    () => 'light' as const,
+  );
+  const companion = appearanceCompanionImage(mode);
+  const url = companion?.url ?? null;
+  const [readyUrl, setReadyUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!url) {
+      setReadyUrl(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setReadyUrl(null);
+    /* A plain decode rather than the auth-hero preloader: that module downloads
+       its own nine wallpapers the moment it is imported, which is a fair price
+       on the sign-in screen and an absurd one for a 62px strip. A failed load
+       still reveals it — the browser paints what it can, and a blank strip is
+       the worse of the two outcomes. */
+    const img = new Image();
+    const reveal = () => {
+      if (!cancelled) setReadyUrl(url);
+    };
+    img.onload = reveal;
+    img.onerror = reveal;
+    img.src = url;
+    return () => {
+      cancelled = true;
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [url]);
+
+  if (!url) return null;
+
+  /* The colour lands immediately and the picture crossfades over it, so the
+     strip is never an empty gap above the title. */
   return (
-    <InstallStepsList>
-      <li>
-        Tap the <strong>Share</strong> icon (square with arrow)
-      </li>
-      <li>
-        Scroll down and tap <strong>Add to Home Screen</strong>
-      </li>
-      <li>
-        Tap <strong>Add</strong>
-      </li>
-    </InstallStepsList>
+    <span
+      aria-hidden
+      className="proto-install-web-app-sheet__sliver"
+      style={companion?.tint ? { backgroundColor: companion.tint } : undefined}
+    >
+      <span
+        className={`proto-install-web-app-sheet__sliver-image${
+          readyUrl === url ? ' proto-install-web-app-sheet__sliver-image--ready' : ''
+        }`}
+        style={{ backgroundImage: `url("${url}")` }}
+      />
+    </span>
   );
 }
 
-function AndroidSteps() {
-  return (
-    <InstallStepsList>
-      <li>
-        Tap the menu (<strong>⋮</strong>) in the top corner
-      </li>
-      <li>
-        Tap <strong>Install app</strong> or <strong>Add to Home Screen</strong>
-      </li>
-    </InstallStepsList>
-  );
+/** iOS when nothing was detected — the larger half of the audience this card is shown to. */
+function initialPlatform(platform: InstallPlatform): StepPlatform {
+  return platform === 'android' ? 'android' : 'ios';
 }
 
-function sheetTitle(platform: InstallPlatform): string {
-  if (platform === 'ios') return 'Add Harvous on iPhone';
-  if (platform === 'android') return 'Add Harvous on Android';
-  return 'Add Harvous to your home screen';
-}
-
-function sheetEyebrow(platform: InstallPlatform): string {
-  if (platform === 'ios') return 'iPhone & iPad';
-  if (platform === 'android') return 'Android';
-  return 'Mobile browser';
-}
-
-export default function PrototypeInstallWebAppSheet({ open, onClose, platform }: Props) {
+export default function PrototypeInstallWebAppSheet({ open, onClose, platform, onInstalled }: Props) {
   const { mounted, exiting } = useProtoOverlayMotion(open);
+  const { canInstall, install } = useInstallPrompt();
+  const [selected, setSelected] = useState<StepPlatform>(() => initialPlatform(platform));
+
+  /* Re-armed on each opening rather than only on mount: the sheet stays mounted
+     between visits, so without this a reader who looked at the other platform
+     once would keep landing there. */
+  useEffect(() => {
+    if (open) setSelected(initialPlatform(platform));
+  }, [open, platform]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -68,6 +244,9 @@ export default function PrototypeInstallWebAppSheet({ open, onClose, platform }:
   }, [open, onClose]);
 
   if (!mounted || typeof document === 'undefined') return null;
+
+  const activeIndex = PLATFORMS.findIndex((p) => p.value === selected);
+  const active = PLATFORMS[activeIndex] ?? PLATFORMS[0];
 
   return createPortal(
     <div
@@ -91,13 +270,17 @@ export default function PrototypeInstallWebAppSheet({ open, onClose, platform }:
           .filter(Boolean)
           .join(' ')}
         role="dialog"
-        aria-label={sheetTitle(platform)}
+        aria-label="Add Harvous to your home screen"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="proto-votd-sheet__header">
+        <HeaderSliver />
+
+        <header className="proto-votd-sheet__header proto-install-web-app-sheet__header">
           <div className="proto-votd-sheet__header-text">
-            <p className="proto-caption proto-votd-sheet__eyebrow">{sheetEyebrow(platform)}</p>
-            <h2 className="proto-votd-sheet__reference">{sheetTitle(platform)}</h2>
+            {/* What this costs, not what device you are holding — the toggle
+                below already says that, and the old eyebrow said it twice. */}
+            <p className="proto-caption proto-votd-sheet__eyebrow">One-time setup</p>
+            <h2 className="proto-votd-sheet__reference">Add Harvous to your home screen</h2>
           </div>
           <button
             type="button"
@@ -112,20 +295,103 @@ export default function PrototypeInstallWebAppSheet({ open, onClose, platform }:
         <div className="proto-votd-sheet__divider" aria-hidden />
 
         <div className="proto-votd-sheet__body proto-install-web-app-sheet__body">
-          {platform === 'ios' ? <IosSteps /> : null}
-          {platform === 'android' ? <AndroidSteps /> : null}
-          {platform === 'other' ? (
-            <>
-              <p className="proto-migration-sheet__text">
-                <strong>iPhone (Safari)</strong>
+          {/*
+            Where Chrome has handed us a prompt, the button is the answer and
+            the steps below it are the fallback — so it goes first, and the
+            steps get a heading that says what they are for. On iOS there is no
+            prompt to hold, and this whole block is absent.
+          */}
+          {canInstall ? (
+            <div className="proto-install-web-app-sheet__oneTap">
+              <button
+                type="button"
+                className="proto-share-popover__primary"
+                onClick={() => {
+                  void install().then((outcome) => {
+                    if (outcome === 'accepted') {
+                      onInstalled?.();
+                      onClose();
+                    }
+                  });
+                }}
+              >
+                Install Harvous
+              </button>
+              <p className="proto-install-web-app-sheet__outcome">
+                Your browser can add it for you. The steps below are the same
+                thing by hand.
               </p>
-              <IosSteps />
-              <p className="proto-migration-sheet__text">
-                <strong>Android (Chrome)</strong>
-              </p>
-              <AndroidSteps />
-            </>
+            </div>
           ) : null}
+
+          <div
+            className="proto-install-seg proto-seg-track"
+            role="radiogroup"
+            aria-label="Which phone"
+            style={
+              {
+                '--proto-seg-count': PLATFORMS.length,
+                '--proto-seg-index': Math.max(activeIndex, 0),
+              } as CSSProperties
+            }
+          >
+            {PLATFORMS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={option.value === selected}
+                data-active={option.value === selected}
+                className="proto-install-seg__btn"
+                onClick={() => setSelected(option.value)}
+              >
+                <BrandGlyph name={option.icon} size={14} />
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <p className="proto-install-web-app-sheet__browser">
+            <span className="proto-install-web-app-sheet__browser-icon" aria-hidden>
+              <BrandGlyph name={active.browser.icon} size={16} />
+            </span>
+            <span className="proto-install-web-app-sheet__browser-text">
+              <strong>In {active.browser.name}.</strong> {active.browser.note}
+            </span>
+          </p>
+
+          <ol className="proto-install-web-app-sheet__steps">
+            {active.steps.map((step, i) => (
+              /* Keyed by platform and position: the two lists are different
+                 content in the same slots, and a shared key would let one
+                 platform's row animate into the other's. */
+              <li key={`${active.value}-${i}`} className="proto-install-step">
+                <span className="proto-install-step__marker" aria-hidden>
+                  {i + 1}
+                </span>
+                <span className="proto-install-step__text">{step.text}</span>
+                {step.glyph ? (
+                  <span className="proto-install-step__glyph" aria-hidden>
+                    {step.glyph.kind === 'icon' ? (
+                      <Icon name={step.glyph.name} size={14} />
+                    ) : (
+                      <BrandGlyph name={step.glyph.name} size={14} />
+                    )}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+
+          {/* What installing actually changes, and only that. Offline used to be
+              claimed here, which reads as something you get by installing —
+              the service worker gives it either way, so the sentence was
+              selling a benefit the reader already had. `standalone` in the
+              manifest is what makes the window promise true. */}
+          <p className="proto-install-web-app-sheet__outcome">
+            Harvous then opens from your home screen in its own window, with no
+            browser bar around it.
+          </p>
         </div>
       </div>
     </div>,

@@ -376,12 +376,65 @@
     }
   }
   
-  // Add to homescreen prompt handler
-  let deferredPrompt;
+  /*
+    Chrome's own install prompt, held for the app to fire.
+
+    `preventDefault()` is what suppresses Chrome's mini-infobar, and it stays:
+    the app asks at a moment it chose, from a card the reader is already
+    looking at. What was missing is the other half. The event used to be
+    assigned to a variable nothing read, so the prompt was cancelled and then
+    thrown away, and Android's one-tap install could never happen.
+
+    Captured here, in a script that runs before React mounts, because the event
+    fires early and only once per page load — a listener registered after
+    hydration would miss it.
+
+    The bridge is a global rather than an import because this file is a plain
+    script outside the bundle. `spa/src/lib/install-prompt.ts` is the reader.
+  */
+  let deferredPrompt = null;
+
+  const announceInstallAvailability = () => {
+    window.dispatchEvent(new CustomEvent('harvous:install-availability'));
+  };
+
+  window.__harvousInstallPrompt = {
+    get available() {
+      return deferredPrompt !== null;
+    },
+    /**
+     * Show Chrome's install dialog. Resolves 'accepted' | 'dismissed' |
+     * 'unavailable'. A captured prompt is single-use, so it is cleared before
+     * being fired — Chrome offers a fresh one on a later visit if the reader
+     * says no.
+     */
+    prompt: function () {
+      const event = deferredPrompt;
+      if (!event) return Promise.resolve('unavailable');
+      deferredPrompt = null;
+      announceInstallAvailability();
+      try {
+        event.prompt();
+      } catch (err) {
+        return Promise.resolve('unavailable');
+      }
+      return Promise.resolve(event.userChoice)
+        .then((choice) => (choice && choice.outcome === 'accepted' ? 'accepted' : 'dismissed'))
+        .catch(() => 'dismissed');
+    },
+  };
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
+    announceInstallAvailability();
+  });
+
+  /* Installed by any route — Chrome's menu, another tab, the prompt above.
+     The held event is spent either way, and the card should stop offering. */
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    announceInstallAvailability();
   });
 })();
 
