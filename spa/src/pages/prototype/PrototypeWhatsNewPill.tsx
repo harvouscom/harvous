@@ -60,14 +60,29 @@ import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useReleaseNotesUrl } from '../../hooks/useReleaseNotesUrl';
 import {
+  PROTO_WELCOME_3_DISMISSED_KEY,
   PROTO_WHATS_NEW_DISMISSED_KEY,
   PROTO_WHATS_NEW_PREVIEW_KEY,
 } from '../../layouts/proto-session-keys';
 import { useDismissibleRelease } from './useDismissibleFlag';
 import { openWelcome3 } from './welcome3-bridge';
+import { readDismissFlag } from './useDismissibleFlag';
 
-/** The one release with a sheet of its own. */
-const WELCOME_SHEET_RELEASE = '3.0';
+/**
+ * The major with a welcome sheet of its own.
+ *
+ * A major rather than the exact `3.0` this used to name. Keying on the full release marker
+ * meant the row stopped opening the sheet the moment the version moved to 3.1 — hours after
+ * 3.0 shipped, before most readers had seen it — and quietly fell back to the release notes
+ * instead. `releaseMarkerFor` deliberately drops the patch; it does not drop the minor, and
+ * the minor moves on any feature.
+ *
+ * The sheet's own dismissal is what retires this, not a version: once a reader has closed the
+ * Harvous 3 welcome, the row goes back to being the release notes for them. So this stays
+ * correct through 3.2 and 3.9 without anyone remembering to change it, and never re-opens a
+ * launch announcement at someone who has already read it.
+ */
+const WELCOME_SHEET_MAJOR = '3';
 
 export default function PrototypeWhatsNewPill() {
   const version = appVersion();
@@ -76,7 +91,9 @@ export default function PrototypeWhatsNewPill() {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
   });
 
-  const showsWelcomeSheet = releaseMarkerFor(version) === WELCOME_SHEET_RELEASE;
+  const welcomeSeen = readDismissFlag(PROTO_WELCOME_3_DISMISSED_KEY);
+  const showsWelcomeSheet =
+    !welcomeSeen && (releaseMarkerFor(version) ?? '').split('.')[0] === WELCOME_SHEET_MAJOR;
 
   /* `releaseNotesUrl` belongs in the deps: it starts on the index and upgrades in place once
      the site answers, so a callback that captured only the first value would have pinned every
