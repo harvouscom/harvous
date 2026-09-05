@@ -7374,7 +7374,7 @@ button.proto-home-card--tappable:focus-visible {
   padding: 0.167em 0.75em;
   border: 0.5px solid var(--pds-border-control);
   border-radius: 999px;
-  color: var(--pds-text-strong);
+  color: var(--pds-text-primary);
   font-family: var(--pds-font-body);
   /*
    * Relative, so the pill grows with the sentence it sits inside. It was 12px flat, which
