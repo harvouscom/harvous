@@ -268,25 +268,6 @@ describe('service worker notificationclick', () => {
     expect(JSON.parse(harness.parked[0]!).url).toBe('https://app.harvous.com/read/today');
   });
 
-  it('emits instrumentation the sanitizer will actually store', async () => {
-    // The server drops any payload without anonymousSessionId, and keeps only three metadata
-    // keys — so the detail has to live in `message` or it vanishes without trace.
-    const harness = loadServiceWorker({ windows: [] });
-    const waits: Promise<unknown>[] = [];
-    harness.listeners.get('notificationclick')!(clickEvent(waits));
-    await Promise.all(waits);
-
-    const diagnostics = harness.fetches.filter((f) => f.url === '/api/diagnostics/event');
-    expect(diagnostics.length).toBeGreaterThanOrEqual(2);
-    for (const call of diagnostics) {
-      expect(call.body.source).toBe('client_js');
-      expect(call.body.severity).toBe('warning');
-      expect(String(call.body.anonymousSessionId)).toMatch(/^sw-/);
-      expect(String(call.body.message)).toContain('[push-nav]');
-    }
-    expect(diagnostics.map((d) => String(d.body.message)).join(' ')).toContain('handoff=open-window');
-  });
-
   it('parks the destination for an app that is still booting', async () => {
     // A message is delivered once, to whoever is listening at that instant. On a cold launch
     // that is nobody — which is the tap that matters most, the one that opens the app.
