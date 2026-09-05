@@ -4,6 +4,22 @@
 const CACHE_NAME = 'harvous-cache-v3-3-8';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
+/**
+ * Where a notification tap wants the app to go, parked somewhere the app can find it.
+ * Declared up here because `activate` below has to know not to delete it.
+ */
+const PENDING_NAV_CACHE = 'harvous-pending-navigation';
+const PENDING_NAV_KEY = '/__harvous_pending_navigation';
+
+/**
+ * Caches the activation sweep must not touch.
+ *
+ * The sweep deletes everything that is not the current build, and `CACHE_NAME` is rewritten
+ * on every deploy — so without this, the first cold launch after a deploy purges the
+ * destination of the very tap that launched it.
+ */
+const PRESERVED_CACHES = [PENDING_NAV_CACHE];
+
 const CRITICAL_ASSETS = [
   '/images/harvous-2-icon.png',
   '/manifest.json',
@@ -37,7 +53,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+        cacheNames
+          .filter((name) => name !== CACHE_NAME && PRESERVED_CACHES.indexOf(name) === -1)
+          .map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );
@@ -799,9 +817,6 @@ const REMINDER_BADGE = '/images/icons/badge-96.png';
  * is same-origin and survives both the worker being killed and the app's boot, so the app can
  * come up and ask what it was opened for.
  */
-const PENDING_NAV_CACHE = 'harvous-pending-navigation';
-const PENDING_NAV_KEY = '/__harvous_pending_navigation';
-
 async function setPendingNavigation(url) {
   try {
     const cache = await caches.open(PENDING_NAV_CACHE);
@@ -830,6 +845,36 @@ async function setPendingNavigation(url) {
  * fetch is simply killed with it. A failure genuinely is harmless — the next tick settles an
  * unreported delivery by attribution — but never being sent at all is not.
  */
+/**
+ * Temporary instrumentation for the notification tap, which has now failed three times for
+ * three different reasons and cost a device round trip to diagnose each time.
+ *
+ * Every detail goes in `message` on purpose: the server's sanitizer keeps only `statusCode`,
+ * `apiPath` and `userAgentFamily` out of metadata and silently discards the rest, and drops
+ * the whole payload if `anonymousSessionId` is missing — which a worker cannot read from
+ * localStorage, so one is minted per event. `appVersion` carries CACHE_NAME because it says
+ * which worker build ran, which is the question a stale install makes hard to answer.
+ *
+ * Remove once the paired `sw parked` / `client navigate` rows show up on every platform.
+ */
+const PUSH_NAV_DIAGNOSTICS = true;
+
+function reportSwDiagnostic(message) {
+  if (!PUSH_NAV_DIAGNOSTICS) return Promise.resolve();
+  return fetch('/api/diagnostics/event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: 'client_js',
+      severity: 'warning',
+      message: message,
+      platform: 'web',
+      appVersion: CACHE_NAME,
+      anonymousSessionId: 'sw-' + Math.random().toString(36).slice(2, 11),
+    }),
+  }).catch(() => {});
+}
+
 function reportNotificationEvent(deliveryId, event) {
   if (!deliveryId) return Promise.resolve();
   return fetch('/api/push/event', {
@@ -883,17 +928,16 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     (async () => {
-      if (navigator.clearAppBadge) {
-        try {
-          await navigator.clearAppBadge();
-        } catch (_) {
-          /* not supported here */
-        }
-      }
-      // Awaited, not fired and forgotten — see reportNotificationEvent.
-      await reportNotificationEvent(payload.deliveryId, 'click');
-
-      // Parked before focusing, so it is already there whether the app is booting or running.
+      /*
+       * Park first. Nothing may go in front of this.
+       *
+       * iOS foregrounds the app the instant the banner is tapped, without waiting for the
+       * worker — so the app's own "am I here because of a notification?" check runs almost
+       * immediately. This used to sit behind an awaited network POST, which meant the
+       * destination was written hundreds of milliseconds after the only thing that reads it
+       * had already looked and found nothing. That is the bug, and its shape is the lesson:
+       * on the tap path, anything durable happens before anything slow.
+       */
       await setPendingNavigation(target);
 
       // Focus what is already open before opening anything new: someone with Harvous in a
@@ -907,24 +951,47 @@ self.addEventListener('notificationclick', (event) => {
         }
       });
 
+      let handoff;
       if (sameOrigin) {
         await sameOrigin.focus();
         /*
          * Ask the app to route, rather than driving the window from here.
          *
          * `WindowClient.navigate()` is the obvious call and does nothing on iOS — the window
-         * comes to the front still showing whatever page it was on, so a reminder about
-         * today's verse dropped you wherever you happened to be. It is also a full document
-         * load where the app has a router that can do it without one.
-         *
-         * postMessage reaches the running app, which knows how to route. If nothing is
-         * listening (an older cached bundle), the deep link is lost but the app is still open
-         * and focused, which is the same outcome navigate() gave us anyway.
+         * comes to the front still showing whatever page it was on. postMessage reaches the
+         * running app, which owns a router. The parked copy above covers the case where
+         * nothing is listening yet, which on a cold launch is always.
          */
         sameOrigin.postMessage({ type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: target });
-        return;
+        handoff = 'focus-post';
+      } else {
+        // Navigates on its own, so this path never depended on the handoff.
+        await self.clients.openWindow(target);
+        handoff = 'open-window';
       }
-      await self.clients.openWindow(target);
+
+      /*
+       * Everything that only needs to happen eventually, at the tail.
+       *
+       * Awaited together so the worker outlives them — an un-awaited fetch inside waitUntil
+       * is killed with the worker, which is why no click was ever reported — but behind the
+       * handoff, so neither the badge nor the network can delay the navigation. It also keeps
+       * a round trip out of the front of `openWindow`, which browsers allow only inside the
+       * click's transient activation.
+       */
+      await Promise.allSettled([
+        navigator.clearAppBadge ? navigator.clearAppBadge() : Promise.resolve(),
+        reportNotificationEvent(payload.deliveryId, 'click'),
+        reportSwDiagnostic(
+          // `target`, not payload.url — it is the resolved absolute URL actually parked, and
+          // it is defined even when the payload carried none.
+          '[push-nav] sw parked target=' + target + ' delivery=' + (payload.deliveryId || 'none')
+        ),
+        reportSwDiagnostic(
+          '[push-nav] sw handoff=' + handoff + ' clients=' + clientList.length +
+            ' delivery=' + (payload.deliveryId || 'none')
+        ),
+      ]);
     })()
   );
 });

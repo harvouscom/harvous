@@ -12,10 +12,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const navigateMock = vi.fn();
 vi.mock('../../shims/app-navigate', () => ({ navigate: (path: string) => navigateMock(path) }));
 
+vi.mock('@/utils/diagnostics-client', () => ({ reportDiagnosticEvent: vi.fn() }));
+
 const {
+  clearPendingNavigation,
   consumePendingNavigation,
   initNotificationNavigation,
   isPendingNavigationFresh,
+  markNotificationNavigationReady,
+  peekPendingNavigation,
+  resetNotificationNavigationForTests,
   resolveNotificationPath,
 } = await import('../notification-navigation');
 
@@ -44,6 +50,7 @@ function installCacheStorage(initial?: { url: string; at: number }) {
 
 beforeEach(() => {
   navigateMock.mockClear();
+  resetNotificationNavigationForTests();
   vi.stubGlobal('window', {
     location: { origin: 'https://app.harvous.com', pathname: '/', search: '' },
   });
@@ -144,6 +151,8 @@ describe('initNotificationNavigation', () => {
     installCacheStorage();
     const listeners = stubServiceWorker();
     initNotificationNavigation();
+    markNotificationNavigationReady();
+    await new Promise((r) => setTimeout(r, 5));
 
     listeners[0]!({
       data: { type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: 'https://app.harvous.com/read/today' },
@@ -157,6 +166,7 @@ describe('initNotificationNavigation', () => {
     installCacheStorage({ url: 'https://app.harvous.com/read/today', at: Date.now() });
     stubServiceWorker();
     initNotificationNavigation();
+    markNotificationNavigationReady();
     await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/read/today'));
   });
 
@@ -180,7 +190,99 @@ describe('initNotificationNavigation', () => {
     });
     stubServiceWorker();
     initNotificationNavigation();
+    markNotificationNavigationReady();
     await new Promise((r) => setTimeout(r, 20));
     expect(navigateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('peek does not delete', () => {
+  it('leaves the entry in place so a dropped navigation is recoverable', async () => {
+    // Consuming before the router could act threw the destination away with nothing to show
+    // for it. Peek reads; only a completed navigation clears.
+    const store = installCacheStorage({ url: 'https://app.harvous.com/read/today', at: Date.now() });
+    await expect(peekPendingNavigation()).resolves.toBe('/read/today');
+    expect(store.has(PENDING_NAV_KEY)).toBe(true);
+
+    await clearPendingNavigation();
+    expect(store.has(PENDING_NAV_KEY)).toBe(false);
+  });
+
+  it('clears an expired entry rather than re-reading it forever', async () => {
+    const store = installCacheStorage({
+      url: 'https://app.harvous.com/read/today',
+      at: Date.now() - 10 * 60_000,
+    });
+    await expect(peekPendingNavigation()).resolves.toBeNull();
+    expect(store.has(PENDING_NAV_KEY)).toBe(false);
+  });
+});
+
+describe('waiting for the router', () => {
+  function stubServiceWorker() {
+    const listeners: Array<(event: MessageEvent) => void> = [];
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        addEventListener: (_: string, fn: (event: MessageEvent) => void) => listeners.push(fn),
+        removeEventListener: () => {},
+        startMessages: vi.fn(),
+      },
+    });
+    vi.stubGlobal('document', {
+      visibilityState: 'visible',
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    return listeners;
+  }
+
+  it('queues a destination that arrives before the router mounts, and keeps it parked', async () => {
+    const store = installCacheStorage({ url: 'https://app.harvous.com/read/today', at: Date.now() });
+    stubServiceWorker();
+    initNotificationNavigation();
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Nothing navigated, and — critically — the parked copy is still there.
+    expect(navigateMock).not.toHaveBeenCalled();
+    expect(store.has(PENDING_NAV_KEY)).toBe(true);
+
+    markNotificationNavigationReady();
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/read/today'));
+    expect(navigateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('picks up a destination parked between boot and readiness', async () => {
+    const store = installCacheStorage();
+    stubServiceWorker();
+    initNotificationNavigation();
+    await new Promise((r) => setTimeout(r, 5));
+
+    // The worker parks it after the app booted but before the router mounted.
+    store.set(PENDING_NAV_KEY, JSON.stringify({ url: '/read/today', at: Date.now() }));
+    markNotificationNavigationReady();
+
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/read/today'));
+  });
+
+  it('starts the client message queue, which addEventListener alone does not', () => {
+    installCacheStorage();
+    stubServiceWorker();
+    initNotificationNavigation();
+    expect((navigator.serviceWorker as unknown as { startMessages: () => void }).startMessages)
+      .toHaveBeenCalled();
+  });
+
+  it('navigates once when the message and the peek both resolve the same tap', async () => {
+    installCacheStorage({ url: 'https://app.harvous.com/read/today', at: Date.now() });
+    const listeners = stubServiceWorker();
+    initNotificationNavigation();
+    markNotificationNavigationReady();
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1));
+
+    listeners[0]!({
+      data: { type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: 'https://app.harvous.com/read/today' },
+    } as MessageEvent);
+
+    expect(navigateMock).toHaveBeenCalledTimes(1);
   });
 });

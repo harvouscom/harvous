@@ -156,6 +156,35 @@ import { useGuestExitPrompt } from '../hooks/useGuestExitPrompt';
 /** Local cache of the zone we last told the account about, so a reload is not a write. */
 const TZ_SYNCED_KEY = 'harvous-proto-tz-synced';
 
+/** Throttle for the resume stamp below — an hour's precision is all it is read at. */
+const ACTIVE_STAMPED_KEY = 'harvous-proto-active-stamped-at';
+const ACTIVE_STAMP_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Record that the app was opened, on resume as well as on mount.
+ *
+ * `UserMetadata.lastActiveAt` is how the reminder tick decides someone opened the app after
+ * a notification without tapping it — which it counts as the reminder having worked. The
+ * only writer was a mount effect, and an installed iOS app resumed from the background never
+ * remounts. So the reader who saw the banner, put the phone down, and came back an hour later
+ * was recorded as having ignored it. Two of those trigger the back-off and four pause
+ * reminders altogether, meaning the response layer was quietly biased against the one
+ * platform it had been tested on.
+ *
+ * Throttled because it rides `visibilitychange`, which fires on every app switch, and
+ * `awardMonthlyAttendanceXP` behind this endpoint is already idempotent per month.
+ */
+function stampActiveOnResume(): void {
+  try {
+    const last = Number(localStorage.getItem(ACTIVE_STAMPED_KEY) ?? 0);
+    if (Date.now() - last < ACTIVE_STAMP_INTERVAL_MS) return;
+    localStorage.setItem(ACTIVE_STAMPED_KEY, String(Date.now()));
+  } catch {
+    /* private mode — stamping every resume is better than never */
+  }
+  void api.post('/api/user/check-monthly-attendance').catch(() => {});
+}
+
 /**
  * Keep the account's stored IANA zone matching the browser's.
  *
@@ -314,6 +343,7 @@ export default function SimplifiedPrototypeLayout() {
         mod.clearAppBadge();
         void mod.syncPushSubscriptionIfGranted();
       });
+      stampActiveOnResume();
     };
 
     onVisible();

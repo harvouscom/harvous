@@ -48,6 +48,19 @@ describe('push routes', () => {
     expect(push()).toContain('deleteSubscriptionForUser(auth.userId, endpoint)');
   });
 
+  it('displaces this device\'s stale rows, scoped three ways', () => {
+    // A reinstalled Home Screen app leaves its old subscription behind and Apple keeps
+    // accepting it, so it never prunes itself. The delete must be scoped by user AND device
+    // signature AND "not the row we just wrote" — dropping any one of those would either
+    // miss the ghost or take out someone else's device.
+    const block = routeBlock(push(), "app.post('/api/push/subscribe'");
+    expect(block).toContain('eq(PushSubscriptions.userId, auth.userId)');
+    expect(block).toContain('eq(PushSubscriptions.userAgent, userAgent)');
+    expect(block).toContain('ne(PushSubscriptions.endpoint, subscription.endpoint)');
+    // A null user agent must match nulls rather than comparing to NULL, which never matches.
+    expect(block).toContain('isNull(PushSubscriptions.userAgent)');
+  });
+
   it('only lets a user settle their own delivery', () => {
     const block = routeBlock(push(), "app.post('/api/push/event'");
     expect(block).toContain('eq(ReminderDeliveries.userId, auth.userId)');
@@ -67,6 +80,31 @@ describe('push routes', () => {
 
   it('supports a dry run that changes nothing', () => {
     expect(routeBlock(push(), "app.post('/api/push/run-reminders'")).toContain("query('dryRun')");
+  });
+});
+
+describe('notification tap wiring', () => {
+  it('signals router readiness from the root route', () => {
+    // The signal has to come from inside the router: navigation handed over by a tap can
+    // arrive before the router mounts, when router.navigate would go nowhere.
+    expect(source('spa/src/router.tsx')).toContain('markNotificationNavigationReady');
+  });
+
+  it('registers the tap listener before render, not from a component', () => {
+    // As a lazy chunk it raced the message it exists to receive.
+    const main = source('spa/src/main.tsx');
+    const init = main.indexOf('initNotificationNavigation()');
+    const render = main.indexOf('ReactDOM.createRoot');
+    expect(init).toBeGreaterThan(-1);
+    expect(init).toBeLessThan(render);
+  });
+
+  it('stamps activity on resume, not only on mount', () => {
+    // An installed iOS app resumed from background never remounts, so the tick would record
+    // every un-tapped reminder as ignored and eventually pause them.
+    const layout = source('spa/src/layouts/SimplifiedPrototypeLayout.tsx');
+    expect(layout).toContain('stampActiveOnResume');
+    expect(layout).toContain("visibilitychange");
   });
 });
 

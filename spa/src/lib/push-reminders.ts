@@ -24,8 +24,16 @@ import { browserIanaTimeZone } from './votd-today';
 
 export type PushSupport = 'unsupported' | 'needs-home-screen' | 'denied' | 'default' | 'granted';
 
-/** Re-POSTing a live subscription more than once a day buys nothing. */
-const RESYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/**
+ * How often a live device re-registers its subscription.
+ *
+ * Six hours rather than a day because subscribing now displaces the same user's other rows
+ * with an identical device signature (see `POST /api/push/subscribe`). Two identical phones
+ * on one account therefore evict each other, and this is what bounds that: the evicted one
+ * is back within a quarter day, so the cost is at most a single missed reminder rather than
+ * a device going quiet. One small POST per device per six hours buys that.
+ */
+const RESYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const RESYNC_STAMP_KEY = 'harvous-push-resync-at';
 
 export function getPushSupport(): PushSupport {

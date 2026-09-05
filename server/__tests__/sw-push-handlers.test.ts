@@ -27,6 +27,9 @@ interface Harness {
   navigated: string[];
   posted: unknown[];
   parked: string[];
+  /** Ordered record of everything the handler did, so sequence can be asserted. */
+  events: string[];
+  deletedCaches: string[];
   windows: Array<{ url: string }>;
 }
 
@@ -37,7 +40,9 @@ interface Harness {
  * worker globals passed in rather than imported — which also keeps the fetch/caching half of
  * the file inert, since nothing dispatches those events here.
  */
-function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): Harness {
+function loadServiceWorker(
+  options: { windows?: Array<{ url: string }>; cacheKeys?: string[] } = {},
+): Harness {
   const source = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8');
 
   const harness: Harness = {
@@ -50,6 +55,8 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
     navigated: [],
     posted: [],
     parked: [],
+    events: [],
+    deletedCaches: [],
     windows: options.windows ?? [],
   };
 
@@ -57,6 +64,7 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
     url: win.url,
     focus: async () => {
       harness.focused.push(win.url);
+      harness.events.push('focus');
     },
     // Present, and deliberately recorded rather than acted on: this is the call iOS ignores.
     navigate: async (url: string) => {
@@ -64,6 +72,7 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
     },
     postMessage: (message: unknown) => {
       harness.posted.push(message);
+      harness.events.push('postMessage');
     },
   }));
 
@@ -82,6 +91,7 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
       matchAll: async () => clientObjects,
       openWindow: async (url: string) => {
         harness.opened.push(url);
+        harness.events.push('openWindow');
       },
       claim: async () => {},
     },
@@ -90,11 +100,16 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
       open: async () => ({
         put: async (request: { url?: string } | string, response: { text: () => Promise<string> }) => {
           harness.parked.push(await response.text());
+          harness.events.push('park');
         },
         match: async () => undefined,
         delete: async () => true,
       }),
-      keys: async () => [],
+      keys: async () => options.cacheKeys ?? [],
+      delete: async (name: string) => {
+        harness.deletedCaches.push(name);
+        return true;
+      },
       match: async () => undefined,
     },
   };
@@ -110,6 +125,7 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
 
   const fetchStub = async (url: string, init?: { body?: string }) => {
     harness.fetches.push({ url, body: init?.body ? JSON.parse(init.body) : {} });
+    harness.events.push(`fetch:${url}`);
     return { ok: true };
   };
 
@@ -215,6 +231,62 @@ describe('service worker notificationclick', () => {
     expect(harness.opened).toEqual([]);
   });
 
+  it('parks the destination before anything slow, and before the handoff', async () => {
+    /*
+     * The ordering IS the fix, so it is asserted as an order rather than as a set of calls.
+     *
+     * iOS foregrounds the app the instant the banner is tapped, so the app's own check runs
+     * almost immediately. This used to sit behind an awaited network POST, which wrote the
+     * destination hundreds of milliseconds after the only reader had already looked.
+     */
+    const harness = loadServiceWorker({ windows: [{ url: 'https://app.harvous.com/prototype' }] });
+    const waits: Promise<unknown>[] = [];
+    harness.listeners.get('notificationclick')!(clickEvent(waits));
+    await Promise.all(waits);
+
+    const park = harness.events.indexOf('park');
+    const focus = harness.events.indexOf('focus');
+    const post = harness.events.indexOf('postMessage');
+    const report = harness.events.indexOf('fetch:/api/push/event');
+
+    expect(park).toBeGreaterThanOrEqual(0);
+    expect(park).toBeLessThan(focus);
+    expect(park).toBeLessThan(post);
+    expect(park).toBeLessThan(report);
+    // And the report is behind the handoff, so neither the network nor the badge can delay it.
+    expect(post).toBeLessThan(report);
+  });
+
+  it('parks even when a window is already open', async () => {
+    // The warm path is the one that was broken; an earlier test only covered `windows: []`.
+    const harness = loadServiceWorker({ windows: [{ url: 'https://app.harvous.com/prototype' }] });
+    const waits: Promise<unknown>[] = [];
+    harness.listeners.get('notificationclick')!(clickEvent(waits));
+    await Promise.all(waits);
+
+    expect(harness.parked).toHaveLength(1);
+    expect(JSON.parse(harness.parked[0]!).url).toBe('https://app.harvous.com/read/today');
+  });
+
+  it('emits instrumentation the sanitizer will actually store', async () => {
+    // The server drops any payload without anonymousSessionId, and keeps only three metadata
+    // keys — so the detail has to live in `message` or it vanishes without trace.
+    const harness = loadServiceWorker({ windows: [] });
+    const waits: Promise<unknown>[] = [];
+    harness.listeners.get('notificationclick')!(clickEvent(waits));
+    await Promise.all(waits);
+
+    const diagnostics = harness.fetches.filter((f) => f.url === '/api/diagnostics/event');
+    expect(diagnostics.length).toBeGreaterThanOrEqual(2);
+    for (const call of diagnostics) {
+      expect(call.body.source).toBe('client_js');
+      expect(call.body.severity).toBe('warning');
+      expect(String(call.body.anonymousSessionId)).toMatch(/^sw-/);
+      expect(String(call.body.message)).toContain('[push-nav]');
+    }
+    expect(diagnostics.map((d) => String(d.body.message)).join(' ')).toContain('handoff=open-window');
+  });
+
   it('parks the destination for an app that is still booting', async () => {
     // A message is delivered once, to whoever is listening at that instant. On a cold launch
     // that is nobody — which is the tap that matters most, the one that opens the app.
@@ -292,7 +364,24 @@ describe('service worker notificationclick', () => {
     await Promise.all(waits);
 
     expect(harness.opened).toEqual(['https://app.harvous.com/']);
-    expect(harness.fetches).toEqual([]);
+    // No delivery id means nothing to report — asserted as "no click report" rather than
+    // "no requests", since instrumentation legitimately posts on this path too.
+    expect(harness.fetches.filter((f) => f.url === '/api/push/event')).toEqual([]);
+  });
+});
+
+describe('service worker activate', () => {
+  it('sweeps old build caches but keeps the parked destination', async () => {
+    // CACHE_NAME is rewritten on every deploy, so this sweep runs on the first cold launch
+    // after one — which is exactly the launch most likely to have been started by a tap.
+    const harness = loadServiceWorker({
+      cacheKeys: ['harvous-cache-v9-9-9', 'harvous-pending-navigation'],
+    });
+    const waits: Promise<unknown>[] = [];
+    harness.listeners.get('activate')!({ waitUntil: (p: Promise<unknown>) => waits.push(p) });
+    await Promise.all(waits);
+
+    expect(harness.deletedCaches).toEqual(['harvous-cache-v9-9-9']);
   });
 });
 

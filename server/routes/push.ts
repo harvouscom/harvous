@@ -15,6 +15,7 @@ import {
   eq,
   first,
   isNull,
+  ne,
   PushSubscriptions,
   ReminderDeliveries,
   UserMetadata,
@@ -124,6 +125,38 @@ app.post('/api/push/subscribe', requireAuth, rateLimit('write'), async (c) => {
           failCount: 0,
         },
       });
+
+    /*
+     * Drop this device's earlier rows.
+     *
+     * Deleting a Home Screen app and re-adding it leaves the old subscription behind, and
+     * Apple's push service keeps accepting sends to it — so it never 404s, never prunes, and
+     * every reminder goes out twice forever.
+     *
+     * The scope is evidential rather than a guess: this request is the one moment the server
+     * has proof that a live browser holds this endpoint on this device, and the rows being
+     * displaced have produced no such proof. It is still a signature match, so two identical
+     * phones on one account will evict each other; `RESYNC_INTERVAL_MS` on the client is six
+     * hours so the loser re-registers within a quarter day. That bounds the worst case to
+     * "one of two phones may miss one reminder", against a guaranteed duplicate for everyone.
+     */
+    const displaced = await db
+      .delete(PushSubscriptions)
+      .where(
+        and(
+          eq(PushSubscriptions.userId, auth.userId),
+          userAgent === null
+            ? isNull(PushSubscriptions.userAgent)
+            : eq(PushSubscriptions.userAgent, userAgent),
+          ne(PushSubscriptions.endpoint, subscription.endpoint),
+        ),
+      )
+      .returning({ id: PushSubscriptions.id });
+    if (displaced.length > 0) {
+      console.log(
+        `[push] subscribe displaced ${displaced.length} stale subscription(s) for the same device`,
+      );
+    }
 
     // The subscribe tap is the one moment we are certain the user is at a device in their own
     // timezone, so capture it here too rather than relying on the shell's sync having run.

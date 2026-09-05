@@ -145,9 +145,15 @@
       }
 
       function clearCachesAndReload() {
+        // 'harvous-pending-navigation' holds the destination of a notification tap (see
+        // public/sw.js). Wiping it here would drop the deep link of a tap that arrived
+        // during an update.
+        var preserved = ['harvous-pending-navigation'];
         caches.keys()
           .then(function(names) {
-            return Promise.all(names.map(function(n) { return caches.delete(n); }));
+            return Promise.all(names
+              .filter(function(n) { return preserved.indexOf(n) === -1; })
+              .map(function(n) { return caches.delete(n); }));
           })
           .then(function() { window.location.reload(); })
           .catch(function() { window.location.reload(); });
