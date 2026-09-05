@@ -308,8 +308,28 @@ export function useHomeSurfaceData({
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { beginPrototypeComposeSession, isMobileSidebar, closeDrawer, stackNote } =
-    useProtoShell();
+  const {
+    beginPrototypeComposeSession,
+    isMobileSidebar,
+    closeDrawer,
+    stackNote,
+    openLibraryPanel,
+  } = useProtoShell();
+
+  /*
+   * Where a greeting chip goes when the thing it names cannot be reviewed as a proposal —
+   * the arc's notes are not on the loaded page, the connection is short of its minimum, or
+   * this surface has no frame for a proposal at all. The Library search seeded with the
+   * name is the same door the tag chip uses, and it always opens. Until now these handlers
+   * returned silently, and the chip in the greeting looked pressable and did nothing.
+   */
+  const searchLibraryFor = useCallback(
+    (query: string) => {
+      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+      openLibraryPanel({ tab: 'all', drill: null, querySeed: query });
+    },
+    [closeDrawer, isMobileSidebar, openLibraryPanel],
+  );
 
   const tagsSettled = isQuerySettled(tagsQuery.isPending, tagsQuery.data != null);
   const threadsSettled = isQuerySettled(threadsQuery.isPending, threadsQuery.data != null);
@@ -706,23 +726,29 @@ export function useHomeSurfaceData({
   const openSubjectConnection = useCallback(() => {
     if (!subjectConnection) return;
     const proposalNotes = subjectConnection.notes.filter((n) => loadedNoteIds.has(n.id));
-    if (proposalNotes.length < SUBJECT_CONNECTION_MIN) return;
-    proposeThread?.({
+    if (proposalNotes.length < SUBJECT_CONNECTION_MIN || !proposeThread) {
+      searchLibraryFor(subjectConnection.subject);
+      return;
+    }
+    proposeThread({
       subject: subjectConnection.subject,
       notes: proposalNotes,
     });
-  }, [subjectConnection, loadedNoteIds, proposeThread]);
+  }, [subjectConnection, loadedNoteIds, proposeThread, searchLibraryFor]);
 
   const openCrossRefConnection = useCallback(() => {
     if (!crossRefConnection) return;
     const proposalNotes = crossRefConnection.notes.filter((n) => loadedNoteIds.has(n.id));
-    if (proposalNotes.length < CROSSREF_CONNECTION_MIN) return;
-    proposeThread?.({
+    if (proposalNotes.length < CROSSREF_CONNECTION_MIN || !proposeThread) {
+      searchLibraryFor(crossRefConnection.from.displayRef);
+      return;
+    }
+    proposeThread({
       subject: `${crossRefConnection.from.displayRef} and ${crossRefConnection.to.displayRef}`,
       notes: proposalNotes,
       variant: 'crossref',
     });
-  }, [crossRefConnection, loadedNoteIds, proposeThread]);
+  }, [crossRefConnection, loadedNoteIds, proposeThread, searchLibraryFor]);
 
   /**
    * "A passage you keep returning to — John 3:16" opens the passage.
@@ -838,13 +864,16 @@ export function useHomeSurfaceData({
       .map((id) => notes.find((n) => n.id === id))
       .filter((n): n is SpaceNoteRow => Boolean(n))
       .map((n) => ({ id: n.id, title: n.title ?? null }));
-    if (proposalNotes.length === 0) return;
-    proposeThread?.({
+    if (proposalNotes.length === 0 || !proposeThread) {
+      if (subject) searchLibraryFor(subject);
+      return;
+    }
+    proposeThread({
       subject,
       notes: proposalNotes,
       variant: 'arc',
     });
-  }, [activeArc, activeArcIsSection, sectionArc, studyArc, notes, proposeThread]);
+  }, [activeArc, activeArcIsSection, sectionArc, studyArc, notes, proposeThread, searchLibraryFor]);
 
   // ── Generative recall: seed a draft note + derive prompts (Phase 1, client-side) ──
   const season = useMemo(() => currentLiturgicalSeason(new Date()), []);
@@ -1425,21 +1454,31 @@ export function useHomeSurfaceData({
     const trend = pickRecallTrend(excludeRecallCandidatesMatchingName(recallCandidates, leadName));
     if (!trend) return undefined;
 
+    /*
+     * `openable` mirrors each handler's own bail-outs, so the greeting can show the words
+     * without the press. The handlers stay silent on purpose — they run from cards too, and
+     * a card is withheld outright — but a chip inside a sentence cannot be withheld without
+     * taking the sentence with it.
+     */
     if (trend.kind === 'arc' && activeArc) {
       const theme = studyArc?.theme ?? sectionArc?.sectionLabel ?? '';
       const parts = recallTrendGreetingParts({ kind: 'arc', theme });
       if (!parts) return undefined;
-      return { kind: 'arc', parts, onOpen: openStudyArc };
+      /* Falls back to a Library search on the theme, so it opens whenever it has a name. */
+      return { kind: 'arc', parts, onOpen: openStudyArc, openable: theme.trim().length > 0 };
     }
     if (trend.kind === 'subject' && subjectConnection) {
       const parts = recallTrendGreetingParts({ kind: 'subject', subject: subjectConnection.subject });
       if (!parts) return undefined;
-      return { kind: 'subject', parts, onOpen: openSubjectConnection };
+      return { kind: 'subject', parts, onOpen: openSubjectConnection, openable: true };
     }
     if (trend.kind === 'passage' && passageConnection) {
       const parts = recallTrendGreetingParts({ kind: 'passage', passageRef: passageConnection.displayRef });
       if (!parts) return undefined;
-      return { kind: 'passage', parts, onOpen: openPassageConnection };
+      const openable =
+        readerRouteForReference(passageConnection.displayRef, getEffectiveDefaultTranslation()) !==
+        null;
+      return { kind: 'passage', parts, onOpen: openPassageConnection, openable };
     }
     if (trend.kind === 'crossref' && crossRefConnection) {
       const parts = recallTrendGreetingParts({
@@ -1448,7 +1487,7 @@ export function useHomeSurfaceData({
         toRef: crossRefConnection.to.displayRef,
       });
       if (!parts) return undefined;
-      return { kind: 'crossref', parts, onOpen: openCrossRefConnection };
+      return { kind: 'crossref', parts, onOpen: openCrossRefConnection, openable: true };
     }
     if (trend.kind === 'referenceWord' && referenceWordConnection) {
       const parts = recallTrendGreetingParts({
@@ -1456,7 +1495,10 @@ export function useHomeSurfaceData({
         referenceWord: referenceWordConnection.displayWord,
       });
       if (!parts) return undefined;
-      return { kind: 'referenceWord', parts, onOpen: openReferenceWordConnection };
+      const openable = highlightsWithRecency.some(
+        (h) => h.id === referenceWordConnection.latestRowId,
+      );
+      return { kind: 'referenceWord', parts, onOpen: openReferenceWordConnection, openable };
     }
     return undefined;
   }, [
@@ -1468,6 +1510,7 @@ export function useHomeSurfaceData({
     subjectConnection,
     passageConnection,
     crossRefConnection,
+    highlightsWithRecency,
     referenceWordConnection,
     openStudyArc,
     openSubjectConnection,
