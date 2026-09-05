@@ -845,36 +845,6 @@ async function setPendingNavigation(url) {
  * fetch is simply killed with it. A failure genuinely is harmless — the next tick settles an
  * unreported delivery by attribution — but never being sent at all is not.
  */
-/**
- * Temporary instrumentation for the notification tap, which has now failed three times for
- * three different reasons and cost a device round trip to diagnose each time.
- *
- * Every detail goes in `message` on purpose: the server's sanitizer keeps only `statusCode`,
- * `apiPath` and `userAgentFamily` out of metadata and silently discards the rest, and drops
- * the whole payload if `anonymousSessionId` is missing — which a worker cannot read from
- * localStorage, so one is minted per event. `appVersion` carries CACHE_NAME because it says
- * which worker build ran, which is the question a stale install makes hard to answer.
- *
- * Remove once the paired `sw parked` / `client navigate` rows show up on every platform.
- */
-const PUSH_NAV_DIAGNOSTICS = true;
-
-function reportSwDiagnostic(message) {
-  if (!PUSH_NAV_DIAGNOSTICS) return Promise.resolve();
-  return fetch('/api/diagnostics/event', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source: 'client_js',
-      severity: 'warning',
-      message: message,
-      platform: 'web',
-      appVersion: CACHE_NAME,
-      anonymousSessionId: 'sw-' + Math.random().toString(36).slice(2, 11),
-    }),
-  }).catch(() => {});
-}
-
 function reportNotificationEvent(deliveryId, event) {
   if (!deliveryId) return Promise.resolve();
   return fetch('/api/push/event', {
@@ -951,7 +921,6 @@ self.addEventListener('notificationclick', (event) => {
         }
       });
 
-      let handoff;
       if (sameOrigin) {
         await sameOrigin.focus();
         /*
@@ -963,11 +932,9 @@ self.addEventListener('notificationclick', (event) => {
          * nothing is listening yet, which on a cold launch is always.
          */
         sameOrigin.postMessage({ type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: target });
-        handoff = 'focus-post';
       } else {
         // Navigates on its own, so this path never depended on the handoff.
         await self.clients.openWindow(target);
-        handoff = 'open-window';
       }
 
       /*
@@ -982,15 +949,6 @@ self.addEventListener('notificationclick', (event) => {
       await Promise.allSettled([
         navigator.clearAppBadge ? navigator.clearAppBadge() : Promise.resolve(),
         reportNotificationEvent(payload.deliveryId, 'click'),
-        reportSwDiagnostic(
-          // `target`, not payload.url — it is the resolved absolute URL actually parked, and
-          // it is defined even when the payload carried none.
-          '[push-nav] sw parked target=' + target + ' delivery=' + (payload.deliveryId || 'none')
-        ),
-        reportSwDiagnostic(
-          '[push-nav] sw handoff=' + handoff + ' clients=' + clientList.length +
-            ' delivery=' + (payload.deliveryId || 'none')
-        ),
       ]);
     })()
   );
