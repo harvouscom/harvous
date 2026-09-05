@@ -17,7 +17,6 @@ import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import Icon from '@/components/react/Icon';
-import PrototypeAddToReviewItem from './PrototypeAddToReviewItem';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
@@ -283,15 +282,21 @@ export default function PrototypeNoteMoreMenu({
               ) : null}
               {overflowActions && (onFind || onShare) ? <div className="proto-menu-sep" role="separator" /> : null}
               {/*
-                * "Add to Review" — a note put into the queue by the person who wrote it.
+                * "Add to Review" is withheld, not deleted — same call as Challenges, and for a
+                * related reason: adding a note by hand sits oddly beside a queue that fills
+                * itself. Review's whole claim is that it notices what you have been studying
+                * and brings it back without being asked; a menu item that says "put this one
+                * in" invites a mental model of a list you curate, which is the thing it is
+                * not. Whether there should be a way to say "this one matters, ask me about
+                * it" is a real question and worth answering deliberately rather than by
+                * leaving the row up.
                 *
-                * Not offered on a foreign read-only note: Review asks what *you* observed, and
-                * a note you are reading in someone else's space has no answer of yours behind
-                * it. Renders nothing without the key rather than showing a locked row, because
-                * the Review section on Activity already carries the one upsell this feature gets
-                * and a second one in a note's menu is a paywall following you around.
+                * `PrototypeAddToReviewItem` still compiles and still holds the rules it
+                * learned — not on a foreign read-only note, nothing shown without the key —
+                * so restoring this is uncommenting one line. See
+                * docs/future/CHALLENGES_AS_SUGGESTIONS.md, which is the same shape of
+                * question about the same feature.
                 */}
-              <PrototypeAddToReviewItem noteId={noteId} readOnlyForeign={readOnlyForeign} onDone={() => setOpen(false)} />
               {readOnlyForeign ? (
                 <>
                   {canPin ? (
