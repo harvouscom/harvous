@@ -48,3 +48,10 @@ PUBLIC_POSTHOG_KEY=phc_your_key_here
 PUBLIC_POSTHOG_HOST=https://app.posthog.com
 # Auto-archive secret token (optional, for securing the auto-archive endpoint)
 AUTO_ARCHIVE_SECRET_TOKEN="" 
+# Web push reminders — generate with `npm run push:vapid-keys`. Unset = feature off.
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+VAPID_SUBJECT="mailto:derekj@hey.com"
+VITE_VAPID_PUBLIC_KEY=""
+# Optional bearer for manual/dry runs of POST /api/push/run-reminders
+PUSH_REMINDER_CRON_SECRET=""

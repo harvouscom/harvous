@@ -43,6 +43,23 @@ export function isNoteConnectionsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'NoteConnections');
 }
 
+/**
+ * The push tables and the four UserMetadata columns land in one additive migration
+ * (`npm run push:schema:apply`), so between a deploy and that command every reminder read
+ * would throw. Reminders are optional chrome; the settings page says "not set up yet"
+ * rather than showing an error to someone who only opened Settings.
+ */
+export function isPushRemindersSchemaMissing(error: unknown): boolean {
+  return (
+    isPgUndefinedRelation(error, 'PushSubscriptions') ||
+    isPgUndefinedRelation(error, 'ReminderDeliveries') ||
+    isPgUndefinedColumn(error, 'reminderSettings') ||
+    isPgUndefinedColumn(error, 'lastReminderSentOn') ||
+    isPgUndefinedColumn(error, 'lastActiveAt') ||
+    isPgUndefinedColumn(error, 'timezone')
+  );
+}
+
 export function isSpaceMembershipsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SpaceMemberships');
 }

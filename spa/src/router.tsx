@@ -7,6 +7,8 @@ import {
   Outlet,
   stringifySearchWith,
 } from '@tanstack/react-router';
+import { useEffect } from 'react';
+import { markNotificationNavigationReady } from './lib/notification-navigation';
 import {
   isDedicatedPrototypeHost,
   isReservedPrototypeSegment,
@@ -107,9 +109,26 @@ export function legacySpaceNoteRedirectSearch(
   };
 }
 
+/**
+ * Root component. Renders the Outlet, and tells the notification-navigation module that the
+ * router can now be navigated.
+ *
+ * That signal has to come from inside the router. `initNotificationNavigation()` runs before
+ * `createRoot`, so a destination handed over by a notification tap can arrive while
+ * `router.navigate` would go nowhere — it is held until this mounts. The root route mounts
+ * once, after the first match resolves, and for every route, so it cannot fire early and
+ * cannot be route-specific.
+ */
+function RootRouteComponent() {
+  useEffect(() => {
+    markNotificationNavigationReady();
+  }, []);
+  return <Outlet />;
+}
+
 // Root route — must render Outlet so child routes paint (pathless layouts included).
 const rootRoute = createRootRoute({
-  component: () => <Outlet />,
+  component: RootRouteComponent,
   beforeLoad: ({ location }) => {
     if (!isDedicatedPrototypeHost() || !location.pathname.startsWith('/prototype')) return;
     const rest = location.pathname.replace(/^\/prototype\/?/, '');
@@ -510,6 +529,12 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAppearancePage')),
   });
 
+  const prototypeSettingsRemindersRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'reminders',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeRemindersPage')),
+  });
+
   const prototypeSettingsChurchRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'church',
@@ -645,6 +670,7 @@ function buildPrototypeRouteBranch() {
       prototypeSettingsAccountRoute,
       prototypeSettingsTranslationRoute,
       prototypeSettingsAppearanceRoute,
+      prototypeSettingsRemindersRoute,
       prototypeSettingsChurchRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,

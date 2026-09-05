@@ -51,6 +51,16 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'paintbrush',
     footnote: 'Background color or image behind the app.',
   },
+  // Web-only for now: the native apps have no push plumbing (that is APNs, a separate
+  // build), so `HarvousSettingsRoute.swift` deliberately has no matching row and the two
+  // lists are allowed to differ by exactly this one entry until native catches up.
+  {
+    key: 'reminders',
+    title: 'Reminders',
+    route: prototypeHref('settings/reminders'),
+    icon: 'bell',
+    footnote: 'A Sunday and midweek nudge to come back.',
+  },
   // lockPin temporarily hidden while note lock is disabled in the prototype.
   // The route itself is unregistered too (see spa/src/router.tsx — no
   // prototypeSettingsLockPinRoute) so it isn't reachable by direct URL either.

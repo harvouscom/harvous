@@ -5,6 +5,13 @@ import { toast } from '@/utils/toast';
 /**
  * Optional intro under the settings header. Prefer omitting when the nav title
  * already explains the page — keep only for non-obvious behavior (e.g. PIN, Shift hints).
+ *
+ * Two rendered lines maximum, measured at the narrowest width the page renders at (the
+ * mobile settings sheet, ~335px), not at desktop — copy that fits the modal often wraps to
+ * three there. Not enforced with a line clamp on purpose: a clamp would
+ * silently truncate the third line, and copy nobody can read is worse than copy that is too
+ * long. Write to the limit instead — anything that will not fit belongs in a row's sublabel
+ * or the footnote under the groups, both of which have room.
  */
 export function SettingsIntro({ children }: { children: ReactNode }) {
   return (
@@ -143,6 +150,10 @@ export function SettingsRow({
   const interactive = typeof onClick === 'function' && !disabled;
   const className = [
     'proto-note-row',
+    // Settings rows borrow the note-feed row's styling, which clamps a title to one line with
+    // an ellipsis — right for a feed of note titles, wrong for a labelled control whose text
+    // explains something. This marks them so the stylesheet can let them wrap.
+    'proto-settings-row',
     destructive ? 'proto-note-row--destructive' : null,
     disabled ? 'proto-note-row--disabled' : null,
     !interactive ? 'proto-note-row--static' : null,
@@ -172,7 +183,7 @@ export function SettingsRow({
       <span className="proto-settings-list-row__main">
         <span
           className="proto-settings-list-row__title-row"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}
         >
           <span
             className="pds-list-title"

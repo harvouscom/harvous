@@ -137,7 +137,31 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'createdAt',
     'updatedAt',
   ],
-  UserMetadata: ['hmcChurchId', 'connectedChurchId', 'connectedOrgId', 'connectedChurchAt'],
+  UserMetadata: [
+    'hmcChurchId',
+    'connectedChurchId',
+    'connectedOrgId',
+    'connectedChurchAt',
+    // Web push reminders — `npm run push:schema:apply` on an older database.
+    'timezone',
+    'reminderSettings',
+    'lastActiveAt',
+    'lastReminderSentOn',
+  ],
+  PushSubscriptions: ['id', 'userId', 'endpoint', 'p256dh', 'auth', 'userAgent', 'createdAt', 'lastSuccessAt', 'failCount'],
+  ReminderDeliveries: [
+    'id',
+    'userId',
+    'kind',
+    'variant',
+    'sentAt',
+    'localDate',
+    'localHour',
+    'deviceCount',
+    'outcome',
+    'outcomeAt',
+    'outcomeSource',
+  ],
   ResourceLibraries: ['id', 'ownerKind', 'ownerId', 'title', 'createdAt', 'updatedAt'],
   LibraryItems: [
     'id',
@@ -196,6 +220,9 @@ const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   /** Both halves required — one index per plan scope, neither optional. */
   ChurchSeries: ['ChurchSeries_church_title_run_unique', 'ChurchSeries_space_title_run_unique'],
   UserMetadata: ['UserMetadata_connectedChurchIdIndex', 'UserMetadata_hmcChurchIdIndex'],
+  // The endpoint unique index is what the subscribe upsert targets.
+  PushSubscriptions: ['PushSubscriptions_endpoint_unique', 'PushSubscriptions_userIdIndex'],
+  ReminderDeliveries: ['ReminderDeliveries_userId_sentAtIndex', 'ReminderDeliveries_outcome_sentAtIndex'],
   // The owner unique index is the lazy-creation race guard, not just a constraint.
   ResourceLibraries: ['ResourceLibraries_owner_unique'],
   LibraryItems: [

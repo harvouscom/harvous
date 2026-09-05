@@ -17,6 +17,8 @@
  *   GET  /api/user/get-profile
  *   GET  /api/user/church-staff-status
  *   POST /api/user/update-shared-space-switcher-order
+ *   POST /api/user/update-reminders
+ *   POST /api/user/update-timezone
  *   POST /api/user/migrate-to-prototype
  *   GET  /api/user/migrate-to-prototype/status
  *   GET  /api/user/locked-notes
@@ -86,6 +88,12 @@ import {
   parseOnboardingState,
   serializeOnboardingState,
 } from '@/utils/onboarding-state';
+import {
+  serializeReminderSettings,
+  validateReminderSettingsInput,
+} from '@/utils/reminder-settings';
+import { isPushRemindersSchemaMissing } from '../utils/pg-undefined-relation';
+import { isValidIanaTimeZone } from '../utils/votd-local-date';
 import { handleAPIError } from '@/utils/error-handling';
 import {
   rateLimit,
@@ -193,6 +201,22 @@ app.post('/api/user/check-monthly-attendance', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     const awarded = await awardMonthlyAttendanceXP(auth.userId);
+
+    /*
+     * Coarse "opened the app" stamp, riding the one request the shell already makes on every
+     * mount rather than adding a second. The reminder tick reads it twice: to skip someone
+     * who was just here, and to credit a reminder that was followed by an app open without a
+     * tap on the banner.
+     *
+     * Fire-and-forget and deliberately not awaited into the response — a failed stamp costs
+     * one imprecise reminder decision, and must never cost the caller their attendance XP.
+     */
+    void db
+      .update(UserMetadata)
+      .set({ lastActiveAt: nowISO() })
+      .where(eq(UserMetadata.userId, auth.userId))
+      .catch(() => {});
+
     return c.json({ success: true, awardedXP: awarded, xpAmount: awarded ? 25 : 0 });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/check-monthly-attendance', action: 'check_monthly_attendance' });
@@ -990,6 +1014,8 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     let lastReadPosition: string | null = null;
     let onboardingState: string | null = null;
     let sharedSpaceSwitcherOrder: string[] | null = null;
+    let timezone: string | null = null;
+    let reminderSettings: string | null = null;
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       if (um) {
@@ -1008,6 +1034,8 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
         lastReadPosition = um.lastReadPosition ?? null;
         onboardingState = um.onboardingState ?? null;
         sharedSpaceSwitcherOrder = parseSharedSpaceSwitcherOrder(um.sharedSpaceSwitcherOrder);
+        timezone = um.timezone ?? null;
+        reminderSettings = um.reminderSettings ?? null;
 
         // Reconcile: user picked HMC before the church was registered on Harvous.
         if (churchData.hmcChurchId && !churchData.connectedOrgId) {
@@ -1074,6 +1102,8 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       lastReadPosition,
       onboardingState,
       sharedSpaceSwitcherOrder,
+      timezone,
+      reminderSettings,
       hasLockPinSet
     // Overrides app.ts's blanket `private, max-age=30, stale-while-revalidate=60` default.
     // That default assumes "user-specific data unlikely to change within seconds" — this
@@ -1293,6 +1323,112 @@ app.post('/api/user/update-appearance', requireAuth, rateLimit('write'), async (
     return c.json({ success: true, appearanceSettings });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/update-appearance', action: 'update_appearance' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * The reminder schedule. Overwrites rather than merges — unlike the onboarding checklist,
+ * this is a preference, and the newest edit is the truest one.
+ *
+ * A body may clear `pausedByPolicy` but never set it: a pause is something the policy
+ * concluded from evidence, and a client claiming one would be claiming evidence it does not
+ * have. Any edit at all clears an existing pause, because someone changing their schedule is
+ * telling us they want these.
+ */
+app.post('/api/user/update-reminders', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+
+    const validated = validateReminderSettingsInput(body?.reminderSettings ?? body);
+    if (!validated) {
+      return c.json({ error: 'Invalid reminder settings', code: 'REMINDERS_INVALID' }, 400);
+    }
+    const reminderSettings = serializeReminderSettings(validated);
+
+    const timezoneRaw = typeof body?.timezone === 'string' ? body.timezone.trim() : '';
+    const timezone = timezoneRaw && isValidIanaTimeZone(timezoneRaw) ? timezoneRaw : null;
+
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      await db.update(UserMetadata)
+        .set({
+          reminderSettings,
+          ...(timezone ? { timezone } : {}),
+          updatedAt: nowISO(),
+        })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        reminderSettings,
+        timezone,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      });
+    }
+
+    broadcastInvalidation(auth.userId, { type: 'userMetadata:updated' });
+
+    return c.json({ success: true, reminderSettings, timezone: timezone ?? existing?.timezone ?? null });
+  } catch (error) {
+    if (isPushRemindersSchemaMissing(error)) {
+      return c.json(
+        { error: 'Reminders are not set up on this server yet.', code: 'SCHEMA_NOT_READY' },
+        503,
+      );
+    }
+    const e = handleAPIError(error, { endpoint: '/api/user/update-reminders', action: 'update_reminders' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * The account's IANA timezone, captured from the browser rather than asked for.
+ *
+ * Separate from update-reminders on purpose: this fires automatically whenever the shell
+ * notices the zone has changed, and folding it into the schedule endpoint would mean an
+ * automatic background write touching a column the user had just set by hand.
+ *
+ * Only ever creates a row when one is missing — a user who has never stored metadata still
+ * needs somewhere for the zone to live before they reach the reminders page.
+ */
+app.post('/api/user/update-timezone', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json();
+    const raw = typeof body?.timezone === 'string' ? body.timezone.trim() : '';
+    if (!raw || !isValidIanaTimeZone(raw)) {
+      return c.json({ error: 'Invalid timezone', code: 'TIMEZONE_INVALID' }, 400);
+    }
+
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      if (existing.timezone === raw) return c.json({ success: true, timezone: raw, unchanged: true });
+      await db.update(UserMetadata)
+        .set({ timezone: raw, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        timezone: raw,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      });
+    }
+
+    return c.json({ success: true, timezone: raw });
+  } catch (error) {
+    if (isPushRemindersSchemaMissing(error)) {
+      return c.json(
+        { error: 'Reminders are not set up on this server yet.', code: 'SCHEMA_NOT_READY' },
+        503,
+      );
+    }
+    const e = handleAPIError(error, { endpoint: '/api/user/update-timezone', action: 'update_timezone' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
