@@ -30,6 +30,21 @@ const BODY_MAX = 120;
 /** Room for the ` — John 3:16 (NET)` tail. */
 const QUOTE_MAX = 84;
 
+/**
+ * Titles must fit one line, and the line is shorter than it looks.
+ *
+ * iOS renders a web push title as "<title> from <app name>", so a Home Screen notification
+ * from Harvous spends thirteen characters on " from Harvous" before the title gets any. At
+ * the lock screen's size that leaves roughly this much before it wraps, and a wrapped title
+ * pushes the verse down and reads as a paragraph rather than a heading.
+ *
+ * Which is why every title below is a fixed string. A title built from a reference —
+ * "Still in 1 Corinthians" — is the one shape that cannot be checked by reading the code,
+ * because its length depends on the book. References live in the body, which has room.
+ * `reminder-payload.test.ts` holds every title to this.
+ */
+export const TITLE_MAX = 22;
+
 export interface BuiltReminder {
   payload: ReminderNotificationPayload;
   variant: ReminderVariant;
@@ -60,9 +75,9 @@ function verseTitle(kind: ReminderKind): string {
   return "Today's verse";
 }
 
-function pickupTitle(kind: ReminderKind, reference: string): string {
-  if (kind === 'sunday') return 'A few minutes before church?';
-  return `Still in ${reference}`;
+function pickupTitle(kind: ReminderKind): string {
+  if (kind === 'sunday') return 'Before church';
+  return 'Where you left off';
 }
 
 function plainTitle(kind: ReminderKind): string {
@@ -84,7 +99,8 @@ function verseBody(verse: VerseContent): string {
 
 function pickupBody(kind: ReminderKind, reference: string): string {
   if (kind === 'sunday') return `You left off in ${reference}. Pick it up where you were.`;
-  return "It's been a few days. Read the next few verses.";
+  // The reference moved here from the title, so the body has to name it.
+  return `You're in ${reference}. Read the next few verses.`;
 }
 
 /** Deep link for a chapter, matching the reader route `read/$book/$chapter?t=`. */
@@ -180,7 +196,7 @@ export async function buildReminderPayload(
   } else if (position) {
     const reference = lastReadPositionReference(position);
     variant = 'pickup';
-    title = pickupTitle(kind, reference);
+    title = pickupTitle(kind);
     body = pickupBody(kind, reference);
     url = readerUrl(position.book, position.chapter, position.translation || meta?.defaultTranslation || 'NET');
   } else {
@@ -192,7 +208,7 @@ export async function buildReminderPayload(
 
   // A test send says what it is. Someone pressing "Send a test" is checking that the plumbing
   // works, and a banner indistinguishable from the real thing leaves them unsure whether it did.
-  if (kind === 'test') title = 'This is what a reminder looks like';
+  if (kind === 'test') title = 'Your test reminder';
 
   return {
     variant,
