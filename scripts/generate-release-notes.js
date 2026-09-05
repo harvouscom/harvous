@@ -120,6 +120,22 @@ function parseChangelog(changelogPath) {
         currentSection = 'performance';
       } else if (line.startsWith('## Other')) {
         currentSection = 'other';
+      } else if (line.startsWith('## ')) {
+        /*
+          Any other heading closes the current section instead of leaving it open.
+          
+          This used to fall through, so `currentSection` kept whatever it was and the bullets
+          under an unrecognised heading were filed under the previous one. `## Documentation`
+          is the heading that exposed it: on 2026-09-05 "Publish the 3.0 launch note" was
+          written into the user draft as an *improvement*, because Documentation followed
+          Improvements in the file and nothing had closed it.
+          
+          Dropping is the right default here rather than a list of private headings like
+          `export-changelog-csv.js` keeps: a heading nobody taught this parser about is one
+          nobody decided was user-facing, and the failure of guessing wrong is a public note
+          about work no reader can see.
+        */
+        currentSection = null;
       } else if (line.startsWith('- ') && currentSection) {
         // Extract bullet point content
         const change = line.substring(2).trim();
@@ -205,76 +221,32 @@ function generateUserFriendlyText(technicalText, type) {
   // Generate "how it helps" based on type and content
   let howItHelps = '';
   
-  if (type === 'features') {
-    howItHelps = generateFeatureBenefit(cleaned);
-  } else if (type === 'fixes') {
-    howItHelps = generateFixBenefit(cleaned);
-  } else if (type === 'improvements' || type === 'performance') {
-    howItHelps = generateImprovementBenefit(cleaned);
+  if (type === 'features' || type === 'fixes' || type === 'improvements' || type === 'performance') {
+    howItHelps = BENEFIT_PLACEHOLDER;
   }
   
   return { whatChanged, howItHelps };
 }
 
 /**
- * Generate benefit text for features
+ * The line a writer has to supply, because this script cannot.
+ *
+ * There used to be three functions here — one per category — that keyword-matched a commit
+ * subject and returned a benefit sentence: 'sync' earned "Your notes stay up to date across
+ * all devices", 'crash' earned "More reliable app experience", and anything unmatched fell
+ * through to "Makes your Bible study workflow smoother".
+ *
+ * They were not summarising. They were asserting, about a change whose subject line is the
+ * only thing this script has ever seen. On 2026-09-05 a price cut from $7/mo to $6/mo matched
+ * no keyword and was published to the draft as making "your Bible study workflow smoother",
+ * which is not what a lower price does; the same run told readers a founding discount had been
+ * retired under the heading "Enhanced overall experience". A wrong benefit is worse than an
+ * absent one, because it reads as finished and survives the rewrite that would have caught it.
+ *
+ * So the draft now leaves a hole shaped like the missing sentence. `**What changed:**` above it
+ * stays a restatement of facts the script does have — that part it can do honestly.
  */
-function generateFeatureBenefit(featureText) {
-  const lower = featureText.toLowerCase();
-  
-  if (lower.includes('navigation') || lower.includes('nav')) {
-    return 'Easier to find and access your content';
-  }
-  if (lower.includes('space') || lower.includes('organize')) {
-    return 'Better organization keeps your notes tidy';
-  }
-  if (lower.includes('mobile')) {
-    return 'Improved mobile experience for on-the-go use';
-  }
-  if (lower.includes('paste') || lower.includes('copy')) {
-    return 'Saves time when adding content from other sources';
-  }
-  if (lower.includes('sync')) {
-    return 'Your notes stay up to date across all devices';
-  }
-  
-  return 'Makes your Bible study workflow smoother';
-}
-
-/**
- * Generate benefit text for fixes
- */
-function generateFixBenefit(fixText) {
-  const lower = fixText.toLowerCase();
-  
-  if (lower.includes('crash') || lower.includes('error')) {
-    return 'More reliable app experience';
-  }
-  if (lower.includes('count') || lower.includes('number')) {
-    return 'Accurate information you can trust';
-  }
-  if (lower.includes('sync')) {
-    return 'Your data stays in sync properly';
-  }
-  
-  return 'Smoother, more reliable experience';
-}
-
-/**
- * Generate benefit text for improvements
- */
-function generateImprovementBenefit(improvementText) {
-  const lower = improvementText.toLowerCase();
-  
-  if (lower.includes('performance') || lower.includes('speed') || lower.includes('fast')) {
-    return 'Faster, more responsive app';
-  }
-  if (lower.includes('ui') || lower.includes('visual') || lower.includes('design')) {
-    return 'Cleaner, more polished interface';
-  }
-  
-  return 'Enhanced overall experience';
-}
+const BENEFIT_PLACEHOLDER = 'TODO — what this does for the reader.';
 
 /**
  * Get month and year for filename
@@ -348,21 +320,17 @@ function generateReleaseNotesMarkdown(version, groupedChanges, covered = [versio
     markdown += `\n`;
   });
   
-  // Add tips section
-  markdown += `---\n\n`;
-  markdown += `## Tips for Using New Features\n\n`;
-  markdown += `- **Explore the changes:** Try clicking around to discover the improvements\n`;
-  markdown += `- **Check tooltips:** Hover over buttons to see what they do\n`;
-  markdown += `- **Visit /help:** Detailed guides for all features\n\n`;
-  
-  markdown += `---\n\n`;
-  markdown += `## Need Help?\n\n`;
-  markdown += `If you have questions about these updates:\n`;
-  markdown += `- Check the \`/help\` folder for detailed guides\n`;
-  markdown += `- Most features have hover tooltips that explain what they do\n\n`;
-  markdown += `---\n\n`;
-  markdown += `*This release note focuses on user experience improvements. For technical details, see the \`Changelog/\` folder.*\n`;
-  
+  /*
+    No "Tips for Using New Features" and no "Need Help?" any more.
+    
+    Both were fixed strings, byte-identical in every note this script has ever written, and
+    neither referred to the release it was appended to — "Try clicking around to discover the
+    improvements" and "Hover over buttons to see what they do" are what a note says when it has
+    nothing to say. They also made the file look longer and more finished than it was, which is
+    the failure mode the DRAFT banner exists to prevent.
+    
+    A release with something worth adding here can have it written by hand.
+  */
   return markdown;
 }
 

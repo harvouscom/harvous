@@ -7445,17 +7445,12 @@ button.proto-home-greeting__chip--passage {
   font-weight: 600;
   line-height: 1.5;
   white-space: nowrap;
-  cursor: pointer;
 }
 
 .proto-home-greeting__season svg {
   display: block;
   flex-shrink: 0;
   color: var(--pds-accent);
-}
-
-.proto-home-greeting__season:hover {
-  box-shadow: 0 2px 4px rgba(60, 64, 67, 0.08), 0 8px 18px -10px rgba(60, 64, 67, 0.12), var(--pds-glass-rim);
 }
 
 /* ─── Migration pill (Classic → 2.0 sidebar notice) ──────────────────────── */

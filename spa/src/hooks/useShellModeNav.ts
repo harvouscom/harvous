@@ -131,17 +131,23 @@ export function useShellModeNav(): ShellModeNav {
    * `lastNoteEditorPath` only, never `lastNotesPath` as a fallback: the second includes
    * Activity, so on a session that has not opened a note yet the Note half would navigate
    * to Activity and appear to do nothing. Compose is the honest answer there.
+   *
+   * Already on a note, the resume branch has nothing to resume: the remembered path IS the
+   * current one, and navigating to it was the dead click. So the half takes its second job
+   * there, the way the Activity half opens the spaces menu once you are on Activity — press
+   * it again and you get a new note. That includes an unsaved draft on `/`: the draft
+   * autosaves like any other, and beginning a session clears only a stale one.
    */
   const openNote = useCallback(
     (startNew: () => void) => {
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-      if (lastNoteEditorPath) {
+      if (mode !== 'note' && lastNoteEditorPath) {
         void navigate({ to: lastNoteEditorPath as '/prototype' });
         return;
       }
       startNew();
     },
-    [closeDrawer, isMobileSidebar, lastNoteEditorPath, navigate],
+    [closeDrawer, isMobileSidebar, lastNoteEditorPath, mode, navigate],
   );
 
   /*
@@ -158,7 +164,8 @@ export function useShellModeNav(): ShellModeNav {
   return {
     mode,
     isOnReadPage,
-    hasNoteToResume: Boolean(lastNoteEditorPath),
+    /* False on a note: the half's job there is a new one, and the label and keycap follow. */
+    hasNoteToResume: mode !== 'note' && Boolean(lastNoteEditorPath),
     openActivity,
     openNote,
     openReader,
