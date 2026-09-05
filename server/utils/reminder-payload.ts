@@ -31,19 +31,25 @@ const BODY_MAX = 120;
 const QUOTE_MAX = 84;
 
 /**
- * Titles must fit one line, and the line is shorter than it looks.
+ * Titles must fit one line.
  *
- * iOS renders a web push title as "<title> from <app name>", so a Home Screen notification
- * from Harvous spends thirteen characters on " from Harvous" before the title gets any. At
- * the lock screen's size that leaves roughly this much before it wraps, and a wrapped title
- * pushes the verse down and reads as a paragraph rather than a heading.
+ * Measured on an iPhone lock screen, not guessed: a 33-character title rendered on a single
+ * line next to the timestamp, and an 18-character one did too. 28 keeps a margin for narrower
+ * phones, where the same string has fewer characters to spend.
  *
- * Which is why every title below is a fixed string. A title built from a reference —
- * "Still in 1 Corinthians" — is the one shape that cannot be checked by reading the code,
- * because its length depends on the book. References live in the body, which has room.
- * `reminder-payload.test.ts` holds every title to this.
+ * What this budget is *not* about is the "from Harvous" line under the title. That was the
+ * first theory — that iOS concatenates "<title> from <app name>" and the suffix had to share
+ * the budget — and a probe disproved it: a five-character title still put "from Harvous" on
+ * its own line. It is a separate row in Apple's layout, always present, and nothing a sender
+ * controls. So the header is two rows on iOS no matter what, and the only thing worth
+ * defending is that the title itself is not a third.
+ *
+ * Every title below is still a fixed string. A title built from a reference — "Still in
+ * 1 Thessalonians 5" is 26 — depends on the book and cannot be checked by reading the code,
+ * so references live in the body, which has room. `reminder-title-length.test.ts` holds every
+ * title to this.
  */
-export const TITLE_MAX = 22;
+export const TITLE_MAX = 28;
 
 export interface BuiltReminder {
   payload: ReminderNotificationPayload;

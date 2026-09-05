@@ -1,14 +1,14 @@
 /**
  * Every reminder title fits one line on a lock screen.
  *
- * This is a real bug that shipped to a phone before it was caught: iOS renders a web push
- * title as "<title> from <app name>", so "This is what a reminder looks like" became "This is
- * what a reminder looks like from Harvous" and wrapped, pushing the verse down and reading as
- * a paragraph instead of a heading.
+ * Verified on a real iPhone rather than assumed. iOS puts "from <app name>" on its own row
+ * beneath the title — a probe with a five-character title still showed it there — so that row
+ * is Apple's and unavoidable. What a sender controls is whether the title itself wraps, which
+ * would make the header three rows and push the verse down.
  *
  * Asserted against the source rather than by calling `buildReminderPayload`, which needs a
  * database. The titles are string literals by design — a title built from a reference cannot
- * be length-checked at all, because "Still in 1 Corinthians" depends on the book.
+ * be length-checked at all, because "Still in 1 Thessalonians 5" depends on the book.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -16,9 +16,6 @@ import { describe, expect, it } from 'vitest';
 import { TITLE_MAX } from '../reminder-payload';
 
 const source = readFileSync(resolve(process.cwd(), 'server/utils/reminder-payload.ts'), 'utf8');
-
-/** The iOS suffix the title shares its line with. */
-const IOS_SUFFIX = ' from Harvous';
 
 /**
  * Every string literal returned by a `*Title` function, plus the test override.
@@ -61,19 +58,16 @@ describe('reminder titles', () => {
     }
   });
 
-  it('leaves room for the app name iOS appends', () => {
-    for (const title of titles) {
-      expect(
-        (title + IOS_SUFFIX).length,
-        `"${title}${IOS_SUFFIX}" is what iOS actually renders`,
-      ).toBeLessThanOrEqual(TITLE_MAX + IOS_SUFFIX.length);
-    }
-  });
-
   it('builds no title from a scripture reference', () => {
-    // The one shape whose length cannot be checked: "Still in 1 Corinthians" is nine
-    // characters longer than "Still in John". References belong in the body.
+    // The one shape whose length cannot be checked: "Still in 1 Thessalonians 5" is ten
+    // characters longer than "Still in John 3". References belong in the body.
     const titleFns = source.slice(source.indexOf('function verseTitle'), source.indexOf('function verseBody'));
     expect(titleFns).not.toContain('${reference}');
+  });
+
+  it('stays well inside the width a real iPhone showed on one line', () => {
+    // 33 characters rendered on a single line on the device this was tested on. The budget is
+    // below that on purpose, for narrower phones — this guards the guard.
+    expect(TITLE_MAX).toBeLessThan(33);
   });
 });
