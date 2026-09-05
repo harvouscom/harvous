@@ -304,6 +304,11 @@ export function prototypeSettingsSupportRouteTo(): '/prototype/settings/support'
   return (isDedicatedPrototypeHost() ? '/settings/support' : '/prototype/settings/support') as '/prototype/settings/support';
 }
 
+/** Settings → My Notes, which opens on its Import tab. */
+export function prototypeSettingsDataRouteTo(): '/prototype/settings/data' {
+  return (isDedicatedPrototypeHost() ? '/settings/data' : '/prototype/settings/data') as '/prototype/settings/data';
+}
+
 /**
  * Review's two URLs, and Challenges' two.
  *

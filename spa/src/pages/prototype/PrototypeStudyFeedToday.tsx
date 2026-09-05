@@ -33,6 +33,19 @@ import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototyp
 import { protoRelativeCaptionAbbrev } from './proto-time';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { LOOSE_MIN, type useHomeSurfaceData } from './use-home-surface-data';
+
+/**
+ * Above this many notes, the import offer stops being useful and starts being noise.
+ *
+ * A reader who has written six notes here has started; one who has written none, or two, may
+ * still have a shelf of them somewhere else. Deliberately small — this is the only unprompted
+ * pointer to import in the app, and its whole value is being early.
+ */
+const IMPORT_PROMPT_MAX_NOTES = 6;
+import { useDismissibleImportPrompt } from './use-dismissible-import-prompt';
+import { useNavigate } from '@tanstack/react-router';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { prototypeSettingsDataRouteTo } from '@/lib/prototype-path';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 
 /** A note as a Continue row — the sidebar's `HomeNoteCard`, in this surface's row shape. */
@@ -68,6 +81,9 @@ export default function PrototypeStudyFeedToday({
   const { homeSpaceId } = usePrototypeHomeSpaceId();
   const scriptureQuery = usePrototypeSpaceScriptureIndex(homeSpaceId ?? undefined);
   const libraryNav = useLibraryPanelNav();
+  const navigate = useNavigate();
+  const { isGuest } = useHarvousIdentity();
+  const { dismissed: importDismissed, dismiss: dismissImportPrompt } = useDismissibleImportPrompt();
 
   const {
     continueNote,
@@ -84,6 +100,8 @@ export default function PrototypeStudyFeedToday({
     handleRecallOpened,
     handleRecallSynced,
     looseCount,
+    countForLogic,
+    hasMoreForLogic,
     votd,
   } = home;
 
@@ -205,6 +223,42 @@ export default function PrototypeStudyFeedToday({
               icon="folder"
               title={`${looseCount} ${looseCount === 1 ? 'note needs' : 'notes need'} a folder`}
               onClick={() => libraryNav.openUnfiledNotes()}
+            />
+          ) : null}
+          {/*
+            * The one pointer a new reader gets to the fact that importing exists at all.
+            *
+            * Shown while the library is still small, because that is when bringing a shelf of
+            * notes across is worth doing and when nothing else on this surface has anything to
+            * say. `countForLogic` rather than `notes.length`: the list here is one page, so a
+            * reader with three hundred notes would otherwise look brand new and be told to
+            * import the ones they already have. `hasMoreForLogic` is the honesty check the
+            * hook exposes it for — with more pages outstanding and no server total, the count
+            * is not yet a fact to act on.
+            *
+            * Dismissible, unlike the folder row above it: filing answers itself, whereas a
+            * reader with nothing to import has no way to make this row go away by doing what
+            * it asks.
+            */}
+          {!isGuest && !importDismissed && !hasMoreForLogic && countForLogic < IMPORT_PROMPT_MAX_NOTES ? (
+            <PrototypeHomeRow
+              icon="cloud-arrow-up"
+              title="Bring your notes from another app"
+              meta={['Markdown, Word, Evernote, or a folder of files']}
+              onClick={() => void navigate({ to: prototypeSettingsDataRouteTo() })}
+              trailing={
+                <button
+                  type="button"
+                  className="proto-side-panel__action-btn"
+                  aria-label="Hide this"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dismissImportPrompt();
+                  }}
+                >
+                  <span aria-hidden>×</span>
+                </button>
+              }
             />
           ) : null}
           {/*
