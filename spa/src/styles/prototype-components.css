@@ -674,7 +674,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
     .proto-toolbar-seg__btn,
     .proto-sidebar-seg__btn,
     .proto-appearance-segmented__btn,
-    .proto-library-kinds__btn
+    .proto-library-kinds__btn,
+    .proto-install-seg__btn
   ) {
   /* Labels and glyphs ride above the thumb they sit on. */
   position: relative;
@@ -689,7 +690,8 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
     .proto-toolbar-seg__btn,
     .proto-sidebar-seg__btn,
     .proto-appearance-segmented__btn,
-    .proto-library-kinds__btn
+    .proto-library-kinds__btn,
+    .proto-install-seg__btn
   ):is([data-active='true'], .proto-appearance-segmented__btn--active) {
   background: transparent;
   box-shadow: none;
@@ -7300,6 +7302,10 @@ button.proto-home-card--tappable:focus-visible {
 
 /* Mobile home — Add to Home Screen card (main pane empty state). */
 .proto-install-web-app-card {
+  cursor: pointer;
+  transition:
+    background 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.38s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   flex-shrink: 0;
   width: fit-content;
@@ -7315,7 +7321,53 @@ button.proto-home-card--tappable:focus-visible {
   pointer-events: auto;
 }
 
+/* The same lift a tappable home card takes, so a card that responds looks like
+   the others that do. */
+.proto-install-web-app-card:hover {
+  background: var(--pds-bg-control-strong);
+  box-shadow:
+    0 2px 4px rgba(60, 64, 67, 0.08),
+    0 8px 18px -10px rgba(60, 64, 67, 0.12),
+    var(--pds-glass-rim);
+}
+
+@media (prefers-color-scheme: dark) {
+  html.harvous-prototype-route:not([data-color-scheme='light']) .proto-install-web-app-card:hover,
+  html[data-color-scheme='dark'].harvous-prototype-route .proto-install-web-app-card:hover {
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.22),
+      0 8px 18px -10px rgba(0, 0, 0, 0.3),
+      var(--pds-glass-rim);
+  }
+}
+
+/* Covers the card, under its contents. The three real controls are lifted
+   above it so their own taps still reach them; everything else — the heading,
+   the padding, the empty corners — belongs to this. */
+.proto-install-web-app-card__surface-tap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.proto-install-web-app-card .proto-daily-passage-pill__dismiss,
+.proto-install-web-app-card__install,
+.proto-install-web-app-card__learn {
+  position: relative;
+  z-index: 2;
+}
+
 .proto-install-web-app-card__heading {
+  /* Lets a tap on the words reach the card's own layer under them. The
+     heading is not selectable text anyone needs — it is the card's label, and
+     the whole card is the target now. */
+  pointer-events: none;
   margin: 0;
   overflow: visible;
   text-overflow: unset;
@@ -7343,8 +7395,10 @@ button.proto-home-card--tappable:focus-visible {
   cursor: pointer;
 }
 
+/* No underline on hover: the whole card lifts now, which says "this responds"
+   without turning a call to action into a link. */
 .proto-install-web-app-card__learn:hover {
-  text-decoration: underline;
+  opacity: 0.72;
 }
 
 .proto-install-web-app-card__learn:focus-visible {
@@ -7352,17 +7406,258 @@ button.proto-home-card--tappable:focus-visible {
   border-radius: 4px;
 }
 
-.proto-install-web-app-sheet__steps {
-  margin: 0 0 12px;
-  padding-left: 1.2rem;
+/* ── Add to home screen — platform toggle, then steps that look like steps ──
+   The list used to be prose in an <ol>, which read as a paragraph with numbers.
+   Each step is a row now: a marker, the instruction, and the glyph of the
+   control it names, so the reader can match the sentence to what is on their
+   screen. */
+.proto-install-seg {
+  /* Its own geometry, published for the shared thumb — same contract the
+     appearance control keeps. */
+  --proto-seg-pad: 3px;
+  --proto-seg-gap: 2px;
+  --proto-seg-thumb-radius: 8px;
+  display: flex;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--pds-bg-control);
+  padding: var(--proto-seg-pad);
+  gap: var(--proto-seg-gap);
+}
+
+.proto-install-seg__btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: none;
+  background: transparent;
+  border-radius: var(--proto-seg-thumb-radius);
+  padding: 7px 12px;
   font-family: var(--pds-font-body);
-  font-size: 0.9375rem;
-  line-height: 1.5;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.proto-install-seg__btn[data-active='true'] {
+  color: var(--pds-text-primary);
+  font-weight: 600;
+}
+
+/* ── A sliver of the reader's own appearance, above the title ────────────────
+   The picture their canvas wears, or the catalogue's pairing for the colour
+   they chose. A band the header sits under, which is how a room wears its
+   cover — behind the title it would have to be faded to a smudge to keep
+   `--pds-text-primary` safe on the busiest frame. The sheet already clips its
+   own corners, so the band takes the rounded top for free. */
+.proto-install-web-app-sheet__sliver {
+  display: block;
+  position: relative;
+  z-index: 1;
+  /* A sliver: enough to carry a horizon, not enough to become the subject.
+     The room's cover is 140px because it *is* the room's picture; this one is
+     answering "whose app is this" in passing. */
+  height: 62px;
+  flex-shrink: 0;
+  /* Dissolves into the sheet at its foot, so there is no second edge between
+     the picture and the title under it. Masking the strip rather than the
+     image inside it means the holding colour fades on the same curve. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 46%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 46%, transparent 100%);
+  pointer-events: none;
+}
+
+.proto-install-web-app-sheet__sliver-image {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  /* Biased upward: these wallpapers carry their sky at the top, and a strip
+     this short would otherwise crop to the busiest part of the frame. */
+  background-position: center 28%;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 320ms var(--pds-ease-emphasized, ease-out);
+}
+
+.proto-install-web-app-sheet__sliver-image--ready {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-install-web-app-sheet__sliver-image {
+    transition: none;
+  }
+}
+
+/* The band supplies the space above the title, so the header stops paying for
+   it twice. */
+.proto-install-web-app-sheet__header {
+  padding-top: 6px;
+}
+
+/* The way out, in the picture's corner.
+   Absolute against the sheet — which already clips its own corners — rather
+   than a member of the header's flex row, so it sits on the band instead of
+   under it, and the title gets the full width back. Same inset top and right,
+   measured from the sheet's own edges. The button carries its own fill, which
+   is what keeps it legible over whatever the reader's appearance put there. */
+.proto-install-web-app-sheet__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+}
+
+/* The one-tap path, where the browser gave us one. Its own block above the
+   toggle, with a rule under it, so the steps below read as the alternative
+   rather than as more of the same instruction. */
+.proto-install-web-app-sheet__oneTap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--pds-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+.proto-install-web-app-sheet__oneTap .proto-share-popover__primary {
+  width: 100%;
+}
+
+/* The card's install button matches the sheet's, at the card's own width. */
+.proto-install-web-app-card__install {
+  display: block;
+  width: 100%;
+  margin: 12px auto 0;
+}
+
+/* Which browser, said before the steps — on iPhone this is the difference
+   between the steps working and appearing to be wrong. */
+.proto-install-web-app-sheet__browser {
+  display: flex;
+  /* Centred on the tile now rather than hung from the first line: the icon is
+     26px against a 13px line, so aligning their tops left it floating. */
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-family: var(--pds-font-body);
+  font-size: 0.8125rem;
+  line-height: 1.45;
   color: var(--pds-text-secondary);
 }
 
-.proto-install-web-app-sheet__steps li + li {
-  margin-top: 6px;
+.proto-install-web-app-sheet__browser strong {
+  color: var(--pds-text-primary);
+  font-weight: 600;
+}
+
+/* An app tile, because that is what the reader is looking for on their own home
+   screen: the platform's rounded white square with the browser's mark on it.
+   The hairline and the small shadow are what stop it reading as a sticker on a
+   white sheet. */
+.proto-install-web-app-sheet__browser-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.16),
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
+
+/* Without this the sentence sets its own width and runs under the sheet's edge.
+   Both halves are needed: something upstream gives spans in here `flex: 0 0 auto`,
+   so it may not shrink at all, and a flex item will not go below its content
+   width without `min-width: 0` either. */
+.proto-install-web-app-sheet__browser-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.proto-install-web-app-sheet__steps {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  font-family: var(--pds-font-body);
+}
+
+.proto-install-step {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--pds-bg-control);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--pds-text-secondary);
+}
+
+.proto-install-step + .proto-install-step {
+  margin-top: 7px;
+}
+
+.proto-install-step__marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--pds-bg-page);
+  box-shadow: var(--pds-shadow-chip-selected);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pds-text-primary);
+}
+
+.proto-install-step__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.proto-install-step__text strong {
+  color: var(--pds-text-primary);
+  font-weight: 600;
+}
+
+/* The control being named, at the end of the row — a reader scanning for the
+   share square finds it without reading the sentence. */
+.proto-install-step__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--pds-bg-page);
+  color: var(--pds-text-primary);
+}
+
+/* What they get for it. Last, because it is the reason rather than a step.
+   Measured rather than full-bleed: at the sheet's full width the sentence ran
+   almost to the edge and dropped a single word onto the second line. `pretty`
+   is the belt to that braces — it is what stops the last line being an orphan
+   at widths the max-width alone does not catch. */
+.proto-install-web-app-sheet__outcome {
+  margin: 0;
+  max-width: 46ch;
+  font-family: var(--pds-font-body);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  text-wrap: pretty;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 
 @media (min-width: 900px) {
@@ -23036,4 +23331,45 @@ button.proto-feed-sheet__stat:hover {
   font-size: 15px;
   line-height: 1.8;
   color: var(--pds-text-primary);
+}
+
+/* ── What's next — the room's suggestion box ────────────────────────────────
+   Three stacked sections (queue, form, yours) in one sheet. Rows reuse the
+   church-tools row and the library suggestion's action pair, so a leader who
+   has reviewed resources already knows what these buttons do. */
+.proto-space-suggestions__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.proto-space-suggestions__section + .proto-space-suggestions__section {
+  padding-top: 12px;
+  border-top: 1px solid var(--pds-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+.proto-space-suggestions__kinds {
+  margin-bottom: 8px;
+}
+
+.proto-space-suggestions__kinds .proto-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Same reason as the library queue: inline beside the row, the quiet action
+   sizes to its own text rather than the sheet's full width. */
+.proto-space-suggestions .proto-church-tools__row .proto-sheet-quiet-action {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.proto-space-suggestions-popover {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.proto-space-suggestions-popover .proto-connect-note-sheet--popover {
+  max-height: min(78vh, 720px);
+  overflow-y: auto;
 }

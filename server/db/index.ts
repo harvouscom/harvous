@@ -77,6 +77,7 @@ export {
   LibraryItemScopes,
   LibraryItemSpacePins,
   LibraryItemSuggestions,
+  SpaceStudySuggestions,
   ChurchServiceLibraryItems,
   ChurchSpaceChannelLinks,
   InboxItems,

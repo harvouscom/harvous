@@ -32,7 +32,9 @@ import { useChurchPlannerAccess } from '../../../hooks/useChurchPlannerAccess';
 import {
   buildSeriesAccentLookup,
   describeRerunResult,
+  localTodayIso,
   planVocabulary,
+  rhythmDates,
 } from '../../../lib/church-services';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import ProtoSpaceLoading from '../ProtoSpaceLoading';
@@ -216,6 +218,36 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
   const effectiveCanWrite = spaceEntry
     ? Boolean(spacePlan.data?.viewer?.canManage)
     : canWrite;
+  /*
+    Why a room cannot write, in the room's own terms.
+
+    `readOnlyReason` from `useChurchPlannerAccess` answers for the *church* —
+    `lapsed` is the church's sponsorship state. Passing it straight through told
+    a churchless room "read-only while the church pilot is paused" whenever the
+    viewer's own church had lapsed, on a plan that room may fully edit: the
+    banner and `effectiveCanWrite` disagreed, so the sentence said no while the
+    buttons stayed live.
+
+    The space lane answers from the room instead. `'role'` rather than a new
+    code, because it is the same fact the church lane's `'role'` states — the
+    viewer is here, and someone else arranges this — and the views already have
+    wording for it.
+  */
+  const effectiveReadOnlyReason: 'lapsed' | 'role' | null = spaceEntry
+    ? (effectiveCanWrite ? null : 'role')
+    : readOnlyReason;
+
+  /*
+    Resolved once, here, rather than as a ternary in each view — Board, List and
+    the editor pane each carried their own copy of it, and Calendar and Series
+    were never given the reason at all, so a read-only viewer on those two tabs
+    watched every control vanish with nothing on screen saying why.
+  */
+  const readOnlyMessage = effectiveReadOnlyReason
+    ? effectiveReadOnlyReason === 'lapsed'
+      ? 'This plan is read-only while the church pilot is paused.'
+      : vocab.readOnlyRole
+    : null;
   const services = useMemo(() => data?.services ?? [], [data]);
   const series = useMemo(() => data?.series ?? [], [data]);
   const serviceTimes = onSpacePlan ? [] : (churchPlan.data?.serviceTimes ?? []);
@@ -260,6 +292,26 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
           }
         : { meetingDay: defaultDay, intervalDays: 7 },
     [planKind, defaultDay, spacePlan.data?.space.publishCadence],
+  );
+
+  /*
+    The day the primary action lands on.
+
+    The header button used to open the editor with no date, which made a button
+    saying "New gathering" produce a row that is not one: an undated row is
+    backlog, `coming-up` never returns it, and nobody in the room ever sees it.
+    A create from the primary action now means the next time this plan actually
+    happens.
+
+    `rhythmDates` already answers this — the room's next meeting day, or today
+    for a channel whose cadence says nothing about which day. Today is also the
+    fallback when a room has declared no rhythm at all: a real date the editor
+    can move is better than no date the label lied about. Ideas keep their own
+    `+` on the board and the calendar rail, and are now the only way there.
+  */
+  const nextPlanDate = useMemo(
+    () => rhythmDates({ ...rhythm, count: 1 })[0] ?? localTodayIso(),
+    [rhythm],
   );
 
   const schedule = usePlannerSchedule({
@@ -398,7 +450,7 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
                   setCreatingSeries(true);
                   return;
                 }
-                setSelection({ mode: 'create', date: null });
+                setSelection({ mode: 'create', date: nextPlanDate });
               }}
             >
               <Icon name="plus" size={12} aria-hidden />
@@ -408,7 +460,7 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
               <button
                 type="button"
                 className="proto-sheet-quiet-action"
-                onClick={() => setSelection({ mode: 'create', date: null })}
+                onClick={() => setSelection({ mode: 'create', date: nextPlanDate })}
               >
                 {vocab.secondaryAddLabel}
               </button>
@@ -443,7 +495,7 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
                 serviceTimes={serviceTimes}
                 accentFor={accentFor}
                 canWrite={effectiveCanWrite}
-                readOnlyReason={readOnlyReason}
+                readOnlyMessage={readOnlyMessage}
                 defaultDay={defaultDay}
                 selection={selection}
                 onSelect={setSelection}
@@ -455,6 +507,8 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
                 serviceTimes={serviceTimes}
                 accentFor={accentFor}
                 canWrite={effectiveCanWrite}
+                readOnlyMessage={readOnlyMessage}
+                itemNoun={vocab.itemNoun}
                 selection={selection}
                 onSelect={setSelection}
                 onMoveToDate={schedule.moveToDate}
@@ -465,7 +519,8 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
                 serviceTimes={serviceTimes}
                 accentFor={accentFor}
                 canWrite={effectiveCanWrite}
-                readOnlyReason={readOnlyReason}
+                readOnlyMessage={readOnlyMessage}
+                itemNoun={vocab.itemNoun}
                 emptyWritable={vocab.emptyWritable}
                 selection={selection}
                 onSelect={setSelection}
@@ -478,6 +533,8 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
                   accentFor={accentFor}
                   openSeriesId={openSeries?.id ?? null}
                   canWrite={effectiveCanWrite}
+                  readOnlyMessage={readOnlyMessage}
+                  itemNoun={vocab.itemNoun}
                   onOpen={(entry) => {
                     setSeriesError(null);
                     setOpenSeries(entry);
@@ -631,9 +688,10 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
               series={series}
               serviceTimes={serviceTimes}
               canWrite={effectiveCanWrite}
-              readOnlyReason={readOnlyReason}
+              readOnlyMessage={readOnlyMessage}
               canManageChurchTemplates={canManageChurchTemplates}
               planKind={planKind}
+              hasChurch={hasChurch}
               rhythm={rhythm}
               onClose={() => setSelection(null)}
               onNavigateAway={leaveForNote}

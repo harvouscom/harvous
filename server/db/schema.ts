@@ -88,6 +88,18 @@ export const Spaces = pgTable(
      * surface would show.
      */
     meetingUrl: text('meetingUrl'),
+    /**
+     * Whether members may say what the room studies next.
+     *
+     * `'off' | 'suggest'`, default `'off'` — a room that has never wanted this
+     * should never see it. `'vote'` is reserved for phase 2 of
+     * docs/future/SPACE_STUDY_SUGGESTIONS_AND_VOTES.md (a leader slates, the
+     * room votes) and is refused by the write route until that lands. One
+     * column rather than a settings table: a table for a couple of scalars is
+     * ceremony. Shared rooms only; a ministry channel publishes rather than
+     * decides, and a personal space has nobody to ask.
+     */
+    studyPlanningMode: text('studyPlanningMode').notNull().default('off'),
     color: text('color'),
     backgroundGradient: text('backgroundGradient'),
     /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
@@ -1573,10 +1585,27 @@ export const RecallEvents = pgTable('RecallEvents', {
   kind: text('kind').notNull(),
   action: text('action').notNull(),
   noteId: text('noteId'),
+  /**
+   * Which room the reader was standing in when they said it.
+   *
+   * The client's cooldown store has always been keyed by space
+   * (`proto-recall-cooldown.ts`), while this table was user-scoped only — so the
+   * local half of suppression was space-correct and the cross-device half was
+   * not. Dismissing a suggestion on a laptop would have hidden it in every room
+   * on a phone. That was harmless only because recall ran in one space; it is
+   * the blocker the route's own comment named for running it anywhere else.
+   *
+   * **NULL means the reader's personal Home**, which is where every row written
+   * before this column existed came from. That is what makes adding it a
+   * no-backfill change, and the read treats NULL and the personal space as the
+   * same bucket rather than pretending the old rows are space-less.
+   */
+  spaceId: text('spaceId'),
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   index('RecallEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('RecallEvents_kind_action_createdAtIndex').on(table.kind, table.action, table.createdAt),
+  index('RecallEvents_userId_spaceId_createdAtIndex').on(table.userId, table.spaceId, table.createdAt),
 ]);
 
 // ─── ReadingEvents (append-only log of chapters read) ──────────────────────────
@@ -2352,6 +2381,64 @@ export const LibraryItemSuggestions = pgTable(
       table.createdAt,
     ),
     index('LibraryItemSuggestions_suggestedBy_createdAtIndex').on(
+      table.suggestedByUserId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * A member proposing what their room studies next.
+ *
+ * Phase 1 of docs/future/SPACE_STUDY_SUGGESTIONS_AND_VOTES.md: members suggest,
+ * whoever runs the room reviews. Copies `LibraryItemSuggestions` almost line
+ * for line, and for the same reason it is attributed: a suggestion is an
+ * affirmative submission — someone raising their hand — which a reviewer
+ * cannot act on, reply to, or judge fairly without knowing who sent it. The
+ * name is serialized only into the leader-gated queue, never into anything a
+ * member reads. Suggestions are private to their author and the room's
+ * leaders; widening that later is free, narrowing it is not.
+ *
+ * `kind` says which table `refId` names — one discriminated pointer, not
+ * several nullable ones racing to mean the same thing. A row without a `kind`
+ * is impossible.
+ *
+ * `status` is `'open' | 'accepted' | 'declined'` here. Phase 2 adds `'slated'`
+ * (the suggestion became an option on a round's slate); in phase 1 there is no
+ * round, so accepting pins a Thread directly and `becameThreadId` records it.
+ *
+ * Row ids: `sgst_${crypto.randomUUID()}`.
+ */
+export const SpaceStudySuggestions = pgTable(
+  'SpaceStudySuggestions',
+  {
+    id: text('id').primaryKey(),
+    spaceId: text('spaceId').notNull(),
+    suggestedByUserId: text('suggestedByUserId').notNull(),
+    /** 'thread' | 'note' | 'scripture' | 'text'. */
+    kind: text('kind').notNull(),
+    /** The Thread or Note id; null for scripture and text. */
+    refId: text('refId'),
+    scriptureReference: text('scriptureReference'),
+    /** The free text for `kind='text'`; the "why" for every other kind. */
+    body: text('body'),
+    /** 'open' | 'accepted' | 'declined'. */
+    status: text('status').notNull().default('open'),
+    /** Set on accept — the Thread this became (or the one it pinned). */
+    becameThreadId: text('becameThreadId'),
+    reviewedByUserId: text('reviewedByUserId'),
+    reviewedAt: ts('reviewedAt'),
+    /** Drives the unread count on the room's Tools row. */
+    leaderReadAt: ts('leaderReadAt'),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    index('SpaceStudySuggestions_space_status_createdAtIndex').on(
+      table.spaceId,
+      table.status,
+      table.createdAt,
+    ),
+    index('SpaceStudySuggestions_suggestedBy_createdAtIndex').on(
       table.suggestedByUserId,
       table.createdAt,
     ),

@@ -236,6 +236,16 @@ export const SHARED_SPACES_DESIGN_SCENES: SharedSpacesDesignScene[] = [
       'spa/src/pages/prototype/PrototypeSharedThreadDrilldown.tsx',
     ],
   },
+  {
+    id: '28-study-suggestions',
+    title: "What's next — suggestion box (queue, form, yours)",
+    phase: 'Collaboration',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeSpaceStudySuggestionsSheet.tsx',
+      'spa/src/pages/prototype/PrototypeSpaceSettingsSection.tsx',
+      'server/routes/space-study-suggestions.ts',
+    ],
+  },
 ];
 
 export function sceneById(id: string | undefined): SharedSpacesDesignScene | undefined {

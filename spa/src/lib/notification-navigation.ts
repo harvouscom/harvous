@@ -20,7 +20,6 @@
  *      `onmessage` or calling `startMessages()` does, per spec.
  */
 import { reportDiagnosticEvent } from '@/utils/diagnostics-client';
-import { navigate } from '../shims/app-navigate';
 
 declare const __APP_VERSION__: string;
 
@@ -169,7 +168,21 @@ function goTo(path: string, via: NavigationSource): void {
    */
   const waited = queuedAt ? now - queuedAt : 0;
   log(`[push-nav] client navigate path=${path} via=${via} waitedMs=${waited}`);
-  void navigate(path);
+
+  /*
+   * Imported here rather than at the top, to break a cycle.
+   *
+   * The router imports this module for its readiness signal, and the navigate shim reads
+   * `router` at its own module top — so a static import here closes the loop
+   * router → notification-navigation → shim → router. The bytes that buys back are trivial;
+   * what it removes is an initialisation-order hazard. This module is imported by main.tsx
+   * before render, so under a static import the shim could evaluate while router.tsx is
+   * still initialising and capture an undefined `router`.
+   *
+   * Nothing is fetched at this point: `routerReady` is true, which means the router and its
+   * shim are already loaded, so this resolves from memory one microtask later.
+   */
+  void import('../shims/app-navigate').then((mod) => mod.navigate(path));
   void clearPendingNavigation();
 }
 

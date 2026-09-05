@@ -158,7 +158,9 @@ describe('initNotificationNavigation', () => {
       data: { type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: 'https://app.harvous.com/read/today' },
     } as MessageEvent);
 
-    expect(navigateMock).toHaveBeenCalledWith('/read/today');
+    // Awaited: the navigate shim is imported at call time to break a cycle with the router,
+    // so the navigation lands one microtask after the message.
+    await vi.waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/read/today'));
   });
 
   it('collects a destination parked before it was listening', async () => {

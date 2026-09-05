@@ -26,7 +26,7 @@ What survives is one asymmetry, and it is a real product question:
 > **A church's next service reaches Home. A room's next gathering does not.**
 > `PrototypeHomeThisSunday.tsx` puts the church's service on Home with one tap into notes on it.
 > A shared space's gathering appears only inside that space
-> (`PrototypeSpaceComingUp.tsx`, rendered from `PrototypeSidebarSharedSpaceView.tsx:854`). Someone
+> (`PrototypeSpaceComingUp.tsx`, rendered from `PrototypeSpaceHub.tsx:994`). Someone
 > in three groups that all meet this week is told about none of them until they visit each room
 > in turn — while the church they merely follow gets a card on the front page.
 
@@ -47,7 +47,7 @@ several of that assessment's findings have since been closed.
 |---|---|
 | "Add a gathering" is a feature to design | It is one of **three labels for one create action**. `planVocabulary()` (`spa/src/lib/church-services.ts:509`) returns "Add a sermon" (church plan), "Add a study" (channel), or "Add a gathering" (a room that meets). `planKind` is server-derived from the space, never chosen by the client. |
 | Rooms retype the date of every gathering | `rhythmDates()` (`church-services.ts:383`) offers the next six dates from the room's declared rhythm, wired into the entry editor (`PrototypeSermonEditorFields.tsx:181`). It offers dates; it does not schedule or recur, and its own comment says so. |
-| Only church rooms can plan | A churchless shared space can hold a plan, and the Planner row appears in its own view for whoever can manage it — with the reasoning recorded inline: "otherwise the one person who could plan the first gathering is the one person who cannot find where" (`PrototypeSidebarSharedSpaceView.tsx:380-400`). |
+| Only church rooms can plan | A churchless shared space can hold a plan, and the Planner row appears in its own view for whoever can manage it — with the reasoning recorded inline: "otherwise the one person who could plan the first gathering is the one person who cannot find where" (`PrototypeSpaceHub.tsx:425-440`). |
 | Only staff can see the plan | The read is membership-gated. Members of the room see what it is on, and get the same one tap into notes that the church card gives (`PrototypeSpaceComingUp.tsx`). |
 | Connecting to a church should auto-follow its channels | Considered and **deliberately declined**. `PrototypeMinistryPicker.tsx` exists instead — a congregant chooses which ministries they are part of. The comment there names auto-follow-all as the obvious fix and says why it was refused. |
 | The public study-plan preview is a phantom endpoint | It has a client now: `PublicSharedThreadPage.tsx:133`. |

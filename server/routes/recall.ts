@@ -12,6 +12,7 @@ import {
   collapseRecallHistory,
   recordRecallEvent,
   validateRecallEventInput,
+  resolveRecallRoomScope,
 } from '../utils/record-recall-event';
 import { db, RecallEvents, and, eq, gte, inArray, desc } from '../db';
 import {
@@ -129,15 +130,35 @@ route.post('/api/recall/event', requireAuth, rateLimit('write'), async (c) => {
  * is the cross-device half, merged with it rather than replacing it so the feature still
  * works offline.
  *
- * Note RecallEvents has no spaceId while the client store is space-scoped. Home only runs
- * in the personal space today, so user-scoped history is a correct superset. Shipping
- * recall inside shared spaces would require a spaceId column here.
+ * Partitioned by room, matching the client's cooldown store, which has always been keyed by
+ * space. Until Sep 2026 this table was user-scoped only, so the local half of suppression was
+ * space-correct and the cross-device half was not — dismissing a suggestion on a laptop would
+ * have hidden it in every room on a phone. Harmless while recall ran in one space, and the
+ * blocker for running it anywhere else.
+ *
+ * `spaceId` absent means the reader's personal Home, and the personal space reads NULL rows
+ * too: every row written before the column existed came from there. So no backfill, and a
+ * legacy dismissal keeps working exactly where it was made.
  */
 route.get('/api/recall/events/recent', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     // RecallEvents.createdAt is a timestamp column, so compare against a Date.
     const since = new Date(Date.now() - RECALL_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    /*
+     * Which room's suppression to answer with.
+     *
+     * No `spaceId` means personal Home, and personal Home also owns every legacy NULL row.
+     * Asked for a room, the answer is that room alone — a dismissal made in a life group must
+     * not follow you home, and one made at home must not silence the group.
+     *
+     * The requested id is not checked against membership: this partitions one person's own
+     * history, grants nothing, and is never read across users, so a bogus value costs the
+     * sender their own cooldowns and no one else anything.
+     */
+    const requestedSpaceId = c.req.query('spaceId')?.trim() || null;
+    const roomScope = await resolveRecallRoomScope(auth.userId, requestedSpaceId);
 
     const columns = {
       opportunityId: RecallEvents.opportunityId,
@@ -159,6 +180,7 @@ route.get('/api/recall/events/recent', requireAuth, rateLimit('read'), async (c)
         .where(
           and(
             eq(RecallEvents.userId, auth.userId),
+            roomScope,
             inArray(RecallEvents.action, ['open', 'snooze', 'complete']),
             gte(RecallEvents.createdAt, since),
           ),
@@ -173,6 +195,7 @@ route.get('/api/recall/events/recent', requireAuth, rateLimit('read'), async (c)
         .where(
           and(
             eq(RecallEvents.userId, auth.userId),
+            roomScope,
             inArray(RecallEvents.action, [...RECALL_UNBOUNDED_ACTIONS]),
           ),
         )
