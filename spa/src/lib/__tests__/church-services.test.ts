@@ -336,18 +336,18 @@ describe('formatServiceTimes', () => {
 
 describe('planVocabulary', () => {
   it('calls the church plan a sermon', () => {
-    expect(planVocabulary({ onSpacePlan: false }).addLabel).toBe('Add a sermon');
+    expect(planVocabulary({ onSpacePlan: false }).addLabel).toBe('New sermon');
   });
 
   it('calls a shared space a gathering', () => {
     const v = planVocabulary({ onSpacePlan: true, planKind: 'gathering' });
-    expect(v.addLabel).toBe('Add a gathering');
+    expect(v.addLabel).toBe('New gathering');
     expect(v.itemNoun).toBe('gathering');
   });
 
   it('makes the study a channel’s primary action — it publishes, it does not meet', () => {
     const v = planVocabulary({ onSpacePlan: true, planKind: 'content' });
-    expect(v.addLabel).toBe('Add a study');
+    expect(v.addLabel).toBe('New study');
     expect(v.emptyWritable).not.toContain('gathering');
     expect(v.emptyWritable).not.toContain('sermon');
   });
@@ -360,7 +360,7 @@ describe('planVocabulary', () => {
 
   it('keeps the one-off reachable on a channel, demoted rather than removed', () => {
     const v = planVocabulary({ onSpacePlan: true, planKind: 'content' });
-    expect(v.secondaryAddLabel).toBe('Add a single entry');
+    expect(v.secondaryAddLabel).toBe('New single entry');
     expect(v.itemNoun).toBe('entry');
   });
 
@@ -385,7 +385,7 @@ describe('planVocabulary', () => {
   });
 
   it('reads an absent kind as a gathering, for payloads cached before it shipped', () => {
-    expect(planVocabulary({ onSpacePlan: true }).addLabel).toBe('Add a gathering');
+    expect(planVocabulary({ onSpacePlan: true }).addLabel).toBe('New gathering');
   });
 
   it("never offers a channel the church's own wording", () => {
@@ -398,7 +398,7 @@ describe('planVocabulary', () => {
   it('does not call a churchless room a ministry', () => {
     // "Ministry" is a church's word for a room. A Tuesday book club is not one.
     const v = planVocabulary({ onSpacePlan: true, planKind: 'gathering', hasChurch: false });
-    expect(v.addLabel).toBe('Add a gathering');
+    expect(v.addLabel).toBe('New gathering');
     expect(v.emptyWritable).not.toContain('ministry');
     expect(v.emptyWritable).not.toContain('church');
   });

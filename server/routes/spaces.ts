@@ -908,6 +908,22 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     if (placeParsed.kind === 'invalid') {
       return c.json({ error: placeParsed.reason, code: 'INVALID_MEETING_PLACE' }, 400);
     }
+    /*
+      Whether members may say what the room studies next. Absent leaves it
+      alone; 'off' or 'suggest' sets it. 'vote' is phase 2 of
+      docs/future/SPACE_STUDY_SUGGESTIONS_AND_VOTES.md and is refused until it
+      has a slate to vote on, so a stored 'vote' can never mean nothing.
+    */
+    const studyPlanningModeRaw = formData.get('studyPlanningMode');
+    const studyPlanningMode =
+      studyPlanningModeRaw == null
+        ? undefined
+        : studyPlanningModeRaw === 'off' || studyPlanningModeRaw === 'suggest'
+          ? studyPlanningModeRaw
+          : 'invalid';
+    if (studyPlanningMode === 'invalid') {
+      return c.json({ error: 'Invalid study planning mode', code: 'INVALID_STUDY_PLANNING_MODE' }, 400);
+    }
     // `isPublic` is no longer accepted — sharing is governed by Spaces.type + SpaceInvites.
 
     let access: Awaited<ReturnType<typeof requireSpaceAccess>>;
@@ -948,6 +964,14 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
         400,
       );
     }
+    /* A channel publishes rather than decides; only a room that gathers asks
+       its members what to study next. */
+    if (studyPlanningMode !== undefined && ministryChannel) {
+      return c.json(
+        { error: 'A channel publishes rather than decides', code: 'STUDY_PLANNING_NOT_A_CHANNEL' },
+        400,
+      );
+    }
 
     const titleValidation = validateTitle(title, true);
     if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
@@ -976,6 +1000,7 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
       ...(placeParsed.kind === 'set'
         ? { meetingKind: placeParsed.meetingKind, meetingUrl: placeParsed.meetingUrl }
         : {}),
+      ...(studyPlanningMode !== undefined ? { studyPlanningMode } : {}),
       updatedAt: nowISO(),
     }).where(eq(Spaces.id, spaceId)).returning())!;
 
@@ -1007,6 +1032,7 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
         meetingTime: updatedSpace.meetingTime ?? null,
         meetingKind: updatedSpace.meetingKind ?? null,
         meetingUrl: updatedSpace.meetingUrl ?? null,
+        studyPlanningMode: updatedSpace.studyPlanningMode ?? 'off',
         ...(cadenceFields
           ? {
               publishCadence: cadenceFields.publishCadence,
@@ -2393,6 +2419,9 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
       meetingTime: spaceRow.meetingTime ?? null,
       meetingKind: spaceRow.meetingKind ?? null,
       meetingUrl: spaceRow.meetingUrl ?? null,
+      /* Whether the room takes suggestions. The hub's Tools row and the
+         settings select both read it from here. */
+      studyPlanningMode: spaceRow.studyPlanningMode ?? 'off',
       ...(cadenceFields
         ? {
             publishCadence: cadenceFields.publishCadence,
@@ -2464,6 +2493,8 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
           meetingTime: (ownerSpace as { meetingTime?: string | null }).meetingTime ?? null,
           meetingKind: (ownerSpace as { meetingKind?: string | null }).meetingKind ?? null,
           meetingUrl: (ownerSpace as { meetingUrl?: string | null }).meetingUrl ?? null,
+          studyPlanningMode:
+            (ownerSpace as { studyPlanningMode?: string | null }).studyPlanningMode ?? 'off',
           ...(cadenceFields
             ? {
                 publishCadence: cadenceFields.publishCadence,
@@ -2544,6 +2575,7 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
         meetingTime: space.meetingTime ?? null,
         meetingKind: space.meetingKind ?? null,
         meetingUrl: space.meetingUrl ?? null,
+        studyPlanningMode: space.studyPlanningMode ?? 'off',
         ...(cadenceFields
           ? {
               publishCadence: cadenceFields.publishCadence,

@@ -38,6 +38,7 @@ import {
   type ChurchSermon,
 } from '../../lib/church-services';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug } from './proto-route-slugs';
 
 export interface PrototypeSpaceComingUpProps {
@@ -58,6 +59,29 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
   const openNote = useCallback(
     (noteId: string) => {
       navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(noteId) } });
+      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+    },
+    [closeDrawer, isMobileSidebar, navigate],
+  );
+
+  /*
+    Open the passage the room is on.
+
+    The card knew the reference all along and did nothing with it: the only verb
+    here was "write about this", which is the half of a study group's week that
+    happens *at* the gathering. Reading the text beforehand is the other half,
+    and it had no affordance anywhere in the room.
+
+    `landAgain` because the reader's landing — the focus that singles the verse
+    range out of the chapter — is dismissible by a stray tap, and the router
+    treats an identical URL as no navigation at all. Without it, tapping this a
+    second time after glancing away does nothing, which reads as a broken link.
+  */
+  const readPassage = useCallback(
+    (reference: string) => {
+      const route = readerRouteForReference(reference, getEffectiveDefaultTranslation());
+      if (!route) return;
+      navigate(landAgain(route));
       if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     },
     [closeDrawer, isMobileSidebar, navigate],
@@ -139,6 +163,17 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
       ? `${weekdayLabel(data.space.meetingDay)}s · ${formatServiceTime(data.space.meetingTime)}`
       : null;
   const hasNote = Boolean(gathering.viewerNoteId);
+  /*
+    Only when the reference actually resolves to a chapter. A gathering can be
+    planned with no passage yet ("No passage yet" below), and a plan can carry a
+    reference the parser does not recognise — offering to open either would be a
+    row that lands nowhere.
+  */
+  const readableReference =
+    gathering.reference &&
+    readerRouteForReference(gathering.reference, getEffectiveDefaultTranslation())
+      ? gathering.reference
+      : null;
 
   return (
     <div className="proto-home-section">
@@ -174,6 +209,45 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
             <Icon name={hasNote ? 'caret-right' : 'pen-to-square'} size={11} />
           </span>
         </button>
+        {/*
+          A second row in the same card, not a control tucked into the first.
+          `proto-church-tools` is the row-list card, so this is the shape it
+          already has — and the alternative, making the reference inside the
+          first row tappable, would have nested one button inside another.
+
+          Order says the week: the gathering is what this card is *about*, so it
+          keeps the top; reading is what you do between now and then.
+
+          The row is named by the passage rather than by "Read the passage" —
+          the plain name of where you would land, the same trade the companion
+          row makes. The verb is carried by the glyph and the label.
+        */}
+        {readableReference ? (
+          <button
+            type="button"
+            className="proto-church-tools__row"
+            aria-label={`Read ${readableReference}`}
+            onClick={() => readPassage(readableReference)}
+          >
+            <span className="proto-church-tools__row-icon" aria-hidden>
+              <Icon name="book-open" size={13} />
+            </span>
+            <span className="proto-church-tools__row-text">
+              <span
+                className="pds-list-title proto-church-tools__row-title proto-marquee"
+                title={readableReference}
+              >
+                <span>{readableReference}</span>
+              </span>
+              <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
+                Read it
+              </span>
+            </span>
+            <span className="proto-church-tools__row-chevron" aria-hidden>
+              <Icon name="caret-right" size={11} />
+            </span>
+          </button>
+        ) : null}
       </div>
     </div>
   );

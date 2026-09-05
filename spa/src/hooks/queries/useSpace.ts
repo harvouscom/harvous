@@ -103,6 +103,8 @@ export interface SpaceDetail {
   meetingKind?: import('@/utils/space-meeting-rhythm').MeetingKind | null;
   /** The room's standing video link. Members only — never on a join page. */
   meetingUrl?: string | null;
+  /** Whether members may say what the room studies next. Shared rooms only; 'off' by default. */
+  studyPlanningMode?: import('@/utils/space-study-planning').StudyPlanningMode;
 }
 
 export interface SpaceItem {

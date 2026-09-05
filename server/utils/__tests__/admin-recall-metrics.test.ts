@@ -44,7 +44,43 @@ describe('validateRecallEventInput', () => {
       kind: 'revisitNote',
       action: 'open',
       noteId: 'note_abc',
+      // Absent means personal Home — every row written before the column
+      // existed came from there, which is what makes it a no-backfill change.
+      spaceId: null,
     });
+  });
+
+  it('carries the room the event was recorded in', () => {
+    /*
+      The client's cooldown store has always been keyed by space; this column is
+      what makes the cross-device half partition the same way. A dismissal made
+      in a life group must not follow the reader home.
+    */
+    expect(
+      validateRecallEventInput({
+        opportunityId: 'passage:Ruth 3',
+        kind: 'passage',
+        action: 'snooze',
+        spaceId: '  space_group  ',
+      }),
+    ).toEqual({
+      opportunityId: 'passage:Ruth 3',
+      kind: 'passage',
+      action: 'snooze',
+      noteId: null,
+      spaceId: 'space_group',
+    });
+  });
+
+  it('treats a blank room as Home rather than as a room named ""', () => {
+    expect(
+      validateRecallEventInput({
+        opportunityId: 'passage:Ruth 3',
+        kind: 'passage',
+        action: 'snooze',
+        spaceId: '   ',
+      })?.spaceId,
+    ).toBeNull();
   });
 
   it('rejects invalid kind or action', () => {

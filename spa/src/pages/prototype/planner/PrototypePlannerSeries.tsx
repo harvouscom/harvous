@@ -41,6 +41,8 @@ export default function PrototypePlannerSeries({
   accentFor,
   openSeriesId,
   canWrite,
+  readOnlyMessage,
+  itemNoun,
   onOpen,
   onNewSeries,
 }: {
@@ -49,6 +51,10 @@ export default function PrototypePlannerSeries({
   accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   openSeriesId: string | null;
   canWrite: boolean;
+  /** The resolved sentence, or null when the viewer may write. */
+  readOnlyMessage: string | null;
+  /** The plan's noun — sermon / gathering / entry. From `planVocabulary`. */
+  itemNoun: string;
   onOpen: (series: TeachingPlanSeries) => void;
   onNewSeries: () => void;
 }) {
@@ -72,9 +78,11 @@ export default function PrototypePlannerSeries({
         iconName="layer-group"
         title="No series yet"
         description={
+          /* Scope-aware: a room's plan has gatherings, not sermons, and the
+             read-only half said "sermon" to every scope. */
           canWrite
-            ? 'Start one here, or name a series on a sermon and its weeks collect under it.'
-            : 'A series appears here once someone names one on a sermon.'
+            ? `Start one here, or name a series on a ${itemNoun} and its weeks collect under it.`
+            : (readOnlyMessage ?? `A series appears here once someone names one on a ${itemNoun}.`)
         }
         action={
           canWrite ? (
@@ -105,6 +113,11 @@ export default function PrototypePlannerSeries({
             <span className="proto-glass-action__label">New series</span>
           </button>
         </div>
+      ) : null}
+      {readOnlyMessage ? (
+        <p className="proto-caption proto-planner__readonly" role="status">
+          {readOnlyMessage}
+        </p>
       ) : null}
       <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
         {series.map((entry) => {

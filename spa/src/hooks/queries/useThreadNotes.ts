@@ -86,6 +86,15 @@ export type ThreadNotesPage = {
    */
   viewerCompletedAt: string | null;
   /**
+   * Which steps the viewer has opened. Their own row, the member's half of what
+   * `pulse` tells a leader — and the only progress a member's payload carries.
+   * Empty for a collection, and for a sequence nobody has started.
+   *
+   * Already narrowed server-side to the steps still in the plan, so it counts
+   * against `sequence.total` and not against the page of notes in hand.
+   */
+  viewerOpenedNoteIds: string[];
+  /**
    * When the room's leader closed the run. Everyone sees it: it is the leader's
    * public statement about the study, not a fact about any member. A closed run
    * is still readable and can still be completed late.
@@ -98,6 +107,30 @@ export function pulseLabel(pulse: ThreadPulse | null, noteId: string): string | 
   if (!pulse || pulse.memberCount <= 0) return null;
   const opened = pulse.openedCountByNoteId[noteId] ?? 0;
   return `${opened} of ${pulse.memberCount} opened`;
+}
+
+/**
+ * "3 of 8 steps opened" — the member's own line, and the counterpart to
+ * `pulseLabel`. Same shape of sentence on purpose: an owner reads both, and two
+ * different phrasings for one idea would make them look like two measurements.
+ *
+ * Both numbers come from the server's view of the whole plan — `total` from
+ * `sequence`, the ids already narrowed to live steps. Counting the loaded page
+ * instead would report "3 of 20" on a twenty-five step plan.
+ *
+ * Null when there is nothing true to say — no steps yet, or none opened. A
+ * "0 of 8" on a plan you have not begun is noise on the surface that is trying
+ * to get you to begin it; the caller says "Not started" instead.
+ */
+export function viewerProgressLabel(openedNoteIds: string[], total: number): string | null {
+  if (total <= 0) return null;
+  /* Capped rather than trusted: the ids are narrowed against the same live list
+     `total` is counted from, so they cannot exceed it — but a payload cached
+     across a plan being shortened could, and "9 of 8" is worse than a rounded
+     truth. */
+  const count = Math.min(new Set(openedNoteIds).size, total);
+  if (count === 0) return null;
+  return `${count} of ${total} steps opened`;
 }
 
 /**
@@ -190,8 +223,9 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
         mode?: unknown;
         sequence?: ThreadSequenceInfo | null;
         pulse?: ThreadPulse | null;
-        /** The viewer's own finish, and the leader's close of the run. */
+        /** The viewer's own finish and own opened steps, and the leader's close of the run. */
         viewerCompletedAt?: string | null;
+        viewerOpenedNoteIds?: unknown;
         closedAt?: string | null;
       }>(`/api/threads/${encodeURIComponent(threadId!)}/notes`, { offset: pageParam, limit });
       return {
@@ -210,6 +244,11 @@ export function useThreadNotes(threadId: string | undefined, spaceId: string | u
         sequence: response.sequence ?? null,
         pulse: response.pulse ?? null,
         viewerCompletedAt: response.viewerCompletedAt ?? null,
+        /* Absent on a payload cached before this field shipped, and on a
+           collection, so the empty array is the answer rather than a gap. */
+        viewerOpenedNoteIds: Array.isArray(response.viewerOpenedNoteIds)
+          ? response.viewerOpenedNoteIds.filter((id): id is string => typeof id === 'string' && id !== '')
+          : [],
         closedAt: response.closedAt ?? null,
       };
     },
