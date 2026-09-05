@@ -5559,7 +5559,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         pendingRafId,
         latestHtml: latestNoteHtmlRef.current,
         onContentChange: onContentChangeRef.current,
-        cancelAnimationFrame,
+        /*
+         * Wrapped, not passed. A bare `cancelAnimationFrame` is a native method torn off
+         * `window`, so calling it through the options object threw "Illegal invocation" and
+         * took the editor down with it — and only on the unmount that had a frame still
+         * pending, which is exactly the one after a keystroke: type, start another note, and
+         * the editor crashed into the error boundary. The helper's own test has always said
+         * it needs a window-bound function; this call site was the one that did not.
+         */
+        cancelAnimationFrame: (id) => cancelAnimationFrame(id),
         wasUserEdit: pendingEmitUserEditRef.current,
       });
     };
