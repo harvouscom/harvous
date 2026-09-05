@@ -21304,7 +21304,16 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 .proto-feed-sheet__body[data-scrolled] {
-  --proto-feed-fade-top: var(--proto-feed-fade);
+  /*
+   * Deeper than the bottom's 14px, on purpose.
+   *
+   * The two edges are not doing the same job. At the bottom the content simply runs out, and
+   * a hairline of softening is enough to say so. At the top a row is passing *under* the
+   * header, and at 14px that reads as a row clipped by a hard edge rather than as a fade —
+   * which is how it went unnoticed. 28px is enough depth for the eye to see a gradient and
+   * not an accident.
+   */
+  --proto-feed-fade-top: 28px;
 }
 
 /*
