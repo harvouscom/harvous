@@ -150,6 +150,10 @@ export function SettingsRow({
   const interactive = typeof onClick === 'function' && !disabled;
   const className = [
     'proto-note-row',
+    // Settings rows borrow the note-feed row's styling, which clamps a title to one line with
+    // an ellipsis — right for a feed of note titles, wrong for a labelled control whose text
+    // explains something. This marks them so the stylesheet can let them wrap.
+    'proto-settings-row',
     destructive ? 'proto-note-row--destructive' : null,
     disabled ? 'proto-note-row--disabled' : null,
     !interactive ? 'proto-note-row--static' : null,
@@ -179,7 +183,7 @@ export function SettingsRow({
       <span className="proto-settings-list-row__main">
         <span
           className="proto-settings-list-row__title-row"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}
         >
           <span
             className="pds-list-title"

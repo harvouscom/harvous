@@ -297,8 +297,8 @@ export default function PrototypeRemindersPage() {
       {support === 'needs-home-screen' ? (
         <SettingsGroup>
           <SettingsRow
-            label="Add Harvous to your Home Screen first"
-            sublabel="On iPhone, only installed apps can notify."
+            label="Add to your Home Screen first"
+            sublabel="On iPhone, only installed apps can send notifications."
             leadingIcon="plus"
             onClick={() => setSheetOpen(true)}
           />
