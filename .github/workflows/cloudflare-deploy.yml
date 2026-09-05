@@ -83,7 +83,6 @@ jobs:
           # Public plan identifiers, not secrets (netlify.toml carried them in
           # SECRETS_SCAN_OMIT_KEYS for exactly this reason). Omitting these is what made
           # billing return zero plans during the Fly migration.
-          VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL }}
           VITE_POLAR_PLUS_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_MONTHLY }}
           VITE_POLAR_PLUS_PRODUCT_ANNUAL: ${{ secrets.VITE_POLAR_PLUS_PRODUCT_ANNUAL }}
           VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY: ${{ secrets.VITE_POLAR_CONNECTOR_PRODUCT_MONTHLY }}

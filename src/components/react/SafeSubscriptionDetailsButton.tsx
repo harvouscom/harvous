@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { toast } from '@/utils/toast';
+import { billingErrorMessage } from '@/lib/billing-errors';
 
 interface ManageSubscriptionButtonProps {
   /** Must be a single element (typically a `<button>`) — receives the click handler + disabled state. */
@@ -52,7 +53,7 @@ export function ManageSubscriptionButton({ children }: ManageSubscriptionButtonP
               : body.error || 'Unable to open billing portal',
           );
         }
-        throw new Error(body.error || 'Unable to open billing portal');
+        throw new Error(billingErrorMessage(body, 'Unable to open billing portal.'));
       }
       const { url } = (await res.json()) as { url?: string };
       if (!url) throw new Error('Unable to open billing portal');
@@ -61,7 +62,7 @@ export function ManageSubscriptionButton({ children }: ManageSubscriptionButtonP
     } catch (error) {
       console.error('[ManageSubscriptionButton] Failed to open billing portal:', error);
       toast.error(
-        error instanceof Error ? error.message : 'Unable to open billing management Please try again',
+        error instanceof Error ? error.message : 'Unable to open billing management. Please try again.',
       );
       setIsLoading(false);
     }

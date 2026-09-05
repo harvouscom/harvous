@@ -197,6 +197,11 @@ export async function setFeatureEntitlement(
 /**
  * How many people have ever claimed the founding offer.
  *
+ * Vestigial since the offer was retired (`foundingOffer()` returns null, so
+ * `getFoundingAvailability` always reports unavailable and nothing new can be
+ * claimed). Kept because the count is still the honest answer for anyone who
+ * did claim it, and because the retirement is reversible.
+ *
  * Counts stamped claims **regardless of subscription status** — the promise is
  * "the first 99 people", not "99 at a time". A founder who cancels must not
  * quietly free a slot for someone else, so `foundingClaimedAt` is never

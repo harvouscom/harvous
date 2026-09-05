@@ -17,47 +17,46 @@
  *
  * ## Pricing model (September 2026 — 3.0)
  *
- * | Plan      | Price                    | Notes                                   |
- * |-----------|--------------------------|-----------------------------------------|
- * | Free      | $0                       | Private study only — cannot host         |
- * | Plus      | $7/mo · $49/yr           | Both listed; annual is 42% under monthly |
- * | Founding  | $35 first year, then $49 | First 99 · a Polar discount, not a SKU   |
- * | Connector | $5/mo · $60/yr           | Separate add-on; NO annual discount      |
+ * | Plan      | Price          | Notes                                     |
+ * |-----------|----------------|-------------------------------------------|
+ * | Free      | $0             | Private study only — cannot host           |
+ * | Plus      | $6/mo · $36/yr | Both listed; annual is half of monthly     |
+ * | Connector | $5/mo · $60/yr | Separate add-on; NO annual discount        |
  *
  * Set at the 3.0 cutover, when Review and Challenges shipped and the paid hook
  * stopped being "you may host a shared space" (social, needs a network) and
  * became "your study comes back to you" (personal, works on day one).
  *
- * **Why sevens.** $7 and $49 are not rounded-off $8s. $49 is seven sevens — the
- * Jubilee arithmetic of Leviticus 25, where seven sabbaths of years precede the
- * year of return. It is the right number for a product whose whole promise is
- * returning to what you already studied. Do not "tidy" these to $50.
+ * **Why $36 needs no offer on top of it.** Twelve months of monthly is $72, so
+ * the annual price is exactly half. That is the whole pitch, legible without a
+ * countdown or a cap, which is why the founding discount was retired with this
+ * reprice rather than carried onto the new number — see `foundingOffer()`.
  *
- * The category sits well above this: Dwell $59.99/yr, Hallow $69.99/yr,
- * Glorify $69.99/yr, Readwise $119.88/yr. $49 is deliberately the value price,
+ * These replaced $7/mo · $49/yr, and the loss is worth recording rather than
+ * quietly dropping: $49 was seven sevens, the Jubilee arithmetic of Leviticus 25
+ * where seven sabbaths of years precede the year of return — chosen because this
+ * product's promise is returning to what you already studied. $36 is six sixes
+ * and means nothing in particular. It was traded for a simpler shelf, on purpose.
+ *
+ * The category sits far above this: Dwell $59.99/yr, Hallow $69.99/yr,
+ * Glorify $69.99/yr, Readwise $119.88/yr. $36 is deliberately the value price,
  * not the ceiling — there is room above if the product earns it.
  *
- * Three deliberate asymmetries, so they don't read as mistakes later:
- * - **Plus discounts annual structurally; Connector does not.** $49 against $84
- *   annualized is 42% off, because Polar's flat 50c per charge makes monthly the
- *   worst instrument we have (12.1% effective take at $7/mo vs 6.0% at $49/yr).
- *   Don't lock a discount into an unproven add-on; an undiscounted annual is
- *   still worth offering, since one charge instead of twelve saves eleven flat
- *   fees.
- * - **Founding is a discount, not a product.** A Polar product recurs at its own
- *   price forever, which is what made the old $30/yr founding row a lifetime
- *   lock on 99 seats priced before the market was known. As a `duration: once`
- *   discount it is a launch offer that renews to list, and Polar's
- *   `max_redemptions` enforces the 99 server-side — which is the distributed
- *   lock `getFoundingAvailability` says isn't worth building.
+ * Two deliberate asymmetries, so they don't read as mistakes later:
+ * - **Plus discounts annual structurally; Connector does not.** Polar's flat 50c
+ *   per charge makes monthly the worst instrument we have — 13.3% effective take
+ *   at $6/mo against 6.4% at $36/yr — so the annual discount is partly buying
+ *   back our own fees. Don't lock a discount into an unproven add-on; an
+ *   undiscounted annual is still worth offering, since one charge instead of
+ *   twelve saves eleven flat fees.
  * - **Connector is a separate product, not a Plus tier.** Different buyer
  *   (CLI/MCP power users, not small-group hosts). Separate products are fine;
  *   tiers within one product are what we avoid.
  *
- * Known incoherence, left alone on purpose: Connector's $60/yr now costs more
- * than the $49/yr product it adds to. It is `listed: false` and unbuyable, and
- * moving it would break `billing:verify` unless the Polar catalog moved too.
- * Reprice it when it actually ships.
+ * Known incoherence, wider than it was and still left alone: Connector's $60/yr
+ * costs well over the $36/yr product it adds to. It is `listed: false` and
+ * unbuyable, and moving it would break `billing:verify` unless the Polar catalog
+ * moved too. Reprice it when it actually ships.
  */
 
 export const FEATURE_KEYS = ['shared_spaces', 'review', 'challenges', 'connector'] as const;
@@ -109,9 +108,6 @@ export function isUnlimited(limit: number | null | undefined): boolean {
  * outbound call on every pageview. Keep them equal.
  */
 export const FOUNDING_CAP = 99;
-
-/** What a founder pays for their first year. Renews at the annual list price. */
-export const FOUNDING_FIRST_YEAR_CENTS = 3500;
 
 export interface PlanLimits {
   /** `UNLIMITED` for Plus — the member cap is the fence, not the space count. */
@@ -190,24 +186,12 @@ function envProduct(name: string, viteName: string): string {
   return '';
 }
 
-/**
- * Founding offer — a Polar **discount** id, not a product id.
- *
- * Deliberately not a SKU: a Polar product recurs at its own price forever, so
- * the old founding product was a lifetime lock on 99 seats priced before the
- * market was known. A `duration: once` discount is a launch offer that renews
- * to list, and carries `max_redemptions` so Polar enforces the cap.
- */
-export function getPlusFoundingDiscountId(): string {
-  return envProduct('POLAR_PLUS_FOUNDING_DISCOUNT_ID', 'VITE_POLAR_PLUS_FOUNDING_DISCOUNT_ID');
-}
-
-/** Standard Harvous Plus monthly ($7). */
+/** Standard Harvous Plus monthly ($6). */
 export function getPlusProductMonthlyId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_MONTHLY', 'VITE_POLAR_PLUS_PRODUCT_MONTHLY');
 }
 
-/** Standard Harvous Plus annual ($49 — listed since 3.0; 42% under monthly). */
+/** Standard Harvous Plus annual ($36 — half the monthly rate over a year). */
 export function getPlusProductAnnualId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_ANNUAL');
 }
@@ -244,7 +228,7 @@ export function getPlans(): PlanDefinition[] {
       key: 'plus',
       name: 'Harvous Plus',
       interval: 'month',
-      amountCents: 700,
+      amountCents: 600,
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
@@ -255,7 +239,7 @@ export function getPlans(): PlanDefinition[] {
       key: 'plus',
       name: 'Harvous Plus',
       interval: 'year',
-      amountCents: 4900,
+      amountCents: 3600,
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
@@ -375,20 +359,31 @@ export function listedPlans(): PlanDefinition[] {
 }
 
 /**
- * The founding offer: the annual plan, what a founder pays for year one, and the
- * discount that gets them there. Null when the discount id is unset.
+ * The founding offer — **retired**, so this is always null.
  *
- * Whether any seats remain is a runtime count — see `getFoundingAvailability`.
+ * Retired with the move to $6/mo · $36/yr: at half the annual list price the
+ * plan is its own argument, and a first-year discount on top of it bought
+ * complexity (a cap to count, a Polar discount to keep in sync, a price that
+ * changes under the buyer at renewal) that the simpler number does not need.
+ *
+ * Returning null here is the whole switch. Every surface asks this — checkout's
+ * `discountId`, `/api/billing/plans`, the annual chip, `getFoundingAvailability`
+ * — so none of them can offer what this will not hand out, and none of them
+ * needed editing to stop. Restoring it means a body here plus a discount-id
+ * reader again; `POLAR_PLUS_FOUNDING_DISCOUNT_ID` is no longer read by anything.
+ *
+ * Deliberately NOT a teardown. `isFounding` is `Boolean(foundingClaimedAt)`, a
+ * persisted column read independently of this, and `subscription.ts` already
+ * documents that recognition is meant "to outlive the first renewal, when the
+ * discount is gone but the person is still a founder". Anyone who ever claimed
+ * it keeps the badge; production currently has none.
  */
 export function foundingOffer(): {
   plan: PlanDefinition;
   firstYearCents: number;
   discountId: string;
 } | null {
-  const plan = planFor('plus', 'year');
-  const discountId = getPlusFoundingDiscountId();
-  if (!plan || !discountId) return null;
-  return { plan, firstYearCents: FOUNDING_FIRST_YEAR_CENTS, discountId };
+  return null;
 }
 
 /** Listed plan for a key + interval. */
@@ -404,7 +399,7 @@ export function listedPlanForInterval(interval: PlanInterval): PlanDefinition | 
   return planFor('plus', interval);
 }
 
-/** `$49`, or `$4.92` when it isn't whole dollars. */
+/** `$36`, or `$4.92` when it isn't whole dollars. */
 export function formatCents(amountCents: number, _currencyCode: 'USD' = 'USD'): string {
   const dollars = amountCents / 100;
   if (Number.isInteger(dollars)) return `$${dollars}`;
@@ -435,19 +430,21 @@ export function isFeatureKey(value: string): value is FeatureKey {
  *
  * The original budget assumed a small model at ~$0.001/session against ~$4.25 net
  * on the old $5 plan. That headroom is now unspent, and it grew: the floor is
- * ~$6.15 net on $7/mo and ~$46.05 on $49/yr. The reasoning still stands if
+ * ~$5.20 net on $6/mo and ~$33.70 on $36/yr. The reasoning still stands if
  * generation is ever proposed — a frontier model is a 30–100x jump that would put
- * heavy users underwater at every price in this file. Founders are no longer
- * locked in for life (the offer renews to list), which removes one reason the
- * constraint was absolute, but not the constraint: if that swap is proposed, the
+ * heavy users underwater at every price in this file. No founder is locked in
+ * for life — the old lifetime SKU is gone and the discount that replaced it is
+ * retired — which removes one reason the constraint was absolute, but not the
+ * constraint itself: if that swap is proposed, the
  * price has to move first — and so does the product decision, which is currently
  * that Harvous does not generate study content.
  */
 /**
  * Empty since 3.0, and kept rather than deleted.
  *
- * Review and Challenges shipped and moved into `SHARED_SPACES_ADDON_FEATURE_BULLETS`, which
- * left nothing here. The constant stays because both surfaces that render it now hide the
+ * Review shipped and moved into `SHARED_SPACES_ADDON_FEATURE_BULLETS`, and Challenges
+ * shipped without being advertised anywhere, which left nothing here. The constant stays
+ * because both surfaces that render it now hide the
  * "Coming soon" heading when it is empty — so the next thing that is genuinely coming is one
  * string, not a re-plumbing of two pages.
  */

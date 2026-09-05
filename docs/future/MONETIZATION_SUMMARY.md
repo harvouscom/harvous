@@ -1,7 +1,7 @@
 # Monetization & Church Connection Summary
 
 > **Superseded.** The $4 / $6 / $15–19 ladder below is a retired draft, kept for its reasoning
-> only. Live prices are $7/mo · $49/yr for Plus, with Founding at $35 for the first year — see
+> only. Live prices are $6/mo · $36/yr for Plus, with no founding discount — see
 > [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
 
 **Canonical pricing and SKUs:** [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) — Review,

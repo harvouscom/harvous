@@ -10,8 +10,7 @@ auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 | Product | Price | What's in it |
 |---|---|---|
 | **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is paid. |
-| **Harvous Plus** | **$7/mo · $49/yr** | **Review and personal Challenges**, Shared Spaces hosting; themed seasons fold in later. Both intervals listed. |
-| **Founding** | **$35 first year, then $49** | First **99** · a Polar `duration: once` discount on the annual plan, **not a product**. |
+| **Harvous Plus** | **$6/mo · $36/yr** | **Review** and Shared Spaces hosting; themed seasons fold in later. Both intervals listed. Challenges is built but withheld — see `WITHHELD_FEATURES`. |
 | **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
@@ -20,25 +19,45 @@ trial** and **no metered free tier** — but see the caveat under *What changed 
 
 ### What changed at 3.0, and why
 
-Set at the 3.0 cutover, replacing $5/mo · Founding $30/yr. Three things moved:
+Set at the 3.0 cutover, replacing $5/mo · Founding $30/yr, then simplified again to
+**$6/mo · $36/yr with no founding discount** (September 2026) — see *The $6/$36
+simplification* below. Three things moved at the cutover:
 
 1. **The paid hook changed shape.** Review and Challenges shipped, so what someone
    buys stopped being "you may host a shared space" — social, dependent on a network,
    with no hosts to seed it — and became "your study comes back to you", which works
    for one person on the day they pay. Feature bullets and page copy now lead with it.
 2. **The price met the category.** Dwell $59.99/yr, Hallow $69.99/yr, Glorify $69.99/yr,
-   Readwise $119.88/yr. $49 is deliberately the value price in that band, not the ceiling.
-   The numbers are sevens on purpose: $49 is seven sevens, the Jubilee arithmetic of
-   Leviticus 25, for a product whose promise is returning to what you already studied.
+   Readwise $119.88/yr. The price was deliberately the value price in that band, not the
+   ceiling. The numbers were sevens on purpose: $49 was seven sevens, the Jubilee
+   arithmetic of Leviticus 25, for a product whose promise is returning to what you
+   already studied. That rationale did not survive the $6/$36 simplification.
 3. **Founding stopped being a lifetime lock.** Harvous was pre-revenue when this was
    set, so no one held the old $30/yr price and nothing had to be grandfathered — the
    one window in which prices can be edited in place rather than superseded. It closes
    with the first sale.
 
-**On economics.** Polar Starter takes 5% + 50c, so the flat fee alone is 7% of a $7
-charge and 1% of a $49 one: $7/mo nets $6.15 (12.1%), $49/yr nets $46.05 (6.0%), and the
-$35 first year nets $32.75. Annual at 42% under monthly is a deliberate push toward the
-instrument that survives the fee.
+**On economics.** Polar Starter takes 5% + 50c, so the flat fee alone is 8% of a $6
+charge and 1.4% of a $36 one: $6/mo nets $5.20 (13.3% take), $36/yr nets $33.70 (6.4%).
+Annual at half of monthly is a deliberate push toward the instrument that survives the
+fee — and the gap widened when the price came down, since the flat 50c is a larger share
+of a smaller charge.
+
+### The $6/$36 simplification (September 2026)
+
+Replaced $7/mo · $49/yr, and **retired the founding discount outright** rather than
+carrying it onto the new number. The reasoning: twelve months of monthly is $72, so an
+annual price of exactly half is the whole offer, legible without a cap to count, a
+countdown, or a price that changes under the buyer at renewal.
+
+What it cost: the sevens/Jubilee rationale above, which was a real argument and is
+recorded here rather than quietly dropped. $36 is six sixes and means nothing in
+particular.
+
+Mechanically the retirement is one function — `foundingOffer()` returns null, and every
+surface that could offer a discount asks it. Founder *recognition* is untouched:
+`isFounding` reads the persisted `foundingClaimedAt` column, so anyone who ever claimed it
+keeps the badge. Production had zero claims when this landed, so nobody was affected.
 
 **Caveat on "no free trial".** The original reasoning was that free users already
 experience the paid surface by *joining* a Plus host's space. That does not hold for
@@ -390,7 +409,7 @@ active season", and at 8–11 seasons a year against a $79–149 retail pass, th
 passes inside an $828 tier**. Seasons are now a tier benefit, and the inconsistency disappears with
 the SKU.
 
-**On the seat discount:** retail Plus is $7/mo, so a $2–3 church seat is a 55–70% bulk break. That is
+**On the seat discount:** retail Plus is $6/mo, so a $2–3 church seat is a 50–67% bulk break. That is
 deliberate — the real per-seat cost is ~$0.10/mo (see §3 fee note and the cost constraint in
 [billing-plans.ts](../../src/lib/billing-plans.ts)), so even $2 holds >90% margin. Church procurement
 responds to a steep, legible break far better than to a 25% one, and discounting *seats* is much
@@ -484,12 +503,13 @@ free-track/Plus split in §3 is unchanged by 3.0.
       entitlement plumbing, and it sidesteps the `expiresAt` bug in §6.
 - [x] ~~Season Pass price~~ — **no Season Pass.** Folded into Plus via `challenges` (§3).
 - [x] ~~Connector price~~ — **$5/mo · $60/yr**, no annual discount.
-- [x] ~~Founding price / cap~~ — **$35 first year, then $49, first 99.** A Polar `duration: once`
-      discount on the annual product rather than a product of its own, so it renews to list and
-      `max_redemptions` enforces the cap server-side. Selling out changes the price on the annual
-      chip; it does not remove an option.
-- [x] ~~Plus list price~~ — **$7/mo · $49/yr, both listed.** Superseded the $5/mo interim price at
-      3.0, when Review and Challenges made Plus more than hosting.
+- [x] ~~Founding price / cap~~ — ~~**$35 first year, then $49, first 99**, a Polar `duration: once`
+      discount on the annual product~~ **Retired (Sept 2026)** with the $6/$36 reprice: at half the
+      annual rate the plan is its own argument. `foundingOffer()` returns null; recognition of past
+      founders is untouched. Production had zero claims.
+- [x] ~~Plus list price~~ — ~~$7/mo · $49/yr~~ **$6/mo · $36/yr, both listed (Sept 2026).**
+      $7/$49 superseded the $5/mo interim price at 3.0; $6/$36 then simplified it, trading the
+      sevens rationale for an annual price that is exactly half of twelve months.
 - [x] ~~Lifetime founding lock~~ — **dropped at 3.0**, while pre-revenue and therefore free to drop.
       Founders keep the badge permanently (`UserMetadata.foundingClaimedAt`); only the price renews.
 
@@ -500,7 +520,8 @@ free-track/Plus split in §3 is unchanged by 3.0.
       this is now about abuse, not unit economics.
 - [ ] Revisit "no trial" — its stated rationale (free users meet the paid surface by joining a
       host's space) does not hold for Review. Blocked on the `expiresAt` bug in §6.
-- [ ] Reprice Connector before it ships — $60/yr now costs more than the $49/yr product it adds to.
+- [ ] Reprice Connector before it ships — $60/yr costs well over the $36/yr product it adds to (the
+      gap widened with the reprice).
 - [ ] Connector: exact rate limit numbers (requests/day, requests/min, max page size) before launch
 - [ ] Connector: whether church tiers get a higher shared limit, or Connector stays purely individual
 - [ ] Whether a **bundle product** is worth adding if Plus + Connector dual-buy turns out common —

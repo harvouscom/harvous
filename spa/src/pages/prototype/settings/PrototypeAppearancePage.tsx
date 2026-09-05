@@ -175,9 +175,14 @@ export default function PrototypeAppearancePage() {
 }
 
 /**
- * Typeface — the face the Bible reader sets Scripture in.
+ * The face scripture is set in — wherever scripture appears.
  *
- * Reading only. Notes are written among app chrome and in the app's own voice, so a second
+ * Not the Bible reader alone, though it started there: `--pds-font-reading` is also read by
+ * the Review dock's verses and the Challenge verses, so a passage keeps the face it had in
+ * the reader when it comes back to be asked about. The size does not travel with it; that is
+ * the reader's own preference and a three-line card is not a column.
+ *
+ * Scripture only. Notes are written among app chrome and in the app's own voice, so a second
  * face there mostly fights the interface; sustained reading is where a serif — or
  * OpenDyslexic — actually changes how well the page works.
  *
@@ -192,7 +197,7 @@ function TypefaceCarousel() {
   );
 
   return (
-    <div className="proto-appearance-carousel" role="listbox" aria-label="Reading typeface" style={{ marginTop: 12 }}>
+    <div className="proto-appearance-carousel" role="listbox" aria-label="Scripture font" style={{ marginTop: 12 }}>
       {FONT_CHOICES.map((choice) => (
         <AppearancePreviewTile
           key={choice.id}
@@ -424,10 +429,19 @@ const COLOR_SCHEME_OPTIONS: { value: ColorSchemePreference; label: string }[] = 
   { value: 'dark', label: 'Dark' },
 ];
 
+/**
+ * Two of these pick a canvas background; the third swaps the whole carousel for the face
+ * scripture is set in.
+ *
+ * It was "Type", which failed twice over: between "Colors" and "Imagery" it read as *type of
+ * background* — a category among two materials — and it named neither what it changes nor
+ * where. "Typeface" fixed only the first half. The segments are `flex: 1`, so the longer
+ * label costs no balance; all three widen together.
+ */
 const BG_KIND_OPTIONS: { value: BgKind; label: string }[] = [
   { value: 'colors', label: 'Colors' },
   { value: 'photos', label: 'Imagery' },
-  { value: 'type', label: 'Type' },
+  { value: 'type', label: 'Scripture font' },
 ];
 
 const rowStyle: React.CSSProperties = {

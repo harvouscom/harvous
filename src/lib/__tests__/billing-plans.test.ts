@@ -8,7 +8,6 @@ import {
   UNLIMITED,
   featuresForProductId,
   foundingOffer,
-  FOUNDING_FIRST_YEAR_CENTS,
   getPlans,
   isUnlimited,
   limitsForFeatures,
@@ -75,10 +74,10 @@ describe('pricing model', () => {
   const church = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'church' && p.interval === interval);
 
-  it('prices Plus at $7/mo and $49/yr, both listed', () => {
-    expect(plus('month')?.amountCents).toBe(700);
+  it('prices Plus at $6/mo and $36/yr, both listed', () => {
+    expect(plus('month')?.amountCents).toBe(600);
     expect(plus('month')?.listed).toBe(true);
-    expect(plus('year')?.amountCents).toBe(4900);
+    expect(plus('year')?.amountCents).toBe(3600);
     expect(plus('year')?.listed).toBe(true);
   });
 
@@ -87,15 +86,15 @@ describe('pricing model', () => {
   });
 
   it('discounts annual hard enough to be the obvious choice', () => {
-    // Polar takes 5% + 50c, so the flat fee alone is 7% of a $7 charge and 1% of
-    // a $49 one. Annual must stay well under twelve months for that to pay off.
+    // Polar takes 5% + 50c, so the flat fee alone is 8% of a $6 charge and 1.4% of
+    // a $36 one. Annual must stay well under twelve months for that to pay off.
     const twelveMonths = plus('month')!.amountCents * 12;
     expect(plus('year')!.amountCents).toBeLessThan(twelveMonths * 0.65);
   });
 
-  it('prices the founding first year below the annual list price', () => {
-    expect(FOUNDING_FIRST_YEAR_CENTS).toBe(3500);
-    expect(FOUNDING_FIRST_YEAR_CENTS).toBeLessThan(plus('year')!.amountCents);
+  it('sells the annual plan at half the monthly rate, needing no first-year discount', () => {
+    // The reason founding was retired: $36 against $72 of monthly is the offer.
+    expect(plus('year')!.amountCents).toBe(plus('month')!.amountCents * 6);
   });
 
   it('prices Connector at $5/mo with NO annual discount', () => {
@@ -181,24 +180,22 @@ describe('founding vs standard product resolution', () => {
     }
   });
 
-  it('the founding offer rides the annual product, not one of its own', () => {
-    const offer = foundingOffer();
-    expect(offer?.plan.productId).toBe(planFor('plus', 'year')!.productId);
-    expect(offer?.plan.amountCents).toBe(4900);
-    expect(offer?.firstYearCents).toBe(3500);
-    expect(offer?.discountId).toBe('prod_polar_plus_founding_discount_id');
-  });
-
-  it('has no founding offer when the discount id is unset', () => {
-    delete process.env.POLAR_PLUS_FOUNDING_DISCOUNT_ID;
+  /**
+   * Retired, and not merely unconfigured: `beforeEach` sets every id in
+   * ENV_KEYS, so a discount id IS present here. It stays null anyway. That is
+   * the assertion worth having — the previous behaviour was "null when the env
+   * var is unset", which would let setting one quietly start discounting again.
+   */
+  it('offers no founding discount, even with a discount id in the environment', () => {
+    expect(process.env.POLAR_PLUS_FOUNDING_DISCOUNT_ID).toBeTruthy();
     expect(foundingOffer()).toBeNull();
     // The annual plan is still perfectly sellable at list.
-    expect(planFor('plus', 'year')?.amountCents).toBe(4900);
+    expect(planFor('plus', 'year')?.amountCents).toBe(3600);
   });
 
   it('planFor returns both listed Plus intervals', () => {
-    expect(planFor('plus', 'month')?.amountCents).toBe(700);
-    expect(planFor('plus', 'year')?.amountCents).toBe(4900);
+    expect(planFor('plus', 'month')?.amountCents).toBe(600);
+    expect(planFor('plus', 'year')?.amountCents).toBe(3600);
   });
 
   it('keeps Connector in the registry but unlisted until it ships', () => {
@@ -207,8 +204,10 @@ describe('founding vs standard product resolution', () => {
     expect(planFor('connector', 'month')).toBeNull();
   });
 
-  it('a founder buys the same features as anyone else on Plus', () => {
-    expect(featuresForProductId(foundingOffer()!.plan.productId)).toEqual(
+  it('both Plus intervals buy the same features', () => {
+    // Was asserted through the founding product back when it was one; the point
+    // survives its retirement — interval must never change what you get.
+    expect(featuresForProductId(planFor('plus', 'year')!.productId)).toEqual(
       featuresForProductId(planFor('plus', 'month')!.productId),
     );
   });
