@@ -14,6 +14,7 @@ import {
   type SearchEventAction,
   type SearchEventSurface,
 } from '@/utils/search-event-kinds';
+import { isGuestModeActive } from '../../lib/guest-session';
 
 export function recordSearchEvent(input: {
   query: string;
@@ -26,6 +27,8 @@ export function recordSearchEvent(input: {
      leaves the device at all. The server repeats it because a client is not a trust boundary;
      the client does it because not sending is better than sending and being refused. */
   if (!shouldLogSearchQuery(query)) return;
+  /* No account, no history to keep — see the same guard in `proto-reading-events`. */
+  if (isGuestModeActive()) return;
 
   void api
     .post<{ success?: boolean }>('/api/search/event', {

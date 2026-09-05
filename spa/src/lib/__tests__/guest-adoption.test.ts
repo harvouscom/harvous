@@ -152,7 +152,7 @@ describe('adoptGuestWork', () => {
     expect(hasGuestSession()).toBe(true);
   });
 
-  it('keeps the work on the device when a write fails', async () => {
+  it('leaves behind exactly what still needs adopting when a write fails', async () => {
     startGuestSession();
     seedHighlight('Psalms 34:1');
     seedHighlight('Psalms 34:8');
@@ -163,9 +163,39 @@ describe('adoptGuestWork', () => {
     const result = await adoptGuestWork(SPACE);
 
     expect(result).toEqual({ adoptedHighlights: 1, adoptedNotes: 0, failed: 1 });
-    // Both survive: clearing either one on a partial run is how a guest's work disappears.
-    expect(guestHighlights()).toHaveLength(2);
+    /*
+     * The one that landed is dropped; the one that failed stays.
+     *
+     * This used to keep both, on the reasoning that clearing anything on a partial run is
+     * how a guest's work disappears — but a row the server accepted is not lost by being
+     * dropped here, and keeping it meant the next page load replayed it. The server upserts
+     * a highlight, so that only cost a request; `POST /api/notes/create` does not, so a
+     * partial run filed a second copy of every note that had already succeeded.
+     */
+    expect(guestHighlights().map((h) => h.reference)).toEqual(['Psalms 34:8']);
     expect(hasGuestSession()).toBe(true);
+  });
+
+  it('replays only the failure on a second run', async () => {
+    startGuestSession();
+    addGuestNote({ title: 'Kept', contentHtml: '<p>One.</p>' });
+    addGuestNote({ title: 'Lost', contentHtml: '<p>Two.</p>' });
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+      .mockResolvedValueOnce(new Response('nope', { status: 500 }));
+
+    await adoptGuestWork(SPACE);
+    expect(noteCalls(fetchSpy)).toHaveLength(2);
+
+    fetchSpy.mockResolvedValue(new Response('{}', { status: 200 }));
+    const second = await adoptGuestWork(SPACE);
+
+    // One more create, not three: the note that already landed is not filed again.
+    expect(noteCalls(fetchSpy)).toHaveLength(3);
+    expect(second).toEqual({ adoptedHighlights: 0, adoptedNotes: 1, failed: 0 });
+    expect(guestNotes()).toHaveLength(0);
+    expect(hasGuestSession()).toBe(false);
   });
 
   it('survives a network error rather than throwing into the shell', async () => {

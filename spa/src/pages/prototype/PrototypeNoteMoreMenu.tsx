@@ -20,6 +20,8 @@ import Icon from '@/components/react/Icon';
 import { toast } from '@/utils/toast';
 import { APIError } from '../../lib/api';
 import { useDeleteNote } from '../../hooks/mutations/useDeleteNote';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { deleteGuestNote } from '../../lib/guest-store';
 import { usePinSpaceNote } from '../../hooks/mutations/usePinSpaceNote';
 import { useSaveNoteCopy } from '../../hooks/mutations/useCopyNotesToSpace';
 import { useRemoveNoteFromSpace } from '../../hooks/mutations/useSpaceNoteAssociation';
@@ -97,6 +99,7 @@ export default function PrototypeNoteMoreMenu({
   onShare,
   menuButtonRef,
 }: PrototypeNoteMoreMenuProps) {
+  const { isGuest } = useHarvousIdentity();
   const { open, setOpen, rootRef } = usePopoverDismiss<HTMLDivElement>();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteAnchorRect, setDeleteAnchorRect] = useState<DOMRect | null>(null);
@@ -201,6 +204,22 @@ export default function PrototypeNoteMoreMenu({
   };
 
   const onDeleteConfirm = () => {
+    /*
+     * A guest's note lives in this browser, and the server has never seen it — the DELETE
+     * came back 401 and the menu said "Could not delete note" about a note sitting right
+     * there. `deleteGuestNote` was written for this and had no caller.
+     */
+    if (isGuest) {
+      deleteGuestNote(noteId);
+      /* The row is gone from the device; the cached detail is the only copy left, and
+         going back to this address must not resurrect it. Guest Home re-renders off the
+         store's own subscription, so it needs no telling. */
+      queryClient.removeQueries({ queryKey: ['note', noteId] });
+      setDeleteConfirmOpen(false);
+      navigate({ to: prototypeHomeRouteTo(), replace: true });
+      if (isMobileSidebar) closeDrawer({ preserveHistory: true });
+      return;
+    }
     deleteNote.mutate(
       { noteId, spaceId },
       {

@@ -38,6 +38,13 @@ export type HomeGreetingTrend = {
   kind: 'arc' | 'subject' | 'passage' | 'crossref' | 'referenceWord';
   parts: RecallTrendGreetingParts;
   onOpen: () => boolean | void;
+  /**
+   * Whether `onOpen` would actually go somewhere. False renders the same words as a plain
+   * label rather than a chip: several of these handlers bail silently — an arc whose notes
+   * are not on the loaded page, a connection short of its minimum, a proposal with nowhere
+   * to land — and a pill that looks pressable and does nothing reads as a broken app.
+   */
+  openable?: boolean;
 };
 
 /** Where a greeting chip goes — supplied by whichever surface is showing the sentence. */
@@ -59,6 +66,7 @@ export default function PrototypeHomeGreeting({
   trend,
   trailing,
   nav,
+  onOpenTodaysPassage,
 }: {
   notes: SpaceNoteRow[];
   countForLogic: number;
@@ -68,6 +76,8 @@ export default function PrototypeHomeGreeting({
   /** A further sentence about the same moment, joined to the greeting's paragraph. */
   trailing?: ReactNode;
   nav: HomeGreetingNav;
+  /** The welcome sentence's "Today's Passage" — a chip when the surface can open the reader. */
+  onOpenTodaysPassage?: () => void;
 }) {
   const { user } = useUser();
   const { data: profile } = useProfile();
@@ -112,15 +122,24 @@ export default function PrototypeHomeGreeting({
         return (
           <Fragment key={`${label}-${i}`}>
             {i > 0 ? ' and ' : null}
-            <button
-              type="button"
-              className={chipClass}
-              aria-label={`Open ${label}`}
-              onClick={trend.onOpen}
-            >
-              <Icon name={iconName} size={iconSize} aria-hidden />
-              <span>{label}</span>
-            </button>
+            {trend.openable === false ? (
+              /* Same words, same glass, no press — the chip styling's hover and cursor are
+                 keyed on `button`, so a span is the honest version of it. */
+              <span className={chipClass}>
+                <Icon name={iconName} size={iconSize} aria-hidden />
+                <span>{label}</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className={chipClass}
+                aria-label={`Open ${label}`}
+                onClick={trend.onOpen}
+              >
+                <Icon name={iconName} size={iconSize} aria-hidden />
+                <span>{label}</span>
+              </button>
+            )}
           </Fragment>
         );
       })}
@@ -154,17 +173,13 @@ export default function PrototypeHomeGreeting({
     </button>
   );
 
+  /* A label, not a button. A future recall pass may resurface notes from this season, and
+     until it does a pill that presses and does nothing is worse than one that does not press. */
   const seasonLine = season ? (
-    <button
-      type="button"
-      className="proto-glass-surface proto-home-greeting__season"
-      title={season.label}
-      // Stub: a future recall/review pass will resurface notes from this season.
-      onClick={() => {}}
-    >
+    <span className="proto-glass-surface proto-home-greeting__season">
       <Icon name="calendar" size={11} aria-hidden />
       <span>{season.label}</span>
-    </button>
+    </span>
   ) : null;
 
   // Brand new space — keep it warm, the empty-state card below carries the CTA.
@@ -195,12 +210,28 @@ export default function PrototypeHomeGreeting({
       );
     };
 
+    /* It sits between four chips in one sentence, so it has to be one too — plain text
+       there read as a chip that did not work. */
+    const todaysPassageChip = onOpenTodaysPassage ? (
+      <button
+        type="button"
+        className="proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage"
+        aria-label="Open Today's Passage"
+        onClick={onOpenTodaysPassage}
+      >
+        <Icon name="book" size={11} aria-hidden />
+        <span>Today&apos;s Passage</span>
+      </button>
+    ) : (
+      <>Today&apos;s Passage</>
+    );
+
     return (
       <>
         <p className="proto-home-greeting">
           <span className="proto-home-greeting__hello">{hello}</span>{' '}
           Welcome to Harvous. Write {introListChip('notes')} as you add{' '}
-          {introListChip('scripture')}, open Today&apos;s Passage, and create{' '}
+          {introListChip('scripture')}, open {todaysPassageChip}, and create{' '}
           {introListChip('highlights')} and {introListChip('threads')}.
         </p>
         {seasonLine}

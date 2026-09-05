@@ -25,6 +25,7 @@ import {
 } from '../../hooks/mutations/useChallengeMutations';
 import { useCreateSimpleNote } from '../../hooks/mutations/useCreateSimpleNote';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import {
   CHALLENGE_ARCHIVE_COPY,
@@ -42,6 +43,7 @@ export default function PrototypeChallengePage() {
   const params = useParams({ strict: false }) as { challengeId?: string };
   const challengeId = params.challengeId ?? null;
   const challenges = useHasFeature('challenges');
+  const { isGuest } = useHarvousIdentity();
   const { homeSpaceId } = usePrototypeHomeSpaceId();
 
   const query = useChallenge(challengeId);
@@ -59,6 +61,31 @@ export default function PrototypeChallengePage() {
     () => (context?.verseText ? { __html: context.verseText } : null),
     [context?.verseText],
   );
+
+  /*
+   * Before the pending check, which for a guest never resolves: both queries behind this
+   * page are `enabled: authReady`, and a disabled query stays pending forever — so this
+   * route showed a guest a spinner with no end. The list page already answers this way.
+   */
+  if (isGuest) {
+    return (
+      <div className="proto-feed">
+        <article className="proto-feed-sheet">
+          <header className="proto-feed-sheet__head">
+            <div className="proto-feed-sheet__title">
+              <h2 className="proto-feed-sheet__day">Challenges</h2>
+            </div>
+          </header>
+          <div className="proto-feed-sheet__body">
+            <p className="proto-feed-sheet__rest">
+              A challenge is a short path through study you have already written. Make an
+              account to start building one.
+            </p>
+          </div>
+        </article>
+      </div>
+    );
+  }
 
   if (query.isPending || !challenges.ready) {
     return <ProtoSpaceLoading label="Loading this challenge" />;

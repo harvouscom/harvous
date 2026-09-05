@@ -23,7 +23,7 @@ import { studyFeedJumpStep } from '@/utils/study-feed-date-jump';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
-import { prototypeNoteRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
+import { prototypeNoteRouteTo, prototypeReadRouteTo, prototypeReadTodayRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import {
   buildStudyFeedDays,
@@ -105,6 +105,10 @@ const JUMP_FLOOR_KEY = '2020-01-01';
 
 export default function PrototypeStudyFeedPage() {
   const navigate = useNavigate();
+  const openTodaysPassage = useCallback(
+    () => void navigate({ to: prototypeReadTodayRouteTo() }),
+    [navigate],
+  );
   const [scope, setScope] = useState<StudyFeedScope>(STUDY_FEED_SCOPE_ALL);
   const { items, reviewAnswers, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useStudyFeed(scope);
@@ -751,6 +755,7 @@ export default function PrototypeStudyFeedPage() {
                    only reach the list rather than the book — see `useLibraryPanelNav`. */
                 nav={libraryNav}
                 trailing={summarySentence}
+                onOpenTodaysPassage={openTodaysPassage}
               />
             ) : (
               /* A day you flipped back to has no greeting to join, so the tally stands

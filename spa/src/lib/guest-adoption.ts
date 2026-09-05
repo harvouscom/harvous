@@ -19,7 +19,14 @@
  * losing it. A failed adoption leaves both in place and tries again on the next mount.
  */
 import { clearGuestSession, hasGuestSession } from './guest-session';
-import { clearGuestStore, guestHighlights, guestNotes, guestStoreCounts } from './guest-store';
+import {
+  clearGuestStore,
+  deleteGuestNote,
+  guestHighlights,
+  guestNotes,
+  guestStoreCounts,
+  removeGuestHighlight,
+} from './guest-store';
 import { pushOnboardingStateToAccount } from './proto-onboarding-sync';
 
 /** One run at a time, and never twice for the same page. */
@@ -120,7 +127,19 @@ export async function adoptGuestWork(spaceId: string): Promise<GuestAdoptionResu
      */
     let adopted = 0;
     for (const highlight of highlights) {
-      if (await adoptHighlight(highlight, spaceId)) adopted += 1;
+      if (await adoptHighlight(highlight, spaceId)) {
+        adopted += 1;
+        /*
+         * Dropped from the store the moment it lands, rather than all at the end.
+         *
+         * The end-of-run clear only fired when nothing failed, so one failure left every
+         * success in the store — and the next page load replayed the lot, filing a second
+         * copy of each. Highlights survived that on the server's own upsert; notes are an
+         * unconditional create, so they doubled. Per-item is the version that is safe to
+         * retry, and what stays behind is exactly what still needs adopting.
+         */
+        removeGuestHighlight(highlight.id);
+      }
     }
 
     /*
@@ -130,12 +149,16 @@ export async function adoptGuestWork(spaceId: string): Promise<GuestAdoptionResu
     const notes = guestNotes();
     let adoptedNotes = 0;
     for (const note of notes) {
-      if (await adoptNote(note, spaceId)) adoptedNotes += 1;
+      if (await adoptNote(note, spaceId)) {
+        adoptedNotes += 1;
+        deleteGuestNote(note.id);
+      }
     }
 
     const failed = highlights.length - adopted + (notes.length - adoptedNotes);
 
     if (failed === 0) {
+      /* Belt and braces: the loops above have already emptied it row by row. */
       clearGuestStore();
       clearGuestSession();
     }

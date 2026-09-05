@@ -18,7 +18,14 @@ import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeOnboardingDock from './PrototypeOnboardingDock';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeFounderLetterPill from './PrototypeFounderLetterPill';
-import { prototypeReadTodayRouteTo, prototypeReadRouteTo } from '@/lib/prototype-path';
+import {
+  prototypeHomeRouteTo,
+  prototypeReadTodayRouteTo,
+  prototypeReadRouteTo,
+} from '@/lib/prototype-path';
+import { useProtoShell } from '../../layouts/proto-shell-context';
+import { requestSpotlight } from './useOnboardingState';
+import type { OnboardingStepId } from '@/utils/onboarding-state';
 import {
   guestHighlights,
   guestNotes,
@@ -50,16 +57,40 @@ export default function PrototypeGuestHome() {
     ...highlights.map((h) => ({ kind: 'highlight' as const, at: h.createdAt, highlight: h })),
     ...notes.map((n) => ({ kind: 'note' as const, at: n.updatedAt, note: n })),
   ].sort((a, b) => b.at.localeCompare(a.at));
+  const { beginPrototypeComposeSession } = useProtoShell();
   const openReader = () => navigate({ to: prototypeReadTodayRouteTo() });
 
   /*
+   * Where each checklist row goes, for a guest — the same switch Home has, over the three
+   * steps a guest is shown. Every row used to open the reader, on the reasoning that a
+   * guest's note is written on a verse from the annotate dock; a guest can write a whole
+   * note now, so "Write a note" opens the editor, and "Highlight a verse" opens the chapter
+   * with the verses pointed at rather than plain.
+   */
+  const performStep = (id: OnboardingStepId, { replace = false } = {}) => {
+    switch (id) {
+      case 'note':
+      case 'pill':
+        /* No space: a guest's note is saved to this device — see `handleNoteSave`. */
+        beginPrototypeComposeSession({});
+        navigate({ to: prototypeHomeRouteTo(), replace });
+        return;
+      case 'highlight':
+        requestSpotlight('reader-verses');
+        navigate({ to: prototypeReadTodayRouteTo(), replace });
+        return;
+      default:
+        navigate({ to: prototypeReadTodayRouteTo(), replace });
+    }
+  };
+
+  /*
    * A checklist row pressed from the toolbar, anywhere in the app, is performed on arrival —
-   * the same handoff Activity uses. Every step a guest can reach ends at the reader (a note is
-   * written on a verse, from the annotate dock), so there is one destination rather than the
-   * switch Home needs; consumed once either way, so it cannot fire again on the next visit.
+   * the same handoff Activity uses. Consumed once, so it cannot fire again on the next visit.
    */
   useEffect(() => {
-    if (takeOnboardingStep()) navigate({ to: prototypeReadTodayRouteTo(), replace: true });
+    const step = takeOnboardingStep();
+    if (step) performStep(step, { replace: true });
     // Mount only: a later render is a later visit, not the arrival this was handed off for.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -233,7 +264,7 @@ export default function PrototypeGuestHome() {
             </section>
           )}
 
-          <PrototypeOnboardingDock onStepAction={openReader} />
+          <PrototypeOnboardingDock onStepAction={(id) => performStep(id)} />
 
           {/*
             Why the app exists, for the person deciding whether to care.

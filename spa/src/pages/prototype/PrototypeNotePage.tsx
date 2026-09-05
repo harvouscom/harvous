@@ -70,13 +70,7 @@ import {
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { toast } from '@/utils/toast';
 import { toastError } from '../../lib/error-copy';
-import {
-  dismissPurpose,
-  getComposePurpose,
-  isPurposeDismissed,
-  notePurposeModel,
-  setComposePurpose,
-} from '../../lib/compose-purpose';
+import { dismissPurpose, isPurposeDismissed, notePurposeModel } from '../../lib/compose-purpose';
 import {
   noteAudienceLabel,
   resolveCoEditFollower,
@@ -338,6 +332,9 @@ export default function PrototypeNotePage() {
     setComposePersistedNoteId,
     composeDraftActive,
     composeSeed,
+    composePurpose: sessionComposePurpose,
+    clearComposePurpose,
+    clearComposeDraftActive,
     composeSessionEpoch,
     composeTargetSpaceIdOverride,
     clearComposeTargetSpaceIdOverride,
@@ -803,7 +800,11 @@ export default function PrototypeNotePage() {
     than widening it, because the co-edit and pen logic below means "this saved note is
     mine" and must keep meaning exactly that.
   */
-  const viewerIsAuthor = isDraft || isOwnNote;
+  /* A guest is the author of everything they can open: their notes never leave the device,
+     and `guestNoteDetail` carries no `isOwnNote` — so without this the "Saved on this device"
+     line below vanished the moment the note was reopened, which is exactly when someone asks
+     where it went. */
+  const viewerIsAuthor = isDraft || isOwnNote || isGuest;
 
   /*
     Where this note lives.
@@ -1135,41 +1136,95 @@ export default function PrototypeNotePage() {
       const draftContent = hasLiveNoteSnapshot
         ? liveNoteSnapshot.content
         : (seed?.contentHtml ?? '');
-      const targetNoteId = isDraft
-        ? await persistDraftNoteRef.current?.(
-            draftTitle,
-            draftContent,
-            undefined,
-            'expand-scripture-to-reader',
-          )
-        : noteId;
-      if (!targetNoteId) return;
+      let targetNoteId: string | null;
+      if (isGuest) {
+        /*
+         * A guest's note never leaves the device — the same rule `handleNoteSave` applies,
+         * and the same ref, so the autosave that follows updates this note rather than
+         * filing a second one. `persistDraftNote` below needs a space a guest does not have,
+         * and returning its null here was what made this button do nothing for them.
+         */
+        if (!isDraft) {
+          targetNoteId = noteId;
+        } else if (guestDraftIdRef.current) {
+          updateGuestNote(guestDraftIdRef.current, { title: draftTitle, contentHtml: draftContent });
+          targetNoteId = guestDraftIdRef.current;
+        } else if (isEffectivelyEmptyPrototypeNote(draftTitle, draftContent)) {
+          targetNoteId = null;
+        } else {
+          const saved = addGuestNote({ title: draftTitle, contentHtml: draftContent });
+          if (saved) guestDraftIdRef.current = saved.id;
+          targetNoteId = saved?.id ?? null;
+        }
+      } else {
+        targetNoteId = isDraft
+          ? ((await persistDraftNoteRef.current?.(
+              draftTitle,
+              draftContent,
+              undefined,
+              'expand-scripture-to-reader',
+            )) ?? null)
+          : noteId;
+      }
 
-      stackNote(
-        buildNoteDockOrigin({
-          noteId: targetNoteId,
-          noteTitle: liveNoteSnapshot.title || note?.title,
-          reference,
-          translation,
-          spaceId: contextSpaceId,
-          morphFrom:
-            rect && rect.width > 0 && rect.height > 0
-              ? {
-                  top: Math.round(rect.top),
-                  left: Math.round(rect.left),
-                  width: Math.round(rect.width),
-                  height: Math.round(rect.height),
-                  dockPlacement: readPaperStackDockPlacement() ?? '',
-                }
-              : undefined,
-        }),
-        targetNoteId,
-      );
+      /*
+       * The draft has its address now, so the compose session is over — and it has to be
+       * ended here, not left to its own devices. Two of those devices were what made this
+       * button look dead on a note started from the reader:
+       *
+       * - The idle URL catch-up (`flushPendingComposeUrlReplace`) was still armed, and it
+       *   fired on the very focus change the expand causes — a `replace` to `/{slug}` that
+       *   landed *after* the reader navigation and put the note back over the chapter.
+       *   The stack's `returnTo` already carries that address, so the catch-up has no job.
+       * - `composeDraftActive` only clears when the path leaves `/`, and a draft started from
+       *   a verse never was on `/`; while it stayed set the layout kept hosting the editor
+       *   over every read path, so the chapter opened underneath a note nobody could see past.
+       */
+      if (isDraft && targetNoteId) {
+        pendingComposeUrlReplaceRef.current = null;
+        if (composeUrlIdleTimerRef.current) {
+          clearTimeout(composeUrlIdleTimerRef.current);
+          composeUrlIdleTimerRef.current = null;
+        }
+        setComposePersistedNoteId(null);
+        clearComposeDraftActive();
+      }
+
+      /*
+       * No note to come back to (a draft that could not be saved) is not a reason to keep
+       * the reader shut: the chapter opens either way, it just opens without the edge. A
+       * silent return here read as a broken button.
+       */
+      if (targetNoteId) {
+        stackNote(
+          buildNoteDockOrigin({
+            noteId: targetNoteId,
+            noteTitle: liveNoteSnapshot.title || note?.title,
+            reference,
+            translation,
+            spaceId: contextSpaceId,
+            morphFrom:
+              rect && rect.width > 0 && rect.height > 0
+                ? {
+                    top: Math.round(rect.top),
+                    left: Math.round(rect.left),
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height),
+                    dockPlacement: readPaperStackDockPlacement() ?? '',
+                  }
+                : undefined,
+          }),
+          targetNoteId,
+        );
+      }
       void navigate(landAgain(route));
     },
     [
+      isGuest,
       isDraft,
       noteId,
+      setComposePersistedNoteId,
+      clearComposeDraftActive,
       hasLiveNoteSnapshot,
       liveNoteSnapshot.title,
       liveNoteSnapshot.content,
@@ -1761,11 +1816,8 @@ export default function PrototypeNotePage() {
     fact anyone else needs.
   */
   const [purposeDismissals, setPurposeDismissals] = useState(0);
-  const composePurpose = useMemo(
-    () => (isDraft || composeDraftActive ? getComposePurpose() : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isDraft, composeDraftActive, purposeDismissals],
-  );
+  /* Shell state, epoch-gated to this compose session — see `composePurpose` on the shell. */
+  const composePurpose = isDraft || composeDraftActive ? sessionComposePurpose : null;
   const notePurpose = useMemo(
     () =>
       notePurposeModel({
@@ -1811,13 +1863,12 @@ export default function PrototypeNotePage() {
     ],
   );
   const handleDismissPurpose = useCallback(() => {
-    dismissPurpose(isDraft ? null : noteId);
-    /* A draft's purpose lives in sessionStorage, so clearing it *is* the
-       dismissal; a saved note's is a localStorage key. Either way the memo
-       above needs a reason to re-run. */
-    if (isDraft) setComposePurpose(null);
+    /* A session purpose is shell state, so clearing it *is* the dismissal; a saved
+       note's is a localStorage key, and the memo above needs a reason to re-run. */
+    clearComposePurpose();
+    if (!isDraft) dismissPurpose(noteId);
     setPurposeDismissals((n) => n + 1);
-  }, [isDraft, noteId]);
+  }, [clearComposePurpose, isDraft, noteId]);
 
   const audienceBarMode = useMemo(
     () =>

@@ -421,7 +421,7 @@ export default function PrototypeReadPage() {
       });
       stackNote(readerOrigin(start));
     },
-    [homeSpaceId, isGuest, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
+    [homeSpaceId, beginPrototypeComposeSession, stackNote, readerOrigin, book, chapter, translation],
   );
 
   /**
@@ -476,6 +476,16 @@ export default function PrototypeReadPage() {
         return true;
       }
 
+      /*
+       * A guest has no space and never will, so the "still getting ready" copy below was a
+       * wait that could not end — and the dock stays open on `false`, so it was offered again
+       * on every retry. A reference row is server data; this is the honest answer.
+       */
+      if (isGuest) {
+        offerGuestAccount('Saving references');
+        return false;
+      }
+
       // `homeSpaceId` can still be resolving right after a cold load of a reader URL — silently
       // dropping the save here (as this used to) looked identical to a save that worked, since
       // the dock closed either way. Surfacing it is what makes "doesn't work" reports findable.
@@ -499,7 +509,7 @@ export default function PrototypeReadPage() {
       void queryClient.invalidateQueries({ queryKey: chapterReferencesKey(book, chapter, translation) });
       return true;
     },
-    [stackedNoteId, translation, homeSpaceId, queryClient, book, chapter],
+    [stackedNoteId, translation, homeSpaceId, queryClient, book, chapter, isGuest],
   );
 
   /**
