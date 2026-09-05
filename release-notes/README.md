@@ -100,6 +100,8 @@ These release notes help you understand:
 
 Start with the most recent file to see the latest updates!
 
+**Harvous 3.0** (September 2026): [launches/harvous-3-0.md](launches/harvous-3-0.md) — the release in one place. Home became Activity, the sidebar became Search, and Review arrived; built across the 2.x numbers on the 3.0 branch and shipped as v3.0.0.
+
 **Harvous for churches** (August 2026): [launches/harvous-for-churches.md](launches/harvous-for-churches.md) — the whole church release in one place, across v2.14.0–v2.33.0.
 
 **August 20, 2026:** [2026-08-20.md](2026-08-20.md) — passages that open as passages, reading details on a phone, and references that stay put (v2.72.13–v2.72.16).

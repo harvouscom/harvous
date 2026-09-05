@@ -1,7 +1,7 @@
 # Harvous 3.0
 
-**Launched:** September 2026
-**Shipped across:** v2.88.0-v2.166.6
+**Launched:** September 4, 2026
+**Shipped as:** v3.0.0, built across v2.88.0-v2.166.6
 
 If you have used Harvous before, the first thing you will notice is a few names changed. Home is now Activity. The sidebar is now Search. Nothing moved, nothing was deleted — every note, every highlight, every Thread is exactly where you left it, under a name that says what it actually does.
 
