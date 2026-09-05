@@ -7,8 +7,9 @@
  * this one selected.
  *
  * The Note half carries two jobs resolved by where you already are, the way it always has:
- * it resumes the note you had open, and starts one when there is nothing to resume. Only
- * the second needs write permission, which is why the disabled test differs by half rather
+ * it resumes the note you had open, and starts one when there is nothing to resume — or
+ * when you are already on it, since a note you are looking at is not one to return to. Only
+ * starting needs write permission, which is why the disabled test differs by half rather
  * than sitting on the control.
  *
  * Glyphs only, at every width. Three labelled halves would take the center folder chip's
