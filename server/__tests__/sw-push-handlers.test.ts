@@ -26,6 +26,7 @@ interface Harness {
   focused: string[];
   navigated: string[];
   posted: unknown[];
+  parked: string[];
   windows: Array<{ url: string }>;
 }
 
@@ -48,6 +49,7 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
     focused: [],
     navigated: [],
     posted: [],
+    parked: [],
     windows: options.windows ?? [],
   };
 
@@ -84,7 +86,17 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
       claim: async () => {},
     },
     skipWaiting: () => {},
-    caches: { open: async () => ({}), keys: async () => [], match: async () => undefined },
+    caches: {
+      open: async () => ({
+        put: async (request: { url?: string } | string, response: { text: () => Promise<string> }) => {
+          harness.parked.push(await response.text());
+        },
+        match: async () => undefined,
+        delete: async () => true,
+      }),
+      keys: async () => [],
+      match: async () => undefined,
+    },
   };
 
   const navigatorStub = {
@@ -201,6 +213,20 @@ describe('service worker notificationclick', () => {
       { type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: 'https://app.harvous.com/read/today' },
     ]);
     expect(harness.opened).toEqual([]);
+  });
+
+  it('parks the destination for an app that is still booting', async () => {
+    // A message is delivered once, to whoever is listening at that instant. On a cold launch
+    // that is nobody — which is the tap that matters most, the one that opens the app.
+    const harness = loadServiceWorker({ windows: [] });
+    const waits: Promise<unknown>[] = [];
+    harness.listeners.get('notificationclick')!(clickEvent(waits));
+    await Promise.all(waits);
+
+    expect(harness.parked).toHaveLength(1);
+    const parked = JSON.parse(harness.parked[0]!);
+    expect(parked.url).toBe('https://app.harvous.com/read/today');
+    expect(typeof parked.at).toBe('number');
   });
 
   it('does not rely on WindowClient.navigate, which iOS ignores', async () => {

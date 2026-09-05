@@ -791,6 +791,34 @@ const REMINDER_ICON = '/images/icons/icon-192.png';
 const REMINDER_BADGE = '/images/icons/badge-96.png';
 
 /**
+ * Where a notification tap wants the app to go, parked somewhere the app can find it.
+ *
+ * postMessage alone is not enough. The message is delivered once, to whoever is listening at
+ * that instant, and on a cold launch the app is still booting — so the tap that matters most,
+ * the one that opens the app, is exactly the one whose message lands on nobody. Cache Storage
+ * is same-origin and survives both the worker being killed and the app's boot, so the app can
+ * come up and ask what it was opened for.
+ */
+const PENDING_NAV_CACHE = 'harvous-pending-navigation';
+const PENDING_NAV_KEY = '/__harvous_pending_navigation';
+
+async function setPendingNavigation(url) {
+  try {
+    const cache = await caches.open(PENDING_NAV_CACHE);
+    // The key as a plain string, which is what reads it back too. Wrapping it in a Request
+    // buys nothing and needs an absolute URL to construct outside a browser.
+    await cache.put(
+      PENDING_NAV_KEY,
+      new Response(JSON.stringify({ url: url, at: Date.now() }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+  } catch (_) {
+    // Falls back to the postMessage path, which is enough for an app already running.
+  }
+}
+
+/**
  * Report what became of a notification.
  *
  * Sent with credentials, because a worker woken by a push has no Clerk bearer token — only
@@ -864,6 +892,9 @@ self.addEventListener('notificationclick', (event) => {
       }
       // Awaited, not fired and forgotten — see reportNotificationEvent.
       await reportNotificationEvent(payload.deliveryId, 'click');
+
+      // Parked before focusing, so it is already there whether the app is booting or running.
+      await setPendingNavigation(target);
 
       // Focus what is already open before opening anything new: someone with Harvous in a
       // background tab should be taken to it, not given a second copy of the app.

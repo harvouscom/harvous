@@ -316,19 +316,10 @@ export default function SimplifiedPrototypeLayout() {
       });
     };
 
-    // The tap-to-route listener, which the service worker depends on: it cannot navigate the
-    // window itself on iOS. Registered eagerly rather than on visibility, because the message
-    // arrives while the app is coming to the front.
-    let teardownNavigation = () => {};
-    void import('../lib/notification-navigation').then((mod) => {
-      teardownNavigation = mod.initNotificationNavigation();
-    });
-
     onVisible();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
     return () => {
-      teardownNavigation();
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
