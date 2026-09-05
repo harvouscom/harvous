@@ -7374,7 +7374,7 @@ button.proto-home-card--tappable:focus-visible {
   padding: 0.167em 0.75em;
   border: 0.5px solid var(--pds-border-control);
   border-radius: 999px;
-  color: var(--pds-text-primary);
+  color: var(--pds-text-strong);
   font-family: var(--pds-font-body);
   /*
    * Relative, so the pill grows with the sentence it sits inside. It was 12px flat, which
@@ -21422,7 +21422,7 @@ button.proto-feed-sheet__stat:hover {
   padding: 0.167em 0.75em;
   border: 0.5px solid var(--pds-border-control);
   border-radius: var(--pds-radius-pill);
-  color: var(--pds-text-primary);
+  color: var(--pds-text-strong);
   font-size: 0.8em;
   font-weight: 600;
   line-height: 1.5;
