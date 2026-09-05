@@ -10268,6 +10268,12 @@ button.proto-appearance-hero__card {
   display: flex;
   flex-direction: row;
   align-items: stretch;
+  /*
+   * Wrap rather than squeeze. Side by side while both labels fit, stacked and centred when
+   * they do not — "See release notes" is the longer of the pair and was the one that lost.
+   */
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--pds-space-2);
   width: 100%;
   max-width: 400px;
@@ -10277,8 +10283,14 @@ button.proto-appearance-hero__card {
 
 .proto-welcome3__cta,
 .proto-welcome3__secondary {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 auto;
+  /*
+   * Never narrower than its own label. With `min-width: 0` these shrank past their text, and
+   * because the text is `nowrap` it had nowhere to go and was clipped mid-word on a narrow
+   * phone. At `max-content` the button keeps its label and the row wraps instead, which is
+   * the honest thing for two buttons that cannot both fit.
+   */
+  min-width: max-content;
   min-height: 44px;
   padding: 0 var(--pds-space-3);
   border-radius: var(--pds-radius-button);
