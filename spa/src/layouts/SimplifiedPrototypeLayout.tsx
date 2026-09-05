@@ -50,6 +50,7 @@ const PrototypeOrganizeCommandHost = lazy(
 const PrototypeLibraryPanelHost = lazy(
   () => import('../pages/prototype/library-panel/PrototypeLibraryPanelHost'),
 );
+import { prefetchLibraryPanelChunk } from '../pages/prototype/library-panel/prefetch-library-panel-chunk';
 import PrototypeAdminSidebar from '../pages/prototype/PrototypeAdminSidebar';
 import PrototypeExpandedSidebarHost from '../pages/prototype/PrototypeExpandedSidebarHost';
 
@@ -160,6 +161,11 @@ export default function SimplifiedPrototypeLayout() {
   useEffect(() => {
     if (identity.isGuest) hydrateOnboardingForGuest();
   }, [identity.isGuest]);
+
+  // Warm the Library panel's chunk on idle, so its first open is not its slowest.
+  useEffect(() => {
+    prefetchLibraryPanelChunk();
+  }, []);
   const { user } = useUser();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
