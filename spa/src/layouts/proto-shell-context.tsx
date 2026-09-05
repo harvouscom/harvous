@@ -1089,6 +1089,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
 
   const openLibraryPanel = useCallback(
     (view: LibraryPanelView) => {
+      /*
+       * Take focus off the note before the panel goes up. A selection's floating bar in the
+       * note underneath otherwise stays put, on top of the panel, still offering to act on
+       * text nobody is looking at — the editor only drops it on a blur that genuinely
+       * leaves (see handleBlur in TiptapEditor), and only the toolbar chip's opener focuses
+       * the search, so every other way in left the editor focused. This makes them all the
+       * same. On a phone it also puts the keyboard away, which a panel taking over the pane
+       * should do regardless.
+       */
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.closest('.ProseMirror')) active.blur();
       if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
       libraryPanelExitTimerRef.current = null;
       setLibraryPanelExiting(false);

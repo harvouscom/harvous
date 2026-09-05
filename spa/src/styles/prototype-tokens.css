@@ -613,6 +613,8 @@
   --pds-z-sticky: 80;
   --pds-z-dropdown: 100;
   --pds-z-popover: 6000;
+  /* Chrome that takes over a pane and must sit above editor popovers, below modals. */
+  --pds-z-popover-over: 6500;
   --pds-z-modal: 9800;
   --pds-z-settings: 9950;
   /* Confirms/menus that must stack above Settings and other modals. */

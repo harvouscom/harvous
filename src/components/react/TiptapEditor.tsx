@@ -732,7 +732,13 @@ function SelectionBarShell({
         top,
         left,
         transform: 'translateX(-50%)',
-        zIndex: 99999,
+        /*
+         * The popover tier, not a number above everything. At 99999 this floated over
+         * modals, Settings and toasts — and over the Library panel, which is where it was
+         * noticed. The bar is a popover attached to a selection and belongs on that tier.
+         * The fallback keeps the old value where the prototype tokens are not defined.
+         */
+        zIndex: 'var(--pds-z-popover, 99999)' as unknown as number,
         pointerEvents: 'auto',
       }}
     >
@@ -6503,9 +6509,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const handlePointerDownOutside = (e: PointerEvent | MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target?.closest?.('.selection-action-bar')) return;
+      /*
+       * Chrome that takes over the pane, and the controls that raise it.
+       *
+       * These clear immediately rather than falling through to the eligibility re-check
+       * below, because that check asks the wrong question here: it asks whether the
+       * *selection* is still worth a bar, and the selection survives all of this. Clicking
+       * into the Library panel does not collapse it, so the bar stayed up — floating over
+       * the panel, still offering to act on text nobody could see. The question that
+       * matters is whether the note is still the surface in front of you.
+       */
       if (
         target?.closest?.(
-          '.study-dock-card, .highlight-dock-web, .study-dock-carousel, .reference-dock-web',
+          '.study-dock-card, .highlight-dock-web, .study-dock-carousel, .reference-dock-web, .proto-library-sheet, .proto-library-panel, .proto-library-chip, .proto-settings-modal-overlay',
         )
       ) {
         clearSelectionActionBar();
@@ -8116,6 +8132,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (Date.now() < formatToolbarInteractionUntilRef.current) return;
         editorWasFocusedForToolbarRef.current = false;
         setIsEditorFocused(false);
+        /*
+         * Focus has genuinely left the editor — not to the toolbar, a dock, the picker or
+         * the bar itself, all of which returned above. The selection may still be there in
+         * the document, but a floating bar for it has no business staying up over whatever
+         * took focus: it was sitting on top of the Library panel, still offering to act on
+         * text nobody was looking at. The selection itself is untouched; select again and
+         * the bar comes back.
+         */
+        clearSelectionActionBar();
         if (editorChromeMode === 'prototypeNative') {
           setShowFormatBarForActivity(false);
           if (formatBarHideTimerRef.current) {
@@ -8150,7 +8175,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         editor.off('selectionUpdate', handleSelectionUpdate);
       }
     };
-  }, [editor, toolbarAtBottom, editorChromeMode, bumpFormatToolbarActivity]);
+  }, [editor, toolbarAtBottom, editorChromeMode, bumpFormatToolbarActivity, clearSelectionActionBar]);
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;

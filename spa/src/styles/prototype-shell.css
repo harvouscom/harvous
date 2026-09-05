@@ -2171,7 +2171,17 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
    * with its controls invisible.
    */
   top: calc(var(--pds-toolbar-h) + 8px);
-  z-index: 30;
+  /*
+   * Above the editor's floating popovers, not below them.
+   *
+   * The old value was chosen against the shell's own furniture, before this sheet took
+   * over the whole main pane. The selection bar is `--pds-z-popover` (6000) and the
+   * translation picker is the same, so both drew on top of a panel that had replaced the
+   * surface they belong to. Dismissing the bar when the panel opens is the real fix; this
+   * is the floor that keeps it right if another editor popover is ever missed. Below
+   * `--pds-z-modal`, so a modal and a toast still cover the panel.
+   */
+  z-index: var(--pds-z-popover-over, 6500);
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto auto 1fr;
