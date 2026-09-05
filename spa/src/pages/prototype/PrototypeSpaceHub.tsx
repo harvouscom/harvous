@@ -8,7 +8,7 @@
  * sheet's head and `.proto-sidebar-scroll` onto its scrolling body, so a 1100-line view with
  * four exit points changed frame without changing a single one of them.
  */
-import { useCallback, useMemo, useRef, useState, useEffect, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon, { type IconName } from '@/components/react/Icon';
 import { useAuth, useUser } from '@clerk/clerk-react';
@@ -58,7 +58,16 @@ import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import PrototypeSpacePeopleSheet from './PrototypeSpacePeopleSheet';
-import PrototypeSpaceStudySuggestionsSheet from './PrototypeSpaceStudySuggestionsSheet';
+/*
+  Opened from a Tools row, in the minority of rooms that have turned suggestions
+  on — so it is charged to the click rather than to every route that loads this
+  bundle. Same bargain the shell makes for the organize host and the library
+  panel, and the mount below is already gated, so the chunk is fetched only once
+  a room actually offers the row.
+*/
+const PrototypeSpaceStudySuggestionsSheet = lazy(
+  () => import('./PrototypeSpaceStudySuggestionsSheet'),
+);
 import PublicJoinSpaceHero from '../public/PublicJoinSpaceHero';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -1526,13 +1535,17 @@ function PrototypeSpaceHubLive() {
         }}
       />
       {studyPlanningOn && activeSpaceId ? (
-        <PrototypeSpaceStudySuggestionsSheet
-          open={suggestionsOpen}
-          onOpenChange={setSuggestionsOpen}
-          spaceId={activeSpaceId}
-          spaceTitle={spaceTitle}
-          canReview={canReviewSuggestions}
-        />
+        /* No fallback: the sheet paints its own chrome, and a placeholder box
+           behind the popover would flash where the card is about to be. */
+        <Suspense fallback={null}>
+          <PrototypeSpaceStudySuggestionsSheet
+            open={suggestionsOpen}
+            onOpenChange={setSuggestionsOpen}
+            spaceId={activeSpaceId}
+            spaceTitle={spaceTitle}
+            canReview={canReviewSuggestions}
+          />
+        </Suspense>
       ) : null}
       <PrototypeCreateSharedThreadSheet
         open={createThreadOpen}
