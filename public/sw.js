@@ -793,9 +793,14 @@ const REMINDER_BADGE = '/images/icons/badge-96.png';
 /**
  * Report what became of a notification.
  *
- * Fire-and-forget with credentials, because a worker woken by a push has no Clerk bearer
- * token — only the session cookie. A failure here costs nothing: the server's next hourly
- * tick settles an unreported delivery by attribution instead.
+ * Sent with credentials, because a worker woken by a push has no Clerk bearer token — only
+ * the session cookie.
+ *
+ * Every caller must AWAIT this inside `waitUntil`. It was originally fired with `void`, on
+ * the reasoning that a lost report is harmless, and on iOS not one report ever arrived: the
+ * worker is killed the moment the promise passed to `waitUntil` settles, and an un-awaited
+ * fetch is simply killed with it. A failure genuinely is harmless — the next tick settles an
+ * unreported delivery by attribution — but never being sent at all is not.
  */
 function reportNotificationEvent(deliveryId, event) {
   if (!deliveryId) return Promise.resolve();
@@ -850,8 +855,15 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     (async () => {
-      if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
-      void reportNotificationEvent(payload.deliveryId, 'click');
+      if (navigator.clearAppBadge) {
+        try {
+          await navigator.clearAppBadge();
+        } catch (_) {
+          /* not supported here */
+        }
+      }
+      // Awaited, not fired and forgotten — see reportNotificationEvent.
+      await reportNotificationEvent(payload.deliveryId, 'click');
 
       // Focus what is already open before opening anything new: someone with Harvous in a
       // background tab should be taken to it, not given a second copy of the app.
@@ -866,9 +878,19 @@ self.addEventListener('notificationclick', (event) => {
 
       if (sameOrigin) {
         await sameOrigin.focus();
-        if ('navigate' in sameOrigin) {
-          await sameOrigin.navigate(target).catch(() => {});
-        }
+        /*
+         * Ask the app to route, rather than driving the window from here.
+         *
+         * `WindowClient.navigate()` is the obvious call and does nothing on iOS — the window
+         * comes to the front still showing whatever page it was on, so a reminder about
+         * today's verse dropped you wherever you happened to be. It is also a full document
+         * load where the app has a router that can do it without one.
+         *
+         * postMessage reaches the running app, which knows how to route. If nothing is
+         * listening (an older cached bundle), the deep link is lost but the app is still open
+         * and focused, which is the same outcome navigate() gave us anyway.
+         */
+        sameOrigin.postMessage({ type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: target });
         return;
       }
       await self.clients.openWindow(target);
@@ -878,6 +900,7 @@ self.addEventListener('notificationclick', (event) => {
 
 self.addEventListener('notificationclose', (event) => {
   const payload = event.notification.data || {};
+  // Already awaited by virtue of being the whole waitUntil promise.
   event.waitUntil(reportNotificationEvent(payload.deliveryId, 'close'));
 });
 

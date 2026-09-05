@@ -81,9 +81,20 @@ function verseTitle(kind: ReminderKind): string {
   return "Today's verse";
 }
 
-function pickupTitle(kind: ReminderKind): string {
-  if (kind === 'sunday') return 'Before church';
-  return 'Where you left off';
+/**
+ * The midweek pick-up title names the chapter when it fits, and says so generically when it
+ * does not.
+ *
+ * "Still in John 15" is worth more than "Where you left off" — it answers the question
+ * without the reader opening anything. But it is the one title whose length is not knowable
+ * from the code: "Still in Song of Solomon 8" is 26 against "Still in John 15" at 16, and a
+ * title that wraps costs a third row on a header iOS already spends two on. So it is measured
+ * at build time, per reference, and falls back when it will not fit.
+ */
+function pickupTitle(kind: ReminderKind, reference: string): string {
+  if (kind === 'sunday') return 'A few minutes before church?';
+  const withReference = `Still in ${reference}`;
+  return withReference.length <= TITLE_MAX ? withReference : 'Where you left off';
 }
 
 function plainTitle(kind: ReminderKind): string {
@@ -105,7 +116,8 @@ function verseBody(verse: VerseContent): string {
 
 function pickupBody(kind: ReminderKind, reference: string): string {
   if (kind === 'sunday') return `You left off in ${reference}. Pick it up where you were.`;
-  // The reference moved here from the title, so the body has to name it.
+  // Names the chapter regardless of whether the title managed to: the title's fallback drops
+  // it, and a reminder that says only "where you left off" leaves the reader guessing.
   return `You're in ${reference}. Read the next few verses.`;
 }
 
@@ -202,7 +214,7 @@ export async function buildReminderPayload(
   } else if (position) {
     const reference = lastReadPositionReference(position);
     variant = 'pickup';
-    title = pickupTitle(kind);
+    title = pickupTitle(kind, reference);
     body = pickupBody(kind, reference);
     url = readerUrl(position.book, position.chapter, position.translation || meta?.defaultTranslation || 'NET');
   } else {
@@ -214,7 +226,7 @@ export async function buildReminderPayload(
 
   // A test send says what it is. Someone pressing "Send a test" is checking that the plumbing
   // works, and a banner indistinguishable from the real thing leaves them unsure whether it did.
-  if (kind === 'test') title = 'Your test reminder';
+  if (kind === 'test') title = 'This is a test reminder';
 
   return {
     variant,

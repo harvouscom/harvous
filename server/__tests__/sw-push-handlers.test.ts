@@ -25,6 +25,7 @@ interface Harness {
   opened: string[];
   focused: string[];
   navigated: string[];
+  posted: unknown[];
   windows: Array<{ url: string }>;
 }
 
@@ -46,6 +47,7 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
     opened: [],
     focused: [],
     navigated: [],
+    posted: [],
     windows: options.windows ?? [],
   };
 
@@ -54,8 +56,12 @@ function loadServiceWorker(options: { windows?: Array<{ url: string }> } = {}): 
     focus: async () => {
       harness.focused.push(win.url);
     },
+    // Present, and deliberately recorded rather than acted on: this is the call iOS ignores.
     navigate: async (url: string) => {
       harness.navigated.push(url);
+    },
+    postMessage: (message: unknown) => {
+      harness.posted.push(message);
     },
   }));
 
@@ -184,15 +190,40 @@ describe('service worker notificationclick', () => {
     };
   }
 
-  it('focuses an already-open Harvous window and navigates it', async () => {
+  it('focuses an already-open Harvous window and asks the app to route', async () => {
     const harness = loadServiceWorker({ windows: [{ url: 'https://app.harvous.com/prototype' }] });
     const waits: Promise<unknown>[] = [];
     harness.listeners.get('notificationclick')!(clickEvent(waits));
     await Promise.all(waits);
 
     expect(harness.focused).toEqual(['https://app.harvous.com/prototype']);
-    expect(harness.navigated).toEqual(['https://app.harvous.com/read/today']);
+    expect(harness.posted).toEqual([
+      { type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: 'https://app.harvous.com/read/today' },
+    ]);
     expect(harness.opened).toEqual([]);
+  });
+
+  it('does not rely on WindowClient.navigate, which iOS ignores', async () => {
+    // The window came to the front still showing whatever page it was on. Asserted rather
+    // than commented, because navigate() is the obvious call to reach for again later.
+    const harness = loadServiceWorker({ windows: [{ url: 'https://app.harvous.com/prototype' }] });
+    const waits: Promise<unknown>[] = [];
+    harness.listeners.get('notificationclick')!(clickEvent(waits));
+    await Promise.all(waits);
+
+    expect(harness.navigated).toEqual([]);
+  });
+
+  it('reports the click before the worker can be killed', async () => {
+    // The report was originally fired with `void` inside waitUntil, and on iOS not one ever
+    // arrived: the worker dies when the waitUntil promise settles, taking the fetch with it.
+    const harness = loadServiceWorker({ windows: [] });
+    const waits: Promise<unknown>[] = [];
+    harness.listeners.get('notificationclick')!(clickEvent(waits));
+    // Deliberately checked *after* awaiting only what waitUntil was given.
+    await Promise.all(waits);
+
+    expect(harness.fetches.map((f) => f.url)).toContain('/api/push/event');
   });
 
   it('opens a window when none is already there', async () => {
@@ -204,13 +235,13 @@ describe('service worker notificationclick', () => {
     expect(harness.opened).toEqual(['https://app.harvous.com/read/today']);
   });
 
-  it('ignores a window from another origin rather than navigating it', async () => {
+  it('ignores a window from another origin rather than messaging it', async () => {
     const harness = loadServiceWorker({ windows: [{ url: 'https://example.com/somewhere' }] });
     const waits: Promise<unknown>[] = [];
     harness.listeners.get('notificationclick')!(clickEvent(waits));
     await Promise.all(waits);
 
-    expect(harness.navigated).toEqual([]);
+    expect(harness.posted).toEqual([]);
     expect(harness.opened).toEqual(['https://app.harvous.com/read/today']);
   });
 

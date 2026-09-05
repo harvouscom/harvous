@@ -44,9 +44,9 @@ describe('reminder titles', () => {
   it('finds every title in the source', () => {
     // A refactor that changes the shape of these functions should fail loudly here rather
     // than quietly checking nothing.
-    expect(titles.length).toBeGreaterThanOrEqual(7);
+    expect(titles.length).toBeGreaterThanOrEqual(6);
     expect(titles).toContain("Sunday's verse");
-    expect(titles).toContain('Your test reminder');
+    expect(titles).toContain('This is a test reminder');
   });
 
   it('keeps every title inside the one-line budget', () => {
@@ -58,11 +58,25 @@ describe('reminder titles', () => {
     }
   });
 
-  it('builds no title from a scripture reference', () => {
-    // The one shape whose length cannot be checked: "Still in 1 Thessalonians 5" is ten
-    // characters longer than "Still in John 3". References belong in the body.
-    const titleFns = source.slice(source.indexOf('function verseTitle'), source.indexOf('function verseBody'));
-    expect(titleFns).not.toContain('${reference}');
+  it('measures the one title built from a reference instead of hoping', () => {
+    // "Still in Song of Solomon 8" is ten characters longer than "Still in John 15", so this
+    // title cannot be checked by reading it. It is measured per reference at build time.
+    const pickup = source.slice(source.indexOf('function pickupTitle'), source.indexOf('function plainTitle'));
+    expect(pickup).toContain('withReference.length <= TITLE_MAX');
+    expect(pickup).toContain("'Where you left off'");
+  });
+
+  it('keeps the longest real reference inside the budget', () => {
+    // Longest book names in the canon, at three-digit chapters where they exist.
+    for (const reference of [
+      'Song of Solomon 8',
+      '1 Corinthians 13',
+      '2 Thessalonians 3',
+      'Psalm 119',
+      'John 15',
+    ]) {
+      expect(`Still in ${reference}`.length).toBeLessThanOrEqual(TITLE_MAX);
+    }
   });
 
   it('stays well inside the width a real iPhone showed on one line', () => {
