@@ -1,5 +1,6 @@
 import PrototypeMainPaneShell from './PrototypeMainPaneShell';
 import PrototypeInstallWebAppCard from './PrototypeInstallWebAppCard';
+import PrototypeRemindersCard from './PrototypeRemindersCard';
 import PrototypeStudyFeedPage from './PrototypeStudyFeedPage';
 import PrototypeChurchHub from './PrototypeChurchHub';
 import PrototypeSpaceHub from './PrototypeSpaceHub';
@@ -86,6 +87,7 @@ export default function PrototypeHomePage() {
   return (
     <PrototypeMainPaneShell>
       <PrototypeInstallWebAppCard />
+      <PrototypeRemindersCard />
       <PrototypeStudyFeedPage />
     </PrototypeMainPaneShell>
   );

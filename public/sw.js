@@ -7,7 +7,11 @@ const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 const CRITICAL_ASSETS = [
   '/images/harvous-2-icon.png',
   '/manifest.json',
-  '/scripts/pwa-startup.js'
+  '/scripts/pwa-startup.js',
+  // Notification chrome: a reminder can arrive while the device is offline-ish, and an icon
+  // that 404s renders as the browser's generic bell rather than as Harvous.
+  '/images/icons/icon-192.png',
+  '/images/icons/badge-96.png'
 ];
 
 // Install event
@@ -777,4 +781,132 @@ self.addEventListener('message', (event) => {
   if (event.data === 'warmup' || (event.data && event.data.type === 'warmup')) {
     fetch('/api/health', { method: 'GET', credentials: 'include' }).catch(() => {});
   }
+});
+
+// ─── Web push reminders ──────────────────────────────────────────────────────
+// Everything below is the Sunday / midweek reminder. The three listeners are separate
+// concerns: showing the notification, acting on a tap, and healing a rotated subscription.
+
+const REMINDER_ICON = '/images/icons/icon-192.png';
+const REMINDER_BADGE = '/images/icons/badge-96.png';
+
+/**
+ * Report what became of a notification.
+ *
+ * Fire-and-forget with credentials, because a worker woken by a push has no Clerk bearer
+ * token — only the session cookie. A failure here costs nothing: the server's next hourly
+ * tick settles an unreported delivery by attribution instead.
+ */
+function reportNotificationEvent(deliveryId, event) {
+  if (!deliveryId) return Promise.resolve();
+  return fetch('/api/push/event', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deliveryId: deliveryId, event: event }),
+  }).catch(() => {});
+}
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    data = {};
+  }
+
+  const title = data.title || 'Harvous';
+  const options = {
+    body: data.body || 'A minute with Scripture.',
+    icon: data.icon || REMINDER_ICON,
+    badge: data.badge || REMINDER_BADGE,
+    tag: data.tag || 'harvous-reminder',
+    // The tag alone collapses a Sunday and a midweek reminder into one row; renotify false
+    // stops the second one from buzzing again for a message the reader already has.
+    renotify: false,
+    data: {
+      url: (data.data && data.data.url) || '/',
+      kind: data.data && data.data.kind,
+      deliveryId: (data.data && data.data.deliveryId) || null,
+    },
+    actions: data.actions || [{ action: 'open', title: 'Open' }],
+  };
+
+  // showNotification is not optional. iOS revokes the push subscription of any app that
+  // receives a push and shows nothing, so a silent push here would quietly unsubscribe every
+  // iPhone on the next send.
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      navigator.setAppBadge ? navigator.setAppBadge(1).catch(() => {}) : Promise.resolve(),
+    ])
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const payload = event.notification.data || {};
+  const target = new URL(payload.url || '/', self.location.origin).href;
+
+  event.waitUntil(
+    (async () => {
+      if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+      void reportNotificationEvent(payload.deliveryId, 'click');
+
+      // Focus what is already open before opening anything new: someone with Harvous in a
+      // background tab should be taken to it, not given a second copy of the app.
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const sameOrigin = clientList.find((client) => {
+        try {
+          return new URL(client.url).origin === self.location.origin;
+        } catch (_) {
+          return false;
+        }
+      });
+
+      if (sameOrigin) {
+        await sameOrigin.focus();
+        if ('navigate' in sameOrigin) {
+          await sameOrigin.navigate(target).catch(() => {});
+        }
+        return;
+      }
+      await self.clients.openWindow(target);
+    })()
+  );
+});
+
+self.addEventListener('notificationclose', (event) => {
+  const payload = event.notification.data || {};
+  event.waitUntil(reportNotificationEvent(payload.deliveryId, 'close'));
+});
+
+/**
+ * The browser rotated this subscription. Re-subscribe with the same application server key
+ * and tell the server, or the next reminder goes to an endpoint that no longer exists.
+ */
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      const old = event.oldSubscription;
+      const applicationServerKey = old && old.options ? old.options.applicationServerKey : null;
+      if (!applicationServerKey) return;
+
+      try {
+        const subscription = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey,
+        });
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: subscription.toJSON() }),
+        });
+      } catch (_) {
+        // The client re-syncs on the next app open (syncPushSubscriptionIfGranted), which is
+        // the real safety net — this is just the earlier of the two chances.
+      }
+    })()
+  );
 });

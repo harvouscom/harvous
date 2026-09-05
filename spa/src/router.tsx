@@ -510,6 +510,12 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAppearancePage')),
   });
 
+  const prototypeSettingsRemindersRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'reminders',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeRemindersPage')),
+  });
+
   const prototypeSettingsChurchRoute = createRoute({
     getParentRoute: () => prototypeSettingsRoute,
     path: 'church',
@@ -645,6 +651,7 @@ function buildPrototypeRouteBranch() {
       prototypeSettingsAccountRoute,
       prototypeSettingsTranslationRoute,
       prototypeSettingsAppearanceRoute,
+      prototypeSettingsRemindersRoute,
       prototypeSettingsChurchRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,

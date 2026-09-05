@@ -1,0 +1,237 @@
+/**
+ * The browser half of reminders: what this device can do, and turning it on.
+ *
+ * The interesting thing here is not the subscribe call, it is `getPushSupport()`. "Can this
+ * browser show a notification?" has five different answers and only one of them is a plain
+ * yes, so the settings page branches on the answer rather than showing one button that fails
+ * differently everywhere:
+ *
+ *   unsupported       — no service worker or no Push API (older Safari, some in-app browsers).
+ *   needs-home-screen — iOS. Apple allows push only for apps added to the Home Screen, so a
+ *                       Safari tab must be told to install first rather than shown a button
+ *                       that cannot work.
+ *   denied            — blocked. The browser will not prompt again; only site settings can undo it.
+ *   default           — has never been asked. The only state where a prompt is allowed.
+ *   granted           — already on.
+ *
+ * Deliberately dependency-free and small: the shell imports it for badge clearing and the
+ * subscription re-sync, so anything heavy here would land in the eager bundle.
+ */
+import { api } from './api';
+import { isPWA } from '@/utils/content-list-helpers';
+import { isIOS } from '@/utils/platform-detect';
+import { browserIanaTimeZone } from './votd-today';
+
+export type PushSupport = 'unsupported' | 'needs-home-screen' | 'denied' | 'default' | 'granted';
+
+/** Re-POSTing a live subscription more than once a day buys nothing. */
+const RESYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const RESYNC_STAMP_KEY = 'harvous-push-resync-at';
+
+export function getPushSupport(): PushSupport {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return 'unsupported';
+
+  /*
+   * Truthiness, not `in`. Browsers declare `navigator.serviceWorker` on the prototype but
+   * leave it undefined outside a secure context, so `'serviceWorker' in navigator` is true
+   * on `http://192.168.x.x` — which is exactly how a phone reaches a dev server on the same
+   * network. The `in` form would call that supported and then throw on `serviceWorker.ready`.
+   */
+  const hasPushApis =
+    Boolean(navigator.serviceWorker) &&
+    typeof (window as Window & { PushManager?: unknown }).PushManager !== 'undefined' &&
+    typeof (window as Window & { Notification?: unknown }).Notification !== 'undefined';
+
+  if (!hasPushApis) {
+    // iOS Safari in a tab reports exactly this, and "your browser can't" would be a lie —
+    // the same browser can, once the app is on the Home Screen.
+    return isIOS() ? 'needs-home-screen' : 'unsupported';
+  }
+  if (isIOS() && !isPWA()) return 'needs-home-screen';
+
+  const permission = Notification.permission;
+  if (permission === 'denied') return 'denied';
+  if (permission === 'granted') return 'granted';
+  return 'default';
+}
+
+/** The VAPID public key, from the build if it is baked in, else from the server. */
+async function applicationServerKey(): Promise<Uint8Array | null> {
+  const fromEnv = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+  const key = fromEnv?.trim() || (await fetchVapidKey());
+  return key ? urlBase64ToUint8Array(key) : null;
+}
+
+async function fetchVapidKey(): Promise<string | null> {
+  try {
+    const response = await api.get<{ publicKey: string | null }>('/api/push/vapid-public-key');
+    return response.publicKey?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * VAPID keys travel as URL-safe base64; `pushManager.subscribe` wants raw bytes.
+ */
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const normalized = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = window.atob(normalized);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+async function currentSubscription(): Promise<PushSubscription | null> {
+  if (!('serviceWorker' in navigator)) return null;
+  const registration = await navigator.serviceWorker.ready;
+  return registration.pushManager.getSubscription();
+}
+
+async function postSubscription(subscription: PushSubscription): Promise<number> {
+  const response = await api.post<{ deviceCount?: number }>('/api/push/subscribe', {
+    subscription: subscription.toJSON(),
+    userAgent: navigator.userAgent,
+    timezone: browserIanaTimeZone(),
+  });
+  return response.deviceCount ?? 1;
+}
+
+export interface EnableResult {
+  ok: boolean;
+  support: PushSupport;
+  deviceCount?: number;
+  error?: string;
+}
+
+/**
+ * Ask for permission and subscribe. Must be called straight from a click.
+ *
+ * Browsers require a user gesture for `requestPermission`, and iOS enforces it strictly —
+ * calling this from an effect or a timeout silently resolves to `default` and looks like the
+ * button did nothing.
+ */
+export async function enablePushReminders(): Promise<EnableResult> {
+  const support = getPushSupport();
+  if (support !== 'default' && support !== 'granted') return { ok: false, support };
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    return { ok: false, support: permission === 'denied' ? 'denied' : 'default' };
+  }
+
+  const key = await applicationServerKey();
+  if (!key) return { ok: false, support: 'granted', error: 'Push is not configured on the server yet.' };
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    const subscription =
+      existing ??
+      (await registration.pushManager.subscribe({
+        // Required, and honest: every push we send shows a notification.
+        userVisibleOnly: true,
+        applicationServerKey: key as BufferSource,
+      }));
+    const deviceCount = await postSubscription(subscription);
+    stampResync();
+    return { ok: true, support: 'granted', deviceCount };
+  } catch (error) {
+    return {
+      ok: false,
+      support: 'granted',
+      error: error instanceof Error ? error.message : 'Could not turn on reminders.',
+    };
+  }
+}
+
+/**
+ * Stop reminders on this device only.
+ *
+ * The schedule is untouched on purpose: someone turning notifications off on a work laptop
+ * has said nothing about their phone.
+ */
+export async function disablePushRemindersOnThisDevice(): Promise<void> {
+  const subscription = await currentSubscription();
+  if (!subscription) return;
+  const endpoint = subscription.endpoint;
+  await subscription.unsubscribe().catch(() => {});
+  await api.post('/api/push/unsubscribe', { endpoint }).catch(() => {});
+  clearResyncStamp();
+}
+
+function stampResync(): void {
+  try {
+    localStorage.setItem(RESYNC_STAMP_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearResyncStamp(): void {
+  try {
+    localStorage.removeItem(RESYNC_STAMP_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function resyncDue(): boolean {
+  try {
+    const raw = localStorage.getItem(RESYNC_STAMP_KEY);
+    if (!raw) return true;
+    return Date.now() - Number(raw) > RESYNC_INTERVAL_MS;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Heal a subscription that drifted, once a day at most.
+ *
+ * Two things it repairs, both invisible until a reminder fails to arrive: the browser
+ * rotated the endpoint while the app was closed (the worker's `pushsubscriptionchange` is
+ * the first chance at this, and it does not always fire), and the server pruned the row after
+ * a run of failures on a device that has since come back.
+ */
+export async function syncPushSubscriptionIfGranted(): Promise<void> {
+  if (getPushSupport() !== 'granted') return;
+  if (!resyncDue()) return;
+  const subscription = await currentSubscription().catch(() => null);
+  if (!subscription) return;
+  try {
+    await postSubscription(subscription);
+    stampResync();
+  } catch {
+    /* offline, or mid-auth — the next open tries again */
+  }
+}
+
+/** Clear the app-icon badge. Safe to call anywhere; unsupported browsers simply have none. */
+export function clearAppBadge(): void {
+  const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
+  if (typeof nav.clearAppBadge === 'function') void nav.clearAppBadge().catch(() => {});
+}
+
+/** How many devices this account can be reached on, plus the one line about recent reminders. */
+export interface PushStatus {
+  configured: boolean;
+  deviceCount: number;
+  recentSummary: string | null;
+  pending: number;
+}
+
+export function fetchPushStatus(): Promise<PushStatus> {
+  return api.get<PushStatus>('/api/push/status');
+}
+
+export interface SendTestResult {
+  sent: number;
+  gone: number;
+  failed: number;
+}
+
+export function sendTestReminder(): Promise<SendTestResult> {
+  return api.post<SendTestResult>('/api/push/send-test');
+}

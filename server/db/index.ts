@@ -34,6 +34,8 @@ export {
   ChurchSeriesPublishedNotes,
   NoteTemplates,
   UserMetadata,
+  PushSubscriptions,
+  ReminderDeliveries,
   Entitlements,
   ClerkUserMapping,
   UserXP,

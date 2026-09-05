@@ -153,6 +153,42 @@ import PrototypeGuestModeRow from '../pages/prototype/PrototypeGuestModeRow';
 import { useGuestAdoption } from '../hooks/useGuestAdoption';
 import { useGuestExitPrompt } from '../hooks/useGuestExitPrompt';
 
+/** Local cache of the zone we last told the account about, so a reload is not a write. */
+const TZ_SYNCED_KEY = 'harvous-proto-tz-synced';
+
+/**
+ * Keep the account's stored IANA zone matching the browser's.
+ *
+ * Runs on the profile load rather than on a timer: the only thing that changes it is the
+ * person travelling, and they cannot travel without opening the app again. Writes at most
+ * once per zone — the localStorage stamp is what keeps a returning visitor from POSTing the
+ * same string every session.
+ */
+async function syncAccountTimeZone(storedTimeZone: string | null): Promise<void> {
+  let browserZone = '';
+  try {
+    browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    return;
+  }
+  if (!browserZone) return;
+
+  let lastSynced: string | null = null;
+  try {
+    lastSynced = localStorage.getItem(TZ_SYNCED_KEY);
+  } catch {
+    /* private mode — fall through and let the account value decide */
+  }
+  if (storedTimeZone === browserZone && lastSynced === browserZone) return;
+
+  try {
+    await api.post('/api/user/update-timezone', { timezone: browserZone });
+    localStorage.setItem(TZ_SYNCED_KEY, browserZone);
+  } catch {
+    /* offline, or the column is not migrated yet — retried on the next open */
+  }
+}
+
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const identity = useHarvousIdentity();
@@ -252,11 +288,42 @@ export default function SimplifiedPrototypeLayout() {
         const profile = await profileQueryClient.ensureQueryData(profileQueryOptions(userId));
         void fetchAndHydrateAppearanceFromProfile(profile);
         void fetchAndHydrateOnboardingFromProfile(profile);
+        void syncAccountTimeZone(profile.timezone ?? null);
       } catch {
         /* offline or mid-auth — both sides keep their local caches */
       }
     })();
   }, [authReady, userId, profileQueryClient]);
+
+  /*
+   * Reminders need to know what "8 AM" means for this account, and nothing else in the app
+   * stores it — the verse-of-the-day requests send a zone per call and keep none. Captured
+   * rather than asked for: a settings picker to answer a question the browser already knows
+   * is a worse version of this.
+   *
+   * The badge and subscription re-sync ride along here because they belong to the same "the
+   * app is open again" moment. Both are lazy-imported so nothing about push lands in the
+   * eager bundle for the people who never turn it on.
+   */
+  useEffect(() => {
+    if (!authReady || !userId || identity.isGuest) return;
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void import('../lib/push-reminders').then((mod) => {
+        mod.clearAppBadge();
+        void mod.syncPushSubscriptionIfGranted();
+      });
+    };
+
+    onVisible();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [authReady, userId, identity.isGuest]);
 
   useEffect(() => {
     if (!authReady) return;

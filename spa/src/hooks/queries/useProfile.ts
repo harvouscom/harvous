@@ -238,6 +238,13 @@ export interface UserProfile {
    */
   appearanceSettings?: string | null;
   onboardingState?: string | null;
+  /**
+   * IANA zone captured from the browser, and the reminder schedule as its raw JSON string
+   * (parse with `parseReminderSettings`). Both are read by Settings → Reminders and by the
+   * shell's timezone sync; neither drives anything at first paint.
+   */
+  timezone?: string | null;
+  reminderSettings?: string | null;
 }
 
 export interface XPData {
@@ -286,6 +293,8 @@ function fetchProfile(userId: string): Promise<UserProfile> {
         defaultTranslation?: string;
         sharedSpaceSwitcherOrder?: string[] | null;
         lastReadPosition?: string | null;
+        timezone?: string | null;
+        reminderSettings?: string | null;
       }
     >('/api/user/get-profile')
     .then((data) => {
