@@ -273,6 +273,19 @@ export default function PrototypeInstallWebAppSheet({ open, onClose, platform, o
         aria-label="Add Harvous to your home screen"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Over the picture in the corner, the way a room's cover carries its
+            own controls — and first in the DOM, so the way out is the first
+            thing a screen reader reaches. Out of the header's flex row, which
+            gives the title back the width the button was holding. */}
+        <button
+          type="button"
+          className="proto-toolbar-icon-btn proto-install-web-app-sheet__close"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <Icon name="xmark" size={18} />
+        </button>
+
         <HeaderSliver />
 
         <header className="proto-votd-sheet__header proto-install-web-app-sheet__header">
@@ -282,14 +295,6 @@ export default function PrototypeInstallWebAppSheet({ open, onClose, platform, o
             <p className="proto-caption proto-votd-sheet__eyebrow">One-time setup</p>
             <h2 className="proto-votd-sheet__reference">Add Harvous to your home screen</h2>
           </div>
-          <button
-            type="button"
-            className="proto-toolbar-icon-btn proto-votd-sheet__close"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            <Icon name="xmark" size={22} />
-          </button>
         </header>
 
         <div className="proto-votd-sheet__divider" aria-hidden />

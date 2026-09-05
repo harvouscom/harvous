@@ -7417,6 +7417,19 @@ button.proto-home-card--tappable:focus-visible {
   padding-top: 6px;
 }
 
+/* The way out, in the picture's corner.
+   Absolute against the sheet — which already clips its own corners — rather
+   than a member of the header's flex row, so it sits on the band instead of
+   under it, and the title gets the full width back. Same inset top and right,
+   measured from the sheet's own edges. The button carries its own fill, which
+   is what keeps it legible over whatever the reader's appearance put there. */
+.proto-install-web-app-sheet__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+}
+
 /* The one-tap path, where the browser gave us one. Its own block above the
    toggle, with a rule under it, so the steps below read as the alternative
    rather than as more of the same instruction. */
