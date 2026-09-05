@@ -119,16 +119,6 @@
   --pds-lch-canvas-default: 98.7% 0.005 92;
 
   --pds-lch-text-primary: 24% 0.01 285;
-  /*
-   * One step past primary, for text that sits on a glass chip.
-   *
-   * A chip's translucent fill lifts whatever is behind it, so body text set on one reads a
-   * shade lighter than the same token does on the page — the greeting's chips looked greyer
-   * than the sentence they sit in, at an identical colour. This is the compensation, and it
-   * is deliberately not a new grey: it moves along the same hue and chroma as primary, only
-   * darker, so a chip reads as emphasis rather than as a different palette.
-   */
-  --pds-lch-text-strong: 14% 0.01 285;
   --pds-lch-text-secondary: 24% 0.01 285 / 0.5;
   /* List row excerpt — one step lighter than secondary (timestamps stay secondary). */
   --pds-lch-text-list-preview: 24% 0.01 285 / 0.38;
@@ -375,7 +365,6 @@
 
   /* Text */
   --pds-text-primary: oklch(var(--pds-lch-text-primary));
-  --pds-text-strong: oklch(var(--pds-lch-text-strong));
   --pds-text-secondary: oklch(var(--pds-lch-text-secondary));
   --pds-text-list-preview: oklch(var(--pds-lch-text-list-preview));
   --pds-text-tertiary: oklch(var(--pds-lch-text-tertiary));
@@ -940,8 +929,6 @@ html.harvous-proto-wallpaper-image {
     --pds-lch-canvas-default: 12% 0.01 285;
 
     --pds-lch-text-primary: 96% 0 0;
-    /* Brighter, not darker: on a dark chip the same lift works the other way. */
-    --pds-lch-text-strong: 100% 0 0;
     --pds-lch-text-secondary: 96% 0 0 / 0.55;
     --pds-lch-text-list-preview: 96% 0 0 / 0.42;
     --pds-lch-text-tertiary: 96% 0 0 / 0.38;
@@ -1166,8 +1153,6 @@ html.harvous-proto-wallpaper-image {
   --pds-lch-canvas-default: 12% 0.01 285;
 
   --pds-lch-text-primary: 96% 0 0;
-  /* Brighter, not darker: on a dark chip the same lift works the other way. */
-  --pds-lch-text-strong: 100% 0 0;
   --pds-lch-text-secondary: 96% 0 0 / 0.55;
   --pds-lch-text-list-preview: 96% 0 0 / 0.42;
   --pds-lch-text-tertiary: 96% 0 0 / 0.38;

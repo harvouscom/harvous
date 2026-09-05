@@ -495,13 +495,19 @@ export default function PrototypeStudyFeedPage() {
         {summary.revisited.named.map((name, index) => (
           <span key={name}>
             {index > 0 ? ' and ' : ''}
+            {/* The span is load-bearing, not tidiness. A bare text node directly inside this
+                backdrop-filter button gets composited into the blurred, half-transparent glass
+                layer and paints greyer and lighter than the same text in a child element, which
+                is painted as its own box on top. `.proto-home-greeting__chip` always had the
+                span; these did not, and read as dark grey beside it at an identical computed
+                colour. Same shape on every stat chip below. */}
             <button
               type="button"
               className="proto-glass-surface proto-feed-sheet__stat"
               aria-label={`Open ${name}`}
               onClick={() => openRevisited(name)}
             >
-              {name}
+              <span>{name}</span>
             </button>
           </span>
         ))}
@@ -519,7 +525,7 @@ export default function PrototypeStudyFeedPage() {
             aria-label={`Browse ${stat.label}`}
             onClick={() => openLibraryPanel({ tab: STAT_TAB[stat.key], drill: null })}
           >
-            {stat.label}
+            <span>{stat.label}</span>
           </button>
         </span>
       ))}
@@ -532,7 +538,7 @@ export default function PrototypeStudyFeedPage() {
             aria-label={`Browse ${summary.focus}`}
             onClick={() => libraryNav.openScriptureBook(bookOrderFor(summary.focus!))}
           >
-            {summary.focus}
+            <span>{summary.focus}</span>
           </button>
         </>
       ) : null}
@@ -549,7 +555,7 @@ export default function PrototypeStudyFeedPage() {
                 aria-label={`Open ${name}`}
                 onClick={() => openRevisited(name)}
               >
-                {name}
+                <span>{name}</span>
               </button>
             </span>
           ))}

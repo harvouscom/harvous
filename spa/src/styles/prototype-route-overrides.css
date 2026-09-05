@@ -497,28 +497,3 @@ html.harvous-prototype-route .proto-settings-modal__title {
   font-synthesis: none;
   font-variation-settings: var(--pds-font-body-variation-sheet-title) !important;
 }
-
-/*
- * The greeting's chips, black rather than the body's ink.
- *
- * Two things had to be got right, and the first one bit.
- *
- * **Specificity.** The blanket at the top of this file is
- * `html.harvous-prototype-route button[class*='proto-']` — (0,2,2), and `!important`. A rule
- * written as `html.harvous-prototype-route .proto-feed-sheet__stat` is (0,2,1), so it loses
- * even with `!important` of its own and changes nothing at all. The `button[class*='proto-']`
- * prefix here is not decoration; it is what buys the extra point. `.proto-bulk-bar__btn--danger`
- * and `.proto-settings-btn` already win their colours the same way.
- *
- * **Both markup shapes.** `.proto-home-greeting__chip` wraps its label in a span and
- * `.proto-feed-sheet__stat` does not, so the blanket reaches them through different arms —
- * the `*` arm for one, the bare `button` arm for the other. Naming the element and its
- * descendants covers the pair however each is built, which is what stops them drifting apart
- * again the next time one of them grows a wrapper.
- */
-html.harvous-prototype-route button[class*='proto-'].proto-home-greeting__chip,
-html.harvous-prototype-route button[class*='proto-'].proto-home-greeting__chip *,
-html.harvous-prototype-route button[class*='proto-'].proto-feed-sheet__stat,
-html.harvous-prototype-route button[class*='proto-'].proto-feed-sheet__stat * {
-  color: var(--pds-text-strong) !important;
-}

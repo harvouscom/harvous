@@ -21422,7 +21422,7 @@ button.proto-feed-sheet__stat:hover {
   padding: 0.167em 0.75em;
   border: 0.5px solid var(--pds-border-control);
   border-radius: var(--pds-radius-pill);
-  color: var(--pds-text-strong);
+  color: var(--pds-text-primary);
   font-size: 0.8em;
   font-weight: 600;
   line-height: 1.5;
