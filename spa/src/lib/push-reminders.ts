@@ -18,7 +18,7 @@
  * subscription re-sync, so anything heavy here would land in the eager bundle.
  */
 import { reportDiagnosticEvent } from '@/utils/diagnostics-client';
-import { api } from './api';
+import { api, APIError } from './api';
 import { isPWA } from '@/utils/content-list-helpers';
 import { isIOS } from '@/utils/platform-detect';
 import { browserIanaTimeZone } from './votd-today';
@@ -107,6 +107,11 @@ async function postSubscription(subscription: PushSubscription): Promise<number>
   return response.deviceCount ?? 1;
 }
 
+/** The server declined to store this subscription because the origin is not the app's. */
+function isWrongOrigin(error: unknown): boolean {
+  return error instanceof APIError && error.code === 'wrong_origin';
+}
+
 export interface EnableResult {
   ok: boolean;
   support: PushSupport;
@@ -157,6 +162,19 @@ export async function enablePushReminders(): Promise<EnableResult> {
      * So the reader gets a sentence they can act on, and the raw text goes where it is
      * useful instead.
      */
+    /*
+     * Staging asked to be sent production's reminders and the server declined. Saying the
+     * browser would not complete the setup would be a lie, and the one thing a developer
+     * needs to know here is that the button works — just not on this host.
+     */
+    if (isWrongOrigin(error)) {
+      return {
+        ok: false,
+        support: 'granted',
+        error: 'Reminders are set up on the main app, not this preview.',
+      };
+    }
+
     const raw = error instanceof Error ? error.message : String(error);
     reportDiagnosticEvent({
       source: 'client_js',
