@@ -45,7 +45,7 @@ export async function runPreviewReminderPayload(argv: readonly string[]): Promis
   }
 
   console.log(`\nReminders for ${userId}\n`);
-  for (const kind of ['sunday', 'midweek', 'test'] as ReminderKind[]) {
+  for (const kind of ['sunday', 'midweek', 'daily', 'test'] as ReminderKind[]) {
     const built = await buildReminderPayload(userId, { kind, now });
     const { payload } = built;
     console.log(`  ${kind}  ·  variant ${built.variant}`);

@@ -31,6 +31,7 @@ vi.mock('../reminder-payload', () => ({ buildReminderPayload: vi.fn() }));
 const { dueKindFor, localPartsFor } = await import('../push-reminders');
 
 const settings = {
+  cadence: 'twice-weekly' as const,
   sunday: true,
   midweek: true,
   midweekDay: 3 as const,
@@ -121,6 +122,26 @@ describe('dueKindFor', () => {
       const parts = { hour: 8, weekday: 0, localDate: '2026-09-06' };
       expect(dueKindFor({ ...settings, midweekDay: day }, parts)).toBe('sunday');
     }
+  });
+
+  it('fires every day on the daily rhythm, including Sunday', () => {
+    const daily = { ...settings, cadence: 'daily' as const };
+    for (let weekday = 0; weekday <= 6; weekday += 1) {
+      expect(dueKindFor(daily, { hour: 8, weekday, localDate: '2026-09-06' })).toBe('daily');
+    }
+  });
+
+  it('produces one reminder on a Sunday, not a daily and a Sunday', () => {
+    // The cadence is a choice between rhythms rather than a set of switches, so the daily
+    // answer comes first and there is nothing left to dedupe at send time.
+    const daily = { ...settings, cadence: 'daily' as const, sunday: true, midweek: true };
+    expect(dueKindFor(daily, { hour: 8, weekday: 0, localDate: '2026-09-06' })).toBe('daily');
+  });
+
+  it('still respects the hour and its late window on the daily rhythm', () => {
+    const daily = { ...settings, cadence: 'daily' as const };
+    expect(dueKindFor(daily, { hour: 9, weekday: 3, localDate: '2026-09-09' })).toBe('daily');
+    expect(dueKindFor(daily, { hour: 11, weekday: 3, localDate: '2026-09-09' })).toBeNull();
   });
 
   it('never fires midweek on a Monday, Friday or Saturday', () => {

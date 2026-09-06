@@ -22,7 +22,7 @@ import type { ReminderSettings } from '@/utils/reminder-settings';
 import type { ReminderVariant } from './reminder-payload';
 
 export type ReminderOutcome = 'clicked' | 'dismissed' | 'opened' | 'ignored' | null;
-export type ReminderPolicyKind = 'sunday' | 'midweek';
+export type ReminderPolicyKind = 'sunday' | 'midweek' | 'daily';
 
 export interface DeliveryRecord {
   kind: string;
@@ -31,12 +31,34 @@ export interface DeliveryRecord {
   sentAt: Date;
 }
 
-/** How many past deliveries the rules look at. Eight is about a month of two-a-week. */
-export const POLICY_WINDOW = 8;
-/** Ignored this many times in a row and the next one is skipped. */
-const BACKOFF_AFTER_IGNORED = 2;
-/** Ignored this many times in a row and the kind stops until re-armed. */
-const PAUSE_AFTER_IGNORED = 4;
+/**
+ * The thresholds are counts, but what they are really measuring is elapsed silence.
+ *
+ * At two a week, pausing after four ignored means roughly a month of a reminder arriving and
+ * nothing happening — long enough to be a fair conclusion about whether someone wants it.
+ * Applied unchanged to a daily rhythm the same four would land in four days, so a long
+ * weekend away would switch someone off before they had noticed they had it on.
+ *
+ * So daily gets its own, scaled to keep a pause meaning about the same thing in time rather
+ * than in count: back off after five, stop after ten, which is a fortnight of being ignored.
+ *
+ * The window has to scale with them, and forgetting that made the first version of this
+ * silently wrong: `windowFor` truncates to the window before anything is counted, so a
+ * 10-deep threshold read through an 8-deep window could never be reached, and a daily
+ * reminder would have gone on backing off forever instead of ever pausing. A window is only
+ * meaningful as "far enough back to see the threshold".
+ */
+const THRESHOLDS: Record<ReminderPolicyKind, { backoff: number; pause: number; window: number }> = {
+  sunday: { backoff: 2, pause: 4, window: 8 },
+  midweek: { backoff: 2, pause: 4, window: 8 },
+  daily: { backoff: 5, pause: 10, window: 14 },
+};
+
+/**
+ * The deepest any rule looks back, which is what a caller must load to answer them all.
+ * Kept as the maximum rather than a separate number so it cannot fall behind the table above.
+ */
+export const POLICY_WINDOW = Math.max(...Object.values(THRESHOLDS).map((t) => t.window));
 /** Distinct days the user must come back on their own before a paused kind returns. */
 export const REARM_DISTINCT_DAYS = 3;
 /** A variant needs this many sends before its rate is worth acting on. */
@@ -65,7 +87,7 @@ function windowFor(deliveries: readonly DeliveryRecord[], kind: ReminderPolicyKi
     .filter((d) => d.kind === kind)
     .slice()
     .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())
-    .slice(0, POLICY_WINDOW);
+    .slice(0, THRESHOLDS[kind].window);
 }
 
 /**
@@ -139,6 +161,8 @@ export function decideReminder(
   kind: ReminderPolicyKind,
   deliveries: readonly DeliveryRecord[],
 ): PolicyDecision {
+  // A daily rhythm has no per-day switch — choosing it is the switch — so only the
+  // twice-weekly days can be individually off.
   if (kind === 'sunday' && !settings.sunday) return { send: false, reason: 'kind-off', variant: null };
   if (kind === 'midweek' && !settings.midweek) return { send: false, reason: 'kind-off', variant: null };
 
@@ -152,13 +176,14 @@ export function decideReminder(
     return { send: true, reason: 'ok', variant: preferredVariant(deliveries) };
   }
 
+  const { backoff: backoffAfter, pause: pauseAfter } = THRESHOLDS[kind];
   const ignored = consecutiveIgnored(window);
-  if (ignored >= PAUSE_AFTER_IGNORED) {
+  if (ignored >= pauseAfter) {
     // The caller writes the pause; this only refuses the send. Keeping the write out of a
     // pure function is what lets the dry run report a pause without causing one.
     return { send: false, reason: 'paused-by-policy', variant: null };
   }
-  if (ignored >= BACKOFF_AFTER_IGNORED && ignored % 2 === 0) {
+  if (ignored >= backoffAfter && ignored % 2 === 0) {
     // Halve rather than stop: skip this one, allow the next. Someone who has ignored two in a
     // row may simply have had two busy weeks, and a month of silence from us is a worse answer
     // to that than every other week.
@@ -175,7 +200,7 @@ export function shouldWritePause(
   deliveries: readonly DeliveryRecord[],
 ): boolean {
   if (settings.pausedByPolicy) return false;
-  return consecutiveIgnored(windowFor(deliveries, kind)) >= PAUSE_AFTER_IGNORED;
+  return consecutiveIgnored(windowFor(deliveries, kind)) >= THRESHOLDS[kind].pause;
 }
 
 /**

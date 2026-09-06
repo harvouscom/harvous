@@ -142,6 +142,14 @@ export function localPartsFor(timeZone: string, at: Date): LocalParts {
 export function dueKindFor(settings: ReminderSettings, parts: LocalParts): ReminderPolicyKind | null {
   const onSchedule = parts.hour === settings.hour || parts.hour === (settings.hour + 1) % 24;
   if (!onSchedule) return null;
+  /*
+   * The daily rhythm answers first and answers for every day, including Sunday.
+   *
+   * It is not combined with the two below, because the cadence is a choice between rhythms
+   * rather than a set of switches — see `ReminderCadence`. Returning early is what makes a
+   * Sunday produce one reminder instead of two without anything having to dedupe them.
+   */
+  if (settings.cadence === 'daily') return 'daily';
   if (parts.weekday === 0 && settings.sunday) return 'sunday';
   if (parts.weekday === settings.midweekDay && settings.midweek) return 'midweek';
   return null;
@@ -472,7 +480,15 @@ export async function runReminderTick(
 
     if (!decision.send) {
       if (shouldWritePause(settings, entry.kind, deliveries)) {
-        const pausedKind = settings.sunday && settings.midweek ? entry.kind : 'all';
+        /*
+         * Pause only the offending kind when another is still running, otherwise pause
+         * everything — a reader with one rhythm left has nothing to be partially paused from.
+         * Daily is always the whole of it, since choosing that cadence is the only switch.
+         */
+        const pausedKind =
+          settings.cadence === 'daily' || !(settings.sunday && settings.midweek)
+            ? 'all'
+            : entry.kind;
         if (!dryRun) {
           await writeReminderSettings(entry.row.userId, {
             ...settings,
