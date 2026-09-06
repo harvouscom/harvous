@@ -90,6 +90,11 @@
     "library:schema:apply": "tsx server/scripts/add-resource-library-schema.ts --apply",
     "channel-links:schema": "tsx server/scripts/add-space-channel-links-schema.ts",
     "channel-links:schema:apply": "tsx server/scripts/add-space-channel-links-schema.ts --apply",
+    "push:schema": "tsx server/scripts/add-push-reminders-schema.ts",
+    "push:schema:apply": "tsx server/scripts/add-push-reminders-schema.ts --apply",
+    "push:vapid-keys": "web-push generate-vapid-keys",
+    "push:preview": "tsx server/scripts/preview-reminder-payload.ts",
+    "push:rehearse": "tsx server/scripts/reminder-policy-rehearsal.ts",
     "space-plans:schema": "tsx server/scripts/add-space-owned-plans-schema.ts",
     "space-plans:schema:apply": "tsx server/scripts/add-space-owned-plans-schema.ts --apply",
     "space-suggestions:schema": "tsx server/scripts/add-space-study-suggestions-schema.ts",
@@ -185,7 +190,8 @@
     "turndown": "^7.2.2",
     "typescript": "^5.9.2",
     "vaul": "^1.1.2",
-    "web-haptics": "^0.0.6"
+    "web-haptics": "^0.0.6",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
@@ -196,6 +202,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/js-yaml": "^4.0.9",
+    "@types/web-push": "^3.6.4",
     "@vitest/ui": "^4.0.18",
     "concurrently": "^9.2.1",
     "drizzle-kit": "^0.31.9",

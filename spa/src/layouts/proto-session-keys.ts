@@ -40,6 +40,12 @@ export const PROTO_INSTALL_WEB_APP_DISMISSED_KEY = 'harvous-prototype-install-we
 /** Dev-only: force the install web app card for UI testing (`import.meta.env.DEV` only). */
 export const PROTO_INSTALL_WEB_APP_PREVIEW_KEY = 'harvous-prototype-install-web-app-preview';
 
+/** Client flag: user put away the "want a nudge Sunday morning?" card on Home. */
+export const PROTO_PUSH_REMINDERS_DISMISSED_KEY = 'harvous-proto-push-reminders-dismissed';
+
+/** Dev-only: force the reminders card for UI testing (`import.meta.env.DEV` only). */
+export const PROTO_PUSH_REMINDERS_PREVIEW_KEY = 'harvous-proto-push-reminders-preview';
+
 /** This device's cache of the onboarding checklist — first paint, before the account answers. */
 export const PROTO_ONBOARDING_KEY = 'harvous-proto-onboarding';
 

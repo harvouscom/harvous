@@ -153,6 +153,71 @@ import PrototypeGuestModeRow from '../pages/prototype/PrototypeGuestModeRow';
 import { useGuestAdoption } from '../hooks/useGuestAdoption';
 import { useGuestExitPrompt } from '../hooks/useGuestExitPrompt';
 
+/** Local cache of the zone we last told the account about, so a reload is not a write. */
+const TZ_SYNCED_KEY = 'harvous-proto-tz-synced';
+
+/** Throttle for the resume stamp below — an hour's precision is all it is read at. */
+const ACTIVE_STAMPED_KEY = 'harvous-proto-active-stamped-at';
+const ACTIVE_STAMP_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * Record that the app was opened, on resume as well as on mount.
+ *
+ * `UserMetadata.lastActiveAt` is how the reminder tick decides someone opened the app after
+ * a notification without tapping it — which it counts as the reminder having worked. The
+ * only writer was a mount effect, and an installed iOS app resumed from the background never
+ * remounts. So the reader who saw the banner, put the phone down, and came back an hour later
+ * was recorded as having ignored it. Two of those trigger the back-off and four pause
+ * reminders altogether, meaning the response layer was quietly biased against the one
+ * platform it had been tested on.
+ *
+ * Throttled because it rides `visibilitychange`, which fires on every app switch, and
+ * `awardMonthlyAttendanceXP` behind this endpoint is already idempotent per month.
+ */
+function stampActiveOnResume(): void {
+  try {
+    const last = Number(localStorage.getItem(ACTIVE_STAMPED_KEY) ?? 0);
+    if (Date.now() - last < ACTIVE_STAMP_INTERVAL_MS) return;
+    localStorage.setItem(ACTIVE_STAMPED_KEY, String(Date.now()));
+  } catch {
+    /* private mode — stamping every resume is better than never */
+  }
+  void api.post('/api/user/check-monthly-attendance').catch(() => {});
+}
+
+/**
+ * Keep the account's stored IANA zone matching the browser's.
+ *
+ * Runs on the profile load rather than on a timer: the only thing that changes it is the
+ * person travelling, and they cannot travel without opening the app again. Writes at most
+ * once per zone — the localStorage stamp is what keeps a returning visitor from POSTing the
+ * same string every session.
+ */
+async function syncAccountTimeZone(storedTimeZone: string | null): Promise<void> {
+  let browserZone = '';
+  try {
+    browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    return;
+  }
+  if (!browserZone) return;
+
+  let lastSynced: string | null = null;
+  try {
+    lastSynced = localStorage.getItem(TZ_SYNCED_KEY);
+  } catch {
+    /* private mode — fall through and let the account value decide */
+  }
+  if (storedTimeZone === browserZone && lastSynced === browserZone) return;
+
+  try {
+    await api.post('/api/user/update-timezone', { timezone: browserZone });
+    localStorage.setItem(TZ_SYNCED_KEY, browserZone);
+  } catch {
+    /* offline, or the column is not migrated yet — retried on the next open */
+  }
+}
+
 export default function SimplifiedPrototypeLayout() {
   const { isLoaded, isSignedIn, userId } = useAuth();
   const identity = useHarvousIdentity();
@@ -252,11 +317,43 @@ export default function SimplifiedPrototypeLayout() {
         const profile = await profileQueryClient.ensureQueryData(profileQueryOptions(userId));
         void fetchAndHydrateAppearanceFromProfile(profile);
         void fetchAndHydrateOnboardingFromProfile(profile);
+        void syncAccountTimeZone(profile.timezone ?? null);
       } catch {
         /* offline or mid-auth — both sides keep their local caches */
       }
     })();
   }, [authReady, userId, profileQueryClient]);
+
+  /*
+   * Reminders need to know what "8 AM" means for this account, and nothing else in the app
+   * stores it — the verse-of-the-day requests send a zone per call and keep none. Captured
+   * rather than asked for: a settings picker to answer a question the browser already knows
+   * is a worse version of this.
+   *
+   * The badge and subscription re-sync ride along here because they belong to the same "the
+   * app is open again" moment. Both are lazy-imported so nothing about push lands in the
+   * eager bundle for the people who never turn it on.
+   */
+  useEffect(() => {
+    if (!authReady || !userId || identity.isGuest) return;
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void import('../lib/push-reminders').then((mod) => {
+        mod.clearAppBadge();
+        void mod.syncPushSubscriptionIfGranted();
+      });
+      stampActiveOnResume();
+    };
+
+    onVisible();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [authReady, userId, identity.isGuest]);
 
   useEffect(() => {
     if (!authReady) return;

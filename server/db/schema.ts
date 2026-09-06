@@ -1266,6 +1266,32 @@ export const UserMetadata = pgTable('UserMetadata', {
    */
   onboardingState: text('onboardingState'),
   /**
+   * IANA zone the account was last opened from, e.g. "America/Chicago". Captured by the
+   * shell on profile load (never a picker, in v1) so a server job can say "8 AM" and mean
+   * the user's 8 AM. `null` = never captured; the reminder tick skips such accounts rather
+   * than guessing UTC.
+   */
+  timezone: text('timezone'),
+  /**
+   * The reminder schedule. JSON string — see src/utils/reminder-settings.ts for the shape.
+   * `null` = never set, which the tick reads as off. Overwritten on write like
+   * `appearanceSettings`: it is a preference, and the newest edit is the truest one.
+   */
+  reminderSettings: text('reminderSettings'),
+  /**
+   * Coarse "opened the app" stamp, written fire-and-forget by check-monthly-attendance,
+   * which the shell already calls on every mount. Exists so the reminder tick can skip
+   * someone who was just here, and so a reminder followed by an app open can be credited
+   * as `opened` without a click. Not a presence signal; do not read it as one.
+   */
+  lastActiveAt: ts('lastActiveAt'),
+  /**
+   * `YYYY-MM-DD` in the account's own timezone of the last reminder sent. The per-day
+   * idempotency key: the tick claims it with a conditional UPDATE before sending, so a
+   * restart, a repeated DST hour, or two overlapping ticks cannot send twice.
+   */
+  lastReminderSentOn: text('lastReminderSentOn'),
+  /**
    * Legacy notes-tier label (`free` | `unlimited`) — retired for gating; kept for
    * admin support/usage stats until those surfaces move off it. Paid features
    * live in `Entitlements`.
@@ -1296,6 +1322,63 @@ export const UserMetadata = pgTable('UserMetadata', {
   index('UserMetadata_connectedChurchIdIndex').on(table.connectedChurchId),
   index('UserMetadata_hmcChurchIdIndex').on(table.hmcChurchId),
   index('UserMetadata_polarCustomerIdIndex').on(table.polarCustomerId),
+]);
+
+// ─── PushSubscriptions (one row per browser/device that opted into reminders) ──
+// The Web Push endpoint is the identity, not the user: one person has a laptop Chrome, a
+// Home Screen app on their phone, and Safari on a desktop, and each is its own row. Unique on
+// endpoint rather than (userId, endpoint) so a shared device that changes hands follows the
+// current signer instead of keeping a ghost row for the last one.
+
+export const PushSubscriptions = pgTable('PushSubscriptions', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** The push service URL. Opaque, per-browser, and the only thing the push service keys on. */
+  endpoint: text('endpoint').notNull(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  /** For the admin summary's platform split only; never shown to the user. */
+  userAgent: text('userAgent'),
+  createdAt: ts('createdAt').notNull(),
+  lastSuccessAt: ts('lastSuccessAt'),
+  /** Consecutive non-410 failures. Pruned at five — a dead endpoint that never says so. */
+  failCount: integer('failCount').notNull().default(0),
+}, (table) => [
+  uniqueIndex('PushSubscriptions_endpoint_unique').on(table.endpoint),
+  index('PushSubscriptions_userIdIndex').on(table.userId),
+]);
+
+// ─── ReminderDeliveries (what happened to each reminder) ───────────────────────
+// The reminder-response layer. Not an activity log and never surfaced as one: it does not
+// feed Home, the inbox, ReadingEvents or NoteVisitEvents. Its one job is to let the policy
+// notice that reminders are being ignored and back off, and its one user-facing trace is a
+// line on the Reminders settings page.
+
+export const ReminderDeliveries = pgTable('ReminderDeliveries', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** sunday | midweek | test. Test sends are recorded but the policy ignores them. */
+  kind: text('kind').notNull(),
+  /** verse | pickup | plain — which copy went out, so open rates can compare them. */
+  variant: text('variant').notNull(),
+  sentAt: ts('sentAt').notNull(),
+  /** The user's local calendar day and hour at send time, for the admin hour split. */
+  localDate: text('localDate').notNull(),
+  localHour: integer('localHour').notNull(),
+  deviceCount: integer('deviceCount').notNull().default(0),
+  /**
+   * clicked | dismissed | opened | ignored | null (still open).
+   * `clicked` and `dismissed` come from the service worker; `opened` (the app was opened
+   * within six hours, banner untouched) and `ignored` (nothing within a day) are attributed
+   * by the next tick. See server/utils/reminder-policy.ts for what each one weighs.
+   */
+  outcome: text('outcome'),
+  outcomeAt: ts('outcomeAt'),
+  /** sw | attribution — which of the two writers above settled it. */
+  outcomeSource: text('outcomeSource'),
+}, (table) => [
+  index('ReminderDeliveries_userId_sentAtIndex').on(table.userId, table.sentAt),
+  index('ReminderDeliveries_outcome_sentAtIndex').on(table.outcome, table.sentAt),
 ]);
 
 /**

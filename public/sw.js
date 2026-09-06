@@ -4,10 +4,30 @@
 const CACHE_NAME = 'harvous-cache-v3-5-0';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
+/**
+ * Where a notification tap wants the app to go, parked somewhere the app can find it.
+ * Declared up here because `activate` below has to know not to delete it.
+ */
+const PENDING_NAV_CACHE = 'harvous-pending-navigation';
+const PENDING_NAV_KEY = '/__harvous_pending_navigation';
+
+/**
+ * Caches the activation sweep must not touch.
+ *
+ * The sweep deletes everything that is not the current build, and `CACHE_NAME` is rewritten
+ * on every deploy — so without this, the first cold launch after a deploy purges the
+ * destination of the very tap that launched it.
+ */
+const PRESERVED_CACHES = [PENDING_NAV_CACHE];
+
 const CRITICAL_ASSETS = [
   '/images/harvous-2-icon.png',
   '/manifest.json',
-  '/scripts/pwa-startup.js'
+  '/scripts/pwa-startup.js',
+  // Notification chrome: a reminder can arrive while the device is offline-ish, and an icon
+  // that 404s renders as the browser's generic bell rather than as Harvous.
+  '/images/icons/icon-192.png',
+  '/images/icons/badge-96.png'
 ];
 
 // Install event
@@ -33,7 +53,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+        cacheNames
+          .filter((name) => name !== CACHE_NAME && PRESERVED_CACHES.indexOf(name) === -1)
+          .map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );
@@ -777,4 +799,235 @@ self.addEventListener('message', (event) => {
   if (event.data === 'warmup' || (event.data && event.data.type === 'warmup')) {
     fetch('/api/health', { method: 'GET', credentials: 'include' }).catch(() => {});
   }
+});
+
+// ─── Web push reminders ──────────────────────────────────────────────────────
+// Everything below is the Sunday / midweek reminder. The three listeners are separate
+// concerns: showing the notification, acting on a tap, and healing a rotated subscription.
+
+const REMINDER_ICON = '/images/icons/icon-192.png';
+const REMINDER_BADGE = '/images/icons/badge-96.png';
+
+/**
+ * Where a notification tap wants the app to go, parked somewhere the app can find it.
+ *
+ * postMessage alone is not enough. The message is delivered once, to whoever is listening at
+ * that instant, and on a cold launch the app is still booting — so the tap that matters most,
+ * the one that opens the app, is exactly the one whose message lands on nobody. Cache Storage
+ * is same-origin and survives both the worker being killed and the app's boot, so the app can
+ * come up and ask what it was opened for.
+ */
+async function setPendingNavigation(url) {
+  try {
+    const cache = await caches.open(PENDING_NAV_CACHE);
+    // The key as a plain string, which is what reads it back too. Wrapping it in a Request
+    // buys nothing and needs an absolute URL to construct outside a browser.
+    await cache.put(
+      PENDING_NAV_KEY,
+      new Response(JSON.stringify({ url: url, at: Date.now() }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+  } catch (_) {
+    // Falls back to the postMessage path, which is enough for an app already running.
+  }
+}
+
+/**
+ * Report what became of a notification.
+ *
+ * Sent with credentials, because a worker woken by a push has no Clerk bearer token — only
+ * the session cookie.
+ *
+ * Every caller must AWAIT this inside `waitUntil`. It was originally fired with `void`, on
+ * the reasoning that a lost report is harmless, and on iOS not one report ever arrived: the
+ * worker is killed the moment the promise passed to `waitUntil` settles, and an un-awaited
+ * fetch is simply killed with it. A failure genuinely is harmless — the next tick settles an
+ * unreported delivery by attribution — but never being sent at all is not.
+ */
+/**
+ * Temporary instrumentation for the notification tap, which has now failed three times for
+ * three different reasons and cost a device round trip to diagnose each time.
+ *
+ * Every detail goes in `message` on purpose: the server's sanitizer keeps only `statusCode`,
+ * `apiPath` and `userAgentFamily` out of metadata and silently discards the rest, and drops
+ * the whole payload if `anonymousSessionId` is missing — which a worker cannot read from
+ * localStorage, so one is minted per event. `appVersion` carries CACHE_NAME because it says
+ * which worker build ran, which is the question a stale install makes hard to answer.
+ *
+ * Remove once the paired `sw parked` / `client navigate` rows show up on every platform.
+ */
+const PUSH_NAV_DIAGNOSTICS = true;
+
+function reportSwDiagnostic(message) {
+  if (!PUSH_NAV_DIAGNOSTICS) return Promise.resolve();
+  return fetch('/api/diagnostics/event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: 'client_js',
+      severity: 'warning',
+      message: message,
+      platform: 'web',
+      appVersion: CACHE_NAME,
+      anonymousSessionId: 'sw-' + Math.random().toString(36).slice(2, 11),
+    }),
+  }).catch(() => {});
+}
+
+function reportNotificationEvent(deliveryId, event) {
+  if (!deliveryId) return Promise.resolve();
+  return fetch('/api/push/event', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deliveryId: deliveryId, event: event }),
+  }).catch(() => {});
+}
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    data = {};
+  }
+
+  const title = data.title || 'Harvous';
+  const options = {
+    body: data.body || 'A minute with Scripture.',
+    icon: data.icon || REMINDER_ICON,
+    badge: data.badge || REMINDER_BADGE,
+    tag: data.tag || 'harvous-reminder',
+    // The tag alone collapses a Sunday and a midweek reminder into one row; renotify false
+    // stops the second one from buzzing again for a message the reader already has.
+    renotify: false,
+    data: {
+      url: (data.data && data.data.url) || '/',
+      kind: data.data && data.data.kind,
+      deliveryId: (data.data && data.data.deliveryId) || null,
+    },
+    actions: data.actions || [{ action: 'open', title: 'Open' }],
+  };
+
+  // showNotification is not optional. iOS revokes the push subscription of any app that
+  // receives a push and shows nothing, so a silent push here would quietly unsubscribe every
+  // iPhone on the next send.
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      navigator.setAppBadge ? navigator.setAppBadge(1).catch(() => {}) : Promise.resolve(),
+    ])
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const payload = event.notification.data || {};
+  const target = new URL(payload.url || '/', self.location.origin).href;
+
+  event.waitUntil(
+    (async () => {
+      /*
+       * Park first. Nothing may go in front of this.
+       *
+       * iOS foregrounds the app the instant the banner is tapped, without waiting for the
+       * worker — so the app's own "am I here because of a notification?" check runs almost
+       * immediately. This used to sit behind an awaited network POST, which meant the
+       * destination was written hundreds of milliseconds after the only thing that reads it
+       * had already looked and found nothing. That is the bug, and its shape is the lesson:
+       * on the tap path, anything durable happens before anything slow.
+       */
+      await setPendingNavigation(target);
+
+      // Focus what is already open before opening anything new: someone with Harvous in a
+      // background tab should be taken to it, not given a second copy of the app.
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const sameOrigin = clientList.find((client) => {
+        try {
+          return new URL(client.url).origin === self.location.origin;
+        } catch (_) {
+          return false;
+        }
+      });
+
+      let handoff;
+      if (sameOrigin) {
+        await sameOrigin.focus();
+        /*
+         * Ask the app to route, rather than driving the window from here.
+         *
+         * `WindowClient.navigate()` is the obvious call and does nothing on iOS — the window
+         * comes to the front still showing whatever page it was on. postMessage reaches the
+         * running app, which owns a router. The parked copy above covers the case where
+         * nothing is listening yet, which on a cold launch is always.
+         */
+        sameOrigin.postMessage({ type: 'HARVOUS_NOTIFICATION_NAVIGATE', url: target });
+        handoff = 'focus-post';
+      } else {
+        // Navigates on its own, so this path never depended on the handoff.
+        await self.clients.openWindow(target);
+        handoff = 'open-window';
+      }
+
+      /*
+       * Everything that only needs to happen eventually, at the tail.
+       *
+       * Awaited together so the worker outlives them — an un-awaited fetch inside waitUntil
+       * is killed with the worker, which is why no click was ever reported — but behind the
+       * handoff, so neither the badge nor the network can delay the navigation. It also keeps
+       * a round trip out of the front of `openWindow`, which browsers allow only inside the
+       * click's transient activation.
+       */
+      await Promise.allSettled([
+        navigator.clearAppBadge ? navigator.clearAppBadge() : Promise.resolve(),
+        reportNotificationEvent(payload.deliveryId, 'click'),
+        reportSwDiagnostic(
+          // `target`, not payload.url — it is the resolved absolute URL actually parked, and
+          // it is defined even when the payload carried none.
+          '[push-nav] sw parked target=' + target + ' delivery=' + (payload.deliveryId || 'none')
+        ),
+        reportSwDiagnostic(
+          '[push-nav] sw handoff=' + handoff + ' clients=' + clientList.length +
+            ' delivery=' + (payload.deliveryId || 'none')
+        ),
+      ]);
+    })()
+  );
+});
+
+self.addEventListener('notificationclose', (event) => {
+  const payload = event.notification.data || {};
+  // Already awaited by virtue of being the whole waitUntil promise.
+  event.waitUntil(reportNotificationEvent(payload.deliveryId, 'close'));
+});
+
+/**
+ * The browser rotated this subscription. Re-subscribe with the same application server key
+ * and tell the server, or the next reminder goes to an endpoint that no longer exists.
+ */
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      const old = event.oldSubscription;
+      const applicationServerKey = old && old.options ? old.options.applicationServerKey : null;
+      if (!applicationServerKey) return;
+
+      try {
+        const subscription = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey,
+        });
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: subscription.toJSON() }),
+        });
+      } catch (_) {
+        // The client re-syncs on the next app open (syncPushSubscriptionIfGranted), which is
+        // the real safety net — this is just the earlier of the two chances.
+      }
+    })()
+  );
 });

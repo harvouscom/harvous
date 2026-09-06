@@ -14,41 +14,77 @@ import { getAuth } from '../middleware/auth';
 import { getLocalCalendarDateString, isValidIanaTimeZone } from './votd-local-date';
 import { getUserDefaultTranslation } from './votd-user-translation';
 
+export interface ResolvedVotd {
+  reference: string;
+  translation: string;
+  /** Set only when the exact day had no row and an older verse stood in for it. */
+  featuredItemId: string | null;
+}
+
+/**
+ * The verse for a local calendar day: the exact row, else the most recent one published
+ * before it.
+ *
+ * The fallback is the whole point — `publish-daily` stamps a UTC day, so a reader in UTC+13
+ * reaches their own tomorrow before the next publish lands, and without this the card (or a
+ * reminder) would simply have nothing to say. Shared with the reminder payload builder so
+ * the notification and the app never disagree about which verse today is.
+ */
+export async function resolveVotdForLocalDate(
+  localCalendarDate: string,
+  logLabel = 'api/votd/today',
+): Promise<ResolvedVotd | null> {
+  const exactRow = first(
+    await db
+      .select({
+        reference: VotdPublishHistory.reference,
+        translation: VotdPublishHistory.translation,
+        featuredItemId: VotdPublishHistory.featuredItemId,
+      })
+      .from(VotdPublishHistory)
+      .where(eq(VotdPublishHistory.publishedDate, localCalendarDate))
+      .limit(1),
+  );
+  if (exactRow) {
+    return {
+      reference: exactRow.reference,
+      translation: exactRow.translation,
+      featuredItemId: exactRow.featuredItemId ?? null,
+    };
+  }
+
+  const fallbackRow = first(
+    await db
+      .select({
+        reference: VotdPublishHistory.reference,
+        translation: VotdPublishHistory.translation,
+        featuredItemId: VotdPublishHistory.featuredItemId,
+        publishedDate: VotdPublishHistory.publishedDate,
+      })
+      .from(VotdPublishHistory)
+      .where(lte(VotdPublishHistory.publishedDate, localCalendarDate))
+      .orderBy(desc(VotdPublishHistory.publishedDate))
+      .limit(1),
+  );
+  if (!fallbackRow) return null;
+
+  console.log(
+    `[${logLabel}] fallback used: localDate=${localCalendarDate} publishedDate=${fallbackRow.publishedDate}`,
+  );
+  return {
+    reference: fallbackRow.reference,
+    translation: fallbackRow.translation,
+    featuredItemId: fallbackRow.featuredItemId ?? null,
+  };
+}
+
 export async function votdTodayPublicHandler(c: Context) {
   try {
     const tzHeader = (c.req.query('tz') ?? c.req.header('X-Votd-Timezone') ?? '').trim();
     const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : 'UTC';
     const localCalendarDate = getLocalCalendarDateString(timeZone, now());
 
-    const exactRow = first(
-      await db
-        .select({ reference: VotdPublishHistory.reference, translation: VotdPublishHistory.translation })
-        .from(VotdPublishHistory)
-        .where(eq(VotdPublishHistory.publishedDate, localCalendarDate))
-        .limit(1),
-    );
-
-    let row = exactRow;
-    if (!row) {
-      const fallbackRow = first(
-        await db
-          .select({
-            reference: VotdPublishHistory.reference,
-            translation: VotdPublishHistory.translation,
-            publishedDate: VotdPublishHistory.publishedDate,
-          })
-          .from(VotdPublishHistory)
-          .where(lte(VotdPublishHistory.publishedDate, localCalendarDate))
-          .orderBy(desc(VotdPublishHistory.publishedDate))
-          .limit(1),
-      );
-      if (fallbackRow) {
-        console.log(
-          `[api/votd/today] fallback used: timezone=${timeZone} localDate=${localCalendarDate} publishedDate=${fallbackRow.publishedDate}`,
-        );
-        row = { reference: fallbackRow.reference, translation: fallbackRow.translation };
-      }
-    }
+    const row = await resolveVotdForLocalDate(localCalendarDate);
 
     const auth = getAuth(c);
     let translation = row?.translation?.trim() || 'NET';

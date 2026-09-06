@@ -123,6 +123,20 @@ export default defineConfig({
      * this was previously recorded as "verified both addresses answer" when only one did.
      */
     host: '::',
+    /*
+     * Named tunnel hosts, for testing on a real phone.
+     *
+     * Web Push needs a secure context, so a phone cannot reach the dev server over
+     * `http://192.168.x.x` — Safari and Chrome both withhold the API there. A tunnel
+     * (`cloudflared tunnel --url http://localhost:4322`) gives an HTTPS origin that does
+     * qualify, but Vite rejects hosts it was not told about, which surfaces as a bare
+     * "Blocked request" page rather than anything about tunnels.
+     *
+     * Suffix entries, not wildcards in the URL sense: Vite matches `.example.com` against any
+     * subdomain of it. Quick tunnels get a random subdomain each run, so listing the suffix is
+     * what keeps this from needing an edit per session.
+     */
+    allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok.io', '.loca.lt'],
     watch: {
       // Also watch shared src/ components (outside the spa/ root) for HMR
       ignored: ['!**/src/**'],
@@ -156,6 +170,10 @@ export default defineConfig({
   // chunk-ordering work needs to load the built app against a live API to be verifiable.
   preview: {
     port: 4324,
+    // Same reason as the dev server's list above: testing push on a real phone needs an
+    // HTTPS origin, and the built output is what a phone should be served over a tunnel —
+    // dev mode's hundreds of unbundled module requests are slow and drop-prone over one.
+    allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok.io', '.loca.lt'],
     proxy: {
       '/api': {
         target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:3001',

@@ -2531,6 +2531,36 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   white-space: nowrap;
 }
 
+/*
+ * Settings rows wrap; note rows do not.
+ *
+ * The rule above is right for a feed of note titles, where one line each keeps the list
+ * scannable and uniform. A settings row is a labelled control whose text explains something —
+ * "Add Harvous to your Home Screen first" — and a row carrying a leading icon and a chevron
+ * has little width left for it on a phone. Worse, the title is a flex item with the default
+ * `min-width: auto`, so it refuses to shrink, the ellipsis never engages, and the text is
+ * simply cut off mid-word. Wrapping is the honest answer for a sentence.
+ */
+.proto-settings-row .pds-list-title,
+.proto-settings-row .pds-list-preview {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  min-width: 0;
+}
+
+/*
+ * And it has to be allowed to shrink, or none of the above does anything.
+ *
+ * The title sits in a flex row beside its optional badge, and inherits `flex: 0 0 auto` —
+ * so it sizes to its content and overflows rather than wrapping. `white-space: normal` on a
+ * box that is never narrower than its text has no line to break. This is the half that was
+ * missing when the same symptom was diagnosed for the translation row further down.
+ */
+.proto-settings-row .proto-settings-list-row__title-row > .pds-list-title {
+  flex: 1 1 auto;
+}
+
 .proto-note-row.proto-note-row--destructive .pds-list-title {
   color: var(--pds-destructive) !important;
 }
