@@ -186,17 +186,40 @@ function rowFingerprint(version, title) {
   return `${version}\n${title.toLowerCase().trim()}`;
 }
 
+/**
+ * The second way to recognise a row that is already published.
+ *
+ * A title can be edited in the CSV after export — harvous.com did it in b6fbf6d,
+ * rewriting "$6/mo and $36/yr, and the founding discount retired" to the clearer
+ * "Harvous Plus is now $6/mo or $36/yr". The version+title fingerprint stopped
+ * matching, so every later sync re-added the original wording and the release
+ * note listed one price change twice.
+ *
+ * Such an edit changes the Name column and leaves Slug alone, so the slug still
+ * identifies the row. This is checked in ADDITION to the title, never instead of
+ * it: a slug is derived from the title (createSlug hashes version:index:name),
+ * so rewording the changelog file itself still produces a new slug and this test
+ * would not catch it. Both together only ever skip more rows than before, which
+ * is why adding it cannot resurrect the legacy backlog.
+ */
+function slugFingerprint(slug) {
+  return `slug\n${slug.toLowerCase().trim()}`;
+}
+
 function loadExistingFingerprints(csvText) {
   const rows = parseCsvRows(csvText);
   const headers = rows[0] ?? [];
   const versionIdx = headers.indexOf("Version Number");
   const nameIdx = headers.indexOf("Name");
+  const slugIdx = headers.indexOf("Slug");
   const seen = new Set();
 
   for (const values of rows.slice(1)) {
     const version = values[versionIdx]?.trim();
     const name = values[nameIdx]?.trim();
+    const slug = values[slugIdx]?.trim();
     if (version && name) seen.add(rowFingerprint(version, name));
+    if (slug) seen.add(slugFingerprint(slug));
   }
 
   return seen;
@@ -396,8 +419,9 @@ export function exportChangelogToMarketingSite(options = {}) {
     const rows = changelogRowsFromFile(filepath);
     for (const row of rows) {
       const fp = rowFingerprint(row.version, row.title);
-      if (seen.has(fp)) continue;
+      if (seen.has(fp) || seen.has(slugFingerprint(row.slug))) continue;
       seen.add(fp);
+      seen.add(slugFingerprint(row.slug));
       newLines.push(buildCsvRow(row));
     }
   }
