@@ -9,10 +9,15 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { requestId } from 'hono/request-id';
 import { clerkAuth } from './middleware/auth';
-// CSRF middleware disabled — Clerk session auth is the primary security layer.
-// Origin-based CSRF was causing false 403s in production (Netlify proxy headers).
-// Re-enable once root cause is identified via Netlify function logs.
-// import { csrfProtection } from './middleware/csrf';
+// CSRF re-enabled 2026-09-04, in OBSERVE mode. It was disabled from ~2025 after
+// false 403s caused by Netlify's proxy duplicating the Origin header — that proxy
+// is gone (the app now sits behind a Cloudflare Worker), and csrf.ts additionally
+// dedupes comma-joined header values now.
+//
+// It does NOT reject yet: set CSRF_ENFORCE=true on Fly to switch from logging to
+// 403s, once the observe logs show an empty or understood rejection set. Grep Fly
+// logs for `[csrf][observe]`.
+import { csrfProtection } from './middleware/csrf';
 
 // Routes
 import health from './routes/health';
@@ -74,7 +79,7 @@ const app = new Hono();
 // Global middleware
 app.use('/api/*', requestId());
 app.use('/api/*', cors());
-// app.use('/api/*', csrfProtection);  // Disabled — see import comment above
+app.use('/api/*', csrfProtection); // observe-only until CSRF_ENFORCE=true — see import comment
 app.use('/api/*', clerkAuth);
 
 // Default cache headers for GET responses — individual endpoints can override
