@@ -32,6 +32,7 @@ import {
 } from '../utils/push-reminders';
 import { isPushRemindersSchemaMissing } from '../utils/pg-undefined-relation';
 import { isValidIanaTimeZone } from '../utils/votd-local-date';
+import { getPublicAppOrigin } from '../utils/public-app-origin';
 import {
   countSubscriptionsForUser,
   deleteSubscriptionForUser,
@@ -98,6 +99,40 @@ app.get('/api/push/vapid-public-key', (c) => {
   return c.json({ publicKey: key, configured });
 });
 
+/**
+ * Whether this subscribe came from the origin the reminders are actually sent for.
+ *
+ * `new.harvous.com` (staging) and `app.harvous.com` are two Workers proxying `/api/*` to the
+ * same Fly machine, one database, one VAPID keypair. The live Clerk cookie is scoped wide
+ * enough that `auth.ts` lists both origins in PRODUCTION_AUTHORIZED_PARTIES, so a developer
+ * opening staging is authenticated as their real self.
+ *
+ * Without this check, enabling notifications on staging wrote a subscription against that
+ * real userId — and the displacement delete below, which keys on (userId, userAgent) and not
+ * on origin, then removed their genuine app.harvous.com row. Their production reminders
+ * silently began arriving in the staging PWA instead. Storing it under a second origin rather
+ * than displacing would be no better: sendToUser() selects every row for the user, so the
+ * next reminder would go out twice.
+ *
+ * A subscription belongs to one origin, so the honest answer is to decline the ones that
+ * cannot be served, and say so.
+ *
+ * Absent Origin is allowed. Browsers set it on every POST, same-origin included, so a request
+ * without one is not a browser — and failing those closed would break callers this has no
+ * quarrel with, to guard against a case that cannot occur.
+ */
+function isSubscribableOrigin(c: Context): boolean {
+  const origin = c.req.header('Origin')?.trim();
+  if (!origin) return true;
+  try {
+    const url = new URL(origin);
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return true;
+  } catch {
+    return false;
+  }
+  return origin.replace(/\/$/, '') === getPublicAppOrigin(c).replace(/\/$/, '');
+}
+
 // ─── POST /api/push/subscribe ────────────────────────────────────────────────
 
 app.post('/api/push/subscribe', requireAuth, rateLimit('write'), async (c) => {
@@ -106,6 +141,17 @@ app.post('/api/push/subscribe', requireAuth, rateLimit('write'), async (c) => {
     const body = await c.req.json();
     const subscription = readSubscription(body?.subscription);
     if (!subscription) return c.json({ error: 'Invalid subscription' }, 400);
+
+    if (!isSubscribableOrigin(c)) {
+      return c.json(
+        {
+          error: 'Reminders are set up on the main app, not this preview',
+          code: 'wrong_origin',
+          appOrigin: getPublicAppOrigin(c),
+        },
+        409,
+      );
+    }
 
     const userAgent =
       typeof body?.userAgent === 'string' ? body.userAgent.slice(0, 512) : c.req.header('User-Agent')?.slice(0, 512) ?? null;
