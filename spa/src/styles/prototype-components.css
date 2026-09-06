@@ -7406,6 +7406,63 @@ button.proto-home-card--tappable:focus-visible {
   border-radius: 4px;
 }
 
+/* The room's passage card, and the "Not now" that rests it.
+
+   The markup puts that control outside the card deliberately — the card is one
+   big button and a button cannot nest in one — but it shipped with no styles at
+   all under either class name. So it fell into the flow as a plain block above
+   the card, left-aligned, reading as a stray link sitting on the card's own
+   "Showing up in your notes" eyebrow.
+
+   Treated as the daily passage pill's dismiss is treated, because it is the
+   same gesture on the same kind of card: a small pill in the corner, out of the
+   way until wanted, and always present where there is no hover to reveal it. */
+.proto-space-passage {
+  position: relative;
+}
+
+.proto-space-passage__rest {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: none;
+  border-radius: 999px;
+  background: var(--pds-glass-shell);
+  box-shadow: var(--pds-glass-rim);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.proto-space-passage:hover .proto-space-passage__rest,
+.proto-space-passage:focus-within .proto-space-passage__rest {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.proto-space-passage__rest:hover {
+  color: var(--pds-text-primary);
+}
+
+/* No hover to reveal it on a touch screen, so it simply stays. */
+@media (hover: none) {
+  .proto-space-passage__rest {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 /* A count on a chip — how many suggestions staff have not read yet. Sized from
    the chip's own text so it stays a badge rather than becoming a second label,
    and tabular so a two-digit count does not shift the chip's width mid-glance. */
