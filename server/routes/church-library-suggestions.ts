@@ -190,6 +190,65 @@ app.get('/api/church/library/suggestions/mine', requireAuth, async (c) => {
   }
 });
 
+// ─── POST /api/church/library/suggestions/withdraw ──────────────────────────
+/**
+ * Taking your own suggestion back, while it is still waiting.
+ *
+ * A congregant endpoint, so it takes no `orgId` like the other two: the church
+ * comes from the caller's own connection, and the row is found by the caller's
+ * id rather than by a church anyone can name.
+ *
+ * Own and open, both in the query rather than checked afterwards. A reviewed
+ * suggestion is the church's record — the staff decision is how it leaves the
+ * queue — and an approved one has a library item behind it that a delete here
+ * would orphan.
+ *
+ * Not sponsorship-gated, unlike creating one. A lapsed plan should not trap
+ * somebody's link in a queue nobody can act on; taking it back is the one thing
+ * that still ought to work.
+ */
+app.post('/api/church/library/suggestions/withdraw', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const viewer = await resolveChurchLibraryViewer(auth.userId);
+    if (viewer.kind === 'none') {
+      return c.json({ error: 'Suggestion not found', code: 'SUGGESTION_NOT_FOUND' }, 404);
+    }
+
+    const body = (await c.req.json().catch(() => ({}))) as { suggestionId?: string };
+    const suggestionId = clean(body.suggestionId, 200);
+    if (!suggestionId) {
+      return c.json({ error: 'suggestionId is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const deleted = await db
+      .delete(LibraryItemSuggestions)
+      .where(
+        and(
+          eq(LibraryItemSuggestions.id, suggestionId),
+          eq(LibraryItemSuggestions.churchId, viewer.church.id),
+          eq(LibraryItemSuggestions.suggestedByUserId, auth.userId),
+          eq(LibraryItemSuggestions.status, 'open'),
+        ),
+      )
+      .returning({ id: LibraryItemSuggestions.id });
+
+    if (deleted.length === 0) {
+      /* Same answer whether it was never yours, already decided, or never
+         existed — a probe should not learn which. */
+      return c.json({ error: 'Suggestion not found', code: 'SUGGESTION_NOT_FOUND' }, 404);
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/library/suggestions/withdraw',
+      action: 'library_suggestion_withdraw',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── GET /api/church/library/suggestions ────────────────────────────────────
 /**
  * The staff review queue.

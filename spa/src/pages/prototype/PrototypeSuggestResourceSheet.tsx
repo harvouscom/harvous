@@ -18,6 +18,7 @@ import { APIError } from '../../lib/api';
 import {
   useMyLibrarySuggestions,
   useSuggestLibraryItem,
+  useWithdrawLibrarySuggestion,
   type MyLibrarySuggestion,
 } from '../../hooks/queries/useChurchLibrary';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -65,6 +66,7 @@ export default function PrototypeSuggestResourceSheet({
     staff everything and the person who asked nothing.
   */
   const mine = useMyLibrarySuggestions();
+  const withdraw = useWithdrawLibrarySuggestion();
 
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
@@ -235,6 +237,18 @@ export default function PrototypeSuggestResourceSheet({
                       : ''}
                   </span>
                 </span>
+                {/* Only while it waits. Once staff have answered it, the row is
+                    the church's record of what was asked and decided. */}
+                {row.status === 'open' ? (
+                  <button
+                    type="button"
+                    className="proto-sheet-quiet-action"
+                    disabled={withdraw.isPending}
+                    onClick={() => withdraw.mutate({ suggestionId: row.id })}
+                  >
+                    Withdraw
+                  </button>
+                ) : null}
               </div>
             ))}
           </div>

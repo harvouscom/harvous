@@ -343,6 +343,27 @@ export function useSuggestLibraryItem() {
 }
 
 /**
+ * Take your own suggestion back, while it is still waiting.
+ *
+ * No `orgId`, like the other two congregant hooks: the church is the caller's
+ * own. Invalidates the staff queue as well as your list — a withdrawn row has
+ * to leave the queue someone else may be looking at.
+ */
+export function useWithdrawLibrarySuggestion() {
+  const queryClient = useQueryClient();
+  const { userId } = useAuth();
+
+  return useMutation({
+    mutationFn: (input: { suggestionId: string }) =>
+      api.post<{ success: boolean }>('/api/church/library/suggestions/withdraw', input),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: librarySuggestionsMineQueryKey(userId) });
+      void queryClient.invalidateQueries({ queryKey: ['library', 'suggestions', 'queue'] });
+    },
+  });
+}
+
+/**
  * Staff have looked at the queue. Clears the unread count, changes nothing else.
  *
  * Separate from reviewing on purpose: seeing a suggestion is not deciding it,
