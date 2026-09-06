@@ -29,6 +29,37 @@ function csvWith(rows) {
 
 const SEP_5 = "Sat Sep 05 2026 12:00:00 GMT+0000 (Coordinated Universal Time)";
 
+function rowsIn(path) {
+  return readFileSync(path, "utf-8").split("\n").filter((l) => l.trim()).length - 1;
+}
+
+describe("recognising a row that is already published", () => {
+  it("does not re-add an entry whose title was edited in the CSV", () => {
+    // Export once so the CSV holds real rows, slugs included.
+    const csvPath = csvWith([row({ name: "Older row", version: "3.4.0", date: SEP_5 })]);
+    exportChangelogToMarketingSite({ csvPath, backfill: true, quiet: true });
+
+    // Rewrite one Name and leave its Slug alone — what b6fbf6d did by hand.
+    const lines = readFileSync(csvPath, "utf-8").split("\n");
+    // An unquoted Name, so replacing the first field cannot corrupt the row.
+    const idx = lines.findIndex(
+      (l, i) => i > 0 && l.trim() && !l.startsWith('"') && !l.startsWith("Older row")
+    );
+    expect(idx).toBeGreaterThan(0);
+    const originalName = lines[idx].slice(0, lines[idx].indexOf(","));
+    lines[idx] = `A clearer hand-written title${lines[idx].slice(originalName.length)}`;
+    writeFileSync(csvPath, lines.join("\n"), "utf-8");
+
+    const before = rowsIn(csvPath);
+    exportChangelogToMarketingSite({ csvPath, backfill: true, quiet: true });
+
+    // Without the slug check the original wording comes back and the release
+    // note lists the same change twice.
+    expect(rowsIn(csvPath)).toBe(before);
+    expect(readFileSync(csvPath, "utf-8")).toContain("A clearer hand-written title");
+  });
+});
+
 describe("backfill and the high-water mark", () => {
   it("recovers a version that merged below the mark", () => {
     const csvPath = csvWith([row({ name: "Older row", version: "3.4.0", date: SEP_5 })]);
