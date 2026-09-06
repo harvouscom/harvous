@@ -23,6 +23,7 @@ import {
   and,
   eq,
   desc,
+  isNull,
   Churches,
   LibraryItems,
   LibraryItemSuggestions,
@@ -236,6 +237,50 @@ app.get('/api/church/library/suggestions', requireAuth, async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/library/suggestions',
       action: 'library_suggestion_queue',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/library/suggestions/mark-read ─────────────────────────
+/**
+ * Staff have looked at the queue.
+ *
+ * `staffReadAt` was only ever stamped by a review, which made it useless as the
+ * unread signal its docblock claims to be: every waiting suggestion had a null
+ * there by definition, so a badge counting nulls would have counted the queue
+ * itself and never gone down until someone approved or declined. It is stamped
+ * on *reading* now, which is what `SupportTickets.adminReadAt` does — see
+ * `admin-support-tickets.ts`, where opening a ticket marks it read.
+ *
+ * Only open rows, and only ones not already stamped: a reviewed suggestion
+ * carries the time it was decided, and that must not be overwritten by someone
+ * scrolling past it afterwards.
+ */
+app.post('/api/church/library/suggestions/mark-read', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as { orgId?: string };
+
+    const gate = await assertCanManageChurchLibrary(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    await db
+      .update(LibraryItemSuggestions)
+      .set({ staffReadAt: new Date() })
+      .where(
+        and(
+          eq(LibraryItemSuggestions.churchId, gate.church.id),
+          eq(LibraryItemSuggestions.status, 'open'),
+          isNull(LibraryItemSuggestions.staffReadAt),
+        ),
+      );
+
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/library/suggestions/mark-read',
+      action: 'library_suggestion_mark_read',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

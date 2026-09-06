@@ -11,7 +11,7 @@
  * reviewing is a different posture from curating and mixing them would make the
  * queue something you scroll past.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import ProtoSidebarExpandedPanel from '../ProtoSidebarExpandedPanel';
 import type { ExpandedSidebarToolProps } from '../PrototypeExpandedSidebarHost';
@@ -22,6 +22,9 @@ import { useChurchStaffStatus } from '../../../hooks/queries/useChurchStaffStatu
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import {
   useChurchLibraryManage,
+  useLibrarySuggestionQueue,
+  useMarkLibrarySuggestionsRead,
+  unreadLibrarySuggestionCount,
   type ChurchLibraryStaffItem,
 } from '../../../hooks/queries/useChurchLibrary';
 import PrototypeLibraryManagerItems from './PrototypeLibraryManagerItems';
@@ -69,6 +72,33 @@ export default function PrototypeExpandedLibraryManager({
     setSelection(null);
   }, []);
 
+  /*
+    The unread count on the Suggestions chip.
+
+    Same query the queue itself runs, so opening the panel costs one request and
+    both surfaces read the same cache. Unread is "waiting, and staff have not
+    looked" — which is a fact this codebase only started recording when the
+    mark-read route below was added; before that `staffReadAt` was stamped by a
+    review, so a count of nulls would have been the queue's own length.
+  */
+  const suggestionQueue = useLibrarySuggestionQueue(orgId, { enabled: canCurate });
+  const unreadSuggestions = unreadLibrarySuggestionCount(suggestionQueue.data?.suggestions);
+  const markRead = useMarkLibrarySuggestionsRead(orgId);
+
+  /* Marked read when staff actually open the view, once per unread batch —
+     not on mount, or the badge would clear itself for someone who never looked
+     at it. */
+  const markedRef = useRef(false);
+  useEffect(() => {
+    if (view !== 'suggestions') {
+      markedRef.current = false;
+      return;
+    }
+    if (markedRef.current || !canCurate || unreadSuggestions === 0) return;
+    markedRef.current = true;
+    markRead.mutate();
+  }, [view, canCurate, unreadSuggestions, markRead]);
+
   const viewSwitcher = (
     <div
       className="proto-chip-bar proto-planner__views"
@@ -86,6 +116,11 @@ export default function PrototypeExpandedLibraryManager({
         >
           <Icon name={option.icon} size={11} aria-hidden />
           <span>{option.label}</span>
+          {option.id === 'suggestions' && unreadSuggestions > 0 ? (
+            <span className="proto-chip__badge" aria-label={`${unreadSuggestions} not yet read`}>
+              {unreadSuggestions}
+            </span>
+          ) : null}
         </button>
       ))}
     </div>

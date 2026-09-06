@@ -328,6 +328,33 @@ describe('suggestion box', () => {
     expect(body).toMatch(/status !== 'open'/);
   });
 
+  it('marks read on reading, not on deciding', () => {
+    /* The bug this closes: `staffReadAt` was only ever written by a review, so
+       every waiting suggestion had a null in it and an unread badge counting
+       nulls would have counted the queue. Reading is its own event now, the way
+       `admin-support-tickets.ts` stamps a ticket when it is opened. */
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/mark-read'");
+    expect(body).toContain('assertCanManageChurchLibrary');
+    expect(body).toContain('staffReadAt: new Date()');
+    expect(body).toMatch(/status, 'open'/);
+    expect(body).toContain('isNull(LibraryItemSuggestions.staffReadAt)');
+  });
+
+  it('never lets marking read overwrite when a decision was made', () => {
+    // A reviewed row carries the time it was decided. Someone scrolling past it
+    // afterwards must not restamp that.
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/mark-read'");
+    expect(body).toContain('isNull(LibraryItemSuggestions.staffReadAt)');
+    expect(body).not.toMatch(/status, 'approved'/);
+    expect(body).not.toMatch(/status, 'declined'/);
+  });
+
+  it('marking read names nobody', () => {
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/mark-read'");
+    expect(body).not.toContain('suggestedByName');
+    expect(body).not.toContain('displayNamesFor');
+  });
+
   it('caps open suggestions per person', () => {
     const text = suggestions();
     expect(text).toContain('OPEN_SUGGESTIONS_MAX');
