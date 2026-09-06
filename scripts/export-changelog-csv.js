@@ -202,6 +202,35 @@ function loadExistingFingerprints(csvText) {
   return seen;
 }
 
+/**
+ * How far back a backfill may reach for a version the high-water mark skipped.
+ *
+ * Fourteen days is a long-lived feature branch and not much more. It has to be
+ * a window rather than "any version missing from the CSV", because this CSV
+ * began as a Webflow export and never covered the early history — treating
+ * absence as "unpublished" re-exports 888 rows of 0.x.
+ */
+const BACKFILL_RECOVERY_MS = 14 * 24 * 60 * 60 * 1000;
+
+function releaseDateOf(filepath) {
+  const match = readFileSync(filepath, "utf-8").match(/\*\*Release Date\*\*:\s*(.+)/i);
+  const parsed = match ? Date.parse(match[1].trim()) : NaN;
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function maxDateInCsv(csvText) {
+  const rows = parseCsvRows(csvText);
+  const dateIdx = (rows[0] ?? []).indexOf("Date");
+  let max = 0;
+
+  for (const values of rows.slice(1)) {
+    const parsed = Date.parse(values[dateIdx] ?? "");
+    if (!Number.isNaN(parsed) && parsed > max) max = parsed;
+  }
+
+  return max;
+}
+
 function maxVersionInCsv(csvText) {
   const rows = parseCsvRows(csvText);
   const headers = rows[0] ?? [];
@@ -332,12 +361,27 @@ export function exportChangelogToMarketingSite(options = {}) {
   const csvText = readFileSync(csvPath, "utf-8").trimEnd();
   const seen = loadExistingFingerprints(csvText);
   const minVersion = backfill ? maxVersionInCsv(csvText) : null;
+  const minDate = backfill ? maxDateInCsv(csvText) - BACKFILL_RECOVERY_MS : null;
 
   const files = listChangelogFiles(changelogDir).filter((filepath) => {
     const v = basename(filepath, ".md");
     if (version) return v === version;
     // >= so a new Changelog/2.0.3.md still exports when legacy 2.0.3 rows exist in CSV.
-    if (backfill && minVersion) return compareSemver(v, minVersion) >= 0;
+    if (backfill && minVersion) {
+      if (compareSemver(v, minVersion) >= 0) return true;
+      /*
+        A branch cut before main moved on merges with version numbers already
+        below the mark, and the mark only ever goes up — so those files were
+        skipped permanently rather than late. That is how 3.3.3 through 3.3.11
+        (the whole Reminders release) never reached the site: 3.4.0 shipped
+        from another branch and synced first, and nine rows fell under it.
+
+        Dates are monotonic across branches where version numbers are not, so
+        the recovery window is a date. The row fingerprint still decides what
+        is actually new, and this only widens what gets considered.
+      */
+      return releaseDateOf(filepath) >= minDate;
+    }
     return false;
   });
 
