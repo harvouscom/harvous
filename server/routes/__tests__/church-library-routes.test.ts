@@ -256,6 +256,7 @@ describe('suggestion box', () => {
     for (const marker of [
       "app.post('/api/church/library/suggestions/create'",
       "app.get('/api/church/library/suggestions/mine'",
+      "app.post('/api/church/library/suggestions/withdraw'",
     ]) {
       const body = handlerBody(suggestions(), marker);
       expect(body, marker).not.toMatch(/c\.req\.query\(['"]orgId/);
@@ -326,6 +327,35 @@ describe('suggestion box', () => {
     const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/review'");
     expect(body).toContain('ALREADY_REVIEWED');
     expect(body).toMatch(/status !== 'open'/);
+  });
+
+  it('lets someone take back only their own, and only while it waits', () => {
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/withdraw'");
+    // All four in the query. Filtering after the fact is how a delete reaches a
+    // row that was never the caller's.
+    expect(body).toContain('eq(LibraryItemSuggestions.suggestedByUserId, auth.userId)');
+    expect(body).toContain("eq(LibraryItemSuggestions.status, 'open')");
+    expect(body).toContain('eq(LibraryItemSuggestions.churchId, viewer.church.id)');
+    expect(body).toContain('db\n      .delete(LibraryItemSuggestions)');
+  });
+
+  it('will not delete a suggestion that has been decided', () => {
+    // An approved one has a library item behind it; a delete here orphans it.
+    // A declined one is the church's record of what was asked.
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/withdraw'");
+    expect(body).not.toMatch(/status, 'approved'/);
+    expect(body).not.toMatch(/status, 'declined'/);
+  });
+
+  it('answers a withdraw the same way whoever asks', () => {
+    // Never yours, already decided, or never existed all read as not found, so
+    // a probe cannot tell them apart.
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/withdraw'");
+    expect(body.match(/SUGGESTION_NOT_FOUND/g)?.length).toBeGreaterThanOrEqual(2);
+    /* The emitted key, not the word — a handler slice runs to the next `app.`
+       and picks up the following docblock, which names the field it explains.
+       The same trap the attribution test above documents. */
+    expect(body).not.toContain('suggestedByName:');
   });
 
   it('marks read on reading, not on deciding', () => {
