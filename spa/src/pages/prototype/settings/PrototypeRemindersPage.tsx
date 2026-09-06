@@ -18,12 +18,15 @@ import { getInstallPlatform } from '@/utils/platform-detect';
 import {
   DEFAULT_REMINDER_SETTINGS,
   MIDWEEK_DAYS,
+  REMINDER_CADENCES,
   REMINDER_HOUR_MAX,
   REMINDER_HOUR_MIN,
   formatReminderHour,
   midweekDayLabel,
   parseReminderSettings,
+  reminderCadenceLabel,
   type MidweekDay,
+  type ReminderCadence,
   type ReminderSettings,
 } from '@/utils/reminder-settings';
 import { api } from '../../../lib/api';
@@ -102,6 +105,48 @@ function ToggleRow({
           <span className="proto-fte-switch__thumb" />
         </span>
       </span>
+    </div>
+  );
+}
+
+function CadenceSegmented({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: ReminderCadence;
+  disabled: boolean;
+  onChange: (cadence: ReminderCadence) => void;
+}) {
+  const activeIndex = Math.max(0, REMINDER_CADENCES.indexOf(value));
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div
+        className="proto-appearance-segmented proto-seg-track"
+        role="radiogroup"
+        aria-label="How often"
+        style={
+          {
+            '--proto-seg-count': REMINDER_CADENCES.length,
+            '--proto-seg-index': activeIndex,
+            opacity: disabled ? 0.5 : 1,
+            pointerEvents: disabled ? 'none' : undefined,
+          } as CSSProperties
+        }
+      >
+        {REMINDER_CADENCES.map((cadence) => (
+          <button
+            key={cadence}
+            type="button"
+            role="radio"
+            aria-checked={value === cadence}
+            className={`proto-appearance-segmented__btn${value === cadence ? ' proto-appearance-segmented__btn--active' : ''}`}
+            onClick={() => onChange(cadence)}
+          >
+            {reminderCadenceLabel(cadence)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -291,7 +336,7 @@ export default function PrototypeRemindersPage() {
   return (
     <SettingsShell>
       <SettingsIntro>
-        Sunday morning and midweek, carrying the day&rsquo;s verse or where you left off.
+        A nudge carrying the day&rsquo;s verse or where you left off, at a rhythm you pick.
       </SettingsIntro>
 
       {support === 'unsupported' ? (
@@ -398,29 +443,50 @@ export default function PrototypeRemindersPage() {
         ) : null}
       </div>
 
-      <SettingsGroup>
-        <ToggleRow
-          label="Sunday morning"
-          sublabel="Before church, with the day's verse."
-          checked={settings.sunday}
-          disabled={scheduleDisabled}
-          onChange={(sunday) => save({ ...settings, sunday })}
-        />
-        <ToggleRow
-          label="Midweek"
-          sublabel={`On ${midweekDayLabel(settings.midweekDay)}.`}
-          checked={settings.midweek}
-          disabled={scheduleDisabled}
-          onChange={(midweek) => save({ ...settings, midweek })}
-        />
-        {settings.midweek ? (
-          <DaySegmented
-            value={settings.midweekDay}
+      {/*
+        A rhythm, chosen once — not switches that stack.
+        The two days below belong to the twice-weekly rhythm, so daily hides them rather than
+        showing controls that no longer decide anything.
+      */}
+      <CadenceSegmented
+        value={settings.cadence}
+        disabled={scheduleDisabled}
+        onChange={(cadence) => save({ ...settings, cadence })}
+      />
+
+      {settings.cadence === 'twice-weekly' ? (
+        <SettingsGroup>
+          <ToggleRow
+            label="Sunday morning"
+            sublabel="Before church, with the day's verse."
+            checked={settings.sunday}
             disabled={scheduleDisabled}
-            onChange={(midweekDay) => save({ ...settings, midweekDay })}
+            onChange={(sunday) => save({ ...settings, sunday })}
           />
-        ) : null}
-      </SettingsGroup>
+          <ToggleRow
+            label="Midweek"
+            sublabel={`On ${midweekDayLabel(settings.midweekDay)}.`}
+            checked={settings.midweek}
+            disabled={scheduleDisabled}
+            onChange={(midweek) => save({ ...settings, midweek })}
+          />
+          {settings.midweek ? (
+            <DaySegmented
+              value={settings.midweekDay}
+              disabled={scheduleDisabled}
+              onChange={(midweekDay) => save({ ...settings, midweekDay })}
+            />
+          ) : null}
+        </SettingsGroup>
+      ) : (
+        <SettingsGroup>
+          <SettingsRow
+            label="The day's passage, every morning"
+            sublabel="The same verse the app opens with."
+            trailing="none"
+          />
+        </SettingsGroup>
+      )}
 
       <SettingsGroup>
         <div className="proto-note-row proto-note-row--static">
@@ -476,8 +542,9 @@ export default function PrototypeRemindersPage() {
 
       <p className="pds-caption" style={{ color: 'var(--pds-text-secondary)', margin: '4px 2px 0' }}>
         {status?.recentSummary ? `${status.recentSummary}. ` : ''}
-        Never more than two a week. You won&rsquo;t get one on a day you have already opened
-        Harvous, and reminders pause themselves if they go unopened.
+        {settings.cadence === 'daily' ? 'One a day at most. ' : 'Never more than two a week. '}
+        You won&rsquo;t get one on a day you have already opened Harvous, and reminders pause
+        themselves if they go unopened.
       </p>
 
       <PrototypeInstallWebAppSheet open={sheetOpen} onClose={() => setSheetOpen(false)} platform={platform} />
