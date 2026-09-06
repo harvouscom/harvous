@@ -1234,26 +1234,42 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
    */
 
   /*
-   * The chip takes its turn in the row instead of lying across it.
+   * A three-track grid, so the chip is centred on the row *and* bounded by it.
    *
-   * Centring it absolutely keeps it optically centred on the window, which is right when
-   * there is room — but it is centred on the *window*, not on the space actually left over,
-   * so it cannot know how wide the button groups beside it have grown. Each orb added to the
-   * left pushes that group further under a chip that has not moved, and the two overlap
-   * rather than the chip giving way. Measured at 375px: a 36px overlap, the chip sitting on
-   * top of the last orb.
+   * Two earlier attempts, each fixing the other's failure. Absolute centring is optically
+   * right — the chip sits on the middle of the window — but it is positioned against the
+   * window rather than the space left over, so it cannot know how wide the button groups
+   * beside it have grown. Each orb added to the left slid that group under a chip that had
+   * not moved: measured at 375px, a 36px overlap with the chip on top of the last orb. Making
+   * it an ordinary flex item fixed the overlap and lost the centring, because a flex item is
+   * centred in the gap its neighbours leave, and the two groups are not the same width — a
+   * 105px group on the left against 30px on the right pushes the chip visibly off-centre.
    *
-   * As a flex item it is bounded by its neighbours, so it truncates instead — which is what
-   * it was always built to do (`flex-shrink: 1`, `overflow: hidden`) and never got the chance
-   * to. Only here: above this width the absolute centring has room and looks better.
+   * `1fr auto 1fr` gives both. The middle track is centred on the full row because the side
+   * tracks are equal by construction, whatever they contain, and tracks cannot overlap — so
+   * when the row runs out of room the chip truncates, which is what it was always built to do
+   * (`flex-shrink: 1`, `overflow: hidden`).
    */
+  .proto-toolbar-inner {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+  }
+
+  .proto-toolbar-left {
+    justify-self: start;
+  }
+
+  .proto-toolbar-right {
+    justify-self: end;
+  }
+
   .proto-toolbar-center {
     position: static;
     transform: none;
-    flex: 1 1 auto;
-    max-width: none;
-    /* The row's own gap now does this work; without it the chip sits tight against the orbs. */
-    margin: 0 4px;
+    justify-self: center;
+    /* Lets the chip shrink inside its track rather than forcing the track wider. */
+    min-width: 0;
+    max-width: 100%;
   }
 
 }
@@ -10268,6 +10284,12 @@ button.proto-appearance-hero__card {
   display: flex;
   flex-direction: row;
   align-items: stretch;
+  /*
+   * Wrap rather than squeeze. Side by side while both labels fit, stacked and centred when
+   * they do not — "See release notes" is the longer of the pair and was the one that lost.
+   */
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--pds-space-2);
   width: 100%;
   max-width: 400px;
@@ -10277,8 +10299,14 @@ button.proto-appearance-hero__card {
 
 .proto-welcome3__cta,
 .proto-welcome3__secondary {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 auto;
+  /*
+   * Never narrower than its own label. With `min-width: 0` these shrank past their text, and
+   * because the text is `nowrap` it had nowhere to go and was clipped mid-word on a narrow
+   * phone. At `max-content` the button keeps its label and the row wraps instead, which is
+   * the honest thing for two buttons that cannot both fit.
+   */
+  min-width: max-content;
   min-height: 44px;
   padding: 0 var(--pds-space-3);
   border-radius: var(--pds-radius-button);
@@ -18402,6 +18430,30 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
        `--pds-reader-text-inset`, restated so it reads the narrow gutter above rather than
        the 28px default it would otherwise keep. */
     --pds-reader-text-inset: calc(var(--pds-reader-gutter) + var(--pds-space-1));
+    padding: var(--pds-editor-paper-padding-top-narrow) var(--pds-reader-paper-padding-x)
+      var(--pds-editor-paper-padding-bottom);
+  }
+}
+
+/*
+ * The step the reader was missing.
+ *
+ * The note editor has three: full padding, narrow at 640, and compact at 480 where it also
+ * drops its type. The reader stopped at 640, so a phone-width chapter kept a padding tier the
+ * editor had already left behind two breakpoints ago — the same document surface behaving
+ * differently depending on which of the two you happened to open.
+ *
+ * The gutter is deliberately not tightened again here. It reserves the margin-bar lane, three
+ * lanes at a 7px pitch, and the 20px above is already the floor that fits them; taking it
+ * further would put the bars back through the first words of the lines they mark, which is
+ * the failure the block above exists to record. What is left to give is the paper's own
+ * padding, which is what was asked for.
+ */
+@container pds-reader-scroll (max-width: 480px) {
+  .pds-reader__column {
+    --pds-reader-paper-padding-x: var(--pds-editor-paper-padding-x-compact);
+    /* Scales the reader's own S/M/L choice rather than replacing it — see `.pds-reader-text`. */
+    --pds-reader-font-scale: 0.9;
     padding: var(--pds-editor-paper-padding-top-narrow) var(--pds-reader-paper-padding-x)
       var(--pds-editor-paper-padding-bottom);
   }

@@ -1597,7 +1597,16 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
    re-sets one variable rather than swapping classes. */
 .pds-reader-text {
   font-family: var(--pds-font-reading);
-  font-size: var(--pds-reader-font-size);
+  /*
+   * The reader's chosen size, scaled — never replaced.
+   *
+   * Unlike the note editor, which drops to a flat 15px on a narrow pane, reading size here is
+   * a preference the reader set themselves (S/M/L writes `--pds-reader-font-size`). Hardcoding
+   * a size for narrow panes would quietly overrule that choice, so the responsive step is a
+   * multiplier instead, and the floor is the smallest size the control itself offers: a narrow
+   * pane may bring someone down toward their own minimum, never past it.
+   */
+  font-size: max(15px, calc(var(--pds-reader-font-size) * var(--pds-reader-font-scale, 1)));
   font-weight: 400;
   /* `none` would leave a static face with no bold at all; the optional reading faces are
      not variable, so let the browser synthesise weight where the family lacks it. */
