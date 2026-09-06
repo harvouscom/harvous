@@ -343,6 +343,35 @@ export function useSuggestLibraryItem() {
 }
 
 /**
+ * Staff have looked at the queue. Clears the unread count, changes nothing else.
+ *
+ * Separate from reviewing on purpose: seeing a suggestion is not deciding it,
+ * and a badge that only cleared on a decision would sit there counting the
+ * queue back at whoever had just read it.
+ */
+export function useMarkLibrarySuggestionsRead(orgId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const trimmed = orgId?.trim() || null;
+
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ success: boolean }>('/api/church/library/suggestions/mark-read', {
+        orgId: trimmed,
+      }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['library', 'suggestions', 'queue'] });
+    },
+  });
+}
+
+/** How many waiting suggestions staff have not seen yet. */
+export function unreadLibrarySuggestionCount(
+  suggestions: readonly Pick<LibrarySuggestionForReview, 'status' | 'staffReadAt'>[] | undefined,
+): number {
+  return (suggestions ?? []).filter((row) => row.status === 'open' && !row.staffReadAt).length;
+}
+
+/**
  * Approve or decline. Approving creates the item, so the catalog reads are
  * invalidated too — the new row has to appear where the reviewer expects it.
  */

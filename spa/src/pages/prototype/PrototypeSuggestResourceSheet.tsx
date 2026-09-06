@@ -15,13 +15,34 @@ import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
 import { APIError } from '../../lib/api';
-import { useSuggestLibraryItem } from '../../hooks/queries/useChurchLibrary';
+import {
+  useMyLibrarySuggestions,
+  useSuggestLibraryItem,
+  type MyLibrarySuggestion,
+} from '../../hooks/queries/useChurchLibrary';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { useSheetPresentation } from './design-system/useSheetPresentation';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
+
+const MINE_STATUS_LABEL: Record<MyLibrarySuggestion['status'], string> = {
+  open: 'Waiting',
+  approved: 'Added to the library',
+  declined: 'Not added',
+};
+
+function relativeDay(iso: string | null): string {
+  if (!iso) return '';
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return '';
+  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 export default function PrototypeSuggestResourceSheet({
   open,
@@ -35,11 +56,24 @@ export default function PrototypeSuggestResourceSheet({
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const suggest = useSuggestLibraryItem();
+  /*
+    What you sent, and what became of it.
+
+    The endpoint and this hook shipped with the suggestion box and had no
+    caller, so a congregant sent a link into silence: no confirmation it was
+    still waiting, and no word when it was added or turned down. The queue told
+    staff everything and the person who asked nothing.
+  */
+  const mine = useMyLibrarySuggestions();
 
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  /* Five is enough to answer "what happened to mine" without the sheet
+     becoming a history page; the endpoint returns up to fifty. */
+  const mineRows = (mine.data?.suggestions ?? []).slice(0, 5);
 
   const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
@@ -169,6 +203,42 @@ export default function PrototypeSuggestResourceSheet({
         <p className="proto-connect-note-sheet__error" role="alert">
           {error}
         </p>
+      ) : null}
+
+      {/* Shown under the form and under the confirmation alike: the answer to
+          "did that go anywhere" is the same question either way. */}
+      {mineRows.length > 0 ? (
+        <div className="proto-suggest-mine">
+          <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+            What you have sent
+          </p>
+          <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+            {mineRows.map((row) => (
+              <div
+                key={row.id}
+                className="proto-church-tools__row proto-church-tools__row--status"
+              >
+                <span className="proto-church-tools__row-icon" aria-hidden>
+                  <Icon name={row.status === 'approved' ? 'check' : 'inbox'} size={13} />
+                </span>
+                <span className="proto-church-tools__row-text">
+                  <span
+                    className="pds-list-title proto-church-tools__row-title proto-marquee"
+                    title={row.title ?? row.url}
+                  >
+                    <span>{row.title ?? row.url}</span>
+                  </span>
+                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
+                    {MINE_STATUS_LABEL[row.status]}
+                    {relativeDay(row.reviewedAt ?? row.createdAt)
+                      ? ` · ${relativeDay(row.reviewedAt ?? row.createdAt)}`
+                      : ''}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       <div className="proto-add-notes-sheet__footer proto-sheet-footer--stacked">

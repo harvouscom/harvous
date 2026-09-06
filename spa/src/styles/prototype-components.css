@@ -7406,6 +7406,62 @@ button.proto-home-card--tappable:focus-visible {
   border-radius: 4px;
 }
 
+/* A count on a chip — how many suggestions staff have not read yet. Sized from
+   the chip's own text so it stays a badge rather than becoming a second label,
+   and tabular so a two-digit count does not shift the chip's width mid-glance. */
+.proto-chip__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--pds-accent, var(--pds-text-primary));
+  color: var(--pds-bg-page);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* What a congregant has sent, under the form they sent it from.
+
+   Padded to the sheet's own 14px column, because it is a sibling of the form
+   rather than a child of it: without this it ran full-bleed and its rows were
+   clipped by the sheet's edges while every label above them stayed inset.
+
+   The rule spans the full width on purpose, matching the footer's own border
+   under it — the divide is the sheet's, not the section's. */
+.proto-suggest-mine {
+  padding: 12px 14px 0;
+  border-top: 0.5px solid var(--pds-border-control);
+}
+
+/* One surface, not two.
+
+   `proto-church-tools` paints a glass panel because on a page it is a card
+   lying on the background. In here the sheet is already that card, so the
+   panel was a second rounded fill inset inside the first, with its own border
+   and shadow. The rows keep every one of their own styles; only the box they
+   arrived in loses its. Same treatment the space Tools popover gives it. */
+.proto-suggest-mine .proto-church-tools {
+  background: none;
+  background-image: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* The row then supplies its own left edge, since the panel is no longer
+   indenting it. */
+.proto-suggest-mine .proto-church-tools__row {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 /* ── Add to home screen — platform toggle, then steps that look like steps ──
    The list used to be prose in an <ol>, which read as a paragraph with numbers.
    Each step is a row now: a marker, the instruction, and the glyph of the
@@ -23356,6 +23412,23 @@ button.proto-feed-sheet__stat:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+/* One surface, not two — the same fix the church suggestion sheet needed. Both
+   of these row lists arrive wearing a glass panel, which is right on a page and
+   wrong inside a sheet that is already the card. */
+.proto-space-suggestions .proto-church-tools {
+  background: none;
+  background-image: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.proto-space-suggestions .proto-church-tools__row {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* Same reason as the library queue: inline beside the row, the quiet action
