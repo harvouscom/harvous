@@ -35,6 +35,7 @@ import {
   first,
 } from '../db';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
+import { safeRenderHtml } from '@/utils/content-renderer';
 import { findPersonalLibrary } from './ensure-personal-library';
 
 /**
@@ -150,6 +151,32 @@ export function excerptOf(html: string): string {
   return stripHtmlForPreview(spaced, EXCERPT_MAX_LENGTH).replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * How much of a body a listing carries.
+ *
+ * The fade is what makes a cap free: a bounded body is invisible under a
+ * gradient, so cutting here costs nothing on screen while keeping rows small,
+ * the export small, and the static build fast. Cut on a tag boundary rather
+ * than mid-attribute, then let the sanitizer close whatever is left open.
+ */
+export const BODY_HTML_MAX_LENGTH = 4000;
+
+/**
+ * The body a public page renders, sanitized.
+ *
+ * This is the one place a listing's actual writing becomes public, so it is
+ * sanitized on the way in — `safeRenderHtml` is DOMPurify (isomorphic, so it
+ * runs here), which strips scripts, event handlers and `javascript:` URLs while
+ * keeping the `data-*` attributes scripture pills depend on. `serializePublic`
+ * sanitizes again on the way out; two passes cost one dependency and mean the
+ * website needs no sanitizer of its own.
+ */
+export function bodyHtmlOf(html: string): string {
+  if (!html) return '';
+  const cut = html.length > BODY_HTML_MAX_LENGTH ? html.slice(0, BODY_HTML_MAX_LENGTH) : html;
+  return safeRenderHtml(cut);
+}
+
 function tooBig(payload: string): boolean {
   return Buffer.byteLength(payload, 'utf8') > MAX_PAYLOAD_BYTES;
 }
@@ -243,6 +270,10 @@ export async function snapshotTemplate(templateId: string, userId: string): Prom
         iconColor: template.iconColor,
         headings: headingsOf(template.content),
         excerpt: excerptOf(template.content),
+        /* A template's body is its scaffold — headings and the instructions
+           under them. The page draws it as an empty form rather than fading it,
+           because there is nothing being held back. */
+        bodyHtml: bodyHtmlOf(template.content),
       }),
       sourceVersionId: null,
     },
@@ -328,6 +359,9 @@ export async function snapshotNote(noteId: string, userId: string): Promise<Snap
       preview: JSON.stringify({
         headings: headingsOf(note.content),
         excerpt: excerptOf(note.content),
+        /* So a scripture note is not drawn as a plain one. */
+        noteType: note.noteType || 'default',
+        bodyHtml: bodyHtmlOf(note.content),
       }),
       sourceVersionId: note.currentVersionId ?? null,
     },
@@ -524,6 +558,13 @@ export async function snapshotPack(threadId: string, userId: string): Promise<Sn
           .filter((t): t is string => Boolean(t))
           .slice(0, PREVIEW_TITLES_MAX),
         excerpt: excerptOf(firstBody),
+        /* The Thread's own colour. It is in `payload.thread.color`, but that is
+           never public — and the colour stripe is the existing house idiom for
+           "a Thread on a public page". */
+        color: thread.color || 'paper',
+        /* Only the first note's body: the page renders it in full and lists the
+           rest by title, so it stays a page whether the Thread holds 4 or 100. */
+        bodyHtml: bodyHtmlOf(firstBody),
       }),
       sourceVersionId: null,
     },
@@ -592,6 +633,9 @@ export async function snapshotResource(itemId: string, userId: string): Promise<
       preview: JSON.stringify({
         sourceDomain: item.sourceDomain ?? null,
         sourceSiteName: item.sourceSiteName ?? null,
+        /* Without it there is no link card at all — the image is most of what a
+           link looks like in this app. */
+        sourceImage: item.sourceImage ?? null,
         excerpt: (item.description ?? '').slice(0, EXCERPT_MAX_LENGTH),
       }),
       sourceVersionId: null,

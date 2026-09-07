@@ -36,6 +36,17 @@ export type DiscoverTemplatePreview = {
   headings?: string[];
   titles?: string[];
   noteCount?: number;
+  /** The Thread's own colour, for the stripe that says it is a Thread. */
+  color?: string | null;
+  /** So a scripture note is not drawn as a plain one. */
+  noteType?: string | null;
+  sourceImage?: string | null;
+  /**
+   * The artifact itself, sanitized and capped — what a listing page renders
+   * behind its fade. Absent on rows written before it existed, and on links,
+   * which have no body; a page falls back to the outline in that case.
+   */
+  bodyHtml?: string;
   sourceDomain?: string | null;
   sourceSiteName?: string | null;
   excerpt?: string;

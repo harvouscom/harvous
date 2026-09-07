@@ -66,7 +66,7 @@ describe('discover routes', () => {
     expect(body).not.toContain('serializeMine');
   });
 
-  it('never lets a public serializer emit review state, the submitter, or the payload', () => {
+  it('never lets a public serializer emit review state or the submitter', () => {
     const text = routes();
     const start = text.indexOf('function serializePublic');
     const publicSerializer = text.slice(start, text.indexOf('\nfunction ', start + 1));
@@ -81,13 +81,57 @@ describe('discover routes', () => {
     }
   });
 
-  it('hands over the payload only on install — browsing is not reading', () => {
+  it('keeps `payload` private even though the body is now public', () => {
+    /*
+      A deliberate reversal, recorded here so the next reader does not take it
+      for a regression. This used to assert that nothing of the artifact reached
+      a public route at all. Listing pages now render the thing behind a fade
+      with the CTA over it, so the body has to reach the static site — that is
+      the point of a catalog whose pages are meant to rank.
+
+      What did not change: `payload` carries `sourceId` and `sourceVersionId`
+      provenance no reader needs, so it stays out. The body travels in
+      `preview.bodyHtml`, sanitized on write and again on read.
+    */
     for (const marker of PUBLIC_HANDLERS) {
       const body = handlerBody(routes(), marker);
       for (const access of ['row.payload', 'listing.payload', 'DiscoverListings.payload']) {
         expect(body, `${marker} reads ${access}`).not.toContain(access);
       }
     }
+  });
+
+  it('sanitizes the public body on the way out as well as the way in', () => {
+    // Two passes, one dependency. The write pass cannot cover a row written
+    // before it existed, and harvous.com renders this string with `set:html`
+    // and no sanitizer of its own.
+    const text = routes();
+    expect(text).toContain('function sanitizePreviewBody');
+    expect(text).toContain('safeRenderHtml(body)');
+    const start = text.indexOf('function serializePublic');
+    const publicSerializer = text.slice(start, text.indexOf('\nfunction ', start + 1));
+    expect(publicSerializer, 'serializePublic emits an unsanitized preview').toContain(
+      'sanitizePreviewBody(parsePreview(row.preview))',
+    );
+  });
+
+  it('sanitizes and caps the body at snapshot time', () => {
+    const text = snapshot();
+    expect(text).toContain('safeRenderHtml(cut)');
+    expect(text).toContain('BODY_HTML_MAX_LENGTH');
+    // Every kind that has a body carries one; a resource has none to carry.
+    expect(text).toContain('bodyHtml: bodyHtmlOf(template.content)');
+    expect(text).toContain('bodyHtml: bodyHtmlOf(note.content)');
+    expect(text).toContain('bodyHtml: bodyHtmlOf(firstBody)');
+  });
+
+  it('carries what each kind needs to be drawn as itself', () => {
+    // A Thread without its colour cannot wear the stripe that says it is a
+    // Thread; a link without its image is not a link card.
+    const text = snapshot();
+    expect(text).toContain("color: thread.color || 'paper'");
+    expect(text).toContain('sourceImage: item.sourceImage ?? null');
+    expect(text).toContain("noteType: note.noteType || 'default'");
   });
 
   it.each(ADMIN_HANDLERS)('%s gates on requireHarvousAdmin before touching the database', (marker) => {
