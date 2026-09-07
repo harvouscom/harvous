@@ -11,6 +11,8 @@
  * back to the notes for everyone before most readers had seen the sheet at all.
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { opensWelcomeSheet } from '../PrototypeWhatsNewPill';
 
 describe('opensWelcomeSheet', () => {
@@ -40,5 +42,34 @@ describe('opensWelcomeSheet', () => {
    */
   it.each([undefined, null, ''])('answers false for an unknown version (%s)', (version) => {
     expect(opensWelcomeSheet(version)).toBe(false);
+  });
+});
+
+/**
+ * The row has one destination, and the row's own title is what names it.
+ *
+ * The three reports were all of the row "going to the release notes", and all three times the
+ * row was correct — an unlabelled 12px eye in its trailing slot, shown only during 3.x, was the
+ * thing being pressed. Two destinations a few pixels apart, one of them named only by a glyph.
+ *
+ * Source-inspected because the seam is JSX structure rather than a value, and the point is not
+ * how it renders but that the second destination is gone. The release notes are still reachable:
+ * the sheet the row opens offers them in words.
+ */
+describe('the row itself', () => {
+  const source = readFileSync(
+    join(process.cwd(), 'spa/src/pages/prototype/PrototypeWhatsNewPill.tsx'),
+    'utf8',
+  );
+  const trailing = source.slice(source.indexOf('trailing={'), source.indexOf('    />'));
+
+  it('offers nothing in its trailing slot but dismiss', () => {
+    expect(trailing).toContain("aria-label=\"Dismiss what's new\"");
+    expect(trailing.match(/aria-label=/g) ?? []).toHaveLength(1);
+  });
+
+  it('never puts a release-notes control beside the dismiss cross', () => {
+    expect(trailing).not.toContain('Read the release notes');
+    expect(trailing).not.toContain('openNotes');
   });
 });

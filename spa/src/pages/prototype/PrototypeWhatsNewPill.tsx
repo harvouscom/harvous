@@ -133,31 +133,32 @@ export default function PrototypeWhatsNewPill() {
       title="What's new in Harvous"
       aria-label={showsWelcomeSheet ? 'See what is new in Harvous 3' : 'Read the release notes'}
       onClick={open}
+      /*
+       * Dismiss only. There used to be an eye beside it, shown during 3.x, that opened the
+       * release notes — offered as a shortcut on the one release where the row itself goes
+       * somewhere else.
+       *
+       * It was reported three times as "what's new goes to the release notes", and each time
+       * the row was investigated and found correct, because it is: the row opens the sheet.
+       * The eye was the thing being pressed. A 12px glyph with no label, sitting against the
+       * dismiss cross, reads as part of that cross's furniture rather than as a second
+       * destination — so a row that says one thing had two answers depending on which half of
+       * a few pixels you hit.
+       *
+       * Nothing is lost by removing it. The sheet it opens carries "See release notes" as its
+       * own secondary button, spelled out in words, one click further on. That is the same
+       * journey with the destination named rather than guessed at.
+       */
       trailing={
-        <>
-          {/* Only where the row itself goes somewhere else. On every other release the row is
-              already the notes, and this would be a button that repeats it. */}
-          {showsWelcomeSheet ? (
-            <button
-              type="button"
-              className="proto-side-panel__action-btn"
-              aria-label="Read the release notes"
-              title="Release notes"
-              onClick={openNotes}
-            >
-              <Icon name="eye" size={12} aria-hidden />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="proto-side-panel__action-btn"
-            aria-label="Dismiss what's new"
-            title="Not now"
-            onClick={dismiss}
-          >
-            <Icon name="xmark" size={12} aria-hidden />
-          </button>
-        </>
+        <button
+          type="button"
+          className="proto-side-panel__action-btn"
+          aria-label="Dismiss what's new"
+          title="Not now"
+          onClick={dismiss}
+        >
+          <Icon name="xmark" size={12} aria-hidden />
+        </button>
       }
     />
   );
