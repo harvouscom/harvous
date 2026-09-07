@@ -632,12 +632,6 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/AdminSupportPage')),
   });
 
-  const prototypeDiscoverRoute = createRoute({
-    getParentRoute: () => simplifiedPrototypeRoute,
-    path: 'discover',
-    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeDiscoverPage')),
-  });
-
   const prototypeAdminDiscoverRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'admin/discover',
@@ -677,7 +671,6 @@ function buildPrototypeRouteBranch() {
     prototypeAdminPublishRoute,
     prototypeAdminMaintenanceRoute,
     prototypeAdminSupportRoute,
-    prototypeDiscoverRoute,
     prototypeAdminDiscoverRoute,
     prototypeAdminVotdRoute,
     prototypeAdminChurchesRoute,

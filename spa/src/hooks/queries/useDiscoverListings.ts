@@ -22,10 +22,20 @@ export type DiscoverListing = {
   listedAt: string | Date | null;
 };
 
-/** The structure of a template without its prose — headings are the scaffold. */
+/**
+ * The shape of a listing without its body — enough to decide, never enough to
+ * read. One type across kinds, because a row renders whichever fields are there:
+ * a template has `headings`, a series has `titles` and `noteCount`, a link has
+ * its domain. Kept in step with `DiscoverPreview` in harvous.com's
+ * `src/lib/discover-data.ts`, which reads the same JSON.
+ */
 export type DiscoverTemplatePreview = {
   titleTemplate?: string | null;
   headings?: string[];
+  titles?: string[];
+  noteCount?: number;
+  sourceDomain?: string | null;
+  sourceSiteName?: string | null;
   excerpt?: string;
 };
 

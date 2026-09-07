@@ -15,11 +15,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { getNavAvatarInitials, resolveProfileFullName } from '@/utils/nav-avatar-initials';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
-import {
-  prototypeDiscoverRouteTo,
-  prototypeSettingsAccountRouteTo,
-  prototypeSettingsRouteTo,
-} from '@/lib/prototype-path';
+import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile';
@@ -38,7 +34,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.searchStr });
-  const { isMobileSidebar } = useProtoShell();
+  const { isMobileSidebar, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   const { data: profile } = useProfile();
   const queryClient = useQueryClient();
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
@@ -167,9 +163,17 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               type="button"
               role="menuitem"
               className="proto-menu-item"
-              onClick={() => {
+              onClick={(e) => {
                 setOpen(false);
-                void navigate({ to: prototypeDiscoverRouteTo() });
+                // Grows out of the row that asked for it, like every other tool.
+                const rect = e.currentTarget.getBoundingClientRect();
+                ensureSidebarExpanded();
+                openExpandedSidebar('discover', {
+                  top: rect.top,
+                  left: rect.left,
+                  width: rect.width,
+                  height: rect.height,
+                });
               }}
             >
               <span className="proto-menu-item__icon" aria-hidden>

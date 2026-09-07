@@ -21,7 +21,6 @@ import { clearPendingAuthRedirect, writePendingAuthRedirect } from '../../lib/pe
 import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMutations';
 import type { DiscoverListing } from '../../hooks/queries/useDiscoverListings';
 import { PublicTopBar, PublicErrorState } from './public-shared';
-import { prototypeDiscoverRouteTo } from '@/lib/prototype-path';
 import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
 
 const PENDING_KEY = 'pendingDiscoverInstall';
@@ -64,13 +63,17 @@ export default function PublicDiscoverListingPage() {
       } catch {
         /* ignore */
       }
-      /* Land on the thing they just took when there is one to open; otherwise
-         the catalog, which is where a template or a link goes. */
+      /* Land on the thing they just took when there is one to open. A template
+         or a link has no page of its own — it is now in their picker or their
+         library — so the confirmation above is the whole answer and this page
+         stays put rather than dumping them somewhere unrelated. */
       const noteId = result.createdIds?.noteId;
-      const destination = noteId ? noteUrlForCurrentSurface(noteId) : prototypeDiscoverRouteTo();
-      window.setTimeout(() => {
-        void navigate({ to: destination as never });
-      }, 900);
+      if (noteId) {
+        const destination = noteUrlForCurrentSurface(noteId);
+        window.setTimeout(() => {
+          void navigate({ to: destination as never });
+        }, 900);
+      }
     } catch (error) {
       startedRef.current = false;
       setStatus('error');
@@ -116,51 +119,108 @@ export default function PublicDiscoverListingPage() {
     });
   }
 
-  if (status === 'error' && !listing) {
-    return (
-      <>
-        <PublicTopBar isSignedIn={Boolean(isSignedIn)} />
-        <PublicErrorState
-          title="We couldn't find that"
-          message="It may have been taken back by whoever shared it."
-        />
-      </>
-    );
-  }
+  const kindNoun =
+    listing?.kind === 'pack' ? 'series' : listing?.kind === 'note' ? 'study' : listing?.kind === 'resource' ? 'link' : 'starter';
+  /* The structure is the honest preview of a starter and the note titles are the
+     honest preview of a series. Neither is the body — taking a copy is what hands
+     that over. */
+  const outline: string[] = listing?.preview?.headings ?? listing?.preview?.titles ?? [];
 
   return (
     <>
-      <PublicTopBar isSignedIn={Boolean(isSignedIn)} />
-      <div className="public-shared-note">
-        <div className="public-shared-note__card">
-          <h1 className="public-shared-note__title">{listing?.title ?? 'Loading…'}</h1>
-          {listing?.description ? (
-            <p className="public-shared-note__meta">{listing.description}</p>
-          ) : null}
-          {listing?.authorDisplayName ? (
-            <p className="public-shared-note__meta">Shared by {listing.authorDisplayName}</p>
-          ) : null}
+      {listing ? <title>{`${listing.title} | Harvous`}</title> : null}
+      <div className="public-page">
+        <PublicTopBar isSignedIn={Boolean(isSignedIn)} />
 
-          {status === 'done' ? (
-            <p className="public-shared-note__meta">Saved. Taking you to it…</p>
-          ) : status === 'already' ? (
-            <p className="public-shared-note__meta">This is already in your Harvous.</p>
-          ) : (
-            <button
-              type="button"
-              className="proto-share-popover__primary"
-              disabled={status === 'installing' || status === 'loading'}
-              onClick={handlePress}
-            >
-              {status === 'installing' ? 'Saving…' : 'Save this to my Harvous'}
-            </button>
-          )}
+        <div className="public-body">
+          <div className="public-content">
+            {status === 'loading' ? (
+              <div className="page-loading" />
+            ) : !listing ? (
+              <PublicErrorState
+                title="This isn't available"
+                message="We can't find this one. It may have been taken back by whoever shared it."
+              />
+            ) : (
+              <>
+                <p className="public-creator">
+                  {listing.authorDisplayName
+                    ? `A ${kindNoun} shared by ${listing.authorDisplayName}`
+                    : `A ${kindNoun} shared on Harvous`}
+                </p>
 
-          {message ? (
-            <p className="public-shared-note__meta" role="alert">
-              {message}
-            </p>
-          ) : null}
+                <div className="public-card">
+                  <div className="public-card__header">
+                    <h1 className="public-card__title">{listing.title}</h1>
+                    {listing.description ? (
+                      <p className="public-card__meta">{listing.description}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="public-card__scroll">
+                    {outline.length === 0 ? (
+                      <div className="public-card__empty">
+                        Take a copy to see what's inside.
+                      </div>
+                    ) : (
+                      <ul className="public-card__list">
+                        {outline.map((line, index) => (
+                          <li
+                            key={`${line}-${index}`}
+                            className="public-card__list-item card-enter"
+                            style={{ animationDelay: `${100 + index * 40}ms` }}
+                          >
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* `public-card__cta` is the pinned footer, not the button —
+                      it sets `pointer-events: none` and the button inside takes
+                      them back. `public-cta-btn` is the button. */}
+                  <div className="public-card__cta">
+                    {message ? (
+                      <div className="public-invite-message" role="alert">
+                        {message}
+                      </div>
+                    ) : null}
+                    {status === 'done' || status === 'already' ? (
+                      <div className="public-already-member" role="status">
+                        {status === 'done'
+                          ? 'Saved to your Harvous.'
+                          : 'This is already in your Harvous.'}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="public-cta-btn"
+                        disabled={status === 'installing'}
+                        onClick={handlePress}
+                      >
+                        {status === 'installing' ? 'Saving…' : 'Save this to my Harvous'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="public-footer public-footer--rich">
+                  <span className="public-footer__tag">
+                    Shared by someone using Harvous. Start your own study Bible.{' '}
+                    <a
+                      href="https://harvous.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="public-footer__cta"
+                    >
+                      Try free →
+                    </a>
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </>

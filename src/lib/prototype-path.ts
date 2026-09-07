@@ -138,7 +138,9 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   'org',
   // Bible reader — `/read/{book}/{chapter}`. Without this, `/read` is a note id.
   'read',
-  // The public catalog. Without this, `/discover` resolves as a note id.
+  // The public listing page — `/discover/{slug}`. The in-app catalog is an
+  // expanded-sidebar tool with no slug of its own, but this segment still must
+  // not resolve as a note id.
   'discover',
 ]);
 
@@ -249,10 +251,6 @@ export function prototypeAdminMaintenanceRouteTo(): '/prototype/admin/maintenanc
 
 export function prototypeAdminSupportRouteTo(): '/prototype/admin/support' {
   return (isDedicatedPrototypeHost() ? '/admin/support' : '/prototype/admin/support') as '/prototype/admin/support';
-}
-
-export function prototypeDiscoverRouteTo(): '/prototype/discover' {
-  return (isDedicatedPrototypeHost() ? '/discover' : '/prototype/discover') as '/prototype/discover';
 }
 
 export function prototypeAdminDiscoverRouteTo(): '/prototype/admin/discover' {
