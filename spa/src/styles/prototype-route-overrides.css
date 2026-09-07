@@ -268,10 +268,17 @@ html.harvous-prototype-route .proto-list-panel__row-trailing > button svg,
 html.harvous-prototype-route .proto-list-panel__row-trailing > button path,
 html.harvous-prototype-route .proto-list-panel__row-trailing > button *,
 /* The overflow trigger is a grandchild — see the opacity rules in prototype-components.css,
-   which had the same blind spot for the same reason. */
+   which had the same blind spot for the same reason. The review shelf's own overflow and the
+   Plus prompt's dismiss are the same shape and were missed alongside it. */
 html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button,
 html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button svg,
-html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button path {
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button path,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-row__more > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-row__more > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-row__more > button path,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-section__plus > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-section__plus > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-section__plus > button path {
   color: var(--pds-text-primary) !important;
 }
 

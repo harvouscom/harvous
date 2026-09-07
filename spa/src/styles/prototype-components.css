@@ -12461,27 +12461,40 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    trailing mark dims — one glyph in the column shouting while the rest are punctuation.
    
    Deliberately not a descendant selector. The popover lives inside `.proto-recall-row__more`
-   too, and `trailing button` would dim every item in the open menu along with the trigger. */
+   too, and `trailing button` would dim every item in the open menu along with the trigger.
+   
+   `.proto-review-row__more` and `.proto-review-section__plus` are the same grandchild shape —
+   an anchor for a portaled menu, and a badge sitting beside its dismiss — and were missed when
+   they were built, so those two trailing marks stayed at full strength beside dimmed ones. */
 .proto-list-panel__row-trailing > button,
-.proto-list-panel__row-trailing > .proto-recall-row__more > button {
+.proto-list-panel__row-trailing > .proto-recall-row__more > button,
+.proto-list-panel__row-trailing > .proto-review-row__more > button,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button {
   opacity: 0.4;
   transition: opacity var(--pds-duration-press) var(--pds-ease-standard);
 }
 
 .proto-list-panel__row:hover .proto-list-panel__row-trailing > button,
-.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-recall-row__more > button {
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-recall-row__more > button,
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-review-row__more > button,
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-review-section__plus > button {
   opacity: 0.62;
 }
 
 .proto-list-panel__row-trailing > button:hover,
 .proto-list-panel__row-trailing > button:focus-visible,
 .proto-list-panel__row-trailing > .proto-recall-row__more > button:hover,
-.proto-list-panel__row-trailing > .proto-recall-row__more > button:focus-visible {
+.proto-list-panel__row-trailing > .proto-recall-row__more > button:focus-visible,
+.proto-list-panel__row-trailing > .proto-review-row__more > button:hover,
+.proto-list-panel__row-trailing > .proto-review-row__more > button:focus-visible,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button:hover,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button:focus-visible {
   opacity: 1;
 }
 
 /* An open menu keeps its trigger lit, or the ⋮ fades out from under the panel it opened. */
-.proto-list-panel__row-trailing > .proto-recall-row__more:has(.proto-recall-row__menu) > button {
+.proto-list-panel__row-trailing > .proto-recall-row__more:has(.proto-recall-row__menu) > button,
+.proto-list-panel__row-trailing > .proto-review-row__more:has(.proto-review-row__menu) > button {
   opacity: 1;
 }
 
