@@ -35,6 +35,8 @@ import {
   chapterTruthFor,
   gradeAnswerFor,
   verseTruthFor,
+  buildReviewItemSummaries,
+  filterAskableReviewRows,
   buildReviewItemViews,
   buildReviewReveal,
   createReviewItem,
@@ -78,7 +80,7 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
     await refillReviewQueue(auth.userId, now);
 
     /*
-     * Fetch, then drop, then cut — in that order.
+     * Fetch, then drop, then cut — in that order, and only then build.
      *
      * A note item the resolver can ask nothing about is dropped while views are built, so cutting
      * to three rows first means a dropped item costs a slot. It showed one question with three
@@ -86,14 +88,27 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
      * same trick `review-opportunities.ts` uses when the floor turns a candidate away.
      *
      * One extra row beyond the cut, purely to answer `hasMore` without a second count query.
+     *
+     * `filterAskableReviewRows` first, so the build is not handed rows already known to be
+     * unaskable — but the cut still happens *after* the build, and that ordering is not an
+     * oversight to optimise away later.
+     *
+     * It was optimised away once. Cutting to three before building looked equivalent, because
+     * the filter was believed to apply every drop rule the build applies. It applied two of
+     * three: a chapter whose text cannot be fetched is only discoverable once that text has been
+     * asked for. So a chapter in the top three was dropped during the build, the inbox came back
+     * short, short enough came back empty, and the Review section rendered nothing at all in
+     * production. The slack listed beyond the three rows exists precisely so a late drop costs a
+     * row from the tail rather than from what is shown, and cutting first threw that away.
      */
     const due = await listDueReviewItems(
       auth.userId,
       REVIEW_INBOX_MAX_ROWS + 1 + REVIEW_INBOX_UNASKABLE_SLACK,
       now,
     );
-    const askable = await buildReviewItemViews(auth.userId, due, { dropUnaskable: true });
-    const items = askable.slice(0, REVIEW_INBOX_MAX_ROWS);
+    const askable = await filterAskableReviewRows(auth.userId, due, { dropUnaskable: true });
+    const built = await buildReviewItemViews(auth.userId, askable, { dropUnaskable: true });
+    const items = built.slice(0, REVIEW_INBOX_MAX_ROWS);
 
     /*
      * Why there is nothing, when there is nothing.
@@ -109,7 +124,9 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
     return c.json({
       success: true,
       items,
-      hasMore: askable.length > REVIEW_INBOX_MAX_ROWS,
+      /* `built`, not `askable`: the build applies one drop rule the filter cannot, so the count
+         that answers "is there more" has to be the built one. See the note above the cut. */
+      hasMore: built.length > REVIEW_INBOX_MAX_ROWS,
       coldStart: coldStart
         ? { ready: coldStart.ready, needed: coldStart.needed, opensAt: coldStart.opensAt?.toISOString() ?? null }
         : null,
@@ -124,7 +141,18 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
   }
 });
 
-/** The manage list: everything, or one status. Used by the Review page, not the inbox. */
+/**
+ * The manage list: everything, or one status. Used by the Review page, not the inbox.
+ *
+ * `view=summary` returns the same rows without building a question for any of them — see
+ * `ReviewItemSummary`. Home asks for that on every load, because it reads this list for the
+ * suggestion handoff and for two fold counts and renders none of it; the full build was
+ * assembling eighteen questions to show at most two, on the critical path of the first paint.
+ * The full shape is fetched when a reader actually opens a fold, which is a press that can carry
+ * its own wait.
+ *
+ * Additive: no parameter means the old payload, so every existing consumer is untouched.
+ */
 route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('review'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -132,10 +160,20 @@ route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('r
     if (statusParam && !isReviewItemStatus(statusParam)) {
       return c.json({ error: 'Unknown status', code: 'REVIEW_STATUS_INVALID' }, 400);
     }
+    // Rejected rather than ignored, the same way an unknown status is: a typo that silently
+    // returned the expensive shape would be a performance regression nobody could see.
+    const viewParam = c.req.query('view');
+    if (viewParam && viewParam !== 'summary') {
+      return c.json({ error: 'Unknown view', code: 'REVIEW_VIEW_INVALID' }, 400);
+    }
     const rows = await listReviewItems(
       auth.userId,
       statusParam && isReviewItemStatus(statusParam) ? statusParam : undefined,
     );
+    if (viewParam === 'summary') {
+      const items = await buildReviewItemSummaries(auth.userId, rows, { dropUnaskable: true });
+      return c.json({ success: true, items });
+    }
     const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
     return c.json({ success: true, items });
   } catch (error) {
