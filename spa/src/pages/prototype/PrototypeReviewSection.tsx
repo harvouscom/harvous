@@ -71,6 +71,7 @@ import { reviewKindIcon } from './review-kind-icons';
 import { describeNextDue } from '@/utils/review-scheduling';
 import { recallChip } from './PrototypeRecallStateChip';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
+import { useDismissibleReviewSample } from './use-dismissible-review-sample';
 
 /**
  * Kinds that are about a note, and kinds that are about a passage.
@@ -105,6 +106,8 @@ export default function PrototypeReviewSection() {
   const review = useHasFeature('review');
   const challengesFeature = useHasFeature('challenges');
   const { dismissed: plusPromptDismissed, dismiss: dismissPlusPrompt } = useDismissiblePlusPrompt();
+  /* The question's own dismissal, distinct from the upsell's — see the hook's docblock. */
+  const { dismissed: sampleDismissed, dismiss: dismissSample } = useDismissibleReviewSample();
 
   const [expanded, setExpanded] = useState(false);
   const inboxQuery = useReviewInbox();
@@ -146,7 +149,9 @@ export default function PrototypeReviewSection() {
    * real question a free reader can answer — the try and the ad taken away by one tap on the
    * ad. Hiding an offer is not asking to be shown less of the product.
    */
-  const sampleQuery = useReviewSample({ enabled: review.ready && !hasAnyFeature });
+  const sampleQuery = useReviewSample({
+    enabled: review.ready && !hasAnyFeature && !sampleDismissed,
+  });
   /* Once the sample has been answered it carries the offer itself; a row underneath repeating
      it is the same pitch twice on one screen. */
   const [sampleAnswered, setSampleAnswered] = useState(false);
@@ -173,7 +178,10 @@ export default function PrototypeReviewSection() {
             day={reviewSampleDayKey()}
             maxAttempts={REVIEW_MAX_ATTEMPTS}
             onSeePlus={() => void navigate({ to: '/upgrade' })}
-            onNotNow={dismissPlusPrompt}
+            /* Puts the *question* away, not the upsell beside it. Wired to the upsell's flag,
+               "Not now" hid the row and the question returned the next morning — a control that
+               did not do what its own label said. */
+            onNotNow={dismissSample}
             onAnswered={() => setSampleAnswered(true)}
           />
         ) : null}
