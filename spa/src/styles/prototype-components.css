@@ -6558,11 +6558,31 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   font-weight: 400;
   line-height: 1.45;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
-  /* `pretty`, not `balance`. Balance equalises line lengths, which on a
-     three-sentence description means every line shrinks to the shortest one can
-     be — a tall narrow column in a pane that had width to spare. `pretty` keeps
-     the orphan control and lets the lines run full. */
-  text-wrap: pretty;
+  /*
+   * A measure and a balance, and the measure is what makes the balance safe.
+   *
+   * This was `pretty`, on the reasoning that `balance` "equalises line lengths, which on a
+   * three-sentence description means every line shrinks to the shortest one can be — a tall
+   * narrow column in a pane that had width to spare". That was written for a ~300px sidebar,
+   * where lines running full is also lines running short.
+   *
+   * The same empty state now appears on the Home canvas, where the card is wide enough to run
+   * body text past 130 characters — beyond any comfortable measure, and what left "up here."
+   * stranded alone under a line three times its length. So the width is capped first: a cap
+   * rather than a fixed width, so it only bites where there is width to spare and a sidebar,
+   * already narrower than this, is untouched.
+   *
+   * With the cap in place the old objection does not survive measurement. `balance` keeps the
+   * line *count* and only evens the widths, so it cannot produce the taller column it was
+   * rejected for. Measured at this cap, same string:
+   *
+   *   pretty   2 lines, 357px + 225px, 36px tall
+   *   balance  2 lines, 297px + 286px, 36px tall
+   *
+   * and on a longer one, 3 lines and 54px tall either way. Same height, evener lines.
+   */
+  max-width: 46ch;
+  text-wrap: balance;
 }
 
 /* Enough air that the action reads as a next step rather than a caption's
