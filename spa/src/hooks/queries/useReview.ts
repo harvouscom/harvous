@@ -13,7 +13,6 @@ import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useHasFeature } from '../useHasFeature';
 import { useHarvousIdentity } from '../useHarvousIdentity';
-import { isQuerySettled } from '@/utils/prototype-home-ready';
 import type {
   RecallState,
   ReviewItemKind,
@@ -50,23 +49,6 @@ export interface ReviewItemView {
   /** Why this row is here, in the reader's words. Null on items they added themselves. */
   sourceLabel: string | null;
   sourceAt: string | null;
-}
-
-/**
- * The same queue, without a question built for any row — see `useReviewItemsSummary`.
- *
- * Everything here is a column on the stored item, so the server can answer with one list query
- * (plus one batched read to drop notes it can ask nothing about, which is what keeps this list's
- * membership identical to the full one's).
- */
-export interface ReviewItemSummary {
-  id: string;
-  kind: ReviewItemKind;
-  status: ReviewItemStatus;
-  recallState: RecallState;
-  dueAt: string;
-  scriptureReference: string | null;
-  noteId: string | null;
 }
 
 export interface ReviewInboxResponse {
@@ -116,8 +98,8 @@ export interface ReviewRevealResponse {
 export const reviewQueryKey = ['review'] as const;
 export const reviewInboxQueryKey = ['review', 'inbox'] as const;
 export const reviewSessionQueryKey = ['review', 'session'] as const;
-export const reviewItemsQueryKey = (status?: ReviewItemStatus, view: 'full' | 'summary' = 'full') =>
-  ['review', 'items', status ?? 'all', view] as const;
+export const reviewItemsQueryKey = (status?: ReviewItemStatus) =>
+  ['review', 'items', status ?? 'all'] as const;
 
 /*
  * Called unconditionally, then combined — never `authReady && useAccess()`.
@@ -151,50 +133,23 @@ export function useReviewEnabled(): boolean {
   return authReady && access;
 }
 
-/**
- * True once we know whether Review runs for this account — not whether it does.
- *
- * The distinction is what Home's presentation gate needs. Every query below is disabled without
- * the entitlement, and a disabled query keeps `status: 'pending'` forever in React Query v5, so
- * "is it still loading" cannot tell a free account (never will load) from a subscriber whose
- * entitlement has not answered yet (about to). Gating on the first and not the second is what
- * lets Home paint once *and* paint with Review already in it.
- *
- * A guest is settled immediately: they have no account to hold a key, so the answer is a
- * structural no rather than a pending one, and `useHasFeature` would leave `ready` false forever
- * for them because the subscription query never runs at all.
- */
-export function useReviewAccessSettled(): boolean {
-  const { ready } = useHasFeature('review');
-  const { isGuest } = useHarvousIdentity();
-  return isGuest || ready;
-}
-
 export function useReviewInbox() {
   const authReady = useAuthReady();
   const access = useReviewAccess();
-  const accessSettled = useReviewAccessSettled();
   const enabled = authReady && access;
-  const query = useQuery({
+  return useQuery({
     queryKey: reviewInboxQueryKey,
     enabled,
     queryFn: () => api.get<ReviewInboxResponse>('/api/review/inbox'),
     staleTime: 60_000,
   });
-  return {
-    ...query,
-    /** Settled once we know whether it should run — and then only once it has. */
-    isSettled:
-      accessSettled && isQuerySettled(query.isPending, query.data != null, query.isEnabled),
-  };
 }
 
 export function useReviewItems(status?: ReviewItemStatus, options?: { enabled?: boolean }) {
   const authReady = useAuthReady();
   const access = useReviewAccess();
-  const accessSettled = useReviewAccessSettled();
   const enabled = authReady && access;
-  const query = useQuery({
+  return useQuery({
     queryKey: reviewItemsQueryKey(status),
     // The caller's `enabled` narrows, never widens: the dock only wants this list when the
     // session cannot answer, and no caller may bypass the auth/entitlement gate.
@@ -205,54 +160,6 @@ export function useReviewItems(status?: ReviewItemStatus, options?: { enabled?: 
       ),
     staleTime: 30_000,
   });
-  return {
-    ...query,
-    /*
-     * See `useReviewAccessSettled`. This one matters to Home beyond its own rows: the `active`
-     * list is what the suggestion handoff reads to step Home's resurfacing cards aside for a
-     * passage Review has already taken up, so arriving late does not add a section — it *removes*
-     * cards from a deck someone is already reading.
-     */
-    isSettled:
-      accessSettled && isQuerySettled(query.isPending, query.data != null, query.isEnabled),
-  };
-}
-
-/**
- * The same queue, counted rather than built.
- *
- * Home reads the active list on every load and renders none of it — the suggestion handoff wants
- * kinds and references, the Review section wants counts, and the rows it shows come from
- * `useReviewInbox`. Asking for the full shape meant the server assembled a question per item, at
- * 3.4s for eighteen of them, on the critical path of Home's first paint.
- *
- * A hook of its own rather than an option on `useReviewItems`, because the payload is a different
- * type and a union return would push that choice out to every call site. Its own query key too,
- * so the two shapes cannot overwrite each other in the cache; both still sit under the `review`
- * prefix every mutation invalidates.
- */
-export function useReviewItemsSummary(status?: ReviewItemStatus, options?: { enabled?: boolean }) {
-  const authReady = useAuthReady();
-  const access = useReviewAccess();
-  const accessSettled = useReviewAccessSettled();
-  const enabled = authReady && access;
-  const query = useQuery({
-    queryKey: reviewItemsQueryKey(status, 'summary'),
-    enabled: enabled && options?.enabled !== false,
-    queryFn: () =>
-      api.get<{ items: ReviewItemSummary[] }>(
-        status
-          ? `/api/review/items?status=${encodeURIComponent(status)}&view=summary`
-          : '/api/review/items?view=summary',
-      ),
-    staleTime: 30_000,
-  });
-  return {
-    ...query,
-    /** See `useReviewAccessSettled`. This is the flag Home's presentation gate waits on. */
-    isSettled:
-      accessSettled && isQuerySettled(query.isPending, query.data != null, query.isEnabled),
-  };
 }
 
 /**

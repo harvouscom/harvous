@@ -48,14 +48,7 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useTagsList } from '../../hooks/queries/useTagsList';
-import {
-  useReviewAccessSettled,
-  useReviewInbox,
-  useReviewItemsSummary,
-} from '../../hooks/queries/useReview';
-import { useHomeChallenges } from '../../hooks/queries/useChallenges';
-import { useReadingPlans } from '../../hooks/queries/useReadingPlans';
-import { useAuthReady } from '../../hooks/useAuthReady';
+import { useReviewItems } from '../../hooks/queries/useReview';
 import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
 import {
   usePrototypeSpaceStudyThreadHighlights,
@@ -303,36 +296,6 @@ export function useHomeSurfaceData({
   const connectSuggestionsQuery = useConnectSuggestions();
   const churchSermonsQuery = useChurchSermons();
   const churchFeedQuery = useChurchFeed({ limit: HOME_FEED_LIMIT });
-  /*
-   * The precondition that makes every `isEnabled` below meaningful — see the flag's docblock in
-   * `prototype-home-ready.ts`. Nearly every query here is `enabled: authReady && …`, so until
-   * this is true they are all disabled, and "disabled" must not read as "settled" there.
-   */
-  const authReady = useAuthReady();
-  /*
-   * Review, challenges, reading plans and the checklist store — all four render rows inside the
-   * gate's own tree and none of them used to be in it, so each landed after Home had painted and
-   * inserted a row. Review was the one you could watch: it was deliberately made to start at t=0
-   * (a per-tab entitlement snapshot, see `useSubscriptionStatus`) and so became the *only*
-   * populated section on a page that was still waiting for everything else.
-   *
-   * `activeReviewItems` is the sharpest of them. It is read far below for the suggestion handoff,
-   * and it does not add a section — it *removes* recall cards, for passages Review has already
-   * taken up. Declared up here with the rest because the gate is computed a few lines down and
-   * has to be able to see it.
-   */
-  const reviewAccessSettled = useReviewAccessSettled();
-  const reviewInboxQuery = useReviewInbox();
-  /*
-   * The summary shape, not the built one. Everything below reads `kind` and
-   * `scriptureReference` off this list and renders none of it, so asking the server to assemble
-   * a question per item — cue text, cross-references, curated knowledge, a round trip apiece —
-   * was 3.4s of Home's first paint spent on work nothing displayed.
-   */
-  const activeReviewItems = useReviewItemsSummary('active');
-  const challengesQuery = useHomeChallenges();
-  const readingPlansQuery = useReadingPlans();
-  const { hydrated: onboardingHydrated } = useOnboardingState();
   const {
     meaningWeightById,
     fingerprintsById,
@@ -368,117 +331,50 @@ export function useHomeSurfaceData({
     [closeDrawer, isMobileSidebar, openLibraryPanel],
   );
 
-  /*
-   * Every flag passes its query's `isEnabled`, including the ones that are always on.
-   *
-   * Not decoration. A *disabled* query keeps `status: 'pending'` forever in React Query v5, so a
-   * two-argument `isQuerySettled` reads "still loading" for a query that will never load — and
-   * one such flag ANDed into the gate below makes it permanently false. That is not a
-   * hypothetical: `churchSermonsSettled` was exactly this for every account without a church, so
-   * `presentationReady` never fired and Home reached `contentReady` only through its 2.5s
-   * deadline, on every cold load, painting with whatever had arrived and growing the rest a
-   * section at a time. Passing it everywhere means the next conditionally-enabled query cannot
-   * quietly do it again.
-   */
-  const tagsSettled = isQuerySettled(
-    tagsQuery.isPending,
-    tagsQuery.data != null,
-    tagsQuery.isEnabled,
-  );
-  const threadsSettled = isQuerySettled(
-    threadsQuery.isPending,
-    threadsQuery.data != null,
-    threadsQuery.isEnabled,
-  );
-  const highlightsSettled = isQuerySettled(
-    highlightsQuery.isPending,
-    highlightsQuery.data != null,
-    highlightsQuery.isEnabled,
-  );
-  /*
-   * Deliberately still the two-argument form — the one query here that must not pass `isEnabled`.
-   *
-   * VOTD is disabled only while `homeSpaceId` is unresolved, which is a wait rather than a never:
-   * the moment the space lands the query runs. Reporting it settled during that window would let
-   * the gate fire before the passage pill exists and then pop it in, which is the bug rather than
-   * the fix. Every other precondition here belongs to a query that can be permanently off; this
-   * one always resolves, and the 2.5s deadline covers the pathological case where it does not.
-   */
+  const tagsSettled = isQuerySettled(tagsQuery.isPending, tagsQuery.data != null);
+  const threadsSettled = isQuerySettled(threadsQuery.isPending, threadsQuery.data != null);
+  const highlightsSettled = isQuerySettled(highlightsQuery.isPending, highlightsQuery.data != null);
   const votdSettled =
     isQuerySettled(votdQuery.isPending, votdQuery.data != null) || Boolean(votdQuery.isError);
   const fingerprintsSettled = isQuerySettled(
     fingerprintsQuery.isPending,
     fingerprintsQuery.data != null,
-    fingerprintsQuery.isEnabled,
   );
   const studyBibleSettled =
-    isQuerySettled(
-      studyBibleNodesQuery.isPending,
-      studyBibleNodesQuery.data != null,
-      studyBibleNodesQuery.isEnabled,
-    ) || Boolean(studyBibleNodesQuery.isError);
+    isQuerySettled(studyBibleNodesQuery.isPending, studyBibleNodesQuery.data != null) ||
+    Boolean(studyBibleNodesQuery.isError);
   const connectionsSettled =
-    isQuerySettled(
-      crossRefConnectionsQuery.isPending,
-      crossRefConnectionsQuery.data != null,
-      crossRefConnectionsQuery.isEnabled,
-    ) &&
+    isQuerySettled(crossRefConnectionsQuery.isPending, crossRefConnectionsQuery.data != null) &&
     isQuerySettled(
       referenceWordConnectionsQuery.isPending,
       referenceWordConnectionsQuery.data != null,
-      referenceWordConnectionsQuery.isEnabled,
     );
   const searchEventsSettled = isQuerySettled(
     searchEventsQuery.isPending,
     searchEventsQuery.data != null,
-    searchEventsQuery.isEnabled,
   );
   const crossRefGapsSettled = isQuerySettled(
     crossRefGapsQuery.isPending,
     crossRefGapsQuery.data != null,
-    crossRefGapsQuery.isEnabled,
   );
   const connectSuggestionsSettled = isQuerySettled(
     connectSuggestionsQuery.isPending,
     connectSuggestionsQuery.data != null,
-    connectSuggestionsQuery.isEnabled,
   );
   const recallHistorySettled = isQuerySettled(
     recallHistoryQuery.isPending,
     recallHistoryQuery.data != null,
-    recallHistoryQuery.isEnabled,
   );
   // Read here purely to gate on. PrototypeHomeThisSunday and PrototypeHomeChurchFeed each call
   // these themselves and return null until they resolve — "This Sunday" sits *above* the daily
   // passage, so it arriving late pushes the passage pill, the continue card and the whole recall
   // deck down. React Query dedupes by key, so subscribing again here costs one cache read, not a
   // second request.
-  //
-  // `isSettled` rather than a flag built here: this query is disabled until the *profile* says
-  // whether there is a church to ask about, so "will it ever run" is a question only the hook can
-  // answer. See `useChurchSermons`.
-  const churchSermonsSettled = churchSermonsQuery.isSettled;
-  const churchFeedSettled = isQuerySettled(
-    churchFeedQuery.isPending,
-    churchFeedQuery.data != null,
-    churchFeedQuery.isEnabled,
+  const churchSermonsSettled = isQuerySettled(
+    churchSermonsQuery.isPending,
+    churchSermonsQuery.data != null,
   );
-  /*
-   * The four that used to sit outside the gate entirely, and the reason Review looked like it
-   * loaded before the rest of the page rather than with it.
-   *
-   * Review and challenges carry their own `isSettled` for the same reason the church query does:
-   * both are disabled without the paid key, and "disabled because this account will never have
-   * it" has to be told apart from "disabled because the entitlement has not answered yet".
-   */
-  const entitlementSettled = reviewAccessSettled;
-  const reviewSettled = reviewInboxQuery.isSettled && activeReviewItems.isSettled;
-  const challengesSettled = challengesQuery.isSettled;
-  const readingPlansSettled = isQuerySettled(
-    readingPlansQuery.isPending,
-    readingPlansQuery.data != null,
-    readingPlansQuery.isEnabled,
-  );
+  const churchFeedSettled = isQuerySettled(churchFeedQuery.isPending, churchFeedQuery.data != null);
   /*
    * `data != null` will not do here: "no bookmark" is a legitimate answer and arrives as
    * `null`, so waiting for data would hold Home forever for anyone who has not read yet.
@@ -495,7 +391,6 @@ export function useHomeSurfaceData({
   // excess-property check that catches a flag added here and never declared there — the
   // exact mistake that let five queries sit outside the gate for months.
   const presentationInput: PrototypeHomePresentationReadyInput = {
-    authReady,
     notesReady: isPrototypeHomeContentReady(notesListPhase),
     clerkLoaded,
     fingerprintsSettled,
@@ -513,29 +408,12 @@ export function useHomeSurfaceData({
     churchFeedSettled,
     readingPositionSettled,
     studyBibleSettled,
-    entitlementSettled,
-    reviewSettled,
-    challengesSettled,
-    readingPlansSettled,
-    onboardingHydrated,
   };
   const presentationReady = isPrototypeHomePresentationReady(presentationInput);
 
-  /*
-   * Backstop: if a query never settles, Home must still paint rather than sit on dots forever.
-   *
-   * The window restarts when `authReady` flips, which is the difference between a backstop and a
-   * timer nobody can beat. Nearly every query here is gated on a usable session JWT, so none of
-   * them can even be *sent* until that lands — and measured from mount the deadline was mostly
-   * spent waiting for Clerk. Measured on a cold dev load: auth at 1666ms, leaving the fifteen
-   * remaining queries about 800ms of a 2500ms budget to finish in. They did not, so the deadline
-   * won every time and Home painted half-assembled — which is the bug, arriving by a second road
-   * after the first one (`churchSermonsSettled` never settling at all) was closed.
-   *
-   * Restarting rather than gating on `authReady` keeps the guarantee for the case the backstop is
-   * actually for: a session that never authenticates still paints at 2500ms, because that first
-   * timer is never cleared.
-   */
+  // Backstop: a disabled query stays `isPending` forever in React Query v5, so without a
+  // deadline one misconfigured auxiliary would strand Home on loading dots. Trading a
+  // little jitter for a blank Home would be a worse bug than the one being fixed.
   const [presentationDeadlinePassed, setPresentationDeadlinePassed] = useState(false);
   useEffect(() => {
     if (presentationReady) return;
@@ -544,7 +422,7 @@ export function useHomeSurfaceData({
       HOME_PRESENTATION_DEADLINE_MS,
     );
     return () => window.clearTimeout(id);
-  }, [presentationReady, authReady]);
+  }, [presentationReady]);
 
   const contentReady = presentationReady || presentationDeadlinePassed;
 
@@ -1354,13 +1232,11 @@ export function useHomeSurfaceData({
 
   /*
    * Passages Review has already taken up, so Home's two resurfacing cards can step aside for
-   * them (`review-suggestion-handoff.ts` has the rule). `activeReviewItems` is declared with the
-   * other queries at the top, because the presentation gate has to wait on it: these two sets
-   * *remove* cards, so a late arrival takes rows out of a deck someone is already reading.
-   *
-   * The query gates itself on auth and on the entitlement, so a free account fires nothing and
-   * this is empty — the same answer as "nothing active", and it needs no branch here.
+   * them (`review-suggestion-handoff.ts` has the rule). The query gates itself on auth and on
+   * the entitlement, so a free account fires nothing and this is empty — which is the same
+   * answer as "nothing active", and needs no branch here.
    */
+  const activeReviewItems = useReviewItems('active');
   /**
    * Chapters Review has taken up, as `${book}|${chapter}`.
    *
@@ -1727,6 +1603,8 @@ export function useHomeSurfaceData({
   );
 
   // ─── Getting-started checklist ─────────────────────────────────────────────
+
+  const { hydrated: onboardingHydrated } = useOnboardingState();
 
   /*
    * Tell the checklist what this account's own data already answers.

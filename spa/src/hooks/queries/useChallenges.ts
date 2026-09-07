@@ -6,7 +6,6 @@ import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useHasFeature } from '../useHasFeature';
 import { useHarvousIdentity } from '../useHarvousIdentity';
-import { isQuerySettled } from '@/utils/prototype-home-ready';
 import type { ChallengeStatus, ChallengeTemplateKey } from '@/utils/review-item-kinds';
 import type { ChallengeStep } from '@/utils/challenge-templates';
 import type { VerseCloze } from '@/utils/verse-cloze';
@@ -87,20 +86,12 @@ export function useChallengesEnabled(): boolean {
   return authReady && access;
 }
 
-/** True once we know whether Challenges runs for this account. See `useReviewAccessSettled`. */
-export function useChallengeAccessSettled(): boolean {
-  const { ready } = useHasFeature('challenges');
-  const { isGuest } = useHarvousIdentity();
-  return isGuest || ready;
-}
-
 export function useChallenges(status?: ChallengeStatus | readonly ChallengeStatus[]) {
   const authReady = useAuthReady();
   const access = useChallengeAccess();
-  const accessSettled = useChallengeAccessSettled();
   const enabled = authReady && access;
   const statusParam = challengeStatusParam(status);
-  const query = useQuery({
+  return useQuery({
     queryKey: challengeListQueryKey(status),
     enabled,
     queryFn: () =>
@@ -109,12 +100,6 @@ export function useChallenges(status?: ChallengeStatus | readonly ChallengeStatu
       ),
     staleTime: 60_000,
   });
-  return {
-    ...query,
-    /** Settled once we know whether it should run — and then only once it has. */
-    isSettled:
-      accessSettled && isQuerySettled(query.isPending, query.data != null, query.isEnabled),
-  };
 }
 
 /** The shared Home list. See {@link HOME_CHALLENGE_STATUSES}. */

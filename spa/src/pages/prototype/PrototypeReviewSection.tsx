@@ -38,7 +38,6 @@ import {
   reviewSampleDayKey,
   useReviewInbox,
   useReviewItems,
-  useReviewItemsSummary,
   useReviewSample,
   type ReviewItemView,
 } from '../../hooks/queries/useReview';
@@ -103,35 +102,26 @@ export default function PrototypeReviewSection() {
   const challengesFeature = useHasFeature('challenges');
   const { dismissed: plusPromptDismissed, dismiss: dismissPlusPrompt } = useDismissiblePlusPrompt();
 
-  /* Declared above the queries because two of them are enabled by these — a fold that is open
-     is the only reason to build the rows behind it. */
   const [expanded, setExpanded] = useState(false);
+  const inboxQuery = useReviewInbox();
   const [setAsideOpen, setSetAsideOpen] = useState(false);
   const [comingBackOpen, setComingBackOpen] = useState(false);
-  const inboxQuery = useReviewInbox();
   /*
-   * The active list twice over: counted always, built only when a fold is open.
+   * The active list, on the key Home already fetches — so this costs nothing.
    *
-   * `use-home-surface-data` reads the summary on every Activity load for the suggestion handoff,
-   * so asking for the same key here shares that one request rather than adding a second — the
-   * same trick this already used, now on the cheap shape. Asking for *every* status instead, as
-   * this briefly did, was a whole extra round trip on any load with an empty queue.
-   *
-   * The split is the point. This section shows at most two rows when closed and takes them from
-   * `useReviewInbox`; everything it wanted from the active list was counts — how many are due,
-   * how many are coming back — and the server was building a question per item to supply them.
-   * Measured at 3.4s for eighteen items, on the critical path of the first paint. The built shape
-   * is fetched when a reader opens a fold, which is a press that can carry its own wait.
+   * `use-home-surface-data` reads `useReviewItems('active')` on every Activity load for the
+   * suggestion handoff, so asking for the same key here shares that one request rather than
+   * adding a second. Asking for *every* status instead, as this briefly did, was a whole extra
+   * round trip on any load with an empty queue.
    */
-  const activeSummaryQuery = useReviewItemsSummary('active');
-  const activeBuiltQuery = useReviewItems('active', { enabled: expanded || comingBackOpen });
+  const activeQuery = useReviewItems('active');
   /*
    * Every status, for the drawer of things put aside. Fetched only when the reader opens a fold
    * — or when there is nothing active at all, which is the one case where something they put
    * down is the only thing left and no fold exists to open.
    */
   const nothingActive =
-    activeSummaryQuery.isFetched && (activeSummaryQuery.data?.items?.length ?? 0) === 0;
+    activeQuery.isFetched && (activeQuery.data?.items?.length ?? 0) === 0;
   const allQuery = useReviewItems(undefined, {
     enabled: expanded || setAsideOpen || nothingActive,
   });
@@ -213,6 +203,7 @@ export default function PrototypeReviewSection() {
 
   const inboxItems = inboxQuery.data?.items ?? [];
   const everyItem = allQuery.data?.items ?? null;
+  const activeItems = activeQuery.data?.items ?? null;
   /*
    * Due, and not due yet — two different things that the fold used to show as one.
    *
@@ -221,28 +212,13 @@ export default function PrototypeReviewSection() {
    * hides when nothing is due, so an account with a full schedule and an empty morning showed
    * no Review at all and no way to reach any of it — the page that used to list them under
    * "Coming back later" is gone.
-   *
-   * Split twice over, because the two answers are wanted at different moments. The counts decide
-   * whether this section appears at all and what its folds are labelled, and they come off the
-   * summary, which every load already has. The rows are only ever rendered inside an open fold,
-   * so they come off the built list, which is only fetched once one is open. `dueAt` is a column
-   * on the stored item, so both lists can be bucketed the same way.
    */
   const nowMs = Date.now();
-  const summaryItems = activeSummaryQuery.data?.items ?? null;
-  const dueActiveCount = summaryItems
-    ? summaryItems.filter((item) => Date.parse(item.dueAt) <= nowMs).length
+  const dueActive = activeItems
+    ? activeItems.filter((item) => Date.parse(item.dueAt) <= nowMs)
     : null;
-  const comingBackCount = summaryItems
-    ? summaryItems.filter((item) => Date.parse(item.dueAt) > nowMs).length
-    : 0;
-
-  const builtItems = activeBuiltQuery.data?.items ?? null;
-  const dueActive = builtItems
-    ? builtItems.filter((item) => Date.parse(item.dueAt) <= nowMs)
-    : null;
-  const comingBack = builtItems
-    ? builtItems.filter((item) => Date.parse(item.dueAt) > nowMs)
+  const comingBack = activeItems
+    ? activeItems.filter((item) => Date.parse(item.dueAt) > nowMs)
     : [];
   /*
    * Paused, and put down. The one place either can be picked back up.
@@ -280,12 +256,10 @@ export default function PrototypeReviewSection() {
    * full list has been fetched once, the count behind the fold is genuinely unknown, and the
    * label says "See all" rather than guessing. Guessing printed "1 more" over two items.
    */
-  /* The summary's count, not the built list's — this is known on every load, where the built
-     list only exists once a fold is open. It is also why the label can say "12 more" straight
-     away instead of "See all" until someone presses it. */
+  const fullList = dueActive;
   const folded =
-    dueActiveCount !== null
-      ? Math.max(0, dueActiveCount - reviewRows.length)
+    fullList !== null
+      ? Math.max(0, fullList.length - reviewRows.length)
       : inboxQuery.data?.hasMore
         ? null
         : Math.max(0, items.length - reviewRows.length);
@@ -297,7 +271,7 @@ export default function PrototypeReviewSection() {
    * put down is something to do.
    */
   const hasRows =
-    reviewRows.length > 0 || Boolean(challengeRow) || comingBackCount > 0 || setAside.length > 0;
+    reviewRows.length > 0 || Boolean(challengeRow) || comingBack.length > 0 || setAside.length > 0;
   if (!hasRows) return null;
 
   // The question opens where you are, not on a page of its own — see PrototypeReviewDock.
@@ -375,14 +349,14 @@ export default function PrototypeReviewSection() {
         * with nothing due this is the entire Review section, and it is the only way back to a
         * queue that is otherwise invisible until its dates come round.
         */}
-      {comingBackCount > 0 ? (
+      {comingBack.length > 0 ? (
         <>
           <button
             type="button"
             className="proto-feed-part__more"
             onClick={() => setComingBackOpen((open) => !open)}
           >
-            <span>{reviewComingBackCopy(comingBackCount)}</span>
+            <span>{reviewComingBackCopy(comingBack.length)}</span>
             <Icon name={comingBackOpen ? 'caret-up' : 'caret-down'} size={10} />
           </button>
           {comingBackOpen
