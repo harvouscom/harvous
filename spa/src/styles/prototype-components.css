@@ -6558,11 +6558,31 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   font-weight: 400;
   line-height: 1.45;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
-  /* `pretty`, not `balance`. Balance equalises line lengths, which on a
-     three-sentence description means every line shrinks to the shortest one can
-     be — a tall narrow column in a pane that had width to spare. `pretty` keeps
-     the orphan control and lets the lines run full. */
-  text-wrap: pretty;
+  /*
+   * A measure and a balance, and the measure is what makes the balance safe.
+   *
+   * This was `pretty`, on the reasoning that `balance` "equalises line lengths, which on a
+   * three-sentence description means every line shrinks to the shortest one can be — a tall
+   * narrow column in a pane that had width to spare". That was written for a ~300px sidebar,
+   * where lines running full is also lines running short.
+   *
+   * The same empty state now appears on the Home canvas, where the card is wide enough to run
+   * body text past 130 characters — beyond any comfortable measure, and what left "up here."
+   * stranded alone under a line three times its length. So the width is capped first: a cap
+   * rather than a fixed width, so it only bites where there is width to spare and a sidebar,
+   * already narrower than this, is untouched.
+   *
+   * With the cap in place the old objection does not survive measurement. `balance` keeps the
+   * line *count* and only evens the widths, so it cannot produce the taller column it was
+   * rejected for. Measured at this cap, same string:
+   *
+   *   pretty   2 lines, 357px + 225px, 36px tall
+   *   balance  2 lines, 297px + 286px, 36px tall
+   *
+   * and on a longer one, 3 lines and 54px tall either way. Same height, evener lines.
+   */
+  max-width: 46ch;
+  text-wrap: balance;
 }
 
 /* Enough air that the action reads as a next step rather than a caption's
@@ -23052,7 +23072,10 @@ button.proto-feed-sheet__stat:hover {
    * deep red of a warning, and this is an option that has been used, in the same family as the
    * blue one beside it that was right.
    */
-  background: linear-gradient(180deg, #f05252 0%, #d42828 55%, #be1f1f 100%);
+  /* Held in a variable so the hover rule below can restate it without a second copy of the
+     gradient — two literals is how the resting state and the hover state drift apart. */
+  --proto-verdict-bg: linear-gradient(180deg, #f05252 0%, #d42828 55%, #be1f1f 100%);
+  background: var(--proto-verdict-bg);
   box-shadow: var(--pds-shadow-destructive-button);
   color: var(--pds-on-accent) !important;
   opacity: 1;
@@ -23099,9 +23122,31 @@ button.proto-feed-sheet__stat:hover {
 }
 
 .proto-review-dock__choice[data-correct] {
-  background: var(--pds-bg-accent-button);
+  --proto-verdict-bg: var(--pds-bg-accent-button);
+  background: var(--proto-verdict-bg);
   box-shadow: var(--pds-shadow-accent-button);
   color: var(--pds-on-accent) !important;
+}
+
+/*
+ * A spent chip keeps its verdict under the pointer.
+ *
+ * `.proto-settings-btn--secondary:hover:not(:disabled)` is 0,3,0 and the verdict rules above are
+ * 0,2,0, so the neutral row-hover background won outright. The white the verdict paints its words
+ * with survives, because that is set with `!important` and again through
+ * `-webkit-text-fill-color` — so hovering an answered option left white text on pale grey and the
+ * words disappeared.
+ *
+ * Restated rather than fought with another `!important`: these chips are no longer offers, they
+ * are the answer being shown, so there is nothing for a hover to preview. `:focus-visible` gets
+ * the same treatment, since a keyboard reader would otherwise lose the words at the moment they
+ * arrived on them.
+ */
+.proto-review-dock__choice[data-correct]:hover:not(:disabled),
+.proto-review-dock__choice[data-correct]:focus-visible,
+.proto-review-dock__choice[data-missed]:hover:not(:disabled),
+.proto-review-dock__choice[data-missed]:focus-visible {
+  background: var(--proto-verdict-bg);
 }
 
 /* The gap's line carries its verdict, the same line that carries focus. */
