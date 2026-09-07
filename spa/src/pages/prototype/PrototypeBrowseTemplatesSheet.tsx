@@ -18,6 +18,11 @@ import { useDebouncedSearchState } from '../../hooks/useDebouncedSearchState';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { APIError } from '../../lib/api';
 import { useDeleteNoteTemplate } from '../../hooks/mutations/useDeleteNoteTemplate';
+import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMutations';
+import { useDiscoverListings } from '../../hooks/queries/useDiscoverListings';
+import PrototypeShareWithOthersSheet, {
+  type ShareWithOthersTarget,
+} from './PrototypeShareWithOthersSheet';
 import {
   useNoteTemplates,
   type ApplyableNoteTemplate,
@@ -45,16 +50,22 @@ export type EditableNoteTemplate = ApplyableNoteTemplate & {
   section: 'personal' | 'space' | 'org';
 };
 
-type BrowseTemplateRow = ApplyableNoteTemplate & {
+type BrowseTemplateRow = Omit<ApplyableNoteTemplate, 'section'> & {
+  /** `discover` rows are installed, not applied — they are not yours yet. */
+  section: ApplyableNoteTemplate['section'] | 'discover';
   description?: string;
   estimatedMinutes?: string;
   level?: string;
   createdAt?: string | null;
   spaceId?: string | null;
   orgId?: string | null;
+  /** Set on `discover` rows: the catalog identity the install call needs. */
+  discoverSlug?: string;
+  authorDisplayName?: string | null;
+  installed?: boolean;
 };
 
-type TemplateScopeTab = 'all' | 'builtIn' | 'personal' | 'space';
+type TemplateScopeTab = 'all' | 'builtIn' | 'personal' | 'space' | 'discover';
 
 export interface PrototypeBrowseTemplatesSheetProps {
   open: boolean;
@@ -89,6 +100,10 @@ function templateScopeOptions(
   if (showSpaceTab) {
     options.push({ id: 'space', label: spaceLabel });
   }
+  // Last, and deliberately outside "All": everything before this chip can be
+  // applied right now, and a Discover row is a two-step. Mixing them would make
+  // one tap sometimes open a note and sometimes not.
+  options.push({ id: 'discover', label: 'Discover' });
   return options;
 }
 
@@ -99,8 +114,11 @@ function TemplateListRow({
   onToggleMenu,
   onCloseMenu,
   onApply,
+  onInstall,
+  installing,
   onEdit,
   onRequestDelete,
+  onShareWithOthers,
 }: {
   template: BrowseTemplateRow;
   showActions: boolean;
@@ -108,10 +126,17 @@ function TemplateListRow({
   onToggleMenu: () => void;
   onCloseMenu: () => void;
   onApply: (template: BrowseTemplateRow) => void;
+  /** Catalog rows only — takes a copy instead of loading it into the open note. */
+  onInstall: (template: BrowseTemplateRow) => void;
+  installing: boolean;
   /** Absent where there is no note to load a template into — Edit then hides. */
   onEdit?: (template: BrowseTemplateRow) => void;
   onRequestDelete: (template: BrowseTemplateRow, anchorRect: DOMRect) => void;
+  /** Personal templates only — you can only give away what is yours. */
+  onShareWithOthers?: (template: BrowseTemplateRow) => void;
 }) {
+  const isDiscover = template.section === 'discover';
+  const alreadyInstalled = Boolean(template.installed);
   const description = template.description?.trim() || '';
   const iconColor = resolveNoteTemplateIconColor(template.id, template.iconColor);
   const menuRootRef = useRef<HTMLDivElement | null>(null);
@@ -145,8 +170,15 @@ function TemplateListRow({
         className={`proto-browse-templates-sheet__item-btn${
           description ? '' : ' proto-browse-templates-sheet__item-btn--no-desc'
         }${showActions ? ' proto-browse-templates-sheet__item-btn--has-menu' : ''}`}
-        onClick={() => onApply(template)}
-        aria-label={`Apply ${template.name}`}
+        onClick={() => (isDiscover ? onInstall(template) : onApply(template))}
+        disabled={isDiscover && installing}
+        aria-label={
+          isDiscover
+            ? alreadyInstalled
+              ? `${template.name} is already saved`
+              : `Add ${template.name} to your templates`
+            : `Apply ${template.name}`
+        }
       >
         <span className="proto-browse-templates-sheet__item-icon" aria-hidden>
           <ProtoSpaceMenuIcon
@@ -164,7 +196,24 @@ function TemplateListRow({
           {description ? (
             <p className="proto-browse-templates-sheet__item-desc">{description}</p>
           ) : null}
+          {isDiscover ? (
+            <p className="proto-browse-templates-sheet__item-desc">
+              {alreadyInstalled
+                ? 'Saved to your templates'
+                : template.authorDisplayName
+                  ? `Shared by ${template.authorDisplayName}`
+                  : 'Shared with everyone'}
+            </p>
+          ) : null}
         </span>
+        {isDiscover ? (
+          <span className="proto-browse-templates-sheet__item-icon" aria-hidden>
+            <Icon
+              name={alreadyInstalled ? 'check' : 'plus'}
+              size={PROTO_TOOLBAR_ICON_SIZE}
+            />
+          </span>
+        ) : null}
       </button>
       {showActions ? (
         <div
@@ -210,6 +259,23 @@ function TemplateListRow({
                   <span className="proto-menu-item__label">Edit</span>
                 </button>
                 ) : null}
+                {onShareWithOthers && template.section === 'personal' ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="proto-menu-item"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseMenu();
+                      onShareWithOthers(template);
+                    }}
+                  >
+                    <span className="proto-menu-item__icon" aria-hidden>
+                      <Icon name="share" size={PROTO_TOOLBAR_ICON_SIZE} />
+                    </span>
+                    <span className="proto-menu-item__label">Share with others</span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   role="menuitem"
@@ -253,12 +319,20 @@ export default function PrototypeBrowseTemplatesSheet({
   const { data, isLoading, isError } = useNoteTemplates(listSpaceId, open);
   const deleteTemplate = useDeleteNoteTemplate();
   const [scopeTab, setScopeTab] = useState<TemplateScopeTab>('all');
+  /* Only while the chip is selected. The catalog is not in "All", so fetching
+     it on open would be a request nobody asked for on every note. */
+  const discoverQuery = useDiscoverListings({
+    kind: 'template',
+    enabled: open && scopeTab === 'discover',
+  });
+  const installListing = useInstallDiscoverListing();
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
     anchorRect: DOMRect;
   } | null>(null);
+  const [shareTarget, setShareTarget] = useState<ShareWithOthersTarget | null>(null);
   const { input: searchInput, setInput: setSearchInput, debounced: debouncedSearch } =
     useDebouncedSearchState(200);
 
@@ -268,6 +342,7 @@ export default function PrototypeBrowseTemplatesSheet({
       setSearchInput('');
       setOpenMenuId(null);
       setDeleteTarget(null);
+      setShareTarget(null);
     }
   }, [open, setSearchInput]);
 
@@ -349,6 +424,25 @@ export default function PrototypeBrowseTemplatesSheet({
     return { builtIn: builtInSource, personal, space, org };
   }, [data, listSpaceId]);
 
+  const discoverRows = useMemo<BrowseTemplateRow[]>(() => {
+    const installed = new Set(discoverQuery.data?.installedSlugs ?? []);
+    return (discoverQuery.data?.listings ?? []).map((listing) => ({
+      // The catalog never ships a body, so there is nothing to apply — the row
+      // carries empty content and the install call is what fetches the real one.
+      id: listing.slug,
+      name: listing.title,
+      title: listing.preview?.titleTemplate ?? '',
+      content: '',
+      noteType: 'default',
+      section: 'discover' as const,
+      iconColor: null,
+      description: listing.description ?? undefined,
+      discoverSlug: listing.slug,
+      authorDisplayName: listing.authorDisplayName,
+      installed: installed.has(listing.slug),
+    }));
+  }, [discoverQuery.data]);
+
   const itemCount =
     sections.builtIn.length +
     sections.personal.length +
@@ -379,10 +473,31 @@ export default function PrototypeBrowseTemplatesSheet({
       level: _l,
       createdAt: _c,
       spaceId: _s,
+      discoverSlug: _ds,
+      authorDisplayName: _a,
+      installed: _i,
+      section,
       ...applyable
     } = template;
-    onApply(applyable);
+    // Narrows `section` to the four scopes a note can actually be started from.
+    if (section === 'discover') return;
+    onApply({ ...applyable, section });
     onOpenChange(false);
+  };
+
+  const handleInstall = async (template: BrowseTemplateRow) => {
+    const slug = template.discoverSlug;
+    if (!slug || installListing.isPending) return;
+    try {
+      const result = await installListing.mutateAsync(slug);
+      toast.success(
+        result.alreadyInstalled
+          ? `“${template.name}” is already in your templates`
+          : `Saved “${template.name}” to your templates`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save that template');
+    }
   };
 
   const handleEdit = (template: BrowseTemplateRow) => {
@@ -464,10 +579,12 @@ export default function PrototypeBrowseTemplatesSheet({
           ? sections.personal
           : scopeTab === 'space'
             ? sections.space
-            : sections.builtIn;
+            : scopeTab === 'discover'
+              ? discoverRows
+              : sections.builtIn;
     if (!searchTrim) return source;
     return source.filter((t) => templateMatchesSearch(t, searchTrim));
-  }, [scopeTab, sections, searchTrim, showSpaceSection]);
+  }, [scopeTab, sections, discoverRows, searchTrim, showSpaceSection]);
 
   const categoryEmpty = categoryEmptyCopy(scopeTab, spaceCaption);
 
@@ -482,7 +599,9 @@ export default function PrototypeBrowseTemplatesSheet({
         ? 'Saved'
         : scopeTab === 'space'
           ? spaceTabLabel
-          : 'Included';
+          : scopeTab === 'discover'
+            ? 'Discover'
+            : 'Included';
 
   const content = (
     <>
@@ -573,7 +692,17 @@ export default function PrototypeBrowseTemplatesSheet({
                       }
                       onCloseMenu={() => setOpenMenuId(null)}
                       onApply={handleApply}
+                      onInstall={(row) => void handleInstall(row)}
+                      installing={installListing.isPending}
                       onEdit={handleEdit}
+                      onShareWithOthers={(row) =>
+                        setShareTarget({
+                          kind: 'template',
+                          id: row.id,
+                          name: row.name,
+                          description: row.description ?? null,
+                        })
+                      }
                       onRequestDelete={handleRequestDelete}
                     />
                   );
@@ -596,6 +725,16 @@ export default function PrototypeBrowseTemplatesSheet({
         </div>
       </div>
     </>
+  );
+
+  const shareSheet = (
+    <PrototypeShareWithOthersSheet
+      open={shareTarget !== null}
+      target={shareTarget}
+      onOpenChange={(next) => {
+        if (!next) setShareTarget(null);
+      }}
+    />
   );
 
   const deleteConfirm =
@@ -642,6 +781,7 @@ export default function PrototypeBrowseTemplatesSheet({
           document.body,
         )}
         {deleteConfirm}
+        {shareSheet}
       </>
     );
   }
@@ -660,6 +800,7 @@ export default function PrototypeBrowseTemplatesSheet({
         </DrawerContent>
       </Drawer.Root>
       {deleteConfirm}
+      {shareSheet}
     </>
   );
 }
@@ -716,6 +857,12 @@ function categoryEmptyCopy(
         iconName: 'list-check',
         title: 'No included templates',
         description: 'Included study methods will appear here.',
+      };
+    case 'discover':
+      return {
+        iconName: 'list-check',
+        title: 'Nothing shared yet',
+        description: 'Templates people share, once they have been looked over, show up here.',
       };
     case 'all':
     default:

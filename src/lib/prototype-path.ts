@@ -138,6 +138,8 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   'org',
   // Bible reader — `/read/{book}/{chapter}`. Without this, `/read` is a note id.
   'read',
+  // The public catalog. Without this, `/discover` resolves as a note id.
+  'discover',
 ]);
 
 export function isReservedPrototypeSegment(segment: string): boolean {
@@ -247,6 +249,14 @@ export function prototypeAdminMaintenanceRouteTo(): '/prototype/admin/maintenanc
 
 export function prototypeAdminSupportRouteTo(): '/prototype/admin/support' {
   return (isDedicatedPrototypeHost() ? '/admin/support' : '/prototype/admin/support') as '/prototype/admin/support';
+}
+
+export function prototypeDiscoverRouteTo(): '/prototype/discover' {
+  return (isDedicatedPrototypeHost() ? '/discover' : '/prototype/discover') as '/prototype/discover';
+}
+
+export function prototypeAdminDiscoverRouteTo(): '/prototype/admin/discover' {
+  return (isDedicatedPrototypeHost() ? '/admin/discover' : '/prototype/admin/discover') as '/prototype/admin/discover';
 }
 
 export function prototypeAdminChurchesRouteTo(): '/prototype/admin/churches' {

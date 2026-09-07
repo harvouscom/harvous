@@ -313,6 +313,14 @@ describe('suggestion box', () => {
       expect(text, `${path} reads a user column`).not.toContain('UserMetadata');
       expect(text, `${path} imports the name helper`).not.toContain('suggestion-display-names');
     }
+    /* Discover reads UserMetadata directly and deliberately — it snapshots a
+       public byline once at submit, which is a different fact from the queue
+       attribution this helper exists for. What it must not do is become a third
+       importer, because that is what turns two justified exceptions into a
+       general-purpose name lookup. */
+    expect(source('server/routes/discover.ts')).not.toContain(
+      "from '../utils/suggestion-display-names'",
+    );
   });
 
   it('approves inside a transaction so a status change cannot outlive its item', () => {

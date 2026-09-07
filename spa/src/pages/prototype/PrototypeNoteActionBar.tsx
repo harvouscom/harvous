@@ -162,6 +162,7 @@ export default function PrototypeNoteActionBar({
   const shareButton = showShare ? (
     <PrototypeShareButton
       noteId={noteId}
+      noteTitle={currentTitle}
       isPublic={isPublic}
       shareToken={shareToken}
     />

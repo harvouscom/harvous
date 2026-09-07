@@ -15,7 +15,11 @@ import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import { getNavAvatarInitials, resolveProfileFullName } from '@/utils/nav-avatar-initials';
 import { resolveClerkProfileImageUrl } from '../../lib/clerk-profile-image';
-import { prototypeSettingsAccountRouteTo, prototypeSettingsRouteTo } from '@/lib/prototype-path';
+import {
+  prototypeDiscoverRouteTo,
+  prototypeSettingsAccountRouteTo,
+  prototypeSettingsRouteTo,
+} from '@/lib/prototype-path';
 import { storeSettingsOpenerPath } from '../../lib/prototype-settings-opener';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { updateCachedProfile, useProfile } from '../../hooks/queries/useProfile';
@@ -154,6 +158,26 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               </a>
             </div>
           ) : (
+          <>
+          {/* Its own section, above the account actions: Discover is somewhere to
+              go, not something to do to your account. A guest never sees it —
+              taking a copy needs somewhere to put it. */}
+          <div className="proto-menu-section" role="group">
+            <button
+              type="button"
+              role="menuitem"
+              className="proto-menu-item"
+              onClick={() => {
+                setOpen(false);
+                void navigate({ to: prototypeDiscoverRouteTo() });
+              }}
+            >
+              <span className="proto-menu-item__icon" aria-hidden>
+                <Icon name="magnifying-glass" size={PROTO_TOOLBAR_ICON_SIZE} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>Discover</span>
+            </button>
+          </div>
           <div className="proto-menu-section" role="group">
             <button
               type="button"
@@ -196,6 +220,7 @@ export default function AccountMenu({ iconSize, disabled = false }: { iconSize: 
               <span style={{ flex: 1, minWidth: 0 }}>{isSigningOut ? 'Logging out…' : 'Log out'}</span>
             </button>
           </div>
+          </>
           )}
         </ProtoPopoverShell>
       ) : null}
