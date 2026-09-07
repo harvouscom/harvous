@@ -18,12 +18,43 @@ export function isPrototypeHomeContentReady(notesListPhase: PrototypeNotesListPh
   return notesListPhase === 'list' || notesListPhase === 'empty';
 }
 
-/** React Query helper: settled when not pending or cached data exists. */
-export function isQuerySettled(isPending: boolean, hasData: boolean): boolean {
-  return !isPending || hasData;
+/**
+ * React Query helper: settled when it has an answer, or when it will never have one.
+ *
+ * `isEnabled` is the third argument because a *disabled* query keeps `status: 'pending'` in
+ * React Query v5, so the two-argument form reads "still loading" for a query that is never
+ * going to load. One such flag ANDed into the presentation gate is enough to make
+ * {@link isPrototypeHomePresentationReady} permanently false — which is exactly what
+ * `churchSermonsSettled` did for every account without a church, so Home reached `contentReady`
+ * only through its 2.5s deadline and painted with whatever had arrived by then. Waiting on a
+ * query that will never run is waiting forever.
+ *
+ * **"Disabled" only means "never" once the thing that disabled it has settled.** A query gated
+ * on another query's data is disabled *transiently* while that data is in flight, and calling it
+ * settled there would let the gate fire early — the same pop-in, just for the accounts that do
+ * have the feature. Compose the precondition where it is known (see `useChurchSermons.isSettled`)
+ * rather than passing a bare `isEnabled` for those.
+ *
+ * Defaults to `true` so a call about an unconditionally-enabled query stays a two-argument call.
+ */
+export function isQuerySettled(isPending: boolean, hasData: boolean, isEnabled = true): boolean {
+  if (hasData) return true;
+  if (!isPending) return true;
+  return !isEnabled;
 }
 
 export interface PrototypeHomePresentationReadyInput {
+  /**
+   * `useAuthReady()` — a usable session JWT, not merely a signed-in user.
+   *
+   * A hard precondition, and the one that makes every `isEnabled` below safe to trust. Nearly
+   * every query here is `enabled: authReady && …`, so before auth settles they are all disabled
+   * — and `isQuerySettled` reads a disabled query as settled, because a query that will never
+   * run is not something to wait for. Without this line that reasoning inverts on itself: on the
+   * first frames *everything* would look settled at once and Home would paint empty. With it,
+   * `isEnabled === false` can only mean the query's own condition said no.
+   */
+  authReady: boolean;
   /** Notes list/empty. */
   notesReady: boolean;
   /** Clerk `useUser().isLoaded` — enough for the hello first name. */
@@ -54,6 +85,22 @@ export interface PrototypeHomePresentationReadyInput {
   churchFeedSettled: boolean;
   /** Reading bookmark — *replaces* the continue-book card, so its arrival reorders the deck. */
   readingPositionSettled: boolean;
+  /**
+   * The paid-feature answer, which decides whether Review exists on this page at all — and, for
+   * an account without it, whether the sample and the Plus row do.
+   */
+  entitlementSettled: boolean;
+  /**
+   * Review's own rows. Also *removes* recall cards: the suggestion handoff steps Home's
+   * resurfacing cards aside for any passage Review has already taken up.
+   */
+  reviewSettled: boolean;
+  /** Challenges — the Review section reads them, and so does the strengthen-a-Thread row. */
+  challengesSettled: boolean;
+  /** Personal reading plans — a row inside Following. */
+  readingPlansSettled: boolean;
+  /** The getting-started checklist's own store, whose dock inserts at the *top* of the sheet. */
+  onboardingHydrated: boolean;
 }
 
 /**
@@ -70,13 +117,20 @@ export interface PrototypeHomePresentationReadyInput {
  * `null` until their own query resolves — and "This Sunday" sits above the daily passage, so
  * its arrival pushes everything below it down.
  *
+ * Five more joined later — the entitlement, Review, challenges, reading plans and the
+ * onboarding store. Review's absence was deliberate at the time: it was the slowest thing on the
+ * page, so gating on it would have made everyone wait for it. Then it was made to start at t=0
+ * (a per-tab entitlement snapshot, see `useSubscriptionStatus`) and became one of the fastest,
+ * which is precisely why it was the section a reader saw sitting alone while the rest arrived.
+ * The reasoning inverted with the measurement.
+ *
  * When adding a flag, add it to {@link PrototypeHomePresentationReadyInput} as well. This
  * function has already been bitten once by exactly that: the call site passed five flags the
  * parameter type didn't declare and all five were silently dropped, so Home painted early
  * anyway. `npm run typecheck:ratchet` now catches it.
  */
 export function isPrototypeHomePresentationReady(input: PrototypeHomePresentationReadyInput): boolean {
-  if (!input.notesReady || !input.clerkLoaded) return false;
+  if (!input.authReady || !input.notesReady || !input.clerkLoaded) return false;
   return (
     input.fingerprintsSettled &&
     input.tagsSettled &&
@@ -92,6 +146,11 @@ export function isPrototypeHomePresentationReady(input: PrototypeHomePresentatio
     input.churchSermonsSettled &&
     input.churchFeedSettled &&
     input.readingPositionSettled &&
-    input.studyBibleSettled
+    input.studyBibleSettled &&
+    input.entitlementSettled &&
+    input.reviewSettled &&
+    input.challengesSettled &&
+    input.readingPlansSettled &&
+    input.onboardingHydrated
   );
 }
