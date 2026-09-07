@@ -304,15 +304,28 @@ export function engineHasEnoughReady(
   let ready = 0;
   for (const node of nodes) {
     /*
-     * Chapters do not count toward the cold start.
+     * Chapters count, and used to not.
      *
-     * The gate asks whether this is an account someone has been *studying* in, and reading is
-     * the one signal that arrives without any writing at all. Counted here, a reader who has
-     * turned to five chapters and written nothing would unlock the engine and be asked about
-     * five chapters — which is the demo-of-a-feature the cold start exists to prevent. They
-     * still get chapter items once the account clears the gate on its own study.
+     * The exclusion read: "reading is the one signal that arrives without any writing at all.
+     * Counted here, a reader who has turned to five chapters and written nothing would unlock
+     * the engine and be asked about five chapters — the demo-of-a-feature the cold start exists
+     * to prevent."
+     *
+     * The fear is right and the guard was in the wrong place, because it describes chapters that
+     * `nodeIsReady` already refuses. A chapter needs two committed signals, and for a chapter
+     * those are reads and study dwells, plus one for having marked something in it —
+     * `countCommittedSignals` scores a glance at nothing at all. "Turned to five chapters" is
+     * five glances: none of them ready, none of them counted, with or without this line.
+     *
+     * What the line did instead was refuse the reader it was written to protect. Someone who has
+     * read eleven chapters and gone back to six of them has been studying by any honest reading
+     * of the word, and none of it moved them one step closer to a feature that exists to bring
+     * their study back. Reading is how a great many people study, and an engine that waits for
+     * writing before it believes them is making a claim about what study looks like that this
+     * app should not make.
+     *
+     * `nodeIsReady` is the arbiter, which is what it is for.
      */
-    if (node.nodeKind === 'chapter') continue;
     const weight = node.noteId ? meaningWeightByNoteId.get(node.noteId) ?? null : null;
     if (nodeIsReady(node, now, weight, context)) {
       ready += 1;
@@ -363,8 +376,6 @@ export function describeEngineColdStart(
   const maturesAt: number[] = [];
 
   for (const node of nodes) {
-    // Chapters are excluded here for the same reason they are excluded from the gate itself.
-    if (node.nodeKind === 'chapter') continue;
     const weight = node.noteId ? meaningWeightByNoteId.get(node.noteId) ?? null : null;
     const readiness = nodeReadiness(node, now, weight, context);
     if (readiness === 'ready') {
@@ -373,7 +384,15 @@ export function describeEngineColdStart(
     }
     if (readiness !== 'too-new') continue;
 
-    const matureAt = new Date(node.firstStudiedAt.getTime() + ENGINE_MIN_NODE_AGE_DAYS * DAY_MS);
+    /*
+     * A chapter matures a day after it was read, not three — reading is a different act from
+     * writing and `nodeReadiness` already says so. Asking the wrong threshold here would put the
+     * estimate two days behind the gate it is describing, which is the quiet way an explanation
+     * stops being about the thing it explains.
+     */
+    const minAge =
+      node.nodeKind === 'chapter' ? ENGINE_MIN_CHAPTER_AGE_DAYS : ENGINE_MIN_NODE_AGE_DAYS;
+    const matureAt = new Date(node.firstStudiedAt.getTime() + minAge * DAY_MS);
     if (nodeReadiness(node, matureAt, weight, context) === 'ready') maturesAt.push(matureAt.getTime());
   }
 

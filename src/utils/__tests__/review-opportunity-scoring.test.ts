@@ -433,16 +433,49 @@ describe('a chapter the reader has been through', () => {
     expect(nodeReadiness(yesterday, NOW, null)).toBe('ready');
   });
 
-  it('never unlocks the engine on its own', () => {
-    /*
-     * The cold start asks whether this is an account someone has been studying in, and reading
-     * is the one signal that arrives with no writing at all. Five read chapters and nothing
-     * else must not open the queue, or a new reader's first week is five chapter quizzes.
-     */
+  /*
+   * This used to assert the opposite: "never unlocks the engine on its own", on the reasoning
+   * that reading is the one signal arriving with no writing at all, and that five read chapters
+   * would make a new reader's first week five chapter quizzes.
+   *
+   * The fear was right and the guard was in the wrong place. What it actually refused was the
+   * reader it was written to protect — someone who had read eleven chapters and gone back to six
+   * of them, studying by any honest reading of the word, and no closer to a feature that exists
+   * to bring their study back. Reading is how a great many people study.
+   *
+   * The protection lives in `nodeReadiness`, which is where it belongs, and the pair below is
+   * the whole argument: chapters that were read count, chapters that were merely opened do not.
+   */
+  it('unlocks the engine when the chapters were genuinely read', () => {
     const chapters = [1, 2, 3, 4, 5, 6, 7].map((n) =>
       chapter(nodeKey.chapter({ book: 'John', chapter: n }), { revisitCount: 2 }),
     );
-    expect(engineHasEnoughReady(chapters, NOW, new Map())).toBe(false);
+    expect(engineHasEnoughReady(chapters, NOW, new Map())).toBe(true);
+  });
+
+  it('is not unlocked by chapters that were only opened', () => {
+    /*
+     * The case the old exclusion was really aimed at, and the one it never had to catch itself.
+     * `countCommittedSignals` scores a glance at nothing: exposure however high is worth zero
+     * for a chapter, so "turned to seven chapters" is seven nodes that are not ready.
+     */
+    const glanced = [1, 2, 3, 4, 5, 6, 7].map((n) =>
+      chapter(nodeKey.chapter({ book: 'John', chapter: n }), { revisitCount: 0, exposureCount: 9 }),
+    );
+    expect(engineHasEnoughReady(glanced, NOW, new Map())).toBe(false);
+  });
+
+  it('counts a chapter that was read once and marked in', () => {
+    // One read plus a highlight is two deliberate acts, the same bar a note or verse clears.
+    const key = nodeKey.chapter({ book: 'John', chapter: 3 });
+    const read = [1, 2, 3, 4, 5].map((n) =>
+      chapter(nodeKey.chapter({ book: 'John', chapter: n }), { revisitCount: 1 }),
+    );
+    expect(engineHasEnoughReady(read, NOW, new Map())).toBe(false);
+    const marked = read.map((c) => ({ ...c, nodeKey: key }));
+    expect(
+      engineHasEnoughReady(marked, NOW, new Map(), { highlightedChapterKeys: new Set([key]) }),
+    ).toBe(true);
   });
 
   it('is picked once the account has cleared the gate on its own study', () => {
@@ -517,14 +550,25 @@ describe('describeEngineColdStart', () => {
     expect(describeEngineColdStart(barren, NOW, new Map()).opensAt).toBeNull();
   });
 
-  it('does not count chapters, matching the gate it describes', () => {
-    // Reading arrives without writing; counting it would unlock the engine on chapters alone.
+  it('counts read chapters, matching the gate it describes', () => {
+    // Was asserted the other way, alongside the exclusion in `engineHasEnoughReady`. These two
+    // have to agree about what a ready node is, or the estimate describes a different gate.
     const chapters = ['a', 'b', 'c', 'd', 'e'].map((k) =>
-      node({ nodeKind: 'chapter', nodeKey: k, exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(30) }),
+      node({ nodeKind: 'chapter', nodeKey: k, revisitCount: 2, firstStudiedAt: daysAgo(30) }),
     );
     const state = describeEngineColdStart(chapters, NOW, new Map());
-    expect(state.ready).toBe(0);
-    expect(state.opensAt).toBeNull();
+    expect(state.ready).toBe(5);
+    expect(engineHasEnoughReady(chapters, NOW, new Map())).toBe(true);
+  });
+
+  it('dates a chapter a day out, not three', () => {
+    // Chapters mature on `ENGINE_MIN_CHAPTER_AGE_DAYS`. Using the note threshold here would put
+    // the estimate two days behind the gate.
+    const chapters = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      node({ nodeKind: 'chapter', nodeKey: k, revisitCount: 2, firstStudiedAt: daysAgo(0) }),
+    );
+    const state = describeEngineColdStart(chapters, NOW, new Map());
+    expect(state.opensAt!.getTime()).toBe(daysAgo(0).getTime() + ENGINE_MIN_CHAPTER_AGE_DAYS * 24 * 60 * 60 * 1000);
   });
 
   it('agrees with the gate about when the engine may run', () => {
