@@ -296,6 +296,12 @@ app.get('/api/discover/listings', rateLimit('read'), async (c) => {
         .map((row) => row.slug as string);
     }
 
+    /* `no-store`, the way the share-status read already does it. Without it the
+       browser heuristically caches this URL: a listing approved a minute ago does
+       not appear, and — worse — `installedSlugs` goes stale straight after an
+       install, so a row offers to add something the reader already took. React
+       Query refetching does not help; the HTTP cache sits underneath it. */
+    c.header('Cache-Control', 'private, max-age=0, no-store');
     return c.json({
       listings: page.map(serializePublic),
       installedSlugs,
@@ -326,6 +332,9 @@ app.get('/api/discover/listings/:slug', rateLimit('read'), async (c) => {
     );
     if (!row) return c.json({ error: 'Not found', code: 'LISTING_NOT_FOUND' }, 404);
 
+    // Same reason as the list above: install counts and delistings must not be
+    // served from a stale browser cache.
+    c.header('Cache-Control', 'private, max-age=0, no-store');
     return c.json({ listing: serializePublic(row) });
   } catch (error) {
     const standardError = handleAPIError(error, {

@@ -185,6 +185,22 @@ describe('discover routes', () => {
     expect(body).toContain('extractDomain(');
   });
 
+  it('never lets a browser cache the public catalog', () => {
+    /*
+      Found by walking the loop end to end: after approving a listing, a repeat of
+      the identical URL still returned the old empty list. React Query refetching
+      does not help — the HTTP cache sits underneath it — so a newly approved
+      listing stays invisible, and worse, `installedSlugs` goes stale right after
+      an install and a row offers to add what the reader already took.
+    */
+    for (const marker of ["app.get('/api/discover/listings',", "app.get('/api/discover/listings/:slug',"]) {
+      const body = handlerBody(routes(), marker);
+      expect(body, `${marker} may be cached`).toContain(
+        "c.header('Cache-Control', 'private, max-age=0, no-store')",
+      );
+    }
+  });
+
   it('does not become a third importer of the shared name helper', () => {
     // suggestion-display-names.ts is confined to the two suggestion routes by
     // church-library-routes.test.ts. The byline derivation here is duplicated on

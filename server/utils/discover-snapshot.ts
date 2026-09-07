@@ -137,6 +137,19 @@ function headingsOf(content: string): string[] {
     .slice(0, PREVIEW_HEADINGS_MAX);
 }
 
+/**
+ * Plain-text excerpt with block boundaries preserved.
+ *
+ * `stripHtmlForPreview` alone runs adjacent blocks together — `<h2>First</h2><p>one</p>`
+ * came out as "Firstone" (see docs/STRIP_HTML_SPACING_ISSUE.md). The shared util
+ * is used in a dozen places and is not this feature's to change, so the spacing
+ * is inserted here, before it strips.
+ */
+export function excerptOf(html: string): string {
+  const spaced = html.replace(/<\/(h[1-6]|p|div|li|blockquote|tr)>/gi, ' ');
+  return stripHtmlForPreview(spaced, EXCERPT_MAX_LENGTH).replace(/\s+/g, ' ').trim();
+}
+
 function tooBig(payload: string): boolean {
   return Buffer.byteLength(payload, 'utf8') > MAX_PAYLOAD_BYTES;
 }
@@ -224,7 +237,7 @@ export async function snapshotTemplate(templateId: string, userId: string): Prom
       preview: JSON.stringify({
         titleTemplate: template.title,
         headings: headingsOf(template.content),
-        excerpt: stripHtmlForPreview(template.content, EXCERPT_MAX_LENGTH),
+        excerpt: excerptOf(template.content),
       }),
       sourceVersionId: null,
     },
@@ -309,7 +322,7 @@ export async function snapshotNote(noteId: string, userId: string): Promise<Snap
       payload: encoded,
       preview: JSON.stringify({
         headings: headingsOf(note.content),
-        excerpt: stripHtmlForPreview(note.content, EXCERPT_MAX_LENGTH),
+        excerpt: excerptOf(note.content),
       }),
       sourceVersionId: note.currentVersionId ?? null,
     },
@@ -505,7 +518,7 @@ export async function snapshotPack(threadId: string, userId: string): Promise<Sn
           .map((n) => n.title?.trim())
           .filter((t): t is string => Boolean(t))
           .slice(0, PREVIEW_TITLES_MAX),
-        excerpt: stripHtmlForPreview(firstBody, EXCERPT_MAX_LENGTH),
+        excerpt: excerptOf(firstBody),
       }),
       sourceVersionId: null,
     },
