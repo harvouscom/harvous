@@ -87,6 +87,23 @@ import { openWelcome3 } from './welcome3-bridge';
  */
 const WELCOME_SHEET_MAJOR = '3';
 
+/**
+ * Whether the row opens the welcome sheet rather than the release notes.
+ *
+ * Exported and pure because this decision has now regressed three times, each time silently:
+ * the wrong branch opens a real page, so nothing errors and nothing looks broken unless you
+ * already know which of the two you were owed. Inline in the component it had no test that
+ * could hold it.
+ *
+ * An unknown version answers `false`, which is the honest reading — we cannot claim a major we
+ * were never told. It should also now be unreachable: `appVersion()` prefers the build-time
+ * define, so the value no longer depends on an effect having run. That ordering was the way
+ * this could break without anyone editing this file.
+ */
+export function opensWelcomeSheet(version: string | undefined | null): boolean {
+  return (releaseMarkerFor(version) ?? '').split('.')[0] === WELCOME_SHEET_MAJOR;
+}
+
 export default function PrototypeWhatsNewPill() {
   const version = appVersion();
   const releaseNotesUrl = useReleaseNotesUrl(version);
@@ -94,8 +111,7 @@ export default function PrototypeWhatsNewPill() {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
   });
 
-  const showsWelcomeSheet =
-    (releaseMarkerFor(version) ?? '').split('.')[0] === WELCOME_SHEET_MAJOR;
+  const showsWelcomeSheet = opensWelcomeSheet(version);
 
   /* `releaseNotesUrl` belongs in the deps: it starts on the index and upgrades in place once
      the site answers, so a callback that captured only the first value would have pinned every
