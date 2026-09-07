@@ -46,10 +46,20 @@ vi.mock('../../../hooks/useHasFeature', () => ({
   useHasFeature: (key: string) => features[key] ?? { has: false, ready: true },
 }));
 const allItems = { data: undefined as undefined | { items: unknown[] } };
+/*
+ * The counted shape, fetched on every load — where the built one below is not.
+ *
+ * This is the split that took `/api/review/items` off Home's first paint: the section reads
+ * counts from here and only asks the server to build questions when a fold is opened. The two
+ * lists have identical membership by construction (same drop rules, server side), so a test can
+ * hand them the same rows.
+ */
+const summaryItems = { data: undefined as undefined | { items: unknown[] } };
 vi.mock('../../../hooks/queries/useReview', () => ({
   useReviewInbox: () => inbox,
   // Fetched only once the reader unfolds the section.
   useReviewItems: () => allItems,
+  useReviewItemsSummary: () => summaryItems,
   // The sample is for an account without the feature; these rows all have it.
   useReviewSample: (opts: { enabled: boolean }) => ({
     data: opts?.enabled === false ? undefined : sample.data,
@@ -128,6 +138,7 @@ beforeEach(() => {
   features.challenges = { has: true, ready: true };
   inbox.data = { items: [], hasMore: false };
   allItems.data = undefined;
+  summaryItems.data = undefined;
   challenges.data = { challenges: [] };
   sample.data = undefined;
   try { window.localStorage.clear(); } catch { /* ignore */ }
@@ -253,9 +264,16 @@ describe('what it shows a subscriber', () => {
     expect(screen.queryByText(/\d+ more/)).not.toBeInTheDocument();
   });
 
-  it('counts them once the full list is in hand', () => {
+  /*
+   * The count comes off the summary, which every load already has — so the label can say how
+   * many rather than "See all" without anyone pressing anything first. It used to need the
+   * built list, which is only fetched on expand, so the honest label before that was "See all".
+   */
+  it('counts them from the summary, without waiting for the built list', () => {
+    // `allItems` stays undefined here (reset in beforeEach): nothing is expanded, so the server
+    // was never asked to build a question, and the count is right anyway.
     inbox.data = { items: ['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)), hasMore: false };
-    allItems.data = { items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)) };
+    summaryItems.data = { items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)) };
     render(<PrototypeReviewSection />);
     expect(screen.getByText('2 more')).toBeInTheDocument();
   });
