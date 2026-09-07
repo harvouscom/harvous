@@ -409,6 +409,12 @@ export default function PrototypeChurchHub() {
    * It only counts when it is actually enabled: a disabled query stays
    * `isPending` forever in React Query v5, so requiring it for a congregant
    * (who never sees the row) would strand the animation permanently.
+   *
+   * Spelled as `!billingEnabled || …` rather than by handing `isQuerySettled`
+   * the query's own `isEnabled`, which would look tidier and be wrong: that flag
+   * is also false while auth is still resolving and before an `orgId` is known,
+   * and treating either of those as settled would fire this gate on an empty
+   * hub. `billingEnabled` is the one condition here that can be a permanent no.
    */
   const contentReady =
     isQuerySettled(navQuery.isPending, nav != null) &&

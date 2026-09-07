@@ -205,6 +205,19 @@ const sharedThreadRoute = createRoute({
   component: PublicSharedThreadPage,
 });
 
+/**
+ * The app's half of a Discover listing: the install action only.
+ *
+ * Flat and public, beside the other /shared/* pages, because someone arriving
+ * from harvous.com is not signed in yet. harvous.com owns the indexed page —
+ * this one is never in a sitemap and needs no OG card.
+ */
+const discoverListingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/discover/$slug',
+  component: lazyRouteComponent(() => import('./pages/public/PublicDiscoverListingPage')),
+});
+
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitations/$token',
@@ -619,6 +632,12 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/AdminSupportPage')),
   });
 
+  const prototypeAdminDiscoverRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/discover',
+    component: lazyRouteComponent(() => import('./pages/AdminDiscoverPage')),
+  });
+
   const prototypeAdminVotdRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'admin/votd',
@@ -652,6 +671,7 @@ function buildPrototypeRouteBranch() {
     prototypeAdminPublishRoute,
     prototypeAdminMaintenanceRoute,
     prototypeAdminSupportRoute,
+    prototypeAdminDiscoverRoute,
     prototypeAdminVotdRoute,
     prototypeAdminChurchesRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
@@ -794,6 +814,7 @@ function buildRouteTree() {
     joinSpaceRoute,
     sharedNoteRoute,
     sharedThreadRoute,
+    discoverListingRoute,
     invitationRoute,
     statusRoute,
     ...(designSystemGalleryRoute ? [designSystemGalleryRoute] : []),

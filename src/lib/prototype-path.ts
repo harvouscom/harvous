@@ -138,6 +138,10 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   'org',
   // Bible reader — `/read/{book}/{chapter}`. Without this, `/read` is a note id.
   'read',
+  // The public listing page — `/discover/{slug}`. The in-app catalog is an
+  // expanded-sidebar tool with no slug of its own, but this segment still must
+  // not resolve as a note id.
+  'discover',
 ]);
 
 export function isReservedPrototypeSegment(segment: string): boolean {
@@ -249,6 +253,10 @@ export function prototypeAdminSupportRouteTo(): '/prototype/admin/support' {
   return (isDedicatedPrototypeHost() ? '/admin/support' : '/prototype/admin/support') as '/prototype/admin/support';
 }
 
+export function prototypeAdminDiscoverRouteTo(): '/prototype/admin/discover' {
+  return (isDedicatedPrototypeHost() ? '/admin/discover' : '/prototype/admin/discover') as '/prototype/admin/discover';
+}
+
 export function prototypeAdminChurchesRouteTo(): '/prototype/admin/churches' {
   return (isDedicatedPrototypeHost() ? '/admin/churches' : '/prototype/admin/churches') as '/prototype/admin/churches';
 }
@@ -337,6 +345,22 @@ export function prototypeSettingsSupportRouteTo(): '/prototype/settings/support'
 /** Settings → My Notes, which opens on its Import tab. */
 export function prototypeSettingsDataRouteTo(): '/prototype/settings/data' {
   return (isDedicatedPrototypeHost() ? '/settings/data' : '/prototype/settings/data') as '/prototype/settings/data';
+}
+
+export function prototypeSettingsAppearanceRouteTo(): '/prototype/settings/appearance' {
+  return (isDedicatedPrototypeHost() ? '/settings/appearance' : '/prototype/settings/appearance') as '/prototype/settings/appearance';
+}
+
+/**
+ * Settings → Reminders.
+ *
+ * The onboarding row only sends anyone here when the device cannot subscribe where it
+ * stands — an iPhone in a Safari tab — because this page owns the install sheet that
+ * explains why. Everywhere else the row turns reminders on in place, since the permission
+ * prompt has to come straight off the tap.
+ */
+export function prototypeSettingsRemindersRouteTo(): '/prototype/settings/reminders' {
+  return (isDedicatedPrototypeHost() ? '/settings/reminders' : '/prototype/settings/reminders') as '/prototype/settings/reminders';
 }
 
 /**

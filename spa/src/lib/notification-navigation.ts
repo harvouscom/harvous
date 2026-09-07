@@ -19,10 +19,6 @@
  *   3. `addEventListener('message')` does not start the client message queue. Only assigning
  *      `onmessage` or calling `startMessages()` does, per spec.
  */
-import { reportDiagnosticEvent } from '@/utils/diagnostics-client';
-
-declare const __APP_VERSION__: string;
-
 export const NOTIFICATION_NAVIGATE_MESSAGE = 'HARVOUS_NOTIFICATION_NAVIGATE';
 
 /** Must match `PENDING_NAV_CACHE` / `PENDING_NAV_KEY` in public/sw.js. */
@@ -41,11 +37,6 @@ const PENDING_NAV_MAX_AGE_MS = 2 * 60_000;
 /** The message and the visibility peek can both resolve the same tap. Only act once. */
 const DUPLICATE_WINDOW_MS = 5_000;
 
-/** Temporary, paired with `PUSH_NAV_DIAGNOSTICS` in public/sw.js. */
-const PUSH_NAV_DIAGNOSTICS = true;
-
-type NavigationSource = 'message' | 'boot-peek' | 'visible-peek' | 'drain' | 'ready-recheck';
-
 interface NotificationNavigateMessage {
   type: typeof NOTIFICATION_NAVIGATE_MESSAGE;
   url: string;
@@ -59,23 +50,12 @@ interface NotificationNavigateMessage {
  */
 let routerReady = false;
 let queuedPath: string | null = null;
-let queuedAt = 0;
 let lastHandled: { path: string; at: number } | null = null;
 
 function isNavigateMessage(data: unknown): data is NotificationNavigateMessage {
   if (!data || typeof data !== 'object') return false;
   const { type, url } = data as Record<string, unknown>;
   return type === NOTIFICATION_NAVIGATE_MESSAGE && typeof url === 'string' && url.length > 0;
-}
-
-function log(message: string): void {
-  if (!PUSH_NAV_DIAGNOSTICS) return;
-  reportDiagnosticEvent({
-    source: 'client_js',
-    severity: 'warning',
-    message,
-    appVersion: typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : null,
-  });
 }
 
 /**
@@ -139,13 +119,11 @@ export async function consumePendingNavigation(): Promise<string | null> {
   return path;
 }
 
-function goTo(path: string, via: NavigationSource): void {
+function goTo(path: string): void {
   if (!routerReady) {
     // Held, not dropped, and deliberately not cleared — the parked copy is the only record
     // until something actually navigates.
     queuedPath = path;
-    queuedAt = Date.now();
-    log(`[push-nav] client queued path=${path} via=${via}`);
     return;
   }
 
@@ -160,14 +138,6 @@ function goTo(path: string, via: NavigationSource): void {
     return;
   }
   lastHandled = { path, at: now };
-
-  /*
-   * Logged here, at the call, and never on arrival: `/read/today` is itself a redirect page
-   * that loads a chunk and waits on the verse before it moves, so arrival is seconds later
-   * and says nothing about whether this fired.
-   */
-  const waited = queuedAt ? now - queuedAt : 0;
-  log(`[push-nav] client navigate path=${path} via=${via} waitedMs=${waited}`);
 
   /*
    * Imported here rather than at the top, to break a cycle.
@@ -186,9 +156,9 @@ function goTo(path: string, via: NavigationSource): void {
   void clearPendingNavigation();
 }
 
-function checkPending(via: NavigationSource): void {
+function checkPending(): void {
   void peekPendingNavigation().then((path) => {
-    if (path) goTo(path, via);
+    if (path) goTo(path);
   });
 }
 
@@ -205,11 +175,11 @@ export function markNotificationNavigationReady(): void {
     if (queuedPath) {
       const path = queuedPath;
       queuedPath = null;
-      goTo(path, 'drain');
+      goTo(path);
       return;
     }
     // Covers a destination parked between boot and readiness, which no listener saw.
-    checkPending('ready-recheck');
+    checkPending();
   }, 0);
 }
 
@@ -220,11 +190,11 @@ export function initNotificationNavigation(): () => void {
   const onMessage = (event: MessageEvent) => {
     if (!isNavigateMessage(event.data)) return;
     const path = resolveNotificationPath(event.data.url);
-    if (path) goTo(path, 'message');
+    if (path) goTo(path);
   };
 
   const onVisible = () => {
-    if (document.visibilityState === 'visible') checkPending('visible-peek');
+    if (document.visibilityState === 'visible') checkPending();
   };
 
   navigator.serviceWorker?.addEventListener('message', onMessage);
@@ -232,7 +202,7 @@ export function initNotificationNavigation(): () => void {
   // anything the worker posted before this listener existed.
   navigator.serviceWorker?.startMessages?.();
   document.addEventListener('visibilitychange', onVisible);
-  checkPending('boot-peek');
+  checkPending();
 
   return () => {
     navigator.serviceWorker?.removeEventListener('message', onMessage);
@@ -244,6 +214,5 @@ export function initNotificationNavigation(): () => void {
 export function resetNotificationNavigationForTests(): void {
   routerReady = false;
   queuedPath = null;
-  queuedAt = 0;
   lastHandled = null;
 }

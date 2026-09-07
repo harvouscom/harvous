@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ALL_STEP_IDS,
+  CUSTOMIZE_STEP_IDS,
   ONBOARDING_STEP_IDS,
   ONBOARDING_VERSION,
   deriveInitialLatches,
@@ -53,7 +55,7 @@ describe('parseOnboardingState', () => {
 
   it('drops unknown step keys', () => {
     const state = parseOnboardingState('{"steps":{"nonsense":{"done":true},"read":{"done":true}}}');
-    expect(Object.keys(state!.steps).sort()).toEqual([...ONBOARDING_STEP_IDS].sort());
+    expect(Object.keys(state!.steps).sort()).toEqual([...ALL_STEP_IDS].sort());
     expect(state!.steps.read.done).toBe(true);
   });
 
@@ -210,5 +212,85 @@ describe('onboardingProgress', () => {
     expect(progress.done).toBe(1);
     expect(progress.total).toBe(ONBOARDING_STEP_IDS.length - 1);
     expect(progress.visible).not.toContain('recall');
+  });
+});
+
+/*
+ * The customization rows ride in the same record as the tour but must not touch its
+ * lifecycle. Every assertion here is really the same one: shipping a new row cannot bring
+ * the dock back for an account that already finished or dismissed it.
+ */
+describe('customization steps', () => {
+  const completedTour = (): ReturnType<typeof emptyOnboardingState> => {
+    let state = emptyOnboardingState();
+    for (const id of ONBOARDING_STEP_IDS) state = markStep(state, id, T1);
+    return state;
+  };
+
+  it('are stored, parsed and merged like any other step', () => {
+    let state = emptyOnboardingState();
+    state = markStep(state, 'reminders', T1);
+    state = dismissStep(state, 'import');
+    const round = parseOnboardingState(serializeOnboardingState(state))!;
+    expect(round.steps.reminders.done).toBe(true);
+    expect(round.steps.reminders.at).toBe(T1);
+    expect(round.steps.import.dismissed).toBe(true);
+    expect(round.steps.appearance.done).toBe(false);
+  });
+
+  it('do not keep the dock alive once the tour is finished', () => {
+    const state = completedTour();
+    for (const id of CUSTOMIZE_STEP_IDS) {
+      expect(state.steps[id].done).toBe(false);
+      expect(state.steps[id].dismissed).toBe(false);
+    }
+    expect(shouldShowOnboarding(state)).toBe(false);
+  });
+
+  it('do not reopen a dock that was dismissed', () => {
+    expect(shouldShowOnboarding(dismissOnboarding(emptyOnboardingState()))).toBe(false);
+  });
+
+  it('do not delay completedAt', () => {
+    expect(completedTour().completedAt).toBe(T1);
+  });
+
+  it('are left out of the progress count', () => {
+    let state = emptyOnboardingState();
+    state = markStep(state, 'reminders', T1);
+    const progress = onboardingProgress(state);
+    expect(progress.total).toBe(ONBOARDING_STEP_IDS.length);
+    expect(progress.done).toBe(0);
+    expect(progress.visible).not.toContain('reminders');
+  });
+
+  it('survive a merge with a client that predates them', () => {
+    /* What an older build pushes: the tour keys only. Its copy must not read as a "no" on
+       rows it has never heard of, or one stale device would sweep them for the account. */
+    const legacy = parseOnboardingState(
+      JSON.stringify({
+        version: 1,
+        steps: { read: { done: true }, note: { done: true } },
+      }),
+    )!;
+    let account = emptyOnboardingState();
+    account = markStep(account, 'reminders', T1);
+    account = dismissStep(account, 'appearance');
+
+    for (const merged of [
+      mergeOnboardingStates(legacy, account),
+      mergeOnboardingStates(account, legacy),
+    ]) {
+      expect(merged.steps.reminders.done).toBe(true);
+      expect(merged.steps.appearance.dismissed).toBe(true);
+      expect(merged.steps.import.done).toBe(false);
+      expect(merged.steps.read.done).toBe(true);
+    }
+  });
+
+  it('leave room under the write cap when every row is stamped', () => {
+    let state = emptyOnboardingState();
+    for (const id of ALL_STEP_IDS) state = markStep(state, id, T1);
+    expect(serializeOnboardingState(state).length).toBeLessThan(2048);
   });
 });

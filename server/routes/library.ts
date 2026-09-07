@@ -35,7 +35,11 @@ import {
   desc,
 } from '../db';
 import { now } from '../db/dates';
-import { isUniqueViolationError } from '../utils/db-errors';
+import {
+  ensurePersonalLibrary,
+  findPersonalLibrary,
+  type LibraryRow,
+} from '../utils/ensure-personal-library';
 import {
   uploadLibraryFile,
   signedLibraryFileUrl,
@@ -52,9 +56,8 @@ const app = new Hono();
 
 const TITLE_MAX_LENGTH = 200;
 const DESCRIPTION_MAX_LENGTH = 1000;
-const DEFAULT_PERSONAL_LIBRARY_TITLE = 'My Library';
 
-type LibraryRow = typeof ResourceLibraries.$inferSelect;
+
 type LibraryItemRow = typeof LibraryItems.$inferSelect;
 
 function serializeItem(row: LibraryItemRow) {
@@ -75,51 +78,6 @@ function serializeItem(row: LibraryItemRow) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
-}
-
-/** The caller's personal library, or null when they haven't saved anything yet. */
-async function findPersonalLibrary(userId: string): Promise<LibraryRow | null> {
-  return (
-    first(
-      await db
-        .select()
-        .from(ResourceLibraries)
-        .where(and(eq(ResourceLibraries.ownerKind, 'user'), eq(ResourceLibraries.ownerId, userId)))
-        .limit(1),
-    ) ?? null
-  );
-}
-
-/**
- * The caller's personal library, creating it on first use.
- *
- * Two clients saving their first item at once both see no library and both
- * insert. The unique index on (ownerKind, ownerId) rejects the loser, who then
- * re-reads the winner's row — an account never ends up with two libraries.
- */
-async function ensurePersonalLibrary(userId: string): Promise<LibraryRow> {
-  const existing = await findPersonalLibrary(userId);
-  if (existing) return existing;
-
-  const timestamp = now();
-  const row: LibraryRow = {
-    id: `lib_${crypto.randomUUID()}`,
-    ownerKind: 'user',
-    ownerId: userId,
-    title: DEFAULT_PERSONAL_LIBRARY_TITLE,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  };
-
-  try {
-    await db.insert(ResourceLibraries).values(row);
-    return row;
-  } catch (error) {
-    if (!isUniqueViolationError(error)) throw error;
-    const raced = await findPersonalLibrary(userId);
-    if (!raced) throw error;
-    return raced;
-  }
 }
 
 /**

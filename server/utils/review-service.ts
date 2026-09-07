@@ -265,6 +265,33 @@ export interface ReviewItemView {
 }
 
 /**
+ * The same queue, without building a question for any of it.
+ *
+ * Home reads the active list on every load and renders none of it: the suggestion handoff wants
+ * `kind` and `scriptureReference` so a passage already in Review is not also offered as a nudge,
+ * and the Review section wants counts — how many are due, how many are coming back. The rows a
+ * reader actually sees when the section is closed come from `/api/review/inbox`, which is a
+ * different request capped at three.
+ *
+ * So the full build was assembling eighteen questions — cue text, cross-reference openings,
+ * curated knowledge, a database round trip apiece — to render at most two, on the critical path
+ * of Home's first paint. Measured at 3.4s against 750ms for this.
+ *
+ * Membership is identical to {@link buildReviewItemViews}: same askable-kind rule, same
+ * unaskable-note drop, via the same `noteRungFor`. A count from one and a list from the other is
+ * how a "12 more" fold opens onto eleven rows.
+ */
+export interface ReviewItemSummary {
+  id: string;
+  kind: ReviewItemKind;
+  status: ReviewItemStatus;
+  recallState: RecallState;
+  dueAt: string;
+  scriptureReference: string | null;
+  noteId: string | null;
+}
+
+/**
  * How much stored body to fetch for one line of context. The same `left()` cap the note list
  * uses, trimmed hard: this becomes ~64 characters on screen.
  */
@@ -617,6 +644,114 @@ async function threadTitleFor(userId: string, repNoteId: string): Promise<string
   return displayTitle(rep.studyThreadTitle) ?? displayTitle(rep.title);
 }
 
+/**
+ * The rung a note item can actually answer, or null when there is nothing to ask about it.
+ *
+ * The stored step is nominal — a note with no links skips past "what did you link this to?"
+ * rather than showing a question with no possible answer, and a note with none of the three is
+ * dropped from the queue entirely. Shared with {@link buildReviewItemSummaries} so the full list
+ * and the counts can never disagree about which rows exist.
+ */
+function noteRungFor(row: ReviewItemRow, material: Map<string, NoteMaterial>) {
+  if (row.kind !== 'note' || !row.noteId) return null;
+  return resolveNoteRung(row.ladderStep, material.get(row.noteId) ?? EMPTY_NOTE_MATERIAL);
+}
+
+/**
+ * Which stored rows are rows a reader can actually be asked about, in order.
+ *
+ * The queue's visibility rules on their own, with no question built for any of them: a kind
+ * Review no longer asks about is dropped, and so is a note the resolver can say nothing about.
+ * Costs one `loadNoteMaterial` — eight batched queries — and only when the list holds notes.
+ *
+ * Extracted because three callers need the same answer at three different prices. The summary
+ * shape below wants it and nothing else; `/api/review/inbox` wants to know *which* rows are
+ * askable before it pays to build any, so it can build the three it will show instead of the
+ * eight it listed; and {@link buildReviewItemViews} applies the same rules while building.
+ */
+export async function filterAskableReviewRows(
+  userId: string,
+  rows: ReviewItemRow[],
+  options: { dropUnaskable?: boolean } = {},
+): Promise<ReviewItemRow[]> {
+  const noteIds = rows
+    .filter((r) => r.kind === 'note')
+    .map((r) => r.noteId)
+    .filter((id): id is string => Boolean(id));
+  const material =
+    options.dropUnaskable && noteIds.length
+      ? await loadNoteMaterial(userId, noteIds)
+      : new Map<string, NoteMaterial>();
+
+  /*
+   * Chapters need their text before we can say whether they are askable, because every rung of a
+   * chapter is built out of its verses — one that could not be fetched is a prompt above nothing.
+   *
+   * This rule was missed when these three were first pulled out of the build loop, and it broke
+   * Review in production: the inbox cut to three rows *before* building, so a chapter that the
+   * build then dropped left the section short, and short enough became empty and the whole
+   * section rendered nothing. The slack the inbox lists beyond its three rows exists for exactly
+   * this and cutting first defeated it.
+   *
+   * `fetchVerseText` rather than `loadChapterMaterial`: the question here is only whether there
+   * are verses at all, which is one cached read per distinct chapter, where the full material
+   * load is five concurrent queries for facts only a built prompt needs.
+   */
+  const chapterRefs = options.dropUnaskable
+    ? [
+        ...new Set(
+          rows
+            .filter((r) => r.kind === 'chapter' && r.scriptureReference)
+            .map((r) => `${r.scriptureReference}|${r.translation ?? 'NET'}`),
+        ),
+      ]
+    : [];
+  const chapterHasVerses = new Map<string, boolean>();
+  await Promise.all(
+    chapterRefs.map(async (key) => {
+      const [reference, translation] = key.split('|');
+      const parts = chapterKeyPartsFromReference(reference);
+      const html = parts
+        ? await fetchVerseText(chapterReferenceLabel(parts), translation).catch(() => '')
+        : '';
+      chapterHasVerses.set(key, Boolean(html) && splitChapterHtmlIntoVerses(html).length > 0);
+    }),
+  );
+
+  return rows.filter((row) => {
+    const kind = row.kind as ReviewItemKind;
+    if (!isReviewAskableKind(kind)) return false;
+    if (kind === 'note' && options.dropUnaskable && !noteRungFor(row, material)) return false;
+    if (kind === 'chapter' && options.dropUnaskable) {
+      const key = `${row.scriptureReference}|${row.translation ?? 'NET'}`;
+      if (!chapterHasVerses.get(key)) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Counts and routing keys for a queue, with no question built for any row.
+ *
+ * See {@link ReviewItemSummary} for why this exists.
+ */
+export async function buildReviewItemSummaries(
+  userId: string,
+  rows: ReviewItemRow[],
+  options: { dropUnaskable?: boolean } = {},
+): Promise<ReviewItemSummary[]> {
+  const askable = await filterAskableReviewRows(userId, rows, options);
+  return askable.map((row) => ({
+    id: row.id,
+    kind: row.kind as ReviewItemKind,
+    status: row.status as ReviewItemStatus,
+    recallState: row.recallState as RecallState,
+    dueAt: row.dueAt.toISOString(),
+    scriptureReference: row.scriptureReference,
+    noteId: row.noteId,
+  }));
+}
+
 export async function buildReviewItemViews(
   userId: string,
   rows: ReviewItemRow[],
@@ -765,10 +900,7 @@ export async function buildReviewItemViews(
      * is nominal; a note with no links skips past "what did you link this to?" rather than
      * showing a question with no possible answer.
      */
-    const noteRung =
-      kind === 'note' && row.noteId
-        ? resolveNoteRung(row.ladderStep, material.get(row.noteId) ?? EMPTY_NOTE_MATERIAL)
-        : null;
+    const noteRung = noteRungFor(row, material);
 
     /*
      * A note the resolver can ask nothing about is not shown at all.
@@ -1627,12 +1759,25 @@ async function loadVerseMaterial(
   const targets = (knowledge?.crossReferences ?? [])
     .filter((c) => c.chapterStart === c.chapterEnd)
     .slice(0, CROSSREF_TEXT_FETCHES);
-  const crossRefs: { reference: string; text: string }[] = [];
-  for (const c of targets) {
-    const targetRef = `${c.book} ${c.chapterStart}:${c.verseStart}`;
-    const html = await fetchVerseText(targetRef, translation);
-    if (html) crossRefs.push({ reference: targetRef, text: stripHtml(html) });
-  }
+  /*
+   * The three cross-reference openings, fetched together rather than one after another.
+   *
+   * `fetchVerseText` is a database round trip (a `VerseTextCache` read, then `BibleVerses`, then
+   * a cache write) — not an in-memory lookup — so awaiting them in a loop cost three serial trips
+   * per verse item. A queue of eighteen paid that eighteen times over, and it was the largest
+   * single component of a `/api/review/items` response that Home's first paint waits on.
+   *
+   * `Promise.all` preserves order, and the falsy-`html` rows are dropped after rather than never
+   * pushed, so the list this returns is identical to the one the loop built.
+   */
+  const crossRefTargets = targets.map((c) => `${c.book} ${c.chapterStart}:${c.verseStart}`);
+  const crossRefHtml = await Promise.all(
+    crossRefTargets.map((targetRef) => fetchVerseText(targetRef, translation)),
+  );
+  const crossRefs = crossRefTargets
+    .map((reference, i) => ({ reference, html: crossRefHtml[i] }))
+    .filter((entry) => Boolean(entry.html))
+    .map((entry) => ({ reference: entry.reference, text: stripHtml(entry.html) }));
 
   return {
     reference: ref,
@@ -3069,9 +3214,20 @@ export async function buildReviewSample(
 } | null> {
   const seed = sampleSeed(userId, dayKey);
   const own = await listUserVerseReferences(userId, '');
-  // Try the reader's own passages in order and fall back rather than give up: a verse of
-  // theirs may be too short to hide anything in, and the next may not be.
-  const candidates: ReviewSampleSpec[] = own.map((reference) => ({ reference, source: 'yours' }));
+  /*
+   * Start at the day's pick, then walk the rest of their passages.
+   *
+   * Both halves matter. The walk is why a verse too short to hide anything in falls through to
+   * another of theirs rather than straight to the well-known list. Starting at a seeded offset
+   * is what makes it a different verse each morning — `pickSampleReference` has rotated by the
+   * day for a while and says so in its docblock, but this caller never used it that way: it
+   * mapped `own` in storage order and took the first that worked, so a free reader with any
+   * passage at all met the same verse every day with only the blanks moving. That is a poor
+   * argument for a feature whose whole claim is that it varies what it asks.
+   */
+  const start = own.length ? seededIndex(seed, own.length) : 0;
+  const ordered = own.length ? [...own.slice(start), ...own.slice(0, start)] : [];
+  const candidates: ReviewSampleSpec[] = ordered.map((reference) => ({ reference, source: 'yours' }));
   candidates.push(pickSampleReference({ ownReferences: [], seed }));
   for (const candidate of candidates) {
     const html = await fetchVerseText(candidate.reference, 'NET');

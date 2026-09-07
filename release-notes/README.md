@@ -100,6 +100,8 @@ These release notes help you understand:
 
 Start with the most recent file to see the latest updates!
 
+**What's next: how a room decides what to study** (September 2026): [launches/shared-space-study-suggestions.md](launches/shared-space-study-suggestions.md) — members of a shared space suggest what to study next and whoever runs the room picks; opt-in per room, shipped in v3.4.0.
+
 **Harvous 3.0** (September 2026): [launches/harvous-3-0.md](launches/harvous-3-0.md) — the release in one place. Home became Activity, the sidebar became Search, and Review arrived; built across the 2.x numbers on the 3.0 branch and shipped as v3.0.0.
 
 **Harvous for churches** (August 2026): [launches/harvous-for-churches.md](launches/harvous-for-churches.md) — the whole church release in one place, across v2.14.0–v2.33.0.
