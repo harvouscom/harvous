@@ -29,7 +29,7 @@ export default function PrototypeLibraryCreateFooter({
   searching: boolean;
 }) {
   const organize = useOrganizeApi();
-  const { closeLibraryPanel } = useProtoShell();
+  const { closeLibraryPanel, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   if (searching || !organize) return null;
 
   /*
@@ -44,6 +44,28 @@ export default function PrototypeLibraryCreateFooter({
         onClick={() => {
           closeLibraryPanel({ preserveHistory: true });
           window.dispatchEvent(new Event('prototypeShortcutNewNote'));
+        }}
+      />
+    );
+  }
+
+  /*
+   * Everything's corner has always been empty — it is the one tab whose things
+   * are not made by hand, so there was nothing to offer. Out to Discover is what
+   * belongs there: on the tab that already means "all of it", the honest next
+   * thing is the part that is not yours yet.
+   *
+   * Above the `canCreateCollections` gate, because that gate is about making
+   * things in a room that may refuse them, and this makes nothing.
+   */
+  if (tab === 'all') {
+    return (
+      <Footer
+        label="Discover"
+        onClick={() => {
+          closeLibraryPanel();
+          ensureSidebarExpanded();
+          openExpandedSidebar('discover');
         }}
       />
     );

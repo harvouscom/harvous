@@ -24,7 +24,7 @@ const NAV = [
   { key: 'publish', label: 'Publish', icon: 'share' as const, to: prototypeAdminPublishRouteTo() },
   { key: 'churches', label: 'Churches', icon: 'church' as const, to: prototypeAdminChurchesRouteTo() },
   { key: 'support', label: 'Support', icon: 'envelope' as const, to: prototypeAdminSupportRouteTo(), badge: 'support' as const },
-  { key: 'discover', label: 'Discover', icon: 'magnifying-glass' as const, to: prototypeAdminDiscoverRouteTo(), badge: 'discover' as const },
+  { key: 'discover', label: 'Discover', icon: 'compass' as const, to: prototypeAdminDiscoverRouteTo(), badge: 'discover' as const },
   { key: 'maintenance', label: 'Maintenance', icon: 'wrench' as const, to: prototypeAdminMaintenanceRouteTo() },
   { key: 'votd', label: "Today's Passage", icon: 'scroll' as const, to: prototypeAdminVotdRouteTo() },
 ];
