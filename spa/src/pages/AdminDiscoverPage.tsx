@@ -25,6 +25,7 @@ function SubmissionCard({ row }: { row: DiscoverSubmissionForReview }) {
   const review = useReviewDiscoverSubmission();
   const [category, setCategory] = useState('');
   const [reviewNote, setReviewNote] = useState('');
+  const [official, setOfficial] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const headings = row.preview?.headings ?? [];
 
@@ -41,6 +42,7 @@ function SubmissionCard({ row }: { row: DiscoverSubmissionForReview }) {
         action,
         category: action === 'approve' ? category : null,
         reviewNote: reviewNote.trim() || null,
+        official: action === 'approve' ? official : undefined,
       },
       { onError: (err) => setError(err instanceof Error ? err.message : 'Could not save that.') },
     );
@@ -96,6 +98,18 @@ function SubmissionCard({ row }: { row: DiscoverSubmissionForReview }) {
           </option>
         ))}
       </select>
+
+      {/* Provenance the reviewer asserts, never the submitter — a built-in
+          template lives in code and never gets a row to check "is this ours"
+          against, so nothing can derive this automatically. */}
+      <label className="proto-inspector-templates__check">
+        <input
+          type="checkbox"
+          checked={official}
+          onChange={(e) => setOfficial(e.target.checked)}
+        />
+        <span className="pds-caption">Included with Harvous (not a submitter's work)</span>
+      </label>
 
       <label
         className="proto-inspector-section-title proto-create-folder-sheet__field-label"

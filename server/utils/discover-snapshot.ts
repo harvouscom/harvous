@@ -36,6 +36,7 @@ import {
 } from '../db';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { safeRenderHtml } from '@/utils/content-renderer';
+import { resolveNoteTemplateIconColor } from '@/utils/note-template-icon';
 import { findPersonalLibrary } from './ensure-personal-library';
 
 /**
@@ -131,7 +132,7 @@ export interface Snapshot {
 export type SnapshotFailure = { ok: false; status: 400 | 404 | 409 | 413; code: string; error: string };
 export type SnapshotResult = { ok: true; snapshot: Snapshot } | SnapshotFailure;
 
-function headingsOf(content: string): string[] {
+export function headingsOf(content: string): string[] {
   return [...content.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)]
     .map((match) => stripHtmlForPreview(match[1], 80).trim())
     .filter(Boolean)
@@ -263,11 +264,26 @@ export async function snapshotTemplate(templateId: string, userId: string): Prom
       payload: encoded,
       preview: JSON.stringify({
         titleTemplate: template.title,
-        /* The colour its author picked, so a catalog reads as a set of things
-           people made rather than a grey list. In the preview rather than a
-           column of its own: it is presentation, it costs no migration, and a
-           listing without one falls back to a hash of its slug. */
-        iconColor: template.iconColor,
+        /* The colour its author picked, **resolved here rather than passed
+           through raw**. `NoteTemplates.iconColor` is null for every built-in —
+           their colour lives in `getBuiltInTemplates()` and only
+           `resolveNoteTemplateIconColor` knows to look there — so publishing the
+           column meant publishing null for the six templates that most
+           definitely have a colour.
+    
+           Resolving on write also settles *which* id the fallback hash runs on.
+           The picker hashes the template id; a reader with only the listing has
+           nothing but the slug, so the same template came out one colour in the
+           templates sheet and another in Discover. One resolved value, written
+           once, and every surface agrees by construction. */
+        iconColor: resolveNoteTemplateIconColor(template.id, template.iconColor),
+        /* NOT a built-in check. `NoteTemplates` rows are personal saves; the
+           built-ins live in code and never get a row, so `template.id` is always
+           a `ntpl_…` and matching it against `getBuiltInTemplates()` is dead by
+           construction. Marking a listing as Harvous's own is a *reviewer's*
+           call — it is a judgement about provenance that only the person
+           approving it can make — so `preview.official` stays unset here and is
+           the review endpoint's to write if that ever ships. */
         headings: headingsOf(template.content),
         excerpt: excerptOf(template.content),
         /* A template's body is its scaffold — headings and the instructions
@@ -558,10 +574,11 @@ export async function snapshotPack(threadId: string, userId: string): Promise<Sn
           .filter((t): t is string => Boolean(t))
           .slice(0, PREVIEW_TITLES_MAX),
         excerpt: excerptOf(firstBody),
-        /* The Thread's own colour. It is in `payload.thread.color`, but that is
-           never public — and the colour stripe is the existing house idiom for
-           "a Thread on a public page". */
-        color: thread.color || 'paper',
+        /* No colour. `Threads.color` still exists and shared-space covers still
+           read it, but a personal Thread has not been drawn in its own hue since
+           `proto-collection-card` — it is a neutral icon tile, a title and a note
+           count. Publishing a colour here would have the catalog draw Threads in a
+           language the app retired, and the two would disagree on the same Thread. */
         /* Only the first note's body: the page renders it in full and lists the
            rest by title, so it stays a page whether the Thread holds 4 or 100. */
         bodyHtml: bodyHtmlOf(firstBody),

@@ -36,8 +36,6 @@ export type DiscoverTemplatePreview = {
   headings?: string[];
   titles?: string[];
   noteCount?: number;
-  /** The Thread's own colour, for the stripe that says it is a Thread. */
-  color?: string | null;
   /** So a scripture note is not drawn as a plain one. */
   noteType?: string | null;
   sourceImage?: string | null;

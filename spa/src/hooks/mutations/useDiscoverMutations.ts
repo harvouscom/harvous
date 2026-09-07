@@ -90,6 +90,10 @@ export interface ReviewDiscoverSubmissionBody {
   title?: string | null;
   description?: string | null;
   reviewNote?: string | null;
+  /** "Included with Harvous" on the public card, instead of a byline. Only
+   *  meaningful on approve — provenance the reviewer asserts, not the
+   *  submitter, since a built-in template never gets a row to check against. */
+  official?: boolean;
 }
 
 /** Approve or decline. Admin only; the server gates it regardless of what the UI shows. */

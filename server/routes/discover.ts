@@ -810,6 +810,7 @@ app.post('/api/admin/discover/review', requireAuth, rateLimit('write'), async (c
       reviewNote?: string;
       title?: string;
       description?: string;
+      official?: boolean;
     };
 
     const listingId = clean(body.listingId, 200);
@@ -855,6 +856,27 @@ app.post('/api/admin/discover/review', requireAuth, rateLimit('write'), async (c
     }
     const title = clean(body.title, TITLE_MAX_LENGTH) ?? existing.title;
 
+    /*
+     * "Included with Harvous" — the reviewer's call, not something derivable.
+     *
+     * A built-in template lives in code and never gets a `NoteTemplates` row,
+     * so `sourceId` is always a personal `ntpl_…` and matching it against
+     * `getBuiltInTemplates()` can never be true. Whether a listing is the
+     * product's own is a judgement about provenance, and the only person who
+     * can make it is the one approving it.
+     *
+     * It rides in `preview` because that is the presentation envelope the site
+     * already reads; `payload` stays the untouched snapshot.
+     */
+    let preview = existing.preview;
+    try {
+      const parsed = JSON.parse(existing.preview ?? '{}') as Record<string, unknown>;
+      preview = JSON.stringify({ ...parsed, official: body.official === true });
+    } catch {
+      /* A preview that will not parse is not this endpoint's to repair — the
+         listing still lists, it just draws from what it has. */
+    }
+
     await db.transaction(async (tx) => {
       const base = slugify(title) || 'study-starter';
       const taken = await tx
@@ -873,6 +895,7 @@ app.post('/api/admin/discover/review', requireAuth, rateLimit('write'), async (c
           title,
           description: clean(body.description, DESCRIPTION_MAX_LENGTH) ?? existing.description,
           category,
+          preview,
           reviewNote: clean(body.reviewNote, 500),
           reviewedByUserId: auth.userId,
           reviewedAt: timestamp,

@@ -27,7 +27,11 @@ import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
 import { PrototypeListEmptyState } from './design-system';
 import { toast } from '@/utils/toast';
-import { DISCOVER_CATEGORIES, discoverCategoryLabel } from '@/data/discover-categories';
+import {
+  DISCOVER_CATEGORIES,
+  discoverCategoryColor,
+  discoverCategoryLabel,
+} from '@/data/discover-categories';
 import { useDiscoverListings, type DiscoverListing } from '../../hooks/queries/useDiscoverListings';
 import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMutations';
 import { consumePendingDiscoverKind } from '../../lib/pending-discover-kind';
@@ -58,12 +62,63 @@ const KIND_NOUN: Record<string, string> = {
   resource: 'Resource',
 };
 
-const KIND_ICON: Record<string, IconName> = {
-  template: 'list-check',
-  note: 'book',
-  pack: 'layer-group',
-  resource: 'link',
-};
+/**
+ * The glyph each kind already wears elsewhere in the app — `noteKindIcon` for a
+ * note, `PrototypeSidebarThreadCard`'s for a Thread, `NOTE_TEMPLATE_ICON_NAME`
+ * for a template, and `PrototypeResourceLibraryList`'s for a library link.
+ *
+ * Worth stating because the first cut picked its own (`book` for a note,
+ * `layer-group` for a Thread) and the panel ended up labelling things in a
+ * vocabulary the rest of the app does not use.
+ */
+function listingIcon(listing: DiscoverListing): IconName {
+  switch (listing.kind) {
+    case 'template':
+      return NOTE_TEMPLATE_ICON_NAME;
+    case 'pack':
+      return 'arrow-right-arrow-left';
+    case 'resource':
+      return 'newspaper';
+    case 'note':
+      if (listing.preview?.noteType === 'scripture') return 'book';
+      if (listing.preview?.noteType === 'resource') return 'link';
+      return 'note-sticky';
+    default:
+      return NOTE_TEMPLATE_ICON_NAME;
+  }
+}
+
+/**
+ * The tile colour for a row: the author's, then the topic's, then a hash.
+ *
+ * A template wears the colour its author picked, because a template *has* one —
+ * the picker shows it, and the server resolves it onto the listing at submit.
+ * Nothing else does. A Thread's `color` column is still on the table but the
+ * app has not drawn a personal Thread in its own hue since
+ * `proto-collection-card`, so reviving it only in the catalog would have
+ * Discover speak a language the app retired.
+ *
+ * So the rest take their **topic's** hue, and the tile always means something —
+ * *the author chose this*, or *this is what it is for*. Deliberately not the
+ * reader's appearance setting: harvous.com is built statically with no viewer,
+ * so the two products would disagree for every reader.
+ *
+ * `resolveNoteTemplateIconColor` still backstops an uncategorised listing with
+ * its slug hash, so nothing is ever colourless.
+ */
+function listingIconColor(listing: DiscoverListing): string {
+  /* A link stays grey. It is not something anyone wrote — it is a pointer
+     somewhere else — and giving it a topic's hue put an authored-looking tile
+     on the one row that is not authored. `--color-gray` is a neutral at the
+     same lightness as the pastels, so it sits in the column without a hole. */
+  if (listing.kind === 'resource') return 'gray';
+  const category = discoverCategoryColor(listing.category);
+  /* Reference is grey too — it is the shelf, not a kind of study. `gray` is not
+     a thread colour, so `resolveNoteTemplateIconColor` would reject it and fall
+     through to the slug hash. */
+  if (!listing.preview?.iconColor && category === 'gray') return 'gray';
+  return resolveNoteTemplateIconColor(listing.slug, listing.preview?.iconColor ?? category);
+}
 
 function listingMeta(listing: DiscoverListing): string[] {
   const meta = [KIND_NOUN[listing.kind] ?? 'Item'];
@@ -219,11 +274,8 @@ export default function PrototypeExpandedDiscover({
                   >
                     <span className="proto-church-tools__row-icon" aria-hidden>
                       <ProtoSpaceMenuIcon
-                        color={resolveNoteTemplateIconColor(
-                          listing.slug,
-                          listing.preview?.iconColor,
-                        )}
-                        iconName={KIND_ICON[listing.kind] ?? NOTE_TEMPLATE_ICON_NAME}
+                        color={listingIconColor(listing)}
+                        iconName={listingIcon(listing)}
                         size={26}
                         radius={8}
                         glyphSize={12}
