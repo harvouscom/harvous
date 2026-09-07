@@ -39,6 +39,7 @@ import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { ensurePersonalHomeSpace } from '../utils/ensure-personal-home-space';
 import { createInitialNoteVersion } from '../utils/note-version-service';
 import { buildIndependentCopyAttribution } from '../utils/note-versioning';
+import { isUniqueViolationError } from '../utils/db-errors';
 
 const app = new Hono();
 
@@ -584,6 +585,33 @@ app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
   }
 });
 
+/**
+ * The caller's existing copy of a shared Thread, or undefined.
+ *
+ * Read twice by the import below: once up front, so the ordinary repeat click
+ * costs one indexed lookup instead of copying the whole thread again, and once
+ * after the unique index rejects a racing insert, to hand the loser the
+ * winner's thread rather than an error.
+ */
+async function findExistingThreadCopy(userId: string, sourceThreadId: string) {
+  return first(
+    await db
+      .select({ id: Threads.id })
+      .from(Threads)
+      .where(and(eq(Threads.userId, userId), eq(Threads.copiedFromThreadId, sourceThreadId)))
+      .limit(1),
+  );
+}
+
+/** Same shape `add-note-to-harvous` returns for an already-imported note. */
+const alreadyImportedThread = (threadId: string) => ({
+  success: true,
+  alreadyImported: true,
+  message: 'Thread already added to your Harvous',
+  createdIds: { threadId, noteIds: [] as string[] },
+  warnings: [] as string[],
+});
+
 /** POST /api/shared/add-to-harvous */
 app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
   try {
@@ -618,6 +646,12 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
     if (sourceThread.userId === auth.userId) {
       return c.json({ error: 'Already in your Harvous' }, 400);
     }
+
+    // Matches the note path's guard. Not the thing that makes a duplicate
+    // impossible — the unique index below is — but it keeps the common repeat
+    // click from reading and rebuilding every note in the thread first.
+    const existingCopy = await findExistingThreadCopy(auth.userId, sourceThread.id);
+    if (existingCopy) return c.json(alreadyImportedThread(existingCopy.id));
 
     // Fetch source notes (junction + referenced scripture notes)
     const junctionNotes = await db
@@ -823,61 +857,85 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
       });
     }
 
-    await db.transaction(async (tx) => {
-      const lockedMetadata = first(
-        await tx
-          .select()
-          .from(UserMetadata)
-          .where(eq(UserMetadata.userId, auth.userId))
-          .for('update')
-          .limit(1),
-      );
-      if (!lockedMetadata) throw new Error('User metadata missing during shared thread import');
-      await tx.insert(Threads).values({
-        id: newThreadId, title: sourceThread.title, subtitle: sourceThread.subtitle || null,
-        spaceId: null, userId: auth.userId, isPublic: false,
-        color: sourceThread.color || 'paper', createdAt: ts, updatedAt: ts, lastVisited: ts,
-      });
-      const firstSimpleNoteId =
-        Math.max(effectiveHighest, lockedMetadata.highestSimpleNoteId ?? 0) + 1;
-      noteRows.forEach((row, index) => {
-        row.simpleNoteId = firstSimpleNoteId + index;
-      });
-      currentSimpleNoteId = firstSimpleNoteId + noteRows.length;
-      for (let i = 0; i < noteRows.length; i += SHARED_BULK_INSERT_CHUNK) {
-        await tx.insert(Notes).values(noteRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
-      }
-      for (const row of noteRows) {
-        await createInitialNoteVersion(tx, {
-          noteId: row.id,
-          noteAuthorId: auth.userId,
-          content: {
-            title: row.title ?? null,
-            content: row.content ?? '',
-            contentEncrypted: false,
-          },
-          createdAt: row.createdAt,
-          source: 'shared-thread-import',
+    try {
+      await db.transaction(async (tx) => {
+        const lockedMetadata = first(
+          await tx
+            .select()
+            .from(UserMetadata)
+            .where(eq(UserMetadata.userId, auth.userId))
+            .for('update')
+            .limit(1),
+        );
+        if (!lockedMetadata) throw new Error('User metadata missing during shared thread import');
+        // First write in the transaction, deliberately. It carries the columns
+        // the unique index covers, so a duplicate import is rejected here —
+        // before a single note, version or junction row is inserted — and the
+        // whole copy rolls back rather than half-landing.
+        await tx.insert(Threads).values({
+          id: newThreadId, title: sourceThread.title, subtitle: sourceThread.subtitle || null,
+          spaceId: null, userId: auth.userId, isPublic: false,
+          color: sourceThread.color || 'paper', createdAt: ts, updatedAt: ts, lastVisited: ts,
+          copiedFromThreadId: sourceThread.id,
+          copiedFromAuthorId: sourceThread.userId,
         });
-      }
-      for (let i = 0; i < junctionRows.length; i += SHARED_BULK_INSERT_CHUNK) {
-        await tx.insert(NoteThreads).values(junctionRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
-      }
-      for (let i = 0; i < scriptureRows.length; i += SHARED_BULK_INSERT_CHUNK) {
-        await tx.insert(ScriptureMetadata).values(scriptureRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
-      }
-      for (let i = 0; i < resourceRows.length; i += SHARED_BULK_INSERT_CHUNK) {
-        await tx.insert(ResourceMetadata).values(resourceRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
-      }
-      for (let i = 0; i < copiedReferenceRows.length; i += SHARED_BULK_INSERT_CHUNK) {
-        await tx
-          .insert(NoteScriptureReferences)
-          .values(copiedReferenceRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
-      }
-      if (sourceNotes.length > 0) {
-        await tx.update(UserMetadata).set({ highestSimpleNoteId: currentSimpleNoteId - 1, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
-      }
-    });
+        const firstSimpleNoteId =
+          Math.max(effectiveHighest, lockedMetadata.highestSimpleNoteId ?? 0) + 1;
+        noteRows.forEach((row, index) => {
+          row.simpleNoteId = firstSimpleNoteId + index;
+        });
+        currentSimpleNoteId = firstSimpleNoteId + noteRows.length;
+        for (let i = 0; i < noteRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+          await tx.insert(Notes).values(noteRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+        }
+        for (const row of noteRows) {
+          await createInitialNoteVersion(tx, {
+            noteId: row.id,
+            noteAuthorId: auth.userId,
+            content: {
+              title: row.title ?? null,
+              content: row.content ?? '',
+              contentEncrypted: false,
+            },
+            createdAt: row.createdAt,
+            source: 'shared-thread-import',
+          });
+        }
+        for (let i = 0; i < junctionRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+          await tx.insert(NoteThreads).values(junctionRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+        }
+        for (let i = 0; i < scriptureRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+          await tx.insert(ScriptureMetadata).values(scriptureRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+        }
+        for (let i = 0; i < resourceRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+          await tx.insert(ResourceMetadata).values(resourceRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+        }
+        for (let i = 0; i < copiedReferenceRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+          await tx
+            .insert(NoteScriptureReferences)
+            .values(copiedReferenceRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+        }
+        if (sourceNotes.length > 0) {
+          await tx.update(UserMetadata).set({ highestSimpleNoteId: currentSimpleNoteId - 1, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
+        }
+      });
+    } catch (error) {
+      /*
+       * The unique index on (userId, copiedFromThreadId) is what actually
+       * makes a second import impossible; this is only how that refusal is
+       * read. Postgres has already rolled the transaction back, so there is
+       * no half-copied thread to clean up.
+       *
+       * Only a violation we can attribute to a real prior copy is swallowed.
+       * Any other 23505 in here — a generated junction or metadata id that
+       * somehow collided — is a genuine fault and must surface as a 500
+       * rather than be reported to the caller as a successful import.
+       */
+      if (!isUniqueViolationError(error)) throw error;
+      const raced = await findExistingThreadCopy(auth.userId, sourceThread.id);
+      if (!raced) throw error;
+      return c.json(alreadyImportedThread(raced.id));
+    }
 
     const warnings: string[] = [];
     for (const row of noteRows) {

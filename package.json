@@ -99,6 +99,8 @@
     "space-plans:schema:apply": "tsx server/scripts/add-space-owned-plans-schema.ts --apply",
     "space-suggestions:schema": "tsx server/scripts/add-space-study-suggestions-schema.ts",
     "space-suggestions:schema:apply": "tsx server/scripts/add-space-study-suggestions-schema.ts --apply",
+    "thread-copy:schema": "tsx server/scripts/add-thread-copy-attribution-schema.ts",
+    "thread-copy:schema:apply": "tsx server/scripts/add-thread-copy-attribution-schema.ts --apply",
     "series:schema": "tsx server/scripts/add-series-presentation-schema.ts",
     "series:schema:apply": "tsx server/scripts/add-series-presentation-schema.ts --apply",
     "shared-spaces:schema:additive": "tsx server/scripts/add-shared-spaces-schema.ts",

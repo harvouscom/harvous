@@ -217,6 +217,19 @@ export const Threads = pgTable(
     closedAt: ts('closedAt'),
     /** Who closed it. Staff-side provenance; never shown to members. */
     closedByUserId: text('closedByUserId'),
+    /**
+     * The Thread a shared-link import copied, and who wrote it.
+     *
+     * The child Notes have carried `copiedFrom*` since shared spaces shipped;
+     * the parent Thread never did, so `/api/shared/add-to-harvous` had nothing
+     * to key an "already imported" check on and forked a whole second Thread —
+     * plus a duplicate of every note in it — on each repeat click.
+     *
+     * Attribution is the smaller half of why it exists. The larger half is the
+     * unique index below, which this column is the subject of.
+     */
+    copiedFromThreadId: text('copiedFromThreadId'),
+    copiedFromAuthorId: text('copiedFromAuthorId'),
   },
   (table) => [
     index('Threads_userIdIndex').on(table.userId),
@@ -225,6 +238,23 @@ export const Threads = pgTable(
     uniqueIndex('Threads_onePinnedPerSpace')
       .on(table.spaceId)
       .where(sql`${table.spaceId} IS NOT NULL AND ${table.isPinned} = true`),
+    /**
+     * One copy of any given shared Thread per account.
+     *
+     * Load-bearing, not decorative. The import route inserts this row first
+     * inside its transaction and reads a 23505 back as "already imported", so
+     * a duplicate is refused by the database rather than by a check a second
+     * request can slip past — which matters here because the alternative is a
+     * check-then-act guard in front of a multi-row transaction that copies
+     * every note, version, junction and metadata row in the thread.
+     *
+     * Partial because the constraint is only about imported Threads. NULLs are
+     * distinct to a Postgres unique index anyway, so the predicate changes no
+     * behaviour; it keeps the index to the rows it is actually about.
+     */
+    uniqueIndex('Threads_copiedFromThread_unique')
+      .on(table.userId, table.copiedFromThreadId)
+      .where(sql`${table.copiedFromThreadId} IS NOT NULL`),
   ],
 );
 
