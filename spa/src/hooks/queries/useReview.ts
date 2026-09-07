@@ -55,6 +55,22 @@ export interface ReviewInboxResponse {
   items: ReviewItemView[];
   /** A boolean, never a count — see the route's docblock. */
   hasMore: boolean;
+  /**
+   * Why the queue is empty, when it is empty and the engine has not started yet.
+   *
+   * Null both when there is something to show and when the engine is running and simply has
+   * nothing due today. Those two are not the same absence: the first is a queue, the second is
+   * a rest day, and only the third — never having started — leaves someone unable to tell the
+   * feature from a broken one.
+   */
+  coldStart: {
+    /** Pieces of study already past every gate. */
+    ready: number;
+    /** How many are needed before Review begins. */
+    needed: number;
+    /** ISO date the gate opens on time alone, or null when more study is needed first. */
+    opensAt: string | null;
+  } | null;
 }
 
 export interface ReviewRevealResponse {

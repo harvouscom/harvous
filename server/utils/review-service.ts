@@ -3069,9 +3069,20 @@ export async function buildReviewSample(
 } | null> {
   const seed = sampleSeed(userId, dayKey);
   const own = await listUserVerseReferences(userId, '');
-  // Try the reader's own passages in order and fall back rather than give up: a verse of
-  // theirs may be too short to hide anything in, and the next may not be.
-  const candidates: ReviewSampleSpec[] = own.map((reference) => ({ reference, source: 'yours' }));
+  /*
+   * Start at the day's pick, then walk the rest of their passages.
+   *
+   * Both halves matter. The walk is why a verse too short to hide anything in falls through to
+   * another of theirs rather than straight to the well-known list. Starting at a seeded offset
+   * is what makes it a different verse each morning — `pickSampleReference` has rotated by the
+   * day for a while and says so in its docblock, but this caller never used it that way: it
+   * mapped `own` in storage order and took the first that worked, so a free reader with any
+   * passage at all met the same verse every day with only the blanks moving. That is a poor
+   * argument for a feature whose whole claim is that it varies what it asks.
+   */
+  const start = own.length ? seededIndex(seed, own.length) : 0;
+  const ordered = own.length ? [...own.slice(start), ...own.slice(0, start)] : [];
+  const candidates: ReviewSampleSpec[] = ordered.map((reference) => ({ reference, source: 'yours' }));
   candidates.push(pickSampleReference({ ownReferences: [], seed }));
   for (const candidate of candidates) {
     const html = await fetchVerseText(candidate.reference, 'NET');

@@ -49,7 +49,7 @@ import {
   buildReviewSample,
   gradeReviewSample,
 } from '../utils/review-service';
-import { refillReviewQueue } from '../utils/review-opportunities';
+import { engineColdStartFor, refillReviewQueue } from '../utils/review-opportunities';
 
 const route = new Hono();
 
@@ -95,7 +95,25 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
     const askable = await buildReviewItemViews(auth.userId, due, { dropUnaskable: true });
     const items = askable.slice(0, REVIEW_INBOX_MAX_ROWS);
 
-    return c.json({ success: true, items, hasMore: askable.length > REVIEW_INBOX_MAX_ROWS });
+    /*
+     * Why there is nothing, when there is nothing.
+     *
+     * Only computed on an empty inbox, so the ordinary load pays nothing for it. An account can
+     * sit behind the engine's cold start for days, and a Review section that renders nothing at
+     * all in the meantime is indistinguishable from a Review section that is broken — which is
+     * how it was reported, three times, by someone who could see the feature existed and had
+     * never been shown a single item.
+     */
+    const coldStart = items.length === 0 ? await engineColdStartFor(auth.userId, now) : null;
+
+    return c.json({
+      success: true,
+      items,
+      hasMore: askable.length > REVIEW_INBOX_MAX_ROWS,
+      coldStart: coldStart
+        ? { ready: coldStart.ready, needed: coldStart.needed, opensAt: coldStart.opensAt?.toISOString() ?? null }
+        : null,
+    });
   } catch (error) {
     // A database without the tables yet is an empty inbox, not a broken Activity page.
     if (isReviewTableMissing(error)) {

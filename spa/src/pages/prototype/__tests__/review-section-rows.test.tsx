@@ -21,9 +21,23 @@ const features: Record<string, { has: boolean; ready: boolean }> = {
   challenges: { has: true, ready: true },
 };
 const inbox = {
-  data: undefined as undefined | { items: unknown[]; hasMore: boolean },
+  data: undefined as
+    | undefined
+    | {
+        items: unknown[];
+        hasMore: boolean;
+        coldStart?: { ready: number; needed: number; opensAt: string | null } | null;
+      },
 };
 const challenges = { data: undefined as undefined | { challenges: unknown[] } };
+const sample = { data: undefined as undefined | { sample: unknown } };
+/** The shape `buildReviewSample` returns: a reference plus the cloze the card renders. */
+const sampleView = {
+  reference: 'John 15:5',
+  source: 'yours',
+  cloze: { segments: ['I am the vine, you are the ', '.'], blankLengths: [8] },
+  blankCount: 1,
+};
 
 vi.mock('../../../hooks/useHarvousIdentity', () => ({
   useHarvousIdentity: () => identity,
@@ -37,7 +51,10 @@ vi.mock('../../../hooks/queries/useReview', () => ({
   // Fetched only once the reader unfolds the section.
   useReviewItems: () => allItems,
   // The sample is for an account without the feature; these rows all have it.
-  useReviewSample: () => ({ data: undefined, isPending: false }),
+  useReviewSample: (opts: { enabled: boolean }) => ({
+    data: opts?.enabled === false ? undefined : sample.data,
+    isPending: false,
+  }),
   reviewSampleDayKey: () => '2026-09-03',
 }));
 vi.mock('../../../hooks/queries/useChallenges', () => ({
@@ -60,6 +77,7 @@ vi.mock('../../../layouts/proto-shell-context', () => ({
 }));
 
 const PrototypeReviewSection = (await import('../PrototypeReviewSection')).default;
+const { REVIEW_PLUS_TITLE, REVIEW_SECTION_TITLE } = await import('../proto-review-copy');
 
 function reviewItem(id: string, prompt: string, task = 'Pick a passage you cited') {
   return {
@@ -111,6 +129,8 @@ beforeEach(() => {
   inbox.data = { items: [], hasMore: false };
   allItems.data = undefined;
   challenges.data = { challenges: [] };
+  sample.data = undefined;
+  try { window.localStorage.clear(); } catch { /* ignore */ }
 });
 
 describe('who sees the Review section', () => {
@@ -337,5 +357,126 @@ describe('the framing line', () => {
     };
     render(<PrototypeReviewSection />);
     expect(screen.getByText(/Marked Romans 8:15 in a note/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The three ways Review can be empty, and which of them says anything.
+ *
+ * Nothing due today stays silent on purpose — the day's record is below and is better company
+ * than a row announcing a rest. Never having started is different: the engine holds an account
+ * back until it has a few days of the reader's own study, and a section that renders nothing at
+ * all in the meantime cannot be told from a broken one. It was reported as broken three times by
+ * someone in exactly that state.
+ */
+describe('when there is nothing to review', () => {
+  it('says nothing at all when the engine is running and today is simply clear', () => {
+    // The long-standing stance, and the one this must not overturn.
+    inbox.data = { items: [], hasMore: false, coldStart: null };
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('explains itself when the engine has not started yet', () => {
+    inbox.data = { items: [], hasMore: false, coldStart: { ready: 0, needed: 5, opensAt: null } };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText('Nothing to review yet')).toBeInTheDocument();
+    expect(screen.getByText(/Reviews come from your own study/)).toBeInTheDocument();
+  });
+
+  it('gives no date when waiting alone will not start it', () => {
+    /*
+     * `opensAt: null` is the server saying age is not what is holding this account back — the
+     * other two gates want more study, and neither passes with time. This is the real shape of
+     * the account that prompted the work: seventeen non-chapter nodes, none of them ready.
+     */
+    inbox.data = { items: [], hasMore: false, coldStart: { ready: 0, needed: 5, opensAt: null } };
+    render(<PrototypeReviewSection />);
+    expect(screen.queryByText(/should arrive/)).not.toBeInTheDocument();
+  });
+
+  it('gives the date when waiting is all it takes', () => {
+    const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    inbox.data = {
+      items: [],
+      hasMore: false,
+      coldStart: { ready: 2, needed: 5, opensAt: inThreeDays },
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(/should arrive/)).toBeInTheDocument();
+  });
+
+  it('shows rows rather than the empty state once there are any', () => {
+    inbox.data = {
+      items: [reviewItem('r1', 'What did you observe?')],
+      hasMore: false,
+      coldStart: null,
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.queryByText('Nothing to review yet')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The free account's two controls, and the fact that they are two.
+ *
+ * They shared one flag once: dismissing the upgrade row deleted the sample with it, taking the
+ * try away along with the advertisement. Splitting them fixed that and left the mirror-image
+ * gap — the sample's own "Not now" was still wired to the upsell's flag, so it hid the row and
+ * the question came back the next morning. Neither control did what its own label said.
+ */
+describe('what a free account is offered', () => {
+  const asFree = () => {
+    features.review = { has: false, ready: true };
+    features.challenges = { has: false, ready: true };
+  };
+
+  it('offers the question and the upgrade row', () => {
+    asFree();
+    sample.data = { sample: sampleView };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(REVIEW_PLUS_TITLE)).toBeInTheDocument();
+  });
+
+  it('keeps the question when only the upgrade row is dismissed', () => {
+    /*
+     * The reason the two flags exist. Hiding an offer is not asking to be shown less of the
+     * product, and the sample is the one real thing a free reader can do.
+     */
+    asFree();
+    sample.data = { sample: sampleView };
+    window.localStorage.setItem('harvous-prototype-review-plus-dismissed', '1');
+    render(<PrototypeReviewSection />);
+    expect(screen.queryByText(REVIEW_PLUS_TITLE)).not.toBeInTheDocument();
+    // The section is still here for the question rather than collapsing with the row.
+    expect(screen.getByText(REVIEW_SECTION_TITLE)).toBeInTheDocument();
+  });
+
+  it('stops asking once the question itself is dismissed', () => {
+    asFree();
+    sample.data = { sample: sampleView };
+    window.localStorage.setItem('harvous-prototype-review-sample-dismissed', '1');
+    render(<PrototypeReviewSection />);
+    // The upsell is untouched by the question's dismissal — still the other half of the split.
+    expect(screen.getByText(REVIEW_PLUS_TITLE)).toBeInTheDocument();
+  });
+
+  it('shows nothing at all once both have been put away', () => {
+    asFree();
+    sample.data = { sample: sampleView };
+    window.localStorage.setItem('harvous-prototype-review-plus-dismissed', '1');
+    window.localStorage.setItem('harvous-prototype-review-sample-dismissed', '1');
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows a guest nothing, with or without a sample', () => {
+    // No account to attach an upgrade to, so the offer would be asking them to buy before
+    // they can sign in.
+    asFree();
+    identity.isGuest = true;
+    sample.data = { sample: sampleView };
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

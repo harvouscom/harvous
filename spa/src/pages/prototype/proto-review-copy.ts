@@ -89,6 +89,15 @@ export const REVIEW_EMPTY_NOTHING_YET_BODY =
 export const REVIEW_EMPTY_SETTLED_BODY = 'Nothing waiting right now.';
 export const reviewNextDueCopy = (when: string) => `The next one comes back ${when}.`;
 
+/**
+ * When the engine has not started yet and waiting is all it needs.
+ *
+ * Only ever shown with a date the gate can actually keep: age is one of three things holding a
+ * piece of study back, and the other two need the reader to do something. Saying "Thursday" to
+ * someone whose notes will still not qualify on Thursday is worse than the silence it replaces.
+ */
+export const reviewColdStartOpensCopy = (when: string) => `The first ones should arrive ${when}.`;
+
 /*
  * Both halves of one toggle, not a link.
  *
