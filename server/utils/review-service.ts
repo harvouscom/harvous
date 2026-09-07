@@ -683,10 +683,49 @@ export async function filterAskableReviewRows(
       ? await loadNoteMaterial(userId, noteIds)
       : new Map<string, NoteMaterial>();
 
+  /*
+   * Chapters need their text before we can say whether they are askable, because every rung of a
+   * chapter is built out of its verses — one that could not be fetched is a prompt above nothing.
+   *
+   * This rule was missed when these three were first pulled out of the build loop, and it broke
+   * Review in production: the inbox cut to three rows *before* building, so a chapter that the
+   * build then dropped left the section short, and short enough became empty and the whole
+   * section rendered nothing. The slack the inbox lists beyond its three rows exists for exactly
+   * this and cutting first defeated it.
+   *
+   * `fetchVerseText` rather than `loadChapterMaterial`: the question here is only whether there
+   * are verses at all, which is one cached read per distinct chapter, where the full material
+   * load is five concurrent queries for facts only a built prompt needs.
+   */
+  const chapterRefs = options.dropUnaskable
+    ? [
+        ...new Set(
+          rows
+            .filter((r) => r.kind === 'chapter' && r.scriptureReference)
+            .map((r) => `${r.scriptureReference}|${r.translation ?? 'NET'}`),
+        ),
+      ]
+    : [];
+  const chapterHasVerses = new Map<string, boolean>();
+  await Promise.all(
+    chapterRefs.map(async (key) => {
+      const [reference, translation] = key.split('|');
+      const parts = chapterKeyPartsFromReference(reference);
+      const html = parts
+        ? await fetchVerseText(chapterReferenceLabel(parts), translation).catch(() => '')
+        : '';
+      chapterHasVerses.set(key, Boolean(html) && splitChapterHtmlIntoVerses(html).length > 0);
+    }),
+  );
+
   return rows.filter((row) => {
     const kind = row.kind as ReviewItemKind;
     if (!isReviewAskableKind(kind)) return false;
     if (kind === 'note' && options.dropUnaskable && !noteRungFor(row, material)) return false;
+    if (kind === 'chapter' && options.dropUnaskable) {
+      const key = `${row.scriptureReference}|${row.translation ?? 'NET'}`;
+      if (!chapterHasVerses.get(key)) return false;
+    }
     return true;
   });
 }

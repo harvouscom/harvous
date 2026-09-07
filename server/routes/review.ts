@@ -89,11 +89,17 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
      *
      * One extra row beyond the cut, purely to answer `hasMore` without a second count query.
      *
-     * Building came last only recently. Dropping used to be a side effect of building, so this
-     * assembled a full question for all eight candidates — cue text, cross-reference openings,
-     * curated knowledge, a database round trip apiece — and then threw five of them away. Since
-     * the drop rules are their own function, the same eight can be filtered for one batched read
-     * and only the three that will be shown are built. Same rows, same `hasMore`.
+     * `filterAskableReviewRows` first, so the build is not handed rows already known to be
+     * unaskable — but the cut still happens *after* the build, and that ordering is not an
+     * oversight to optimise away later.
+     *
+     * It was optimised away once. Cutting to three before building looked equivalent, because
+     * the filter was believed to apply every drop rule the build applies. It applied two of
+     * three: a chapter whose text cannot be fetched is only discoverable once that text has been
+     * asked for. So a chapter in the top three was dropped during the build, the inbox came back
+     * short, short enough came back empty, and the Review section rendered nothing at all in
+     * production. The slack listed beyond the three rows exists precisely so a late drop costs a
+     * row from the tail rather than from what is shown, and cutting first threw that away.
      */
     const due = await listDueReviewItems(
       auth.userId,
@@ -101,13 +107,10 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
       now,
     );
     const askable = await filterAskableReviewRows(auth.userId, due, { dropUnaskable: true });
-    const items = await buildReviewItemViews(
-      auth.userId,
-      askable.slice(0, REVIEW_INBOX_MAX_ROWS),
-      { dropUnaskable: true },
-    );
+    const built = await buildReviewItemViews(auth.userId, askable, { dropUnaskable: true });
+    const items = built.slice(0, REVIEW_INBOX_MAX_ROWS);
 
-    return c.json({ success: true, items, hasMore: askable.length > REVIEW_INBOX_MAX_ROWS });
+    return c.json({ success: true, items, hasMore: built.length > REVIEW_INBOX_MAX_ROWS });
   } catch (error) {
     // A database without the tables yet is an empty inbox, not a broken Activity page.
     if (isReviewTableMissing(error)) {
