@@ -624,6 +624,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
             {sharePopover.isOpen && toolbarNote && toolbarNoteId && contextualCapabilities.canShare ? (
               <PrototypeSharePopover
                 noteId={toolbarNoteId}
+                noteTitle={toolbarNote.title ?? null}
                 isPublic={!!toolbarNote.isPublic}
                 shareToken={toolbarNote.shareToken ?? null}
                 sharedSpaceNames={sharedSpaceNames}

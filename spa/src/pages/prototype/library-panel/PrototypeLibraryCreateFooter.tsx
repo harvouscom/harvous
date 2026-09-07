@@ -18,6 +18,10 @@
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useOrganizeApi } from '../../../lib/prototype-organize-runner-store';
 import type { LibraryTab } from '../sidebar-search-types';
+import {
+  markPendingDiscoverKind,
+  type PendingDiscoverKind,
+} from '../../../lib/pending-discover-kind';
 
 export default function PrototypeLibraryCreateFooter({
   tab,
@@ -29,7 +33,7 @@ export default function PrototypeLibraryCreateFooter({
   searching: boolean;
 }) {
   const organize = useOrganizeApi();
-  const { closeLibraryPanel } = useProtoShell();
+  const { closeLibraryPanel, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   if (searching || !organize) return null;
 
   /*
@@ -45,9 +49,40 @@ export default function PrototypeLibraryCreateFooter({
           closeLibraryPanel({ preserveHistory: true });
           window.dispatchEvent(new Event('prototypeShortcutNewNote'));
         }}
+        secondary={{ label: 'Discover', onClick: () => openDiscover('note') }}
       />
     );
   }
+
+  /*
+   * Everything's corner has always been empty — it is the one tab whose things
+   * are not made by hand, so there was nothing to offer. Out to Discover is what
+   * belongs there: on the tab that already means "all of it", the honest next
+   * thing is the part that is not yours yet.
+   *
+   * Above the `canCreateCollections` gate, because that gate is about making
+   * things in a room that may refuse them, and this makes nothing.
+   */
+  const openDiscover = (kind?: PendingDiscoverKind) => {
+    if (kind) markPendingDiscoverKind(kind);
+    closeLibraryPanel();
+    ensureSidebarExpanded();
+    openExpandedSidebar('discover');
+  };
+
+  if (tab === 'all') {
+    return <Footer label="Discover" onClick={() => openDiscover()} />;
+  }
+
+  /*
+   * The secondary is related by kind and nothing cleverer: a Notes list offers
+   * studies, a Threads list offers series. Matching on passage or topic would be
+   * the better answer and is not this one — listings carry no passage data yet,
+   * and a guess from a mixed list reads as arbitrary the first time it misses.
+   *
+   * Only those two. Folders, highlights and scripture have no counterpart in
+   * Discover, and a secondary that opens an empty surface is worse than none.
+   */
 
   /* A shared space can say no — see `canCreateCollections`. Offering a button the sheet
      would refuse is worse than offering nothing. */
@@ -57,18 +92,48 @@ export default function PrototypeLibraryCreateFooter({
     return <Footer label="New folder" onClick={() => organize.openCreateFolder()} />;
   }
   if (tab === 'threads') {
-    return <Footer label="New Thread" onClick={() => organize.openCreateThread()} />;
+    return (
+      <Footer
+        label="New Thread"
+        onClick={() => organize.openCreateThread()}
+        secondary={{ label: 'Discover', onClick: () => openDiscover('pack') }}
+      />
+    );
   }
   return null;
 }
 
-/** The sidebar's own footer chrome, so the two surfaces offer one control. */
-function Footer({ label, onClick }: { label: string; onClick: () => void }) {
+/**
+ * The sidebar's own footer chrome, so the two surfaces offer one control.
+ *
+ * `secondary` sits beside the primary as a quiet action, in the same row:
+ * making one of your own is what this corner is for, and going to look at other
+ * people's is the other thing you might do from a list you have run to the end
+ * of. Two columns, not two rows — the footer is height taken from the list.
+ */
+function Footer({
+  label,
+  onClick,
+  secondary,
+}: {
+  label: string;
+  onClick: () => void;
+  secondary?: { label: string; onClick: () => void };
+}) {
   return (
     <div className="proto-collection-grid-actions">
       <button type="button" className="proto-collection-grid-actions__btn" onClick={onClick}>
         {label}
       </button>
+      {secondary ? (
+        <button
+          type="button"
+          className="proto-sheet-quiet-action proto-collection-grid-actions__secondary"
+          onClick={secondary.onClick}
+        >
+          {secondary.label}
+        </button>
+      ) : null}
     </div>
   );
 }

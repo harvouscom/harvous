@@ -38,6 +38,10 @@
       "/api/*",
       "/shared/note/*",
       "/shared/thread/*",
+      // Discover: the public listing page (/discover/<slug>) and the signed-in
+      // catalog both live here, and both are SPA routes rather than assets.
+      "/discover",
+      "/discover/*",
       "/assets/*",
       "/prototype/*",
       "/thread_*",

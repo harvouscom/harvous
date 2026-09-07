@@ -1,10 +1,12 @@
 /**
  * Which tabs offer to start something, and when they stop offering.
  *
- * Three rules, each with a reason that is not obvious from the markup: only the kinds you
- * make by hand get a footer, searching hides it because results are a place you are passing
- * through, and a space that would refuse the sheet shows no button rather than a button that
- * fails at the far end of a form.
+ * Four rules, each with a reason that is not obvious from the markup: only the kinds you
+ * make by hand get a *create* footer, Everything gets Discover instead — it is the one tab
+ * whose things are not made by hand, so the honest offer there is the part that is not yours
+ * yet — searching hides it because results are a place you are passing through, and a space
+ * that would refuse the sheet shows no button rather than a button that fails at the far end
+ * of a form.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -52,8 +54,10 @@ describe('which tabs offer one', () => {
     expect(footer('resources')).toBeNull();
   });
 
-  it('offers nothing on Everything, which is not a kind', () => {
-    expect(footer('all')).toBeNull();
+  it('offers Discover on Everything, which is not a kind to make by hand', () => {
+    // Everything's corner has always been the one with nothing to create — see
+    // PrototypeLibraryCreateFooter's own comment. Out to Discover is what fills it.
+    expect(footer('all')).toBe('Discover');
   });
 });
 

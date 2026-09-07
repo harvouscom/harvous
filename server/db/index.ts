@@ -92,6 +92,8 @@ export {
   ImportSessions,
   ImportSessionItems,
   AppSyncCursors,
+  DiscoverListings,
+  DiscoverInstalls,
 } from './schema';
 
 // Common Drizzle operators (mirrors what astro:db re-exports)
