@@ -35,7 +35,6 @@ import {
   first,
 } from '../db';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
-import { safeRenderHtml } from '@/utils/content-renderer';
 import { resolveNoteTemplateIconColor } from '@/utils/note-template-icon';
 import { findPersonalLibrary } from './ensure-personal-library';
 
@@ -163,19 +162,28 @@ export function excerptOf(html: string): string {
 export const BODY_HTML_MAX_LENGTH = 4000;
 
 /**
- * The body a public page renders, sanitized.
+ * The body a public page renders, capped. **Stored as authored, not sanitized
+ * here — the renderer sanitizes.**
  *
- * This is the one place a listing's actual writing becomes public, so it is
- * sanitized on the way in — `safeRenderHtml` is DOMPurify (isomorphic, so it
- * runs here), which strips scripts, event handlers and `javascript:` URLs while
- * keeping the `data-*` attributes scripture pills depend on. `serializePublic`
- * sanitizes again on the way out; two passes cost one dependency and mean the
- * website needs no sanitizer of its own.
+ * This used to call `safeRenderHtml`, which is DOMPurify via
+ * `isomorphic-dompurify` → jsdom. That works in a browser and in a test, and it
+ * took the production API down the first time it shipped: `build:fly` bundles
+ * the server into a single `api.cjs` and the image copies nothing else, so
+ * jsdom's `readFileSync` of its own `default-stylesheet.css` had no file to
+ * find and the process died at startup, before serving a request. There is no
+ * DOM on this side and nothing here should reach for one.
+ *
+ * So the boundary moved to the only thing that renders this as HTML:
+ * harvous.com sanitizes with `sanitize-html` (htmlparser2, no DOM) at build
+ * time, immediately before `set:html`. The app's own public listing page never
+ * renders it — it is the install action and nothing else — and the export is
+ * consumed by that one build. Anything new that renders `bodyHtml` sanitizes
+ * it first; `discover-bundle.test.ts` guards the half of that which is
+ * mechanical.
  */
 export function bodyHtmlOf(html: string): string {
   if (!html) return '';
-  const cut = html.length > BODY_HTML_MAX_LENGTH ? html.slice(0, BODY_HTML_MAX_LENGTH) : html;
-  return safeRenderHtml(cut);
+  return html.length > BODY_HTML_MAX_LENGTH ? html.slice(0, BODY_HTML_MAX_LENGTH) : html;
 }
 
 function tooBig(payload: string): boolean {
