@@ -16,6 +16,7 @@ import ProtoConfirmDialog from './ProtoConfirmDialog';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useDebouncedSearchState } from '../../hooks/useDebouncedSearchState';
 import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
+import { useProtoShell } from '../../layouts/proto-shell-context';
 import { APIError } from '../../lib/api';
 import { useDeleteNoteTemplate } from '../../hooks/mutations/useDeleteNoteTemplate';
 import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMutations';
@@ -314,6 +315,7 @@ export default function PrototypeBrowseTemplatesSheet({
   anchorRect = null,
 }: PrototypeBrowseTemplatesSheetProps) {
   const { mounted, exiting } = useProtoOverlayMotion(open);
+  const { ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   const cardRef = useRef<HTMLDivElement | null>(null);
   const listSpaceId = spaceId?.trim() || null;
   const { data, isLoading, isError } = useNoteTemplates(listSpaceId, open);
@@ -720,6 +722,30 @@ export default function PrototypeBrowseTemplatesSheet({
                   description={categoryEmpty.description}
                 />
               </div>
+            ) : null}
+
+            {/*
+              The way out of "templates other people shared" and into everything
+              they shared.
+
+              Only on this tab, and only as a way onward: this sheet's job is to
+              get a shape into the note you are writing, so the starters stay the
+              answer here and the wider catalog is a step you take deliberately.
+              Closes the sheet behind it — the expanded surface covers the same
+              ground, and it is not a place to be mid-compose without meaning to.
+            */}
+            {scopeTab === 'discover' ? (
+              <button
+                type="button"
+                className="proto-sheet-quiet-action proto-browse-templates-sheet__discover-more"
+                onClick={() => {
+                  onOpenChange(false);
+                  ensureSidebarExpanded();
+                  openExpandedSidebar('discover');
+                }}
+              >
+                See everything people have shared
+              </button>
             ) : null}
           </div>
         </div>
