@@ -138,59 +138,68 @@ export default function PrototypeExpandedDiscover({
       origin={origin}
       onClose={onClose}
     >
-      {listings.isLoading ? (
-        <ProtoSpaceLoading label="Loading Discover" />
-      ) : rows.length === 0 ? (
-        <PrototypeListEmptyState
-          iconName="list-check"
-          title="Nothing shared yet"
-          description="Once someone shares a starter or a study and it has been looked over, it turns up here."
-        />
-      ) : (
-        /* The panel's own list idiom, not Home's rows: `PrototypeHomeRow` is
-           built for a 260px column and collapses to its icons at this width. */
-        <div className="proto-planner-list">
-          <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
-            {rows.map((listing) => {
-              const isInstalled = installed.has(listing.slug);
-              const busy = installingSlug === listing.slug;
-              return (
-                <button
-                  key={listing.slug}
-                  type="button"
-                  className="proto-church-tools__row proto-planner-list__row"
-                  disabled={busy || isInstalled}
-                  onClick={() => void handleInstall(listing)}
-                  aria-label={
-                    isInstalled
-                      ? `${listing.title} is already yours`
-                      : `Save ${listing.title} to your Harvous`
-                  }
-                >
-                  <span className="proto-church-tools__row-icon" aria-hidden>
-                    <Icon name={KIND_ICON[listing.kind] ?? 'list-check'} size={13} />
-                  </span>
-                  <span className="proto-church-tools__row-text">
-                    <span
-                      className="pds-list-title proto-church-tools__row-title proto-marquee"
-                      title={listing.title}
-                    >
-                      <span>{listing.title}</span>
+      {/* The panel body is `display: flex` in row direction, so a bare child is
+          sized to its own content and pins to the left — which is what the
+          loading dots and the empty state were doing. `proto-planner` /
+          `proto-planner__main` is the wrapper that makes the body a full-width
+          column, and is what every other tool in this panel uses. */}
+      <div className="proto-planner">
+        <div className="proto-planner__main">
+        {listings.isLoading ? (
+          <ProtoSpaceLoading label="Loading Discover" />
+        ) : rows.length === 0 ? (
+          <PrototypeListEmptyState
+            iconName="list-check"
+            title="Nothing shared yet"
+            description="Once someone shares a starter or a study and it has been looked over, it turns up here."
+          />
+        ) : (
+          /* The panel's own list idiom, not Home's rows: `PrototypeHomeRow` is
+             built for a 260px column and collapses to its icons at this width. */
+          <div className="proto-planner-list">
+            <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+              {rows.map((listing) => {
+                const isInstalled = installed.has(listing.slug);
+                const busy = installingSlug === listing.slug;
+                return (
+                  <button
+                    key={listing.slug}
+                    type="button"
+                    className="proto-church-tools__row proto-planner-list__row"
+                    disabled={busy || isInstalled}
+                    onClick={() => void handleInstall(listing)}
+                    aria-label={
+                      isInstalled
+                        ? `${listing.title} is already yours`
+                        : `Save ${listing.title} to your Harvous`
+                    }
+                  >
+                    <span className="proto-church-tools__row-icon" aria-hidden>
+                      <Icon name={KIND_ICON[listing.kind] ?? 'list-check'} size={13} />
                     </span>
-                    <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
-                      {listing.description ? `${listing.description} · ` : ''}
-                      {listingMeta(listing).join(' · ')}
+                    <span className="proto-church-tools__row-text">
+                      <span
+                        className="pds-list-title proto-church-tools__row-title proto-marquee"
+                        title={listing.title}
+                      >
+                        <span>{listing.title}</span>
+                      </span>
+                      <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
+                        {listing.description ? `${listing.description} · ` : ''}
+                        {listingMeta(listing).join(' · ')}
+                      </span>
                     </span>
-                  </span>
-                  <span className="proto-church-tools__row-chevron" aria-hidden>
-                    <Icon name={isInstalled ? 'check' : 'plus'} size={11} />
-                  </span>
-                </button>
-              );
-            })}
+                    <span className="proto-church-tools__row-chevron" aria-hidden>
+                      <Icon name={isInstalled ? 'check' : 'plus'} size={11} />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        )}
         </div>
-      )}
+      </div>
     </ProtoSidebarExpandedPanel>
   );
 }
