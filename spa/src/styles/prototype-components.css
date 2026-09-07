@@ -23072,7 +23072,10 @@ button.proto-feed-sheet__stat:hover {
    * deep red of a warning, and this is an option that has been used, in the same family as the
    * blue one beside it that was right.
    */
-  background: linear-gradient(180deg, #f05252 0%, #d42828 55%, #be1f1f 100%);
+  /* Held in a variable so the hover rule below can restate it without a second copy of the
+     gradient — two literals is how the resting state and the hover state drift apart. */
+  --proto-verdict-bg: linear-gradient(180deg, #f05252 0%, #d42828 55%, #be1f1f 100%);
+  background: var(--proto-verdict-bg);
   box-shadow: var(--pds-shadow-destructive-button);
   color: var(--pds-on-accent) !important;
   opacity: 1;
@@ -23119,9 +23122,31 @@ button.proto-feed-sheet__stat:hover {
 }
 
 .proto-review-dock__choice[data-correct] {
-  background: var(--pds-bg-accent-button);
+  --proto-verdict-bg: var(--pds-bg-accent-button);
+  background: var(--proto-verdict-bg);
   box-shadow: var(--pds-shadow-accent-button);
   color: var(--pds-on-accent) !important;
+}
+
+/*
+ * A spent chip keeps its verdict under the pointer.
+ *
+ * `.proto-settings-btn--secondary:hover:not(:disabled)` is 0,3,0 and the verdict rules above are
+ * 0,2,0, so the neutral row-hover background won outright. The white the verdict paints its words
+ * with survives, because that is set with `!important` and again through
+ * `-webkit-text-fill-color` — so hovering an answered option left white text on pale grey and the
+ * words disappeared.
+ *
+ * Restated rather than fought with another `!important`: these chips are no longer offers, they
+ * are the answer being shown, so there is nothing for a hover to preview. `:focus-visible` gets
+ * the same treatment, since a keyboard reader would otherwise lose the words at the moment they
+ * arrived on them.
+ */
+.proto-review-dock__choice[data-correct]:hover:not(:disabled),
+.proto-review-dock__choice[data-correct]:focus-visible,
+.proto-review-dock__choice[data-missed]:hover:not(:disabled),
+.proto-review-dock__choice[data-missed]:focus-visible {
+  background: var(--proto-verdict-bg);
 }
 
 /* The gap's line carries its verdict, the same line that carries focus. */
