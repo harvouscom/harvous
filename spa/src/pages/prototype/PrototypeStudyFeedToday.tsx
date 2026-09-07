@@ -15,6 +15,7 @@
  * the same three Continue slots and the same recall rows rather than a subset — it takes the
  * whole thing as one prop so a value added there cannot go unnoticed here.
  */
+import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
@@ -251,7 +252,7 @@ export default function PrototypeStudyFeedToday({
                     dismissImportPrompt();
                   }}
                 >
-                  <span aria-hidden>×</span>
+                  <Icon name="xmark" size={12} aria-hidden />
                 </button>
               }
             />

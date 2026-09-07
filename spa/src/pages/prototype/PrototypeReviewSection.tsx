@@ -191,7 +191,7 @@ export default function PrototypeReviewSection() {
                   dismissPlusPrompt();
                 }}
               >
-                <span aria-hidden>×</span>
+                <Icon name="xmark" size={12} aria-hidden />
               </button>
             </span>
           }

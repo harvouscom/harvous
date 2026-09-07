@@ -12461,27 +12461,62 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    trailing mark dims — one glyph in the column shouting while the rest are punctuation.
    
    Deliberately not a descendant selector. The popover lives inside `.proto-recall-row__more`
-   too, and `trailing button` would dim every item in the open menu along with the trigger. */
+   too, and `trailing button` would dim every item in the open menu along with the trigger.
+   
+   `.proto-review-row__more` and `.proto-review-section__plus` are the same grandchild shape —
+   an anchor for a portaled menu, and a badge sitting beside its dismiss — and were missed when
+   they were built, so those two trailing marks stayed at full strength beside dimmed ones. */
 .proto-list-panel__row-trailing > button,
-.proto-list-panel__row-trailing > .proto-recall-row__more > button {
+.proto-list-panel__row-trailing > .proto-recall-row__more > button,
+.proto-list-panel__row-trailing > .proto-review-row__more > button,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button {
   opacity: 0.4;
   transition: opacity var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-.proto-list-panel__row:hover .proto-list-panel__row-trailing > button,
-.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-recall-row__more > button {
+/*
+ * The mark the pointer is actually on is excluded here, or it never reaches full.
+ *
+ * A row-hover selector carries three classes and a pseudo-class; the reach-for-it rule below
+ * carries one class and a pseudo-class, so the row won the cascade and pinned its own control
+ * at 0.62 — the "rises to full on the pointer" above was a comment describing something that
+ * did not happen. Standing the specificity contest up as `:not()` rather than piling `:hover`
+ * onto the row-hover arms keeps the two states named once each.
+ *
+ * `:focus-visible` is excluded for the same reason: a keyboard focus that lands while the
+ * pointer happens to rest on the row is still a control being reached for.
+ */
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > button:not(:hover):not(:focus-visible):not([aria-expanded='true']),
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-recall-row__more > button:not(:hover):not(:focus-visible):not([aria-expanded='true']),
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-review-row__more > button:not(:hover):not(:focus-visible):not([aria-expanded='true']),
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-review-section__plus > button:not(:hover):not(:focus-visible):not([aria-expanded='true']) {
   opacity: 0.62;
 }
 
 .proto-list-panel__row-trailing > button:hover,
 .proto-list-panel__row-trailing > button:focus-visible,
 .proto-list-panel__row-trailing > .proto-recall-row__more > button:hover,
-.proto-list-panel__row-trailing > .proto-recall-row__more > button:focus-visible {
+.proto-list-panel__row-trailing > .proto-recall-row__more > button:focus-visible,
+.proto-list-panel__row-trailing > .proto-review-row__more > button:hover,
+.proto-list-panel__row-trailing > .proto-review-row__more > button:focus-visible,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button:hover,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button:focus-visible {
   opacity: 1;
 }
 
-/* An open menu keeps its trigger lit, or the ⋮ fades out from under the panel it opened. */
-.proto-list-panel__row-trailing > .proto-recall-row__more:has(.proto-recall-row__menu) > button {
+/*
+ * An open menu keeps its trigger lit, or the ⋮ fades out from under the panel it opened.
+ *
+ * Asked of `aria-expanded`, which the trigger already carries for assistive tech, rather than
+ * of the menu's presence. This was `:has(.proto-recall-row__menu)`, and that condition stopped
+ * being satisfiable the day the popover was portaled to `document.body`: React keeps it a child
+ * in its own tree, but `:has()` reads the DOM, where the menu is no longer inside the anchor.
+ * The rule had been quietly dead ever since — the ⋮ dimmed under its own open panel — which is
+ * the same thing that happened to the row-lift `z-index` the note above records removing.
+ */
+.proto-list-panel__row-trailing > button[aria-expanded='true'],
+.proto-list-panel__row-trailing > .proto-recall-row__more > button[aria-expanded='true'],
+.proto-list-panel__row-trailing > .proto-review-row__more > button[aria-expanded='true'] {
   opacity: 1;
 }
 
