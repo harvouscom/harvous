@@ -67,20 +67,20 @@ export interface ShareWithOthersTarget {
 const KIND_LABEL: Record<ShareWithOthersKind, string> = {
   template: 'Template',
   note: 'Note',
-  pack: 'Study',
+  pack: 'Thread',
 };
 
 const KIND_SENT_COPY: Record<ShareWithOthersKind, string> = {
   template:
     'Sent. If it is a good fit, it turns up in Discover for everyone — and your copy stays exactly where it is.',
   note: 'Sent. If it is a good fit, people can take their own copy — yours stays exactly as it is.',
-  pack: 'Sent. If it is a good fit, people can take the whole study — yours stays exactly as it is.',
+  pack: 'Sent. If it is a good fit, people can take the whole Thread — yours stays exactly as it is.',
 };
 
 const KIND_DESCRIPTION_PLACEHOLDER: Record<ShareWithOthersKind, string> = {
   template: 'One line, so someone knows if it suits them',
   note: 'One line, so someone knows what this is about',
-  pack: 'One line, so someone knows what this study covers',
+  pack: 'One line, so someone knows what this Thread covers',
 };
 
 export default function PrototypeShareWithOthersSheet({

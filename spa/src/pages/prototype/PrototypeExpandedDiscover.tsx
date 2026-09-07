@@ -34,18 +34,27 @@ import { consumePendingDiscoverKind } from '../../lib/pending-discover-kind';
 
 type KindTab = 'all' | 'template' | 'note' | 'pack';
 
+/*
+ * The app's own words, not new ones.
+ *
+ * These were Starters / Studies / Series, which read well and named nothing:
+ * the reader already calls them Templates, Notes and Threads everywhere else,
+ * and a Discover row that arrives as a "Series" is a thing they then have to
+ * translate. "Series" is worse than merely new — it is taken, by the church
+ * planner's teaching series, so it would have named two different things.
+ */
 const KIND_TABS: ProtoChipOption<KindTab>[] = [
   { id: 'all', label: 'Everything' },
-  { id: 'template', label: 'Starters' },
-  { id: 'note', label: 'Studies' },
-  { id: 'pack', label: 'Series' },
+  { id: 'template', label: 'Templates' },
+  { id: 'note', label: 'Notes' },
+  { id: 'pack', label: 'Threads' },
 ];
 
 /** What taking a copy of each kind actually produces, said before they tap. */
 const KIND_NOUN: Record<string, string> = {
-  template: 'Starter',
-  note: 'Study',
-  pack: 'Series',
+  template: 'Template',
+  note: 'Note',
+  pack: 'Thread',
   resource: 'Resource',
 };
 

@@ -27,7 +27,7 @@ export const DISCOVER_CATEGORIES: readonly DiscoverCategory[] = [
   {
     id: 'daily-journal',
     label: 'Daily journal',
-    blurb: 'Starters for a regular reading rhythm.',
+    blurb: 'For keeping a regular reading rhythm.',
   },
   {
     id: 'sermon-notes',

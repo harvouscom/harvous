@@ -120,7 +120,13 @@ export default function PublicDiscoverListingPage() {
   }
 
   const kindNoun =
-    listing?.kind === 'pack' ? 'series' : listing?.kind === 'note' ? 'study' : listing?.kind === 'resource' ? 'link' : 'starter';
+    listing?.kind === 'pack'
+      ? 'Thread'
+      : listing?.kind === 'note'
+        ? 'note'
+        : listing?.kind === 'resource'
+          ? 'link'
+          : 'template';
   /* The structure is the honest preview of a starter and the note titles are the
      honest preview of a series. Neither is the body — taking a copy is what hands
      that over. */
