@@ -463,7 +463,13 @@ export default function PrototypeRemindersPage() {
         </div>
       </SettingsGroup>
 
-      {support === 'granted' && deviceCount > 0 ? (
+      {/*
+        Development only. Sending yourself a notification is a way of checking the plumbing,
+        which is a thing to do while building reminders rather than a thing to offer someone
+        using them — the schedule above already says what will arrive and when. It shipped
+        ungated from the start; the gate is the correction.
+      */}
+      {import.meta.env.DEV && support === 'granted' && deviceCount > 0 ? (
         <SettingsGroup>
           <SettingsRow
             label="Send a test"
