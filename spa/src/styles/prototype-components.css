@@ -5202,6 +5202,49 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   background: var(--pds-bg-ghost);
 }
 
+/*
+ * Out to Discover, beside the thing this corner is really for.
+ *
+ * Two columns rather than two rows: stacked, the pair took a second line of the
+ * footer's height off a list that is already the point of the panel, and a
+ * centred text action under a full-width gradient reads as a caption on it
+ * rather than as its own control.
+ *
+ * Scoped with `:has()` so the class keeps its single-button behaviour
+ * everywhere else — the same slot holds the bulk bar and the sidebar's own
+ * footer, and neither has a second action.
+ */
+.proto-collection-grid-actions:has(.proto-collection-grid-actions__secondary) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * The primary keeps the room; the secondary asks only for its word.
+ *
+ * Both need `width: auto` explicitly. Each carries `width: 100%` from its own
+ * base rule — the primary from the footer's gradient rule, the secondary from
+ * `.proto-sheet-quiet-action`, which is built to sit *under* a primary — and
+ * with `flex-basis: auto` that width becomes the basis. Left alone, the quiet
+ * action claimed the whole row and the gradient shrank to the width of its
+ * wrapped label.
+ */
+.proto-collection-grid-actions:has(.proto-collection-grid-actions__secondary)
+  .proto-collection-grid-actions__btn {
+  flex: 1 1 0%;
+  width: auto;
+  min-width: 0;
+}
+
+.proto-collection-grid-actions:has(.proto-collection-grid-actions__secondary)
+  .proto-collection-grid-actions__secondary {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+  padding-inline: 10px;
+}
+
 /* The gradient primary — but only in the footer. The same `__btn` class is
    shared with `.proto-list-create-empty__btn` and `.proto-drill-empty__cta`,
    which are empty-state CTAs sitting in the middle of a blank pane; those keep

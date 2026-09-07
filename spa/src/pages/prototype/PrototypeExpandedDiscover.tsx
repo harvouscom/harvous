@@ -30,6 +30,7 @@ import { toast } from '@/utils/toast';
 import { DISCOVER_CATEGORIES, discoverCategoryLabel } from '@/data/discover-categories';
 import { useDiscoverListings, type DiscoverListing } from '../../hooks/queries/useDiscoverListings';
 import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMutations';
+import { consumePendingDiscoverKind } from '../../lib/pending-discover-kind';
 
 type KindTab = 'all' | 'template' | 'note' | 'pack';
 
@@ -72,7 +73,9 @@ export default function PrototypeExpandedDiscover({
   origin,
   onClose,
 }: ExpandedSidebarToolProps) {
-  const [kind, setKind] = useState<KindTab>('all');
+  /* Seeded from whichever list handed off, so arriving from Threads lands on
+     series rather than on everything and a scroll. Read once, at mount. */
+  const [kind, setKind] = useState<KindTab>(() => consumePendingDiscoverKind() ?? 'all');
   const [category, setCategory] = useState<string | null>(null);
   /*
     One unfiltered fetch, filtered in memory.
