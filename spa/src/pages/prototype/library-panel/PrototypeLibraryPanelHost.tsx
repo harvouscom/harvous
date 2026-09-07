@@ -49,6 +49,8 @@ export default function PrototypeLibraryPanelHost({
     setLibraryPanelView,
     closeLibraryPanel,
     isMobileSidebar,
+    ensureSidebarExpanded,
+    openExpandedSidebar,
   } = useProtoShell();
 
   /* During the exit morph the view is still set; this only covers the frame after the
@@ -231,6 +233,34 @@ export default function PrototypeLibraryPanelHost({
             onSelect={(tab) => setLibraryPanelView({ tab, drill: null })}
             selection={selection}
           />
+          {/*
+            Out to Discover, as an expand rather than a row in the kind menu.
+            Every kind in that menu is a corpus you already own; Discover is
+            nobody's yet, so listing it among them said it was one more of your
+            things. An expand says what it is instead — the same surface, wider —
+            and wears the exact counterpart of the control that collapses it.
+
+            The panel closes behind it: two browse surfaces stacked is one too many.
+          */}
+          <button
+            type="button"
+            className="proto-side-panel__action-btn"
+            title="What others have shared"
+            aria-label="Discover what others have shared"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              closeLibraryPanel();
+              ensureSidebarExpanded();
+              openExpandedSidebar('discover', {
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+              });
+            }}
+          >
+            <Icon name="up-right-and-down-left-from-center" size={14} />
+          </button>
         </>
       }
       selectBar={<PrototypeLibrarySelectToggle selection={selection} />}

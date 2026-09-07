@@ -12,7 +12,6 @@
  * variant, which is exactly what a bespoke dropdown here would be.
  */
 import ProtoSelectMenu from '../ProtoSelectMenu';
-import { useProtoShell } from '../../../layouts/proto-shell-context';
 import Icon from '@/components/react/Icon';
 import { LIBRARY_TAB_OPTIONS, type LibraryTab } from '../sidebar-search-types';
 import { commandNoun } from '../../../lib/prototype-commands';
@@ -28,7 +27,6 @@ export default function PrototypeLibraryTabs({
   /** Absent on tabs that cannot be selected in — the footer then does not render. */
   selection?: LibrarySelection;
 }) {
-  const { closeLibraryPanel, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
   /*
    * Selecting is entered from here, in words, under the kinds.
    *
@@ -46,48 +44,8 @@ export default function PrototypeLibraryTabs({
    * choose — and an option would leave the trigger claiming "Select folders" as the current
    * view.
    */
-  /*
-   * Discover, under the kinds and above the mode.
-   *
-   * The same argument the select row makes: it is not a seventh kind, because
-   * every kind above it is a corpus you already own and this one is nobody's
-   * yet. But it belongs *here* rather than behind a nav item, because the
-   * question it answers — "is there something for this that I do not have" —
-   * is the one you are already asking when you open this menu and read down
-   * your own folders and Threads.
-   *
-   * The panel closes behind it: the expanded surface covers the same ground, and
-   * two browse surfaces stacked is one too many.
-   */
-  const discoverSection = (close: () => void) => (
-    <div className="proto-menu-section" role="group">
-      <button
-        type="button"
-        role="menuitem"
-        className="proto-menu-item"
-        onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          close();
-          closeLibraryPanel();
-          ensureSidebarExpanded();
-          openExpandedSidebar('discover', {
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height,
-          });
-        }}
-      >
-        <span className="proto-menu-item__icon" aria-hidden>
-          <Icon name="magnifying-glass" size={13} />
-        </span>
-        <span className="proto-menu-item__label">What others have shared</span>
-      </button>
-    </div>
-  );
-
   const canSelect = Boolean(selection?.available && selection.kind);
-  const selectSection = canSelect && selection
+  const selectFooter = canSelect && selection
     ? (close: () => void) => (
     <div className="proto-menu-section" role="group">
       <button
@@ -112,14 +70,7 @@ export default function PrototypeLibraryTabs({
       </button>
     </div>
       )
-    : null;
-
-  const selectFooter = (close: () => void) => (
-    <>
-      {discoverSection(close)}
-      {selectSection?.(close)}
-    </>
-  );
+    : undefined;
 
   return (
     <ProtoSelectMenu<LibraryTab>
