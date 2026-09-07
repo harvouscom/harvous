@@ -91,7 +91,7 @@ describe('discover routes', () => {
 
       What did not change: `payload` carries `sourceId` and `sourceVersionId`
       provenance no reader needs, so it stays out. The body travels in
-      `preview.bodyHtml`, sanitized on write and again on read.
+      `preview.bodyHtml`, as authored — the renderer sanitizes it.
     */
     for (const marker of PUBLIC_HANDLERS) {
       const body = handlerBody(routes(), marker);
@@ -101,23 +101,33 @@ describe('discover routes', () => {
     }
   });
 
-  it('sanitizes the public body on the way out as well as the way in', () => {
-    // Two passes, one dependency. The write pass cannot cover a row written
-    // before it existed, and harvous.com renders this string with `set:html`
-    // and no sanitizer of its own.
+  it('does not reach for a DOM sanitizer on the server', () => {
+    /*
+     * This route sanitized with DOMPurify once, which pulls jsdom, which cannot
+     * be bundled into the API image — jsdom reads its own stylesheet off disk
+     * and `build:fly` ships one file. It built, pushed, started, and died
+     * before serving a request. See `server/__tests__/discover-bundle.test.ts`
+     * for the mechanical guard; this asserts the intent at the call site.
+     *
+     * Sanitizing moved to the one thing that renders the field as HTML:
+     * harvous.com, with `sanitize-html`, immediately before `set:html`.
+     */
     const text = routes();
-    expect(text).toContain('function sanitizePreviewBody');
-    expect(text).toContain('safeRenderHtml(body)');
+    // The import and the call, not the bare word — both files explain in prose
+    // why the sanitizer is gone, and a docblock is not a dependency.
+    expect(text).not.toContain("from '@/utils/content-renderer'");
+    expect(text).not.toContain('safeRenderHtml(');
     const start = text.indexOf('function serializePublic');
     const publicSerializer = text.slice(start, text.indexOf('\nfunction ', start + 1));
-    expect(publicSerializer, 'serializePublic emits an unsanitized preview').toContain(
-      'sanitizePreviewBody(parsePreview(row.preview))',
+    expect(publicSerializer, 'serializePublic stopped emitting the body').toContain(
+      'parsePreview(row.preview)',
     );
   });
 
-  it('sanitizes and caps the body at snapshot time', () => {
+  it('caps the body at snapshot time', () => {
     const text = snapshot();
-    expect(text).toContain('safeRenderHtml(cut)');
+    expect(text).not.toContain("from '@/utils/content-renderer'");
+    expect(text).not.toContain('safeRenderHtml(');
     expect(text).toContain('BODY_HTML_MAX_LENGTH');
     // Every kind that has a body carries one; a resource has none to carry.
     expect(text).toContain('bodyHtml: bodyHtmlOf(template.content)');

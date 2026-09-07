@@ -49,7 +49,6 @@ import {
 } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
-import { safeRenderHtml } from '@/utils/content-renderer';
 import { isUniqueViolationError } from '../utils/db-errors';
 import { requireHarvousAdmin, getHarvousSystemUserId } from '../utils/harvous-admin';
 import { DISCOVER_CATEGORIES, isDiscoverCategory } from '@/data/discover-categories';
@@ -136,23 +135,6 @@ function parsePreview(preview: string | null): unknown {
 }
 
 /**
- * The second sanitize pass, on the way out.
- *
- * `bodyHtmlOf` already cleaned this at submit. Doing it again here costs one
- * function call and covers the cases a write-time pass cannot: a row written
- * before the sanitizer existed, and a future writer that forgets. It is also
- * what lets harvous.com render the string with `set:html` without taking a
- * DOMPurify dependency of its own — the static site has no user input, so the
- * only untrusted bytes it ever sees are these.
- */
-function sanitizePreviewBody(preview: unknown): unknown {
-  if (!preview || typeof preview !== 'object') return preview;
-  const body = (preview as { bodyHtml?: unknown }).bodyHtml;
-  if (typeof body !== 'string' || !body) return preview;
-  return { ...(preview as Record<string, unknown>), bodyHtml: safeRenderHtml(body) };
-}
-
-/**
  * The only serializer an unauthenticated route may use.
  *
  * Deliberately does not spread the row. `submittedByUserId`, `reviewedByUserId`,
@@ -166,6 +148,13 @@ function sanitizePreviewBody(preview: unknown): unknown {
  * static site — a catalog of things people chose to publish, on pages meant to
  * rank. `payload` stays private regardless: it carries `sourceId` and
  * `sourceVersionId` provenance that no reader needs.
+ *
+ * **`bodyHtml` leaves here as authored.** This route used to sanitize it with
+ * DOMPurify, which reaches for jsdom, which cannot be bundled into the API
+ * image — it crashed production at startup the first time it shipped. The
+ * consumer sanitizes instead: harvous.com runs `sanitize-html` at build time
+ * immediately before `set:html`, and it is the only thing that renders this as
+ * HTML. Treat every reader of this field as responsible for its own output.
  */
 function serializePublic(row: ListingRow) {
   return {
@@ -175,7 +164,7 @@ function serializePublic(row: ListingRow) {
     description: row.description,
     category: row.category,
     authorDisplayName: row.authorDisplayName,
-    preview: sanitizePreviewBody(parsePreview(row.preview)),
+    preview: parsePreview(row.preview),
     installCount: row.installCount,
     listedAt: row.listedAt,
   };
