@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
     <meta name="theme-color" content="#F3F2EC" />
+    <!-- Both, deliberately: the Apple-prefixed one is what iOS still reads, and Chrome
+         deprecated it in favour of the standard name. Dropping either loses standalone
+         mode on one platform. -->
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Harvous" />
