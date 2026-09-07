@@ -31,6 +31,8 @@ export type DiscoverListing = {
  */
 export type DiscoverTemplatePreview = {
   titleTemplate?: string | null;
+  /** The colour the author picked; absent falls back to a hash of the slug. */
+  iconColor?: string | null;
   headings?: string[];
   titles?: string[];
   noteCount?: number;

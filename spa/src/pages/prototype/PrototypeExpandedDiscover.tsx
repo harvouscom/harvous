@@ -14,9 +14,14 @@
  * the wanting happens; the layout, the grow-from-origin animation, and the
  * Back-button handling come from the host.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Icon, { type IconName } from '@/components/react/Icon';
 import ProtoSidebarExpandedPanel from './ProtoSidebarExpandedPanel';
+import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
+import {
+  NOTE_TEMPLATE_ICON_NAME,
+  resolveNoteTemplateIconColor,
+} from '@/utils/note-template-icon';
 import type { ExpandedSidebarToolProps } from './PrototypeExpandedSidebarHost';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
@@ -69,7 +74,15 @@ export default function PrototypeExpandedDiscover({
 }: ExpandedSidebarToolProps) {
   const [kind, setKind] = useState<KindTab>('all');
   const [category, setCategory] = useState<string | null>(null);
-  const listings = useDiscoverListings({ kind: kind === 'all' ? null : kind, category });
+  /*
+    One unfiltered fetch, filtered in memory.
+    Asking the server per chip looked equivalent and was not: the topic chips are
+    built from whatever came back, so selecting one narrowed the response and the
+    other topics vanished with it — you could only ever go between "All topics"
+    and the one you were already in. Filtering here keeps every topic on screen
+    while showing the rows for one of them.
+  */
+  const listings = useDiscoverListings({});
   const install = useInstallDiscoverListing();
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
 
@@ -78,20 +91,31 @@ export default function PrototypeExpandedDiscover({
     [listings.data],
   );
 
-  /* Only the categories that actually have something in them. A filter row of
-     nine labels where seven lead to an empty list teaches people not to use it. */
+  /** Everything of the selected kind — what the topic chips are drawn from. */
+  const kindRows = useMemo(() => {
+    const all = listings.data?.listings ?? [];
+    return kind === 'all' ? all : all.filter((l) => l.kind === kind);
+  }, [listings.data, kind]);
+
+  /* Only the topics that actually have something in them, within the kind on
+     screen. A row of nine labels where seven lead to an empty list teaches
+     people not to use it. */
   const categoryOptions = useMemo<ProtoChipOption<string>[]>(() => {
-    const present = new Set(
-      (listings.data?.listings ?? []).map((l) => l.category).filter(Boolean) as string[],
-    );
+    const present = new Set(kindRows.map((l) => l.category).filter(Boolean) as string[]);
     return [
       { id: '', label: 'All topics' },
-      ...DISCOVER_CATEGORIES.filter((c) => present.has(c.id) || c.id === category).map((c) => ({
+      ...DISCOVER_CATEGORIES.filter((c) => present.has(c.id)).map((c) => ({
         id: c.id,
         label: c.label,
       })),
     ];
-  }, [listings.data, category]);
+  }, [kindRows]);
+
+  /* Changing kind can strip the topic you were in — leaving it selected would
+     show an empty list under a chip that is no longer there to un-press. */
+  useEffect(() => {
+    if (category && !categoryOptions.some((option) => option.id === category)) setCategory(null);
+  }, [categoryOptions, category]);
 
   const handleInstall = async (listing: DiscoverListing) => {
     if (install.isPending) return;
@@ -110,7 +134,7 @@ export default function PrototypeExpandedDiscover({
     }
   };
 
-  const rows = listings.data?.listings ?? [];
+  const rows = category ? kindRows.filter((l) => l.category === category) : kindRows;
 
   return (
     <ProtoSidebarExpandedPanel
@@ -148,10 +172,17 @@ export default function PrototypeExpandedDiscover({
         {listings.isLoading ? (
           <ProtoSpaceLoading label="Loading Discover" />
         ) : rows.length === 0 ? (
+          /* "Nothing shared yet" is only true of an empty catalog. With a kind
+             selected it is the filter that is empty, and saying otherwise sends
+             someone away from a catalog that does have things in it. */
           <PrototypeListEmptyState
             iconName="list-check"
-            title="Nothing shared yet"
-            description="Once someone shares a starter or a study and it has been looked over, it turns up here."
+            title={kind === 'all' ? 'Nothing shared yet' : `No ${KIND_TABS.find((t) => t.id === kind)?.label.toLowerCase()} yet`}
+            description={
+              kind === 'all'
+                ? 'Once someone shares a starter or a study and it has been looked over, it turns up here.'
+                : 'Try Everything to see what else people have shared.'
+            }
           />
         ) : (
           /* The panel's own list idiom, not Home's rows: `PrototypeHomeRow` is
@@ -175,7 +206,16 @@ export default function PrototypeExpandedDiscover({
                     }
                   >
                     <span className="proto-church-tools__row-icon" aria-hidden>
-                      <Icon name={KIND_ICON[listing.kind] ?? 'list-check'} size={13} />
+                      <ProtoSpaceMenuIcon
+                        color={resolveNoteTemplateIconColor(
+                          listing.slug,
+                          listing.preview?.iconColor,
+                        )}
+                        iconName={KIND_ICON[listing.kind] ?? NOTE_TEMPLATE_ICON_NAME}
+                        size={26}
+                        radius={8}
+                        glyphSize={12}
+                      />
                     </span>
                     <span className="proto-church-tools__row-text">
                       <span

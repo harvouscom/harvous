@@ -236,6 +236,11 @@ export async function snapshotTemplate(templateId: string, userId: string): Prom
       payload: encoded,
       preview: JSON.stringify({
         titleTemplate: template.title,
+        /* The colour its author picked, so a catalog reads as a set of things
+           people made rather than a grey list. In the preview rather than a
+           column of its own: it is presentation, it costs no migration, and a
+           listing without one falls back to a hash of its slug. */
+        iconColor: template.iconColor,
         headings: headingsOf(template.content),
         excerpt: excerptOf(template.content),
       }),
