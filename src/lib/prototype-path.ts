@@ -339,6 +339,22 @@ export function prototypeSettingsDataRouteTo(): '/prototype/settings/data' {
   return (isDedicatedPrototypeHost() ? '/settings/data' : '/prototype/settings/data') as '/prototype/settings/data';
 }
 
+export function prototypeSettingsAppearanceRouteTo(): '/prototype/settings/appearance' {
+  return (isDedicatedPrototypeHost() ? '/settings/appearance' : '/prototype/settings/appearance') as '/prototype/settings/appearance';
+}
+
+/**
+ * Settings → Reminders.
+ *
+ * The onboarding row only sends anyone here when the device cannot subscribe where it
+ * stands — an iPhone in a Safari tab — because this page owns the install sheet that
+ * explains why. Everywhere else the row turns reminders on in place, since the permission
+ * prompt has to come straight off the tap.
+ */
+export function prototypeSettingsRemindersRouteTo(): '/prototype/settings/reminders' {
+  return (isDedicatedPrototypeHost() ? '/settings/reminders' : '/prototype/settings/reminders') as '/prototype/settings/reminders';
+}
+
 /**
  * Review's two URLs, and Challenges' two.
  *

@@ -20828,6 +20828,25 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /*
+ * The break between the tour and "Make it yours".
+ *
+ * Spacing only, no rule: a line across the panel would make two lists out of one card, and
+ * the whole point is that these rows belong to the same ambient group. The label is
+ * `aria-hidden` because the rows beneath it already say what they are — a screen reader
+ * meeting "Make it yours" as a heading would expect a landmark that is not there.
+ */
+.proto-onboarding-dock__section {
+  margin: 10px 0 2px;
+  padding: 0 4px;
+  opacity: 0.62;
+}
+
+/* Nothing above it to separate from when the tour is already finished. */
+.proto-onboarding-dock__section:first-child {
+  margin-top: 0;
+}
+
+/*
  * Collapse without measuring.
  *
  * `grid-template-rows: 1fr → 0fr` animates a row's height without JS ever reading one,

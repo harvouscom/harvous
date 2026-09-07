@@ -13,10 +13,12 @@
  * and what the list shows are deliberately different: the count is your progress, the list
  * is what is left.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { guestSignUpHref, leaveForSignUp } from '../../lib/guest-signup';
 import {
+  remindersRowApplies,
   shownOnboardingProgress,
   stepAppliesTo,
   stepIsDone,
@@ -26,7 +28,18 @@ import PrototypeHomeRow from './PrototypeHomeRow';
 import { useOnboardingState } from './useOnboardingState';
 import { PROTO_ONBOARDING_ROW_EXIT_MS, PROTO_ONBOARDING_ROW_DWELL_MS } from '../../layouts/proto-motion';
 import { showPrototypeFeedbackToast } from '@/utils/prototype-feedback-toast';
-import { ONBOARDING_VERSION, type OnboardingStepId } from '@/utils/onboarding-state';
+import { toast } from '@/utils/toast';
+import {
+  prototypeSettingsAppearanceRouteTo,
+  prototypeSettingsDataRouteTo,
+  prototypeSettingsRemindersRouteTo,
+} from '@/lib/prototype-path';
+import type { PushSupport } from '../../lib/push-reminders';
+import {
+  ONBOARDING_VERSION,
+  type OnboardingCustomizeId,
+  type OnboardingStepId,
+} from '@/utils/onboarding-state';
 
 export interface OnboardingStepCopy {
   id: OnboardingStepId;
@@ -84,7 +97,41 @@ export const ONBOARDING_STEP_COPY: readonly OnboardingStepCopy[] = [
   },
 ];
 
-const COPY_BY_ID = new Map(ONBOARDING_STEP_COPY.map((step) => [step.id, step]));
+/**
+ * "Make it yours" — the three offers that are settings rather than lessons.
+ *
+ * Held apart from the tour above, and not just visually. The tour is what the dock is *for*:
+ * finish it and the dock retires. These three tag along because a new account is already
+ * looking here, and because each of them otherwise lives somewhere nobody new goes — reminders
+ * behind a card most readers never qualify for, appearance behind Settings with no pointer at
+ * all. When the tour ends they go with it, and the standing surfaces (`PrototypeRemindersCard`,
+ * Activity's import row) take the offer back over for anyone who never got round to it.
+ */
+export const CUSTOMIZE_STEP_COPY: readonly OnboardingStepCopy[] = [
+  {
+    id: 'reminders',
+    icon: 'bell',
+    title: 'Turn on reminders',
+    meta: 'A verse Sunday morning, a nudge midweek.',
+  },
+  {
+    id: 'appearance',
+    icon: 'paintbrush',
+    title: 'Pick your look',
+    // The same words Settings uses for this category, so arriving there is not a surprise.
+    meta: 'Background color or image behind the app.',
+  },
+  {
+    id: 'import',
+    icon: 'cloud-arrow-up',
+    title: 'Bring your notes in',
+    meta: 'Markdown, Word, Evernote, or a folder of files.',
+  },
+];
+
+const COPY_BY_ID = new Map(
+  [...ONBOARDING_STEP_COPY, ...CUSTOMIZE_STEP_COPY].map((step) => [step.id, step]),
+);
 
 type Props = {
   /** Take the user to where a step gets done. */
@@ -98,8 +145,9 @@ type Props = {
 };
 
 export default function PrototypeOnboardingDock({ onStepAction, variant = 'home' }: Props) {
-  const { state, visible, dismissStep, dismissAll } = useOnboardingState();
+  const { state, visible, dismissStep, dismissAll, markDone } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
+  const navigate = useNavigate();
 
   /*
    * Rows mid-goodbye: done, but still on screen playing the check and collapse.
@@ -124,6 +172,80 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
   const shownProgress = shownOnboardingProgress(state, isGuest);
 
   /*
+   * Whether this device could receive a push at all, resolved in an effect because it is a
+   * live browser read — and, just as usefully, because resolving it warms the module. The row
+   * has to call `enablePushReminders` straight off the tap, and a dynamic import standing
+   * between the click and `requestPermission()` is exactly what iOS refuses to treat as a
+   * gesture. By the time anyone can press the row, the import has already settled.
+   */
+  const [pushSupport, setPushSupport] = useState<PushSupport | null>(null);
+  useEffect(() => {
+    if (isGuest) return;
+    let cancelled = false;
+    void import('../../lib/push-reminders').then((mod) => {
+      if (!cancelled) setPushSupport(mod.getPushSupport());
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGuest]);
+
+  const customizeRows = CUSTOMIZE_STEP_COPY.filter((step) => {
+    // Every one of these needs an account: a subscription, a synced preference, an import.
+    if (isGuest) return false;
+    if (exiting.includes(step.id)) return true;
+    if (state.steps[step.id].done || state.steps[step.id].dismissed) return false;
+    // The one row whose availability is a fact about the device — see `remindersRowApplies`.
+    if (step.id === 'reminders') return remindersRowApplies(pushSupport);
+    return true;
+  });
+
+  const [enablingReminders, setEnablingReminders] = useState(false);
+
+  const turnOnReminders = useCallback(async () => {
+    setEnablingReminders(true);
+    try {
+      const mod = await import('../../lib/push-reminders');
+      const result = await mod.enablePushReminders();
+      setPushSupport(result.support);
+      if (result.ok) {
+        markDone('reminders');
+        toast.success('Reminders are on. Sunday morning and midweek.');
+      } else if (result.support === 'denied') {
+        toast.error('Notifications are blocked for Harvous in this browser.');
+      } else if (result.error) {
+        toast.error(result.error);
+      }
+    } finally {
+      setEnablingReminders(false);
+    }
+  }, [markDone]);
+
+  const pressCustomizeRow = useCallback(
+    (id: OnboardingCustomizeId) => {
+      if (id === 'reminders') {
+        // On an iPhone in a Safari tab there is nothing to ask for yet; Settings owns the
+        // sheet that explains getting to the Home Screen first.
+        if (pushSupport === 'needs-home-screen') {
+          void navigate({ to: prototypeSettingsRemindersRouteTo() });
+          return;
+        }
+        void turnOnReminders();
+        return;
+      }
+      /*
+       * The other two only open the door. Neither is marked done here — the row is a
+       * shortcut, and arriving somewhere is not the same as doing the thing. Each page
+       * reports its own step when a preset is actually picked or an import actually lands.
+       */
+      void navigate({
+        to: id === 'appearance' ? prototypeSettingsAppearanceRouteTo() : prototypeSettingsDataRouteTo(),
+      });
+    },
+    [navigate, pushSupport, turnOnReminders],
+  );
+
+  /*
    * A row still finishing its exit keeps the dock up — but only when the dock is leaving of
    * its own accord. Completing the last step should play out; being dismissed should not.
    * Without the `dismissed` term, tapping the cluster's × mid-animation would leave the
@@ -140,7 +262,9 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
    * still works; completing it no longer counts as dismissing it.
    */
   const showing = !dismissed && (visible || isGuest || exiting.length > 0);
-  const liveIds = showing ? rows.filter((r) => !exiting.includes(r.id)).map((r) => r.id) : [];
+  const liveIds = showing
+    ? [...rows, ...customizeRows].filter((r) => !exiting.includes(r.id)).map((r) => r.id)
+    : [];
   const liveKey = liveIds.join(',');
 
   useEffect(
@@ -163,7 +287,7 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
   }, [liveKey]);
 
   useEffect(() => {
-    const newlyDone = ONBOARDING_STEP_COPY.filter(
+    const newlyDone = [...ONBOARDING_STEP_COPY, ...CUSTOMIZE_STEP_COPY].filter(
       (step) => state.steps[step.id].done && renderedRef.current.has(step.id),
     ).map((step) => step.id);
     if (newlyDone.length === 0) return;
@@ -192,7 +316,10 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
   }, [state.completedAt, exiting.length]);
 
   // A guest always has the account row, so an empty step list is not an empty dock for them.
-  if (!showing || (rows.length === 0 && !isGuest)) return null;
+  /* The customization rows can outlive the tour rows by a render or two — someone who
+     finishes the last lesson still has "Pick your look" in front of them until the dock
+     itself retires — so an empty tour list is no longer an empty dock. */
+  if (!showing || (rows.length === 0 && customizeRows.length === 0 && !isGuest)) return null;
 
   const list = (
       <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-onboarding-dock__list">
@@ -245,6 +372,70 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
           them; this one is the offer the whole mode exists to make, and the dock's own
           dismiss already puts the entire cluster away for anyone who wants it gone.
         */}
+        {/*
+          * "Make it yours", and the reason it is a heading rather than three more rows.
+          *
+          * The rows above are things to learn; these are things to decide. Run together they
+          * read as a nine-item chore list where the last three never get done — which is also
+          * why the count in the header stays on the tour: the finish line should not move
+          * because someone has not picked a background.
+          */}
+        {customizeRows.length > 0 ? (
+          <p className="proto-caption proto-onboarding-dock__section" aria-hidden>
+            Make it yours
+          </p>
+        ) : null}
+
+        {customizeRows.map((step, index) => {
+          const done = exiting.includes(step.id);
+          return (
+            <div
+              key={step.id}
+              className={`proto-onboarding-dock__row${done ? ' proto-onboarding-dock__row--done' : ''}`}
+              style={
+                { '--proto-onboarding-index': rows.length + index } as React.CSSProperties
+              }
+            >
+              <div className="proto-onboarding-dock__row-inner">
+                <PrototypeHomeRow
+                  icon={step.icon}
+                  title={step.title}
+                  meta={[
+                    /* An iPhone in a Safari tab cannot subscribe, and saying "turn on
+                       reminders" to someone who then lands in Settings reads as a dead end.
+                       Say what the next step actually is. */
+                    step.id === 'reminders' && pushSupport === 'needs-home-screen'
+                      ? 'Add Harvous to your Home Screen first.'
+                      : step.meta,
+                  ]}
+                  onClick={
+                    done || (step.id === 'reminders' && enablingReminders)
+                      ? undefined
+                      : () => pressCustomizeRow(step.id as OnboardingCustomizeId)
+                  }
+                  disabled={done || (step.id === 'reminders' && enablingReminders)}
+                  trailing={
+                    done ? (
+                      <span className="proto-onboarding-dock__check" aria-hidden>
+                        <Icon name="check" size={11} />
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="proto-side-panel__action-btn"
+                        aria-label={`Dismiss "${step.title}"`}
+                        onClick={() => dismissStep(step.id)}
+                      >
+                        <Icon name="xmark" size={12} aria-hidden />
+                      </button>
+                    )
+                  }
+                />
+              </div>
+            </div>
+          );
+        })}
+
         {isGuest ? (
           <div className="proto-onboarding-dock__row" style={{ '--proto-onboarding-index': rows.length } as React.CSSProperties}>
             <div className="proto-onboarding-dock__row-inner">
