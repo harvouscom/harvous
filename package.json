@@ -1,7 +1,7 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "3.10.0",
+  "version": "3.6.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/harvouscom/harvous.git"
@@ -99,8 +99,6 @@
     "space-plans:schema:apply": "tsx server/scripts/add-space-owned-plans-schema.ts --apply",
     "space-suggestions:schema": "tsx server/scripts/add-space-study-suggestions-schema.ts",
     "space-suggestions:schema:apply": "tsx server/scripts/add-space-study-suggestions-schema.ts --apply",
-    "discover:schema": "tsx server/scripts/add-discover-listings-schema.ts",
-    "discover:schema:apply": "tsx server/scripts/add-discover-listings-schema.ts --apply",
     "series:schema": "tsx server/scripts/add-series-presentation-schema.ts",
     "series:schema:apply": "tsx server/scripts/add-series-presentation-schema.ts --apply",
     "shared-spaces:schema:additive": "tsx server/scripts/add-shared-spaces-schema.ts",

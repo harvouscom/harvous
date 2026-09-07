@@ -1,5 +1,10 @@
 /**
- * The one place reminders are ever offered outside Settings.
+ * Where reminders are offered to a reader who is past the getting-started checklist.
+ *
+ * The checklist has a "Turn on reminders" row of its own, and while that row is up this card
+ * stands down — see `onboardingOwnsOffer`. Two versions of the same question on one screen is
+ * worse than either. This is the surface that catches everyone else: accounts that finished
+ * the tour, dismissed it, or were established before it existed.
  *
  * A pre-prompt, not a permission prompt. Browsers give a site exactly one chance to ask, and
  * a "denied" is permanent until someone goes into site settings — so the real
@@ -17,27 +22,42 @@ import {
   PROTO_PUSH_REMINDERS_DISMISSED_KEY,
   PROTO_PUSH_REMINDERS_PREVIEW_KEY,
 } from '../../layouts/proto-session-keys';
-import { getOnboardingSnapshot } from '../../lib/proto-onboarding-sync';
+import type { PushSupport } from '../../lib/push-reminders';
+import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { onboardingOwnsOffer } from './onboarding-visible-steps';
+import { useOnboardingState } from './useOnboardingState';
 import { useDismissibleFlag } from './useDismissibleFlag';
 
 export default function PrototypeRemindersCard() {
-  const [eligible, setEligible] = useState(false);
+  const [support, setSupport] = useState<PushSupport | null>(null);
   const [busy, setBusy] = useState(false);
+  const { state: onboarding, hydrated } = useOnboardingState();
+  const { isGuest } = useHarvousIdentity();
 
-  // Support and checklist state are both live browser reads, so they resolve in an effect
-  // rather than during render — the card must never flash in for someone already subscribed.
+  // Support is a live browser read, so it resolves in an effect rather than during render —
+  // the card must never flash in for someone already subscribed.
   useEffect(() => {
     let cancelled = false;
     void import('../../lib/push-reminders').then((mod) => {
-      if (cancelled) return;
-      const snapshot = getOnboardingSnapshot();
-      const wroteANote = snapshot.state?.steps?.note?.done === true;
-      setEligible(mod.getPushSupport() === 'default' && snapshot.hydrated && wroteANote);
+      if (!cancelled) setSupport(mod.getPushSupport());
     });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  /*
+   * Read from the store rather than a one-shot snapshot, so the card can appear the moment
+   * the checklist retires. Taken once at mount it would stay hidden for the rest of the
+   * session for exactly the reader who had just become its audience.
+   */
+  const wroteANote = onboarding.steps.note.done === true;
+  const eligible =
+    support === 'default' &&
+    hydrated &&
+    wroteANote &&
+    !onboardingOwnsOffer(onboarding, 'reminders', isGuest);
 
   const [visible, dismiss] = useDismissibleFlag(PROTO_PUSH_REMINDERS_DISMISSED_KEY, {
     previewKey: PROTO_PUSH_REMINDERS_PREVIEW_KEY,
@@ -50,6 +70,9 @@ export default function PrototypeRemindersCard() {
       const mod = await import('../../lib/push-reminders');
       const result = await mod.enablePushReminders();
       if (result.ok) {
+        // The checklist counts this even when the offer came from here, so restoring the
+        // tour later does not present a row for something already switched on.
+        markOnboardingStep('reminders');
         toast.success('Reminders are on. Sunday morning and midweek.');
         dismiss();
       } else if (result.support === 'denied') {

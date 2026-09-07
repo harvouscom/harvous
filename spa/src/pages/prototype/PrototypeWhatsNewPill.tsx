@@ -60,13 +60,11 @@ import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import { useReleaseNotesUrl } from '../../hooks/useReleaseNotesUrl';
 import {
-  PROTO_WELCOME_3_DISMISSED_KEY,
   PROTO_WHATS_NEW_DISMISSED_KEY,
   PROTO_WHATS_NEW_PREVIEW_KEY,
 } from '../../layouts/proto-session-keys';
 import { useDismissibleRelease } from './useDismissibleFlag';
 import { openWelcome3 } from './welcome3-bridge';
-import { readDismissFlag } from './useDismissibleFlag';
 
 /**
  * The major with a welcome sheet of its own.
@@ -77,10 +75,15 @@ import { readDismissFlag } from './useDismissibleFlag';
  * instead. `releaseMarkerFor` deliberately drops the patch; it does not drop the minor, and
  * the minor moves on any feature.
  *
- * The sheet's own dismissal is what retires this, not a version: once a reader has closed the
- * Harvous 3 welcome, the row goes back to being the release notes for them. So this stays
- * correct through 3.2 and 3.9 without anyone remembering to change it, and never re-opens a
- * launch announcement at someone who has already read it.
+ * Nothing retires it before 4. The sheet's own dismissal used to, on the reasoning that a
+ * launch announcement should not be re-opened at someone who has read it — but that made the
+ * row contradict the one job described above, of being the way back to a modal that otherwise
+ * shows itself once. Closing something is not the same as never wanting it again, and a
+ * reader who goes looking for "what's new" during 3.x is asking for the explanation of the
+ * rearrangement, whether or not they saw it on launch day.
+ *
+ * So this holds through 3.2 and 3.9 without anyone remembering to change it, and stops at 4.0
+ * on its own.
  */
 const WELCOME_SHEET_MAJOR = '3';
 
@@ -91,9 +94,8 @@ export default function PrototypeWhatsNewPill() {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
   });
 
-  const welcomeSeen = readDismissFlag(PROTO_WELCOME_3_DISMISSED_KEY);
   const showsWelcomeSheet =
-    !welcomeSeen && (releaseMarkerFor(version) ?? '').split('.')[0] === WELCOME_SHEET_MAJOR;
+    (releaseMarkerFor(version) ?? '').split('.')[0] === WELCOME_SHEET_MAJOR;
 
   /* `releaseNotesUrl` belongs in the deps: it starts on the index and upgrades in place once
      the site answers, so a callback that captured only the first value would have pinned every
