@@ -11,6 +11,7 @@ import {
   intentScore,
   scoreNode,
   selectReviewBatch,
+  describeEngineColdStart,
   type ReviewCandidateNode,
 } from '@/utils/review-opportunity-scoring';
 import { nodeKey } from '@/utils/study-bible-nodes';
@@ -450,5 +451,85 @@ describe('a chapter the reader has been through', () => {
       existingSourceKeys: emptyKeys,
     });
     expect(picked.map((n) => n.nodeKey)).toEqual([john3]);
+  });
+});
+
+/**
+ * What the cold start is waiting for, in terms a reader can be told.
+ *
+ * The gate can hold an account for days, and Review rendering nothing at all in the meantime is
+ * indistinguishable from Review being broken — which is how it was reported, three times, by
+ * someone who could see the feature existed and never saw a single item.
+ *
+ * The estimate has to be honest about which of the three holds applies. Only age resolves on its
+ * own; too few committed signals and too thin a note both need the reader to do something, and a
+ * date promised to someone whose study will still not qualify is worse than no date.
+ */
+describe('describeEngineColdStart', () => {
+  const readyVerse = (key: string) =>
+    verse(key, { exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(30) });
+  /** Would qualify on every count except that it was studied today. */
+  const newVerse = (key: string, ageDays: number) =>
+    verse(key, { exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(ageDays) });
+
+  it('reports how far off the gate is', () => {
+    const state = describeEngineColdStart(['a', 'b'].map(readyVerse), NOW, new Map());
+    expect(state.ready).toBe(2);
+    expect(state.needed).toBe(5);
+  });
+
+  it('gives a date when waiting alone will open it', () => {
+    // Two qualify now; three more were studied today and need to reach three days old.
+    const nodes = [
+      ...['a', 'b'].map(readyVerse),
+      ...['c', 'd', 'e'].map((k) => newVerse(k, 0)),
+    ];
+    const state = describeEngineColdStart(nodes, NOW, new Map());
+    expect(state.ready).toBe(2);
+    expect(state.opensAt).toBeInstanceOf(Date);
+    // The third of the young ones is the one that tips it, three days after it was studied.
+    expect(state.opensAt!.getTime()).toBe(daysAgo(0).getTime() + 3 * 24 * 60 * 60 * 1000);
+  });
+
+  it('names the date the fifth node matures, not the last', () => {
+    const nodes = [
+      ...['a', 'b', 'c', 'd'].map(readyVerse),
+      newVerse('e', 1),
+      newVerse('f', 0),
+    ];
+    // Four are ready, so only one more is needed — the older of the two young ones.
+    const state = describeEngineColdStart(nodes, NOW, new Map());
+    expect(state.opensAt!.getTime()).toBe(daysAgo(1).getTime() + 3 * 24 * 60 * 60 * 1000);
+  });
+
+  it('gives no date when there is not enough study to mature', () => {
+    // Three nodes in total can never reach five by waiting.
+    const state = describeEngineColdStart(['a', 'b', 'c'].map((k) => newVerse(k, 0)), NOW, new Map());
+    expect(state.opensAt).toBeNull();
+  });
+
+  it('gives no date for a node that will still not qualify once it is old enough', () => {
+    // Studied today and never returned to — age is not the only thing holding it back, so its
+    // third birthday changes nothing and promising that date would be a lie.
+    const barren = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      verse(k, { exposureCount: 0, revisitCount: 0, firstStudiedAt: daysAgo(0) }),
+    );
+    expect(describeEngineColdStart(barren, NOW, new Map()).opensAt).toBeNull();
+  });
+
+  it('does not count chapters, matching the gate it describes', () => {
+    // Reading arrives without writing; counting it would unlock the engine on chapters alone.
+    const chapters = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      node({ nodeKind: 'chapter', nodeKey: k, exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(30) }),
+    );
+    const state = describeEngineColdStart(chapters, NOW, new Map());
+    expect(state.ready).toBe(0);
+    expect(state.opensAt).toBeNull();
+  });
+
+  it('agrees with the gate about when the engine may run', () => {
+    const five = ['a', 'b', 'c', 'd', 'e'].map(readyVerse);
+    expect(engineHasEnoughReady(five, NOW, new Map())).toBe(true);
+    expect(describeEngineColdStart(five, NOW, new Map()).ready).toBeGreaterThanOrEqual(5);
   });
 });

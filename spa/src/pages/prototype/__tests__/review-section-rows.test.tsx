@@ -21,7 +21,13 @@ const features: Record<string, { has: boolean; ready: boolean }> = {
   challenges: { has: true, ready: true },
 };
 const inbox = {
-  data: undefined as undefined | { items: unknown[]; hasMore: boolean },
+  data: undefined as
+    | undefined
+    | {
+        items: unknown[];
+        hasMore: boolean;
+        coldStart?: { ready: number; needed: number; opensAt: string | null } | null;
+      },
 };
 const challenges = { data: undefined as undefined | { challenges: unknown[] } };
 
@@ -337,5 +343,62 @@ describe('the framing line', () => {
     };
     render(<PrototypeReviewSection />);
     expect(screen.getByText(/Marked Romans 8:15 in a note/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The three ways Review can be empty, and which of them says anything.
+ *
+ * Nothing due today stays silent on purpose — the day's record is below and is better company
+ * than a row announcing a rest. Never having started is different: the engine holds an account
+ * back until it has a few days of the reader's own study, and a section that renders nothing at
+ * all in the meantime cannot be told from a broken one. It was reported as broken three times by
+ * someone in exactly that state.
+ */
+describe('when there is nothing to review', () => {
+  it('says nothing at all when the engine is running and today is simply clear', () => {
+    // The long-standing stance, and the one this must not overturn.
+    inbox.data = { items: [], hasMore: false, coldStart: null };
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('explains itself when the engine has not started yet', () => {
+    inbox.data = { items: [], hasMore: false, coldStart: { ready: 0, needed: 5, opensAt: null } };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText('Nothing to review yet')).toBeInTheDocument();
+    expect(screen.getByText(/Reviews come from your own study/)).toBeInTheDocument();
+  });
+
+  it('gives no date when waiting alone will not start it', () => {
+    /*
+     * `opensAt: null` is the server saying age is not what is holding this account back — the
+     * other two gates want more study, and neither passes with time. This is the real shape of
+     * the account that prompted the work: seventeen non-chapter nodes, none of them ready.
+     */
+    inbox.data = { items: [], hasMore: false, coldStart: { ready: 0, needed: 5, opensAt: null } };
+    render(<PrototypeReviewSection />);
+    expect(screen.queryByText(/should arrive/)).not.toBeInTheDocument();
+  });
+
+  it('gives the date when waiting is all it takes', () => {
+    const inThreeDays = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    inbox.data = {
+      items: [],
+      hasMore: false,
+      coldStart: { ready: 2, needed: 5, opensAt: inThreeDays },
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText(/should arrive/)).toBeInTheDocument();
+  });
+
+  it('shows rows rather than the empty state once there are any', () => {
+    inbox.data = {
+      items: [reviewItem('r1', 'What did you observe?')],
+      hasMore: false,
+      coldStart: null,
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.queryByText('Nothing to review yet')).not.toBeInTheDocument();
   });
 });

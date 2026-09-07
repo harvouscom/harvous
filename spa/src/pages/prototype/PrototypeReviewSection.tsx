@@ -58,7 +58,11 @@ import {
   reviewComingBackCopy,
   reviewSetAsideCopy,
   REVIEW_SECTION_TITLE,
+  REVIEW_EMPTY_NOTHING_YET_TITLE,
+  REVIEW_EMPTY_NOTHING_YET_BODY,
+  reviewColdStartOpensCopy,
 } from './proto-review-copy';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 import { prototypeChallengeRouteTo } from '@/lib/prototype-path';
 import { RECALL_STATE_LABELS, type ReviewItemKind } from '@/utils/review-item-kinds';
 import { fillFraming } from '@/utils/review-framing';
@@ -272,6 +276,42 @@ export default function PrototypeReviewSection() {
    */
   const hasRows =
     reviewRows.length > 0 || Boolean(challengeRow) || comingBack.length > 0 || setAside.length > 0;
+
+  /*
+   * Three absences, and only one of them is worth a word.
+   *
+   * Nothing due today stays silent, deliberately — the day's own record is below and is better
+   * company than a row announcing a rest. That stance is unchanged.
+   *
+   * Never having started is a different thing. The engine holds an account back until it has a
+   * few days of the reader's own study to draw on, and until then this section renders nothing
+   * at all, which is indistinguishable from the feature being broken. It was reported as broken
+   * three times by someone whose account had simply not cleared that gate and who had no way to
+   * learn it from the screen. `coldStart` is non-null only in that case: the server sends it
+   * when the queue is empty *and* the engine has not run.
+   */
+  const coldStart = inboxQuery.data?.coldStart ?? null;
+  if (!hasRows && coldStart) {
+    const opensIn = describeNextDue(coldStart.opensAt);
+    return (
+      <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
+        <PrototypeListEmptyState
+          iconName="seedling"
+          title={REVIEW_EMPTY_NOTHING_YET_TITLE}
+          description={
+            <>
+              <p className="proto-list-empty-state__line">{REVIEW_EMPTY_NOTHING_YET_BODY}</p>
+              {/* Only when waiting is genuinely all it takes — see `reviewColdStartOpensCopy`. */}
+              {opensIn ? (
+                <p className="proto-list-empty-state__line">{reviewColdStartOpensCopy(opensIn)}</p>
+              ) : null}
+            </>
+          }
+        />
+      </PrototypeHomeSection>
+    );
+  }
+
   if (!hasRows) return null;
 
   // The question opens where you are, not on a page of its own — see PrototypeReviewDock.

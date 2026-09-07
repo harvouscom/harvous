@@ -322,6 +322,71 @@ export function engineHasEnoughReady(
   return false;
 }
 
+/** What the cold-start gate is waiting for, in terms a reader can be told. */
+export interface EngineColdStart {
+  /** Non-chapter nodes already past every gate. */
+  ready: number;
+  /** How many are needed before the engine will create anything. */
+  needed: number;
+  /**
+   * When the gate opens if the reader does nothing else, or null when waiting is not enough.
+   *
+   * Null is the honest answer far more often than a date is. Age is only one of three reasons a
+   * node is held back — the others are too few committed signals and, for notes, too little
+   * substance — and neither of those resolves by itself. Promising a Tuesday to someone whose
+   * study will still not qualify on Tuesday is worse than saying nothing.
+   */
+  opensAt: Date | null;
+}
+
+/**
+ * Why the engine has not started, and when it will.
+ *
+ * Separate from {@link engineHasEnoughReady} because the two questions have different audiences:
+ * that one gates the engine and only needs a boolean, this one is for telling someone what is
+ * happening. An account can sit behind the gate for days, and Review showing nothing at all in
+ * the meantime is indistinguishable from Review being broken — which is exactly how it was
+ * reported.
+ *
+ * A node is only counted toward `opensAt` if it would actually be ready once it is old enough,
+ * which is checked by asking `nodeReadiness` about it at the date it matures rather than by
+ * re-deriving the other two gates here. Duplicating them is how this drifts from the gate it
+ * describes.
+ */
+export function describeEngineColdStart(
+  nodes: readonly ReviewCandidateNode[],
+  now: Date,
+  meaningWeightByNoteId: ReadonlyMap<string, number>,
+  context: CommittedSignalContext = {},
+): EngineColdStart {
+  let ready = 0;
+  const maturesAt: number[] = [];
+
+  for (const node of nodes) {
+    // Chapters are excluded here for the same reason they are excluded from the gate itself.
+    if (node.nodeKind === 'chapter') continue;
+    const weight = node.noteId ? meaningWeightByNoteId.get(node.noteId) ?? null : null;
+    const readiness = nodeReadiness(node, now, weight, context);
+    if (readiness === 'ready') {
+      ready += 1;
+      continue;
+    }
+    if (readiness !== 'too-new') continue;
+
+    const matureAt = new Date(node.firstStudiedAt.getTime() + ENGINE_MIN_NODE_AGE_DAYS * DAY_MS);
+    if (nodeReadiness(node, matureAt, weight, context) === 'ready') maturesAt.push(matureAt.getTime());
+  }
+
+  const needed = ENGINE_COLD_START_MIN_READY;
+  if (ready >= needed) return { ready, needed, opensAt: null };
+
+  const short = needed - ready;
+  if (maturesAt.length < short) return { ready, needed, opensAt: null };
+
+  maturesAt.sort((a, b) => a - b);
+  return { ready, needed, opensAt: new Date(maturesAt[short - 1]) };
+}
+
 /**
  * The score. Higher is more worth asking about. Zero means "not now", for a stated reason.
  */
