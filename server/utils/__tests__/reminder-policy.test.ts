@@ -12,11 +12,13 @@ import {
   shouldRearm,
   shouldWritePause,
   summarizeRecentDeliveries,
+  POLICY_WINDOW,
   type DeliveryRecord,
   type ReminderOutcome,
 } from '../reminder-policy';
 
 const settings: ReminderSettings = {
+  cadence: 'twice-weekly',
   sunday: true,
   midweek: true,
   midweekDay: 3,
@@ -122,6 +124,64 @@ describe('decideReminder', () => {
     const sundayIgnored = history(['ignored', 'ignored', 'ignored', 'ignored'], 'sunday');
     // Midweek has nothing against it, so a bad Sunday run must not stop it.
     expect(decideReminder(settings, 'midweek', sundayIgnored)).toMatchObject({ send: true });
+  });
+});
+
+describe('the daily rhythm has its own patience', () => {
+  const daily: ReminderSettings = { ...settings, cadence: 'daily' };
+
+  it('does not back off at the count that would stop a weekly one', () => {
+    // Two ignored is a fortnight of silence at two a week, and two days at daily. Reusing the
+    // count would let a long weekend away switch someone off.
+    expect(decideReminder(daily, 'daily', history(['ignored', 'ignored'], 'daily'))).toMatchObject({
+      send: true,
+    });
+  });
+
+  it('backs off once the silence is worth reading as one', () => {
+    const window = history(['ignored', 'ignored', 'ignored', 'ignored', 'ignored', 'ignored'], 'daily');
+    expect(decideReminder(daily, 'daily', window)).toMatchObject({ reason: 'backoff-skip' });
+  });
+
+  it('pauses after ten, which is about a fortnight of being ignored', () => {
+    const nine = history(Array(9).fill('ignored'), 'daily');
+    expect(decideReminder(daily, 'daily', nine)).not.toMatchObject({ reason: 'paused-by-policy' });
+
+    const ten = history(Array(10).fill('ignored'), 'daily');
+    expect(decideReminder(daily, 'daily', ten)).toMatchObject({ reason: 'paused-by-policy' });
+    expect(shouldWritePause(daily, 'daily', ten)).toBe(true);
+  });
+
+  it('still lets one tap buy the rhythm back', () => {
+    const window = history(['clicked', ...Array(10).fill('ignored')] as ReminderOutcome[], 'daily');
+    expect(decideReminder(daily, 'daily', window)).toMatchObject({ send: true });
+  });
+
+  it('has no per-day switch to turn off', () => {
+    // Choosing the cadence is the switch; `sunday`/`midweek` belong to the other rhythm and
+    // must not be able to silence a daily reminder.
+    const off = { ...daily, sunday: false, midweek: false };
+    expect(decideReminder(off, 'daily', [])).toMatchObject({ send: true, reason: 'ok' });
+  });
+});
+
+describe('every rhythm can actually reach its own pause', () => {
+  it('looks back far enough to see the threshold it is measured against', () => {
+    /*
+     * The bug this exists for: `windowFor` truncates to the window *before* anything is
+     * counted, so a pause threshold deeper than the window can never be reached. Daily was
+     * briefly pause-at-10 read through an 8-deep window, which would have backed off forever
+     * and never stopped. A window is only meaningful as "far enough back to see the threshold".
+     */
+    for (const kind of ['sunday', 'midweek', 'daily'] as const) {
+      const atThreshold = history(Array(POLICY_WINDOW).fill('ignored') as ReminderOutcome[], kind);
+      const cadence = kind === 'daily' ? 'daily' : 'twice-weekly';
+      const s: ReminderSettings = { ...settings, cadence };
+      expect(
+        decideReminder(s, kind, atThreshold),
+        `${kind} never reaches paused-by-policy`,
+      ).toMatchObject({ reason: 'paused-by-policy' });
+    }
   });
 });
 

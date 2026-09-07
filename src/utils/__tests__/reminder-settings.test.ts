@@ -13,7 +13,13 @@ import {
 describe('reminder-settings', () => {
   // `as const` on the day so spreads keep the MidweekDay literal type rather than widening
   // to number, which is what the validator and ReminderSettings both require.
-  const valid = { sunday: true, midweek: true, midweekDay: 3 as const, hour: 8 };
+  const valid = {
+    cadence: 'twice-weekly' as const,
+    sunday: true,
+    midweek: true,
+    midweekDay: 3 as const,
+    hour: 8,
+  };
 
   it('accepts a well-formed schedule', () => {
     expect(validateReminderSettingsInput(valid)).toEqual({ ...valid, pausedByPolicy: null });
