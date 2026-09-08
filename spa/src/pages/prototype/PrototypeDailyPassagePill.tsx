@@ -182,7 +182,7 @@ export default function PrototypeDailyPassagePill({
           you would come to this row at all, and putting the day's one invitation to study
           behind a menu is a tap charged for the thing the row exists to offer. The
           suggestion rows earn their menu because their answers differ by forever and need
-          words; these two are a plus and a cross, and mean what they look like. */}
+          words; these two are the new-note glyph and a cross, and mean what they look like. */}
       <PrototypeHomeRow
         icon="scroll"
         title={votd.reference}
@@ -199,9 +199,11 @@ export default function PrototypeDailyPassagePill({
                 title="View notes on this passage"
                 onClick={openScripturePassageNotes}
               >
-                {/* An eye for looking at what is there; the `plus` in the other branch is a
-                    create. Same pairing as the what's-new row, so "view" reads the same
-                    wherever it appears in a Home group. */}
+                {/* An eye for looking at what is there; the `pen-to-square` in the other
+                    branch is a create — the same glyph the toolbar's New note button wears,
+                    so "write a note" reads as one action wherever it appears. Not a plus:
+                    that is how this app draws "add an item to a list", and composing is not
+                    that. */}
                 <Icon name="eye" size={12} aria-hidden />
               </button>
             ) : (
@@ -212,7 +214,7 @@ export default function PrototypeDailyPassagePill({
                 title="Add passage to notes"
                 onClick={() => studyNow(votd)}
               >
-                <Icon name="plus" size={12} aria-hidden />
+                <Icon name="pen-to-square" size={12} aria-hidden />
               </button>
             )}
             <button
