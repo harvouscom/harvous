@@ -21,7 +21,7 @@
  */
 
 import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
-import { hashSeed, mulberry32 } from '@/utils/verse-cloze';
+import { hashSeed, mulberry32, seededIndex } from '@/utils/verse-cloze';
 import type { ReviewPromptKey } from '@/utils/review-prompts';
 import { NOTE_LADDER } from '@/utils/review-prompts';
 
@@ -48,7 +48,11 @@ export interface NoteMaterial {
  * `review-opportunities.ts`. A note with no body, no passages and no links is not yet
  * reviewable, and inventing a question for it would mean inventing the answer too.
  */
-export function resolveNoteRung(step: number, material: NoteMaterial): ReviewPromptKey | null {
+export function resolveNoteRung(
+  step: number,
+  material: NoteMaterial,
+  seed?: string,
+): ReviewPromptKey | null {
   const can: Record<ReviewPromptKey, boolean> = {
     'note.recognize': material.canRecognize,
     'note.passage': material.canPassage,
@@ -56,7 +60,15 @@ export function resolveNoteRung(step: number, material: NoteMaterial): ReviewPro
     'note.annotation': material.canAnnotation,
   } as Record<ReviewPromptKey, boolean>;
 
-  const start = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) % NOTE_LADDER.length : 0;
+  const nominal = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) : 0;
+  /*
+   * A seed rotates the walk so five notes on step 0 are not five "which note is this?".
+   * The same seed must be passed from the list, the reveal and the grader — `${id}:${step}`.
+   * Without a seed this is the old walk, so callers that only care whether *anything* can
+   * be asked (the reviewable-material probe) do not change.
+   */
+  const offset = seed ? seededIndex(seed, NOTE_LADDER.length) : 0;
+  const start = (nominal + offset) % NOTE_LADDER.length;
   for (let i = 0; i < NOTE_LADDER.length; i++) {
     const key = NOTE_LADDER[(start + i) % NOTE_LADDER.length];
     if (can[key]) return key;

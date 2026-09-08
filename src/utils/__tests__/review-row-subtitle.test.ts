@@ -188,11 +188,43 @@ describe('reviewRowSubject', () => {
     expect(
       reviewRowSubject({
         prompt: 'x',
+        kind: 'note',
+        noteLabel: 'Adoption',
+        ladderStep: 0,
+        promptKey: 'note.recognize',
+      }),
+    ).toBe('One of your notes');
+    expect(
+      reviewRowSubject({
+        prompt: 'x',
         kind: 'verse',
         scriptureReference: 'John 15:5',
         ladderStep: VERSE_LOCATE_STEP,
       }),
     ).toBe('One of your passages');
+  });
+
+  it('names the note when the resolved rung is not recognize', () => {
+    // Step 0 with a walked-forward prompt used to hide the name too, so "Pick a passage
+    // you cited" sat under "One of your notes" five times in a row.
+    expect(
+      reviewRowSubject({
+        prompt: 'x',
+        kind: 'note',
+        noteLabel: 'Adoption, not slavery',
+        ladderStep: 0,
+        promptKey: 'note.passage',
+      }),
+    ).toBe('Adoption, not slavery');
+    expect(
+      reviewRowSubject({
+        prompt: 'x',
+        kind: 'note',
+        noteLabel: 'Romans 8:15',
+        ladderStep: 0,
+        promptKey: 'note.connect',
+      }),
+    ).toBe('Romans 8:15');
   });
 
   it('falls back to when it was written, and never to nothing', () => {

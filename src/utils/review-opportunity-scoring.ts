@@ -26,11 +26,16 @@ import {
   forgettingAwarePriority,
 } from '@/utils/prototype-home-trends';
 import {
+  chapterKeyPartsFromNodeKey,
+  chapterReferenceLabel,
   reviewSourceKeyForNode,
+  verseKeyPartsFromNodeKey,
+  verseReferenceLabel,
   type NodeKind,
   type NodeSignal,
 } from '@/utils/study-bible-nodes';
 import { REVIEW_ENGINE_DAILY_CAP } from '@/utils/review-item-kinds';
+import { sessionGroupKeyFor } from '@/utils/review-session-order';
 
 /** The shape the engine needs from a UserNodeStates row. */
 export interface ReviewCandidateNode {
@@ -77,6 +82,18 @@ export const ENGINE_NODE_KINDS: readonly NodeKind[] = ['verse', 'note', 'chapter
 
 /** At most three of one kind in a handful, so a sitting can mix without being five of the same. */
 export const ENGINE_PER_KIND_CAP = 3;
+
+/**
+ * At most one question about a given chapter — verse or the chapter itself.
+ *
+ * John 3:16 then John 3:17 then "what's in John 3" is one memory, asked three ways, and the
+ * sitting feels like a quiz on the last answer. The session interleaver can only rearrange
+ * that; it cannot drop it. So the engine never queues the second one.
+ */
+export const ENGINE_PER_CHAPTER_CAP = 1;
+
+/** Two passages from one book is a theme. A third is a quiz on that book. */
+export const ENGINE_PER_BOOK_CAP = 2;
 
 /**
  * Nothing seen in the last day is asked about.
@@ -499,6 +516,27 @@ export interface SelectReviewBatchOptions {
   signalContext?: CommittedSignalContext;
 }
 
+
+/**
+ * What a candidate is *about*, matching `sessionGroupKeyFor` so the engine and the sitting
+ * agree. A verse and its chapter collapse to one key ("john 3"); a note is itself.
+ */
+export function candidateGroupKey(node: ReviewCandidateNode): string | null {
+  const verse = verseKeyPartsFromNodeKey(node.nodeKey);
+  if (verse) return sessionGroupKeyFor({ scriptureReference: verseReferenceLabel(verse) });
+  const chapter = chapterKeyPartsFromNodeKey(node.nodeKey);
+  if (chapter) return sessionGroupKeyFor({ scriptureReference: chapterReferenceLabel(chapter) });
+  return node.noteId ?? null;
+}
+
+function candidateBook(node: ReviewCandidateNode): string | null {
+  const verse = verseKeyPartsFromNodeKey(node.nodeKey);
+  if (verse) return verse.book.trim().toLowerCase();
+  const chapter = chapterKeyPartsFromNodeKey(node.nodeKey);
+  if (chapter) return chapter.book.trim().toLowerCase();
+  return null;
+}
+
 /**
  * Choose what to add, deterministically.
  *
@@ -542,12 +580,22 @@ export function selectReviewBatch(
 
   const picked: ReviewCandidateNode[] = [];
   const perKind = new Map<NodeKind, number>();
+  const perChapter = new Map<string, number>();
+  const perBook = new Map<string, number>();
 
   for (const { node } of scored) {
     if (picked.length >= limit) break;
     const used = perKind.get(node.nodeKind) ?? 0;
     if (used >= perKindCap) continue;
+    const chapter = candidateGroupKey(node);
+    if (chapter && node.nodeKind !== 'note' && (perChapter.get(chapter) ?? 0) >= ENGINE_PER_CHAPTER_CAP) {
+      continue;
+    }
+    const book = candidateBook(node);
+    if (book && (perBook.get(book) ?? 0) >= ENGINE_PER_BOOK_CAP) continue;
     perKind.set(node.nodeKind, used + 1);
+    if (chapter && node.nodeKind !== 'note') perChapter.set(chapter, (perChapter.get(chapter) ?? 0) + 1);
+    if (book) perBook.set(book, (perBook.get(book) ?? 0) + 1);
     picked.push(node);
   }
 

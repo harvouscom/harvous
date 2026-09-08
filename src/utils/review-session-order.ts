@@ -38,6 +38,8 @@ export interface SessionOrderInput {
   groupKey: string | null;
   dueAt: Date;
   reviewCount: number;
+  /** Rung family. Prefer not to ask the same shape twice in a row when other work is waiting. */
+  ladderStep?: number;
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -70,7 +72,9 @@ function drain<T extends SessionOrderInput>(bucket: T[], out: T[]): void {
     const last = out[out.length - 1];
     const pick =
       (last &&
-        (pending.find((c) => c.kind !== last.kind && !sameSubject(c, last)) ??
+        (pending.find((c) => c.kind !== last.kind && !sameSubject(c, last) && !sameRung(c, last)) ??
+          pending.find((c) => c.kind !== last.kind && !sameSubject(c, last)) ??
+          pending.find((c) => !sameSubject(c, last) && !sameRung(c, last)) ??
           pending.find((c) => !sameSubject(c, last)))) ??
       pending[0];
     pending.splice(pending.indexOf(pick), 1);
@@ -80,6 +84,10 @@ function drain<T extends SessionOrderInput>(bucket: T[], out: T[]): void {
 
 function sameSubject(a: SessionOrderInput, b: SessionOrderInput): boolean {
   return Boolean(a.groupKey) && a.groupKey === b.groupKey;
+}
+
+function sameRung(a: SessionOrderInput, b: SessionOrderInput): boolean {
+  return (a.ladderStep ?? 0) === (b.ladderStep ?? 0);
 }
 
 export function interleaveSession<T extends SessionOrderInput>(items: T[], now: Date = new Date()): T[] {

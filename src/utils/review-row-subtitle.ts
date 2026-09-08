@@ -35,6 +35,8 @@ export interface ReviewRowSubtitleInput {
   /** Needed to know whether this row's question is one with a right answer. */
   kind?: string | null;
   ladderStep?: number | null;
+  /** The resolved rung. A step alone can only name the family default. */
+  promptKey?: string | null;
   /** Server-resolved: title, else the note's opening line, else the passage it cites. */
   noteLabel?: string | null;
   /** The note's own opening words. Preferred over everything else — it is the context line. */
@@ -193,7 +195,12 @@ export function rungIdentityIsTheAnswer(item: {
   promptKey?: string | null;
 }): boolean {
   // "Which of your notes says this?" — the note's identity is the whole answer.
-  if (item.kind === 'note') return item.ladderStep === NOTE_RECOGNIZE_STEP;
+  // The resolved prompt wins: a note still on step 0 may be asked a passage or a
+  // link instead, and hiding its name there left a shelf of identical rows.
+  if (item.kind === 'note') {
+    if (item.promptKey) return item.promptKey === 'note.recognize';
+    return item.ladderStep === NOTE_RECOGNIZE_STEP;
+  }
   // A chapter is named in every one of its prompts and is never the answer to any of them.
   if (item.kind !== 'verse') return false;
   // "Where is this from?" — so is the reference. The server's resolved rung wins: with families a

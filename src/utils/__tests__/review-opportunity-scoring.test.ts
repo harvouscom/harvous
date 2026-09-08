@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   ENGINE_PER_KIND_CAP,
+  ENGINE_PER_CHAPTER_CAP,
+  ENGINE_PER_BOOK_CAP,
   NOTE_MEANING_WEIGHT_FLOOR,
   ENGINE_MIN_CHAPTER_AGE_DAYS,
   ENGINE_MIN_NODE_AGE_DAYS,
@@ -132,9 +134,9 @@ describe('selectReviewBatch', () => {
   it('mixes kinds rather than offering three of the same shape', () => {
     const candidates = [
       verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 1 })),
-      verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 2 })),
-      verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 3 })),
-      verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 4 })),
+      verse(nodeKey.verse({ book: 'Romans', chapter: 8, verse: 1 })),
+      verse(nodeKey.verse({ book: 'Psalms', chapter: 23, verse: 1 })),
+      verse(nodeKey.verse({ book: 'Genesis', chapter: 1, verse: 1 })),
       node({ nodeKind: 'note', nodeKey: nodeKey.note('n1'), noteId: 'n1' }),
     ];
     const picked = selectReviewBatch(candidates, {
@@ -184,13 +186,63 @@ describe('selectReviewBatch', () => {
   it('picks the same rows twice over the same data', () => {
     const candidates = [
       verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 1 })),
-      verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 2 })),
+      verse(nodeKey.verse({ book: 'Romans', chapter: 8, verse: 1 })),
       node({ nodeKind: 'note', nodeKey: nodeKey.note('n1'), noteId: 'n1' }),
       node({ nodeKind: 'note', nodeKey: nodeKey.note('n2'), noteId: 'n2' }),
     ];
     const first = selectReviewBatch(candidates, { now: NOW, existingSourceKeys: emptyKeys });
     const second = selectReviewBatch([...candidates].reverse(), { now: NOW, existingSourceKeys: emptyKeys });
     expect(first.map((n) => n.nodeKey)).toEqual(second.map((n) => n.nodeKey));
+  });
+
+  it('never offers two verses from the same chapter', () => {
+    const candidates = [
+      verse(nodeKey.verse({ book: 'John', chapter: 3, verse: 16 })),
+      verse(nodeKey.verse({ book: 'John', chapter: 3, verse: 17 })),
+      verse(nodeKey.verse({ book: 'John', chapter: 3, verse: 18 })),
+      verse(nodeKey.verse({ book: 'Romans', chapter: 8, verse: 28 })),
+    ];
+    const picked = selectReviewBatch(candidates, { now: NOW, existingSourceKeys: emptyKeys });
+    const john3 = picked.filter((p) => p.nodeKey.includes('John') && p.nodeKey.includes('|3|'));
+    expect(john3).toHaveLength(ENGINE_PER_CHAPTER_CAP);
+    expect(picked.some((p) => p.nodeKey === nodeKey.verse({ book: 'Romans', chapter: 8, verse: 28 }))).toBe(true);
+  });
+
+  it('does not pair a chapter with a verse from it', () => {
+    const john3 = nodeKey.chapter({ book: 'John', chapter: 3 });
+    const candidates = [
+      node({
+        nodeKind: 'chapter',
+        nodeKey: john3,
+        revisitCount: 2,
+        exposureCount: 0,
+        firstStudiedAt: daysAgo(10),
+        lastSeenAt: daysAgo(3),
+      }),
+      verse(nodeKey.verse({ book: 'John', chapter: 3, verse: 16 })),
+      verse(nodeKey.verse({ book: 'Romans', chapter: 8, verse: 28 })),
+    ];
+    const picked = selectReviewBatch(candidates, { now: NOW, existingSourceKeys: emptyKeys });
+    const fromJohn3 = picked.filter(
+      (p) => p.nodeKey === john3 || p.nodeKey === nodeKey.verse({ book: 'John', chapter: 3, verse: 16 }),
+    );
+    expect(fromJohn3).toHaveLength(1);
+    expect(picked.some((p) => p.nodeKey === nodeKey.verse({ book: 'Romans', chapter: 8, verse: 28 }))).toBe(true);
+  });
+
+  it('caps a book at two passages', () => {
+    const candidates = [
+      verse(nodeKey.verse({ book: 'John', chapter: 1, verse: 1 })),
+      verse(nodeKey.verse({ book: 'John', chapter: 3, verse: 16 })),
+      verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 5 })),
+      verse(nodeKey.verse({ book: 'Romans', chapter: 8, verse: 28 })),
+    ];
+    const picked = selectReviewBatch(candidates, { now: NOW, existingSourceKeys: emptyKeys });
+    const john = picked.filter((p) => p.nodeKey.startsWith('verse:John|') || p.nodeKey.startsWith('verse:john|'));
+    // nodeKey.verse uses the book as given
+    const johnActual = picked.filter((p) => p.nodeKey.includes('John'));
+    expect(johnActual.length).toBeLessThanOrEqual(ENGINE_PER_BOOK_CAP);
+    expect(picked.some((p) => p.nodeKey.includes('Romans'))).toBe(true);
   });
 });
 

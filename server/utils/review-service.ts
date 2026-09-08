@@ -654,7 +654,11 @@ async function threadTitleFor(userId: string, repNoteId: string): Promise<string
  */
 function noteRungFor(row: ReviewItemRow, material: Map<string, NoteMaterial>) {
   if (row.kind !== 'note' || !row.noteId) return null;
-  return resolveNoteRung(row.ladderStep, material.get(row.noteId) ?? EMPTY_NOTE_MATERIAL);
+  return resolveNoteRung(
+    row.ladderStep,
+    material.get(row.noteId) ?? EMPTY_NOTE_MATERIAL,
+    `${row.id}:${row.ladderStep}`,
+  );
 }
 
 /**
@@ -1116,6 +1120,11 @@ export interface CreateReviewItemInput {
   /** Engine only: why this is here, in the reader's words. See study-bible-source-copy.ts. */
   sourceLabel?: string | null;
   sourceAt?: Date | null;
+  /**
+   * Opening rung. Engine sittings stagger this so five new verses are not the same exercise.
+   * User-added items omit it and start at 0.
+   */
+  ladderStep?: number;
 }
 
 export function reviewSourceKey(input: {
@@ -1287,7 +1296,7 @@ export async function createReviewItem(
         dueAt: firstDueAtFor(input.kind, input.origin ?? 'user', now),
         successStreak: 0,
         reviewCount: 0,
-        ladderStep: 0,
+        ladderStep: Number.isFinite(input.ladderStep) ? Math.max(0, Math.trunc(input.ladderStep!)) : 0,
         origin: input.origin ?? 'user',
         challengeId: input.challengeId ?? null,
         sourceLabel: input.sourceLabel?.trim() || null,
@@ -2772,7 +2781,7 @@ async function buildNoteExercise(
 
   const material = (await loadNoteMaterial(userId, [item.noteId])).get(item.noteId);
   if (!material) return null;
-  const rung = resolveNoteRung(item.ladderStep, material);
+  const rung = resolveNoteRung(item.ladderStep, material, `${item.id}:${item.ladderStep}`);
   if (!rung) return null;
 
   const seed = `${item.id}:${item.ladderStep}`;

@@ -14,6 +14,8 @@ import {
   pickPromptKey,
   reviewPromptFor,
   VERSE_NEXT_STEP,
+  openingLadderStep,
+  VERSE_OPENING_STEPS,
   reviewRungIsGraded,
   VERSE_SEQUENCE_STEP,
   VERSE_LOCATE_STEP,
@@ -525,5 +527,24 @@ describe('a family with two members draws both', () => {
     expect(chapterRungFor(2, 'review_x:2', chapterMaterial)).toEqual(
       chapterRungFor(2, 'review_x:2', chapterMaterial),
     );
+  });
+});
+
+describe('openingLadderStep', () => {
+  it('staggers new verses across recognize, rebuild, and next', () => {
+    expect(VERSE_OPENING_STEPS).toEqual([0, 1, 3]);
+    expect([0, 1, 2].map((n) => openingLadderStep('verse', n))).toEqual([0, 1, 3]);
+    expect(openingLadderStep('verse', 3)).toBe(0);
+  });
+
+  it('walks new notes across recognize, passage, connect, annotation', () => {
+    expect([0, 1, 2, 3].map((n) => openingLadderStep('note', n))).toEqual([0, 1, 2, 3]);
+    expect(openingLadderStep('note', 4)).toBe(0);
+  });
+
+  it('alternates chapter openings between verse-in-it and finish', () => {
+    expect(openingLadderStep('chapter', 0)).toBe(0);
+    expect(openingLadderStep('chapter', 1)).toBe(1);
+    expect(openingLadderStep('chapter', 2)).toBe(0);
   });
 });
