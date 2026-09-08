@@ -1116,6 +1116,11 @@ export interface CreateReviewItemInput {
   /** Engine only: why this is here, in the reader's words. See study-bible-source-copy.ts. */
   sourceLabel?: string | null;
   sourceAt?: Date | null;
+  /**
+   * Opening rung. Engine sittings stagger this so five new verses are not the same exercise.
+   * User-added items omit it and start at 0.
+   */
+  ladderStep?: number;
 }
 
 export function reviewSourceKey(input: {
@@ -1287,7 +1292,7 @@ export async function createReviewItem(
         dueAt: firstDueAtFor(input.kind, input.origin ?? 'user', now),
         successStreak: 0,
         reviewCount: 0,
-        ladderStep: 0,
+        ladderStep: Number.isFinite(input.ladderStep) ? Math.max(0, Math.trunc(input.ladderStep!)) : 0,
         origin: input.origin ?? 'user',
         challengeId: input.challengeId ?? null,
         sourceLabel: input.sourceLabel?.trim() || null,

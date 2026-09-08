@@ -91,3 +91,14 @@ describe('sessionGroupKeyFor', () => {
     expect(sessionGroupKeyFor({})).toBeNull();
   });
 });
+
+describe('rung shape', () => {
+  it('prefers a different exercise when two of the same kind are waiting', () => {
+    const items = [
+      { ...item('a', 'verse', 'john 3', 1), ladderStep: 0 },
+      { ...item('b', 'verse', 'romans 8', 1), ladderStep: 0 },
+      { ...item('c', 'verse', 'psalm 23', 1), ladderStep: 1 },
+    ];
+    expect(ids(interleaveSession(items, NOW))).toEqual(['a', 'c', 'b']);
+  });
+});

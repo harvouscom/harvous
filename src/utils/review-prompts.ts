@@ -305,6 +305,23 @@ export const VERSE_LADDER: readonly ReviewPromptKey[] = [
 export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
 
 /**
+ * First-sitting rungs the engine may open on, so a handful of new verses is not five
+ * "pick how it begins".
+ *
+ * Recognize, rebuild (blanks), then next/before. Never recall or locate on a first asking —
+ * those are how a verse is kept, not how it is met. Notes stay on step 0: the note resolver
+ * already picks among recognize / passage / connect from the note's own material.
+ */
+export const VERSE_OPENING_STEPS = [0, 1, 3] as const;
+export const CHAPTER_OPENING_STEPS = [0, 1] as const;
+
+export function openingLadderStep(kind: 'verse' | 'note' | 'chapter', alreadyOfKind: number): number {
+  if (kind === 'verse') return VERSE_OPENING_STEPS[alreadyOfKind % VERSE_OPENING_STEPS.length];
+  if (kind === 'chapter') return CHAPTER_OPENING_STEPS[alreadyOfKind % CHAPTER_OPENING_STEPS.length];
+  return 0;
+}
+
+/**
  * What a verse is asked once it has climbed the whole ladder.
  *
  * Without this the top rung is terminal: a verse someone has worked all the way up asks "where

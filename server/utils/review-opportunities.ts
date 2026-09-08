@@ -46,6 +46,7 @@ import {
   verseReferenceLabel,
   type NodeKind,
 } from '@/utils/study-bible-nodes';
+import { openingLadderStep } from '@/utils/review-prompts';
 import { createReviewItem, noteHasReviewableMaterial, type ReviewItemRow } from './review-service';
 import {
   isUserNodeStatesTableMissing,
@@ -347,6 +348,7 @@ export async function refillReviewQueue(
     });
 
     const created: ReviewItemRow[] = [];
+    const addedOfKind: Record<string, number> = { verse: 0, note: 0, chapter: 0 };
     for (const pick of picks) {
       if (created.length >= room) break;
       const kind = REVIEW_KIND_FOR_NODE[pick.nodeKind];
@@ -390,10 +392,15 @@ export async function refillReviewQueue(
           // Copied, not read live, so a row's stated reason never changes mid-sitting.
           sourceLabel: pick.lastSourceLabel,
           sourceAt: pick.lastSourceAt,
+          // A handful of new verses must not all open on "pick how it begins".
+          ladderStep: openingLadderStep(kind, addedOfKind[kind] ?? 0),
         },
         now,
       );
-      if ('item' in result && result.created) created.push(result.item);
+      if ('item' in result && result.created) {
+        created.push(result.item);
+        addedOfKind[kind] = (addedOfKind[kind] ?? 0) + 1;
+      }
     }
 
     return created;

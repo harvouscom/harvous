@@ -107,7 +107,16 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
       now,
     );
     const askable = await filterAskableReviewRows(auth.userId, due, { dropUnaskable: true });
-    const built = await buildReviewItemViews(auth.userId, askable, { dropUnaskable: true });
+    /*
+     * Same order the sitting uses. Activity was showing dueAt order, so a handful queued
+     * together (three verses of one chapter, all "pick how it begins") looked like a quiz
+     * even though the session would have mixed them.
+     */
+    const ordered = interleaveSession(
+      askable.map((row) => ({ ...row, groupKey: sessionGroupKeyFor(row) })),
+      now,
+    );
+    const built = await buildReviewItemViews(auth.userId, ordered, { dropUnaskable: true });
     const items = built.slice(0, REVIEW_INBOX_MAX_ROWS);
 
     /*
