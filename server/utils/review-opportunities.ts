@@ -16,13 +16,14 @@
  * query around it.
  */
 
-import { db, UserNodeStates, ReviewItems, NoteTags, StudyThreadEntries, sql, eq, and, gt, desc, inArray, isNull,
+import { db, UserNodeStates, ReviewItems, NoteTags, StudyThreadEntries, sql, eq, and, gt, lte, desc, inArray, isNull,
   NoteFingerprints,
 } from '../db';
 import { isNoteFingerprintsTableMissing } from './pg-undefined-relation';
 import {
   REVIEW_ENGINE_DAILY_CAP,
   REVIEW_ENGINE_WINDOW_HOURS,
+  REVIEW_ENGINE_MAX_OUTSTANDING,
   type ReviewAskableKind,
 } from '@/utils/review-item-kinds';
 import {
@@ -244,20 +245,58 @@ export async function refillReviewQueue(
   try {
     const windowStart = new Date(now.getTime() - REVIEW_ENGINE_WINDOW_HOURS * 60 * 60 * 1000);
 
-    const recent = await db
-      .select({ id: ReviewItems.id })
-      .from(ReviewItems)
-      .where(
-        and(
-          eq(ReviewItems.userId, userId),
-          eq(ReviewItems.origin, 'engine'),
-          gt(ReviewItems.createdAt, windowStart),
-        ),
-      )
-      .limit(REVIEW_ENGINE_DAILY_CAP + 1);
+    /*
+     * Two questions, one round trip: how many were added today, and how many are still waiting.
+     */
+    const [recent, outstanding] = await Promise.all([
+      db
+        .select({ id: ReviewItems.id })
+        .from(ReviewItems)
+        .where(
+          and(
+            eq(ReviewItems.userId, userId),
+            eq(ReviewItems.origin, 'engine'),
+            gt(ReviewItems.createdAt, windowStart),
+          ),
+        )
+        .limit(REVIEW_ENGINE_DAILY_CAP + 1),
+      /*
+       * How much the reader already owes.
+       *
+       * The daily cap limits how fast the queue grows, not how large it gets. Three a day with
+       * nothing answered is ninety in a month, and the inbox only ever shows three — so the pile
+       * is invisible right up until something surfaces the count and the reader is told they are
+       * ninety behind. That is the number `review-item-kinds.ts` calls "a debt, not a practice".
+       *
+       * This was academic while the engine could barely find anything to ask about. Notes are in
+       * scope now, and an account with a few hundred of them can hit the cap every single day, so
+       * the ceiling has to be a real one.
+       *
+       * Counts only what is *due*: something scheduled for next week is not owed yet, and holding
+       * back because of it would stop the queue for a debt the reader does not have.
+       */
+      db
+        .select({ id: ReviewItems.id })
+        .from(ReviewItems)
+        .where(
+          and(
+            eq(ReviewItems.userId, userId),
+            eq(ReviewItems.origin, 'engine'),
+            eq(ReviewItems.status, 'active'),
+            lte(ReviewItems.dueAt, now),
+          ),
+        )
+        .limit(REVIEW_ENGINE_MAX_OUTSTANDING),
+    ]);
 
     const room = engineDailyRoom(recent.length);
     if (room <= 0) return [];
+    /*
+     * Stop adding, rather than adding less. Half a batch on top of a backlog is still a backlog,
+     * and the way out is answering some — which clears the block on its own, with no state to
+     * reset and nothing for the reader to dismiss.
+     */
+    if (outstanding.length >= REVIEW_ENGINE_MAX_OUTSTANDING) return [];
 
     const [engine, existing] = await Promise.all([
       loadEngineCandidates(userId),
