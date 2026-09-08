@@ -224,3 +224,32 @@ export function clearPersistedDrilldowns(options?: {
     clearScriptureDrill: options?.scripture ?? true,
   });
 }
+
+/**
+ * Whether the reader has ever said what they want the sidebar to do.
+ *
+ * Activity is the canvas now, so the sidebar starts out of the way — but only until someone
+ * disagrees once. Storing the *preference* rather than the state is what lets the default
+ * change without overriding a person who already chose: an untouched key means "no opinion",
+ * and no opinion means collapsed on Activity.
+ */
+export const PROTO_SIDEBAR_PREFERENCE_KEY = 'harvous-prototype-sidebar-open-preference';
+
+export function readSidebarOpenPreference(): boolean | null {
+  try {
+    const raw = localStorage.getItem(PROTO_SIDEBAR_PREFERENCE_KEY);
+    if (raw === 'open') return true;
+    if (raw === 'collapsed') return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSidebarOpenPreference(open: boolean): void {
+  try {
+    localStorage.setItem(PROTO_SIDEBAR_PREFERENCE_KEY, open ? 'open' : 'collapsed');
+  } catch {
+    /* Private mode: the preference simply does not persist. */
+  }
+}

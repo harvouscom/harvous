@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SpaceGroupStudyThread } from '../../../hooks/queries/useSpaceGroupThreads';
-import { sharedThreadDashboardModel } from '../PrototypeSidebarSharedSpaceView';
+import { sharedThreadDashboardModel } from '../PrototypeSpaceHub';
 import {
   buildCreateSharedThreadFormData,
   validSharedThreadColor,

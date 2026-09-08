@@ -23,7 +23,34 @@
  */
 export const ONBOARDING_VERSION = 1;
 
-export type OnboardingStepId = 'read' | 'note' | 'pill' | 'highlight' | 'thread' | 'recall';
+export type OnboardingStepId =
+  | 'read'
+  | 'note'
+  | 'pill'
+  | 'highlight'
+  | 'thread'
+  | 'recall'
+  | OnboardingCustomizeId;
+
+/**
+ * The customization offers — reminders, appearance, import.
+ *
+ * Deliberately *not* part of `ONBOARDING_STEP_IDS`, which is the tour: the six things that
+ * teach someone what Harvous is. These three teach nothing. They are settings worth knowing
+ * about, ridden along in the same dock because that is where a new account is already looking.
+ *
+ * Keeping them out of the tour set is what makes this change free of blast radius. The dock's
+ * whole lifecycle — `shouldShowOnboarding`, `withCompletion`, `onboardingProgress`,
+ * `canRestoreOnboarding`, and the auto-complete seed — is defined over the tour, so adding a
+ * row here cannot un-settle an account that already finished. Folding them in instead would
+ * bring the dock back for everyone who completed it, and the documented remedy for that
+ * (bumping `ONBOARDING_VERSION`) is worse still: it also clears the protection on everyone who
+ * dismissed. A version bump means "the tour changed, ask again". This is not that.
+ *
+ * They still live in the same `steps` record, so they persist, merge, and dismiss through
+ * exactly the machinery the tour uses — see `ALL_STEP_IDS`.
+ */
+export type OnboardingCustomizeId = 'reminders' | 'appearance' | 'import';
 
 /** Display order, and the set `shouldShowOnboarding` counts against. */
 export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
@@ -35,7 +62,37 @@ export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
   'recall',
 ];
 
-const STEP_ID_SET = new Set<string>(ONBOARDING_STEP_IDS);
+/** Display order of the "Make it yours" section, beneath the tour. */
+export const CUSTOMIZE_STEP_IDS: readonly OnboardingCustomizeId[] = [
+  'reminders',
+  'appearance',
+  'import',
+];
+
+/**
+ * Every id the `steps` record holds.
+ *
+ * Only the shape-level operations use this — creating the record, narrowing keys off storage,
+ * and merging. Everything that decides what the dock *does* uses `ONBOARDING_STEP_IDS`.
+ */
+export const ALL_STEP_IDS: readonly OnboardingStepId[] = [
+  ...ONBOARDING_STEP_IDS,
+  ...CUSTOMIZE_STEP_IDS,
+];
+
+const STEP_ID_SET = new Set<string>(ALL_STEP_IDS);
+
+const CUSTOMIZE_ID_SET = new Set<string>(CUSTOMIZE_STEP_IDS);
+
+/** Narrow a string back to one of the customization rows. */
+export function isOnboardingCustomizeId(value: string): value is OnboardingCustomizeId {
+  return CUSTOMIZE_ID_SET.has(value);
+}
+
+/** Narrow a string that came from storage or a URL back to a step id. */
+export function isOnboardingStepId(value: string): value is OnboardingStepId {
+  return STEP_ID_SET.has(value);
+}
 
 /**
  * The four steps Home can see the answer to without being told.
@@ -64,6 +121,16 @@ export interface OnboardingState {
   version: number;
   /** Version at which the whole cluster was put away; 0 = never. */
   dismissedVersion: number;
+  /**
+   * Version at which the reader asked for it back from settings; 0 = never.
+   *
+   * A second counter rather than resetting `dismissedVersion`, because every field here is
+   * monotonic and merges by taking the larger — clearing the dismissal would simply lose to
+   * whichever device still remembered it, and the checklist would vanish again on the next
+   * sync. Two climbing numbers survive that: the cluster is hidden only while the dismissal
+   * is ahead of the restore, and either action can be taken any number of times.
+   */
+  restoredVersion: number;
   /** When every step was first satisfied. Informational — visibility derives from the steps. */
   completedAt: string | null;
   steps: Record<OnboardingStepId, OnboardingStepState>;
@@ -78,7 +145,7 @@ export interface OnboardingSignals {
 
 function emptySteps(): Record<OnboardingStepId, OnboardingStepState> {
   const steps = {} as Record<OnboardingStepId, OnboardingStepState>;
-  for (const id of ONBOARDING_STEP_IDS) steps[id] = { done: false, dismissed: false };
+  for (const id of ALL_STEP_IDS) steps[id] = { done: false, dismissed: false };
   return steps;
 }
 
@@ -86,6 +153,7 @@ export function emptyOnboardingState(): OnboardingState {
   return {
     version: ONBOARDING_VERSION,
     dismissedVersion: 0,
+    restoredVersion: 0,
     completedAt: null,
     steps: emptySteps(),
   };
@@ -126,6 +194,10 @@ export function parseOnboardingState(raw: string | null | undefined): Onboarding
     typeof obj.dismissedVersion === 'number' && obj.dismissedVersion > 0
       ? Math.floor(obj.dismissedVersion)
       : 0;
+  const restoredVersion =
+    typeof obj.restoredVersion === 'number' && obj.restoredVersion > 0
+      ? Math.floor(obj.restoredVersion)
+      : 0;
   const completedAt = typeof obj.completedAt === 'string' && obj.completedAt ? obj.completedAt : null;
 
   const steps = emptySteps();
@@ -136,7 +208,7 @@ export function parseOnboardingState(raw: string | null | undefined): Onboarding
     }
   }
 
-  return { version, dismissedVersion, completedAt, steps };
+  return { version, dismissedVersion, restoredVersion, completedAt, steps };
 }
 
 export function serializeOnboardingState(state: OnboardingState): string {
@@ -168,11 +240,16 @@ function mergeStep(a: OnboardingStepState, b: OnboardingStepState): OnboardingSt
  * changes the result, which is the whole reason the sync layer can merge in both directions.
  */
 export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): OnboardingState {
+  /* Every id, not just the tour: a client that predates the customization rows drops those
+     keys on parse, so its copy reads as `{done:false,dismissed:false}` there and loses the
+     `||` against whatever the account really holds. That is what makes shipping a new row
+     safe without coordinating a client rollout. */
   const steps = {} as Record<OnboardingStepId, OnboardingStepState>;
-  for (const id of ONBOARDING_STEP_IDS) steps[id] = mergeStep(a.steps[id], b.steps[id]);
+  for (const id of ALL_STEP_IDS) steps[id] = mergeStep(a.steps[id], b.steps[id]);
   return {
     version: Math.max(a.version, b.version),
     dismissedVersion: Math.max(a.dismissedVersion, b.dismissedVersion),
+    restoredVersion: Math.max(a.restoredVersion, b.restoredVersion),
     completedAt: earliestIso(a.completedAt, b.completedAt),
     steps,
   };
@@ -233,8 +310,32 @@ export function dismissStep(state: OnboardingState, id: OnboardingStepId): Onboa
 
 /** Put the whole cluster away for this version. */
 export function dismissOnboarding(state: OnboardingState): OnboardingState {
-  if (state.dismissedVersion >= ONBOARDING_VERSION) return state;
-  return { ...state, dismissedVersion: ONBOARDING_VERSION };
+  /* Has to clear the restore as well as the current version, or putting the checklist away
+     after asking for it back would leave the two counters level and change nothing. */
+  const next = Math.max(ONBOARDING_VERSION, state.restoredVersion + 1);
+  if (state.dismissedVersion >= next) return state;
+  return { ...state, dismissedVersion: next };
+}
+
+/**
+ * Bring the checklist back after it was dismissed — the way back in, from settings.
+ *
+ * Only the cluster. A step put away on its own stays away: that was a separate answer about
+ * that step, and sweeping it up in a general "show me this again" would re-ask a question
+ * already answered. `canRestoreOnboarding` is what a settings row should offer itself on, so
+ * it does not present an action with nothing to undo.
+ */
+export function restoreOnboarding(state: OnboardingState): OnboardingState {
+  if (state.restoredVersion >= state.dismissedVersion) return state;
+  return { ...state, restoredVersion: state.dismissedVersion };
+}
+
+/** Whether there is a dismissal for `restoreOnboarding` to lift. */
+export function canRestoreOnboarding(state: OnboardingState | null): boolean {
+  if (!state) return false;
+  if (state.dismissedVersion <= state.restoredVersion) return false;
+  /* Nothing to come back to if every step is done or was individually put away. */
+  return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
 }
 
 /** A step is settled when it has been done or individually put away. */
@@ -271,6 +372,7 @@ export function onboardingProgress(state: OnboardingState): OnboardingProgress {
  */
 export function shouldShowOnboarding(state: OnboardingState | null): boolean {
   if (!state) return true;
-  if (state.dismissedVersion >= ONBOARDING_VERSION) return false;
+  if (state.dismissedVersion >= ONBOARDING_VERSION && state.dismissedVersion > state.restoredVersion)
+    return false;
   return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
 }

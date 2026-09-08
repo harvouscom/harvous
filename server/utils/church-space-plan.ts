@@ -13,11 +13,13 @@
  * church has lapsed, and it goes subtly wrong on the second copy.
  *
  * **Two lanes.** A Shared Space with no church behind it plans on its own
- * authority: read is any member's, write is `canManageSpaceStructure` — the
- * same rule that already decides who makes that room's folders and threads, and
- * the same bargain `assertCanManageSpaceLibrary` strikes for its shelf. A group
- * that meets without a church still meets on a rhythm. `lane` on the result
- * says which set of rules answered, and `church` is null for the space lane.
+ * authority: `canManageSpaceStructure` for both read and write — the same rule
+ * that already decides who makes that room's folders and threads. A group that
+ * meets without a church still meets on a rhythm. `lane` on the result says
+ * which set of rules answered, and `church` is null for the space lane.
+ *
+ * The space lane's *read* was every member's until Sep 2026; see the comment at
+ * the narrowing itself for why it changed and what a member keeps instead.
  */
 import { db, first, Spaces, and, eq, isNull } from '../db';
 import { isChurchOrgSpaceRow } from './channel-publish-cadence';
@@ -108,16 +110,34 @@ async function resolveSpacePlanAccess(
     }
 
     /*
-      Reading is every member's — it is the group's own schedule, and the
-      `coming-up` window already hands them a slice of it one entry at a time.
-      Only `write` narrows to whoever runs the room.
+      Whoever runs the room, for reads as well as writes — **narrowed Sep 2026.**
+
+      This used to grant read to every member: "it is the group's own schedule."
+      The trouble was that the church lane says the opposite (`sermon_tools`,
+      i.e. staff), so two rooms of identical shape answered a member differently
+      depending on whether a church happened to be behind one of them. Derek's
+      call was to make the churchless case match rather than widen the church
+      one — a plan holds undated backlog rows, which are the room's *intentions*
+      and not yet anything it has committed to.
+
+      What a member keeps is `coming-up`, which is gated on membership alone and
+      never returns an undated row. That is the whole point of that endpoint
+      existing separately from this one, and it is what makes this narrowing
+      cost a member nothing they should have had.
+
+      Narrowing is not free — the roadmap's own note is that widening later is —
+      so it is worth saying what makes it safe here: this landed *after* granted
+      leadership reached churchless rooms. Before that, "owner or leader" in a
+      life group meant "owner", because such a room could not have a leader.
     */
-    if (opts.spaceLaneWrite && !canManageSpaceStructure(space, role)) {
+    if (!canManageSpaceStructure(space, role)) {
       return {
         ok: false,
         status: 403,
         code: 'PLAN_SPACE_ROLE_REQUIRED',
-        error: 'Only this space’s leaders can change its plan',
+        error: opts.spaceLaneWrite
+          ? 'Only this space’s leaders can change its plan'
+          : 'Only this space’s leaders can see its full plan',
       };
     }
     return { ok: true, lane: 'space', church: null, space };

@@ -128,3 +128,38 @@ ranking signal (see `NoteVisitEvents` and `revisitReturnsBoost`). The kind was p
 using only what had been *written*, which is exactly the blind spot that work closes — so
 re-measure it after the visit log has a few weeks of data rather than cutting it on this
 number.
+
+## The re-tier (Aug 2026)
+
+Done, on the evidence above. `RECALL_KIND_TIER` was close to inverted against measured
+performance, and the fix was the one this document called cheaper than a scoring model: move
+the kinds by hand, once, and write down why.
+
+| tier | kinds |
+|---|---|
+| 0 | `continueBook`, `crossrefGap` |
+| 1 | `revisitNote`, `highlight`, `annotateHighlight` |
+| 2 | everything else |
+
+Three restraints, each of which is a place the numbers do *not* support the obvious move:
+
+- **`revisitNote` went to 1, not 2.** Its 5.5% predates `NoteVisitEvents` and
+  `revisitReturnsBoost` — the exact blind spot that work closed — so it is owed a
+  re-measurement. Two tiers down would starve it of the impressions the re-measurement needs.
+  The demotion is meant to remove the flattery, not the kind.
+- **`studyPerson` and `reflection` came up one step, not two.** 20% of five impressions is a
+  single open. That is evidence against "worst tier", not evidence for "best".
+- **`referenceWord` did not move.** 0% of one impression says nothing, and demoting an
+  unmeasured kind is how it stays unmeasured.
+
+### Rates measured after this change are not comparable to the table above
+
+This is the part worth carrying forward. `selectRecallOpportunities` pins the head slot, so
+the positional confound now points at `continueBook`/`crossrefGap` instead of at the old
+tier-0 three. A future run of `npm run recall:kind-rates` will show `annotateHighlight` and
+`revisitNote` falling and the new tier-0 kinds rising, and **most of that movement will be
+positional rather than real**. Do not read it as a result.
+
+The only way out of this remains the one already identified: **add a `position` column to
+`RecallEvents`.** Until then every open rate here is a joint measurement of a kind and its
+slot, and no amount of further logging separates them.

@@ -36,6 +36,8 @@ export interface SharedSpaceAboutLetterProps {
    * goes to people who are not members yet; this is the key to the room.
    */
   meetingUrl?: string | null;
+  /** Leave out the tile-and-name — for a caller whose chrome already names the room. */
+  hideMasthead?: boolean;
 }
 
 export default function SharedSpaceAboutLetter({
@@ -45,6 +47,7 @@ export default function SharedSpaceAboutLetter({
   meetingTime = null,
   meetingKind = null,
   meetingUrl = null,
+  hideMasthead = false,
 }: SharedSpaceAboutLetterProps) {
   const { userId: authUserId } = useAuth();
   const roster = sortMembersForAboutRoster(members);
@@ -65,7 +68,7 @@ export default function SharedSpaceAboutLetter({
 
   return (
     <div className="proto-shared-space-about__letter">
-      <PublicJoinSpaceLetter space={space} variant="about" />
+      <PublicJoinSpaceLetter space={space} variant="about" hideMasthead={hideMasthead} />
       {rhythmLabel ? (
         <p className="proto-caption proto-shared-space-about__rhythm">{rhythmLabel}</p>
       ) : null}

@@ -349,21 +349,6 @@ body {
 }
 
 /* Loading indicator styles */
-.navigation-loading {
-  position: relative;
-}
-
-.navigation-loading::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--color-bold-blue), transparent);
-  animation: loading-shimmer 1s infinite;
-  opacity: 0.5;
-}
 
 @keyframes loading-shimmer {
   0% {
@@ -470,43 +455,6 @@ body {
    ========================================================================== */
 
 /* EditNameColorPanel */
-.edit-name-color-panel button[data-outer-shadow] {
-  will-change: transform, box-shadow;
-  transition:
-    background-color 0.125s ease-in-out,
-    box-shadow 0.125s ease-in-out;
-  box-shadow:
-    0px -8px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
-    0px 4px 4px 0px hsla(0, 0%, 0%, 0.25);
-}
-
-.edit-name-color-panel button:not([data-outer-shadow]) {
-  transition: box-shadow 0.125s ease-in-out;
-  box-shadow: 0px -3px 0px 0px #78766F33 inset;
-}
-
-.edit-name-color-panel button:not([data-outer-shadow]):active {
-  filter: brightness(0.97);
-  box-shadow: 
-    0px -1px 0px 0px #78766F33 inset,
-    0px 1px 0px 0px #78766F33 inset;
-}
-
-.edit-name-color-panel button {
-  will-change: transform, box-shadow;
-}
-
-.edit-name-color-panel button:active > img {
-  transform: scale(0.95);
-}
-
-.edit-name-color-panel,
-.edit-name-color-panel *,
-.edit-name-color-panel[data-astro-cid] {
-  opacity: 1 !important;
-  transition: none !important;
-  animation: none !important;
-}
 
 /* NewNotePanel */
 .new-note-panel button[data-outer-shadow] {
@@ -791,12 +739,12 @@ button[disabled] {
 .menu {
   box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
 }
-
 /*
   `outline` is deliberately not in this reset: it only paints on `:focus-visible`,
   so stripping it here just meant a keyboard user arrowing through a menu could
   not see which row they were on. The ring is on `.menu-item:focus-visible` below.
 */
+.more-menu button,
 .menu-item {
   border: none !important;
   box-shadow: none !important;
@@ -870,9 +818,7 @@ button[disabled] {
 /* Target the title/content area with all possible selectors */
 [data-sonner-toast] [data-title],
 [data-sonner-toast] [data-content],
-[data-sonner-toast] [data-description],
-[data-sonner-toast] .sonner-toast-title,
-[data-sonner-toast] .sonner-toast-description {
+[data-sonner-toast] [data-description] {
     text-align: center !important;
     width: 100% !important;
     display: block !important;
@@ -1333,85 +1279,6 @@ button.translation-dropdown-trigger {
 /* ==========================================================================
    Dashboard Skeleton
    ========================================================================== */
-.dashboard-skeleton {
-  height: 100%;
-}
-
-.dashboard-skeleton__container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.dashboard-skeleton__card {
-  flex: 1;
-}
-
-.dashboard-skeleton__card-inner {
-  background-color: white;
-  border-radius: 24px;
-  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-skeleton__header {
-  background-color: var(--color-paper);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
-  padding-top: 1.5rem;
-  padding-bottom: 1.5rem;
-}
-
-.dashboard-skeleton__content {
-  flex: 1;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.dashboard-skeleton__tabs {
-  display: flex;
-  gap: 8px;
-}
-
-.dashboard-skeleton__items {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.dashboard-skeleton__item {
-  height: 80px;
-}
-
-.dashboard-skeleton__item--small {
-  height: 64px;
-}
-
-.dashboard-skeleton__tabs--spaced {
-  margin-top: 1rem;
-}
-
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--color-gray) 0%,
-    var(--color-gray) 40%,
-    rgba(255, 255, 255, 0.4) 50%,
-    var(--color-gray) 60%,
-    var(--color-gray) 100%
-  );
-  background-size: 200% 100%;
-  border-radius: 0.75rem;
-  animation: shimmer 1.5s ease-in-out infinite;
-  position: relative;
-  overflow: hidden;
-}
 
 @keyframes shimmer {
   0% {
@@ -1431,13 +1298,6 @@ button.translation-dropdown-trigger {
   }
 }
 
-.skeleton-shimmer:nth-child(1) { animation-delay: 0s; }
-.skeleton-shimmer:nth-child(2) { animation-delay: 0.1s; }
-.skeleton-shimmer:nth-child(3) { animation-delay: 0.2s; }
-.skeleton-shimmer:nth-child(4) { animation-delay: 0.3s; }
-.skeleton-shimmer:nth-child(5) { animation-delay: 0.4s; }
-.skeleton-shimmer:nth-child(6) { animation-delay: 0.5s; }
-
 /* ==========================================================================
    Load More Indicator Animation
    ========================================================================== */
@@ -1453,46 +1313,65 @@ button.translation-dropdown-trigger {
   height: 4px;
   border-radius: 50%;
   background-color: var(--color-stone-grey);
-  animation: load-more-pulse 1.4s ease-in-out infinite;
+  /* Falls back for pages that load this sheet without prototype-tokens.css on :root. */
+  animation: load-more-pulse 1.5s var(--pds-ease-standard, cubic-bezier(0.32, 0.72, 0.24, 1)) infinite;
 }
 
+/* A shorter step than the old 0.2s. The three dots are 4px apart, so a long gap reads as
+   three things blinking in turn rather than as one movement passing along them. */
 .load-more-indicator__dot:nth-child(1) {
   animation-delay: 0s;
 }
 
 .load-more-indicator__dot:nth-child(2) {
-  animation-delay: 0.2s;
+  animation-delay: 0.14s;
 }
 
 .load-more-indicator__dot:nth-child(3) {
-  animation-delay: 0.4s;
+  animation-delay: 0.28s;
 }
 
+/*
+  A wave that lifts along the row, rather than three dots throbbing.
+
+  The previous version scaled 0.8 → 1 against an opacity floor of 0.3, which at 4px is a
+  dot visibly changing size and most of the way to disappearing between beats — busy, and
+  slightly anxious, for a mark whose whole job is to say "still here" while someone waits.
+  This keeps the size fixed and moves it a single pixel, so what reads is the travel from
+  left to right and not the individual dots. The floor comes up to 0.4 so the row never
+  half-vanishes, and the cycle rests at the end: the long tail from 70% to 100% is what
+  makes it a pulse with a pause rather than a continuous shimmer.
+*/
 @keyframes load-more-pulse {
-  0%, 80%, 100% {
-    opacity: 0.3;
-    transform: scale(0.8);
+  0%, 70%, 100% {
+    opacity: 0.4;
+    transform: translateY(0);
   }
-  40% {
+  35% {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(-1px);
+  }
+}
+
+/*
+  Reduced motion gets a static row, not a slower one.
+
+  There was no guard here at all, so the one mark that is on screen for the entire length of
+  every wait — and repeats forever — was also the one piece of motion the setting could not
+  turn off. Held at the bright end so the dots still read as present rather than as three
+  disabled specks.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .load-more-indicator__dot {
+    animation: none;
+    opacity: 0.75;
+    transform: none;
   }
 }
 
 /* ==========================================================================
    Empty State Message
    ========================================================================== */
-.empty-state-message {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  padding-left: 12px;
-  padding-right: 12px;
-  padding-top: 80px;
-  padding-bottom: 80px;
-}
 
 /* ==========================================================================
    CRITICAL: Button & Heading Typography (MUST BE LAST)
@@ -1782,19 +1661,8 @@ html.ios-pwa .sheet-overlay {
 }
 
 /* Drag handle indicator for bottom sheets */
-.sheet-drag-handle {
-  width: 36px;
-  height: 4px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
-  margin: 8px auto;
-  flex-shrink: 0;
-}
 
 /* Snap-back animation when drag is insufficient */
-.sheet-snapping-back {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
 
 /* ==========================================================================
    Clerk Drawer Z-Index Override
@@ -1825,18 +1693,6 @@ html.ios-pwa .sheet-overlay {
   transition: max-height 0.3s ease-out;
 }
 
-.inbox-toggle-button {
-  transition: color 0.2s ease;
-}
-
-.inbox-toggle-button:hover {
-  color: var(--color-deep-grey);
-}
-
-.inbox-chevron {
-  transition: transform 0.2s ease;
-}
-
 /* ==========================================================================
    Offline UI lock — only Add-a-note flow stays interactive (see AppLayout)
    ========================================================================== */
@@ -1851,15 +1707,6 @@ html.ios-pwa .sheet-overlay {
 #layout-root[data-offline-restricted="1"] .action-strip-dock,
 #layout-root[data-offline-restricted="1"] .mobile-action-strip-dock {
   pointer-events: none;
-}
-
-#layout-root[data-offline-restricted="1"] .desktop-additional-column {
-  pointer-events: none;
-}
-
-#layout-root[data-offline-restricted="1"] .desktop-additional-column .new-note-panel-container,
-#layout-root[data-offline-restricted="1"] .desktop-additional-column .new-note-panel-container * {
-  pointer-events: auto;
 }
 
 /* Offline chip — frosted glass pill above Add a note (see OfflineIndicator) */

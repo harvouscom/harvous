@@ -133,15 +133,13 @@ describe('prototype shell shortcuts (Shift + key)', () => {
     );
   });
 
-  /* The behaviour Shift+K used to have is not lost — Mod+F still has it. */
-  it('Shift+K no longer focuses the sidebar search', () => {
+  /*
+   * Mod+F belongs to the browser's find-in-page, and this is a document app — the place
+   * someone is most likely to want it. It used to open the Library panel's search, which
+   * ⇧K above already does; leaving both bound cost find-in-page for a duplicate.
+   */
+  it('Mod+F is left to the browser', () => {
     expectNoEvent('prototypeShortcutFocusSidebarSearch', () =>
-      press({ key: 'K', code: 'KeyK', shift: true }),
-    );
-  });
-
-  it('Mod+F still focuses the sidebar search', () => {
-    expectEvent('prototypeShortcutFocusSidebarSearch', () =>
       press({ key: 'f', code: 'KeyF', meta: true }),
     );
   });

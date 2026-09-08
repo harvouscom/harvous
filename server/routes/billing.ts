@@ -13,7 +13,7 @@
  *   GET  /api/referral/status
  */
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, first, UserMetadata, UserXP, eq, and, count } from '../db';
 import { nowISO } from '../db/dates';
@@ -27,19 +27,65 @@ import {
   setPolarCancelAtPeriodEnd,
 } from '../utils/polar-billing';
 import {
-  foundingPlan,
-  isFoundingProductId,
+  foundingOffer,
   listedPlans,
   planFor,
   type PlanInterval,
   type PlanKey,
 } from '@/lib/billing-plans';
+import { BILLING_ERROR_MESSAGES } from '@/lib/billing-errors';
 import { resolveRefToUserId, generateReferralCode } from '../utils/referral-code';
 import { ACTIVITY_TYPES, awardXP, getReferralCreditXpForOrdinal } from '../utils/xp-system';
 import { getCookie, deleteCookie } from 'hono/cookie';
 import { getPublicAppOrigin } from '../utils/public-app-origin';
 
 const app = new Hono();
+
+/** Polar SDK errors extend `PolarError`, which carries the upstream status. */
+function providerStatus(error: unknown): number | null {
+  const status = (error as { statusCode?: unknown } | null)?.statusCode;
+  return typeof status === 'number' ? status : null;
+}
+
+/**
+ * Answer a failed billing call in our own words.
+ *
+ * Every route here used to return `handleAPIError(...).message`, which for a
+ * Polar failure is Polar's own text — that is how a user on the paywall was
+ * shown "Invalid token", Polar's phrase for *our* rejected organization access
+ * token. The detail still goes to the log; the body gets a code and a sentence.
+ *
+ * A 401/403 from Polar earns a line of its own, in the spirit of the auth
+ * middleware's verification log: it means checkout is dead for every user until
+ * the token is replaced, and the generic message the user now sees is exactly
+ * the kind of thing that would otherwise hide that for a week.
+ */
+function billingFailure(
+  c: Context,
+  error: unknown,
+  context: { endpoint: string; action: string },
+) {
+  const status = providerStatus(error);
+  if (status === 401 || status === 403) {
+    console.error(
+      `[billing] Polar rejected our credentials (${status}) on ${context.endpoint} — ` +
+        'checkout is down for every user until POLAR_ACCESS_TOKEN / POLAR_ENV are corrected',
+    );
+  }
+  handleAPIError(error, context);
+  return c.json(
+    { error: BILLING_ERROR_MESSAGES.BILLING_PROVIDER_UNAVAILABLE, code: 'BILLING_PROVIDER_UNAVAILABLE' },
+    status ? 502 : 500,
+  );
+}
+
+/** 503 body for the routes that check `isPolarConfigured()` before doing anything. */
+function billingNotConfigured(c: Context) {
+  return c.json(
+    { error: BILLING_ERROR_MESSAGES.BILLING_NOT_CONFIGURED, code: 'BILLING_NOT_CONFIGURED' },
+    503,
+  );
+}
 
 // ─── Billing ────────────────────────────────────────────────────────
 
@@ -53,6 +99,7 @@ const app = new Hono();
 app.get('/api/billing/plans', async (c) => {
   try {
     const founding = await getFoundingAvailability();
+    const offer = foundingOffer();
     const plans = listedPlans().map((plan) => ({
       key: plan.key,
       name: plan.name,
@@ -60,14 +107,21 @@ app.get('/api/billing/plans', async (c) => {
       amountCents: plan.amountCents,
       currencyCode: plan.currencyCode,
       productId: plan.productId,
-      founding: Boolean(plan.founding),
-      /** Founding disappears from the buy flow once claimed out. */
-      available: plan.founding ? founding.available : true,
+      /**
+       * Founding is a discount on this row, not a row of its own, so annual
+       * carries a first-year price while seats remain. Every plan stays
+       * `available` — selling out changes the price shown, not the shelf.
+       */
+      founding: Boolean(offer && plan.productId === offer.plan.productId && founding.available),
+      foundingFirstYearCents:
+        offer && plan.productId === offer.plan.productId && founding.available
+          ? offer.firstYearCents
+          : null,
+      available: true,
     }));
     return c.json({ plans, founding }, 200, { 'Cache-Control': 'public, max-age=30' });
   } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/billing/plans', action: 'list_plans' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return billingFailure(c, error, { endpoint: '/api/billing/plans', action: 'list_plans' });
   }
 });
 
@@ -85,7 +139,7 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     if (!isPolarConfigured()) {
-      return c.json({ error: 'Billing is not configured' }, 503);
+      return billingNotConfigured(c);
     }
 
     const body = (await c.req.json().catch(() => ({}))) as {
@@ -103,30 +157,40 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
     let productId: string | undefined;
     if (body.productId && allowed.has(body.productId)) {
       productId = body.productId;
-    } else if (body.founding && planKey === 'plus') {
-      productId = foundingPlan()?.productId;
     } else {
       productId = planFor(planKey, interval)?.productId;
     }
 
     if (!productId || !allowed.has(productId)) {
-      return c.json({ error: 'Invalid or unconfigured plan product' }, 400);
+      // A misconfigured product id is our problem, so the log keeps the detail
+      // and the body says only what the user can act on.
+      console.error(
+        `[billing] checkout asked for an unlisted product (plan=${planKey} interval=${interval} productId=${body.productId ?? '(none)'})`,
+      );
+      return c.json(
+        { error: BILLING_ERROR_MESSAGES.BILLING_PLAN_UNAVAILABLE, code: 'BILLING_PLAN_UNAVAILABLE' },
+        400,
+      );
     }
 
-    // Re-check the cap server-side: the page may have been open since before
-    // the last slot went. Falls back to standard pricing rather than failing.
-    if (isFoundingProductId(productId)) {
+    // Founding is a discount on the annual product, not a product of its own,
+    // so it rides the same checkout. Re-check the cap server-side: the page may
+    // have been open since before the last slot went.
+    const offer = foundingOffer();
+    let discountId: string | undefined;
+    if (body.founding && planKey === 'plus' && offer && productId === offer.plan.productId) {
       const founding = await getFoundingAvailability();
       if (!founding.available) {
         return c.json(
           {
-            error: 'The founding price is fully claimed.',
+            error: BILLING_ERROR_MESSAGES.FOUNDING_SOLD_OUT,
             code: 'FOUNDING_SOLD_OUT',
             founding,
           },
           409,
         );
       }
+      discountId = offer.discountId;
     }
 
     const meta = first(
@@ -142,6 +206,7 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
     const polar = getPolarClient();
     const checkout = await polar.checkouts.create({
       products: [productId],
+      ...(discountId ? { discountId } : {}),
       externalCustomerId: auth.userId,
       ...(meta?.email?.includes('@') ? { customerEmail: meta.email } : {}),
       // Hosted Polar checkout; return to /upgrade (legacy /addon redirects preserve query).
@@ -155,11 +220,10 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
       url: checkout.url,
       interval: resolved?.interval ?? interval,
       plan: resolved?.key ?? planKey,
-      founding: Boolean(resolved?.founding),
+      founding: Boolean(discountId),
     });
   } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/billing/checkout', action: 'create_checkout_session' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return billingFailure(c, error, { endpoint: '/api/billing/checkout', action: 'create_checkout_session' });
   }
 });
 
@@ -169,7 +233,7 @@ app.get('/api/billing/portal', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     if (!isPolarConfigured()) {
-      return c.json({ error: 'Billing is not configured' }, 503);
+      return billingNotConfigured(c);
     }
 
     const polar = getPolarClient();
@@ -188,8 +252,7 @@ app.get('/api/billing/portal', requireAuth, async (c) => {
 
     return c.json({ url: session.customerPortalUrl });
   } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/billing/portal', action: 'create_portal_session' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return billingFailure(c, error, { endpoint: '/api/billing/portal', action: 'create_portal_session' });
   }
 });
 
@@ -202,7 +265,7 @@ app.get('/api/billing/manage', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     if (!isPolarConfigured()) {
-      return c.json({ error: 'Billing is not configured' }, 503);
+      return billingNotConfigured(c);
     }
 
     const manage = await getPolarBillingManage(auth.userId);
@@ -212,8 +275,7 @@ app.get('/api/billing/manage', requireAuth, async (c) => {
 
     return c.json(manage, 200, { 'Cache-Control': 'private, no-store, max-age=0' });
   } catch (error) {
-    const standardError = handleAPIError(error, { endpoint: '/api/billing/manage', action: 'load_billing_manage' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return billingFailure(c, error, { endpoint: '/api/billing/manage', action: 'load_billing_manage' });
   }
 });
 
@@ -229,7 +291,7 @@ app.get('/api/billing/orders/:orderId/receipt', requireAuth, async (c) => {
     }
 
     if (!isPolarConfigured()) {
-      return c.json({ error: 'Billing is not configured' }, 503);
+      return billingNotConfigured(c);
     }
 
     const url = await getPolarOrderDocumentUrl(auth.userId, orderId);
@@ -242,11 +304,10 @@ app.get('/api/billing/orders/:orderId/receipt', requireAuth, async (c) => {
     if (message === 'Billing is not configured') {
       return c.json({ error: message }, 503);
     }
-    const standardError = handleAPIError(error, {
+    return billingFailure(c, error, {
       endpoint: '/api/billing/orders/:orderId/receipt',
       action: 'get_order_receipt',
     });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 
@@ -259,7 +320,7 @@ app.post('/api/billing/cancel', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     if (!isPolarConfigured()) {
-      return c.json({ error: 'Billing is not configured' }, 503);
+      return billingNotConfigured(c);
     }
 
     const body = (await c.req.json().catch(() => ({}))) as {
@@ -283,8 +344,7 @@ app.post('/api/billing/cancel', requireAuth, async (c) => {
     if (message === 'Billing is not configured') {
       return c.json({ error: message }, 503);
     }
-    const standardError = handleAPIError(error, { endpoint: '/api/billing/cancel', action: 'cancel_subscription' });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return billingFailure(c, error, { endpoint: '/api/billing/cancel', action: 'cancel_subscription' });
   }
 });
 
@@ -300,11 +360,10 @@ app.post('/api/billing/sync', requireAuth, async (c) => {
       entitlements: result.entitlements,
     });
   } catch (error) {
-    const standardError = handleAPIError(error, {
+    return billingFailure(c, error, {
       endpoint: '/api/billing/sync',
       action: 'sync_entitlements',
     });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 

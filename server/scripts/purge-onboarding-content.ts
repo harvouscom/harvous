@@ -9,6 +9,7 @@
 import 'dotenv/config';
 import { db, Threads, Notes, eq, sql } from '../db';
 import { purgeOnboardingContentForUser } from '../utils/purge-onboarding-content';
+import { requireDbTarget } from '../utils/require-db-target';
 
 function parseArgs() {
   const dryRun = process.argv.includes('--dry-run');
@@ -38,6 +39,7 @@ async function findUsersWithOnboardingContent(): Promise<string[]> {
 }
 
 async function main() {
+  requireDbTarget({ scriptName: 'purge-onboarding-content', writes: true });
   const { dryRun, userId } = parseArgs();
   console.log(dryRun ? '[dry-run] No writes.' : '[live] Purging onboarding content.');
 

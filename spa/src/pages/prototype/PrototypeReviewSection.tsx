@@ -1,0 +1,493 @@
+/**
+ * Review — at most three things worth returning to, on Activity.
+ *
+ * A calm curated stack, not a task manager. The cap is three (`REVIEW_INBOX_MAX_ROWS`), the
+ * server never sends a count of what it is not showing, and there is no badge anywhere: the
+ * named failure mode in the strategy doc is an escalating "27 due", and every mechanism that
+ * could produce one has been left out rather than styled down.
+ *
+ * Four states, and each is deliberate:
+ *
+ * - **Guest** renders nothing. A guest has no account to attach a subscription to, so an
+ *   upgrade prompt would be asking them to buy before they can sign in.
+ * - **Signed in without Plus** gets one row, dismissible, that names what Review is. One,
+ *   because a paywall repeated per feature is how an app starts to feel like a trial.
+ * - **Plus with nothing due** renders nothing and the section collapses. "Nothing waiting" is
+ *   said by the absence, not by a row saying so — the day's own record is below and is better
+ *   company than an empty state.
+ * - **Plus with something due** gets the rows, each with an overflow, and a way to see the rest.
+ *
+ * **Where the line falls with Suggested, below.** If a right answer exists and the reader
+ * could be wrong, it is Review; if the outcome is something new made or something organised,
+ * it is a Suggestion. Home's two resurfacing cards — a passage you keep returning to, a
+ * highlight to revisit — step aside for anything active here, so one subject is not a question
+ * in this section and a nudge in that one. `review-suggestion-handoff.ts` holds the rule.
+ *
+ * Nobody has to fill it. The engine reads the reader's own Study Bible layer and adds a few
+ * a day — a verse they highlighted, a link they drew, a Thread that has grown — and each row
+ * says where it came from, so the section reads as their study coming back rather than as work
+ * assigned to them.
+ */
+import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import Icon from '@/components/react/Icon';
+import PrototypeHomeSection from './PrototypeHomeSection';
+import PrototypeHomeRow from './PrototypeHomeRow';
+import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
+import {
+  reviewSampleDayKey,
+  useReviewInbox,
+  useReviewItems,
+  useReviewItemsSummary,
+  useReviewSample,
+  type ReviewItemView,
+} from '../../hooks/queries/useReview';
+import { REVIEW_MAX_ATTEMPTS } from '@/utils/review-item-kinds';
+import PrototypeReviewSample from './PrototypeReviewSample';
+import { useHomeChallenges } from '../../hooks/queries/useChallenges';
+import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
+import { useHasFeature } from '../../hooks/useHasFeature';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { useProtoShell } from '../../layouts/proto-shell-context';
+import {
+  PLUS_BADGE_COPY,
+  REVIEW_PLUS_META,
+  REVIEW_PLUS_TITLE,
+  REVIEW_SEE_ALL_COPY,
+  REVIEW_RESUME_COPY,
+  REVIEW_SEE_LESS_COPY,
+  reviewComingBackCopy,
+  reviewSetAsideCopy,
+  REVIEW_SECTION_TITLE,
+  REVIEW_EMPTY_NOTHING_YET_TITLE,
+  REVIEW_EMPTY_NOTHING_YET_BODY,
+  reviewColdStartOpensCopy,
+} from './proto-review-copy';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
+import { prototypeChallengeRouteTo } from '@/lib/prototype-path';
+import { RECALL_STATE_LABELS, type ReviewItemKind } from '@/utils/review-item-kinds';
+import { fillFraming } from '@/utils/review-framing';
+import { reviewRowRecallLabel, reviewRowSource, reviewRowSubject } from '@/utils/review-row-subtitle';
+import { reviewKindIcon } from './review-kind-icons';
+import { describeNextDue } from '@/utils/review-scheduling';
+import { recallChip } from './PrototypeRecallStateChip';
+import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
+import { useDismissibleReviewSample } from './use-dismissible-review-sample';
+
+/**
+ * Kinds that are about a note, and kinds that are about a passage.
+ *
+ * `highlight` sits with the passages because that is what the reader marked, and `connection`
+ * and `thread` sit with the notes because both are questions about their own writing.
+ */
+const PASSAGE_KINDS = new Set<ReviewItemKind>(['verse', 'highlight', 'chapter']);
+
+/**
+ * One of each, closed: a note and a passage.
+ *
+ * Three of anything invites scanning; one of each invites answering, and it guarantees the two
+ * halves of the feature are both visible rather than three notes crowding the verse out. The
+ * rest is one tap away and nothing is hidden — see the fold below.
+ */
+function collapsedReviewRows(items: readonly ReviewItemView[]): ReviewItemView[] {
+  const note = items.find((item) => !PASSAGE_KINDS.has(item.kind));
+  const passage = items.find((item) => PASSAGE_KINDS.has(item.kind));
+  return items.filter((item) => item === note || item === passage);
+}
+
+/** "3 more" once the full list is known, and "See all" while it is not. */
+function foldedLabel(folded: number | null): string {
+  return folded !== null && folded > 0 ? `${folded} more` : REVIEW_SEE_ALL_COPY;
+}
+
+export default function PrototypeReviewSection() {
+  const navigate = useNavigate();
+  const { openReviewDock } = useProtoShell();
+  const { isGuest } = useHarvousIdentity();
+  const review = useHasFeature('review');
+  const challengesFeature = useHasFeature('challenges');
+  const { dismissed: plusPromptDismissed, dismiss: dismissPlusPrompt } = useDismissiblePlusPrompt();
+  /* The question's own dismissal, distinct from the upsell's — see the hook's docblock. */
+  const { dismissed: sampleDismissed, dismiss: dismissSample } = useDismissibleReviewSample();
+
+  /* Declared above the queries because two of them are enabled by these — a fold that is open
+     is the only reason to build the rows behind it. */
+  const [expanded, setExpanded] = useState(false);
+  const [setAsideOpen, setSetAsideOpen] = useState(false);
+  const [comingBackOpen, setComingBackOpen] = useState(false);
+  const inboxQuery = useReviewInbox();
+  /*
+   * The active list twice over: counted always, built only when a fold is open.
+   *
+   * `use-home-surface-data` reads the summary on every Activity load for the suggestion handoff,
+   * so asking for the same key here shares that one request rather than adding a second — the
+   * same trick this already used, now on the cheap shape. Asking for *every* status instead, as
+   * this briefly did, was a whole extra round trip on any load with an empty queue.
+   *
+   * The split is the point. This section shows at most two rows when closed and takes them from
+   * `useReviewInbox`; everything it wanted from the active list was counts — how many are due,
+   * how many are coming back — and the server was building a question per item to supply them.
+   * Measured at 3.4s for eighteen items, on the critical path of the first paint. The built shape
+   * is fetched when a reader opens a fold, which is a press that can carry its own wait.
+   */
+  const activeSummaryQuery = useReviewItemsSummary('active');
+  const activeBuiltQuery = useReviewItems('active', { enabled: expanded || comingBackOpen });
+  /*
+   * Every status, for the drawer of things put aside. Fetched only when the reader opens a fold
+   * — or when there is nothing active at all, which is the one case where something they put
+   * down is the only thing left and no fold exists to open.
+   */
+  const nothingActive =
+    activeSummaryQuery.isFetched && (activeSummaryQuery.data?.items?.length ?? 0) === 0;
+  const allQuery = useReviewItems(undefined, {
+    enabled: expanded || setAsideOpen || nothingActive,
+  });
+  /*
+   * Open challenges, off the list the Strengthen row below also reads.
+   *
+   * Same trade as `activeQuery` above, one surface further out: that row needs paused ones too —
+   * a Thread the reader put down is not an offer to make again — so one request covers both
+   * statuses and each place filters it. Asked separately it was two round trips for one list.
+   */
+  const challengesQuery = useHomeChallenges();
+  // The sample: fetched only for an account that lacks the feature (the hook gates on that).
+  const hasAnyFeature = review.has || challengesFeature.has;
+  /*
+   * Fetched for anyone without the feature, dismissed offer or not.
+   *
+   * It used to be gated on the same flag as the Plus row, so hiding the offer deleted the one
+   * real question a free reader can answer — the try and the ad taken away by one tap on the
+   * ad. Hiding an offer is not asking to be shown less of the product.
+   */
+  const sampleQuery = useReviewSample({
+    enabled: review.ready && !hasAnyFeature && !sampleDismissed,
+  });
+  /* Once the sample has been answered it carries the offer itself; a row underneath repeating
+     it is the same pitch twice on one screen. */
+  const [sampleAnswered, setSampleAnswered] = useState(false);
+  const defer = useDeferReview();
+  const setStatus = useSetReviewStatus();
+
+  // A guest has nothing to upgrade and no queue to hold. Nothing at all.
+  if (isGuest) return null;
+
+  const hasAny = review.has || challengesFeature.has;
+
+  if (!hasAny) {
+    // Still loading is not "no" — a subscriber must never be shown a paywall on a cold load.
+    if (!review.ready) return null;
+    const sample = sampleQuery.data?.sample ?? null;
+    // With the offer dismissed and no question to try, there is nothing left to show.
+    if (plusPromptDismissed && !sample) return null;
+    return (
+      <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
+        {/* The thing to have tried, above the row that says what it costs. */}
+        {sample ? (
+          <PrototypeReviewSample
+            sample={sample}
+            day={reviewSampleDayKey()}
+            maxAttempts={REVIEW_MAX_ATTEMPTS}
+            onSeePlus={() => void navigate({ to: '/upgrade' })}
+            /* Puts the *question* away, not the upsell beside it. Wired to the upsell's flag,
+               "Not now" hid the row and the question returned the next morning — a control that
+               did not do what its own label said. */
+            onNotNow={dismissSample}
+            onAnswered={() => setSampleAnswered(true)}
+          />
+        ) : null}
+        {plusPromptDismissed || sampleAnswered ? null : (
+        <PrototypeHomeRow
+          icon="arrows-rotate"
+          title={REVIEW_PLUS_TITLE}
+          meta={[REVIEW_PLUS_META]}
+          onClick={() => void navigate({ to: '/upgrade' })}
+          trailing={
+            <span className="proto-review-section__plus">
+              <span className="proto-menu-item__badge">{PLUS_BADGE_COPY}</span>
+              <button
+                type="button"
+                className="proto-side-panel__action-btn"
+                aria-label="Hide this"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  dismissPlusPrompt();
+                }}
+              >
+                <Icon name="xmark" size={12} aria-hidden />
+              </button>
+            </span>
+          }
+        />
+        )}
+      </PrototypeHomeSection>
+    );
+  }
+
+  const inboxItems = inboxQuery.data?.items ?? [];
+  const everyItem = allQuery.data?.items ?? null;
+  /*
+   * Due, and not due yet — two different things that the fold used to show as one.
+   *
+   * Expanding "see all" listed every active item together, so a verse coming back on Thursday
+   * sat among the ones waiting now as though it were also waiting. Worse, the whole section
+   * hides when nothing is due, so an account with a full schedule and an empty morning showed
+   * no Review at all and no way to reach any of it — the page that used to list them under
+   * "Coming back later" is gone.
+   *
+   * Split twice over, because the two answers are wanted at different moments. The counts decide
+   * whether this section appears at all and what its folds are labelled, and they come off the
+   * summary, which every load already has. The rows are only ever rendered inside an open fold,
+   * so they come off the built list, which is only fetched once one is open. `dueAt` is a column
+   * on the stored item, so both lists can be bucketed the same way.
+   */
+  const nowMs = Date.now();
+  const summaryItems = activeSummaryQuery.data?.items ?? null;
+  const dueActiveCount = summaryItems
+    ? summaryItems.filter((item) => Date.parse(item.dueAt) <= nowMs).length
+    : null;
+  const comingBackCount = summaryItems
+    ? summaryItems.filter((item) => Date.parse(item.dueAt) > nowMs).length
+    : 0;
+
+  const builtItems = activeBuiltQuery.data?.items ?? null;
+  const dueActive = builtItems
+    ? builtItems.filter((item) => Date.parse(item.dueAt) <= nowMs)
+    : null;
+  const comingBack = builtItems
+    ? builtItems.filter((item) => Date.parse(item.dueAt) > nowMs)
+    : [];
+  /*
+   * Paused, and put down. The one place either can be picked back up.
+   *
+   * Home offers "Pause this" and "Remove from Review" on every row, and until now the only
+   * screen that could undo either was a route nothing in the app linked to — so both were
+   * one-way doors for anyone who did not know the URL. They belong under the queue they left.
+   */
+  const setAside = everyItem
+    ? everyItem.filter((item) => item.status === 'paused' || item.status === 'archived')
+    : [];
+  /* The drawer can only speak once the all-status read has happened; before that it is silent
+     rather than guessing at a count. */
+  // While the expanded list is still in flight, keep showing the three we already have rather
+  // than collapsing to nothing and back.
+  const items = expanded ? (dueActive ?? inboxItems) : inboxItems;
+  const activeChallenges = (challengesQuery.data?.challenges ?? []).filter(
+    (c) => c.status === 'active',
+  );
+
+  /*
+   * Reviews first, then one challenge, and the cap applies to the whole stack.
+   *
+   * One challenge rather than all of them because a path is a sitting's worth of work on its
+   * own; three open paths listed together is a backlog wearing a different hat. The rest are
+   * on the Review page.
+   */
+  const challengeRow = activeChallenges[0];
+  const reviewRows = expanded ? items : collapsedReviewRows(items);
+  /*
+   * How many are folded away, or null when that is not known.
+   *
+   * The inbox read is capped at three and reports `hasMore` as a boolean, deliberately — a
+   * number in that payload is a number that eventually gets rendered as "27 due". So until the
+   * full list has been fetched once, the count behind the fold is genuinely unknown, and the
+   * label says "See all" rather than guessing. Guessing printed "1 more" over two items.
+   */
+  /* The summary's count, not the built list's — this is known on every load, where the built
+     list only exists once a fold is open. It is also why the label can say "12 more" straight
+     away instead of "See all" until someone presses it. */
+  const folded =
+    dueActiveCount !== null
+      ? Math.max(0, dueActiveCount - reviewRows.length)
+      : inboxQuery.data?.hasMore
+        ? null
+        : Math.max(0, items.length - reviewRows.length);
+  const moreThanShown = folded === null || folded > 0;
+
+  /*
+   * Nothing waiting is still said by the absence — the section does not appear to announce an
+   * empty queue. It appears when there is something to *do*, and picking back up something you
+   * put down is something to do.
+   */
+  const hasRows =
+    /* `comingBackCount` from the summary, not the built list — the built one is only fetched
+       once a fold is open, so counting it here would hide the section on every closed load. */
+    reviewRows.length > 0 || Boolean(challengeRow) || comingBackCount > 0 || setAside.length > 0;
+
+  /*
+   * Three absences, and only one of them is worth a word.
+   *
+   * Nothing due today stays silent, deliberately — the day's own record is below and is better
+   * company than a row announcing a rest. That stance is unchanged.
+   *
+   * Never having started is a different thing. The engine holds an account back until it has a
+   * few days of the reader's own study to draw on, and until then this section renders nothing
+   * at all, which is indistinguishable from the feature being broken. It was reported as broken
+   * three times by someone whose account had simply not cleared that gate and who had no way to
+   * learn it from the screen. `coldStart` is non-null only in that case: the server sends it
+   * when the queue is empty *and* the engine has not run.
+   */
+  const coldStart = inboxQuery.data?.coldStart ?? null;
+  if (!hasRows && coldStart) {
+    const opensIn = describeNextDue(coldStart.opensAt);
+    return (
+      <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
+        <PrototypeListEmptyState
+          iconName="seedling"
+          title={REVIEW_EMPTY_NOTHING_YET_TITLE}
+          description={
+            <>
+              <p className="proto-list-empty-state__line">{REVIEW_EMPTY_NOTHING_YET_BODY}</p>
+              {/* Only when waiting is genuinely all it takes — see `reviewColdStartOpensCopy`. */}
+              {opensIn ? (
+                <p className="proto-list-empty-state__line">{reviewColdStartOpensCopy(opensIn)}</p>
+              ) : null}
+            </>
+          }
+        />
+      </PrototypeHomeSection>
+    );
+  }
+
+  if (!hasRows) return null;
+
+  // The question opens where you are, not on a page of its own — see PrototypeReviewDock.
+  const openInDock = (itemId: string) => openReviewDock(itemId);
+
+  return (
+    <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
+      {reviewRows.map((item) => (
+        <PrototypeReviewRow
+          key={item.id}
+          icon={reviewKindIcon(item.kind)}
+          /*
+           * The subject on top, what to do underneath — the way Home reads. The question used to
+           * be the title, which left a shelf of rows all asking things with no visible subject.
+           * The full question is in the dock, where the card stands alone.
+           */
+          title={reviewRowSubject(item)}
+          meta={[
+            item.task,
+            // What this is to the reader, when the app can say; its provenance when it cannot.
+            item.framing ? fillFraming(item.framing) : reviewRowSource(item, reviewRowSubject(item)),
+          ]}
+          /* The state belongs to the passage, not to the sentence saying why the row is here —
+             so it sits with the title. See `reviewRowRecallLabel` for when it says nothing. */
+          titleTrailing={recallChip(item)}
+          onOpen={() => openInDock(item.id)}
+          actions={reviewRowActions({
+            onDefer: () => defer.mutate(item.id),
+            onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
+            onRemove: () => setStatus.mutate({ itemId: item.id, status: 'archived' }),
+          })}
+        />
+      ))}
+
+      {challengeRow ? (
+        <PrototypeHomeRow
+          icon="list-check"
+          title={challengeRow.title}
+          meta={[
+            // "Step 2 of 5" is a position, not a score — it says where you are, not how far
+            // behind you are.
+            `Step ${Math.min(challengeRow.currentStepIndex + 1, challengeRow.totalSteps)} of ${challengeRow.totalSteps}`,
+          ]}
+          onClick={() =>
+            void navigate({
+              to: prototypeChallengeRouteTo(),
+              params: { challengeId: challengeRow.id },
+            })
+          }
+        />
+      ) : null}
+
+      {/*
+        * The study feed's own fold, not a list row.
+        *
+        * A row with a chevron is how you say "this goes somewhere". This goes nowhere — it
+        * unfolds what is already here — which is exactly what `.proto-feed-part__more` above
+        * the Review section already means, a few centimetres up the same page.
+        */}
+      {(moreThanShown || expanded) && reviewRows.length > 0 ? (
+        <button
+          type="button"
+          className="proto-feed-part__more"
+          onClick={() => setExpanded((open) => !open)}
+        >
+          <span>{expanded ? REVIEW_SEE_LESS_COPY : foldedLabel(folded)}</span>
+          <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
+        </button>
+      ) : null}
+
+      {/*
+        * What is scheduled, folded away under what is due.
+        *
+        * Shown whenever there is something to show, rather than only once the queue is opened:
+        * with nothing due this is the entire Review section, and it is the only way back to a
+        * queue that is otherwise invisible until its dates come round.
+        */}
+      {comingBackCount > 0 ? (
+        <>
+          <button
+            type="button"
+            className="proto-feed-part__more"
+            onClick={() => setComingBackOpen((open) => !open)}
+          >
+            <span>{reviewComingBackCopy(comingBackCount)}</span>
+            <Icon name={comingBackOpen ? 'caret-up' : 'caret-down'} size={10} />
+          </button>
+          {comingBackOpen
+            ? comingBack.map((item) => (
+                <PrototypeReviewRow
+                  key={item.id}
+                  icon={reviewKindIcon(item.kind)}
+                  title={reviewRowSubject(item)}
+                  /* When it comes back, which is the only thing this row is here to say. */
+                  meta={[item.task, describeNextDue(item.dueAt)]}
+                  titleTrailing={recallChip(item)}
+                  onOpen={() => openInDock(item.id)}
+                  actions={reviewRowActions({
+                    onDefer: () => defer.mutate(item.id),
+                    onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
+                    onRemove: () => setStatus.mutate({ itemId: item.id, status: 'archived' }),
+                  })}
+                />
+              ))
+            : null}
+        </>
+      ) : null}
+
+      {/*
+        * What was put aside, folded away under what is live.
+        *
+        * Only once the reader has opened the queue, and only when there is something in it —
+        * a fold that says "nothing" is a row spent on an empty drawer.
+        */}
+      {setAside.length > 0 ? (
+        <>
+          <button
+            type="button"
+            className="proto-feed-part__more"
+            onClick={() => setSetAsideOpen((open) => !open)}
+          >
+            <span>{reviewSetAsideCopy(setAside.length)}</span>
+            <Icon name={setAsideOpen ? 'caret-up' : 'caret-down'} size={10} />
+          </button>
+          {setAsideOpen
+            ? setAside.map((item) => (
+                <PrototypeHomeRow
+                  key={item.id}
+                  icon={item.status === 'paused' ? 'circle-minus' : 'eye-slash'}
+                  title={reviewRowSubject(item)}
+                  /* The whole row is the undo: there is one thing to do with something you put
+                     down, and it is to pick it up — so the row says so rather than hiding it
+                     behind a menu. */
+                  meta={[REVIEW_RESUME_COPY]}
+                  onClick={() => setStatus.mutate({ itemId: item.id, status: 'active' })}
+                />
+              ))
+            : null}
+        </>
+      ) : null}
+    </PrototypeHomeSection>
+  );
+}

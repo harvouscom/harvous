@@ -13,6 +13,16 @@ import {
 export const SHARED_SPACE_NOTE_CARD_MAX = 3;
 export const SHARED_SPACE_PASSAGE_CONNECTION_MIN = 2;
 
+/**
+ * How deep to look for a passage the reader has not rested.
+ *
+ * Small on purpose. A room that cites six passages and has had five of them
+ * rested is telling you it has nothing to resurface this week, and walking
+ * further down the list to find something turns "what this room keeps returning
+ * to" into "any passage at all" — which is not the same claim.
+ */
+export const SHARED_SPACE_PASSAGE_CANDIDATES = 5;
+
 export type SharedSpaceNoteCardKind = 'new-from-others' | 'continue' | 'recent';
 
 export interface SharedSpaceNoteCardSlot {
@@ -63,7 +73,30 @@ function isOwnSpaceNote(note: SpaceNoteRow, authUserId: string | null | undefine
   return note.isOwnNote ?? (note.authorUserId != null && note.authorUserId === authUserId);
 }
 
-export function selectTopSharedPassage(books: ScriptureIndexBook[]): HomePassageConnection | undefined {
+/** The suppression id a room's passage card is remembered by. */
+export function sharedPassageOpportunityId(passageKey: string): string {
+  /* Same `passage:` shape Home's own passage opportunities use, so one reader's
+     two surfaces speak one vocabulary to `RecallEvents.kind`. The room is told
+     apart by `spaceId` on the row, not by a different id here — an id that
+     encoded the space would make the same passage two different things. */
+  return `passage:${passageKey}`;
+}
+
+/**
+ * The passage this room keeps returning to.
+ *
+ * `suppressed` holds opportunity ids the reader has rested — so saying "not now"
+ * moves the card to the room's next-most-cited passage rather than doing
+ * nothing. Without it the card was frozen: one passage, forever, for everyone.
+ *
+ * Asks for more than one and filters, rather than filtering the whole list
+ * first: `derivePassageConnections` is what ranks them, and re-implementing the
+ * ranking here to skip a couple of rows is how two orderings start to disagree.
+ */
+export function selectTopSharedPassage(
+  books: ScriptureIndexBook[],
+  suppressed?: ReadonlySet<string>,
+): HomePassageConnection | undefined {
   const passages: HomePassageConnectionInput[] = [];
   for (const book of books) {
     for (const passage of book.passages) {
@@ -78,7 +111,10 @@ export function selectTopSharedPassage(books: ScriptureIndexBook[]): HomePassage
       });
     }
   }
-  const top = derivePassageConnections(passages, { limit: 1 })[0];
+  const ranked = derivePassageConnections(passages, { limit: SHARED_SPACE_PASSAGE_CANDIDATES });
+  const top = ranked.find(
+    (candidate) => !suppressed?.has(sharedPassageOpportunityId(candidate.passageKey)),
+  );
   return top && top.noteCount >= SHARED_SPACE_PASSAGE_CONNECTION_MIN ? top : undefined;
 }
 

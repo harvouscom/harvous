@@ -44,6 +44,7 @@ export function useProtoAnchoredPopoverPosition(
     enabled,
     maxHeightPx,
     vhFraction,
+    alignEnd,
     strategy = 'anchor',
     topVhFraction = 0.12,
     fallbackWidth,
@@ -76,7 +77,7 @@ export function useProtoAnchoredPopoverPosition(
         : computeAnchoredPopoverPosition(
             card,
             resolveAnchorRect(anchorElRef.current, anchorRectRef.current),
-            { maxHeightPx, vhFraction },
+            { maxHeightPx, vhFraction, alignEnd },
           );
     setPosition(next);
     if (stablePosition) lockedWhileOpenRef.current = true;

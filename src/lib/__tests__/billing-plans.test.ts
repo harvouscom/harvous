@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  isFeatureKey,
+  isFeatureWithheld,
+  WITHHELD_FEATURES,
   FEATURE_KEYS,
   FOUNDING_CAP,
   UNLIMITED,
   featuresForProductId,
-  foundingPlan,
+  foundingOffer,
   getPlans,
-  isFoundingProductId,
   isUnlimited,
   limitsForFeatures,
   listedPlans,
@@ -50,44 +52,49 @@ describe('billing-plans registry', () => {
     }
   });
 
-  it('exposes founding badge, cap, and Plus coming-soon bullets', () => {
+  it('exposes founding badge and cap', () => {
     expect(PLUS_FOUNDING_BADGE).toBe('Founding');
     expect(FOUNDING_CAP).toBe(99);
-    expect(PLUS_COMING_SOON_FEATURE_BULLETS.length).toBeGreaterThanOrEqual(2);
-    expect(PLUS_COMING_SOON_FEATURE_BULLETS.some((b) => /Review/i.test(b))).toBe(true);
-    expect(PLUS_COMING_SOON_FEATURE_BULLETS.some((b) => /Challenges/i.test(b))).toBe(true);
+  });
+
+  it('no longer promises Review or Challenges as coming — they shipped in 3.0', () => {
+    // The two bullets moved into SHARED_SPACES_ADDON_FEATURE_BULLETS, which is asserted in
+    // shared-spaces-limits.test.ts. Nothing else is promised, so the list is empty and both
+    // surfaces hide the heading.
+    expect(PLUS_COMING_SOON_FEATURE_BULLETS).toHaveLength(0);
   });
 });
 
 describe('pricing model', () => {
   const plans = getPlans();
-  const plus = (interval: 'month' | 'year', founding = false) =>
-    plans.find((p) => p.key === 'plus' && p.interval === interval && Boolean(p.founding) === founding);
+  const plus = (interval: 'month' | 'year') =>
+    plans.find((p) => p.key === 'plus' && p.interval === interval);
   const connector = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'connector' && p.interval === interval);
   const church = (interval: 'month' | 'year') =>
     plans.find((p) => p.key === 'church' && p.interval === interval);
 
-  it('prices Plus at $5/mo; standard annual stays unlisted at $45', () => {
-    expect(plus('month')?.amountCents).toBe(500);
+  it('prices Plus at $6/mo and $36/yr, both listed', () => {
+    expect(plus('month')?.amountCents).toBe(600);
     expect(plus('month')?.listed).toBe(true);
-    expect(plus('year')?.amountCents).toBe(4500);
-    expect(plus('year')?.listed).toBe(false);
+    expect(plus('year')?.amountCents).toBe(3600);
+    expect(plus('year')?.listed).toBe(true);
   });
 
-  it('prices founding at $30/yr, annual only', () => {
-    const founder = plus('year', true);
-    expect(founder?.amountCents).toBe(3000);
-    expect(founder?.interval).toBe('year');
-    expect(founder?.listed).toBe(true);
-    expect(plans.filter((p) => p.founding && p.interval === 'month')).toHaveLength(0);
+  it('has exactly one Plus row per interval — founding is a discount, not a product', () => {
+    expect(plans.filter((p) => p.key === 'plus')).toHaveLength(2);
   });
 
-  it('Founding annual is cheaper than twelve months of Plus', () => {
-    const monthly = plus('month')!.amountCents * 12;
-    const founding = plus('year', true)!.amountCents;
-    expect(founding).toBeLessThan(monthly);
-    expect(founding).toBeLessThan(plus('year')!.amountCents);
+  it('discounts annual hard enough to be the obvious choice', () => {
+    // Polar takes 5% + 50c, so the flat fee alone is 8% of a $6 charge and 1.4% of
+    // a $36 one. Annual must stay well under twelve months for that to pay off.
+    const twelveMonths = plus('month')!.amountCents * 12;
+    expect(plus('year')!.amountCents).toBeLessThan(twelveMonths * 0.65);
+  });
+
+  it('sells the annual plan at half the monthly rate, needing no first-year discount', () => {
+    // The reason founding was retired: $36 against $72 of monthly is the offer.
+    expect(plus('year')!.amountCents).toBe(plus('month')!.amountCents * 6);
   });
 
   it('prices Connector at $5/mo with NO annual discount', () => {
@@ -119,6 +126,30 @@ describe('pricing model', () => {
     expect(connector('month')?.features).not.toContain('shared_spaces');
   });
 
+  /*
+   * What actually hides Challenges.
+   *
+   * Note that Plus still *grants* the key above — that is deliberate, so every subscriber
+   * already holds a live row and none of them needs a backfill on the day it returns. The
+   * withholding is a separate switch, and it has to be, because dropping a key from a plan
+   * hides nothing: `listActiveFeatureKeys` reads rows from `Entitlements`, so anyone already
+   * holding one keeps their access. That was tried first and left the feature up for exactly
+   * the accounts most likely to be surprised by it.
+   *
+   * Both enforcement points read `isFeatureWithheld` — `hasEntitlementForUserId` on the server
+   * and `useHasFeature` on the client. Deleting this test to make a change pass is the mistake
+   * it exists to catch; remove it when Challenges is deliberately turned back on.
+   */
+  it('challenges is withheld from everyone, whatever they hold', () => {
+    expect(isFeatureWithheld('challenges')).toBe(true);
+    expect(WITHHELD_FEATURES).toContain('challenges');
+    // The paid feature on the same surface must not be caught by the same switch.
+    expect(isFeatureWithheld('review')).toBe(false);
+    expect(isFeatureWithheld('shared_spaces')).toBe(false);
+    // Still a real key, so a row issued before this reads rather than throwing.
+    expect(isFeatureKey('challenges')).toBe(true);
+  });
+
   it('Connector grants no hosting limits', () => {
     expect(isUnlimited(connector('month')!.limits.ownedSpaces)).toBe(false);
     expect(connector('month')!.limits.ownedSpaces).toBe(0);
@@ -127,7 +158,7 @@ describe('pricing model', () => {
 
 describe('founding vs standard product resolution', () => {
   const ENV_KEYS = [
-    'POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL',
+    'POLAR_PLUS_FOUNDING_DISCOUNT_ID',
     'POLAR_PLUS_PRODUCT_MONTHLY',
     'POLAR_PLUS_PRODUCT_ANNUAL',
     'POLAR_CONNECTOR_PRODUCT_MONTHLY',
@@ -149,27 +180,22 @@ describe('founding vs standard product resolution', () => {
     }
   });
 
-  it('founding resolves to the $30 annual product', () => {
-    const founder = foundingPlan();
-    expect(founder?.amountCents).toBe(3000);
-    expect(founder?.productId).toBe('prod_polar_plus_product_founding_annual');
-    expect(isFoundingProductId(founder!.productId)).toBe(true);
+  /**
+   * Retired, and not merely unconfigured: `beforeEach` sets every id in
+   * ENV_KEYS, so a discount id IS present here. It stays null anyway. That is
+   * the assertion worth having — the previous behaviour was "null when the env
+   * var is unset", which would let setting one quietly start discounting again.
+   */
+  it('offers no founding discount, even with a discount id in the environment', () => {
+    expect(process.env.POLAR_PLUS_FOUNDING_DISCOUNT_ID).toBeTruthy();
+    expect(foundingOffer()).toBeNull();
+    // The annual plan is still perfectly sellable at list.
+    expect(planFor('plus', 'year')?.amountCents).toBe(3600);
   });
 
-  it('planFor never returns founding or the unlisted $45 annual — only listed monthly', () => {
-    expect(planFor('plus', 'year')).toBeNull();
-    const standardMonth = planFor('plus', 'month');
-    expect(standardMonth?.amountCents).toBe(500);
-    expect(standardMonth?.founding).toBeUndefined();
-    expect(isFoundingProductId(standardMonth!.productId)).toBe(false);
-  });
-
-  it('standard Plus products are not mistaken for founding', () => {
-    expect(isFoundingProductId(planFor('plus', 'month')!.productId)).toBe(false);
-    const connectorMonth = getPlans().find((p) => p.key === 'connector' && p.interval === 'month');
-    expect(isFoundingProductId(connectorMonth!.productId)).toBe(false);
-    expect(isFoundingProductId('prod_unknown')).toBe(false);
-    expect(isFoundingProductId(null)).toBe(false);
+  it('planFor returns both listed Plus intervals', () => {
+    expect(planFor('plus', 'month')?.amountCents).toBe(600);
+    expect(planFor('plus', 'year')?.amountCents).toBe(3600);
   });
 
   it('keeps Connector in the registry but unlisted until it ships', () => {
@@ -178,8 +204,10 @@ describe('founding vs standard product resolution', () => {
     expect(planFor('connector', 'month')).toBeNull();
   });
 
-  it('the founding product grants the same features as standard Plus', () => {
-    expect(featuresForProductId(foundingPlan()!.productId)).toEqual(
+  it('both Plus intervals buy the same features', () => {
+    // Was asserted through the founding product back when it was one; the point
+    // survives its retirement — interval must never change what you get.
+    expect(featuresForProductId(planFor('plus', 'year')!.productId)).toEqual(
       featuresForProductId(planFor('plus', 'month')!.productId),
     );
   });

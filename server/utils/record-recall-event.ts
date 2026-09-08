@@ -3,7 +3,7 @@
  * When action is open or complete and noteId is set, also bumps spaced-repetition stability.
  */
 
-import { db, RecallEvents } from '../db';
+import { db, first, RecallEvents, Spaces, and, eq, isNull, or, type SQL } from '../db';
 import { nowISO } from '../db/dates';
 import { generateTimestampId } from '@/utils/ids';
 import {
@@ -15,6 +15,8 @@ import {
   type RecallSuppressionAction,
 } from '@/utils/recall-opportunity-kinds';
 import { isRecallEventsTableMissing } from './pg-undefined-relation';
+import { noteTouch, touchNodes } from './study-bible-layer';
+import { RESURFACED_SOURCE } from '@/utils/study-bible-source-copy';
 import { recordNoteRecallEngaged } from './note-recall-state';
 
 export type RecordRecallEventInput = {
@@ -22,6 +24,12 @@ export type RecordRecallEventInput = {
   kind: RecallOpportunityKind;
   action: RecallEventAction;
   noteId?: string | null;
+  /**
+   * The room the reader was standing in. NULL/absent means personal Home — see
+   * the column's own comment for why that is the honest default rather than a
+   * missing value.
+   */
+  spaceId?: string | null;
 };
 
 /** One row's worth of recall history, as returned to the client. */
@@ -79,17 +87,26 @@ export function collapseRecallHistory(
 
 export function validateRecallEventInput(body: unknown): RecordRecallEventInput | null {
   if (!body || typeof body !== 'object') return null;
-  const { opportunityId, kind, action, noteId } = body as Record<string, unknown>;
+  const { opportunityId, kind, action, noteId, spaceId } = body as Record<string, unknown>;
   if (typeof opportunityId !== 'string' || !opportunityId.trim()) return null;
   if (typeof kind !== 'string' || !isRecallOpportunityKind(kind)) return null;
   if (typeof action !== 'string' || !isRecallEventAction(action)) return null;
   if (noteId != null && typeof noteId !== 'string') return null;
   const trimmedNoteId = typeof noteId === 'string' ? noteId.trim() : '';
+  /*
+    Not validated against the reader's memberships, deliberately. This column
+    partitions one person's own suppression history; it grants nothing and is
+    never read across users, so a bogus value can only cost the sender their own
+    cooldowns in a bucket nothing else reads. A membership check here would be a
+    query on the hot write path buying no access control.
+  */
+  const trimmedSpaceId = typeof spaceId === 'string' ? spaceId.trim() : '';
   return {
     opportunityId: opportunityId.trim(),
     kind,
     action,
     noteId: trimmedNoteId || null,
+    spaceId: trimmedSpaceId || null,
   };
 }
 
@@ -102,6 +119,7 @@ export async function recordRecallEvent(userId: string, input: RecordRecallEvent
       kind: input.kind,
       action: input.action,
       noteId: input.noteId ?? null,
+      spaceId: input.spaceId ?? null,
       createdAt: nowISO(),
     });
 
@@ -109,6 +127,16 @@ export async function recordRecallEvent(userId: string, input: RecordRecallEvent
     // is one the suggestion actually led you to write or connect, not merely one you looked at.
     if ((input.action === 'open' || input.action === 'complete') && input.noteId) {
       await recordNoteRecallEngaged(userId, input.noteId);
+      // Arriving through a Home suggestion is still a return, and worth telling apart from
+      // one the reader navigated to themselves when the row later explains why it is there.
+      void touchNodes(userId, [
+        noteTouch({
+          noteId: input.noteId,
+          signal: 'revisit',
+          at: new Date(),
+          sourceLabel: RESURFACED_SOURCE,
+        }),
+      ]);
     }
 
     return true;
@@ -120,4 +148,46 @@ export async function recordRecallEvent(userId: string, input: RecordRecallEvent
     console.error('[recordRecallEvent]', error instanceof Error ? error.message : error);
     return false;
   }
+}
+
+/**
+ * The room predicate for reading one person's suppression history.
+ *
+ * One rule, in one place, because it is easy to state and easy to get subtly wrong: **NULL
+ * means personal Home.** Every row written before `RecallEvents.spaceId` existed came from
+ * there — recall only ever ran in the personal space — so those rows are correct as they
+ * stand and must keep suppressing where they were made. That is what makes the column a
+ * no-backfill change.
+ *
+ * Asked for the personal space (or for nothing), the answer includes NULL rows. Asked for any
+ * other room, it does not: a dismissal made in a life group must not follow you home, and one
+ * made at home must not silence the group.
+ *
+ * The personal check is a real lookup rather than trusting the caller, because "is this my
+ * Home" decides whether a legacy row applies, and a client that guessed wrong would silently
+ * lose or leak a reader's own dismissals.
+ */
+export async function resolveRecallRoomScope(
+  userId: string,
+  requestedSpaceId: string | null,
+): Promise<SQL | undefined> {
+  if (!requestedSpaceId) return isNull(RecallEvents.spaceId);
+
+  const personal = first(
+    await db
+      .select({ id: Spaces.id })
+      .from(Spaces)
+      .where(
+        and(
+          eq(Spaces.id, requestedSpaceId),
+          eq(Spaces.userId, userId),
+          eq(Spaces.type, 'personal'),
+        ),
+      )
+      .limit(1),
+  );
+
+  return personal
+    ? or(isNull(RecallEvents.spaceId), eq(RecallEvents.spaceId, requestedSpaceId))
+    : eq(RecallEvents.spaceId, requestedSpaceId);
 }

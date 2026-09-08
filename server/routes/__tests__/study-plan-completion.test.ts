@@ -121,4 +121,47 @@ describe('privacy holds', () => {
     const near = text.slice(text.lastIndexOf('const own', start), start);
     expect(near).toContain('eq(ThreadProgress.userId, auth.userId)');
   });
+
+  it('the viewer reads only their own opened steps', () => {
+    /*
+      The member's half of what `pulse` tells a leader, and it comes off the
+      same single-row read as their completion — never off `readTogetherPulse`,
+      which counts a room. Asserted the same way: on what stands between the
+      `ThreadProgress` select and the assignment.
+    */
+    const text = withoutComments(threads());
+    const start = text.indexOf('viewerOpenedNoteIds =');
+    expect(start).toBeGreaterThan(-1);
+    const near = text.slice(text.lastIndexOf('const own', start), start);
+    expect(near).toContain('eq(ThreadProgress.userId, auth.userId)');
+    expect(near).not.toContain('readTogetherPulse');
+  });
+});
+
+describe('a member counts against the whole plan, not a page of it', () => {
+  it('narrows the viewer’s opened steps to the live plan on the server', () => {
+    /*
+      `sequence.total` is resolved against every note in the Thread. The opened
+      ids have to be narrowed against that same list here, because the client
+      holds one page and would otherwise report "3 of 20" on a twenty-five step
+      plan — the denominator and the numerator would be counting different
+      things.
+    */
+    const text = withoutComments(threads());
+    const start = text.indexOf('viewerOpenedNoteIds =');
+    expect(start).toBeGreaterThan(-1);
+    const line = text.slice(start, text.indexOf('\n', start));
+    expect(line).toContain('parseSequenceNoteIds');
+    expect(line).toContain('liveSet');
+    // Built from the same list the step count is resolved from.
+    expect(text).toContain('const liveSet = new Set(liveNoteIds)');
+    expect(text).toContain('resolveSequenceState(sequenceThread, liveNoteIds)');
+  });
+
+  it('still never derives completion from what was opened', () => {
+    // The two now travel in the same payload, which is exactly when they are
+    // easiest to conflate.
+    const block = routeBlock('complete');
+    expect(block).not.toContain('viewerOpenedNoteIds');
+  });
 });

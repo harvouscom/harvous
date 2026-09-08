@@ -24,13 +24,16 @@ export function usePopoverDismiss<T extends HTMLElement = HTMLDivElement>(initia
       if (el && e.target instanceof Node && !el.contains(e.target)) setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key !== 'Escape') return;
+      /* See the note on the capture phase in `useDismissOnOutside` below — same bargain. */
+      e.preventDefault();
+      setOpen(false);
     };
     document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, { capture: true });
     return () => {
       document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown, { capture: true } as EventListenerOptions);
     };
   }, [open]);
 
@@ -83,13 +86,29 @@ export function useDismissOnOutside<T extends HTMLElement = HTMLElement>(
       onDismissRef.current();
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (dismissOnEscape && e.key === 'Escape') onDismissRef.current();
+      if (!dismissOnEscape || e.key !== 'Escape') return;
+      /*
+       * Claim the key, so whatever this overlay sits on top of does not also close.
+       *
+       * Surfaces that close on Escape check `defaultPrevented` first — the search panel says
+       * so in as many words, "the search field, inner menus and confirm dialogs consume
+       * Escape first" — but nothing here was consuming it, so one press dismissed the sheet
+       * *and* the panel behind it, losing your place along with the dialog you meant to back
+       * out of.
+       *
+       * Marking it is only half the fix: those surfaces listen on `document`, and in the
+       * bubble phase `document` fires before `window`, so a mark set here would arrive after
+       * they had already acted. Hence capture, which runs window-first — the overlay in
+       * front gets to answer for the key before the thing behind it does.
+       */
+      e.preventDefault();
+      onDismissRef.current();
     };
     window.addEventListener('pointerdown', onPointerDown, { capture: true });
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, { capture: true });
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, { capture: true } as EventListenerOptions);
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown, { capture: true } as EventListenerOptions);
     };
   }, [ref, enabled, ignoreSelector, dismissOnEscape]);
 }

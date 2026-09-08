@@ -6,6 +6,10 @@ const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf
 
 describe('resource library route contracts', () => {
   const route = () => source('server/routes/library.ts');
+  // Extracted out of the route module — Discover's pack install needed the same
+  // race-safe "ensure a personal library" logic and a module-private function
+  // has exactly one caller by construction.
+  const ensureLib = () => source('server/utils/ensure-personal-library.ts');
 
   it('resolves ownership through the library rather than trusting the request', () => {
     const text = route();
@@ -16,9 +20,13 @@ describe('resource library route contracts', () => {
     expect(text).toContain('eq(ResourceLibraries.ownerId, userId)');
   });
 
+  it('calls the shared, race-safe library creator rather than inserting inline', () => {
+    expect(route()).toContain('ensurePersonalLibrary');
+  });
+
   it('creates the library lazily and survives a concurrent first save', () => {
-    const text = route();
-    expect(text).toContain('async function ensurePersonalLibrary');
+    const text = ensureLib();
+    expect(text).toContain('export async function ensurePersonalLibrary');
     expect(text).toContain('isUniqueViolationError');
     // Losing the unique-index race must re-read the winner, not throw or fork a
     // second library.

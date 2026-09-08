@@ -481,7 +481,17 @@ export function sermonTimeLabel(
  * time that a published study does not have.
  */
 export type PlanVocabulary = {
-  /** The primary action's label. */
+  /**
+   * The primary action's label.
+   *
+   * **"New ‹noun›", not "Add a ‹noun›".** The app draws a line between the two
+   * verbs everywhere else: `New series`, `New channel`, `New folder`,
+   * `New Thread`, `New space` all make a thing, while `Add a resource`,
+   * `Add a tag`, `Add folder` put an existing thing somewhere. This makes one,
+   * so it says New — and the Planner header stopped using both verbs at once
+   * for the same kind of act, which is what it did while this read
+   * "Add a gathering" beside "New series".
+   */
   addLabel: string;
   /**
    * What the primary action opens.
@@ -504,6 +514,15 @@ export type PlanVocabulary = {
   emptyWritable: string;
   /** One entry, lowercase, for mid-sentence use. */
   itemNoun: string;
+  /**
+   * Why this viewer cannot change the plan, when the reason is their role.
+   *
+   * Scope-aware for the same reason every other string here is: "a pastor or
+   * admin" is a church's answer, and a book club that meets on Tuesdays has
+   * neither. The *lapsed* sentence stays hard-coded at the call sites — it is
+   * a fact about a church's plan, and a room without one can no longer reach it.
+   */
+  readOnlyRole: string;
 };
 
 export function planVocabulary(
@@ -520,7 +539,7 @@ export function planVocabulary(
 ): PlanVocabulary {
   if (!scope.onSpacePlan) {
     return {
-      addLabel: 'Add a sermon',
+      addLabel: 'New sermon',
       addOpens: 'entry',
       /* The church-wide lane cannot publish a study directly, and that refusal
          is considered rather than missing: the church plan has no single room
@@ -529,6 +548,7 @@ export function planVocabulary(
       secondaryAddLabel: null,
       emptyWritable: 'Plan a sermon and everyone connected to your church sees it on their Home.',
       itemNoun: 'sermon',
+      readOnlyRole: 'A pastor or admin changes what is planned here.',
     };
   }
   if (scope.planKind === 'content') {
@@ -536,21 +556,22 @@ export function planVocabulary(
       /* The study is the object, so it is the primary verb. A channel's usual
          work is a run of weeks — and a run is the thing that can be published
          as a study plan the congregation walks. */
-      addLabel: 'Add a study',
+      addLabel: 'New study',
       addOpens: 'series',
       /* A one-off still has to be possible: a devotional or a single notice is
          not a study, and demoting it is not the same as removing it. */
-      secondaryAddLabel: 'Add a single entry',
+      secondaryAddLabel: 'New single entry',
       /* Since material published here can claim a service, this plan finally
          has an output to promise. Before that it deliberately promised nothing,
          because nothing congregant-facing read these rows. */
       emptyWritable:
         'Plan what this channel publishes. Attach a study to a service and your congregation finds it under that week.',
       itemNoun: 'entry',
+      readOnlyRole: 'A pastor or admin changes what this channel publishes.',
     };
   }
   return {
-    addLabel: 'Add a gathering',
+    addLabel: 'New gathering',
     addOpens: 'entry',
     secondaryAddLabel: null,
     emptyWritable:
@@ -558,6 +579,7 @@ export function planVocabulary(
         ? 'Plan what this group studies. Everyone in the space sees what is coming up.'
         : 'Plan what this ministry studies. Its members see it inside the space.',
     itemNoun: 'gathering',
+    readOnlyRole: 'Whoever leads this space arranges its plan.',
   };
 }
 

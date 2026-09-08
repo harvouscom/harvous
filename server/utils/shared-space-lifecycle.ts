@@ -10,6 +10,7 @@ import {
   SpaceMemberships,
   SpaceInvites,
   SpaceInvitations,
+  SpaceStudySuggestions,
   Members,
   StudyThreadEntries,
   ChurchSeries,
@@ -510,6 +511,18 @@ export async function removeMemberPreservingResponses(
         );
     }
   }
+  /* Their open suggestions leave with them — nobody can follow up on a
+     proposal from someone who is gone. Reviewed ones stay: they are the room's
+     record, and an accepted one already became a Thread. */
+  await tx
+    .delete(SpaceStudySuggestions)
+    .where(
+      and(
+        eq(SpaceStudySuggestions.spaceId, input.spaceId),
+        eq(SpaceStudySuggestions.suggestedByUserId, input.targetUserId),
+        eq(SpaceStudySuggestions.status, 'open'),
+      ),
+    );
   await tx
     .delete(SpaceMemberships)
     .where(
@@ -798,6 +811,7 @@ export async function purgeExpiredDeletedSpaces(
       await tx.delete(StudyThreadEntries).where(eq(StudyThreadEntries.spaceId, spaceId));
       await tx.delete(NoteConnections).where(eq(NoteConnections.spaceId, spaceId));
       await tx.delete(SpaceNotes).where(eq(SpaceNotes.spaceId, spaceId));
+      await tx.delete(SpaceStudySuggestions).where(eq(SpaceStudySuggestions.spaceId, spaceId));
       await tx.delete(Threads).where(eq(Threads.spaceId, spaceId));
       await tx.delete(SpaceInvites).where(eq(SpaceInvites.spaceId, spaceId));
       await tx.delete(SpaceInvitations).where(eq(SpaceInvitations.spaceId, spaceId));

@@ -20,11 +20,13 @@ import {
   customerIdFromPolarData,
   subscriptionStatusFromPolarData,
   churchIdFromPolarData,
+  discountIdFromPolarData,
 } from '../utils/polar-webhook';
 import {
   applyPolarSubscriptionEntitlement,
   setPolarCustomerId,
   getPolarCustomerId,
+  markFoundingClaimed,
 } from '../utils/entitlements';
 import {
   applyChurchSubscription,
@@ -32,7 +34,7 @@ import {
 } from '../utils/church-entitlement';
 import { getActiveChurchByOrgId } from '../utils/church-staff';
 import { syncChurchStaffForOrg } from '../utils/church-staff-sync';
-import { planForProductId, isChurchProductId } from '@/lib/billing-plans';
+import { planForProductId, isChurchProductId, foundingOffer } from '@/lib/billing-plans';
 import { db, first, UserMetadata, eq } from '../db';
 
 const app = new Hono();
@@ -535,6 +537,13 @@ app.post('/api/webhooks/polar', async (c) => {
     if (intent === 'enable') {
       if (productId && planForProductId(productId)) {
         await applyPolarSubscriptionEntitlement({ userId, productId, subscriptionId, enabled: true });
+      }
+      // Founding rides the standard annual product with a `duration: once`
+      // discount, so this event is the only place the claim is visible. Stamped
+      // once and never cleared — see UserMetadata.foundingClaimedAt.
+      const offer = foundingOffer();
+      if (offer && discountIdFromPolarData(data) === offer.discountId) {
+        await markFoundingClaimed(userId);
       }
     } else {
       // disable — clear this product's rows, or all billing rows if no product on the event.

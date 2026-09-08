@@ -1,15 +1,26 @@
 /**
- * Grant and revoke leadership of one church space.
+ * Grant and revoke leadership of one space.
  *
  * The volunteer path: a youth leader who is not one of the church's ≤20 Clerk
  * staff can be given the Youth channel — publish, structure, and its teaching
  * plan — and nothing else. See `server/utils/church-space-leaders.ts` for the
  * boundary this must never cross.
  *
- * Separate from `spaces.ts`'s member routes on purpose. Those are the personal
- * shared-space model (owner removes members, paid add-on, `type='shared'`
- * only); this is a church act on a church room, gated by church capabilities,
- * and conflating them would put a church rule inside a personal-space file.
+ * **Two lanes now**, and the handlers below are written not to care which. A
+ * churchless Shared Space grants on its owner's authority alone; everything
+ * church-specific lives in `assertCanGrantSpaceLeadership`, so widening the
+ * gate widened the feature without a second copy of the promote/demote rules —
+ * which, on an authorization path, is the whole point.
+ *
+ * The `/api/church/` prefix therefore now serves a room with no church, exactly
+ * as `/api/church/spaces/:spaceId/plan` already does. Following that precedent
+ * beat minting a second path: one implementation of who-may-promote is worth
+ * more than a tidy namespace.
+ *
+ * Still separate from `spaces.ts`'s member routes on purpose. Those are the
+ * membership model (owner removes members, paid add-on, invites); this is
+ * authority over a room, and conflating them is how a role check ends up
+ * inside a billing file.
  *
  * Endpoints:
  *   POST /api/church/spaces/:spaceId/leaders/grant   { userId }
@@ -78,9 +89,21 @@ app.post('/api/church/spaces/:spaceId/leaders/grant', requireAuth, rateLimit('wr
         out of the roster sweep's hands, so removing them from Clerk staff
         would silently leave them leading. Their leadership is already correct;
         it just belongs to the sync.
+
+        Unreachable in the space lane — nothing writes a leader row there but
+        this route, and it always stamps `grantSource`. The wording still turns
+        on the lane rather than asserting that: a message that names church
+        staff to a life group would be nonsense the day something else writes
+        one of these rows.
       */
       return c.json(
-        { error: 'They already lead this space as church staff', code: 'STAFF_LEADER' },
+        {
+          error:
+            gate.lane === 'church'
+              ? 'They already lead this space as church staff'
+              : 'They already lead this space',
+          code: 'STAFF_LEADER',
+        },
         409,
       );
     }
@@ -132,9 +155,11 @@ app.post('/api/church/spaces/:spaceId/leaders/revoke', requireAuth, rateLimit('w
       return c.json(
         {
           error:
-            membership.role === 'leader'
-              ? 'They lead this space as church staff. Change their role on the Team instead.'
-              : 'They do not lead this space',
+            membership.role !== 'leader'
+              ? 'They do not lead this space'
+              : gate.lane === 'church'
+                ? 'They lead this space as church staff. Change their role on the Team instead.'
+                : 'They do not lead this space',
           code: membership.role === 'leader' ? 'STAFF_LEADER' : 'NOT_A_LEADER',
         },
         409,

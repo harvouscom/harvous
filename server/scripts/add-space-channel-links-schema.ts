@@ -15,6 +15,7 @@
 import 'dotenv/config';
 import postgres from 'postgres';
 import { pathToFileURL } from 'node:url';
+import { requireDbTarget } from '../utils/require-db-target';
 
 export const ADDITIVE_SPACE_CHANNEL_LINKS_DDL = [
   `CREATE TABLE IF NOT EXISTS "ChurchSpaceChannelLinks" (
@@ -50,6 +51,8 @@ export async function runAddSpaceChannelLinksSchema(
     console.log('[channel-links:schema] review, then re-run with --apply');
     return;
   }
+  // Only past the dry run: printing the DDL connects to nothing.
+  requireDbTarget({ scriptName: 'channel-links:schema', writes: true, argv, env });
 
   const databaseUrl = env.SUPABASE_DIRECT_URL?.trim();
   if (!databaseUrl) {

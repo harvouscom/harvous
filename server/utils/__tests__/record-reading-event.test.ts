@@ -98,8 +98,29 @@ describe('collapseReadingHistory', () => {
         chapter: 15,
         dwellBucket: 'study',
         createdAt: '2026-08-14T10:00:00.000Z',
+        // Opened today, last actually *read* a week ago. Both facts are kept, because a card
+        // saying "you read this today" on the strength of a three-second glance is built on
+        // nothing, and neither the bucket nor `createdAt` can be asked which day that was.
+        lastReadAt: '2026-08-07T10:00:00.000Z',
       },
     ]);
+  });
+
+  it('leaves lastReadAt null for a chapter only ever glanced at', () => {
+    const entries = collapseReadingHistory([
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'glance', createdAt: '2026-08-14T10:00:00.000Z' },
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'glance', createdAt: '2026-08-13T10:00:00.000Z' },
+    ]);
+    expect(entries[0]?.lastReadAt).toBeNull();
+  });
+
+  it('takes the newest read, not the newest row, since rows arrive newest-first', () => {
+    const entries = collapseReadingHistory([
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'glance', createdAt: '2026-08-14T10:00:00.000Z' },
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'read', createdAt: '2026-08-12T10:00:00.000Z' },
+      { book: 'John', bookOrder: 42, chapter: 15, dwellBucket: 'study', createdAt: '2026-08-07T10:00:00.000Z' },
+    ]);
+    expect(entries[0]?.lastReadAt).toBe('2026-08-12T10:00:00.000Z');
   });
 
   it('drops rows it cannot read rather than emitting a broken entry', () => {

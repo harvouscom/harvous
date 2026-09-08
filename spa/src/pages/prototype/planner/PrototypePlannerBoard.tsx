@@ -136,7 +136,7 @@ export default function PrototypePlannerBoard({
   serviceTimes,
   accentFor,
   canWrite,
-  readOnlyReason,
+  readOnlyMessage,
   defaultDay,
   selection,
   onSelect,
@@ -147,7 +147,8 @@ export default function PrototypePlannerBoard({
   /** Shared with the other views so one run is one colour everywhere. */
   accentFor: (seriesId: string | null | undefined) => SpaceCoverPickerColor | null;
   canWrite: boolean;
-  readOnlyReason: 'lapsed' | 'role' | null;
+  /** The resolved sentence, or null when the viewer may write. */
+  readOnlyMessage: string | null;
   defaultDay: number | null;
   selection: PlannerSelection;
   onSelect: (selection: PlannerSelection) => void;
@@ -269,6 +270,13 @@ export default function PrototypePlannerBoard({
           toolbar control that had drifted into the canvas, and had nowhere to
           breathe. Dashed and unfilled: it is where the plan could go, not a
           week that exists.
+
+          A caret, not a plus. Every other plus on this board creates a row;
+          this one only scrolls the board further out, and wearing the same
+          glyph made it the eleventh identical-looking add button on a screen
+          that already had ten. It is also the one control here that is not
+          gated on `canWrite` — correctly, since looking further ahead is not
+          editing, which is another reason it should not look like adding.
         */}
         <button
           type="button"
@@ -276,17 +284,15 @@ export default function PrototypePlannerBoard({
           onClick={() => setWeekCount((count) => count + WEEKS_STEP)}
         >
           <span className="proto-planner-board__more-label">
-            <Icon name="plus" size={12} aria-hidden />
+            <Icon name="caret-right" size={12} aria-hidden />
             {WEEKS_STEP} more weeks
           </span>
         </button>
       </div>
 
-      {readOnlyReason ? (
+      {readOnlyMessage ? (
         <p className="proto-caption proto-planner__readonly" role="status">
-          {readOnlyReason === 'lapsed'
-            ? 'This plan is read-only while the church pilot is paused.'
-            : 'A pastor or admin changes what is planned here.'}
+          {readOnlyMessage}
         </p>
       ) : null}
 

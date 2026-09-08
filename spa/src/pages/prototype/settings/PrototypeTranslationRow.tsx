@@ -15,7 +15,7 @@
  * positioned so a row starting or finishing a download never reflows the list.
  *
  * Presentational on purpose — every piece of state arrives as a prop. That is what lets the
- * design gallery render all five states side by side without a profile, a network or a
+ * design gallery render all six states side by side without a profile, a network or a
  * pack store, and it is why this row can be looked at rather than only reasoned about.
  */
 import Icon from '@/components/react/Icon';
@@ -23,10 +23,12 @@ import Icon from '@/components/react/Icon';
 export type TranslationRowState =
   /** No copy, and room to make one. */
   | { kind: 'available' }
-  /** No copy, and the pack limit is already spent. */
+  /** No copy, and the pack limit is already spent — the save control is present but off. */
   | { kind: 'blocked' }
   /** Saving now. */
   | { kind: 'saving'; booksSaved: number; booksTotal: number }
+  /** Asked for, waiting behind another download. Packs transfer one at a time. */
+  | { kind: 'queued' }
   /** Stopped or interrupted part-way — why some chapters open on a plane and others don't. */
   | { kind: 'partial'; booksSaved: number; booksTotal: number }
   /** The whole thing is on the device. */
@@ -52,6 +54,9 @@ export type PrototypeTranslationRowProps = {
  */
 function statusLabel(state: TranslationRowState): string | null {
   if (state.kind === 'saving') return `Saving ${state.booksSaved} of ${state.booksTotal}`;
+  /* Says why nothing is moving. A queued row with no word for it looks like a download that
+     started and stalled — which is the reading the old single-slot flicker also invited. */
+  if (state.kind === 'queued') return 'Waiting to save';
   if (state.kind === 'partial') return `${state.booksSaved} of ${state.booksTotal} saved`;
   return null;
 }
@@ -146,7 +151,9 @@ export default function PrototypeTranslationRow({
         </button>
 
         <div className="proto-translation-row__offline">
-          {state.kind === 'saving' ? (
+          {state.kind === 'saving' || state.kind === 'queued' ? (
+            /* One word for both: leaving the queue and stopping the transfer are the same
+               intent, and the row should not rename its button when its turn comes up. */
             <button type="button" className="proto-translation-row__action" onClick={onStop}>
               Stop
             </button>
@@ -169,14 +176,31 @@ export default function PrototypeTranslationRow({
                 Remove
               </button>
             </>
-          ) : state.kind === 'available' ? (
-            <button type="button" className="proto-translation-row__action" onClick={onSave}>
+          ) : (
+            /*
+             * The same button either way — blocked only disables it.
+             *
+             * Blocked used to render the sentence "Remove one first" in place of the button,
+             * which meant starting one download rewrote every other row on the page: eight
+             * buttons vanished and eight sentences appeared, at a different width, because of
+             * a press on a ninth. One action should not restyle the list it was taken in.
+             *
+             * The reason is not lost, it moves to the button's `title` — where a disabled
+             * control's explanation belongs, and where it does not cost the row a layout.
+             */
+            <button
+              type="button"
+              className="proto-translation-row__action"
+              onClick={onSave}
+              disabled={state.kind === 'blocked'}
+              title={
+                state.kind === 'blocked'
+                  ? 'Remove another translation first — three can be kept offline at once'
+                  : undefined
+              }
+            >
               Save offline
             </button>
-          ) : (
-            /* Not an action — why there isn't one. Stays in the trailing slot so the column
-               of controls does not develop a hole. */
-            <span className="pds-caption proto-translation-row__status">Remove one first</span>
           )}
         </div>
       </div>

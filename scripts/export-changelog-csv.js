@@ -101,18 +101,24 @@ function formatWebflowDate(date) {
   return `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${pad(d.getUTCDate())} ${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} GMT+0000 (Coordinated Universal Time)`;
 }
 
-function categoryIntro(category) {
-  switch (category) {
-    case "Feature":
-      return "We've added a new feature: ";
-    case "Fix":
-      return "We've fixed an issue: ";
-    case "Improvement":
-      return "We've made an improvement: ";
-    default:
-      return "";
-  }
-}
+/**
+ * No prose prefix any more.
+ *
+ * This used to return "We've added a new feature: ", "We've fixed an issue: " or "We've made an
+ * improvement: " to open the published description. Two things were wrong with it.
+ *
+ * It duplicated the row: every entry already carries a `Category` column with exactly that
+ * classification, so the sentence restated in prose what the field next to it already said.
+ *
+ * Worse, it asserted a shape the subject often did not have. "We've added a new feature: $6/mo
+ * and $36/yr, and the founding discount retired" published a price *cut* as an addition, and
+ * "We've fixed an issue: The font control says what it changes, and where" reads as a bug
+ * report about a sentence that is describing the new label. The prefix was chosen from the
+ * commit type, which says how the change was committed, not what happened to the reader.
+ *
+ * The description is now the subject alone. Still a commit subject — the honest fix for that is
+ * a human or /marketing-agent rewriting the row, which is why these export as `Draft: true`.
+ */
 
 function capitalizeFirst(text) {
   if (!text) return text;
@@ -129,10 +135,9 @@ function createSlug(name, version, index) {
   return `${base}-${hash}`;
 }
 
-function buildCommitMessageHtml(title, category) {
-  const intro = categoryIntro(category);
+function buildCommitMessageHtml(title) {
   const line = capitalizeFirst(title.replace(/^-\s*/, "").trim());
-  return `<p>${intro}${line}</p>`;
+  return `<p>${line}</p>`;
 }
 
 function inferCategoryFromLine(line) {
@@ -181,20 +186,72 @@ function rowFingerprint(version, title) {
   return `${version}\n${title.toLowerCase().trim()}`;
 }
 
+/**
+ * The second way to recognise a row that is already published.
+ *
+ * A title can be edited in the CSV after export — harvous.com did it in b6fbf6d,
+ * rewriting "$6/mo and $36/yr, and the founding discount retired" to the clearer
+ * "Harvous Plus is now $6/mo or $36/yr". The version+title fingerprint stopped
+ * matching, so every later sync re-added the original wording and the release
+ * note listed one price change twice.
+ *
+ * Such an edit changes the Name column and leaves Slug alone, so the slug still
+ * identifies the row. This is checked in ADDITION to the title, never instead of
+ * it: a slug is derived from the title (createSlug hashes version:index:name),
+ * so rewording the changelog file itself still produces a new slug and this test
+ * would not catch it. Both together only ever skip more rows than before, which
+ * is why adding it cannot resurrect the legacy backlog.
+ */
+function slugFingerprint(slug) {
+  return `slug\n${slug.toLowerCase().trim()}`;
+}
+
 function loadExistingFingerprints(csvText) {
   const rows = parseCsvRows(csvText);
   const headers = rows[0] ?? [];
   const versionIdx = headers.indexOf("Version Number");
   const nameIdx = headers.indexOf("Name");
+  const slugIdx = headers.indexOf("Slug");
   const seen = new Set();
 
   for (const values of rows.slice(1)) {
     const version = values[versionIdx]?.trim();
     const name = values[nameIdx]?.trim();
+    const slug = values[slugIdx]?.trim();
     if (version && name) seen.add(rowFingerprint(version, name));
+    if (slug) seen.add(slugFingerprint(slug));
   }
 
   return seen;
+}
+
+/**
+ * How far back a backfill may reach for a version the high-water mark skipped.
+ *
+ * Fourteen days is a long-lived feature branch and not much more. It has to be
+ * a window rather than "any version missing from the CSV", because this CSV
+ * began as a Webflow export and never covered the early history — treating
+ * absence as "unpublished" re-exports 888 rows of 0.x.
+ */
+const BACKFILL_RECOVERY_MS = 14 * 24 * 60 * 60 * 1000;
+
+function releaseDateOf(filepath) {
+  const match = readFileSync(filepath, "utf-8").match(/\*\*Release Date\*\*:\s*(.+)/i);
+  const parsed = match ? Date.parse(match[1].trim()) : NaN;
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function maxDateInCsv(csvText) {
+  const rows = parseCsvRows(csvText);
+  const dateIdx = (rows[0] ?? []).indexOf("Date");
+  let max = 0;
+
+  for (const values of rows.slice(1)) {
+    const parsed = Date.parse(values[dateIdx] ?? "");
+    if (!Number.isNaN(parsed) && parsed > max) max = parsed;
+  }
+
+  return max;
 }
 
 function maxVersionInCsv(csvText) {
@@ -261,7 +318,7 @@ function parseCsvRows(text) {
 
 function buildCsvRow({ title, slug, version, date, category }) {
   const webflowDate = formatWebflowDate(date);
-  const html = buildCommitMessageHtml(title, category);
+  const html = buildCommitMessageHtml(title);
   const itemId = randomBytes(12).toString("hex");
 
   return [
@@ -327,12 +384,27 @@ export function exportChangelogToMarketingSite(options = {}) {
   const csvText = readFileSync(csvPath, "utf-8").trimEnd();
   const seen = loadExistingFingerprints(csvText);
   const minVersion = backfill ? maxVersionInCsv(csvText) : null;
+  const minDate = backfill ? maxDateInCsv(csvText) - BACKFILL_RECOVERY_MS : null;
 
   const files = listChangelogFiles(changelogDir).filter((filepath) => {
     const v = basename(filepath, ".md");
     if (version) return v === version;
     // >= so a new Changelog/2.0.3.md still exports when legacy 2.0.3 rows exist in CSV.
-    if (backfill && minVersion) return compareSemver(v, minVersion) >= 0;
+    if (backfill && minVersion) {
+      if (compareSemver(v, minVersion) >= 0) return true;
+      /*
+        A branch cut before main moved on merges with version numbers already
+        below the mark, and the mark only ever goes up — so those files were
+        skipped permanently rather than late. That is how 3.3.3 through 3.3.11
+        (the whole Reminders release) never reached the site: 3.4.0 shipped
+        from another branch and synced first, and nine rows fell under it.
+
+        Dates are monotonic across branches where version numbers are not, so
+        the recovery window is a date. The row fingerprint still decides what
+        is actually new, and this only widens what gets considered.
+      */
+      return releaseDateOf(filepath) >= minDate;
+    }
     return false;
   });
 
@@ -347,8 +419,9 @@ export function exportChangelogToMarketingSite(options = {}) {
     const rows = changelogRowsFromFile(filepath);
     for (const row of rows) {
       const fp = rowFingerprint(row.version, row.title);
-      if (seen.has(fp)) continue;
+      if (seen.has(fp) || seen.has(slugFingerprint(row.slug))) continue;
       seen.add(fp);
+      seen.add(slugFingerprint(row.slug));
       newLines.push(buildCsvRow(row));
     }
   }

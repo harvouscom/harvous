@@ -10,6 +10,14 @@ export interface ReadingHistoryChapter {
   chapter: number;
   dwellBucket: ReadingDwellBucket;
   createdAt: string;
+  /**
+   * When it was last actually read, glances excluded. Null for a chapter only ever glanced at.
+   *
+   * Optional because a client can be newer than the server it is talking to, and a card that
+   * reads "you read this today" must not appear on the strength of a field that arrived
+   * undefined.
+   */
+  lastReadAt?: string | null;
 }
 
 interface ReadingHistoryResponse {

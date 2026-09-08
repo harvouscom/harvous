@@ -33,6 +33,7 @@ import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { PROTO_RESOURCE_MORPH_MS } from '../../layouts/proto-motion';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
+import PrototypeLibrarySegmented from './library-panel/PrototypeLibrarySegmented';
 import ProtoChipBar from './components/ProtoChipBar';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
 import {
@@ -906,10 +907,20 @@ export default function PrototypeResourceLibraryList({
   query,
   onOpenResource,
   spaceId = null,
+  shelfFilterAs = 'chips',
 }: {
   /** Sidebar search text — filters by title, site name, and domain. */
   query: string;
   onOpenResource: (item: LibraryItem) => void;
+  /**
+   * How the shelf filter is drawn.
+   *
+   * The choice is the same either way — one of three shelves, exactly one on — so this is
+   * about width, not about the control. The sidebar's rail is 304px and "Church Library"
+   * beside two siblings only fits as chips that wrap; the panel is 640px, where a switch
+   * makes the partition obvious at a glance and matches the one above its other tabs.
+   */
+  shelfFilterAs?: 'chips' | 'switch';
   /**
    * Set when the list is scoped to a shared space ("This space"). The personal
    * and church shelves are what "My Home" means, so they are a different scope
@@ -1288,12 +1299,21 @@ export default function PrototypeResourceLibraryList({
               one list to begin with; the other two are for when you know which
               shelf you want. */}
           {showSections ? (
-            <ProtoChipBar
-              ariaLabel="Which resources"
-              options={sourceTabs}
-              selectedId={sourceTab}
-              onSelect={setSourceTab}
-            />
+            shelfFilterAs === 'switch' ? (
+              <PrototypeLibrarySegmented
+                options={sourceTabs}
+                value={sourceTab}
+                onChange={setSourceTab}
+                label="Which resources"
+              />
+            ) : (
+              <ProtoChipBar
+                ariaLabel="Which resources"
+                options={sourceTabs}
+                selectedId={sourceTab}
+                onSelect={setSourceTab}
+              />
+            )
           ) : null}
 
           {/* One list, newest first. No headings: every row names its own shelf

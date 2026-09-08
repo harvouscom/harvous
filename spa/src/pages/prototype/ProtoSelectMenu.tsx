@@ -16,7 +16,7 @@
  * Portaled and fixed-positioned like its siblings, so an ancestor with
  * `overflow: hidden` — every sheet and rail in this app — cannot clip it.
  */
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import ProtoPopoverShell from './ProtoPopoverShell';
@@ -41,7 +41,21 @@ export type ProtoSelectOption<T extends string | number> = {
    * question. Omit it and the menu is a flat list exactly as before.
    */
   group?: string;
+  /**
+   * A mark shown before the label — a space's colour tile, a house, a glyph.
+   *
+   * For menus whose rows are *places* rather than settings: the note destination picker
+   * proved that a coloured tile is how someone finds their own space in a list, well before
+   * they have read its name. Omit it and rows are label-only exactly as before.
+   */
+  icon?: ReactNode;
 };
+
+/**
+ * Past this many rows, scanning beats reading — the note destination picker's threshold,
+ * shared so two menus of the same spaces do not disagree about when a list got long.
+ */
+export const PROTO_SELECT_FILTER_THRESHOLD = 5;
 
 export default function ProtoSelectMenu<T extends string | number>({
   value,
@@ -52,7 +66,9 @@ export default function ProtoSelectMenu<T extends string | number>({
   className,
   menuWidth,
   menuClassName,
+  footer,
   groupsAsTabs = false,
+  filterPlaceholder,
 }: {
   value: T;
   options: ProtoSelectOption<T>[];
@@ -66,13 +82,36 @@ export default function ProtoSelectMenu<T extends string | number>({
   /** Extra class on the popover, for callers whose options are not a list of labels. */
   menuClassName?: string;
   /**
+   * Rendered as its own section under the options.
+   *
+   * For a verb that belongs *with* a picker without being one of its answers — the library
+   * panel's "Select multiple folders" sits under the kind list the way the sidebar's
+   * `ListViewMenu` puts "Select Threads" under its view modes. Its own section rather than an
+   * extra option, because an option would read as a seventh kind rather than as a mode you
+   * enter, and picking it would leave the trigger claiming it as the current value.
+   *
+   * Takes the close handle rather than a plain node: a footer action is still a choice made
+   * in this menu, and leaving it open afterwards would be the one row here that does not
+   * behave like the rest.
+   */
+  footer?: (close: () => void) => ReactNode;
+  /**
    * Render the groups as a segmented control showing one at a time, rather than as headings
    * down a single scroll. For a list where the groups partition it evenly and you always know
    * which half you want — the testaments — two taps beat scrolling past the other thirty.
    */
   groupsAsTabs?: boolean;
+  /**
+   * Offer a filter field once the list passes `PROTO_SELECT_FILTER_THRESHOLD`.
+   *
+   * Placeholder doubles as the opt-in: a menu of five settings does not want a search box,
+   * and a menu of twenty spaces is unusable without one.
+   */
+  filterPlaceholder?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const filterInputRef = useRef<HTMLInputElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
@@ -82,7 +121,18 @@ export default function ProtoSelectMenu<T extends string | number>({
   const selected = options.find((option) => option.value === value) ?? options[0];
   const width = menuWidth ?? FALLBACK_WIDTH;
 
-  const sections = useMemo(() => groupOptions(options), [options]);
+  /*
+   * Filtering happens before grouping, so a heading whose rows all filtered out goes with
+   * them rather than sitting over an empty run.
+   */
+  const showFilter = Boolean(filterPlaceholder) && options.length > PROTO_SELECT_FILTER_THRESHOLD;
+  const filtered = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!showFilter || !q) return options;
+    return options.filter((option) => option.label.toLowerCase().includes(q));
+  }, [filter, options, showFilter]);
+
+  const sections = useMemo(() => groupOptions(filtered), [filtered]);
   /*
    * Opens on the tab holding the current value, so the book you are in is on screen rather
    * than one tap away. Re-keyed on that value, not held in state across opens: reopening the
@@ -103,6 +153,7 @@ export default function ProtoSelectMenu<T extends string | number>({
     if (!open) {
       setPos(null);
       setActiveTab(null);
+      setFilter('');
       return undefined;
     }
     const update = () => {
@@ -242,6 +293,45 @@ export default function ProtoSelectMenu<T extends string | number>({
                 zIndex: 6000,
               }}
             >
+              {showFilter ? (
+                <div className="proto-note-destination__filter">
+                  <input
+                    ref={filterInputRef}
+                    type="search"
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    placeholder={filterPlaceholder}
+                    aria-label={filterPlaceholder}
+                    /* The menu is already focused for keyboard nav; typing should reach the
+                       field without a tab, the way the destination picker's does. */
+                    autoFocus
+                  />
+                  {/*
+                    The app's own clear, not the platform's. A bare `type="search"` renders
+                    WebKit's cancel button, which is a blue glyph of its own size and shape
+                    sitting inside a surface that draws every other control itself — see the
+                    `::-webkit-search-cancel-button` reset this field now shares with the
+                    sidebar's field. Focus goes back to the input, because clearing a filter
+                    is something you do in order to type again.
+                  */}
+                  {filter ? (
+                    <button
+                      type="button"
+                      className="proto-sidebar-search__clear"
+                      aria-label="Clear filter"
+                      onClick={() => {
+                        setFilter('');
+                        filterInputRef.current?.focus();
+                      }}
+                    >
+                      <Icon name="circle-xmark" size={15} aria-hidden />
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              {showFilter && filtered.length === 0 ? (
+                <p className="proto-note-destination__hint">No spaces match your search.</p>
+              ) : null}
               {groupsAsTabs && sections.length > 1 ? (
                 <div className="proto-menu-tabs" role="tablist" aria-label={`${label} sections`}>
                   {sections.map((section) => (
@@ -286,6 +376,11 @@ export default function ProtoSelectMenu<T extends string | number>({
                           triggerRef.current?.focus();
                         }}
                       >
+                        {option.icon ? (
+                          <span className="proto-menu-item__icon" aria-hidden>
+                            {option.icon}
+                          </span>
+                        ) : null}
                         <span className="proto-menu-item__label">{option.label}</span>
                         <span className="proto-menu-item__check" aria-hidden>
                           {checked ? <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} /> : null}
@@ -295,6 +390,7 @@ export default function ProtoSelectMenu<T extends string | number>({
                   })}
                 </div>
               ))}
+              {footer?.(() => setOpen(false))}
             </ProtoPopoverShell>,
             document.body,
           )

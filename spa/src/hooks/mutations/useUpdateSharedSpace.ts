@@ -10,6 +10,7 @@ import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { clearCachedSpaceBootstrap, type SpaceBootstrapData, type SpaceDetail } from '../queries/useSpace';
 import type { PublishCadence } from '@/utils/channel-publish-cadence';
 import type { MeetingKind } from '@/utils/space-meeting-rhythm';
+import type { StudyPlanningMode } from '@/utils/space-study-planning';
 
 interface UpdateSharedSpaceInput {
   spaceId: string;
@@ -28,6 +29,8 @@ interface UpdateSharedSpaceInput {
   meetingKind?: MeetingKind | null;
   /** https only. Only read when `meetingKind` is sent. */
   meetingUrl?: string | null;
+  /** 'off' | 'suggest'. Omit to leave it alone. Shared rooms only. */
+  studyPlanningMode?: StudyPlanningMode;
 }
 
 type UpdateSharedSpaceResponse = {
@@ -48,6 +51,7 @@ type UpdateSharedSpaceResponse = {
     meetingTime?: string | null;
     meetingKind?: MeetingKind | null;
     meetingUrl?: string | null;
+    studyPlanningMode?: StudyPlanningMode;
   };
 };
 
@@ -123,6 +127,12 @@ function resolvePatchedSpace(
         : variables.meetingUrl !== undefined
           ? variables.meetingUrl
           : base.meetingUrl,
+    studyPlanningMode:
+      data.space?.studyPlanningMode !== undefined
+        ? data.space.studyPlanningMode
+        : variables.studyPlanningMode !== undefined
+          ? variables.studyPlanningMode
+          : base.studyPlanningMode,
   };
 }
 
@@ -154,6 +164,7 @@ export function useUpdateSharedSpace() {
       meetingTime,
       meetingKind,
       meetingUrl,
+      studyPlanningMode,
     }: UpdateSharedSpaceInput) => {
       const sid = normalizeSpaceId(spaceId);
       const form = new FormData();
@@ -177,6 +188,9 @@ export function useUpdateSharedSpace() {
       if (meetingKind !== undefined) {
         form.set('meetingKind', meetingKind ?? '');
         form.set('meetingUrl', meetingUrl ?? '');
+      }
+      if (studyPlanningMode !== undefined) {
+        form.set('studyPlanningMode', studyPlanningMode);
       }
       return api.post<UpdateSharedSpaceResponse>(`/api/spaces/${encodeURIComponent(sid)}/update`, form);
     },

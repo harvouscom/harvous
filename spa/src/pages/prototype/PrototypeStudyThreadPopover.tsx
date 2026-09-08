@@ -4,6 +4,7 @@
  * Mobile: Drawer bottom sheet.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { THREAD_NAME_MAX_LENGTH } from '@/utils/collection-name-limits';
 import { createPortal } from 'react-dom';
 import { useNavigate } from '@tanstack/react-router';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -181,6 +182,7 @@ export default function PrototypeStudyThreadPopover({
                   onChange={(e) => { setEditingTitle(true); setTitleDraft(e.target.value); }}
                   onBlur={() => { if (!isManual) setEditingTitle(false); }}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyTitle(); } }}
+                  maxLength={THREAD_NAME_MAX_LENGTH}
                   aria-label="Thread name"
                 />
                 <div className="proto-fte-field__actions">

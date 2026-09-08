@@ -21,6 +21,7 @@
 import 'dotenv/config';
 import postgres from 'postgres';
 import { pathToFileURL } from 'node:url';
+import { requireDbTarget } from '../utils/require-db-target';
 
 export const ADDITIVE_RESOURCE_LIBRARY_DDL = [
   `CREATE TABLE IF NOT EXISTS "ResourceLibraries" (
@@ -154,6 +155,8 @@ export async function runAddResourceLibrarySchema(
     console.log('[library:schema] review, then re-run with --apply');
     return;
   }
+  // Only past the dry run: printing the DDL connects to nothing.
+  requireDbTarget({ scriptName: 'library:schema', writes: true, argv, env });
 
   const databaseUrl = env.SUPABASE_DIRECT_URL?.trim();
   if (!databaseUrl) {

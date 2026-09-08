@@ -15,31 +15,75 @@
  * hoists static imports above `config()`, which left ids empty and broke
  * `/api/billing/checkout` with "Invalid or unconfigured plan product".
  *
- * ## Pricing model (July 2026)
+ * ## Pricing model (September 2026 — 3.0)
  *
- * | Plan                | Price            | Notes                                  |
- * |---------------------|------------------|----------------------------------------|
- * | Free                | $0               | Private study only — cannot host        |
- * | Founding            | $30/yr           | First 99 · annual only · lifetime lock  |
- * | Plus                | $5/mo · Founding $30/yr | Hosting now; Review/Challenges later |
- * | Connector           | $5/mo · $60/yr          | Separate add-on; NO annual discount  |
+ * | Plan      | Price          | Notes                                     |
+ * |-----------|----------------|-------------------------------------------|
+ * | Free      | $0             | Private study only — cannot host           |
+ * | Plus      | $6/mo · $36/yr | Both listed; annual is half of monthly     |
+ * | Connector | $5/mo · $60/yr | Separate add-on; NO annual discount        |
  *
- * Interim list price: Plus is $5/mo while Shared Spaces is the live paid
- * surface. Standard annual is $45 (unlisted) — Founding ($30/yr, first 99)
- * is the only yearly offer for now.
+ * Set at the 3.0 cutover, when Review and Challenges shipped and the paid hook
+ * stopped being "you may host a shared space" (social, needs a network) and
+ * became "your study comes back to you" (personal, works on day one).
+ *
+ * **Why $36 needs no offer on top of it.** Twelve months of monthly is $72, so
+ * the annual price is exactly half. That is the whole pitch, legible without a
+ * countdown or a cap, which is why the founding discount was retired with this
+ * reprice rather than carried onto the new number — see `foundingOffer()`.
+ *
+ * These replaced $7/mo · $49/yr, and the loss is worth recording rather than
+ * quietly dropping: $49 was seven sevens, the Jubilee arithmetic of Leviticus 25
+ * where seven sabbaths of years precede the year of return — chosen because this
+ * product's promise is returning to what you already studied. $36 is six sixes
+ * and means nothing in particular. It was traded for a simpler shelf, on purpose.
+ *
+ * The category sits far above this: Dwell $59.99/yr, Hallow $69.99/yr,
+ * Glorify $69.99/yr, Readwise $119.88/yr. $36 is deliberately the value price,
+ * not the ceiling — there is room above if the product earns it.
  *
  * Two deliberate asymmetries, so they don't read as mistakes later:
- * - **Plus discounts annual via Founding, Connector does not.** Discount the
- *   product you want commitment in; don't lock a discount into an unproven
- *   add-on. An undiscounted annual is still worth offering — one charge
- *   instead of twelve saves eleven flat processor fees.
+ * - **Plus discounts annual structurally; Connector does not.** Polar's flat 50c
+ *   per charge makes monthly the worst instrument we have — 13.3% effective take
+ *   at $6/mo against 6.4% at $36/yr — so the annual discount is partly buying
+ *   back our own fees. Don't lock a discount into an unproven add-on; an
+ *   undiscounted annual is still worth offering, since one charge instead of
+ *   twelve saves eleven flat fees.
  * - **Connector is a separate product, not a Plus tier.** Different buyer
  *   (CLI/MCP power users, not small-group hosts). Separate products are fine;
  *   tiers within one product are what we avoid.
+ *
+ * Known incoherence, wider than it was and still left alone: Connector's $60/yr
+ * costs well over the $36/yr product it adds to. It is `listed: false` and
+ * unbuyable, and moving it would break `billing:verify` unless the Polar catalog
+ * moved too. Reprice it when it actually ships.
  */
 
 export const FEATURE_KEYS = ['shared_spaces', 'review', 'challenges', 'connector'] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
+
+/**
+ * Features that read as absent for everyone, whatever their entitlements say.
+ *
+ * This is the switch that hides a shipped feature, and it exists because removing a key from
+ * a plan does **not** hide anything: `listActiveFeatureKeys` reads rows from `Entitlements`,
+ * so every account already holding one keeps its access, and the surfaces stay up for exactly
+ * the people most likely to be surprised by them. Both enforcement points consult this — the
+ * server's `hasEntitlementForUserId` and the client's `useHasFeature` — so a withheld feature
+ * is closed at the API and invisible in the UI from one line.
+ *
+ * `challenges` is here because what shipped in 3.0 — a five-step guided path through study
+ * the reader already wrote — is closer to a suggestion with a route attached than to the
+ * timed, social thing the name promises, and it deserves designing on purpose rather than
+ * launching by accident. Nothing is deleted: five routes, two pages and four templates stay
+ * exactly as they are. See docs/future/CHALLENGES_AS_SUGGESTIONS.md.
+ */
+export const WITHHELD_FEATURES: readonly FeatureKey[] = ['challenges'];
+
+/** Is this feature switched off for everyone, regardless of what they hold? */
+export function isFeatureWithheld(key: FeatureKey): boolean {
+  return WITHHELD_FEATURES.includes(key);
+}
 
 export type PlanInterval = 'month' | 'year';
 export type PlanKey = 'plus' | 'connector' | 'church';
@@ -55,7 +99,14 @@ export function isUnlimited(limit: number | null | undefined): boolean {
   return typeof limit === 'number' && limit < 0;
 }
 
-/** How many founding subscriptions exist before the price is retired for good. */
+/**
+ * How many people can ever claim the founding offer.
+ *
+ * Enforced twice on purpose: Polar's `max_redemptions` on the discount is the
+ * hard stop (server-side, so two checkouts opened at slot 99 cannot both
+ * succeed), and this constant drives the "N spots left" copy without an
+ * outbound call on every pageview. Keep them equal.
+ */
 export const FOUNDING_CAP = 99;
 
 export interface PlanLimits {
@@ -78,16 +129,13 @@ export interface PlanDefinition {
   listed: boolean;
   /** Polar product id. Empty when env is unset. */
   productId: string;
-  /** Founding price — capped at `FOUNDING_CAP` claims, then retired forever. */
-  founding?: boolean;
 }
 
 /**
- * Plus grants every consumer feature — one price, no matrix. `review` and
- * `challenges` are granted from day one even though those products haven't
- * shipped: nothing gates on them yet, and issuing the rows now means existing
- * subscribers need no backfill when they do land. Seasons ride `challenges`;
- * there is deliberately no `season_pass` key (Plus includes every season).
+ * Plus grants every consumer feature — one price, no matrix. `review` and `challenges` are
+ * both granted, including while Challenges is withheld (see `WITHHELD_FEATURES`): issuing
+ * the row regardless is what means nobody needs a backfill on the day it is turned back on.
+ * Seasons ride `challenges`; there is deliberately no `season_pass` key.
  */
 const PLUS_FEATURES = ['shared_spaces', 'review', 'challenges'] as const satisfies readonly FeatureKey[];
 
@@ -138,17 +186,12 @@ function envProduct(name: string, viteName: string): string {
   return '';
 }
 
-/** Founding Harvous Plus — $30/yr, annual only, first 99 subscribers. */
-export function getPlusProductFoundingAnnualId(): string {
-  return envProduct('POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL');
-}
-
-/** Standard Harvous Plus monthly ($5). */
+/** Standard Harvous Plus monthly ($6). */
 export function getPlusProductMonthlyId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_MONTHLY', 'VITE_POLAR_PLUS_PRODUCT_MONTHLY');
 }
 
-/** Standard Harvous Plus annual ($45 — unlisted; Founding is the yearly path). */
+/** Standard Harvous Plus annual ($36 — half the monthly rate over a year). */
 export function getPlusProductAnnualId(): string {
   return envProduct('POLAR_PLUS_PRODUCT_ANNUAL', 'VITE_POLAR_PLUS_PRODUCT_ANNUAL');
 }
@@ -163,12 +206,7 @@ export function getConnectorProductAnnualId(): string {
   return envProduct('POLAR_CONNECTOR_PRODUCT_ANNUAL', 'VITE_POLAR_CONNECTOR_PRODUCT_ANNUAL');
 }
 
-/**
- * Church monthly ($30).
- *
- * Note the collision with Founding, which is also 3000 cents — but that is
- * $30 *per year*, while this is $30 *per month*. Same integer, different unit.
- */
+/** Church monthly ($30). */
 export function getChurchProductMonthlyId(): string {
   return envProduct('POLAR_CHURCH_PRODUCT_MONTHLY', 'VITE_POLAR_CHURCH_PRODUCT_MONTHLY');
 }
@@ -189,20 +227,8 @@ export function getPlans(): PlanDefinition[] {
     {
       key: 'plus',
       name: 'Harvous Plus',
-      interval: 'year',
-      amountCents: 3000,
-      currencyCode: 'USD',
-      features: PLUS_FEATURES,
-      limits: PLUS_LIMITS,
-      listed: true,
-      founding: true,
-      productId: getPlusProductFoundingAnnualId(),
-    },
-    {
-      key: 'plus',
-      name: 'Harvous Plus',
       interval: 'month',
-      amountCents: 500,
+      amountCents: 600,
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
@@ -213,12 +239,14 @@ export function getPlans(): PlanDefinition[] {
       key: 'plus',
       name: 'Harvous Plus',
       interval: 'year',
-      amountCents: 4500,
+      amountCents: 3600,
       currencyCode: 'USD',
       features: PLUS_FEATURES,
       limits: PLUS_LIMITS,
-      // Not for sale while Plus is hosting-only — Founding is the yearly path.
-      listed: false,
+      // Listed since 3.0. It was unlisted while Plus was hosting-only and
+      // Founding was the only yearly path; Founding is now a discount on this
+      // row, so this is the yearly plan rather than an alternative to it.
+      listed: true,
       productId: getPlusProductAnnualId(),
     },
     {
@@ -317,11 +345,6 @@ export function planForProductId(productId: string | null | undefined): PlanDefi
   return getPlans().find((p) => p.productId === productId) ?? null;
 }
 
-/** True when this product is the capped founding price. */
-export function isFoundingProductId(productId: string | null | undefined): boolean {
-  return Boolean(planForProductId(productId)?.founding);
-}
-
 export function limitsForFeatures(features: readonly FeatureKey[]): PlanLimits {
   // Only shared_spaces elevates hosting limits — Connector grants neither.
   if (features.includes('shared_spaces')) {
@@ -335,14 +358,37 @@ export function listedPlans(): PlanDefinition[] {
   return getPlans().filter((p) => p.listed && p.productId);
 }
 
-/** The capped founding plan, if configured. Availability is a runtime count — see billing routes. */
-export function foundingPlan(): PlanDefinition | null {
-  return listedPlans().find((p) => p.founding) ?? null;
+/**
+ * The founding offer — **retired**, so this is always null.
+ *
+ * Retired with the move to $6/mo · $36/yr: at half the annual list price the
+ * plan is its own argument, and a first-year discount on top of it bought
+ * complexity (a cap to count, a Polar discount to keep in sync, a price that
+ * changes under the buyer at renewal) that the simpler number does not need.
+ *
+ * Returning null here is the whole switch. Every surface asks this — checkout's
+ * `discountId`, `/api/billing/plans`, the annual chip, `getFoundingAvailability`
+ * — so none of them can offer what this will not hand out, and none of them
+ * needed editing to stop. Restoring it means a body here plus a discount-id
+ * reader again; `POLAR_PLUS_FOUNDING_DISCOUNT_ID` is no longer read by anything.
+ *
+ * Deliberately NOT a teardown. `isFounding` is `Boolean(foundingClaimedAt)`, a
+ * persisted column read independently of this, and `subscription.ts` already
+ * documents that recognition is meant "to outlive the first renewal, when the
+ * discount is gone but the person is still a founder". Anyone who ever claimed
+ * it keeps the badge; production currently has none.
+ */
+export function foundingOffer(): {
+  plan: PlanDefinition;
+  firstYearCents: number;
+  discountId: string;
+} | null {
+  return null;
 }
 
-/** Standard (non-founding) plan for a key + interval. */
+/** Listed plan for a key + interval. */
 export function planFor(key: PlanKey, interval: PlanInterval): PlanDefinition | null {
-  return listedPlans().find((p) => p.key === key && p.interval === interval && !p.founding) ?? null;
+  return listedPlans().find((p) => p.key === key && p.interval === interval) ?? null;
 }
 
 /**
@@ -353,10 +399,15 @@ export function listedPlanForInterval(interval: PlanInterval): PlanDefinition | 
   return planFor('plus', interval);
 }
 
-export function formatPlanPrice(plan: PlanDefinition): string {
-  const dollars = plan.amountCents / 100;
+/** `$36`, or `$4.92` when it isn't whole dollars. */
+export function formatCents(amountCents: number, _currencyCode: 'USD' = 'USD'): string {
+  const dollars = amountCents / 100;
   if (Number.isInteger(dollars)) return `$${dollars}`;
   return `$${dollars.toFixed(2)}`;
+}
+
+export function formatPlanPrice(plan: PlanDefinition): string {
+  return formatCents(plan.amountCents, plan.currencyCode);
 }
 
 export function isFeatureKey(value: string): value is FeatureKey {
@@ -369,17 +420,35 @@ export function isFeatureKey(value: string): value is FeatureKey {
  * FEATURE_KEYS that PLUS_FEATURES already grants.
  *
  * COST CONSTRAINT — do not break this without re-running the pricing math:
- * every Plus feature must stay fixed-cost or near-zero-marginal. Review is
- * budgeted on a small model (~$0.001/session, so even a heavy user costs
- * pennies against ~$4.25 net on the $5 plan). Moving Review to a frontier model
- * is a 30–100x jump that would put heavy users underwater at every price in
- * this file — and founding subscribers are locked in for life. If that swap is
- * ever proposed, the price has to move first.
+ * every Plus feature must stay fixed-cost or near-zero-marginal.
+ *
+ * Review shipped in 3.0 with **no runtime model at all** — authored prompts filled
+ * with the reader's own notes, and a schedule that is arithmetic. Its marginal cost
+ * is a few database rows, which is the strongest possible version of this
+ * constraint rather than an exception to it. See
+ * docs/future/REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md.
+ *
+ * The original budget assumed a small model at ~$0.001/session against ~$4.25 net
+ * on the old $5 plan. That headroom is now unspent, and it grew: the floor is
+ * ~$5.20 net on $6/mo and ~$33.70 on $36/yr. The reasoning still stands if
+ * generation is ever proposed — a frontier model is a 30–100x jump that would put
+ * heavy users underwater at every price in this file. No founder is locked in
+ * for life — the old lifetime SKU is gone and the discount that replaced it is
+ * retired — which removes one reason the constraint was absolute, but not the
+ * constraint itself: if that swap is proposed, the
+ * price has to move first — and so does the product decision, which is currently
+ * that Harvous does not generate study content.
  */
-export const PLUS_COMING_SOON_FEATURE_BULLETS = [
-  'Review — practice from your notes',
-  'Challenges — guided study seasons',
-] as const;
+/**
+ * Empty since 3.0, and kept rather than deleted.
+ *
+ * Review shipped and moved into `SHARED_SPACES_ADDON_FEATURE_BULLETS`, and Challenges
+ * shipped without being advertised anywhere, which left nothing here. The constant stays
+ * because both surfaces that render it now hide the
+ * "Coming soon" heading when it is empty — so the next thing that is genuinely coming is one
+ * string, not a re-plumbing of two pages.
+ */
+export const PLUS_COMING_SOON_FEATURE_BULLETS: readonly string[] = [];
 
-/** Short label for the capped founding price lock ($30/yr). */
+/** Short label for the founding offer — permanent recognition, first-year price. */
 export const PLUS_FOUNDING_BADGE = 'Founding';

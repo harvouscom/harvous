@@ -407,6 +407,46 @@ export function mergeAdditionalScriptureReferences(
   return out;
 }
 
+/**
+ * Record the passages a note cites in the reader's Study Bible layer.
+ *
+ * The note itself is *not* recorded here — `noteWrittenTouches` does that, unconditionally, one
+ * line above the call site. It used to be recorded here, behind the early return below, which
+ * meant a note only became a node if it happened to carry a pill. Keeping both would double the
+ * `exposureCount` of pill notes relative to prose ones and quietly make the score untrustworthy.
+ *
+ * Reads through `getNotePassages`, which already unions the note's own ScriptureMetadata with
+ * the canonical scripture children linked to it — the pill points at the scripture child note,
+ * not the reader's, so a naive join on noteId finds nothing.
+ *
+ * Non-throwing by construction: touchNodes swallows its own failures and this awaits inside
+ * the caller's try, so nothing here can fail a save.
+ */
+async function recordCitedPassageNodes(
+  noteId: string,
+  userId: string,
+  title: string | null,
+): Promise<void> {
+  const [{ getNotePassages }, { knowledgeTouchesForVerses, touchNodes, verseTouches }, { citedInNoteSource }] =
+    await Promise.all([
+      import('./scripture-knowledge'),
+      import('./study-bible-layer'),
+      import('@/utils/study-bible-source-copy'),
+    ]);
+
+  const passages = (await getNotePassages(noteId)).slice(0, 30);
+  if (!passages.length) return;
+
+  const at = new Date();
+  const sourceLabel = citedInNoteSource(title);
+  const chapters = [...new Map(passages.map((p) => [`${p.book}|${p.chapter}`, { book: p.book, chapter: p.chapter }])).values()];
+
+  await touchNodes(userId, [
+    ...verseTouches({ verses: passages, chapters, signal: 'exposure', at, sourceLabel }),
+    ...(await knowledgeTouchesForVerses({ verses: passages, signal: 'exposure', at, sourceLabel })),
+  ]);
+}
+
 export async function processScriptureReferences(
   noteId: string,
   userId: string,
@@ -1520,6 +1560,22 @@ async function processScriptureReferencesInternal(
       // substrate forgetting-aware resurfacing and study arcs read from.
       const { computeAndStoreNoteFingerprint } = await import('./note-fingerprint');
       await computeAndStoreNoteFingerprint(noteId, userId);
+      /*
+       * Study Bible layer, in two parts.
+       *
+       * First the note itself: writing it is the study, and this is the only place a save
+       * records that. It runs whether or not the note cites anything — the reason Review could
+       * not see prose notes at all was that the only note touch lived behind the passage check
+       * below. `note` is the row loaded at the top of this function, so this costs no query.
+       */
+      const { noteWrittenTouches, touchNodes: touchStudyNodes } = await import('./study-bible-layer');
+      await touchStudyNodes(userId, noteWrittenTouches(note, new Date()));
+      /*
+       * Then the verses it cites, the chapters above them, and the curated themes at those
+       * verses. Citing a passage in your own writing is the same contact as marking it in the
+       * reader, so both land on the same nodes.
+       */
+      await recordCitedPassageNodes(noteId, userId, note.title);
     } catch (tagErr: unknown) {
       console.error(
         '[processScriptureReferences] Auto-tag parent note failed (non-critical):',

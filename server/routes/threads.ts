@@ -42,6 +42,7 @@ import {
   canManageSpaceThreadStructure,
   isSequenceMode,
   loadLiveThreadNoteIds,
+  parseSequenceNoteIds,
   readTogetherPulse,
   resolveSequenceState,
   serializeSequenceNoteIds,
@@ -903,14 +904,19 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
       the leader's public statement about the run, so everybody sees it.
     */
     let viewerCompletedAt: string | null = null;
+    /*
+      Which steps the viewer has opened — theirs, by the same rule as their
+      completion above. This is the member's half of what `pulse` tells a
+      leader: the leader learns how many people reached step 3, the member
+      learns whether *they* did. Neither can see the other's answer.
+    */
+    let viewerOpenedNoteIds: string[] = [];
     let closedAt: string | null = null;
     if (isSequenceMode(sequenceThread.mode)) {
       // Resolved against every note in the Thread, not this page of them —
       // "Step 3 of 8" counts the whole plan.
-      const state = resolveSequenceState(
-        sequenceThread,
-        await loadLiveThreadNoteIds(threadId, sequenceThread.spaceId),
-      );
+      const liveNoteIds = await loadLiveThreadNoteIds(threadId, sequenceThread.spaceId);
+      const state = resolveSequenceState(sequenceThread, liveNoteIds);
       sequence = {
         currentNoteId: state.currentNoteId,
         currentIndex: state.currentIndex,
@@ -924,12 +930,27 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
          one *other* person's progress. */
       const own = first(
         await db
-          .select({ completedAt: ThreadProgress.completedAt })
+          .select({
+            completedAt: ThreadProgress.completedAt,
+            openedNoteIds: ThreadProgress.openedNoteIds,
+          })
           .from(ThreadProgress)
           .where(and(eq(ThreadProgress.threadId, threadId), eq(ThreadProgress.userId, auth.userId)))
           .limit(1),
       );
       viewerCompletedAt = own?.completedAt ? own.completedAt.toISOString() : null;
+      /*
+        Narrowed to the plan as it stands, here rather than on the client, for
+        the same reason `sequence.total` is resolved here: the client holds one
+        page of steps and would count "3 of 8" against whichever twenty it had
+        loaded. Both numbers now come off the same live list.
+
+        A step dropped from the plan therefore stops counting without anyone
+        writing to the member's row — stale ids self-heal on read, which is why
+        the order lives on the Thread as one column in the first place.
+      */
+      const liveSet = new Set(liveNoteIds);
+      viewerOpenedNoteIds = parseSequenceNoteIds(own?.openedNoteIds).filter((id) => liveSet.has(id));
 
       if (sequenceThread.spaceId) {
         const access = await requireSpaceAccess(sequenceThread.spaceId, auth.userId);
@@ -952,6 +973,7 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
         sequence,
         pulse,
         viewerCompletedAt,
+        viewerOpenedNoteIds,
         closedAt,
       },
       200,

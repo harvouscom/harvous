@@ -11,6 +11,9 @@ import ProtoChipBar from '../components/ProtoChipBar';
 import ImportWorkspace from '../import/ImportWorkspace';
 import { SettingsGroup, SettingsRow, SettingsShell } from './SettingsShell';
 import { setSettingsCloseBlocked } from './settings-close-guard';
+import { clearAllRecentSearches } from '@/utils/recent-search-storage';
+import { clearAllRecentOpens } from '../library-panel/proto-recent-opens';
+import { clearServerSearchHistory } from '../proto-search-events';
 
 type ExportFormat = 'markdown' | 'csv-threads';
 type Busy = null | 'export-md' | 'export-csv' | 'export-backup' | 'clear' | 'delete';
@@ -49,7 +52,7 @@ export default function PrototypeDataPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Two-step inline confirmation for destructive actions (no dialog framework).
-  const [confirming, setConfirming] = useState<null | 'clear' | 'delete'>(null);
+  const [confirming, setConfirming] = useState<null | 'clear' | 'delete' | 'search-history'>(null);
 
   const resetStatus = () => {
     setMessage(null);
@@ -83,6 +86,18 @@ export default function PrototypeDataPage() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const handleClearSearchHistory = () => {
+    clearAllRecentSearches();
+    clearAllRecentOpens();
+    /* The account-side half. Clearing only the device would leave the history that actually
+       feeds suggestions untouched, which is not what the label promises. Not awaited: the
+       list the reader can see is the local one, and a failed request should not leave the
+       confirm sitting open over a job that visibly already happened. */
+    void clearServerSearchHistory();
+    setConfirming(null);
+    setMessage('Search history cleared.');
   };
 
   const handleClearData = async () => {
@@ -172,16 +187,40 @@ export default function PrototypeDataPage() {
         {confirming ? (
           <ConfirmRow
             prompt={
-              confirming === 'clear'
-                ? 'Clear all notes, folders, and highlights? Your account stays.'
-                : "Permanently delete your account and all data? This can't be undone."
+              confirming === 'search-history'
+                ? 'Forget your recent searches and what you last opened? Your notes stay.'
+                : confirming === 'clear'
+                  ? 'Clear all notes, folders, and highlights? Your account stays.'
+                  : "Permanently delete your account and all data? This can't be undone."
             }
-            busy={busy === confirming}
-            onConfirm={confirming === 'clear' ? handleClearData : handleDeleteAccount}
+            /* Never busy for the history clear: the local wipe is synchronous and the account
+               half is fire-and-forget, so there is nothing to wait on. */
+            busy={confirming !== 'search-history' && busy === confirming}
+            onConfirm={
+              confirming === 'search-history'
+                ? handleClearSearchHistory
+                : confirming === 'clear'
+                  ? handleClearData
+                  : handleDeleteAccount
+            }
             onCancel={() => setConfirming(null)}
           />
         ) : (
           <div className="proto-settings-danger__actions">
+            {/* First in the row because the row reads least to most severe, and this one is
+                the only member you might reasonably use twice. It sits here rather than in a
+                card of its own: a full row with a sublabel gave a housekeeping control more
+                furniture than the two controls that can end your account. */}
+            <button
+              type="button"
+              className="proto-settings-danger__btn"
+              onClick={() => {
+                resetStatus();
+                setConfirming('search-history');
+              }}
+            >
+              Clear search history
+            </button>
             <button
               type="button"
               className="proto-settings-danger__btn"

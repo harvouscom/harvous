@@ -5,6 +5,7 @@ import { useShareNote } from '../../hooks/mutations/useShareNote';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { useProtoDialogFocus } from '../../hooks/useProtoDialogFocus';
 import ProtoPopoverShell from './ProtoPopoverShell';
+import PrototypeShareWithOthersSheet from './PrototypeShareWithOthersSheet';
 import { computeRightAnchoredPopoverPosition } from './proto-popover-position';
 import { protoPortaledPopoverClassName } from './proto-portaled-popover-classes';
 import { PROTO_TOOLBAR_POPOVER_OFFSET } from './proto-toolbar-tokens';
@@ -30,6 +31,8 @@ const CARD_OFFSET = PROTO_TOOLBAR_POPOVER_OFFSET;
 
 interface PrototypeSharePopoverProps {
   noteId: string;
+  /** Shown in the Discover submit sheet so you can see what you are offering. */
+  noteTitle?: string | null;
   isPublic: boolean;
   shareToken: string | null;
   anchorRect: DOMRect | null;
@@ -40,6 +43,7 @@ interface PrototypeSharePopoverProps {
 
 export default function PrototypeSharePopover({
   noteId,
+  noteTitle = null,
   isPublic,
   shareToken,
   anchorRect,
@@ -56,6 +60,7 @@ export default function PrototypeSharePopover({
   const [pos, setPos] = useState<ReturnType<typeof computeRightAnchoredPopoverPosition> | null>(null);
   const [copied, setCopied] = useState(false);
   const [ackRequired, setAckRequired] = useState(false);
+  const [shareWithOthersOpen, setShareWithOthersOpen] = useState(false);
 
   // Build the canonical public URL. The server returns one too, but we
   // construct it client-side so the popover paints instantly on enable
@@ -290,6 +295,20 @@ export default function PrototypeSharePopover({
               Stop sharing
             </button>
           </div>
+
+          {/* Only here, in the already-public branch. A link is one person you
+              chose; Discover is everyone, so it is the second step and never
+              the first. */}
+          <div className="proto-share-popover__actions">
+            <button
+              type="button"
+              className="proto-share-popover__link-action"
+              onClick={() => setShareWithOthersOpen(true)}
+              disabled={isBusy}
+            >
+              Share with others on Harvous
+            </button>
+          </div>
         </>
       )}
 
@@ -298,6 +317,18 @@ export default function PrototypeSharePopover({
           {errorMessage}
         </div>
       ) : null}
+
+      <PrototypeShareWithOthersSheet
+        open={shareWithOthersOpen}
+        target={
+          shareWithOthersOpen
+            ? { kind: 'note', id: noteId, name: noteTitle?.trim() || 'Untitled note' }
+            : null
+        }
+        onOpenChange={(next) => {
+          if (!next) setShareWithOthersOpen(false);
+        }}
+      />
     </ProtoPopoverShell>,
     document.body,
   );

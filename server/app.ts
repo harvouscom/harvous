@@ -9,10 +9,15 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { requestId } from 'hono/request-id';
 import { clerkAuth } from './middleware/auth';
-// CSRF middleware disabled — Clerk session auth is the primary security layer.
-// Origin-based CSRF was causing false 403s in production (Netlify proxy headers).
-// Re-enable once root cause is identified via Netlify function logs.
-// import { csrfProtection } from './middleware/csrf';
+// CSRF re-enabled 2026-09-04, in OBSERVE mode. It was disabled from ~2025 after
+// false 403s caused by Netlify's proxy duplicating the Origin header — that proxy
+// is gone (the app now sits behind a Cloudflare Worker), and csrf.ts additionally
+// dedupes comma-joined header values now.
+//
+// It does NOT reject yet: set CSRF_ENFORCE=true on Fly to switch from logging to
+// 403s, once the observe logs show an empty or understood rejection set. Grep Fly
+// logs for `[csrf][observe]`.
+import { csrfProtection } from './middleware/csrf';
 
 // Routes
 import health from './routes/health';
@@ -29,6 +34,7 @@ import noteTemplates from './routes/note-templates';
 import studyThreads from './routes/study-threads';
 import spaces from './routes/spaces';
 import user from './routes/user';
+import push from './routes/push';
 import tagsScripture from './routes/tags-scripture';
 import shared from './routes/shared';
 import billing from './routes/billing';
@@ -38,6 +44,8 @@ import churchLibrary from './routes/church-library';
 import churchSpaceLibrary from './routes/church-space-library';
 import churchSpaceChannelLinks from './routes/church-space-channel-links';
 import churchLibrarySuggestions from './routes/church-library-suggestions';
+import discover from './routes/discover';
+import spaceStudySuggestions from './routes/space-study-suggestions';
 import inbox from './routes/inbox';
 import webhooks from './routes/webhooks';
 import sync from './routes/sync';
@@ -56,8 +64,13 @@ import votd from './routes/votd';
 import test from './routes/test';
 import dictionary from './routes/dictionary';
 import recall from './routes/recall';
+import review from './routes/review';
+import studyBible from './routes/study-bible';
+import challenges from './routes/challenges';
+import searchEvents from './routes/search-events';
 import reading from './routes/reading';
 import noteVisits from './routes/note-visits';
+import studyFeed from './routes/study-feed';
 import support from './routes/support';
 import diagnostics from './routes/diagnostics';
 import statusPublic from './routes/status-public';
@@ -67,7 +80,7 @@ const app = new Hono();
 // Global middleware
 app.use('/api/*', requestId());
 app.use('/api/*', cors());
-// app.use('/api/*', csrfProtection);  // Disabled — see import comment above
+app.use('/api/*', csrfProtection); // observe-only until CSRF_ENFORCE=true — see import comment
 app.use('/api/*', clerkAuth);
 
 // Default cache headers for GET responses — individual endpoints can override
@@ -92,9 +105,11 @@ app.route('/', content);
 app.route('/', threads);
 app.route('/', notes);
 app.route('/', noteTemplates);
+app.route('/', discover);
 app.route('/', studyThreads);
 app.route('/', spaces);
 app.route('/', user);
+app.route('/', push);
 app.route('/', tagsScripture);
 app.route('/', shared);
 app.route('/', billing);
@@ -104,6 +119,7 @@ app.route('/', churchLibrary);
 app.route('/', churchSpaceLibrary);
 app.route('/', churchSpaceChannelLinks);
 app.route('/', churchLibrarySuggestions);
+app.route('/', spaceStudySuggestions);
 app.route('/', inbox);
 app.route('/', webhooks);
 app.route('/', sync);
@@ -122,8 +138,13 @@ app.route('/', votd);
 app.route('/', test);
 app.route('/', dictionary);
 app.route('/', recall);
+app.route('/', review);
+app.route('/', studyBible);
+app.route('/', challenges);
+app.route('/', searchEvents);
 app.route('/', reading);
 app.route('/', noteVisits);
+app.route('/', studyFeed);
 app.route('/', support);
 app.route('/', diagnostics);
 app.route('/', statusPublic);

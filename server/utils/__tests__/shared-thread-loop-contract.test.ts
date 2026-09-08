@@ -18,7 +18,7 @@ describe('shared Thread loop contracts', () => {
   });
 
   it('keeps user-facing shared Thread copy free of legacy terminology', () => {
-    const dashboard = source('spa/src/pages/prototype/PrototypeSidebarSharedSpaceView.tsx');
+    const dashboard = source('spa/src/pages/prototype/PrototypeSpaceHub.tsx');
     const create = source('spa/src/pages/prototype/PrototypeCreateSharedThreadSheet.tsx');
     const drilldown = source('spa/src/pages/prototype/PrototypeSharedThreadDrilldown.tsx');
     const ui = [dashboard, create, drilldown].join('\n');

@@ -13,6 +13,8 @@ import {
   type NoteVisitDwellBucket,
 } from '@/utils/note-visit-kinds';
 import { isNoteVisitEventsTableMissing } from './pg-undefined-relation';
+import { noteTouch, touchNodes } from './study-bible-layer';
+import { NOTE_OPENED_SOURCE } from '@/utils/study-bible-source-copy';
 import { first } from '../db/helpers';
 
 export type RecordNoteVisitInput = {
@@ -106,7 +108,9 @@ export async function recordNoteVisit(
   try {
     const owned = first(
       await db
-        .select({ id: Notes.id })
+        // The title comes back with the ownership check rather than in a second query: the
+        // node layer wants it, and this select is already on the path.
+        .select({ id: Notes.id, title: Notes.title })
         .from(Notes)
         .where(and(eq(Notes.id, input.noteId), eq(Notes.userId, userId)))
         .limit(1),
@@ -120,6 +124,18 @@ export async function recordNoteVisit(
       dwellBucket: input.dwellBucket,
       createdAt: nowISO(),
     });
+    // A glance is contact; staying is coming back on purpose. The counters keep them apart
+    // so "you keep returning to this" can mean returning rather than passing through.
+    const substantive = noteVisitIsSubstantive(input.dwellBucket);
+    void touchNodes(userId, [
+      noteTouch({
+        noteId: input.noteId,
+        title: owned.title,
+        signal: substantive ? 'revisit' : 'exposure',
+        at: new Date(),
+        sourceLabel: substantive ? NOTE_OPENED_SOURCE : null,
+      }),
+    ]);
     return true;
   } catch (error) {
     if (isNoteVisitEventsTableMissing(error)) {

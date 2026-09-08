@@ -1,0 +1,91 @@
+name: Sync Discover catalog to marketing site
+
+# The catalog lives in the app database; harvous.com is a fully static Astro
+# build with no SSR adapter, so its per-listing pages have to exist as HTML in
+# `dist/` before a crawler ever asks for one. That rules out fetching at request
+# time, and a client-side fetch would rank at nothing. So the catalog arrives the
+# same way release notes do: exported at a schedule, committed, and built from a
+# file on disk.
+#
+# A curated catalog changes when someone approves something — a few times a week
+# at most — so a scheduled export is the right cadence rather than a compromise.
+# If it ever needs to be near-live, the step to add is a `repository_dispatch`
+# from the approve handler, not a different transport.
+
+on:
+  # Four times a day. The window between approving something and it appearing on
+  # harvous.com is the cost; a shorter one buys little for a queue a person works
+  # through by hand.
+  schedule:
+    - cron: "0 */6 * * *"
+  # Run it by hand — the way to publish an approval now rather than at the next
+  # tick, and the way to catch up after the sync has been down.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      # Fails early and by name, for the reason spelled out in
+      # sync-release-notes.yml: a missing key otherwise dies inside
+      # actions/checkout with a bare "Bad credentials" that reads like a GitHub
+      # outage. That went unnoticed for nine days once already.
+      #
+      # Passed through `env`, not interpolated: a private key is multi-line, and
+      # `${{ }}` would paste several lines into the middle of a shell test.
+      - name: Check the deploy key is present
+        env:
+          DEPLOY_KEY: ${{ secrets.HARVOUS_COM_SYNC_DEPLOY_KEY }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::HARVOUS_COM_SYNC_DEPLOY_KEY is not set. This job pushes to"
+            echo "::error::harvouscom/harvous.com and needs a write-enabled deploy key for it."
+            echo "::error::See docs/RELEASE_NOTES_SYNC_SETUP.md."
+            exit 1
+          fi
+
+      - name: Checkout marketing site
+        uses: actions/checkout@v4
+        with:
+          repository: harvouscom/harvous.com
+          path: harvous.com
+          ssh-key: ${{ secrets.HARVOUS_COM_SYNC_DEPLOY_KEY }}
+
+      # The **public** endpoint, with no credentials. That is the point: this
+      # step is also a continuous assertion that the URL harvous.com's build
+      # depends on is genuinely reachable without auth. If it ever stops being,
+      # this fails loudly instead of the catalog quietly emptying on the next
+      # rebuild.
+      - name: Fetch the listed catalog
+        run: |
+          curl -fsS --retry 3 --retry-delay 5 \
+            https://app.harvous.com/api/discover/export \
+            -o harvous.com/data/discover-listings.json
+
+      # A truncated or error-shaped body would otherwise be committed and then
+      # break the site build, one repo away from the cause.
+      - name: Check the export is usable
+        working-directory: harvous.com
+        run: |
+          node -e '
+            const doc = require("./data/discover-listings.json");
+            if (!Array.isArray(doc.listings)) throw new Error("no listings array");
+            if (!Array.isArray(doc.categories)) throw new Error("no categories array");
+            console.log(`${doc.listings.length} listings, ${doc.categories.length} categories`);
+          '
+
+      - name: Commit and push the catalog
+        working-directory: harvous.com
+        run: |
+          if git diff --quiet data/discover-listings.json; then
+            echo "No catalog changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/discover-listings.json
+          git commit -m "Sync Discover catalog from the app."
+          git push
