@@ -646,11 +646,13 @@ describe('a scheduler that remembers', () => {
   it('orders the sitting rather than serving it by the clock', () => {
     const session = route().slice(route().indexOf("'/api/review/session'"));
     const listAt = session.indexOf('listDueReviewItems');
-    const orderAt = session.indexOf('interleaveSession');
+    const orderAt = session.indexOf('composeSitting');
     expect(orderAt).toBeGreaterThan(-1);
+    expect(session).toContain('listUpcomingReviewItems');
     // Ordered before the views are built, so what is dropped as unaskable does not reshuffle it.
     expect(orderAt).toBeLessThan(session.indexOf('buildReviewItemViews'));
-    expect(listAt).toBeGreaterThan(orderAt);
+    expect(listAt).toBeGreaterThan(-1);
+    expect(listAt).toBeLessThan(orderAt);
   });
 });
 
