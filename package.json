@@ -82,6 +82,7 @@
     "skl:seed": "tsx server/scripts/seed-scripture-knowledge.ts",
     "fingerprints:backfill": "tsx server/scripts/backfill-note-fingerprints.ts",
     "study-bible:backfill": "tsx server/scripts/backfill-study-bible-layer.ts",
+    "study-bible:notes": "tsx server/scripts/backfill-note-written-nodes.ts",
     "recall:kind-rates": "tsx server/scripts/recall-open-rate-by-kind.ts",
     "review:schema": "tsx server/scripts/add-review-challenges-schema.ts",
     "review:schema:apply": "tsx server/scripts/add-review-challenges-schema.ts --apply",

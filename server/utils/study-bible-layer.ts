@@ -36,6 +36,8 @@ import type { VerseKeyParts } from '@/utils/scripture-verse-keys';
 import type { RecallState } from '@/utils/review-item-kinds';
 import { getKnowledgeForPassages, MIN_THEME_CORROBORATION_RELEVANCE } from './scripture-knowledge';
 import { pickRepNoteIdFromGraph } from './study-thread-cluster-count';
+import { isCountableUserNote } from './purge-onboarding-content';
+import { NOTE_WRITTEN_SOURCE } from '@/utils/study-bible-source-copy';
 
 export interface NodeTouch {
   key: string;
@@ -228,6 +230,101 @@ export async function touchNodes(userId: string, touches: readonly NodeTouch[]):
 
 // ─── Touch builders ───────────────────────────────────────────────────────────
 // Shared shapes, so a highlight and a pill on the same verse produce identical nodes.
+
+/**
+ * The node for "you wrote this" — the act Review is actually about.
+ *
+ * Writing a note is the most deliberate thing this app can observe someone do, and until this
+ * existed the live save path recorded it nowhere. A note only became a node if it happened to
+ * carry a scripture pill, so Review could not see prose at all: on a real account, of 31 notes
+ * substantial enough to be worth asking about, exactly one existed as a node.
+ *
+ * **Returns nothing for anything the reader did not author**, which is the whole reason this is a
+ * function rather than a line at the call site. A Discover install and a shared-space import both
+ * run the same enrichment pass as a real save, so without these three exclusions installing a
+ * twenty-note study would write twenty nodes labelled "You wrote this" about someone else's work.
+ *
+ * **`at` is the note's own `createdAt`, not now**, and that carries more weight than it looks:
+ *
+ * - `firstStudiedAt` folds with `LEAST`, so the age gate measures when the study happened. A note
+ *   written two years ago and edited today is not three days from being reviewable.
+ * - `lastSourceLabel` only moves when `lastSourceAt` moves forward. `/api/notes/update` fires
+ *   "You added to this" at `now` on the same request; dating this at `now` would race it, and the
+ *   row's reason line would come out nondeterministically wrong on every edit. Backdated, "You
+ *   wrote this" wins only where there is no more recent reason — which is exactly a fresh node.
+ *
+ * Clamped to `now` because offline sync carries a client's clock and a future date would park the
+ * label permanently ahead of every real event.
+ *
+ * Pure: reads the row it is handed and touches nothing. Shared with the backfill so a replay and
+ * a live save cannot drift.
+ */
+/**
+ * The reader's notes that have no `note:` node yet — the backfill's whole query.
+ *
+ * A LEFT JOIN rather than "read every note and every node and diff them in JavaScript", which is
+ * how the neighbouring repair used to work and what made it cost 243ms on a hot path.
+ *
+ * **This is what makes the backfill idempotent.** A note that already has a node is not in the
+ * result, so a second run writes nothing and no counter is ever double-incremented. That is why
+ * this exists rather than reaching for the full replay's `--reset`, which deletes the account's
+ * rows and takes accumulated counters and review mirrors with them.
+ *
+ * The exclusions are deliberately *not* applied here — `noteWrittenTouches` applies them, and
+ * duplicating them in SQL is how the two would eventually disagree about who wrote what.
+ */
+export async function findNotesMissingNoteNode(
+  userId: string,
+): Promise<Parameters<typeof noteWrittenTouches>[0][]> {
+  return db
+    .select({
+      id: Notes.id,
+      title: Notes.title,
+      createdAt: Notes.createdAt,
+      noteType: Notes.noteType,
+      addedBy: Notes.addedBy,
+      threadId: Notes.threadId,
+      primaryCollection: Notes.primaryCollection,
+    })
+    .from(Notes)
+    .leftJoin(
+      UserNodeStates,
+      and(
+        eq(UserNodeStates.userId, Notes.userId),
+        eq(UserNodeStates.nodeKey, sql`'note:' || ${Notes.id}`),
+      ),
+    )
+    .where(and(eq(Notes.userId, userId), sql`${UserNodeStates.nodeKey} IS NULL`));
+}
+
+export function noteWrittenTouches(
+  note: {
+    id: string;
+    title: string | null;
+    createdAt: Date | null;
+    noteType: string;
+    addedBy: string | null;
+    threadId: string;
+    primaryCollection: string | null;
+  },
+  now: Date,
+): NodeTouch[] {
+  // A scripture child note is the app's text. `computeAndStoreNoteFingerprint` refuses to weigh
+  // one for the same reason, so these would fail the meaning floor anyway — but a node labelled
+  // "You wrote this" about a pasted passage is wrong whether or not anything reads it.
+  if (note.noteType === 'scripture') return [];
+  // Installed, shared and seeded content. `Notes.addedBy` defaults to 'user', so first-party
+  // create, update, offline sync and web import all keep the touch — a web import *is* the
+  // reader's own writing.
+  if ((note.addedBy ?? 'user') !== 'user') return [];
+  // Onboarding threads and the Welcome folder, on the same terms as every other usage count.
+  if (!isCountableUserNote(note)) return [];
+
+  const at = note.createdAt && note.createdAt.getTime() <= now.getTime() ? note.createdAt : now;
+  return [
+    noteTouch({ noteId: note.id, title: note.title, signal: 'exposure', at, sourceLabel: NOTE_WRITTEN_SOURCE }),
+  ];
+}
 
 export function noteTouch(input: {
   noteId: string;

@@ -173,12 +173,24 @@ export const ENGINE_MIN_COMMITTED_SIGNALS = 2;
 export const ENGINE_COLD_START_MIN_READY = 5;
 
 /**
- * The `meaningWeight` a note must clear.
+ * The `meaningWeight` a note must clear — and, since the signals gate stopped applying to notes,
+ * the whole of what Review asks of one.
  *
  * From `computeMeaningWeight`: a 200-character body is 0.10, one cited passage 0.05, one
  * highlight 0.067, and each of pinned / deliberately filed / linked is 0.125. So 0.2 is roughly
- * "a real paragraph plus one deliberate act", and it excludes the two things that made the
- * queue feel arbitrary — a note holding a single scripture pill, and a two-line jotting.
+ * "a real paragraph, or a short one that was also done something with", and it excludes the two
+ * things that made the queue feel arbitrary — a note holding a single scripture pill, and a
+ * two-line jotting.
+ *
+ * **It stays at 0.2 now that it stands alone, and raising it would not be a smaller widening —
+ * it would be a widening plus a narrowing.** A note with two committed signals and a weight of
+ * 0.25 is askable today; at 0.3 it becomes `too-thin` and stops being offered. On the account
+ * this was measured against that is 5 of 31 notes. Shipping a fix for "I have nothing in Review"
+ * that simultaneously retires notes which already qualified is the wrong trade.
+ *
+ * What makes one number safe is that `meaningWeight ?? 0` fails closed: a note with no
+ * fingerprint row scores zero, and `computeAndStoreNoteFingerprint` writes none for a
+ * `noteType === 'scripture'` note, so generated passage notes can never clear it.
  *
  * Notes only. A verse has no fingerprint and needs none: citing it *is* the deliberate act.
  */
@@ -250,8 +262,15 @@ function countCommittedSignalsForNote(node: ReviewCandidateNode): number {
     // Opening a note twice is a signal; opening it thirty times is still one.
     signals += 1;
   }
-  // Filing a note under a tag by hand is a deliberate act about *this* note. One signal however
-  // many tags: the decision was to file it, not how many drawers.
+  /*
+   * Filing a note under a tag by hand is a deliberate act about *this* note. One signal however
+   * many tags: the decision was to file it, not how many drawers.
+   *
+   * `nodeReadiness` no longer consults this for notes — writing one is itself the deliberate act
+   * and the meaning floor is the gate. Kept because it is a true measure of intent and this
+   * function is exported on its own, and because putting the two-signal rule back on notes is a
+   * decision someone should have to make on purpose rather than by restoring a line.
+   */
   if (node.nodeKind === 'note' && (node.manualTagCount ?? 0) > 0) signals += 1;
   return signals;
 }
@@ -273,10 +292,28 @@ export function nodeReadiness(
   const minAge =
     node.nodeKind === 'chapter' ? ENGINE_MIN_CHAPTER_AGE_DAYS : ENGINE_MIN_NODE_AGE_DAYS;
   if (daysBetween(node.firstStudiedAt, now) < minAge) return 'too-new';
-  if (countCommittedSignals(node, context) < ENGINE_MIN_COMMITTED_SIGNALS) return 'too-few-signals';
-  if (node.nodeKind === 'note' && (meaningWeight ?? 0) < NOTE_MEANING_WEIGHT_FLOOR) {
-    return 'too-thin';
+
+  /*
+   * For a note the meaning floor *is* the gate, and the signal count does not apply.
+   *
+   * The signals gate asks "has the reader done something with this beyond seeing it?" — which is
+   * the right question for a verse or a chapter, where the node is created by contact. A note is
+   * not created by contact. Someone sat down and wrote it, and no counter in this file can
+   * observe an act more deliberate than that.
+   *
+   * Requiring a *second* act on top of it said that writing something does not count until you
+   * come back to it, and the effect was not subtle: on a real account, 31 notes cleared the
+   * floor and one was ever askable. Never returning to a note is not evidence you would rather
+   * forget what is in it.
+   *
+   * The age gate above still applies, and it is the one doing the work the cold start cares
+   * about — nothing written today is asked about today, however substantial it is.
+   */
+  if (node.nodeKind === 'note') {
+    return (meaningWeight ?? 0) < NOTE_MEANING_WEIGHT_FLOOR ? 'too-thin' : 'ready';
   }
+
+  if (countCommittedSignals(node, context) < ENGINE_MIN_COMMITTED_SIGNALS) return 'too-few-signals';
   return 'ready';
 }
 
