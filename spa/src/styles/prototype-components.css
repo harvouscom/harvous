@@ -20051,7 +20051,7 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   .proto-editor-paper,
 .pds-paper-stack__sheet[data-stacked='false'] .proto-editor-paper,
 .pds-paper-stack__sheet[data-stacked='false'] .pds-reader__column {
-  background-color: #fff;
+  background-color: var(--pds-bg-page);
   background-image: none;
 }
 
