@@ -47,6 +47,7 @@ import { getAdminPulseXp, type PulseXpSummary } from './admin-pulse-xp-stats';
 import { adminWindowSince, adminWindowPreviousRange, clampAdminDays } from './admin-time-window';
 import { recallKindDisplayLabel } from '@/utils/recall-opportunity-kinds';
 import type { AdminMonthlyReportUsage } from './admin-report-types';
+import { runBounded } from './run-bounded';
 
 export type DiscoveryRankItem = { name: string; count: number };
 
@@ -141,9 +142,18 @@ export type UsageDiscovery = {
 async function getClerkTotalUserCount(): Promise<number | null> {
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
   if (!clerkSecretKey) return null;
-  const clerkClient = createClerkClient({ secretKey: clerkSecretKey });
-  const { totalCount } = await clerkClient.users.getUserList({ limit: 1, offset: 0 });
-  return totalCount ?? 0;
+  try {
+    const clerkClient = createClerkClient({ secretKey: clerkSecretKey });
+    const result = await Promise.race([
+      clerkClient.users.getUserList({ limit: 1, offset: 0 }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('clerk timeout')), 2500);
+      }),
+    ]);
+    return result.totalCount ?? 0;
+  } catch {
+    return null;
+  }
 }
 
 function utcDateString(d: Date): string {
@@ -817,17 +827,18 @@ export async function getUsageOverview(daysParam: number): Promise<UsageOverview
     translationRows,
     studyThreadEntries,
     recallMetrics,
-  ] = await Promise.all([
-    getClerkTotalUserCount(),
-    db.execute<{
-      total_accounts: number;
-      users_with_content: number;
-      notes: number;
-      notes_created: number;
-      signups: number;
-      active_users: number;
-      notes_edited: number;
-    }>(sql`
+  ] = await runBounded([
+    () => getClerkTotalUserCount(),
+    () =>
+      db.execute<{
+        total_accounts: number;
+        users_with_content: number;
+        notes: number;
+        notes_created: number;
+        signups: number;
+        active_users: number;
+        notes_edited: number;
+      }>(sql`
     SELECT
       (SELECT COUNT(*) FROM "UserMetadata") AS total_accounts,
       (SELECT COUNT(DISTINCT "userId") FROM "Notes" WHERE ${COUNTABLE_USER_NOTES_SQL}) AS users_with_content,
@@ -837,28 +848,31 @@ export async function getUsageOverview(daysParam: number): Promise<UsageOverview
       (SELECT COUNT(DISTINCT "userId") FROM "Notes" WHERE COALESCE("updatedAt", "createdAt") >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS active_users,
       (SELECT COUNT(*) FROM "Notes" WHERE "updatedAt" >= ${sinceIso} AND "updatedAt" > "createdAt" AND ${COUNTABLE_USER_NOTES_SQL}) AS notes_edited
   `),
-    db
-      .select({ tier: UserMetadata.tier, count: sql<number>`COUNT(*)`.as('count') })
-      .from(UserMetadata)
-      .groupBy(UserMetadata.tier),
-    db
-      .select({ noteType: Notes.noteType, count: sql<number>`COUNT(*)`.as('count') })
-      .from(Notes)
-      .where(and(gte(Notes.createdAt, since), countableUserNotesWhere()))
-      .groupBy(Notes.noteType),
-    countNoteConnectionsSince(since),
-    countFoldersActiveSince(since),
-    fetchStudyBehaviorMetrics(since),
-    fetchVotdPassageEngagementMetrics(since),
-    countScripturePillsSince(since),
-    db
-      .select({ translation: UserMetadata.defaultTranslation, count: sql<number>`COUNT(*)`.as('count') })
-      .from(UserMetadata)
-      .groupBy(UserMetadata.defaultTranslation)
-      .orderBy(sql`COUNT(*) DESC`)
-      .limit(5),
-    countActiveStudyThreadEntries(since),
-    fetchRecallMetrics(since),
+    () =>
+      db
+        .select({ tier: UserMetadata.tier, count: sql<number>`COUNT(*)`.as('count') })
+        .from(UserMetadata)
+        .groupBy(UserMetadata.tier),
+    () =>
+      db
+        .select({ noteType: Notes.noteType, count: sql<number>`COUNT(*)`.as('count') })
+        .from(Notes)
+        .where(and(gte(Notes.createdAt, since), countableUserNotesWhere()))
+        .groupBy(Notes.noteType),
+    () => countNoteConnectionsSince(since),
+    () => countFoldersActiveSince(since),
+    () => fetchStudyBehaviorMetrics(since),
+    () => fetchVotdPassageEngagementMetrics(since),
+    () => countScripturePillsSince(since),
+    () =>
+      db
+        .select({ translation: UserMetadata.defaultTranslation, count: sql<number>`COUNT(*)`.as('count') })
+        .from(UserMetadata)
+        .groupBy(UserMetadata.defaultTranslation)
+        .orderBy(sql`COUNT(*) DESC`)
+        .limit(5),
+    () => countActiveStudyThreadEntries(since),
+    () => fetchRecallMetrics(since),
   ]);
 
   const xp = await getAdminPulseXp(days, since, previousSince, previousUntil);

@@ -35,6 +35,7 @@ import { getAdminPulseThreadsStats, getAdminPulseThreadsSummaryForReport, type P
 import { adminWindowSince, adminWindowPreviousRange, clampAdminDays } from './admin-time-window';
 import { filterPulseDiscoveryThemes } from '@/utils/universal-bible-entities';
 import { formatPulseThemeLabels } from '@/utils/divine-name-display';
+import { runBounded } from './run-bounded';
 export type PulseHistoryMonth = {
   month: string;
   books: DiscoveryRankItem[];
@@ -328,27 +329,27 @@ export async function getAdminPulse(daysParam: number): Promise<AdminPulse> {
     previousDictionaryWords,
     previousFolders,
     threads,
-  ] = await Promise.all([
-    fetchUniquePassageCount(currentSince),
-    fetchPassages(currentSince, undefined, 10),
-    fetchPassages(previousSince, previousUntil, 10),
-    fetchBooks(currentSince, undefined, 10),
-    fetchBooks(previousSince, previousUntil, 10),
-    fetchBooks(previousSince, previousUntil),
-    fetchBooks(currentSince, undefined),
-    fetchThemes(currentSince, undefined, 10),
-    fetchThemes(previousSince, previousUntil, 10),
-    fetchTones(currentSince, undefined, 10),
-    fetchTags(currentSince, undefined),
-    fetchDictionaryWords(currentSince, undefined),
-    getTrendingAutoFolders(currentSince, 10),
-    fetchTranslations(currentSince, undefined),
-    fetchPulseHistory(6),
-    fetchPassages(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
-    fetchTags(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
-    fetchDictionaryWords(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
-    getTrendingAutoFolders(previousSince, CURIOSITY_PREV_LIMIT, previousUntil),
-    getAdminPulseThreadsStats(currentSince),
+  ] = await runBounded([
+    () => fetchUniquePassageCount(currentSince),
+    () => fetchPassages(currentSince, undefined, 10),
+    () => fetchPassages(previousSince, previousUntil, 10),
+    () => fetchBooks(currentSince, undefined, 10),
+    () => fetchBooks(previousSince, previousUntil, 10),
+    () => fetchBooks(previousSince, previousUntil),
+    () => fetchBooks(currentSince, undefined),
+    () => fetchThemes(currentSince, undefined, 10),
+    () => fetchThemes(previousSince, previousUntil, 10),
+    () => fetchTones(currentSince, undefined, 10),
+    () => fetchTags(currentSince, undefined),
+    () => fetchDictionaryWords(currentSince, undefined),
+    () => getTrendingAutoFolders(currentSince, 10),
+    () => fetchTranslations(currentSince, undefined),
+    () => fetchPulseHistory(6),
+    () => fetchPassages(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
+    () => fetchTags(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
+    () => fetchDictionaryWords(previousSince, previousUntil, CURIOSITY_PREV_LIMIT),
+    () => getTrendingAutoFolders(previousSince, CURIOSITY_PREV_LIMIT, previousUntil),
+    () => getAdminPulseThreadsStats(currentSince),
   ]);
 
   const risingBooks = computeRisingDeltas(currentBooks, previousBooks, 5);

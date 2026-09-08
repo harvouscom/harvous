@@ -3,7 +3,7 @@
  */
 
 import { db, NoteConnections, Notes, eq, and, isNotNull, sql } from '../db';
-import { COUNTABLE_USER_NOTES_N_SQL, countableUserNotesWhere } from './purge-onboarding-content';
+import { COUNTABLE_USER_NOTES_N_SQL, COUNTABLE_USER_NOTES_SQL, countableUserNotesWhere } from './purge-onboarding-content';
 import {
   isNoteConnectionsTableMissing,
   isRecallEventsTableMissing,
@@ -124,6 +124,86 @@ async function fetchPlatformThreadSnapshot(): Promise<PlatformThreadSnapshot> {
     }
     throw error;
   }
+}
+
+const SNAPSHOT_TTL_MS = 15 * 60 * 1000;
+const SNAPSHOT_WAIT_MS = 8_000;
+
+let snapshotCache: { at: number; value: PlatformThreadSnapshot } | null = null;
+let snapshotInflight: Promise<PlatformThreadSnapshot> | null = null;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function refreshPlatformThreadSnapshot(): Promise<PlatformThreadSnapshot> {
+  if (snapshotInflight) return snapshotInflight;
+  snapshotInflight = fetchPlatformThreadSnapshot()
+    .then((value) => {
+      snapshotCache = { at: Date.now(), value };
+      return value;
+    })
+    .finally(() => {
+      snapshotInflight = null;
+    });
+  return snapshotInflight;
+}
+
+/**
+ * Cheap stand-in used when the full graph walk has not finished yet.
+ * Distinct users-with-links + titled singletons is not cluster-accurate, but it
+ * lets Pulse render instead of waiting on SELECT * FROM "NoteConnections".
+ */
+async function fetchCheapThreadSnapshot(): Promise<PlatformThreadSnapshot> {
+  const empty: PlatformThreadSnapshot = { totalThreads: 0, avgNotesPerThread: 0, threadNoteIds: [] };
+  try {
+    const rows = await db.execute<{ connections: number; titled: number }>(sql`
+      SELECT
+        (SELECT COUNT(DISTINCT "userId")::int FROM "NoteConnections") AS connections,
+        (SELECT COUNT(*)::int FROM "Notes"
+          WHERE "studyThreadUserOverride" = true
+            AND "studyThreadTitle" IS NOT NULL
+            AND TRIM(COALESCE("studyThreadTitle", '')) <> ''
+            AND ${COUNTABLE_USER_NOTES_SQL}
+        ) AS titled
+    `);
+    return {
+      totalThreads: Number(rows[0]?.connections ?? 0) + Number(rows[0]?.titled ?? 0),
+      avgNotesPerThread: 0,
+      threadNoteIds: [],
+    };
+  } catch (error) {
+    if (isNoteConnectionsTableMissing(error) || isStudyThreadNamingColumnMissing(error)) {
+      return empty;
+    }
+    throw error;
+  }
+}
+
+async function getPlatformThreadSnapshot(): Promise<PlatformThreadSnapshot> {
+  if (snapshotCache && Date.now() - snapshotCache.at < SNAPSHOT_TTL_MS) {
+    return snapshotCache.value;
+  }
+  if (snapshotCache) {
+    void refreshPlatformThreadSnapshot().catch((error) => {
+      console.warn('[admin pulse threads] snapshot refresh failed', error);
+    });
+    return snapshotCache.value;
+  }
+
+  const inflight = refreshPlatformThreadSnapshot();
+  const raced = await Promise.race([
+    inflight.then((value) => ({ ok: true as const, value })),
+    delay(SNAPSHOT_WAIT_MS).then(() => ({ ok: false as const })),
+  ]);
+  if (raced.ok) return raced.value;
+
+  void inflight.catch((error) => {
+    console.warn('[admin pulse threads] snapshot warm failed', error);
+  });
+  return fetchCheapThreadSnapshot();
 }
 
 async function fetchWindowLinkActivity(since: Date, until?: Date): Promise<WindowLinkActivity> {
@@ -290,7 +370,7 @@ async function fetchThreadRecallMetrics(since: Date, until?: Date): Promise<Puls
 
 export async function getAdminPulseThreadsStats(since: Date, until?: Date): Promise<PulseThreadsStats> {
   const [snapshot, windowActivity, recall] = await Promise.all([
-    fetchPlatformThreadSnapshot(),
+    getPlatformThreadSnapshot(),
     fetchWindowLinkActivity(since, until),
     fetchThreadRecallMetrics(since, until),
   ]);
