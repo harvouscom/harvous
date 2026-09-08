@@ -268,8 +268,18 @@ jobs:
 
           # A byte-identical sw.js means the browser never re-runs install/activate, so the
           # previous deploy's cache is never dropped. The build id is what prevents that.
-          "${CURL[@]}" "https://$HOST/sw.js" -o sw.js || { echo "::error::could not fetch /sw.js"; exit 1; }
-          if ! grep -q "CACHE_NAME = 'harvous-cache-.*-${SHA8}'" sw.js; then
+          #
+          # Same edge-propagation race as `/` above, and it needs the same retry: `/sw.js`
+          # served stale on the very first check after a real, correct deploy (2026-09-07),
+          # failing the job over a race rather than a wrong build.
+          SW_OK=1
+          for attempt in 1 2 3 4 5 6; do
+            "${CURL[@]}" "https://$HOST/sw.js" -o sw.js || true
+            grep -q "CACHE_NAME = 'harvous-cache-.*-${SHA8}'" sw.js 2>/dev/null && { SW_OK=0; break; }
+            echo "attempt $attempt: /sw.js does not yet carry ${SHA8}"
+            sleep 10
+          done
+          if [ "$SW_OK" != "0" ]; then
             echo "::error::$HOST /sw.js does not carry this build's id (${SHA8}) — stale caches will persist"; exit 1
           fi
 
