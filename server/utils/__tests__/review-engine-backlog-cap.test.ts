@@ -29,7 +29,7 @@ describe('the backlog ceiling', () => {
      * Half a batch on top of a backlog is still a backlog. Returning early also means the block
      * clears itself the moment the reader answers a few, with no state to reset.
      */
-    expect(refill).toContain('if (outstanding.length >= REVIEW_ENGINE_MAX_OUTSTANDING) return [];');
+    expect(refill).toContain('if (outstanding.length >= REVIEW_ENGINE_MAX_OUTSTANDING && sessionShortfall === 0) return [];');
   });
 
   it('counts only what is due, and only what the engine added', () => {

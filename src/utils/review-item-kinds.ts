@@ -221,12 +221,11 @@ export function isChallengeStepKind(value: string): value is ChallengeStepKind {
 }
 
 /**
- * Three rows, and the number is the feature's whole posture.
+ * Five rows on the Review sitting — a handful, not a pile.
  *
- * The strategy doc's rule is a calm curated stack rather than a task manager, and the failure
- * mode it names — "27 due" — is what any number above about five starts to feel like. Three
- * fits under the Continue shelf without pushing the day's record off the first screen, and it
- * means the inbox can never be the biggest thing on Activity.
+ * The strategy doc's named failure is "27 due". Three left a paid library looking empty.
+ * Five is still under the anxiety line and is enough for a real timed sitting. Activity can
+ * still present a calm stack; the session is where practice happens.
  */
 /**
  * How many goes a graded rung allows before it shows the answer.
@@ -272,7 +271,7 @@ export function maxAttemptsFor(promptKey: string | null | undefined): number {
   return promptKey && CHOICE_RUNGS.has(promptKey) ? CHOICE_ATTEMPTS : PRODUCED_ATTEMPTS;
 }
 
-export const REVIEW_INBOX_MAX_ROWS = 3;
+export const REVIEW_INBOX_MAX_ROWS = 5;
 
 /**
  * Extra rows read so that a note with nothing to ask about costs no slot.
@@ -286,13 +285,13 @@ export const REVIEW_INBOX_UNASKABLE_SLACK = 4;
 export const REVIEW_SESSION_CAP = 10;
 
 /**
- * How many items the engine may add in a rolling day. Three, for the same reason the inbox
- * shows three: a queue that grows faster than a person can answer it becomes a debt.
+ * How many items the engine may add in a rolling day. Five, matching the handful the sitting
+ * aims to offer — still far below a debt, enough that a library of notes is actually practiced.
  *
  * Rolling 24 hours rather than a calendar day, because the server has no timezone for the
  * reader — the study feed route refuses to guess one, and this follows it.
  */
-export const REVIEW_ENGINE_DAILY_CAP = 3;
+export const REVIEW_ENGINE_DAILY_CAP = 5;
 export const REVIEW_ENGINE_WINDOW_HOURS = 24;
 
 /**
@@ -303,7 +302,7 @@ export const REVIEW_ENGINE_WINDOW_HOURS = 24;
  * the pile stays invisible until something names the count and the reader is told they are ninety
  * behind. This file already argues that a number like that is a debt rather than a practice.
  *
- * Twelve, which is four sittings' worth at `REVIEW_INBOX_MAX_ROWS`. Enough that a normal week of
+ * Four sittings' worth at `REVIEW_INBOX_MAX_ROWS`. Enough that a normal week of
  * skipping a day does not trip it, low enough that nobody meets a wall of their own study.
  *
  * It is a pause, not a penalty: answering a few drops the count back under and the engine resumes

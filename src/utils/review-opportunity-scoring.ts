@@ -3,8 +3,8 @@
  *
  * The engine's whole judgement, pure and testable. It reads counts and dates off
  * `UserNodeStates` rows and answers with at most a few — never more than
- * `REVIEW_ENGINE_DAILY_CAP` in a rolling day, and never more than two of any one kind, so what
- * arrives is a mixed handful rather than three variations of the same question.
+ * `REVIEW_ENGINE_DAILY_CAP` in a rolling day, and never more than three of any one kind, so what
+ * arrives is a mixed handful rather than five variations of the same question.
  *
  * The rule underneath it: **learning need × the reader's own intent, decayed by recency.**
  *
@@ -75,8 +75,8 @@ export interface ReviewCandidateNode {
  */
 export const ENGINE_NODE_KINDS: readonly NodeKind[] = ['verse', 'note', 'chapter'];
 
-/** At most two of one kind in a batch of three, so an offer is never three of the same shape. */
-export const ENGINE_PER_KIND_CAP = 2;
+/** At most three of one kind in a handful, so a sitting can mix without being five of the same. */
+export const ENGINE_PER_KIND_CAP = 3;
 
 /**
  * Nothing seen in the last day is asked about.
@@ -162,6 +162,16 @@ export const ENGINE_MIN_CHAPTER_AGE_DAYS = 1;
  * it climbs.
  */
 export const ENGINE_MIN_COMMITTED_SIGNALS = 2;
+
+/**
+ * A verse needs one deliberate act — cited or marked once — to be askable.
+ *
+ * Two was measured against a real account and hid most of the library: of 51 verse nodes,
+ * 39 had only exposure and none had two distinct acts. Citing a passage in your own writing
+ * or marking it while reading *is* the act. A second citation still ranks it higher; it is
+ * no longer the price of entry.
+ */
+export const ENGINE_MIN_VERSE_COMMITTED_SIGNALS = 1;
 
 /**
  * How much study an account needs before the engine offers anything at all.
@@ -313,7 +323,9 @@ export function nodeReadiness(
     return (meaningWeight ?? 0) < NOTE_MEANING_WEIGHT_FLOOR ? 'too-thin' : 'ready';
   }
 
-  if (countCommittedSignals(node, context) < ENGINE_MIN_COMMITTED_SIGNALS) return 'too-few-signals';
+  const needed =
+    node.nodeKind === 'verse' ? ENGINE_MIN_VERSE_COMMITTED_SIGNALS : ENGINE_MIN_COMMITTED_SIGNALS;
+  if (countCommittedSignals(node, context) < needed) return 'too-few-signals';
   return 'ready';
 }
 

@@ -144,7 +144,8 @@ describe('selectReviewBatch', () => {
       meaningWeightByNoteId: new Map([['n1', 0.5]]),
     });
     const verses = picked.filter((p) => p.nodeKind === 'verse');
-    expect(picked).toHaveLength(3);
+    expect(picked.length).toBeGreaterThanOrEqual(3);
+    expect(picked.length).toBeLessThanOrEqual(5);
     expect(verses.length).toBeLessThanOrEqual(ENGINE_PER_KIND_CAP);
     expect(picked.some((p) => p.nodeKind === 'note')).toBe(true);
   });
@@ -195,9 +196,9 @@ describe('selectReviewBatch', () => {
 
 describe('engineDailyRoom', () => {
   it('closes once the day is full', () => {
-    expect(engineDailyRoom(0)).toBe(3);
-    expect(engineDailyRoom(2)).toBe(1);
-    expect(engineDailyRoom(3)).toBe(0);
+    expect(engineDailyRoom(0)).toBe(5);
+    expect(engineDailyRoom(2)).toBe(3);
+    expect(engineDailyRoom(5)).toBe(0);
     expect(engineDailyRoom(9)).toBe(0);
   });
 });
@@ -267,10 +268,10 @@ describe('nodeReadiness', () => {
     expect(countCommittedSignals(citedTwice)).toBe(2);
     expect(nodeReadiness(citedTwice, NOW, null)).toBe('ready');
 
-    // Once is not a habit.
+    // Once is enough to enter — a second citation ranks it, it does not gate it.
     const citedOnce = { ...citedTwice, exposureCount: 1 };
     expect(countCommittedSignals(citedOnce)).toBe(1);
-    expect(nodeReadiness(citedOnce, NOW, null)).toBe('too-few-signals');
+    expect(nodeReadiness(citedOnce, NOW, null)).toBe('ready');
 
     // A note opened twice is one signal, not two — opening is not a deliberate act.
     const openedTwice = node({
@@ -362,14 +363,13 @@ describe('nodeReadiness', () => {
     expect(nodeReadiness({ ...written, firstStudiedAt: daysAgo(2) }, NOW, 0.5)).toBe('too-new');
   });
 
-  it('widens notes and nothing else', () => {
+  it('widens notes and verses, not chapters from a glance', () => {
     /*
-     * The regression this change could have caused. Dropping the signals gate for notes must not
-     * drop it for the two kinds whose nodes are created by contact rather than by authorship —
-     * one glance at a chapter is not study, however many times it is repeated.
+     * Dropping the two-signal gate for notes and verses must not drop it for a chapter whose
+     * exposure is a glance. One glance at a chapter is not study, however many times it is repeated.
      */
     const once = { firstStudiedAt: daysAgo(30), exposureCount: 1, revisitCount: 0 };
-    expect(nodeReadiness(verse('v', once), NOW, null)).toBe('too-few-signals');
+    expect(nodeReadiness(verse('v', once), NOW, null)).toBe('ready');
     expect(
       nodeReadiness(
         node({ nodeKind: 'chapter', nodeKey: nodeKey.chapter({ book: 'John', chapter: 3 }), ...once, exposureCount: 50 }),

@@ -24,6 +24,7 @@ import {
   REVIEW_ENGINE_DAILY_CAP,
   REVIEW_ENGINE_WINDOW_HOURS,
   REVIEW_ENGINE_MAX_OUTSTANDING,
+  REVIEW_INBOX_MAX_ROWS,
   type ReviewAskableKind,
 } from '@/utils/review-item-kinds';
 import {
@@ -222,8 +223,8 @@ export async function engineColdStartFor(
 /**
  * Top up the reader's queue from their own study, and return whatever it added.
  *
- * **Waits before it offers anything.** A node has to be a few days old; a verse or a chapter has
- * to carry two distinct deliberate acts; a note has to clear `NOTE_MEANING_WEIGHT_FLOOR`, which
+ * **Waits before it offers anything.** A node has to be a few days old; a chapter has
+ * to carry two distinct deliberate acts and a verse needs one cite or mark; a note has to clear `NOTE_MEANING_WEIGHT_FLOOR`, which
  * for a note is the whole test, because writing one is already the deliberate act and asking for
  * a second said that study does not count until you come back to it. The account itself has to
  * have `ENGINE_COLD_START_MIN_READY` such nodes before the engine runs at all. Before this the only gate was a 24-hour quiet rule, so anything opened once and
@@ -289,14 +290,26 @@ export async function refillReviewQueue(
         .limit(REVIEW_ENGINE_MAX_OUTSTANDING),
     ]);
 
-    const room = engineDailyRoom(recent.length);
+    /*
+     * A sitting should always be able to find a handful when the library can support one.
+     * The daily cap limits how fast *new* keys accumulate on a full queue. It must not leave
+     * a paid account staring at two cards because three already went out earlier today.
+     * Session shortfall is filled from never-asked ready study; the outstanding cap still
+     * stops a pile from growing past four sittings.
+     */
+    const dailyRoom = engineDailyRoom(recent.length);
+    const sessionShortfall = Math.max(0, REVIEW_INBOX_MAX_ROWS - outstanding.length);
+    const room = Math.max(dailyRoom, sessionShortfall);
     if (room <= 0) return [];
     /*
      * Stop adding, rather than adding less. Half a batch on top of a backlog is still a backlog,
      * and the way out is answering some — which clears the block on its own, with no state to
      * reset and nothing for the reader to dismiss.
+     *
+     * Exception: a sitting that is already short of a handful is not a backlog. Filling that
+     * shortfall is practice, not debt.
      */
-    if (outstanding.length >= REVIEW_ENGINE_MAX_OUTSTANDING) return [];
+    if (outstanding.length >= REVIEW_ENGINE_MAX_OUTSTANDING && sessionShortfall === 0) return [];
 
     const [engine, existing] = await Promise.all([
       loadEngineCandidates(userId),
