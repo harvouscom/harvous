@@ -198,6 +198,8 @@ export function buildVerseLocate(
   seed: string,
   /** A fragment the reader marked themselves, preferred over the middle of the verse. */
   readerPhrase: string | null = null,
+  /** Same-book passages first; the canned list is always last. */
+  fallbackPool: readonly string[] = FALLBACK_REFERENCES,
 ): VerseLocateExercise | null {
   const phrase = readerPhrase ?? locatePhrase(text);
   if (!phrase) return null;
@@ -208,7 +210,7 @@ export function buildVerseLocate(
   const choice = buildChoiceExercise({
     answers: [answer],
     pool: poolReferences,
-    fallbackPool: FALLBACK_REFERENCES,
+    fallbackPool: [...fallbackPool, ...FALLBACK_REFERENCES.filter((r) => !fallbackPool.includes(r))],
     optionCount: LOCATE_OPTION_COUNT,
     seed,
   });

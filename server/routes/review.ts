@@ -11,7 +11,7 @@
  */
 
 import { reviewRungIsGraded } from '@/utils/review-prompts';
-import { interleaveSession, sessionGroupKeyFor } from '@/utils/review-session-order';
+import { composeSitting, sessionGroupKeyFor } from '@/utils/review-session-order';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { requireFeature } from '../middleware/require-feature';
@@ -43,6 +43,7 @@ import {
   deferReviewItem,
   getReviewItem,
   listDueReviewItems,
+  listUpcomingReviewItems,
   listReviewItems,
   nextScheduledReviewAt,
   recordReviewEvent,
@@ -101,23 +102,32 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
      * production. The slack listed beyond the three rows exists precisely so a late drop costs a
      * row from the tail rather than from what is shown, and cutting first threw that away.
      */
-    const due = await listDueReviewItems(
-      auth.userId,
-      REVIEW_INBOX_MAX_ROWS + 1 + REVIEW_INBOX_UNASKABLE_SLACK,
-      now,
-    );
-    const askable = await filterAskableReviewRows(auth.userId, due, { dropUnaskable: true });
+    const dueLimit = REVIEW_INBOX_MAX_ROWS + 1 + REVIEW_INBOX_UNASKABLE_SLACK;
+    const [due, upcoming] = await Promise.all([
+      listDueReviewItems(auth.userId, dueLimit, now),
+      listUpcomingReviewItems(auth.userId, REVIEW_INBOX_MAX_ROWS, now),
+    ]);
+    const [askableDue, askableUpcoming] = await Promise.all([
+      filterAskableReviewRows(auth.userId, due, { dropUnaskable: true }),
+      filterAskableReviewRows(auth.userId, upcoming, { dropUnaskable: true }),
+    ]);
+    const withKey = <T extends { scriptureReference?: string | null; noteId?: string | null }>(row: T) => ({
+      ...row,
+      groupKey: sessionGroupKeyFor(row),
+    });
     /*
-     * Same order the sitting uses. Activity was showing dueAt order, so a handful queued
-     * together (three verses of one chapter, all "pick how it begins") looked like a quiz
-     * even though the session would have mixed them.
+     * Mix the two halves of a sitting. Five due notes with verses coming back tomorrow used
+     * to render as five copies of the same card; the verses sat in "coming back later".
      */
-    const ordered = interleaveSession(
-      askable.map((row) => ({ ...row, groupKey: sessionGroupKeyFor(row) })),
+    const ordered = composeSitting(
+      askableDue.map(withKey),
+      askableUpcoming.map(withKey),
+      REVIEW_INBOX_MAX_ROWS,
       now,
     );
     const built = await buildReviewItemViews(auth.userId, ordered, { dropUnaskable: true });
     const items = built.slice(0, REVIEW_INBOX_MAX_ROWS);
+    const shownIds = new Set(items.map((item) => item.id));
 
     /*
      * Why there is nothing, when there is nothing.
@@ -135,7 +145,7 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
       items,
       /* `built`, not `askable`: the build applies one drop rule the filter cannot, so the count
          that answers "is there more" has to be the built one. See the note above the cut. */
-      hasMore: built.length > REVIEW_INBOX_MAX_ROWS,
+      hasMore: askableDue.some((row) => !shownIds.has(row.id)) || due.length >= dueLimit,
       coldStart: coldStart
         ? { ready: coldStart.ready, needed: coldStart.needed, opensAt: coldStart.opensAt?.toISOString() ?? null }
         : null,
@@ -202,12 +212,25 @@ route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('r
 route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature('review'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    await refillReviewQueue(auth.userId);
-    const rows = interleaveSession(
-      (await listDueReviewItems(auth.userId, REVIEW_SESSION_CAP)).map((row) => ({
-        ...row,
-        groupKey: sessionGroupKeyFor(row),
-      })),
+    const now = new Date();
+    await refillReviewQueue(auth.userId, now);
+    const [due, upcoming] = await Promise.all([
+      listDueReviewItems(auth.userId, REVIEW_SESSION_CAP + REVIEW_INBOX_UNASKABLE_SLACK, now),
+      listUpcomingReviewItems(auth.userId, REVIEW_SESSION_CAP, now),
+    ]);
+    const [askableDue, askableUpcoming] = await Promise.all([
+      filterAskableReviewRows(auth.userId, due, { dropUnaskable: true }),
+      filterAskableReviewRows(auth.userId, upcoming, { dropUnaskable: true }),
+    ]);
+    const withKey = <T extends { scriptureReference?: string | null; noteId?: string | null }>(row: T) => ({
+      ...row,
+      groupKey: sessionGroupKeyFor(row),
+    });
+    const rows = composeSitting(
+      askableDue.map(withKey),
+      askableUpcoming.map(withKey),
+      REVIEW_SESSION_CAP,
+      now,
     );
     const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
     /*

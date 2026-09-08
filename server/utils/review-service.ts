@@ -135,6 +135,7 @@ import { collectStudyThreadGraph } from './study-thread-graph';
 import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
 import { pickRepNoteIdForCluster } from './study-thread-cluster-count';
 import { formatVerseAddress, lastVerseOf, neighbourVerseAddresses, nextVerseAddress } from '@/utils/verse-adjacency';
+import { partitionByBook } from '@/utils/scripture-book';
 import {
   CROSSREF_MIN_VOTES,
   VERSE_THEME_MIN_RELEVANCE,
@@ -262,6 +263,11 @@ export interface ReviewItemView {
   /** Why this row is here, in the reader's words. Null on items they added themselves. */
   sourceLabel: string | null;
   sourceAt: string | null;
+  /**
+   * The stem, when the row cannot name the subject. A quoted line from the note, or a
+   * fragment of the verse. Null on every other rung — the title already says which thing it is.
+   */
+  cue: string | null;
 }
 
 /**
@@ -354,7 +360,7 @@ function displayTitle(title: string | null | undefined): string | null {
  */
 async function loadNoteLabelPool(
   userId: string,
-): Promise<{ distinguishing: string[]; byId: Map<string, string> }> {
+): Promise<{ distinguishing: string[]; byId: Map<string, string>; bookByLabel: Map<string, string> }> {
   const rows = await db
     .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
     .from(Notes)
@@ -371,15 +377,18 @@ async function loadNoteLabelPool(
 
   const distinguishing: string[] = [];
   const byId = new Map<string, string>();
+  const bookByLabel = new Map<string, string>();
   const seen = new Set<string>();
   for (const row of rows) {
+    const passage = resolved.get(row.id)?.passage ?? null;
     const { label, distinguishing: names } = noteOptionLabel({
       id: row.id,
       title: row.title,
       createdAt: row.createdAt,
-      passage: resolved.get(row.id)?.passage ?? null,
+      passage,
     });
     byId.set(row.id, label);
+    if (passage) bookByLabel.set(label.toLowerCase(), passage);
     if (!names) continue;
     const key = label.toLowerCase();
     // Two rows reading the same is one option, not two.
@@ -387,7 +396,7 @@ async function loadNoteLabelPool(
     seen.add(key);
     distinguishing.push(label);
   }
-  return { distinguishing, byId };
+  return { distinguishing, byId, bookByLabel };
 }
 
 /**
@@ -870,11 +879,28 @@ export async function buildReviewItemViews(
       const translation = row.translation ?? 'NET';
       if (row.kind === 'chapter') return [chapterMaterialFor(row.scriptureReference, translation)];
       if (row.kind !== 'verse') return [];
-      const warm: Promise<unknown>[] = [materialFor(row.scriptureReference, translation)];
-      if (row.ladderStep === 0) warm.push(fetchVerseText(row.scriptureReference, translation));
+      const warm: Promise<unknown>[] = [
+        materialFor(row.scriptureReference, translation),
+        fetchVerseText(row.scriptureReference, translation),
+      ];
       return warm;
     }),
   );
+
+  const recognizeNoteIds = [
+    ...new Set(
+      rows
+        .filter((row) => row.kind === 'note' && row.noteId && noteRungFor(row, material) === 'note.recognize')
+        .map((row) => row.noteId as string),
+    ),
+  ];
+  const recognizeBodies = recognizeNoteIds.length
+    ? await db
+        .select({ id: Notes.id, content: Notes.content, contentEncrypted: Notes.contentEncrypted })
+        .from(Notes)
+        .where(and(eq(Notes.userId, userId), inArray(Notes.id, recognizeNoteIds)))
+    : [];
+  const recognizeBodyById = new Map(recognizeBodies.map((row) => [row.id, row]));
 
   const views: ReviewItemView[] = [];
   for (const row of rows) {
@@ -957,6 +983,29 @@ export async function buildReviewItemViews(
     );
 
     const resolvedKey = noteRung ?? key;
+    /*
+     * When the name is the answer, the row leads with the stem instead of "One of your notes".
+     * A quoted line from the middle of the note, or a fragment of the verse — unique, and not
+     * a spoiler. Opening words are barred: they are the untitled note's option label.
+     */
+    let subjectCue: string | null = cue;
+    if (resolvedKey === 'note.recognize' && row.noteId) {
+      const body = recognizeBodyById.get(row.noteId);
+      subjectCue =
+        body && !body.contentEncrypted
+          ? noteFragment(stripHtml(body.content ?? ''), `${row.id}:${row.ladderStep}`)
+          : null;
+    } else if (
+      (resolvedKey === 'verse.locate' || resolvedKey === 'verse.book') &&
+      row.scriptureReference
+    ) {
+      if (!subjectCue) {
+        const text = await fetchVerseText(row.scriptureReference, row.translation ?? 'NET');
+        subjectCue = text ? verseCue(stripHtml(text)) : null;
+      }
+    } else if (resolvedKey !== 'verse.recognize') {
+      subjectCue = null;
+    }
     const framingNodeKey = nodeKeyFor(row);
     const node = framingNodeKey ? nodeByKey.get(framingNodeKey) : undefined;
     const seed = `${row.id}:${row.ladderStep}`;
@@ -1023,6 +1072,7 @@ export async function buildReviewItemViews(
       noteWrittenAt: primary?.writtenAt?.toISOString() ?? null,
       sourceLabel: row.sourceLabel,
       sourceAt: row.sourceAt?.toISOString() ?? null,
+      cue: subjectCue,
     });
   }
   return views;
@@ -1054,6 +1104,26 @@ export async function listDueReviewItems(
         eq(ReviewItems.userId, userId),
         eq(ReviewItems.status, 'active'),
         lte(ReviewItems.dueAt, now),
+      ),
+    )
+    .orderBy(ReviewItems.dueAt)
+    .limit(limit)) as ReviewItemRow[];
+}
+
+/** Active items not yet due, soonest first — the pool a mixed sitting may pull from. */
+export async function listUpcomingReviewItems(
+  userId: string,
+  limit: number,
+  now: Date = new Date(),
+): Promise<ReviewItemRow[]> {
+  return (await db
+    .select()
+    .from(ReviewItems)
+    .where(
+      and(
+        eq(ReviewItems.userId, userId),
+        eq(ReviewItems.status, 'active'),
+        gt(ReviewItems.dueAt, now),
       ),
     )
     .orderBy(ReviewItems.dueAt)
@@ -2618,7 +2688,15 @@ export async function gradeVerseAnswer(
   }
 
   const pool = await listUserVerseReferences(userId, item.scriptureReference);
-  const exercise = buildVerseLocate(item.scriptureReference, text, pool, seed);
+  const { close, rest } = partitionByBook([item.scriptureReference], pool);
+  const exercise = buildVerseLocate(
+    item.scriptureReference,
+    text,
+    close.length ? close : pool,
+    seed,
+    null,
+    close.length ? rest : undefined,
+  );
   if (!exercise) return null;
   return {
     correct: gradeVerseLocate(exercise, answer.option!),
@@ -2683,18 +2761,29 @@ function noteOptionLabel(row: {
 async function loadNoteOptionLabels(
   userId: string,
   noteId: string,
-): Promise<{ own: string; ownDistinguishing: boolean; others: string[] }> {
-  const [pool, subject] = await Promise.all([
+): Promise<{ own: string; ownDistinguishing: boolean; others: string[]; close: string[]; rest: string[] }> {
+  const [pool, subject, passages] = await Promise.all([
     loadNoteLabelPool(userId),
     loadNoteSubjectLabels(userId, [noteId]),
+    getNotePassages(noteId),
   ]);
   const ownLabel = subject.get(noteId) ?? { label: 'A note', distinguishing: false };
   const own = ownLabel.label.toLowerCase();
+  const others = pool.distinguishing.filter((label) => label.toLowerCase() !== own);
+  const anchors = passages.map((p) => verseReferenceLabel(p));
+  const { close, rest } = partitionByBook(
+    anchors,
+    others.map((label) => pool.bookByLabel.get(label.toLowerCase()) ?? label),
+  );
+  // The pool is labels (titles or passages). Re-map close/rest back to the labels that produced them.
+  const labelFor = (value: string): string | undefined =>
+    others.find((label) => label === value || (pool.bookByLabel.get(label.toLowerCase()) ?? '') === value);
   return {
     own: ownLabel.label,
     ownDistinguishing: ownLabel.distinguishing,
-    // A distractor reading the same as the answer makes the question unanswerable, not just dull.
-    others: pool.distinguishing.filter((label) => label.toLowerCase() !== own),
+    others,
+    close: close.map((value) => labelFor(value)).filter((label): label is string => Boolean(label)),
+    rest: rest.map((value) => labelFor(value)).filter((label): label is string => Boolean(label)),
   };
 }
 
@@ -2838,7 +2927,8 @@ async function buildNoteExercise(
       fragment,
       span,
       answerLabel: labels.own,
-      poolLabels: labels.others,
+      poolLabels: labels.close.length ? labels.close : labels.others,
+      fallbackLabels: labels.close.length ? labels.rest : undefined,
       seed,
     });
     return exercise
@@ -2852,7 +2942,13 @@ async function buildNoteExercise(
     if (!acceptable.length) return null;
     // Generous pool: every acceptable answer is also barred as a distractor.
     const pool = await listUserVerseReferences(userId, '');
-    const exercise = buildNoteChoice({ acceptable, poolLabels: pool, seed });
+    const { close, rest } = partitionByBook(acceptable, pool);
+    const exercise = buildNoteChoice({
+      acceptable,
+      poolLabels: close.length ? close : pool,
+      fallbackLabels: close.length ? rest : undefined,
+      seed,
+    });
     return exercise ? { rung, exercise, fragment: null, span: null, acceptable } : null;
   }
 
@@ -2885,10 +2981,13 @@ async function buildNoteExercise(
 
     const chosen = usable[hashSeed(seed) % usable.length];
     const reference = chosen.reference!.trim();
+    const pool = await listUserVerseReferences(userId, reference);
+    const { close, rest } = partitionByBook([reference], pool);
     const exercise = buildNoteAnnotation({
       annotation: annotationTextOf(chosen),
       reference,
-      poolReferences: await listUserVerseReferences(userId, reference),
+      poolReferences: close.length ? close : pool,
+      fallbackReferences: close.length ? rest : undefined,
       seed,
     });
     return exercise
@@ -2898,9 +2997,13 @@ async function buildNoteExercise(
 
   const neighbours: string[] = await loadConnectedNoteLabels(userId, item.noteId);
   if (!neighbours.length) return null;
+  const distractors = labels.others.filter((label) => !neighbours.includes(label));
+  const close = labels.close.filter((label) => !neighbours.includes(label));
+  const rest = labels.rest.filter((label) => !neighbours.includes(label));
   const exercise = buildNoteChoice({
     acceptable: neighbours,
-    poolLabels: labels.others.filter((label) => !neighbours.includes(label)),
+    poolLabels: close.length ? close : distractors,
+    fallbackLabels: close.length ? rest : undefined,
     seed,
   });
   return exercise ? { rung, exercise, fragment: null, span: null, acceptable: neighbours } : null;
@@ -3078,13 +3181,15 @@ export async function buildReviewReveal(
         }
         if (rung.key === 'verse.locate') {
           const pool = await listUserVerseReferences(userId, item.scriptureReference);
+          const { close, rest } = partitionByBook([item.scriptureReference], pool);
           // The reader's own marked span, where one fits; the verse's middle otherwise.
           const exercise = buildVerseLocate(
             item.scriptureReference,
             text,
-            pool,
+            close.length ? close : pool,
             seed,
             readerSpanFragment(await loadReaderSpan(userId, item.scriptureReference), text),
+            close.length ? rest : undefined,
           );
           payload.locate = exercise ? { phrase: exercise.phrase, options: exercise.options } : null;
           // The verse text itself would give the answer away on this rung.

@@ -42,6 +42,20 @@ export interface SessionOrderInput {
   ladderStep?: number;
 }
 
+/**
+ * The two halves of a sitting: scripture (verse, chapter, a marked span) and the
+ * reader's own writing. A handful of one half is a quiz; both is review.
+ */
+export function sittingHalf(kind: string): 'passage' | 'note' {
+  return kind === 'verse' || kind === 'chapter' || kind === 'highlight' ? 'passage' : 'note';
+}
+
+/** Pull a waiting item in if it is due within this many days. Tomorrow, not next month. */
+export const SITTING_NEAR_DAYS = 2;
+
+/** Leave room for this many of the other half when it is waiting nearby. */
+export const SITTING_OTHER_HALF = 2;
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function daysOverdue(item: SessionOrderInput, now: Date): number {
@@ -98,4 +112,59 @@ export function interleaveSession<T extends SessionOrderInput>(items: T[], now: 
     for (const bucket of buckets(group, now)) drain(bucket, out);
   }
   return out;
+}
+
+function daysUntil(item: SessionOrderInput, now: Date): number {
+  return (item.dueAt.getTime() - now.getTime()) / MS_PER_DAY;
+}
+
+/**
+ * A handful that mixes writing and scripture, even when the due pile is one kind.
+ *
+ * Due items still lead. When they are all notes (or all verses) and the other half
+ * is due within {@link SITTING_NEAR_DAYS}, that half is pulled in and the dominant
+ * side is capped so the sitting is not five of the same thing. Items due later
+ * than that stay "coming back later" — asking something scheduled for next week
+ * is not review, it is raiding the future.
+ */
+export function composeSitting<T extends SessionOrderInput>(
+  due: readonly T[],
+  upcoming: readonly T[],
+  max: number,
+  now: Date = new Date(),
+): T[] {
+  if (due.length === 0) return [];
+
+  const near = upcoming.filter((item) => {
+    const days = daysUntil(item, now);
+    return days > 0 && days <= SITTING_NEAR_DAYS;
+  });
+
+  const available = { note: 0, passage: 0 };
+  for (const item of [...due, ...near]) available[sittingHalf(item.kind)] += 1;
+  const canMix = available.note > 0 && available.passage > 0;
+
+  const capFor = (half: 'note' | 'passage'): number => {
+    if (!canMix) return max;
+    const other = half === 'note' ? available.passage : available.note;
+    return Math.max(1, max - Math.min(SITTING_OTHER_HALF, other));
+  };
+
+  const picked: T[] = [];
+  const used = new Set<string>();
+  const count = { note: 0, passage: 0 };
+
+  const tryPick = (item: T): void => {
+    if (used.has(item.id) || picked.length >= max) return;
+    const half = sittingHalf(item.kind);
+    if (count[half] >= capFor(half)) return;
+    used.add(item.id);
+    count[half] += 1;
+    picked.push(item);
+  };
+
+  for (const item of interleaveSession([...due], now)) tryPick(item);
+  for (const item of interleaveSession(near, now)) tryPick(item);
+
+  return interleaveSession(picked, now);
 }
