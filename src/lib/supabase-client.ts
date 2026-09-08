@@ -12,6 +12,7 @@
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { isBrowserSecureContext } from '@/utils/storage-security';
 
 let browserClient: SupabaseClient | null = null;
 type AccessTokenGetter = () => Promise<string | null>;
@@ -28,6 +29,7 @@ export const REALTIME_PRIVATE_CHANNEL_CONFIG = {
 };
 
 export function isSupabaseRealtimeConfigured(): boolean {
+  if (!isBrowserSecureContext()) return false;
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
   return Boolean(url && String(url).trim() && key && String(key).trim());
@@ -94,18 +96,23 @@ export function setSupabaseRealtimeAccessTokenGetter(fn: AccessTokenGetter | nul
 export function getSupabaseBrowserClient(): SupabaseClient | null {
   if (!isSupabaseRealtimeConfigured()) return null;
   if (!browserClient) {
-    browserClient = createClient(
-      String(import.meta.env.VITE_SUPABASE_URL).trim(),
-      String(import.meta.env.VITE_SUPABASE_ANON_KEY).trim(),
-      {
-        auth: { persistSession: false, autoRefreshToken: false },
-        accessToken: async () => {
-          if (!accessTokenGetter) return null;
-          return accessTokenGetter();
+    try {
+      browserClient = createClient(
+        String(import.meta.env.VITE_SUPABASE_URL).trim(),
+        String(import.meta.env.VITE_SUPABASE_ANON_KEY).trim(),
+        {
+          auth: { persistSession: false, autoRefreshToken: false },
+          accessToken: async () => {
+            if (!accessTokenGetter) return null;
+            return accessTokenGetter();
+          },
         },
-      },
-    );
-    ensureAuthRefreshLoop();
+      );
+      ensureAuthRefreshLoop();
+    } catch {
+      // Insecure context / blocked WebSocket — HTTP sync remains authoritative.
+      return null;
+    }
   }
   return browserClient;
 }

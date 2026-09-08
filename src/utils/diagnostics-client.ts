@@ -4,7 +4,7 @@ import type {
   DiagnosticSource,
   DiagnosticSourceEnv,
 } from '@/utils/diagnostic-sources';
-import { redactDiagnosticRoute } from '@/utils/diagnostics-route';
+import { isNoiseDiagnosticMessage, redactDiagnosticRoute } from '@/utils/diagnostics-route';
 
 const SESSION_STORAGE_KEY = 'harvous_diag_session';
 const SESSION_ROTATE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -84,6 +84,7 @@ function buildClientErrorMetadata(message: string): Record<string, unknown> | nu
 
 function shouldIgnoreError(error: Error | string): boolean {
   const message = typeof error === 'string' ? error : error.message ?? '';
+  if (isNoiseDiagnosticMessage(message)) return true;
   if (isThirdPartyChunkFailure(message)) return true;
   return isBenignErrorMessage(message);
 }
@@ -242,13 +243,16 @@ export function reportApiDiagnostic(path: string, status: number, message: strin
   if (status < 500) return;
   // Service worker offline fallback (public/sw.js) returns synthetic 503 with this exact message.
   if (status === 503 && message === 'Network error') return;
+  const pathOnly = path.split('?')[0] ?? path;
+  const labeled = `${message} (${redactDiagnosticRoute(pathOnly)})`;
+  if (isNoiseDiagnosticMessage(labeled) || isNoiseDiagnosticMessage(message)) return;
   // One event per logical failure — not one per React Query retry attempt.
   if (isDuplicateReport(`api|${path}|${status}|${message}`)) return;
-  rememberError(message, null);
+  rememberError(labeled, null);
   reportDiagnosticEvent({
     source: 'client_api',
-    message,
-    metadata: { statusCode: status, apiPath: path },
+    message: labeled,
+    metadata: { statusCode: status, apiPath: pathOnly },
   });
 }
 

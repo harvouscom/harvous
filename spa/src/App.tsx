@@ -6,9 +6,9 @@ import { hasClerkSessionCookieHint } from './hooks/queries/useProfile';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
-import React, { lazy, Suspense, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { buildClerkAppearance } from './lib/clerk-appearance';
-import { getColorSchemeSnapshot, subscribeColorScheme } from './lib/prototype-background';
+import { getColorSchemeSnapshot } from './lib/prototype-background';
 import { getInstallPlatform } from '@/utils/platform-detect';
 import { createPortal } from 'react-dom';
 import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
@@ -818,8 +818,10 @@ function useInAppLinkInterceptor() {
 }
 
 function HarvousClerkProvider({ children }: { children: React.ReactNode }) {
-  const colorScheme = useSyncExternalStore(subscribeColorScheme, getColorSchemeSnapshot, () => 'light');
-  const appearance = useMemo(() => buildClerkAppearance(colorScheme === 'dark'), [colorScheme]);
+  // First paint only. Passing a new `appearance` (light ↔ dark) made Clerk remount the
+  // provider, which throws "You've added multiple <ClerkProvider> components". Tokens on
+  // `appearance.variables` already follow `--pds-*`, so Clerk UI still tracks the scheme.
+  const appearance = useMemo(() => buildClerkAppearance(getColorSchemeSnapshot() === 'dark'), []);
 
   return (
     <ClerkProvider publishableKey={clerkPublishableKey} appearance={appearance}>

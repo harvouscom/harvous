@@ -252,9 +252,12 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
-        if (cached) return cached;
+        if (cached && !isMistypedAssetResponse(event.request, cached)) return cached;
 
         return fetch(event.request).then((response) => {
+          if (isMistypedAssetResponse(event.request, response)) {
+            return new Response('', { status: 404, statusText: 'Not found' });
+          }
           if (shouldCacheResponse(response, event.request)) {
             const timestamped = addCacheTimestamp(response.clone());
             const responseToCache = timestamped.clone();
@@ -267,9 +270,10 @@ self.addEventListener('fetch', (event) => {
         }).catch(() =>
           // `caches.match` resolves undefined on a miss, and respondWith(undefined) throws —
           // which would turn a transient network blip into a hard failure for this asset.
-          caches.match(event.request).then((fallback) =>
-            fallback || new Response('', { status: 504, statusText: 'Asset unavailable' })
-          )
+          caches.match(event.request).then((fallback) => {
+            if (fallback && !isMistypedAssetResponse(event.request, fallback)) return fallback;
+            return new Response('', { status: 504, statusText: 'Asset unavailable' });
+          })
         );
       })
     );

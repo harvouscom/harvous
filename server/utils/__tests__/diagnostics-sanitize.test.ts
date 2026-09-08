@@ -172,4 +172,29 @@ describe('sanitizeDiagnosticPayload', () => {
       }),
     ).toBeNull();
   });
+
+  it('drops leftover instrumentation, Clerk remounts, and insecure-context noise', () => {
+    // Old PWA builds keep posting these. Capture filters them too, but ingest is the
+    // backstop so they cannot keep filling the admin list after a deploy.
+    const noise = [
+      '[push-nav] client navigate path=/read/today via=visible-peek waitedMs=0',
+      '[push-nav] probe from setup',
+      "@clerk/clerk-react: You've added multiple <ClerkProvider> components in your React component tree. Wrap your components in a single <ClerkProvider>.",
+      'The operation is insecure.',
+      'WebSocket not available: The operation is insecure.',
+      "Failed to execute 'open' on 'IDBFactory': The operation is insecure.",
+      "'text/html' is not a valid JavaScript MIME type.",
+    ];
+    for (const message of noise) {
+      expect(
+        sanitizeDiagnosticPayload({
+          source: 'client_js',
+          message,
+          anonymousSessionId: 'sess-123',
+          platform: 'web',
+        }),
+        message,
+      ).toBeNull();
+    }
+  });
 });

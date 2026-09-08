@@ -26,10 +26,20 @@ export async function getDBConnection(config: DBConfig): Promise<IDBDatabase> {
   }
 
   // Create new connection and cache the promise
-  const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(config.name, config.version);
+  let request: IDBOpenDBRequest;
+  try {
+    request = indexedDB.open(config.name, config.version);
+  } catch (error) {
+    // Safari private browsing throws synchronously. Do not cache a rejected promise —
+    // the next call should get a fresh attempt, not a stuck failure.
+    return Promise.reject(error);
+  }
 
-    request.onerror = () => reject(request.error);
+  const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+    request.onerror = () => {
+      connections.delete(key);
+      reject(request.error);
+    };
     request.onsuccess = () => resolve(request.result);
 
     request.onupgradeneeded = (event) => {

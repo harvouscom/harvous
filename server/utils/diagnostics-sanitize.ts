@@ -13,6 +13,7 @@ import {
   normalizeDiagnosticMessageForSignature,
   redactDiagnosticRoute,
   scrubDiagnosticText,
+  isNoiseDiagnosticMessage,
 } from '@/utils/diagnostics-route';
 
 const MAX_MESSAGE = 500;
@@ -96,6 +97,7 @@ export function sanitizeDiagnosticPayload(body: unknown): SanitizedDiagnosticInp
 
   const messageRaw = typeof raw.message === 'string' ? raw.message.trim() : '';
   if (!messageRaw) return null;
+  if (isNoiseDiagnosticMessage(messageRaw)) return null;
 
   const anonymousSessionId =
     typeof raw.anonymousSessionId === 'string' ? raw.anonymousSessionId.trim() : '';

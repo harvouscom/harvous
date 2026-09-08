@@ -18,6 +18,7 @@
  * subscription re-sync, so anything heavy here would land in the eager bundle.
  */
 import { reportDiagnosticEvent } from '@/utils/diagnostics-client';
+import { readServiceWorkerContainer } from '@/utils/storage-security';
 import { api, APIError } from './api';
 import { isPWA } from '@/utils/content-list-helpers';
 import { isIOS } from '@/utils/platform-detect';
@@ -45,9 +46,13 @@ export function getPushSupport(): PushSupport {
    * leave it undefined outside a secure context, so `'serviceWorker' in navigator` is true
    * on `http://192.168.x.x` — which is exactly how a phone reaches a dev server on the same
    * network. The `in` form would call that supported and then throw on `serviceWorker.ready`.
+   *
+   * Safari private browsing is worse: the getter itself throws SecurityError, so even
+   * optional chaining / Boolean() on the property is enough to blow up. Read through the
+   * try/catch helper.
    */
   const hasPushApis =
-    Boolean(navigator.serviceWorker) &&
+    Boolean(readServiceWorkerContainer()) &&
     typeof (window as Window & { PushManager?: unknown }).PushManager !== 'undefined' &&
     typeof (window as Window & { Notification?: unknown }).Notification !== 'undefined';
 
@@ -93,8 +98,9 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 async function currentSubscription(): Promise<PushSubscription | null> {
-  if (!('serviceWorker' in navigator)) return null;
-  const registration = await navigator.serviceWorker.ready;
+  const serviceWorker = readServiceWorkerContainer();
+  if (!serviceWorker) return null;
+  const registration = await serviceWorker.ready;
   return registration.pushManager.getSubscription();
 }
 
@@ -139,7 +145,11 @@ export async function enablePushReminders(): Promise<EnableResult> {
   if (!key) return { ok: false, support: 'granted', error: 'Push is not configured on the server yet.' };
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const serviceWorker = readServiceWorkerContainer();
+    if (!serviceWorker) {
+      return { ok: false, support: 'unsupported', error: 'Push is not available in this browser.' };
+    }
+    const registration = await serviceWorker.ready;
     const existing = await registration.pushManager.getSubscription();
     const subscription =
       existing ??
@@ -179,7 +189,7 @@ export async function enablePushReminders(): Promise<EnableResult> {
     reportDiagnosticEvent({
       source: 'client_js',
       severity: 'warning',
-      message: `[push-nav] subscribe failed: ${raw}`,
+      message: `Push subscribe failed: ${raw}`,
     });
     return {
       ok: false,

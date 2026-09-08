@@ -196,6 +196,17 @@ describe('service worker push handlers', () => {
     expect(sw()).toContain("credentials: 'include'");
   });
 
+  it('never serves HTML as a hashed JS or CSS asset', () => {
+    // A stale-while-revalidate miss used to return index.html for /assets/*.js, which
+    // the browser then refused as `'text/html' is not a valid JavaScript MIME type`.
+    const text = sw();
+    expect(text).toContain('isMistypedAssetResponse');
+    const assets = text.slice(text.indexOf("url.pathname.startsWith('/assets/')"));
+    expect(assets).toContain('isMistypedAssetResponse(event.request, cached)');
+    expect(assets).toContain('isMistypedAssetResponse(event.request, response)');
+    expect(assets).toContain('isMistypedAssetResponse(event.request, fallback)');
+  });
+
   it('caches the notification icons it renders with', () => {
     expect(sw()).toContain("'/images/icons/icon-192.png'");
     expect(sw()).toContain("'/images/icons/badge-96.png'");
