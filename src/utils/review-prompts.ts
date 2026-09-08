@@ -309,16 +309,18 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
  * "pick how it begins".
  *
  * Recognize, rebuild (blanks), then next/before. Never recall or locate on a first asking —
- * those are how a verse is kept, not how it is met. Notes stay on step 0: the note resolver
- * already picks among recognize / passage / connect from the note's own material.
+ * those are how a verse is kept, not how it is met.
+ *
+ * Notes walk the four rungs so a handful of new notes is not five "pick the note this is from".
  */
 export const VERSE_OPENING_STEPS = [0, 1, 3] as const;
 export const CHAPTER_OPENING_STEPS = [0, 1] as const;
+export const NOTE_OPENING_STEPS = [0, 1, 2, 3] as const;
 
 export function openingLadderStep(kind: 'verse' | 'note' | 'chapter', alreadyOfKind: number): number {
   if (kind === 'verse') return VERSE_OPENING_STEPS[alreadyOfKind % VERSE_OPENING_STEPS.length];
   if (kind === 'chapter') return CHAPTER_OPENING_STEPS[alreadyOfKind % CHAPTER_OPENING_STEPS.length];
-  return 0;
+  return NOTE_OPENING_STEPS[alreadyOfKind % NOTE_OPENING_STEPS.length];
 }
 
 /**

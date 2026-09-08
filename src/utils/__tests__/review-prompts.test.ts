@@ -537,8 +537,8 @@ describe('openingLadderStep', () => {
     expect(openingLadderStep('verse', 3)).toBe(0);
   });
 
-  it('never opens a note off the first rung', () => {
-    expect(openingLadderStep('note', 0)).toBe(0);
+  it('walks new notes across recognize, passage, connect, annotation', () => {
+    expect([0, 1, 2, 3].map((n) => openingLadderStep('note', n))).toEqual([0, 1, 2, 3]);
     expect(openingLadderStep('note', 4)).toBe(0);
   });
 

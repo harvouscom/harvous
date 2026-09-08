@@ -54,6 +54,15 @@ describe('resolveNoteRung', () => {
     expect(resolveNoteRung(99, ALL)).toBeTruthy();
     expect(resolveNoteRung(Number.NaN, ALL)).toBe('note.recognize');
   });
+
+  it('spreads notes on the same step across different questions', () => {
+    const keys = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7', 'n8'].map((id) =>
+      resolveNoteRung(0, ALL, `${id}:0`),
+    );
+    expect(new Set(keys).size).toBeGreaterThan(1);
+    // Same seed, same question — list, reveal and grader must agree.
+    expect(resolveNoteRung(0, ALL, 'n1:0')).toBe(resolveNoteRung(0, ALL, 'n1:0'));
+  });
 });
 
 describe('noteFragment', () => {

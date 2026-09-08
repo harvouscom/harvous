@@ -654,7 +654,11 @@ async function threadTitleFor(userId: string, repNoteId: string): Promise<string
  */
 function noteRungFor(row: ReviewItemRow, material: Map<string, NoteMaterial>) {
   if (row.kind !== 'note' || !row.noteId) return null;
-  return resolveNoteRung(row.ladderStep, material.get(row.noteId) ?? EMPTY_NOTE_MATERIAL);
+  return resolveNoteRung(
+    row.ladderStep,
+    material.get(row.noteId) ?? EMPTY_NOTE_MATERIAL,
+    `${row.id}:${row.ladderStep}`,
+  );
 }
 
 /**
@@ -2777,7 +2781,7 @@ async function buildNoteExercise(
 
   const material = (await loadNoteMaterial(userId, [item.noteId])).get(item.noteId);
   if (!material) return null;
-  const rung = resolveNoteRung(item.ladderStep, material);
+  const rung = resolveNoteRung(item.ladderStep, material, `${item.id}:${item.ladderStep}`);
   if (!rung) return null;
 
   const seed = `${item.id}:${item.ladderStep}`;
