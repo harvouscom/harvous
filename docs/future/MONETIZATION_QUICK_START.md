@@ -1,5 +1,9 @@
 # Monetization Quick Start Guide
 
+> **Superseded prices.** The Review / Group Sharing / Season Pass / Group Leader ladder below is
+> a retired draft. Live prices are $6/mo · $36/yr for Plus, with no founding discount — see
+> [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md).
+
 **Product SKUs and prices:** [MONETIZATION_AND_PRICING.md](./MONETIZATION_AND_PRICING.md) (canonical).
 
 **Technical billing (Clerk, Stripe, metadata):** [CLERK_MONETIZATION_ARCHITECTURE.md](./CLERK_MONETIZATION_ARCHITECTURE.md).

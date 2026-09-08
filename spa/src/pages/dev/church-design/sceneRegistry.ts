@@ -76,7 +76,7 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
     id: '08-broadcast-space',
     title: 'Ministry channel (adult education)',
     phase: 'Receive',
-    editFiles: ['spa/src/pages/prototype/PrototypeSidebarChurchHubView.tsx'],
+    editFiles: ['spa/src/pages/prototype/PrototypeChurchHub.tsx'],
   },
   {
     id: '09-broadcast-note',
@@ -130,14 +130,14 @@ export const CHURCH_DESIGN_SCENES: ChurchDesignScene[] = [
     id: '14-hub-congregant',
     title: 'My Church hub — congregant (rework)',
     phase: 'Receive',
-    editFiles: ['spa/src/pages/prototype/PrototypeSidebarChurchHubView.tsx'],
+    editFiles: ['spa/src/pages/prototype/PrototypeChurchHub.tsx'],
   },
   {
     id: '15-hub-staff',
     title: 'My Church hub — staff (rework)',
     phase: 'Staff',
     editFiles: [
-      'spa/src/pages/prototype/PrototypeSidebarChurchHubView.tsx',
+      'spa/src/pages/prototype/PrototypeChurchHub.tsx',
       'spa/src/pages/prototype/PrototypeChurchPlanRow.tsx',
     ],
   },

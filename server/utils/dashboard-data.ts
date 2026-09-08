@@ -406,6 +406,7 @@ export async function getSpacesWithCounts(userId: string) {
         orgId: Spaces.orgId,
         meetingDay: Spaces.meetingDay, meetingTime: Spaces.meetingTime,
         meetingKind: Spaces.meetingKind, meetingUrl: Spaces.meetingUrl,
+        studyPlanningMode: Spaces.studyPlanningMode,
         createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
         lastVisited: Spaces.lastVisited,
         threadCount: count(Threads.id),
@@ -490,6 +491,10 @@ export async function getSpacesWithCounts(userId: string) {
       meetingTime: space.meetingTime ?? null,
       meetingKind: space.meetingKind ?? null,
       meetingUrl: space.meetingUrl ?? null,
+      /* And this one — the hub's "What's next" row reads it off the prefetch
+         payload, so a room with suggestions on would show no row until the
+         slower bootstrap answered. */
+      studyPlanningMode: space.studyPlanningMode ?? 'off',
       createdAt: space.createdAt, updatedAt: space.updatedAt,
       lastVisited: space.lastVisited,
       threadCount: space.threadCount || 0,

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import SafeSubscriptionDetailsButton from '@/components/react/SafeSubscriptionDetailsButton';
+import { billingErrorMessage } from '@/lib/billing-errors';
 import { getSharedSpacesAddonFeatureBullets } from '@/lib/shared-spaces-limits';
 import {
   formatPlanPrice,
@@ -129,7 +130,9 @@ export default function PrototypeAddonsPage() {
     // Deliberately not "Founding price" here — founding is capped at 99 and may
     // already be gone. /upgrade owns that claim, where availability is live.
     if (!hasSharedSpaces) {
-      return PRICE_SUMMARY || 'Unlock Shared Spaces hosting';
+      // No Challenges here either: it is in WITHHELD_FEATURES, so no purchase
+      // surface may name it. See SHARED_SPACES_ADDON_FEATURE_BULLETS.
+      return PRICE_SUMMARY || 'Unlock Review and hosting';
     }
     if (billing) {
       const status = formatBillingStatusLine(billing);
@@ -159,10 +162,12 @@ export default function PrototypeAddonsPage() {
         plan: 'connector',
         interval,
       });
-      if (!url) throw new Error('Unable to start checkout');
+      if (!url) throw new Error('missing checkout url');
       window.location.assign(url);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to start checkout');
+      // `APIError.message` is whatever the server sent, and for a provider
+      // failure that used to be Polar's own words. The code decides the copy.
+      toast.error(billingErrorMessage(error));
       setConnectorBusy(false);
     }
   }
@@ -201,8 +206,14 @@ export default function PrototypeAddonsPage() {
         <div className="proto-settings-plan__body">
           <PlanFeatureList items={featureBullets} />
 
-          <p className="proto-settings-plan-features__coming-label">Coming soon</p>
-          <PlanFeatureList items={PLUS_COMING_SOON_FEATURE_BULLETS} comingSoon />
+          {/* Empty since 3.0 — see the constant. A heading with no list under it reads as a
+              rendering bug, not as restraint. */}
+          {PLUS_COMING_SOON_FEATURE_BULLETS.length > 0 ? (
+            <>
+              <p className="proto-settings-plan-features__coming-label">Coming soon</p>
+              <PlanFeatureList items={PLUS_COMING_SOON_FEATURE_BULLETS} comingSoon />
+            </>
+          ) : null}
 
           {!hasSharedSpaces ? (
             <button

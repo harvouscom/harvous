@@ -34,6 +34,13 @@ route.get('/api/navigation/data', async (c) => {
 
     // Ensure user cache exists before reading thread list.
     await getCachedUserData(userId);
+    /*
+     * Serial, and it has to be. The purge deletes notes, `ensurePersonalHomeSpace` backfills the
+     * ones that are left, and the junction repair reads what both of them have settled on — run
+     * together they race over the same rows, and the repair can create a junction for a note the
+     * purge is deleting. ~400ms of the request lives here; taking it off the critical path means
+     * changing how often these heal, which is a different change from making them faster.
+     */
     await purgeOnboardingContentForUser(userId);
     await ensurePersonalHomeSpace(userId);
     // Classic thread lists use NoteThreads junction; heal desynced threadId rows on nav load.

@@ -1,3 +1,4 @@
+import type { SidebarSelectionKind } from '../../layouts/proto-shell-context';
 import { describe, expect, it } from 'vitest';
 import {
   availablePrototypeCommands,
@@ -29,9 +30,15 @@ const foreignAsMember: NoteRowCapabilityInput = {
 
 function ctx(overrides: Partial<CommandContext> = {}): CommandContext {
   const rows = overrides.rows ?? [ownInHome];
+  const kind = overrides.kind ?? 'note';
+  const ids = overrides.ids ?? rows.map((_, i) => `note_${i}`);
+  /* `kinds` and `items` default to the homogeneous case, which is what every list except the
+     panel's "Everything" produces — a test that cares about mixing passes them explicitly. */
   return {
-    kind: 'note',
-    ids: overrides.ids ?? rows.map((_, i) => `note_${i}`),
+    kind,
+    kinds: overrides.kinds ?? [kind],
+    ids,
+    items: overrides.items ?? ids.map((id) => ({ kind, id })),
     rows,
     fromSelection: true,
     isScopedSharedSpace: false,
@@ -181,5 +188,72 @@ describe('chord table', () => {
     for (const id of Object.values(PROTOTYPE_COMMAND_BY_VERB)) {
       expect(prototypeCommandById(id)?.keys).toBeTruthy();
     }
+  });
+});
+
+describe('a selection holding more than one kind', () => {
+  const mixed = (kinds: SidebarSelectionKind[], rows = kinds.map(() => ownInHome)) =>
+    ctx({
+      kind: kinds[0],
+      kinds: [...new Set(kinds)],
+      ids: kinds.map((_, i) => `id_${i}`),
+      items: kinds.map((kind, i) => ({ kind, id: `id_${i}` })),
+      rows,
+    });
+
+  it('offers only the verbs that work on every kind in it', () => {
+    /*
+     * Folder, Thread, Share and Remove-from-space are notes-only. Offering them over a pile
+     * that is half folders would act on some of what the reader picked, which is the failure
+     * a bulk bar can least afford.
+     */
+    const ids = availablePrototypeCommands(mixed(['note', 'folder'])).map((c) => c.id);
+    expect(ids).not.toContain('organize.folder');
+    expect(ids).not.toContain('organize.thread');
+    expect(ids).not.toContain('organize.share');
+    expect(ids).not.toContain('organize.removeFromSpace');
+  });
+
+  it('still offers delete, which every kind understands', () => {
+    const ids = availablePrototypeCommands(mixed(['note', 'folder'])).map((c) => c.id);
+    expect(ids).toContain('organize.delete');
+  });
+
+  it('withholds pin when any kind cannot be pinned', () => {
+    /* Resources have no pin, so a bar offering one would act on part of the selection. */
+    const ids = availablePrototypeCommands(mixed(['folder', 'resource'])).map((c) => c.id);
+    expect(ids).not.toContain('organize.pin');
+  });
+
+  it('says Delete when any kind genuinely deletes, not Remove', () => {
+    /*
+     * Asymmetric on purpose. "Remove" over a note promises it will still be there and it will
+     * not; "Delete" over a folder only threatens worse than happens. Understating is the one
+     * that cannot be taken back.
+     */
+    const del = availablePrototypeCommands(mixed(['note', 'folder'])).find(
+      (c) => c.id === 'organize.delete',
+    );
+    expect(del?.label(mixed(['note', 'folder']))).toBe('Delete 2 items');
+  });
+
+  it('says Remove when nothing in it genuinely deletes', () => {
+    const c = mixed(['folder', 'thread']);
+    const del = availablePrototypeCommands(c).find((x) => x.id === 'organize.delete');
+    expect(del?.label(c)).toBe('Remove 2 items');
+  });
+
+  it('counts unlike things as "items", having no shared noun', () => {
+    const c = mixed(['note', 'folder', 'thread']);
+    const del = availablePrototypeCommands(c).find((x) => x.id === 'organize.delete');
+    expect(del?.label(c)).toContain('3 items');
+  });
+
+  it('keeps the notes-only verbs when the mix turns out to be all notes', () => {
+    /* `kinds` of length one is the ordinary case wearing the mixed machinery — it must behave
+       exactly as a single-kind selection does, or Everything would be a worse Notes tab. */
+    const ids = availablePrototypeCommands(mixed(['note', 'note'])).map((c) => c.id);
+    expect(ids).toContain('organize.folder');
+    expect(ids).toContain('organize.share');
   });
 });

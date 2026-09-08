@@ -13,27 +13,15 @@
  * editor does, and it can always be dismissed — the note underneath is an
  * ordinary note and must keep behaving like one.
  */
-const COMPOSE_PURPOSE_KEY = 'harvous_compose_purpose';
-
-/** Only 'template' is client-declared. Service purpose is read off the note. */
+/**
+ * Only 'template' is client-declared. Service purpose is read off the note.
+ *
+ * Where it lives: on the shell's compose session (`composePurpose` in `proto-shell-context`),
+ * stamped with the session's epoch. It used to be a sessionStorage key, and nothing consumed
+ * it — saving the template did not, starting the next note did not — so once "New" had been
+ * pressed in the Templates sheet, every note for the rest of the tab opened as a template.
+ */
 export type ComposePurpose = 'template';
-
-export function getComposePurpose(): ComposePurpose | null {
-  try {
-    return sessionStorage.getItem(COMPOSE_PURPOSE_KEY) === 'template' ? 'template' : null;
-  } catch {
-    return null;
-  }
-}
-
-export function setComposePurpose(purpose: ComposePurpose | null) {
-  try {
-    if (purpose) sessionStorage.setItem(COMPOSE_PURPOSE_KEY, purpose);
-    else sessionStorage.removeItem(COMPOSE_PURPOSE_KEY);
-  } catch {
-    /* ignore */
-  }
-}
 
 /**
  * Per-note dismissal.
@@ -41,7 +29,7 @@ export function setComposePurpose(purpose: ComposePurpose | null) {
  * localStorage rather than a column: dismissing a hint is not a fact about the
  * note that other people or other devices need, and a server round trip for it
  * would make the cheapest possible interaction the slowest. A draft has no id
- * yet, so clearing the session purpose *is* its dismissal.
+ * yet; its dismissal is clearing the session purpose on the shell.
  */
 function dismissKey(noteId: string) {
   return `harvous_purpose_dismissed:${noteId}`;
@@ -57,10 +45,7 @@ export function isPurposeDismissed(noteId: string | null | undefined): boolean {
 }
 
 export function dismissPurpose(noteId: string | null | undefined) {
-  if (!noteId) {
-    setComposePurpose(null);
-    return;
-  }
+  if (!noteId) return;
   try {
     localStorage.setItem(dismissKey(noteId), '1');
   } catch {

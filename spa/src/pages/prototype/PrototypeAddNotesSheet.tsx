@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { hoistArrivedSelection } from './add-notes-ordering';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -298,6 +299,14 @@ export function PrototypeAddNotesPicker({
   excludeEncrypted?: boolean;
 }) {
   const { input: searchInput, setInput: setSearchInput, debounced } = useDebouncedSearchState(280);
+  /*
+    The selection as it arrived, held still for the life of this picker.
+
+    Every caller that prefills remounts the picker when it opens (`key={open ? …}`), so the
+    first render's `selectedIds` *is* the arriving selection — there is no separate prop to
+    thread, and one would only be a second way to say the same thing.
+  */
+  const arrivedSelectedRef = useRef<Set<string>>(new Set(selectedIds));
   const [listScope, setListScope] = useState<AddNotesListScope>(defaultListScope);
   const [originScope, setOriginScope] = useState<AddNotesOriginScope>(defaultOriginScope);
   const sidPath = normalizedSpacePathId(spaceId);
@@ -397,7 +406,9 @@ export function PrototypeAddNotesPicker({
       Same test as `filterCurrentThreadAttachmentCandidates` above.
     */
     if (excludeEncrypted) pool = pool.filter((n) => n.contentEncrypted !== true);
-    return pool;
+    /* Whatever you arrived already holding, first — see `hoistArrivedSelection` for why it is
+       the arriving selection and not the live one. */
+    return hoistArrivedSelection(pool, arrivedSelectedRef.current);
   }, [
     useLocalNotes,
     spaceNotes,

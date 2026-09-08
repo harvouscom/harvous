@@ -5,6 +5,7 @@ import {
   getSharedSpacesAddonFeatureBullets,
   OWNED_SHARED_SPACES_ADDON_LIMIT,
 } from '../shared-spaces-limits';
+import { WITHHELD_FEATURES } from '../billing-plans';
 
 describe('formatOwnedSharedSpacesFeatureBullet', () => {
   it('shows usage against a finite allotment', () => {
@@ -50,8 +51,36 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
   it('returns purchase copy when the add-on is inactive', () => {
     const bullets = getSharedSpacesAddonFeatureBullets({ hasAddOn: false });
     expect(bullets[0]).toBe('Everything in free');
-    expect(bullets[1]).toBe('Unlimited shared spaces');
-    expect(bullets).toHaveLength(5);
+    // Review leads: since 3.0 it is what someone is buying, and it works for one
+    // person on the day they pay. Hosting follows.
+    expect(bullets[1]).toBe('Review — time-based quizzes that help you remember what you have studied');
+    expect(bullets[2]).toBe('Unlimited shared spaces');
+    expect(bullets).toHaveLength(6);
+  });
+
+  /**
+   * The bug this pins actually shipped: Challenges was added to
+   * `WITHHELD_FEATURES` — closed at `hasEntitlementForUserId` and hidden by
+   * `useHasFeature` — while this list went on selling it, so the upgrade page
+   * promised paying subscribers a feature their own account would refuse them.
+   *
+   * Driven off `WITHHELD_FEATURES` rather than naming Challenges, so withholding
+   * the next thing fails here too instead of quietly repeating the mistake. No
+   * non-empty guard on purpose: withholding nothing is a legitimate end state,
+   * and this should go quiet then rather than demand a feature stay switched off.
+   */
+  it('never advertises a withheld feature, in either copy', () => {
+    for (const bullets of [
+      getSharedSpacesAddonFeatureBullets({ hasAddOn: false }),
+      getSharedSpacesAddonFeatureBullets({ hasAddOn: true, ownedCount: 2, ownedLimit: 10 }),
+    ]) {
+      // The active copy rewrites exactly one bullet and passes the rest through,
+      // so neither copy can gain or lose these on its own.
+      expect(bullets.some((b) => /^Review —/.test(b))).toBe(true);
+      for (const key of WITHHELD_FEATURES) {
+        expect(bullets.some((b) => b.toLowerCase().includes(key))).toBe(false);
+      }
+    }
   });
 
   it('keeps Everything in free and swaps the owned-spaces bullet when active', () => {
@@ -61,7 +90,10 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
       ownedLimit: 10,
     });
     expect(bullets[0]).toBe('Everything in free');
-    expect(bullets[1]).toBe('2 out of 10 shared spaces');
+    expect(bullets[1]).toBe('Review — time-based quizzes that help you remember what you have studied');
+    expect(bullets[2]).toBe('2 out of 10 shared spaces');
+    // Only the owned-spaces line is rewritten; everything else passes through.
+    expect(bullets).toHaveLength(6);
   });
 });
 

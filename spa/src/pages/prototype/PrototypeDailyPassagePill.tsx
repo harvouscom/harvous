@@ -19,7 +19,7 @@ import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { findScripturePassageWithNotes } from '@/utils/scripture-passage-drill';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
-import { readerRouteForReference } from '../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug } from './proto-route-slugs';
 
 type Props = {
@@ -157,15 +157,9 @@ export default function PrototypeDailyPassagePill({
     const route = readerRouteForReference(votd.reference, getEffectiveDefaultTranslation());
     if (!route) return;
     afterNav();
-    navigate({
-      ...route,
-      search: {
-        ...route.search,
-        // Asking for today's passage again should land on the verse again, even when the
-        // reader is already open on it and the verse was clicked away.
-        req: String(Date.now()),
-      },
-    });
+    // Stamped, so asking for today's passage again lands on the verse again even when the
+    // reader is already open on it and the verse was clicked away. See `landAgain`.
+    navigate(landAgain(route));
   }, [afterNav, navigate, votd.reference]);
 
   const handleDismiss = useCallback(() => {
@@ -205,7 +199,10 @@ export default function PrototypeDailyPassagePill({
                 title="View notes on this passage"
                 onClick={openScripturePassageNotes}
               >
-                <Icon name="list" size={12} aria-hidden />
+                {/* An eye for looking at what is there; the `plus` in the other branch is a
+                    create. Same pairing as the what's-new row, so "view" reads the same
+                    wherever it appears in a Home group. */}
+                <Icon name="eye" size={12} aria-hidden />
               </button>
             ) : (
               <button

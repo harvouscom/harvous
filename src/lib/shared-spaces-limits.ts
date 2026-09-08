@@ -13,17 +13,47 @@ export const OWNED_SHARED_SPACES_ADDON_LIMIT = UNLIMITED;
 /** Total people in a space (including owner). */
 export const MEMBERS_PER_SPACE_CAP = 50;
 
-/** Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short. */
+/**
+ * Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short.
+ *
+ * Review leads, because since 3.0 it is what someone is buying: hosting is
+ * social and needs a group, while returning to your own study works for one
+ * person on the day they pay. It was appended at the end when it shipped; that
+ * was a plumbing decision, and this is the ordering one.
+ *
+ * Challenges is absent because it is in `WITHHELD_FEATURES` — switched off for
+ * everyone at both enforcement points (`hasEntitlementForUserId` and
+ * `useHasFeature`), pending the redesign in
+ * docs/future/CHALLENGES_AS_SUGGESTIONS.md. The bullet outlived the
+ * withholding: this list went on selling it after it was closed, so the page
+ * promised paying subscribers a feature their own account would refuse them.
+ * Entitlements are untouched — `PLUS_FEATURES` still issues the row, so nobody
+ * needs a backfill on the day it comes back — and this list is only what is
+ * claimed, which must never be more than what is switched on.
+ */
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
+  'Review — time-based quizzes that help you remember what you have studied',
   'Unlimited shared spaces',
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
   'Turn a thread into a study plan your group reads together',
   'Joining is always free',
 ] as const;
 
-/** Purchase-copy line for owned spaces (index 1 — after “Everything in Free”). */
-const OWNED_SPACES_PURCHASE_BULLET = SHARED_SPACES_ADDON_FEATURE_BULLETS[1];
+/**
+ * Which bullet the active copy rewrites with live usage. Named rather than
+ * assumed, so reordering the list above is a one-line change here instead of a
+ * silent mismatch between the purchase and active copy.
+ *
+ * Was 3 while Challenges sat above this line; dropping that bullet moved the
+ * owned-spaces line up one, and leaving this at 3 would have rewritten the
+ * member cap with a space count instead.
+ */
+const OWNED_SPACES_BULLET_INDEX = 2;
+
+/** Purchase-copy line for owned spaces. */
+const OWNED_SPACES_PURCHASE_BULLET =
+  SHARED_SPACES_ADDON_FEATURE_BULLETS[OWNED_SPACES_BULLET_INDEX];
 
 /** Owned-spaces bullet when the add-on is active — usage vs plan allotment. */
 export function formatOwnedSharedSpacesFeatureBullet(options: {
@@ -58,20 +88,17 @@ export function getSharedSpacesAddonFeatureBullets(options?: {
     return SHARED_SPACES_ADDON_FEATURE_BULLETS;
   }
 
-  const includesFree = SHARED_SPACES_ADDON_FEATURE_BULLETS[0];
-  const staticTail = SHARED_SPACES_ADDON_FEATURE_BULLETS.slice(2);
   const ownedLimit = options.ownedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT;
   const ownedCount = options.ownedCount;
 
-  if (ownedCount == null) {
-    return [includesFree, OWNED_SPACES_PURCHASE_BULLET, ...staticTail];
-  }
+  const ownedBullet =
+    ownedCount == null
+      ? OWNED_SPACES_PURCHASE_BULLET
+      : formatOwnedSharedSpacesFeatureBullet({ ownedCount, ownedLimit });
 
-  return [
-    includesFree,
-    formatOwnedSharedSpacesFeatureBullet({ ownedCount, ownedLimit }),
-    ...staticTail,
-  ];
+  return SHARED_SPACES_ADDON_FEATURE_BULLETS.map((bullet, index) =>
+    index === OWNED_SPACES_BULLET_INDEX ? ownedBullet : bullet,
+  );
 }
 
 export interface SpaceMembersCapacityCopy {

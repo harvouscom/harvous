@@ -9,6 +9,7 @@
  * what `UserMetadata.onboardingState` does for the checklist; these two are cheap enough
  * that reappearing on a new browser is a shrug rather than a bug.
  */
+import { releaseMarkerFor } from '@/utils/release-marker';
 import { useCallback, useEffect, useState } from 'react';
 
 export function readDismissFlag(key: string): boolean {
@@ -66,6 +67,63 @@ export function useDismissibleFlag(
     writeDismissFlag(dismissedKey);
     setVisible(false);
   }, [dismissedKey]);
+
+  return [visible, dismiss];
+}
+
+function readDismissedMarker(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `[visible, dismiss]` for a notice that returns when there is something new to say.
+ *
+ * `useDismissibleFlag` above stores yes-or-no, which is right for the founder letter and the
+ * install card: each is one message, said once. A "what's new" notice is a *channel*, with
+ * something different to say after every release, so a boolean would turn the first dismissal
+ * into an unsubscribe from every future one. Storing which release was dismissed keeps the
+ * gesture meaning what the reader meant by it: not this one, rather than none of them.
+ *
+ * Callers pass the raw version and `releaseMarkerFor` decides what counts as a change, because
+ * that judgement belongs with the storage rather than at each call site.
+ *
+ * Invisible when there is no version to compare — a build with no `__APP_VERSION__` cannot
+ * honestly claim to have news, and showing an undismissable notice would be worse than
+ * showing none.
+ */
+export function useDismissibleRelease(
+  dismissedKey: string,
+  version: string | undefined | null,
+  { previewKey, eligible = true }: DismissibleFlagOptions = {},
+): [boolean, () => void] {
+  const marker = releaseMarkerFor(version);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!eligible || !marker) {
+      setVisible(false);
+      return;
+    }
+    if (import.meta.env.DEV && previewKey && readDismissFlag(previewKey)) {
+      setVisible(true);
+      return;
+    }
+    setVisible(readDismissedMarker(dismissedKey) !== marker);
+  }, [dismissedKey, previewKey, eligible, marker]);
+
+  const dismiss = useCallback(() => {
+    if (!marker) return;
+    try {
+      localStorage.setItem(dismissedKey, marker);
+    } catch {
+      /* ignore */
+    }
+    setVisible(false);
+  }, [dismissedKey, marker]);
 
   return [visible, dismiss];
 }

@@ -17,6 +17,15 @@ export type CenteredPortaledDialogPositionOptions = {
 };
 
 export type AnchoredPopoverPositionOptions = CenteredPortaledDialogPositionOptions & {
+  /**
+   * Line the card's right edge up with the anchor's, rather than its left.
+   *
+   * For a trigger that sits at the right of its own surface: left-aligned, the card hangs off
+   * toward the pane edge and only comes back when it would leave the viewport entirely, which
+   * is a rule about the window rather than about the thing it belongs to. Opt-in, so every
+   * existing caller keeps the leading edge it was placed against.
+   */
+  alignEnd?: boolean;
   /** CSS max-height px cap (default 520). */
   maxHeightPx?: number;
   /** CSS max-height vh fraction (default 0.72). */
@@ -85,6 +94,7 @@ export function computeAnchoredPopoverPosition(
 ): { top: number; left: number } {
   const maxHeightPx = options.maxHeightPx ?? 520;
   const vhFraction = options.vhFraction ?? 0.72;
+  const alignEnd = options.alignEnd ?? false;
   const measuredHeight = cardEl.getBoundingClientRect().height;
   const cardHeight = protoAnchoredPopoverPlacementHeight(measuredHeight, maxHeightPx, vhFraction);
   const cardWidth = cardEl.getBoundingClientRect().width;
@@ -111,7 +121,7 @@ export function computeAnchoredPopoverPosition(
       top = effectiveAnchor.bottom + offset;
     }
     top = Math.max(viewportMargin, Math.min(top, vh - measuredHeight - viewportMargin));
-    left = effectiveAnchor.left;
+    left = alignEnd ? effectiveAnchor.right - cardWidth : effectiveAnchor.left;
     if (left + cardWidth + viewportMargin > vw) left = vw - cardWidth - viewportMargin;
     if (left < viewportMargin) left = viewportMargin;
   } else {

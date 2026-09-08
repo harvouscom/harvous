@@ -33,14 +33,55 @@ export type PrototypeCommandId =
  * like the Thread minimum apply.
  */
 export type CommandContext = {
+  /**
+   * The kind to speak in.
+   *
+   * For a selection of one kind this is that kind, as it always was. For a mixed one it is the
+   * commonest, and it is only ever used for wording — every gate below reads `kinds`, because
+   * a verb that is legal for notes is not thereby legal for the folder sitting next to them.
+   */
   kind: SidebarSelectionKind;
+  /**
+   * Every distinct kind in the selection, in no particular order.
+   *
+   * `[kind]` for the single-kind lists, which is all of them except the library panel's
+   * "Everything". There, a reader can hold a note and a folder at once, and the honest set of
+   * verbs is the ones that work on both.
+   */
+  kinds: SidebarSelectionKind[];
   /** The selected ids, or the single focused row's id. */
   ids: string[];
+  /**
+   * The same ids with their kinds, in the same order.
+   *
+   * The runner needs this and `ids` alone cannot carry it: deleting a note and removing a
+   * folder are different calls, so a mixed verb has to know which of its ids is which. Kept
+   * beside `ids` rather than replacing it because every existing caller wants the flat list.
+   */
+  items: { kind: SidebarSelectionKind; id: string }[];
   /** One entry per id, in the same order — the input to the capability gate. */
   rows: NoteRowCapabilityInput[];
   fromSelection: boolean;
   isScopedSharedSpace: boolean;
 };
+
+/**
+ * `kinds` and `items` for a selection that is all one kind, which is every list but one.
+ *
+ * A helper rather than a default, because a context missing them is a context that has not
+ * thought about it — and the one caller that genuinely mixes has to say so out loud.
+ */
+export function singleKindCommandParts(
+  kind: SidebarSelectionKind,
+  ids: readonly string[],
+): Pick<CommandContext, 'kinds' | 'items'> {
+  return { kinds: [kind], items: ids.map((id) => ({ kind, id })) };
+}
+
+/** Everything selected is this one kind — the gate for the verbs that only notes have. */
+function everyKindIs(ctx: CommandContext, kind: SidebarSelectionKind): boolean {
+  return ctx.kinds.length > 0 && ctx.kinds.every((k) => k === kind);
+}
 
 export type PrototypeCommandGroup = 'Organize';
 
@@ -89,6 +130,7 @@ export function commandNoun(kind: SidebarSelectionKind, count: number): string {
       return plural ? 'Threads' : 'Thread';
     case 'resource':
       return plural ? 'resources' : 'resource';
+    case 'mixed':
     default:
       return plural ? 'items' : 'item';
   }
@@ -102,7 +144,40 @@ export function commandNoun(kind: SidebarSelectionKind, count: number): string {
 function phrase(ctx: CommandContext, verb: string, tail = ''): string {
   const suffix = tail ? ` ${tail}` : '';
   if (!ctx.fromSelection) return `${verb}${suffix}`;
-  return `${verb} ${ctx.ids.length} ${commandNoun(ctx.kind, ctx.ids.length)}${suffix}`;
+  /* Mixed kinds have no shared noun, and picking one would name the wrong half. "items" is
+     the word English already uses for a pile of unlike things. */
+  const noun =
+    ctx.kinds.length > 1
+      ? ctx.ids.length === 1
+        ? 'item'
+        : 'items'
+      : commandNoun(ctx.kind, ctx.ids.length);
+  return `${verb} ${ctx.ids.length} ${noun}${suffix}`;
+}
+
+/**
+ * The word the destructive uses, by kind. Kinds not listed here genuinely delete.
+ *
+ * Exported because the confirm dialog has to say the same word as the button that raised it
+ * — see `bulkDestructiveCopy`. Two tables agreeing today is two tables disagreeing later.
+ */
+export function destructiveVerbFor(kind: SidebarSelectionKind): 'Remove' | 'Delete' {
+  return kind === 'folder' || kind === 'thread' || kind === 'sharedThread' ? 'Remove' : 'Delete';
+}
+
+/**
+ * The word for a selection that may hold several kinds.
+ *
+ * The two failures here are not symmetric. Understating is the worse one: labelling a note
+ * "Remove" promises it will still be there afterwards, and it will not. Overstating is only
+ * ungenerous — "Delete" over a folder threatens something worse than what happens, since
+ * removing a folder leaves every note where it was.
+ *
+ * So one kind that genuinely deletes makes the whole button say Delete, and the confirm is
+ * where the difference gets spelled out. A label cannot hold two verbs; a sentence can.
+ */
+export function destructiveVerbForKinds(kinds: readonly SidebarSelectionKind[]): 'Remove' | 'Delete' {
+  return kinds.some((kind) => destructiveVerbFor(kind) === 'Delete') ? 'Delete' : 'Remove';
 }
 
 /** Nothing acts on an empty target — the gate below returns false for every verb. */
@@ -120,7 +195,7 @@ export const PROTOTYPE_COMMANDS: readonly PrototypeCommand[] = [
     label: (ctx) => phrase(ctx, 'Move', 'to a folder…'),
     enabled: (ctx) =>
       hasTarget(ctx) &&
-      ctx.kind === 'note' &&
+      everyKindIs(ctx, 'note') &&
       everyRowAllows(ctx.rows, 'mayOrganize') &&
       ctx.ids.length <= (ctx.isScopedSharedSpace ? SHARED_FOLDER_FANOUT_CAP : FOLDER_FANOUT_CAP),
   },
@@ -138,7 +213,7 @@ export const PROTOTYPE_COMMANDS: readonly PrototypeCommand[] = [
      */
     enabled: (ctx) =>
       hasTarget(ctx) &&
-      ctx.kind === 'note' &&
+      everyKindIs(ctx, 'note') &&
       ctx.fromSelection &&
       everyRowAllows(ctx.rows, 'mayManageThread') &&
       ctx.ids.length >= MIN_BULK_THREAD_NOTES,
@@ -157,9 +232,11 @@ export const PROTOTYPE_COMMANDS: readonly PrototypeCommand[] = [
      */
     enabled: (ctx) =>
       hasTarget(ctx) &&
-      PINNABLE_KINDS.includes(ctx.kind) &&
+      /* Every kind present has to pin, not just the commonest — a resource among the folders
+         has no pin, and a bar offering one would act on some of what you picked. */
+      ctx.kinds.every((k) => PINNABLE_KINDS.includes(k)) &&
       everyRowAllows(ctx.rows, 'mayPin') &&
-      (ctx.kind !== 'note' || !ctx.fromSelection || ctx.ids.length === 1),
+      (!ctx.kinds.includes('note') || !ctx.fromSelection || ctx.ids.length === 1),
   },
   {
     id: 'organize.share',
@@ -168,7 +245,7 @@ export const PROTOTYPE_COMMANDS: readonly PrototypeCommand[] = [
     group: 'Organize',
     icon: 'share',
     label: (ctx) => phrase(ctx, 'Share', 'to a space…'),
-    enabled: (ctx) => hasTarget(ctx) && ctx.kind === 'note' && everyRowAllows(ctx.rows, 'mayShareToSpace'),
+    enabled: (ctx) => hasTarget(ctx) && everyKindIs(ctx, 'note') && everyRowAllows(ctx.rows, 'mayShareToSpace'),
   },
   {
     id: 'organize.removeFromSpace',
@@ -178,7 +255,7 @@ export const PROTOTYPE_COMMANDS: readonly PrototypeCommand[] = [
     icon: 'circle-minus',
     label: (ctx) => phrase(ctx, 'Remove', 'from this space'),
     enabled: (ctx) =>
-      hasTarget(ctx) && ctx.kind === 'note' && everyRowAllows(ctx.rows, 'mayRemoveFromSpace'),
+      hasTarget(ctx) && everyKindIs(ctx, 'note') && everyRowAllows(ctx.rows, 'mayRemoveFromSpace'),
   },
   {
     id: 'organize.delete',
@@ -186,7 +263,14 @@ export const PROTOTYPE_COMMANDS: readonly PrototypeCommand[] = [
     referenceLabel: 'Delete',
     group: 'Organize',
     icon: 'trash-can',
-    label: (ctx) => phrase(ctx, 'Delete'),
+    /*
+     * The verb changes with the kind, and getting it right is the whole job of this label.
+     * Folders and Threads are *labels and connections* — removing one leaves every note
+     * where it was, and `useRemoveFolder` / `useRemoveThreadCluster` do exactly that. Saying
+     * "Delete" over them would promise something worse than what happens, on the one control
+     * where an overstatement cannot be taken back.
+     */
+    label: (ctx) => phrase(ctx, destructiveVerbForKinds(ctx.kinds)),
     enabled: (ctx) => hasTarget(ctx) && everyRowAllows(ctx.rows, 'mayDelete'),
   },
 ];

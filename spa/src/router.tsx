@@ -7,6 +7,8 @@ import {
   Outlet,
   stringifySearchWith,
 } from '@tanstack/react-router';
+import { useEffect } from 'react';
+import { markNotificationNavigationReady } from './lib/notification-navigation';
 import {
   isDedicatedPrototypeHost,
   isReservedPrototypeSegment,
@@ -107,9 +109,26 @@ export function legacySpaceNoteRedirectSearch(
   };
 }
 
+/**
+ * Root component. Renders the Outlet, and tells the notification-navigation module that the
+ * router can now be navigated.
+ *
+ * That signal has to come from inside the router. `initNotificationNavigation()` runs before
+ * `createRoot`, so a destination handed over by a notification tap can arrive while
+ * `router.navigate` would go nowhere — it is held until this mounts. The root route mounts
+ * once, after the first match resolves, and for every route, so it cannot fire early and
+ * cannot be route-specific.
+ */
+function RootRouteComponent() {
+  useEffect(() => {
+    markNotificationNavigationReady();
+  }, []);
+  return <Outlet />;
+}
+
 // Root route — must render Outlet so child routes paint (pathless layouts included).
 const rootRoute = createRootRoute({
-  component: () => <Outlet />,
+  component: RootRouteComponent,
   beforeLoad: ({ location }) => {
     if (!isDedicatedPrototypeHost() || !location.pathname.startsWith('/prototype')) return;
     const rest = location.pathname.replace(/^\/prototype\/?/, '');
@@ -184,6 +203,19 @@ const sharedThreadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/thread/$shareToken',
   component: PublicSharedThreadPage,
+});
+
+/**
+ * The app's half of a Discover listing: the install action only.
+ *
+ * Flat and public, beside the other /shared/* pages, because someone arriving
+ * from harvous.com is not signed in yet. harvous.com owns the indexed page —
+ * this one is never in a sitemap and needs no OG card.
+ */
+const discoverListingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/discover/$slug',
+  component: lazyRouteComponent(() => import('./pages/public/PublicDiscoverListingPage')),
 });
 
 const invitationRoute = createRoute({
@@ -386,14 +418,81 @@ function buildPrototypeRouteBranch() {
     // just `{v, t}`, and a required-but-undefined key would make each of them a type error.
     validateSearch: (
       search: Record<string, unknown>,
-    ): { v?: string; vEnd?: string; t?: string; ref?: string; req?: string } => ({
+    ): {
+      v?: string;
+      vEnd?: string;
+      t?: string;
+      c?: string;
+      ref?: string;
+      req?: string;
+    } => ({
       v: typeof search.v === 'string' ? search.v : undefined,
       vEnd: typeof search.vEnd === 'string' ? search.vEnd : undefined,
       t: typeof search.t === 'string' ? search.t : undefined,
+      /* The translation being compared against, when the page is split. In the URL for the
+         same reasons `t` is: a reload keeps the pair, and a link shares the comparison rather
+         than just the passage. Absent means one column. */
+      c: typeof search.c === 'string' ? search.c : undefined,
       ref: typeof search.ref === 'string' ? search.ref : undefined,
       req: typeof search.req === 'string' ? search.req : undefined,
     }),
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadPage')),
+  });
+
+  /**
+   * `/read/today` — the reader on today's passage.
+   *
+   * Two segments, so it cannot collide with the three-segment `read/$book/$chapter` above or be
+   * swallowed by the single-segment `$noteId` catch-all below. This is the URL harvous.com's
+   * "Try it free" points at, because a static marketing build cannot know today's reference.
+   */
+  const prototypeReadTodayRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'read/today',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadTodayPage')),
+  });
+
+  /**
+   * Review has no page of its own any more — both of its URLs land on Activity.
+   *
+   * `review/session` went first: the question is asked in a dock, so a session was never a
+   * destination. `review` followed it. It listed the whole queue on a screen nothing in the
+   * app ever linked to, which made the two things only it could do — picking a paused item
+   * back up, recovering one that was put down — reachable only by typing a URL. Those live
+   * under the queue on Activity now, folded away beneath it, next to the actions that create
+   * them.
+   *
+   * Kept as redirects rather than deleted, because both URLs were live and a bookmark or a
+   * stale tab should land somewhere rather than on nothing. Both segments stay in
+   * `RESERVED_PROTOTYPE_SEGMENTS`, which is what keeps the single-segment `$noteId` catch-all
+   * from reading them as a note id.
+   */
+  const prototypeReviewRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'review',
+    beforeLoad: () => {
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
+    },
+  });
+
+  const prototypeReviewSessionRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'review/session',
+    beforeLoad: () => {
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
+    },
+  });
+
+  const prototypeChallengesRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'challenges',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeChallengesPage')),
+  });
+
+  const prototypeChallengeRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'challenges/$challengeId',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeChallengePage')),
   });
 
   const prototypeLegacySpaceRedirectRoute = createRoute({
@@ -441,6 +540,12 @@ function buildPrototypeRouteBranch() {
     getParentRoute: () => prototypeSettingsRoute,
     path: 'appearance',
     component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeAppearancePage')),
+  });
+
+  const prototypeSettingsRemindersRoute = createRoute({
+    getParentRoute: () => prototypeSettingsRoute,
+    path: 'reminders',
+    component: lazyRouteComponent(() => import('./pages/prototype/settings/PrototypeRemindersPage')),
   });
 
   const prototypeSettingsChurchRoute = createRoute({
@@ -527,6 +632,12 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/AdminSupportPage')),
   });
 
+  const prototypeAdminDiscoverRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'admin/discover',
+    component: lazyRouteComponent(() => import('./pages/AdminDiscoverPage')),
+  });
+
   const prototypeAdminVotdRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'admin/votd',
@@ -560,17 +671,26 @@ function buildPrototypeRouteBranch() {
     prototypeAdminPublishRoute,
     prototypeAdminMaintenanceRoute,
     prototypeAdminSupportRoute,
+    prototypeAdminDiscoverRoute,
     prototypeAdminVotdRoute,
     prototypeAdminChurchesRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
-    // Before the catch-all `$noteId`, which would otherwise swallow `/read`.
+    // Before the catch-all `$noteId`, which would otherwise swallow `/read`, `/review` and
+    // `/challenges`. The two-segment forms come first so they cannot be shadowed by their own
+    // one-segment parents.
+    prototypeReadTodayRoute,
     prototypeReadRoute,
+    prototypeReviewSessionRoute,
+    prototypeReviewRoute,
+    prototypeChallengeRoute,
+    prototypeChallengesRoute,
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([
       prototypeSettingsIndexRoute,
       prototypeSettingsAccountRoute,
       prototypeSettingsTranslationRoute,
       prototypeSettingsAppearanceRoute,
+      prototypeSettingsRemindersRoute,
       prototypeSettingsChurchRoute,
       prototypeSettingsSharingRoute,
       prototypeSettingsAddonsRoute,
@@ -694,6 +814,7 @@ function buildRouteTree() {
     joinSpaceRoute,
     sharedNoteRoute,
     sharedThreadRoute,
+    discoverListingRoute,
     invitationRoute,
     statusRoute,
     ...(designSystemGalleryRoute ? [designSystemGalleryRoute] : []),

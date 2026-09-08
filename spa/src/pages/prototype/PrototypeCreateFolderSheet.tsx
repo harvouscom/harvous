@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { FOLDER_NAME_MAX_LENGTH } from '@/utils/collection-name-limits';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { useCreateFolderRegistryLabel } from '../../hooks/mutations/usePrototypeFolderRegistry';
@@ -172,6 +173,7 @@ export default function PrototypeCreateFolderSheet({
             setFolderName(e.target.value);
             setActionError(null);
           }}
+          maxLength={FOLDER_NAME_MAX_LENGTH}
           placeholder="e.g. Going through Genesis"
           autoFocus={open}
         />

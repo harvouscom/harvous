@@ -32,9 +32,10 @@ export default function PrototypePlannerEditorPane({
   series,
   serviceTimes,
   canWrite,
-  readOnlyReason,
+  readOnlyMessage,
   canManageChurchTemplates,
   planKind,
+  hasChurch,
   rhythm,
   onClose,
   onNavigateAway,
@@ -48,10 +49,13 @@ export default function PrototypePlannerEditorPane({
   series: TeachingPlanSeries[];
   serviceTimes: ChurchServiceTimeOption[];
   canWrite: boolean;
-  readOnlyReason: 'lapsed' | 'role' | null;
+  /** The resolved sentence, or null when the viewer may write. */
+  readOnlyMessage: string | null;
   canManageChurchTemplates: boolean;
   /** 'content' hides the gathering-only fields — see PrototypeSermonEditorFields. */
   planKind?: 'gathering' | 'content';
+  /** Passed straight through — gates the church's templates as starters. */
+  hasChurch?: boolean;
   /** The room's declared rhythm, offered as dates. Offers only — nothing recurs. */
   rhythm?: { meetingDay: number | null; intervalDays: number | null };
   onClose: () => void;
@@ -149,6 +153,7 @@ export default function PrototypePlannerEditorPane({
             createDefaultDate={isEditing ? undefined : (createDate ?? null)}
             allowNullDate
             planKind={planKind}
+            hasChurch={hasChurch}
             rhythm={rhythm}
             onDone={onClose}
             onNavigateAway={onNavigateAway}
@@ -175,11 +180,7 @@ export default function PrototypePlannerEditorPane({
             }
           />
         ) : (
-          <p className="proto-caption proto-planner__readonly">
-            {readOnlyReason === 'lapsed'
-              ? 'This plan is read-only while the church pilot is paused.'
-              : 'A pastor or admin changes what is planned here.'}
-          </p>
+          <p className="proto-caption proto-planner__readonly">{readOnlyMessage}</p>
         )}
 
       </div>

@@ -6,6 +6,8 @@ import { votdTodayQueryKey } from '../queries/useVotdToday';
 import { featuredItemsQueryKey } from '../queries/useFeaturedItems';
 import { updateCachedProfile, type UserProfile } from '../queries/useProfile';
 import { getCachedProfileData, getEffectiveDefaultTranslation, updateCachedProfileData } from '@/utils/profile-cache';
+import { useHarvousIdentity } from '../useHarvousIdentity';
+import { setGuestPrefs } from '../../lib/guest-store';
 
 interface UpdateTranslationResponse {
   success?: boolean;
@@ -31,11 +33,24 @@ function profileQueryKey(userId: string | null | undefined) {
 export function useUpdateTranslation() {
   const queryClient = useQueryClient();
   const { userId } = useAuth();
+  const { isGuest } = useHarvousIdentity();
   const key = profileQueryKey(userId);
 
   return useMutation({
-    mutationFn: async (defaultTranslation: string) =>
-      api.post<UpdateTranslationResponse>('/api/user/update-translation', { defaultTranslation }),
+    mutationFn: async (defaultTranslation: string) => {
+      /*
+       * A guest keeps this on the device. The POST 401'd and `onError` reverted the cache,
+       * so the switch appeared to work for the chapter in front of them and was forgotten by
+       * the next one — reading in the version you chose needs no account.
+       */
+      if (isGuest) {
+        setGuestPrefs({ defaultTranslation });
+        return { success: true };
+      }
+      return api.post<UpdateTranslationResponse>('/api/user/update-translation', {
+        defaultTranslation,
+      });
+    },
     onMutate: async (defaultTranslation) => {
       await queryClient.cancelQueries({ queryKey: key });
 

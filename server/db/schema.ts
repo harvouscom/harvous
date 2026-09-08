@@ -88,6 +88,18 @@ export const Spaces = pgTable(
      * surface would show.
      */
     meetingUrl: text('meetingUrl'),
+    /**
+     * Whether members may say what the room studies next.
+     *
+     * `'off' | 'suggest'`, default `'off'` — a room that has never wanted this
+     * should never see it. `'vote'` is reserved for phase 2 of
+     * docs/future/SPACE_STUDY_SUGGESTIONS_AND_VOTES.md (a leader slates, the
+     * room votes) and is refused by the write route until that lands. One
+     * column rather than a settings table: a table for a couple of scalars is
+     * ceremony. Shared rooms only; a ministry channel publishes rather than
+     * decides, and a personal space has nobody to ask.
+     */
+    studyPlanningMode: text('studyPlanningMode').notNull().default('off'),
     color: text('color'),
     backgroundGradient: text('backgroundGradient'),
     /** JSON `SpaceCoverBg` — join-page / invite hero for light appearance. */
@@ -1254,6 +1266,32 @@ export const UserMetadata = pgTable('UserMetadata', {
    */
   onboardingState: text('onboardingState'),
   /**
+   * IANA zone the account was last opened from, e.g. "America/Chicago". Captured by the
+   * shell on profile load (never a picker, in v1) so a server job can say "8 AM" and mean
+   * the user's 8 AM. `null` = never captured; the reminder tick skips such accounts rather
+   * than guessing UTC.
+   */
+  timezone: text('timezone'),
+  /**
+   * The reminder schedule. JSON string — see src/utils/reminder-settings.ts for the shape.
+   * `null` = never set, which the tick reads as off. Overwritten on write like
+   * `appearanceSettings`: it is a preference, and the newest edit is the truest one.
+   */
+  reminderSettings: text('reminderSettings'),
+  /**
+   * Coarse "opened the app" stamp, written fire-and-forget by check-monthly-attendance,
+   * which the shell already calls on every mount. Exists so the reminder tick can skip
+   * someone who was just here, and so a reminder followed by an app open can be credited
+   * as `opened` without a click. Not a presence signal; do not read it as one.
+   */
+  lastActiveAt: ts('lastActiveAt'),
+  /**
+   * `YYYY-MM-DD` in the account's own timezone of the last reminder sent. The per-day
+   * idempotency key: the tick claims it with a conditional UPDATE before sending, so a
+   * restart, a repeated DST hour, or two overlapping ticks cannot send twice.
+   */
+  lastReminderSentOn: text('lastReminderSentOn'),
+  /**
    * Legacy notes-tier label (`free` | `unlimited`) — retired for gating; kept for
    * admin support/usage stats until those surfaces move off it. Paid features
    * live in `Entitlements`.
@@ -1261,6 +1299,21 @@ export const UserMetadata = pgTable('UserMetadata', {
   tier: text('tier').notNull().default('free'),
   /** Polar customer id for portal sessions and subscription sync. */
   polarCustomerId: text('polarCustomerId'),
+  /**
+   * When this user claimed the founding offer. `null` = never.
+   *
+   * Founding is a Polar `duration: once` discount on the annual plan, not a
+   * product, so a founder's subscription looks like any other annual one and
+   * this cannot be derived from `Entitlements.productId`. Stamped by the Polar
+   * webhook when a discounted checkout completes, and never cleared — the
+   * promise is "the first 99 people", so a founder who cancels keeps their
+   * claim rather than freeing the slot, and the badge outlives the first
+   * renewal onto the list price.
+   *
+   * Not an entitlement: founding grants no capability a normal Plus
+   * subscription doesn't. It is identity, so it lives here.
+   */
+  foundingClaimedAt: ts('foundingClaimedAt'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 }, (table) => [
@@ -1269,6 +1322,63 @@ export const UserMetadata = pgTable('UserMetadata', {
   index('UserMetadata_connectedChurchIdIndex').on(table.connectedChurchId),
   index('UserMetadata_hmcChurchIdIndex').on(table.hmcChurchId),
   index('UserMetadata_polarCustomerIdIndex').on(table.polarCustomerId),
+]);
+
+// ─── PushSubscriptions (one row per browser/device that opted into reminders) ──
+// The Web Push endpoint is the identity, not the user: one person has a laptop Chrome, a
+// Home Screen app on their phone, and Safari on a desktop, and each is its own row. Unique on
+// endpoint rather than (userId, endpoint) so a shared device that changes hands follows the
+// current signer instead of keeping a ghost row for the last one.
+
+export const PushSubscriptions = pgTable('PushSubscriptions', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** The push service URL. Opaque, per-browser, and the only thing the push service keys on. */
+  endpoint: text('endpoint').notNull(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  /** For the admin summary's platform split only; never shown to the user. */
+  userAgent: text('userAgent'),
+  createdAt: ts('createdAt').notNull(),
+  lastSuccessAt: ts('lastSuccessAt'),
+  /** Consecutive non-410 failures. Pruned at five — a dead endpoint that never says so. */
+  failCount: integer('failCount').notNull().default(0),
+}, (table) => [
+  uniqueIndex('PushSubscriptions_endpoint_unique').on(table.endpoint),
+  index('PushSubscriptions_userIdIndex').on(table.userId),
+]);
+
+// ─── ReminderDeliveries (what happened to each reminder) ───────────────────────
+// The reminder-response layer. Not an activity log and never surfaced as one: it does not
+// feed Home, the inbox, ReadingEvents or NoteVisitEvents. Its one job is to let the policy
+// notice that reminders are being ignored and back off, and its one user-facing trace is a
+// line on the Reminders settings page.
+
+export const ReminderDeliveries = pgTable('ReminderDeliveries', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** sunday | midweek | test. Test sends are recorded but the policy ignores them. */
+  kind: text('kind').notNull(),
+  /** verse | pickup | plain — which copy went out, so open rates can compare them. */
+  variant: text('variant').notNull(),
+  sentAt: ts('sentAt').notNull(),
+  /** The user's local calendar day and hour at send time, for the admin hour split. */
+  localDate: text('localDate').notNull(),
+  localHour: integer('localHour').notNull(),
+  deviceCount: integer('deviceCount').notNull().default(0),
+  /**
+   * clicked | dismissed | opened | ignored | null (still open).
+   * `clicked` and `dismissed` come from the service worker; `opened` (the app was opened
+   * within six hours, banner untouched) and `ignored` (nothing within a day) are attributed
+   * by the next tick. See server/utils/reminder-policy.ts for what each one weighs.
+   */
+  outcome: text('outcome'),
+  outcomeAt: ts('outcomeAt'),
+  /** sw | attribution — which of the two writers above settled it. */
+  outcomeSource: text('outcomeSource'),
+}, (table) => [
+  index('ReminderDeliveries_userId_sentAtIndex').on(table.userId, table.sentAt),
+  index('ReminderDeliveries_outcome_sentAtIndex').on(table.outcome, table.sentAt),
 ]);
 
 /**
@@ -1475,10 +1585,27 @@ export const RecallEvents = pgTable('RecallEvents', {
   kind: text('kind').notNull(),
   action: text('action').notNull(),
   noteId: text('noteId'),
+  /**
+   * Which room the reader was standing in when they said it.
+   *
+   * The client's cooldown store has always been keyed by space
+   * (`proto-recall-cooldown.ts`), while this table was user-scoped only — so the
+   * local half of suppression was space-correct and the cross-device half was
+   * not. Dismissing a suggestion on a laptop would have hidden it in every room
+   * on a phone. That was harmless only because recall ran in one space; it is
+   * the blocker the route's own comment named for running it anywhere else.
+   *
+   * **NULL means the reader's personal Home**, which is where every row written
+   * before this column existed came from. That is what makes adding it a
+   * no-backfill change, and the read treats NULL and the personal space as the
+   * same bucket rather than pretending the old rows are space-less.
+   */
+  spaceId: text('spaceId'),
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   index('RecallEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('RecallEvents_kind_action_createdAtIndex').on(table.kind, table.action, table.createdAt),
+  index('RecallEvents_userId_spaceId_createdAtIndex').on(table.userId, table.spaceId, table.createdAt),
 ]);
 
 // ─── ReadingEvents (append-only log of chapters read) ──────────────────────────
@@ -1530,6 +1657,274 @@ export const NoteVisitEvents = pgTable('NoteVisitEvents', {
   // For the delete cascade, which filters on noteId alone. RecallEvents is deleted the same
   // way and has no such index; that is a gap, not a precedent.
   index('NoteVisitEvents_noteIdIndex').on(table.noteId),
+]);
+
+// ─── SearchEvents (append-only log of searches) ────────────────────────────────
+// The third member of the same family as ReadingEvents and NoteVisitEvents, and the one that
+// records something the others structurally cannot.
+//
+// Every existing signal is derived from something the reader *made or read*: a note written, a
+// chapter read, a highlight left, a note returned to. A search is the only record of something
+// they wanted and did not find — a stated intent with no artifact behind it. A question asked
+// four times across three weeks that never produced a note is the clearest gap the app can see,
+// and until now it left no trace at all.
+//
+// Two actions, no UPDATE, for the same reason the siblings are append-only: "asked repeatedly
+// and never opened anything" is a grouped read over rows, not a mutable counter that has to be
+// kept correct. `openedResult` is a second row rather than a column on the first, so the write
+// path never has to go back and find what it wrote.
+//
+// The query text is the sensitive part of this table and is treated as such: normalized on the
+// way in, aged out on read, deleted for real on clear-data and delete-account (SearchEvents has
+// no noteId, so the note cascade cannot reach it), and never sent to analytics — see
+// `trackSearchPerformed`, which deliberately reports query *length* only.
+
+export const SearchEvents = pgTable('SearchEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** Trimmed, whitespace-collapsed, lowercased — so repeats group without a second pass. */
+  query: text('query').notNull(),
+  /** query | resultOpen — see src/utils/search-event-kinds.ts. */
+  action: text('action').notNull(),
+  /** What the surface actually showed. 0 is the interesting value. */
+  resultCount: integer('resultCount').notNull(),
+  /** library | spotlight — which field it was typed into. */
+  surface: text('surface').notNull(),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('SearchEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('SearchEvents_userId_queryIndex').on(table.userId, table.query),
+]);
+
+// ─── ReviewItems (Plus: a scheduled return to your own study) ─────────────────
+// The sixth member of the memory-layer family above, and the first one the reader puts
+// something *into* deliberately. NoteFingerprints, RecallEvents, ReadingEvents,
+// NoteVisitEvents and SearchEvents all record what happened; this records what the reader
+// asked to come back to, which is why it is a mutable row rather than an append-only log.
+//
+// The schedule is stored, not derived. `intervalDays` and `dueAt` are written by
+// `nextReviewAfter` (src/utils/review-scheduling.ts) on every outcome, so the inbox is one
+// indexed read rather than a scan-and-score over history — and so the reader can be told
+// exactly when something is coming back. That is the whole point of a transparent schedule:
+// a number that only exists inside a ranking function cannot be shown to anyone.
+//
+// `sourceKey` carries the uniqueness the columns cannot. A review of a note, of a highlight,
+// of a connection between two notes and of a Thread are four different rows with four
+// different id columns; one text key over `(userId, sourceKey)` stops the same thing being
+// added twice without four partial indexes.
+
+export const ReviewItems = pgTable('ReviewItems', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** note | highlight | connection | thread | verse — see src/utils/review-item-kinds.ts. */
+  kind: text('kind').notNull(),
+  /** `${kind}:${id}[:${secondaryId}]` — the dedupe key across all five shapes. */
+  sourceKey: text('sourceKey').notNull(),
+  /** The note under review; for `connection` the from-note, for `thread` the cluster rep. */
+  noteId: text('noteId'),
+  /** `connection` only — the to-note. */
+  secondaryNoteId: text('secondaryNoteId'),
+  /** `highlight` only — the StudyThreadEntries row. */
+  studyThreadEntryId: text('studyThreadEntryId'),
+  /** `highlight` | `verse` — normalized reference, e.g. "John 15:5". */
+  scriptureReference: text('scriptureReference'),
+  translation: text('translation'),
+  /** active | paused | archived. Paused is the reader's "not this season". */
+  status: text('status').notNull().default('active'),
+  /** new | fragile | forming | durable — derived by deriveRecallState, stored for cheap reads. */
+  recallState: text('recallState').notNull().default('new'),
+  intervalDays: real('intervalDays').notNull().default(1),
+  dueAt: ts('dueAt').notNull(),
+  lastReviewedAt: ts('lastReviewedAt'),
+  /** recalled | almost | revealed — the last answer, which decides the next interval. */
+  lastOutcome: text('lastOutcome'),
+  /** Consecutive `recalled` answers. Resets to 0 on almost/revealed. */
+  successStreak: integer('successStreak').notNull().default(0),
+  reviewCount: integer('reviewCount').notNull().default(0),
+  /** Verse ladder position 0..4 (recognize → rebuild → recall → contextualize → connect). */
+  ladderStep: integer('ladderStep').notNull().default(0),
+  /** Misses on something once held. Four makes a leech; stepping back a rung resets it. */
+  lapseCount: integer('lapseCount').notNull().default(0),
+  /** The rung actually asked last time, since a family can wear several per step. */
+  lastRungKey: text('lastRungKey'),
+  /** user | seed | challenge | engine — where the row came from, so the queue stays legible. */
+  origin: text('origin').notNull().default('user'),
+  /**
+   * Why this is here, in the reader's words: "Highlighted while reading John 15".
+   *
+   * Copied from the UserNodeStates row at the moment the engine adds the item, not read
+   * live, so a row's stated reason never changes under someone mid-sitting. Null on items
+   * the reader added themselves — they know why it is there.
+   */
+  sourceLabel: text('sourceLabel'),
+  /** When that source signal happened. Orders the queue by what is actually recent. */
+  sourceAt: ts('sourceAt'),
+  /** Set when a challenge created this item, so completing the challenge can advance it. */
+  challengeId: text('challengeId'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  uniqueIndex('ReviewItems_userId_sourceKeyIndex').on(table.userId, table.sourceKey),
+  // The inbox read: due, active, oldest first.
+  index('ReviewItems_userId_status_dueAtIndex').on(table.userId, table.status, table.dueAt),
+  // The three cascade filters. NoteVisitEvents_noteIdIndex's docblock calls the missing
+  // equivalent on RecallEvents a gap rather than a precedent; these are the ones that close it.
+  index('ReviewItems_noteIdIndex').on(table.noteId),
+  index('ReviewItems_secondaryNoteIdIndex').on(table.secondaryNoteId),
+  index('ReviewItems_studyThreadEntryIdIndex').on(table.studyThreadEntryId),
+]);
+
+// ─── ReviewEvents (append-only log of what a review session was answered with) ─
+// Separate from ReviewItems for the same reason RecallEvents is separate from
+// NoteFingerprints: the item holds the current state, this holds how it got there. A
+// reader who wants to know whether their recall is actually improving needs the sequence,
+// which a row that only ever holds "last outcome" has already thrown away.
+//
+// `attempt` is what the reader typed before revealing, and it is the sensitive column here:
+// it is their own words about their own study. Never sent to analytics, deleted by the note
+// cascade and by clear-data along with everything else keyed to the note.
+
+export const ReviewEvents = pgTable('ReviewEvents', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  reviewItemId: text('reviewItemId').notNull(),
+  /** Denormalized so the note cascade can find these rows without joining ReviewItems. */
+  noteId: text('noteId'),
+  /** shown | recalled | almost | revealed | deferred | paused | resumed | archived. */
+  action: text('action').notNull(),
+  /** What the reader wrote before revealing, when they wrote anything. */
+  attempt: text('attempt'),
+  previousIntervalDays: real('previousIntervalDays'),
+  nextIntervalDays: real('nextIntervalDays'),
+  createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  index('ReviewEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
+  index('ReviewEvents_reviewItemId_createdAtIndex').on(table.reviewItemId, table.createdAt),
+  index('ReviewEvents_noteIdIndex').on(table.noteId),
+]);
+
+// ─── UserNodeStates (the reader's own Study Bible layer) ──────────────────────
+// The personal counterpart to the curated scripture knowledge layer. That layer is the
+// terrain — topics, cross-references, people, places, all of it shared and none of it
+// keyed to a person. This table is one reader's path across it: which verses they have
+// marked, which notes they keep coming back to, which themes their study actually runs
+// through, and when each of those last happened.
+//
+// One row per (user, node). A node is anything study can be *about*, addressed by a
+// `nodeKey` of the form `${kind}:${id}` — see src/utils/study-bible-nodes.ts, which owns
+// every key shape and is the only place allowed to build them.
+//
+// Why persisted rather than derived on read: the Home arcs already tried the derived
+// version and gave up in public. Every one of them bails with `if (hasMoreNotes) return
+// undefined`, because counting honestly needs the whole note set in the browser and a
+// paginated reader never has it. Counts that accumulate as activity happens do not have
+// that problem, and they are also the only way "you keep returning to this" can mean
+// anything after the first page.
+//
+// **Not a second source of truth.** ReviewItems still owns scheduling (dueAt, recallState,
+// ladderStep, streak) and NoteFingerprints still owns the passive-resurfacing stability.
+// The mirror columns here are written by applyReviewOutcome so the engine and Home can rank
+// without joining ReviewItems, and nothing reads them back as authority.
+//
+// The six counters are deliberately orthogonal — a signal increments exactly one of them —
+// so a scorer can weigh "returned to it" differently from "linked it to something", which
+// is the whole difference between attention and intent.
+
+export const UserNodeStates = pgTable('UserNodeStates', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** note | verse | chapter | theme | person | place | thread | connection. */
+  nodeKind: text('nodeKind').notNull(),
+  /** `${kind}:${id}` — unique per reader. Built only by src/utils/study-bible-nodes.ts. */
+  nodeKey: text('nodeKey').notNull(),
+  /** Display text: note title, "John 15:5", topic label, person name, Thread title. */
+  label: text('label'),
+  /** note / thread rep / connection from-note. Lets the note cascade find rows without parsing keys. */
+  noteId: text('noteId'),
+  /** `connection` only — the to-note. */
+  secondaryNoteId: text('secondaryNoteId'),
+  /** Saw it: opened, read, highlighted, cited. */
+  exposureCount: integer('exposureCount').notNull().default(0),
+  /** Came back to it deliberately, after a dwell long enough to mean something. */
+  revisitCount: integer('revisitCount').notNull().default(0),
+  /** Linked it to something themselves. The strongest signal a reader gives without typing. */
+  explicitConnectionCount: integer('explicitConnectionCount').notNull().default(0),
+  /** Wrote more about it: a later save, an annotation on a highlight. */
+  expansionCount: integer('expansionCount').notNull().default(0),
+  /** Named a Thread, summarized a cluster — said what the whole thing is. */
+  synthesisCount: integer('synthesisCount').notNull().default(0),
+  /** Answered a review about it. */
+  reviewCount: integer('reviewCount').notNull().default(0),
+  firstStudiedAt: ts('firstStudiedAt').notNull(),
+  lastSeenAt: ts('lastSeenAt').notNull(),
+  /** Mirror of the latest ReviewItems outcome for this node. ReviewItems stays canonical. */
+  lastReviewedAt: ts('lastReviewedAt'),
+  /** Mirror of the item's dueAt, so the engine can skip what is already scheduled. */
+  nextReviewAt: ts('nextReviewAt'),
+  /** Mirror of the item's recallState; 'new' until a review touches this node. */
+  recallState: text('recallState').notNull().default('new'),
+  /** exposure | revisit | connection | expansion | synthesis | review — the most recent. */
+  lastSignal: text('lastSignal').notNull(),
+  /** Reader-facing provenance: "Highlighted while reading John 15". Review rows show this. */
+  lastSourceLabel: text('lastSourceLabel'),
+  lastSourceAt: ts('lastSourceAt').notNull(),
+  /** active | archived. The note cascade archives cross-note nodes it cannot delete outright. */
+  status: text('status').notNull().default('active'),
+  /** JSON: { translation?, topicId?, slug?, book?, chapter?, verse? }. Small and stable — it is replaced, not merged. */
+  meta: text('meta'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt').notNull(),
+}, (table) => [
+  // The upsert target. Every writer goes through touchNodes, which conflicts on this.
+  uniqueIndex('UserNodeStates_userId_nodeKeyIndex').on(table.userId, table.nodeKey),
+  // The engine's read (kinds it reviews, most recent first) and Home's (themes, people).
+  index('UserNodeStates_userId_nodeKind_lastSeenAtIndex').on(table.userId, table.nodeKind, table.lastSeenAt),
+  // The cascade filters, for the same reason ReviewItems carries both.
+  index('UserNodeStates_noteIdIndex').on(table.noteId),
+  index('UserNodeStates_secondaryNoteIdIndex').on(table.secondaryNoteId),
+]);
+
+// ─── Challenges (Plus: a bounded path through study you already have) ─────────
+// Steps are a JSON column rather than a ChallengeSteps table, and the reason is that they
+// are never queried across challenges. A template builds four or five of them at creation,
+// they are always read and written as one unit with their parent, and nothing ever asks
+// "every link step across all users". That is the same shape as ThreadProgress.openedNoteIds
+// and StudyThreadMemberOrders.orderedNoteIds, and it buys a second table, a second index set
+// and a second cascade branch for nothing.
+//
+// A challenge is retired, not deleted, when its source note goes: the notes it produced are
+// ordinary notes the reader still owns, and a finished path that quietly vanishes because
+// one of its inputs was tidied away reads as data loss. See delete-note-cascade.ts.
+
+export const Challenges = pgTable('Challenges', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull(),
+  /** strengthen_thread | keep_verse | return_to_question | trace_connection. */
+  templateKey: text('templateKey').notNull(),
+  /** Resolved at creation from the source's own title, so a renamed Thread keeps its path. */
+  title: text('title').notNull(),
+  /** active | paused | completed | archived | retired. */
+  status: text('status').notNull().default('active'),
+  /** `${templateKey}:${id}[:${secondaryId}]` — one active challenge per source. */
+  sourceKey: text('sourceKey').notNull(),
+  /** Thread rep note, question note, or the from-note of a connection. */
+  sourceNoteId: text('sourceNoteId'),
+  sourceSecondaryNoteId: text('sourceSecondaryNoteId'),
+  sourceEntryId: text('sourceEntryId'),
+  scriptureReference: text('scriptureReference'),
+  translation: text('translation'),
+  /** JSON ChallengeStep[] — shape in src/utils/challenge-templates.ts. */
+  steps: text('steps').notNull(),
+  currentStepIndex: integer('currentStepIndex').notNull().default(0),
+  startedAt: ts('startedAt').notNull(),
+  lastStepAt: ts('lastStepAt'),
+  completedAt: ts('completedAt'),
+  createdAt: ts('createdAt').notNull(),
+  updatedAt: ts('updatedAt'),
+}, (table) => [
+  index('Challenges_userId_statusIndex').on(table.userId, table.status),
+  index('Challenges_sourceNoteIdIndex').on(table.sourceNoteId),
+  index('Challenges_sourceSecondaryNoteIdIndex').on(table.sourceSecondaryNoteId),
 ]);
 
 // ─── SupportTickets (user feedback from settings support form) ─────────────────
@@ -1993,6 +2388,64 @@ export const LibraryItemSuggestions = pgTable(
 );
 
 /**
+ * A member proposing what their room studies next.
+ *
+ * Phase 1 of docs/future/SPACE_STUDY_SUGGESTIONS_AND_VOTES.md: members suggest,
+ * whoever runs the room reviews. Copies `LibraryItemSuggestions` almost line
+ * for line, and for the same reason it is attributed: a suggestion is an
+ * affirmative submission — someone raising their hand — which a reviewer
+ * cannot act on, reply to, or judge fairly without knowing who sent it. The
+ * name is serialized only into the leader-gated queue, never into anything a
+ * member reads. Suggestions are private to their author and the room's
+ * leaders; widening that later is free, narrowing it is not.
+ *
+ * `kind` says which table `refId` names — one discriminated pointer, not
+ * several nullable ones racing to mean the same thing. A row without a `kind`
+ * is impossible.
+ *
+ * `status` is `'open' | 'accepted' | 'declined'` here. Phase 2 adds `'slated'`
+ * (the suggestion became an option on a round's slate); in phase 1 there is no
+ * round, so accepting pins a Thread directly and `becameThreadId` records it.
+ *
+ * Row ids: `sgst_${crypto.randomUUID()}`.
+ */
+export const SpaceStudySuggestions = pgTable(
+  'SpaceStudySuggestions',
+  {
+    id: text('id').primaryKey(),
+    spaceId: text('spaceId').notNull(),
+    suggestedByUserId: text('suggestedByUserId').notNull(),
+    /** 'thread' | 'note' | 'scripture' | 'text'. */
+    kind: text('kind').notNull(),
+    /** The Thread or Note id; null for scripture and text. */
+    refId: text('refId'),
+    scriptureReference: text('scriptureReference'),
+    /** The free text for `kind='text'`; the "why" for every other kind. */
+    body: text('body'),
+    /** 'open' | 'accepted' | 'declined'. */
+    status: text('status').notNull().default('open'),
+    /** Set on accept — the Thread this became (or the one it pinned). */
+    becameThreadId: text('becameThreadId'),
+    reviewedByUserId: text('reviewedByUserId'),
+    reviewedAt: ts('reviewedAt'),
+    /** Drives the unread count on the room's Tools row. */
+    leaderReadAt: ts('leaderReadAt'),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    index('SpaceStudySuggestions_space_status_createdAtIndex').on(
+      table.spaceId,
+      table.status,
+      table.createdAt,
+    ),
+    index('SpaceStudySuggestions_suggestedBy_createdAtIndex').on(
+      table.suggestedByUserId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
  * Which library items a planned sermon or entry draws on.
  *
  * A join table, not a column, and deliberately so:
@@ -2436,3 +2889,135 @@ export const AppSyncCursors = pgTable('AppSyncCursors', {
   value: text('value').notNull(),
   updatedAt: ts('updatedAt').notNull(),
 });
+
+// ─── Discover (public catalog) ────────────────────────────────────────────────
+
+/**
+ * One thing someone offered to everyone — and the submission that offered it.
+ *
+ * Submission and listing are the same row; `status` is the lifecycle. That is
+ * the one place this departs from `LibraryItemSuggestions`, and deliberately:
+ * there, the suggestion (a URL and a sentence) is genuinely a different shape
+ * from the item it becomes. Here the submission already carries the finished
+ * artifact, so a second table would duplicate every column and reduce approval
+ * to a copy. What is kept from that table is its vocabulary — `status`,
+ * `reviewedByUserId`, `reviewedAt`, `staffReadAt` — and its two index shapes.
+ *
+ * **The listing snapshots the artifact; it does not point at it.** `payload`
+ * holds the whole thing, and `sourceId` / `submittedByUserId` are provenance
+ * that no read path joins through. Three reasons, in order of how much they
+ * cost to learn later:
+ *
+ *   1. Approval has to be of bytes. Approving a pointer approves whatever the
+ *      author writes next, which is not review.
+ *   2. The anonymous read then needs no permission check — one predicate,
+ *      `status = 'listed'`. A live reference would make every public GET
+ *      re-derive "is this still allowed to be public", which is the shape a
+ *      leak takes.
+ *   3. The author can delete their note without taking the listing, its
+ *      install count, and someone else's inbound link with it.
+ *
+ * It is also how this codebase already thinks: `Notes.startedFromTemplateName`
+ * and `Notes.copiedFromAuthorDisplayName` are both snapshots taken precisely
+ * because the source can vanish.
+ *
+ * `authorDisplayName` is snapshotted for the same reason and one more — it is
+ * the public byline, and a byline that re-resolves is a byline that can change
+ * under someone after they agreed to it. Attribution only: there is no creator
+ * profile, no handle, and nothing here is ever sold.
+ *
+ * Editing a listed item is a new row through the queue; `supersedesListingId`
+ * records the chain rather than mutating what people already installed.
+ *
+ * Row ids: `dsc_${crypto.randomUUID()}`.
+ */
+export const DiscoverListings = pgTable(
+  'DiscoverListings',
+  {
+    id: text('id').primaryKey(),
+    /** 'template' | 'note' | 'pack' | 'resource'. */
+    kind: text('kind').notNull(),
+    /** The row this was snapshotted from. Provenance only — never joined. */
+    sourceId: text('sourceId').notNull(),
+    /** Notes.currentVersionId at submit; feeds buildIndependentCopyAttribution. */
+    sourceVersionId: text('sourceVersionId'),
+    submittedByUserId: text('submittedByUserId').notNull(),
+    /** Snapshotted "Firstname L." — the public byline. Never re-resolved. */
+    authorDisplayName: text('authorDisplayName'),
+    title: text('title').notNull(),
+    description: text('description'),
+    /** One id from DISCOVER_CATEGORIES. Set by the reviewer, not the submitter. */
+    category: text('category'),
+    /** URL identity, unique across kinds. Assigned on approval; immutable after. */
+    slug: text('slug'),
+    /** JSON — the whole artifact, as installed. */
+    payload: text('payload').notNull(),
+    /** JSON — sanitized excerpt for lists and the static site. Never the full body. */
+    preview: text('preview'),
+    /** 'submitted' | 'listed' | 'declined' | 'withdrawn' | 'delisted' | 'superseded'. */
+    status: text('status').notNull().default('submitted'),
+    installCount: integer('installCount').notNull().default(0),
+    listedAt: ts('listedAt'),
+    reviewedByUserId: text('reviewedByUserId'),
+    reviewedAt: ts('reviewedAt'),
+    /** Why it was declined — read back to the submitter, so write it for them. */
+    reviewNote: text('reviewNote'),
+    /** Drives the unread badge, the way SupportTickets.adminReadAt does. */
+    staffReadAt: ts('staffReadAt'),
+    supersedesListingId: text('supersedesListingId'),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('DiscoverListings_status_listedAtIndex').on(table.status, table.listedAt),
+    index('DiscoverListings_status_createdAtIndex').on(table.status, table.createdAt),
+    index('DiscoverListings_submittedBy_createdAtIndex').on(
+      table.submittedByUserId,
+      table.createdAt,
+    ),
+    index('DiscoverListings_status_category_listedAtIndex').on(
+      table.status,
+      table.category,
+      table.listedAt,
+    ),
+    // Partial, because only a listed row owns a slug. Pending rows carry NULL
+    // and cannot collide, and a declined submission frees its slug again.
+    uniqueIndex('DiscoverListings_slug_unique')
+      .on(table.slug)
+      .where(sql`${table.slug} IS NOT NULL`),
+  ],
+);
+
+/**
+ * Who installed what. The idempotency key for every kind.
+ *
+ * Not replaceable by `Notes.copiedFromNoteId`: that column lives on one of the
+ * four destination tables, so it can only answer for one kind. And the cost of
+ * having no key is not hypothetical — `POST /api/shared/add-to-harvous` has no
+ * duplicate guard today, so a double-tap there writes a second thread and every
+ * note again. Installs insert here *first, inside the transaction*, which makes
+ * the duplicate impossible by construction rather than by a check-then-act race.
+ *
+ * **This row names a person against something they took, which is observed
+ * behaviour — so it is confined.** `userId` is read only in the installing
+ * caller's own `eq(userId, auth.userId)` lookup and is projected into no
+ * response; the public number is a COUNT(*). No queue, export, or serializer
+ * selects it. `server/routes/__tests__/discover-routes.test.ts` holds that line.
+ *
+ * Row ids: `dsci_${crypto.randomUUID()}`.
+ */
+export const DiscoverInstalls = pgTable(
+  'DiscoverInstalls',
+  {
+    id: text('id').primaryKey(),
+    listingId: text('listingId').notNull(),
+    userId: text('userId').notNull(),
+    /** note_/thread_/ntpl_/libi_ — the "already yours" answer, for all four kinds. */
+    createdRefId: text('createdRefId').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('DiscoverInstalls_listing_user_unique').on(table.listingId, table.userId),
+    index('DiscoverInstalls_userId_createdAtIndex').on(table.userId, table.createdAt),
+  ],
+);

@@ -2,9 +2,39 @@ import { isStatusHost } from './status-page-host';
 
 const DEDICATED_PROTOTYPE_HOSTS = new Set(['app.harvous.com', 'new.harvous.com', 'localhost']);
 
+/**
+ * Development tunnels, treated as dedicated hosts.
+ *
+ * Everything about which app you are looking at hangs off this one predicate: the sign-in
+ * design, whether the app lives at `/` or under `/prototype`, which Admin pages render, and
+ * the route guards. A hostname that is not on the list gets Classic — correctly, for a
+ * stranger on some other domain, and uselessly for a phone.
+ *
+ * That matters because a phone cannot reach a dev server any other way. Web Push and service
+ * workers need a secure context, which `http://192.168.x.x` is not, so testing on a real
+ * device means an HTTPS tunnel, and a tunnel hands out a random subdomain that no fixed list
+ * can contain. Without this the app silently serves Classic over the tunnel and the mistake
+ * reads as "the old design is back" rather than as a hostname problem — which is exactly how
+ * it presented.
+ *
+ * Safe in production: these are tunnel-provider domains, so no real deployment is ever served
+ * from one. Suffix match, because the subdomain changes every run.
+ */
+const DEV_TUNNEL_HOST_SUFFIXES = [
+  '.trycloudflare.com',
+  '.ngrok-free.app',
+  '.ngrok.io',
+  '.loca.lt',
+] as const;
+
+export function isDevTunnelHost(hostname?: string): boolean {
+  const h = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
+  return DEV_TUNNEL_HOST_SUFFIXES.some((suffix) => h.endsWith(suffix));
+}
+
 export function isDedicatedPrototypeHost(hostname?: string): boolean {
   const h = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
-  return DEDICATED_PROTOTYPE_HOSTS.has(h);
+  return DEDICATED_PROTOTYPE_HOSTS.has(h) || isDevTunnelHost(h);
 }
 
 /** Site-inspired sign-in/up (custom form) on dedicated prototype hosts; localhost uses Clerk prebuilt. */
@@ -101,12 +131,17 @@ export const RESERVED_PROTOTYPE_SEGMENTS = new Set([
   'new',
   'compose',
   'church',
+  'review',
   'challenges',
   'compete',
   'learn',
   'org',
   // Bible reader — `/read/{book}/{chapter}`. Without this, `/read` is a note id.
   'read',
+  // The public listing page — `/discover/{slug}`. The in-app catalog is an
+  // expanded-sidebar tool with no slug of its own, but this segment still must
+  // not resolve as a note id.
+  'discover',
 ]);
 
 export function isReservedPrototypeSegment(segment: string): boolean {
@@ -218,6 +253,10 @@ export function prototypeAdminSupportRouteTo(): '/prototype/admin/support' {
   return (isDedicatedPrototypeHost() ? '/admin/support' : '/prototype/admin/support') as '/prototype/admin/support';
 }
 
+export function prototypeAdminDiscoverRouteTo(): '/prototype/admin/discover' {
+  return (isDedicatedPrototypeHost() ? '/admin/discover' : '/prototype/admin/discover') as '/prototype/admin/discover';
+}
+
 export function prototypeAdminChurchesRouteTo(): '/prototype/admin/churches' {
   return (isDedicatedPrototypeHost() ? '/admin/churches' : '/prototype/admin/churches') as '/prototype/admin/churches';
 }
@@ -257,9 +296,38 @@ export function prototypeReadRouteTo(): '/prototype/read/$book/$chapter' {
     : '/prototype/read/$book/$chapter') as '/prototype/read/$book/$chapter';
 }
 
+/**
+ * TanStack Router `to` for `/read/today` — the reader on whatever today's passage is.
+ *
+ * Separate from `prototypeReadRouteTo` because it takes no params: this is the URL for
+ * "somewhere real to land" (the marketing handoff, a guest's checklist), where the caller
+ * knows it wants today and not a particular chapter.
+ */
+export function prototypeReadTodayRouteTo(): '/prototype/read/today' {
+  return (isDedicatedPrototypeHost()
+    ? '/read/today'
+    : '/prototype/read/today') as '/prototype/read/today';
+}
+
 /** True for `/read/{book}/{chapter}` — the reader hosts in the shell like the note editor. */
 export function isPrototypeReadPath(pathname: string): boolean {
   return /^\/read\/[^/]+\/[^/]+\/?$/.test(prototypeLogicalPath(pathname));
+}
+
+/**
+ * The book/chapter a reader path names, for callers that need the subject rather than
+ * just the shape — the toolbar chip labelling itself "Romans", and the Library panel
+ * deciding which book to open to.
+ *
+ * Returns the raw slug; resolving it to a book title is `bookFromSlug`'s job, and lives
+ * in the caller so this module stays free of canon data.
+ */
+export function matchPrototypeReadParams(
+  pathname: string,
+): { bookSlug: string; chapter: string } | null {
+  const match = /^\/read\/([^/]+)\/([^/]+)\/?$/.exec(prototypeLogicalPath(pathname));
+  if (!match) return null;
+  return { bookSlug: decodeURIComponent(match[1]!), chapter: decodeURIComponent(match[2]!) };
 }
 
 export function prototypeSettingsRouteTo(): '/prototype/settings' {
@@ -272,6 +340,50 @@ export function prototypeSettingsAccountRouteTo(): '/prototype/settings/account'
 
 export function prototypeSettingsSupportRouteTo(): '/prototype/settings/support' {
   return (isDedicatedPrototypeHost() ? '/settings/support' : '/prototype/settings/support') as '/prototype/settings/support';
+}
+
+/** Settings → My Notes, which opens on its Import tab. */
+export function prototypeSettingsDataRouteTo(): '/prototype/settings/data' {
+  return (isDedicatedPrototypeHost() ? '/settings/data' : '/prototype/settings/data') as '/prototype/settings/data';
+}
+
+export function prototypeSettingsAppearanceRouteTo(): '/prototype/settings/appearance' {
+  return (isDedicatedPrototypeHost() ? '/settings/appearance' : '/prototype/settings/appearance') as '/prototype/settings/appearance';
+}
+
+/**
+ * Settings → Reminders.
+ *
+ * The onboarding row only sends anyone here when the device cannot subscribe where it
+ * stands — an iPhone in a Safari tab — because this page owns the install sheet that
+ * explains why. Everywhere else the row turns reminders on in place, since the permission
+ * prompt has to come straight off the tap.
+ */
+export function prototypeSettingsRemindersRouteTo(): '/prototype/settings/reminders' {
+  return (isDedicatedPrototypeHost() ? '/settings/reminders' : '/prototype/settings/reminders') as '/prototype/settings/reminders';
+}
+
+/**
+ * Review's two URLs, and Challenges' two.
+ *
+ * Shaped like `prototypeReadTodayRouteTo` rather than the note route: these take no params,
+ * except the one challenge id, and both live under segments reserved in
+ * `RESERVED_PROTOTYPE_SEGMENTS` so the single-segment note catch-all cannot swallow them.
+ */
+export function prototypeReviewRouteTo(): '/prototype/review' {
+  return (isDedicatedPrototypeHost() ? '/review' : '/prototype/review') as '/prototype/review';
+}
+
+export function prototypeChallengesRouteTo(): '/prototype/challenges' {
+  return (isDedicatedPrototypeHost()
+    ? '/challenges'
+    : '/prototype/challenges') as '/prototype/challenges';
+}
+
+export function prototypeChallengeRouteTo(): '/prototype/challenges/$challengeId' {
+  return (isDedicatedPrototypeHost()
+    ? '/challenges/$challengeId'
+    : '/prototype/challenges/$challengeId') as '/prototype/challenges/$challengeId';
 }
 
 export function prototypeHomeRouteTo(): '/prototype' {

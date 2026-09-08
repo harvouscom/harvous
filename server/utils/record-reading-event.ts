@@ -12,10 +12,13 @@ import {
 } from '@/utils/scripture-chapter-target';
 import {
   isReadingDwellBucket,
+  readingDwellCountsAsRead,
   readingDwellStrength,
   type ReadingDwellBucket,
 } from '@/utils/reading-event-kinds';
 import { isReadingEventsTableMissing } from './pg-undefined-relation';
+import { chapterTouch, touchNodes } from './study-bible-layer';
+import { readChapterSource } from '@/utils/study-bible-source-copy';
 
 export type RecordReadingEventInput = {
   book: string;
@@ -32,8 +35,17 @@ export type ReadingHistoryEntry = {
   chapter: number;
   /** The strongest bucket seen for this chapter, not the most recent — see collapse. */
   dwellBucket: ReadingDwellBucket;
-  /** When it was last opened. */
+  /** When it was last opened, by any dwell — a glance counts as opening it. */
   createdAt: string;
+  /**
+   * When it was last actually *read*, glances excluded. Null for a chapter only ever glanced at.
+   *
+   * Separate from `createdAt` because the two answer different questions and one column cannot.
+   * A chapter studied last month and glanced at today has `createdAt` of today, and a card
+   * saying "you read this today" on the strength of a three-second glance is a card built on
+   * nothing. The bucket is the strongest ever seen, so it cannot be asked either.
+   */
+  lastReadAt: string | null;
 };
 
 /**
@@ -64,6 +76,7 @@ export function collapseReadingHistory(
       row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? '');
     if (!createdAt) continue;
 
+    const counts = readingDwellCountsAsRead(row.dwellBucket);
     const key = `${row.bookOrder}:${row.chapter}`;
     const existing = seen.get(key);
     if (!existing) {
@@ -73,12 +86,15 @@ export function collapseReadingHistory(
         chapter: row.chapter,
         dwellBucket: row.dwellBucket,
         createdAt,
+        lastReadAt: counts ? createdAt : null,
       });
       continue;
     }
     if (readingDwellStrength(row.dwellBucket) > readingDwellStrength(existing.dwellBucket)) {
       existing.dwellBucket = row.dwellBucket;
     }
+    // Rows arrive newest-first, so the first read-or-better row is the latest one.
+    if (counts && !existing.lastReadAt) existing.lastReadAt = createdAt;
   }
   return [...seen.values()];
 }
@@ -121,6 +137,18 @@ export async function recordReadingEvent(
       dwellBucket: input.dwellBucket,
       createdAt: nowISO(),
     });
+    // The reader's Study Bible layer: a chapter turned to is the coarsest node there is, and
+    // the only granularity reading gives us — nothing here knows which verse they were on.
+    const at = new Date();
+    void touchNodes(userId, [
+      chapterTouch({
+        chapter: { book: input.book, chapter: input.chapter },
+        signal: readingDwellCountsAsRead(input.dwellBucket) ? 'revisit' : 'exposure',
+        at,
+        sourceLabel: readChapterSource(input.book, input.chapter),
+        translation: input.translation,
+      }),
+    ]);
     return true;
   } catch (error) {
     if (isReadingEventsTableMissing(error)) {

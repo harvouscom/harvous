@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { refreshClientData } from '../../../lib/refresh-client-data';
+import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
 import {
   MAX_IMPORT_FILES,
   collectFromDataTransfer,
@@ -270,6 +271,10 @@ export function useImportEngine() {
         } catch {
           /* nothing to clean up */
         }
+        /* Only when notes actually landed. A session that finalized having imported
+           nothing — every file a duplicate, or all of them excluded — is not the reader
+           bringing their notes in, and ticking the row would tell them they had. */
+        if (response.summary.notesImported > 0) markOnboardingStep('import');
         void refreshClientData(queryClient);
       })
       .catch((error) => setFatalError(errorMessage(error, "Couldn't finish the import")))

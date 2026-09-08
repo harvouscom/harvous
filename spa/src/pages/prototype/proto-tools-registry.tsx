@@ -1,7 +1,7 @@
 /**
  * The Tools card — one row shape, shared by the church hub and Shared Spaces.
  *
- * The rows were six near-identical JSX blocks in PrototypeSidebarChurchHubView,
+ * The rows were six near-identical JSX blocks in PrototypeChurchHub,
  * which meant a second surface wanting the same card had to copy the chrome and
  * then drift from it. Rows are data now; the markup lives here once.
  *
@@ -33,13 +33,27 @@ export type ProtoToolRow = {
 export function ProtoToolsRowList({
   rows,
   children,
+  cascade = false,
 }: {
   rows: ProtoToolRow[];
   /** Non-row card content — today the billing banner, silent when healthy. */
   children?: ReactNode;
+  /**
+   * Fade the rows in one after another as the panel arrives.
+   *
+   * Opt-in, and off by default, because this list is the shell's general row panel: it is
+   * also inside sheets that are already animating themselves, and inside note search, whose
+   * results are replaced on every keystroke and would re-run the cascade each time. The
+   * space dashboards ask for it; nothing that re-renders under the reader's hands does.
+   */
+  cascade?: boolean;
 }) {
   return (
-    <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+    <div
+      className={`proto-glass-surface proto-glass-surface--panel proto-church-tools${
+        cascade ? ' proto-home-cascade' : ''
+      }`}
+    >
       {rows.map((row) => (
         <button
           key={row.key}

@@ -165,32 +165,7 @@
   user-select: none;
 }
 
-.public-toolbar__icon {
-  display: inline-flex;
-  align-items: center;
-}
-
-.public-toolbar__wordmark {
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
-  color: var(--site-ink);
-}
-
 /* Nav link ("Features") inside the pill — muted text, hover to ink. */
-.public-toolbar__nav-link {
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-  color: var(--site-ink-soft);
-  text-decoration: none;
-  transition: color 120ms ease;
-}
-.public-toolbar__nav-link:hover {
-  color: var(--site-ink);
-}
 
 /* CTA pill ("Open app" / "Sign in" / "Back to my Harvous") — secondary
    control (light fill + ink text), same recipe as `.upgrade-secondary-btn`.
@@ -372,21 +347,6 @@
   border-bottom: 1px solid var(--pds-border-soft);
 }
 
-.public-thread-row__accent {
-  width: 4px;
-  height: 32px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.public-thread-row__title {
-  flex: 1;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-  line-height: 1.3;
-}
-
 .public-thread-row__badge {
   font-size: 0.75rem;
   font-weight: 600;
@@ -398,13 +358,6 @@
 }
 
 /* ─── People count (join-space) ─────────────────────────────────────────── */
-
-.public-people-count {
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--pds-border-soft);
-  font-size: 0.875rem;
-  color: var(--pds-text-secondary);
-}
 
 /* ─── Invitation-specific ───────────────────────────────────────────────── */
 
@@ -1058,14 +1011,6 @@
   border-bottom: 1px solid var(--site-rule);
 }
 
-.public-thread-row__title {
-  flex: 1;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--site-ink);
-  line-height: 1.3;
-}
-
 .public-thread-row__badge {
   font-size: 0.6875rem;
   font-weight: 600;
@@ -1076,13 +1021,6 @@
   flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-
-.public-people-count {
-  padding: 14px 22px;
-  border-bottom: 1px solid var(--site-rule);
-  font-size: 0.875rem;
-  color: var(--site-ink-soft);
 }
 
 .public-invite-message {

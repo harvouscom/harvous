@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { UNIVERSAL_BIBLE_ENTITIES } from '@/utils/universal-bible-entities';
 import {
+  deriveStudyArcsFromNodes,
   computeActivityRhythm,
   computeLastActivityTime,
   countWeeklyActivityDays,
@@ -83,6 +85,9 @@ import {
   type HomeTopPassage,
   type HomeTopTag,
   type HomeTopThread,
+  pickMarkNoteCandidate,
+  MARK_NOTE_MIN_CHARS,
+  type MarkNoteInput,
 } from '../prototype-home-trends';
 
 describe('pickContinueNote', () => {
@@ -1744,11 +1749,18 @@ describe('selectRecallOpportunities', () => {
   });
 
   it('orders by usefulness tier before score', () => {
+    /*
+     * The pair is unchanged and the expectation is reversed, which is the point: this is the
+     * written record of `RECALL_KIND_TIER`, and the Aug 2026 re-tier moved `crossrefGap`
+     * above `annotateHighlight` on sixty days of measured open rates (17.9% against 10.8%,
+     * with the positional confound flattering the one that lost). A higher score still does
+     * not beat a better tier — only which kinds hold which tier changed.
+     */
     const cands = [
       c('gap', 'crossrefGap', 0.95),
       c('anno', 'annotateHighlight', 0.5),
     ];
-    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['anno', 'gap']);
+    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['gap', 'anno']);
   });
 
   it('soft-varies the tail when mixed tiers exist', () => {
@@ -1758,7 +1770,10 @@ describe('selectRecallOpportunities', () => {
       c('h1', 'highlight', 0.8),
       c('gap', 'crossrefGap', 0.7),
     ];
-    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['n1', 'gap', 'n2', 'h1']);
+    /* `gap` now leads on tier despite carrying the lowest score — it moved from tier 1 to
+       tier 0 in the Aug 2026 re-tier, and the three others moved down to 1 together. The tail
+       below it is unchanged. */
+    expect(selectRecallOpportunities(cands).map((o) => o.id)).toEqual(['gap', 'n1', 'n2', 'h1']);
   });
 
   it('caps at the limit', () => {
@@ -2226,5 +2241,138 @@ describe('deriveReflectionPrompt', () => {
 
   it('returns undefined with no season or theme', () => {
     expect(deriveReflectionPrompt({})).toBeUndefined();
+  });
+});
+
+describe('deriveStudyArcsFromNodes', () => {
+  const NOW = new Date('2026-09-01T12:00:00Z').getTime();
+  const daysAgo = (days: number) => new Date(NOW - days * 86400000).toISOString();
+
+  const themeNode = (label: string, overrides: Partial<Parameters<typeof deriveStudyArcsFromNodes>[0][number]> = {}) => ({
+    label,
+    exposureCount: 5,
+    expansionCount: 2,
+    firstStudiedAt: daysAgo(60),
+    lastSeenAt: daysAgo(2),
+    ...overrides,
+  });
+
+  it('answers for a reader whose notes are paginated, which the note-side derive cannot', () => {
+    const arcs = deriveStudyArcsFromNodes([themeNode('Adoption')], { nowMs: NOW, limit: 1 });
+    expect(arcs[0]?.theme).toBe('Adoption');
+  });
+
+  it('never claims a note count, because it counts touches and not notes', () => {
+    // One note citing five verses that share a theme gives that theme five exposures.
+    // "Across 5 notes" would be false, so the node path reports no count at all.
+    const arcs = deriveStudyArcsFromNodes([themeNode('Adoption')], { nowMs: NOW });
+    expect(arcs[0]?.noteCount).toBe(0);
+  });
+
+  it('holds the same thresholds as the note-side derive', () => {
+    // Two touches in total is below minNotes, however they were earned.
+    expect(deriveStudyArcsFromNodes([themeNode('Adoption', { exposureCount: 0, expansionCount: 2 })], { nowMs: NOW })).toEqual([]);
+    expect(
+      deriveStudyArcsFromNodes([themeNode('Adoption', { firstStudiedAt: daysAgo(4) })], { nowMs: NOW }),
+    ).toEqual([]);
+  });
+
+  it('refuses a theme that was only ever met while reading', () => {
+    // The topic layer tags broadly; exposure alone put "water" and "life" forward as arcs.
+    const met = themeNode('Water', { exposureCount: 9, expansionCount: 0 });
+    expect(deriveStudyArcsFromNodes([met], { nowMs: NOW })).toEqual([]);
+  });
+
+  it('restores the apostrophe the curated topic data drops', () => {
+    // All 6,738 ScriptureTopics rows are lowercase and apostrophe-free; 37 are possessives.
+    expect(deriveStudyArcsFromNodes([themeNode('gods love')], { nowMs: NOW })[0]?.theme).toBe(
+      "God's love",
+    );
+    expect(deriveStudyArcsFromNodes([themeNode('the meaning of life')], { nowMs: NOW })[0]?.theme).toBe(
+      'The meaning of life',
+    );
+  });
+
+  it('ranks by what the reader wrote, never by how broadly the topic layer tags', () => {
+    const written = themeNode('Covenant', { exposureCount: 1, expansionCount: 5 });
+    const cited = themeNode('Kingdom', { exposureCount: 80, expansionCount: 2 });
+    const arcs = deriveStudyArcsFromNodes([cited, written], { nowMs: NOW, limit: 2 });
+    expect(arcs[0]?.theme).toBe('Covenant');
+  });
+
+  it('drops the universal entities the note-side derive drops', () => {
+    const denied = [...UNIVERSAL_BIBLE_ENTITIES][0];
+    expect(deriveStudyArcsFromNodes([themeNode(denied)], { nowMs: NOW })).toEqual([]);
+  });
+
+  it('ignores a theme not touched inside the window', () => {
+    const stale = themeNode('Adoption', { firstStudiedAt: daysAgo(900), lastSeenAt: daysAgo(700) });
+    expect(deriveStudyArcsFromNodes([stale], { nowMs: NOW })).toEqual([]);
+  });
+});
+
+describe('pickMarkNoteCandidate', () => {
+  const body = 'x'.repeat(MARK_NOTE_MIN_CHARS);
+  const note = (id: string, over: Partial<MarkNoteInput> = {}): MarkNoteInput => ({
+    id,
+    content: body,
+    updatedAt: '2026-06-01T00:00:00Z',
+    ...over,
+  });
+
+  it('picks a note with enough written in it and nothing marked', () => {
+    expect(pickMarkNoteCandidate([note('a')], new Set())?.id).toBe('a');
+  });
+
+  it('leaves alone a note that has already been marked', () => {
+    expect(pickMarkNoteCandidate([note('a')], new Set(['a']))).toBeUndefined();
+  });
+
+  it('says nothing rather than asking about a note with barely anything in it', () => {
+    // "What stuck with you?" needs something to have stuck.
+    expect(pickMarkNoteCandidate([note('a', { content: 'Romans 8' })], new Set())).toBeUndefined();
+  });
+
+  it('measures what is written, not the markup around it', () => {
+    /*
+     * The note that caught this held one mention pill: 503 characters of inline style wrapped
+     * around a single word. It passed a length check on the stored HTML, and the card invited
+     * the reader to mark a note with nothing in it to mark.
+     */
+    const pill =
+      '<p><span data-mention-kind="note" data-mention-id="note_1783229089806" ' +
+      'data-mention-space-id="space_1783197526569" class="mention-pill" ' +
+      'style="padding: 2px 8px; border-radius: 12px; display: inline-flex; ' +
+      'align-items: center; gap: 4px; font-weight: 500; font-style: normal; ' +
+      'text-decoration: none; white-space: nowrap; vertical-align: baseline">Romans</span></p>';
+    expect(pill.length).toBeGreaterThan(MARK_NOTE_MIN_CHARS);
+    expect(pickMarkNoteCandidate([note('a', { content: pill })], new Set())).toBeUndefined();
+  });
+
+  it('says nothing when the body was never sent, rather than guessing from its length', () => {
+    const row = note('a', { content: null, contentLength: MARK_NOTE_MIN_CHARS + 10 });
+    expect(pickMarkNoteCandidate([row], new Set())).toBeUndefined();
+  });
+
+  it('skips what it cannot read or does not own', () => {
+    expect(pickMarkNoteCandidate([note('a', { contentEncrypted: true })], new Set())).toBeUndefined();
+    expect(pickMarkNoteCandidate([note('a', { noteType: 'scripture' })], new Set())).toBeUndefined();
+  });
+
+  it('prefers the oldest, which is both the one worth revisiting and the safest guess', () => {
+    /*
+     * Safest because `markedNoteIds` is only what the caller has loaded. A note written this
+     * morning does not need revisiting, and an old note's highlights are the ones most likely
+     * to be missing from memory — so age is doing two jobs here.
+     */
+    const picked = pickMarkNoteCandidate(
+      [note('new', { updatedAt: '2026-09-01T00:00:00Z' }), note('old', { updatedAt: '2025-01-01T00:00:00Z' })],
+      new Set(),
+    );
+    expect(picked?.id).toBe('old');
+  });
+
+  it('honours an exclusion, so one note is not two cards', () => {
+    expect(pickMarkNoteCandidate([note('a'), note('b')], new Set(), new Set(['a']))?.id).toBe('b');
   });
 });

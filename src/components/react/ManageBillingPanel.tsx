@@ -147,7 +147,7 @@ export default function ManageBillingPanel({
                           className="font-sans text-center px-4 pt-3 pb-2"
                           style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance', marginBottom: 12 }}
                         >
-                          {subscriptionInfo.hasSharedSpaces ? 'Shared Spaces is active' : "You're on the free plan"}
+                          {subscriptionInfo.hasSharedSpaces ? 'Harvous Plus is active' : "You're on the free plan"}
                         </div>
                         <div className="flex-stack" style={{ gap: 12, marginBottom: 12 }}>
                           <div
@@ -171,7 +171,7 @@ export default function ManageBillingPanel({
                       </div>
                     ) : null}
 
-                    {/* Get Shared Spaces — only show for free plan users */}
+                    {/* Get Harvous Plus — only show for free plan users */}
                     {subscriptionInfo && !subscriptionInfo.hasSharedSpaces ? (
                       <a
                         href="/upgrade"
@@ -181,7 +181,7 @@ export default function ManageBillingPanel({
                         <div className="panel__list-item">
                           <div className="panel__list-item-text">
                             <span className="panel__list-item-label">
-                              Get Shared Spaces
+                              Get Harvous Plus
                             </span>
                           </div>
                           <div className="panel__list-item-icon">

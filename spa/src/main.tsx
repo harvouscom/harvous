@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { initDiagnosticCapture } from '@/utils/diagnostics-client';
+import { startGuestSessionFromUrl } from './lib/guest-session';
 import { clearAppCachesThen, showPrototypeAppUpdateNotice } from '@/utils/prototype-app-update-notice';
 import { enforceProductionClerkKey } from '@/utils/production-clerk-key-guard';
 import {
@@ -59,6 +60,7 @@ window.addEventListener('vite:preloadError', () => {
 
 // Preload critical webfonts before @font-face rules (reduces swap → system font on fast route changes)
 import './font-preload';
+import { initNotificationNavigation } from './lib/notification-navigation';
 
 // Fonts — import directly from installed npm packages so they bundle correctly
 import '@fontsource/reddit-sans/400.css';
@@ -100,6 +102,10 @@ import './styles/prototype-tokens.css';
 import './styles/prototype-shell.css';
 import './styles/prototype-components.css';
 
+// A `?try=1` arrival is a guest visit. `prototype-route-boot.js` already wrote the marker on a
+// real page load; this covers the cases it cannot see — dev, and any navigation that reaches
+// the shell without a document load. Idempotent, so running twice costs nothing.
+startGuestSessionFromUrl(window.location.search);
 syncReduceMotionFromStorage();
 initDiagnosticCapture();
 if (REDUCE_MOTION_APP_PREFERENCE_ENABLED) {
@@ -109,6 +115,17 @@ if (REDUCE_MOTION_APP_PREFERENCE_ENABLED) {
     }
   });
 }
+
+/*
+ * Before render, not inside a component.
+ *
+ * A notification tap focuses the app and the service worker posts the destination straight
+ * away. Anything that waits for a component to mount — or worse, for a lazy chunk to load,
+ * which is where this started — is not listening yet when that message arrives, and a
+ * message has no queue. Registering here also picks up the destination parked for a cold
+ * launch, which is the case that matters most: the tap that opened the app.
+ */
+initNotificationNavigation();
 
 // Never boot a development-Clerk bundle on a production host. Returns true when it has
 // started a reload or shown the recovery screen, in which case nothing else may mount:

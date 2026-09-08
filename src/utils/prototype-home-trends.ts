@@ -1,3 +1,4 @@
+import { dayIndex } from '@/utils/note-mark-prompts';
 import { normalizeDate } from './sorting';
 import { noteFolderMembershipLabels, type NoteFolderLabelSource } from './note-folder-display';
 import { stripServerAutoUntitledNoteTitleForDisplay } from './server-auto-untitled-note-display';
@@ -1218,8 +1219,15 @@ export interface StudyArcNoteInput {
 
 export interface StudyArc {
   theme: string;
-  /** Distinct notes touching this theme within the window. */
+  /**
+   * Distinct notes touching this theme within the window.
+   *
+   * **Zero from `deriveStudyArcsFromNodes`**, which counts touches rather than notes and so
+   * may not claim a number. Copy must treat 0 as "no count to show", not as "no notes".
+   */
   noteCount: number;
+  /** Node path only: how much the reader has written about this theme. Ranks the arcs. */
+  weight?: number;
   firstMs: number;
   lastMs: number;
   spanDays: number;
@@ -1242,6 +1250,25 @@ export interface StudyArcOptions {
 
 /** Themes too universal to be "a theme God's been teaching you" — they'd match almost everything. */
 const ARC_THEME_DENYLIST = UNIVERSAL_BIBLE_ENTITIES;
+
+/**
+ * A curated topic label, as a reader should see it.
+ *
+ * All 6,738 rows in `ScriptureTopics` are lowercase and strip apostrophes, so the label comes
+ * through as "gods love". Sentence case fixes most of it; the possessive does not, and 37 of
+ * them begin that way — "Gods compassion" in the greeting of a Bible app reads as a typo, and
+ * the greeting is the most-read line in the product. Narrow on purpose: this restores the one
+ * apostrophe the source data reliably drops, and guesses at nothing else.
+ */
+export function curatedTopicLabelForDisplay(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) return trimmed;
+  const possessive = trimmed.replace(/^gods\s+/i, "God's ");
+  return possessive.charAt(0).toUpperCase() + possessive.slice(1);
+}
+
+/** A theme has to have been written about at least twice before it is anyone's arc. */
+const ARC_NODE_MIN_EXPANSIONS = 2;
 
 const ARC_WINDOW_MS = 180 * DAY_MS;
 
@@ -1333,6 +1360,90 @@ export function deriveStudyArcs(notes: StudyArcNoteInput[], options: StudyArcOpt
   }
 
   arcs.sort((a, b) => b.noteCount - a.noteCount || b.spanDays - a.spanDays || a.theme.localeCompare(b.theme));
+  return arcs.slice(0, Math.max(0, limit));
+}
+
+/** One theme node from the reader's Study Bible layer, as an arc input. */
+export interface StudyArcThemeNode {
+  label: string | null;
+  /** How many times study has touched this theme, however it happened. */
+  exposureCount: number;
+  expansionCount: number;
+  firstStudiedAt: string | Date;
+  lastSeenAt: string | Date;
+}
+
+const toMs = (value: string | Date): number =>
+  value instanceof Date ? value.getTime() : new Date(value).getTime();
+
+/**
+ * The same arcs, from server-side counts rather than the notes in the browser.
+ *
+ * `deriveStudyArcs` above needs every note the reader has, which is why it gives up whenever
+ * the list is paginated. The Study Bible layer counts as study happens, so this can answer for
+ * a reader with two thousand notes and a first page of twenty.
+ *
+ * **`noteCount` is deliberately 0 here, and the copy must not claim a number.** The layer
+ * counts *touches*, not notes: one note citing five verses that all carry the theme "water"
+ * gives that theme five exposures. Rendering that as "Across 5 notes" is simply false, and it
+ * is what this function did on its first day. Until a node can count distinct notes, the node
+ * path earns a since-line and nothing more.
+ *
+ * The bar is also higher than the note path's. A theme has to have been *written about*
+ * (`expansionCount`), not merely met while reading — the topic layer tags broadly enough that
+ * exposure alone surfaces "life" and "water" as though they were someone's study.
+ *
+ * `noteIds` is left to the caller, which has the fingerprints and can match the label back to
+ * notes it holds.
+ */
+export function deriveStudyArcsFromNodes(
+  nodes: readonly StudyArcThemeNode[],
+  options: StudyArcOptions,
+): StudyArc[] {
+  const { nowMs, windowMs = ARC_WINDOW_MS, minNotes = 3, minSpanDays = 21, limit = 1 } = options;
+  const windowStart = nowMs - windowMs;
+
+  const arcs: StudyArc[] = [];
+  for (const node of nodes) {
+    const label = node.label?.trim();
+    if (!label || ARC_THEME_DENYLIST.has(label.toLowerCase())) continue;
+
+    const lastMs = toMs(node.lastSeenAt);
+    const firstMs = Math.max(toMs(node.firstStudiedAt), windowStart);
+    if (!Number.isFinite(lastMs) || !Number.isFinite(firstMs)) continue;
+    if (lastMs < windowStart || lastMs > nowMs) continue;
+
+    // Written about, not merely met. Exposure alone is the topic layer's breadth, not the
+    // reader's attention — it is what put "water" and "life" forward as study arcs.
+    if (node.expansionCount < ARC_NODE_MIN_EXPANSIONS) continue;
+    if (node.exposureCount + node.expansionCount < minNotes) continue;
+
+    const spanDays = (lastMs - firstMs) / DAY_MS;
+    if (spanDays < minSpanDays) continue;
+
+    arcs.push({
+      theme: curatedTopicLabelForDisplay(label),
+      // See the docblock: touches are not notes, so this path claims no count at all.
+      noteCount: 0,
+      firstMs,
+      lastMs,
+      spanDays,
+      // Tone lives on note fingerprints, not on the theme node.
+      dominantTone: null,
+      noteIds: [],
+      // Ranked by what the reader wrote, full stop. Exposure deliberately plays no part: it
+      // is how broadly the curated layer tags a passage, and a weighted blend of the two let
+      // a theme merely cited eight times outrank one written about five.
+      weight: node.expansionCount,
+    });
+  }
+
+  arcs.sort(
+    (a, b) =>
+      (b.weight ?? 0) - (a.weight ?? 0) ||
+      b.spanDays - a.spanDays ||
+      a.theme.localeCompare(b.theme),
+  );
   return arcs.slice(0, Math.max(0, limit));
 }
 
@@ -1485,6 +1596,7 @@ export const RECALL_GENERATIVE_KINDS: readonly RecallOpportunityKind[] = [
   'reflection',
   'crossrefGap',
   'connectNotes',
+  'searchGap',
 ];
 
 export function isRecallTrendKind(kind: RecallOpportunityKind): boolean {
@@ -1495,21 +1607,70 @@ export function isRecallGenerativeKind(kind: RecallOpportunityKind): boolean {
   return RECALL_GENERATIVE_KINDS.includes(kind);
 }
 
-/** Lower number = more useful in the recall carousel (memory first, prompts last). */
+/**
+ * Lower number = shown higher in the recall shelf.
+ *
+ * These used to encode a belief — memory first, prompts last — and sixty days of
+ * `RecallEvents` say the belief was close to backwards. Open rates, from
+ * `npm run recall:kind-rates` and written up in `docs/future/RICHER_HOME_RECOMMENDATIONS.md`:
+ *
+ *   continueBook 31.3% (39 users) · studyPerson 20.0% (3) · crossrefGap 17.9% (23)
+ *   subject 17.6% (5) · reflection 16.7% (3) · passage 12.0% (9) · annotateHighlight 10.8% (17)
+ *   highlight 9.4% (8) · connectNotes 7.1% (12) · arc 5.6% (3) · revisitNote 5.5% (9)
+ *
+ * **The confound is what makes this safe to act on, not what makes it unusable.** Tier-0
+ * kinds get pinned to the head slot, so their rates are *flattered*. That asymmetry cuts one
+ * way: a tier-0 kind with a bad rate is genuinely bad (it had the advantage and still lost),
+ * while a tier-1 kind with a good rate may be even better than it looks. So demotions out of
+ * tier 0 are well evidenced, and `continueBook`'s 31% is a floor rather than an estimate.
+ *
+ * Three deliberate restraints:
+ * - `revisitNote` moves to 1, not 2. Its number predates visits becoming a ranking signal
+ *   (`NoteVisitEvents`, `revisitReturnsBoost`), which is exactly the blind spot that work
+ *   closed, so it is owed a re-measurement. Dropping it two tiers would starve it of the
+ *   impressions that re-measurement needs — the demotion has to remove the flattery without
+ *   removing the kind.
+ * - `studyPerson` and `reflection` come up one step, not two. 20% of five impressions is one
+ *   open; it is evidence against "worst tier", not evidence for "best".
+ * - `referenceWord` does not move. 0% of a single impression says nothing at all, and
+ *   demoting an unmeasured kind is how it stays unmeasured forever.
+ *
+ * Tier 3 is now empty, which is fine: `orderRecallWithSoftVariety` only ever asks whether one
+ * tier differs from the last, and `recallKindTier` still falls back to 3 for a kind missing
+ * from this table.
+ *
+ * **Rates measured after this change are not comparable to the table above** — the head slot
+ * now goes to a different kind, so the positional confound points somewhere else. Adding a
+ * `position` column to `RecallEvents` is what would make any of this decomposable.
+ */
 export const RECALL_KIND_TIER: Record<RecallOpportunityKind, number> = {
-  revisitNote: 0,
-  highlight: 0,
-  annotateHighlight: 0,
-  connectNotes: 1,
-  continueBook: 1,
-  crossrefGap: 1,
+  continueBook: 0,
+  crossrefGap: 0,
+  revisitNote: 1,
+  highlight: 1,
+  annotateHighlight: 1,
   arc: 2,
   passage: 2,
   subject: 2,
   crossref: 2,
   referenceWord: 2,
-  studyPerson: 3,
-  reflection: 3,
+  connectNotes: 2,
+  studyPerson: 2,
+  reflection: 2,
+  /* New kind on a new signal type, so it starts where it cannot take the head slot. It is
+     also the only kind that reflects the reader's own words back at them, which is worth
+     being quiet about until there is evidence it lands. */
+  searchGap: 2,
+  /* The five questions that used to be note reviews. Unmeasured here, and starting where it
+     cannot take the head slot — the same restraint every new kind gets, and the rates above
+     are the argument for it. */
+  markNote: 2,
+  /* The Thread and link questions Review retired. Unmeasured here, and starting where it cannot
+     take the head slot — the restraint every new kind gets. */
+  reflectThread: 2,
+  /* Reading, which no card has ever been built on. Same restraint: a new signal starts where it
+     cannot take the head slot. */
+  readingNote: 2,
 };
 
 export function recallKindTier(kind: RecallOpportunityKind): number {
@@ -1955,6 +2116,83 @@ export function deriveContinueReading(
   return null;
 }
 
+// 1b-ii. Write about what you read ───────────────────────────────────────────────
+
+export interface ReadingNoteChapterInput {
+  book: string;
+  bookOrder: number;
+  chapter: number;
+  /** When it was last actually read — glances excluded. Null means it was only glanced at. */
+  lastReadAt: string | null;
+  translation?: string | null;
+}
+
+export interface ReadingNoteSuggestion {
+  book: string;
+  bookOrder: number;
+  chapter: number;
+  readAt: string;
+  translation: string | null;
+}
+
+/**
+ * The chapter worth writing about: the most recently read one, inside the window, that no note
+ * of theirs already cites.
+ *
+ * Three exclusions, each with a reason.
+ *
+ * **A glance is not a read.** `lastReadAt` is null for a chapter only ever glanced at, and the
+ * card says "you read this" — which would be untrue.
+ *
+ * **A chapter already cited is not a gap.** If a note quotes John 3, the reader has written
+ * about John 3, and offering to start one is offering something they already did. This is the
+ * same rule `deriveContinueBook` applies to its own candidates.
+ *
+ * **Old reading is not news.** Past the window the invitation stops being "while it is fresh"
+ * and becomes a chore list of everything unwritten, which is the shape this shelf refuses.
+ *
+ * The window is in **calendar days in the reader's own zone**, not elapsed hours, because that
+ * is how the card's eyebrow speaks — "you read this today", "yesterday". Measured in hours the
+ * two disagree: a chapter read at eight last night is twenty hours old, inside a two-day
+ * window, and two calendar days back if you open Home the morning after next. The card was
+ * then derived and silently dropped for want of an eyebrow. One notion of a day, used by both.
+ */
+export function deriveReadingNote(
+  input: {
+    readChapters: readonly ReadingNoteChapterInput[];
+    /** `${book}|${chapter}` for every chapter the reader's notes cite. */
+    citedChapterKeys: ReadonlySet<string>;
+    windowDays?: number;
+  },
+  now: Date = new Date(),
+): ReadingNoteSuggestion | null {
+  // 1: today or yesterday, which is exactly what the eyebrow can say.
+  const windowDays = input.windowDays ?? 1;
+  const today = dayIndex(now);
+  let best: ReadingNoteSuggestion | null = null;
+  let bestAt = -Infinity;
+
+  for (const chapter of input.readChapters) {
+    if (!chapter.lastReadAt || !chapter.book || !Number.isInteger(chapter.chapter)) continue;
+    const readAt = new Date(chapter.lastReadAt);
+    const at = readAt.getTime();
+    if (!Number.isFinite(at)) continue;
+    const age = today - dayIndex(readAt);
+    if (age < 0 || age > windowDays) continue;
+    if (input.citedChapterKeys.has(`${chapter.book}|${chapter.chapter}`)) continue;
+    if (at <= bestAt) continue;
+    bestAt = at;
+    best = {
+      book: chapter.book,
+      bookOrder: chapter.bookOrder,
+      chapter: chapter.chapter,
+      readAt: chapter.lastReadAt,
+      translation: chapter.translation ?? null,
+    };
+  }
+  return best;
+}
+
 /** Home card copy for continue-reading. */
 /**
  * Names the place the row will actually land you.
@@ -2278,6 +2516,77 @@ export function pickBareHighlight<T extends BareHighlightInput>(highlights: T[])
   const unannotated = highlights.filter((h) => isHighlightUnannotated(h) && isAnnotatableHighlight(h));
   if (unannotated.length === 0) return undefined;
   return [...unannotated].sort((a, b) => (a.recencyMs ?? 0) - (b.recencyMs ?? 0))[0];
+}
+
+/** A note that could be marked, and the fields that decide whether it is worth suggesting. */
+export interface MarkNoteInput {
+  id: string;
+  title?: string | null;
+  content?: string | null;
+  contentLength?: number | null;
+  contentEncrypted?: boolean | null;
+  noteType?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+
+/**
+ * Below this a note has not said enough for "what stuck with you?" to have an answer.
+ *
+ * Measured on the visible text, never on the stored HTML. A note holding one mention pill is
+ * 503 characters of inline style around a single word, and the first version of this picker
+ * duly offered it — a card inviting you to mark a note with nothing in it to mark.
+ */
+export const MARK_NOTE_MIN_CHARS = 280;
+
+/**
+ * The note to invite marking, or undefined when none is worth asking about.
+ *
+ * This is where the five reflective review prompts landed. Review could not grade them, and
+ * what they actually want is for you to go back in and mark the part that answers them — so the
+ * card opens a note you have written a fair amount in and never marked anything in.
+ *
+ * `markedNoteIds` is what the caller knows about, not what exists. Highlights load a page at a
+ * time, so an old note whose marks are not in memory can be suggested despite having some. That
+ * is the failure this picker is willing to have: the cost is a card inviting you into a note you
+ * have already marked, which is a wasted suggestion and nothing worse. Preferring the oldest
+ * matters more than being certain — the recent notes are the ones whose highlights *are* loaded.
+ */
+/** How much a reader would actually see: tags dropped, entities decoded, whitespace collapsed. */
+function visibleTextLength(html: string): number {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&[a-z]+;|&#\d+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim().length;
+}
+
+export function pickMarkNoteCandidate<T extends MarkNoteInput>(
+  notes: readonly T[],
+  markedNoteIds: ReadonlySet<string>,
+  excludeIds: ReadonlySet<string> = new Set(),
+): T | undefined {
+  const eligible = notes.filter((note) => {
+    if (markedNoteIds.has(note.id) || excludeIds.has(note.id)) return false;
+    // Encrypted bodies cannot be measured, and scripture notes are not the reader's own writing.
+    if (note.contentEncrypted) return false;
+    if (note.noteType === 'scripture') return false;
+    // `contentLength` is the stored HTML's length, which is why it is only a ceiling here: a
+    // note too short even before the markup is stripped cannot pass, and everything else has to
+    // be measured properly.
+    if ((note.contentLength ?? Number.POSITIVE_INFINITY) < MARK_NOTE_MIN_CHARS) return false;
+    if (!note.content) return false;
+    return visibleTextLength(note.content) >= MARK_NOTE_MIN_CHARS;
+  });
+  if (!eligible.length) return undefined;
+
+  // Oldest first: a note written this morning does not need to be revisited, and its highlights
+  // are the ones most likely to be loaded if it has any.
+  return [...eligible].sort((a, b) => {
+    const at = Date.parse(a.updatedAt ?? a.createdAt ?? '') || 0;
+    const bt = Date.parse(b.updatedAt ?? b.createdAt ?? '') || 0;
+    return at - bt;
+  })[0];
 }
 
 // 5. Reflection prompt (season / theme) ───────────────────────────────────────────

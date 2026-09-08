@@ -2,7 +2,11 @@
   "name": "Harvous",
   "short_name": "Harvous",
   "icons": [
-    {"src": "/images/harvous-2-icon.png", "type": "image/png", "sizes": "512x512", "purpose": "any"}
+    {"src": "/images/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any"},
+    {"src": "/images/icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any"},
+    {"src": "/images/icons/icon-192-maskable.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable"},
+    {"src": "/images/icons/icon-512-maskable.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable"},
+    {"src": "/images/harvous-2-icon.png", "type": "image/png", "sizes": "1000x1000", "purpose": "any"}
   ],
   "start_url": "/",
   "display": "standalone",

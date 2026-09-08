@@ -11,6 +11,8 @@ import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id
 
 interface PrototypeShareButtonProps {
   noteId: string;
+  /** Passed through so the Discover submit sheet can name what you are offering. */
+  noteTitle?: string | null;
   isPublic: boolean;
   shareToken: string | null;
   /** Hide entirely when the note can't be shared (encrypted, onboarding, etc.). */
@@ -25,6 +27,7 @@ interface PrototypeShareButtonProps {
  */
 export default function PrototypeShareButton({
   noteId,
+  noteTitle = null,
   isPublic,
   shareToken,
   hidden = false,
@@ -87,6 +90,7 @@ export default function PrototypeShareButton({
       {anchorRect ? (
         <PrototypeSharePopover
           noteId={noteId}
+          noteTitle={noteTitle}
           isPublic={isPublic}
           shareToken={shareToken}
           anchorRect={anchorRect}

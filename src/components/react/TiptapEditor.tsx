@@ -732,7 +732,13 @@ function SelectionBarShell({
         top,
         left,
         transform: 'translateX(-50%)',
-        zIndex: 99999,
+        /*
+         * The popover tier, not a number above everything. At 99999 this floated over
+         * modals, Settings and toasts — and over the Library panel, which is where it was
+         * noticed. The bar is a popover attached to a selection and belongs on that tier.
+         * The fallback keeps the old value where the prototype tokens are not defined.
+         */
+        zIndex: 'var(--pds-z-popover, 99999)' as unknown as number,
         pointerEvents: 'auto',
       }}
     >
@@ -5553,7 +5559,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         pendingRafId,
         latestHtml: latestNoteHtmlRef.current,
         onContentChange: onContentChangeRef.current,
-        cancelAnimationFrame,
+        /*
+         * Wrapped, not passed. A bare `cancelAnimationFrame` is a native method torn off
+         * `window`, so calling it through the options object threw "Illegal invocation" and
+         * took the editor down with it — and only on the unmount that had a frame still
+         * pending, which is exactly the one after a keystroke: type, start another note, and
+         * the editor crashed into the error boundary. The helper's own test has always said
+         * it needs a window-bound function; this call site was the one that did not.
+         */
+        cancelAnimationFrame: (id) => cancelAnimationFrame(id),
         wasUserEdit: pendingEmitUserEditRef.current,
       });
     };
@@ -5882,6 +5896,109 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       return studyId;
     },
     [contextSpaceId, editorChromeMode, syncStudyThreadList],
+  );
+
+  /**
+   * Answer another member's annotation, on the span they annotated.
+   *
+   * A reply is an ordinary annotation that happens to land on the same anchor,
+   * which is why this needs no new route and no new row type: the overlay
+   * already gathers every entry whose range overlaps into one dock and steps
+   * through them, and the create route already takes the anchor as three
+   * plain fields.
+   *
+   * What was missing was only the way in. To answer someone you had to find and
+   * re-select the exact text they had highlighted — so the grouping existed and
+   * nothing ever deliberately put two people on one span.
+   *
+   * The anchor is copied from the card being answered rather than recomputed
+   * from a selection, and it is converted the same way the selection bar does:
+   * in shared-annotation mode the server stores a **plain-text offset**, not a
+   * ProseMirror position, so the two must not be confused.
+   *
+   * The reply carries the original's accent. The overlay paints a group in the
+   * colour of whichever entry starts it, so a different accent here would say
+   * the reply is a separate remark on the same words.
+   */
+  const replyToAnnotation = useCallback(
+    async (session: { range: { from: number; to: number } | null; excerpt: string; accent: string }) => {
+      if (!editor || !isEditorValid(editor)) return;
+      if (!sourceNoteId || editorChromeMode !== 'prototypeNative') return;
+      const range = session.range;
+      const snippet = session.excerpt;
+      if (!range || !snippet) return;
+
+      const anchorLocation = sharedAnnotationOverlayMode
+        ? editor.state.doc.textBetween(0, range.from, '\n').length
+        : range.from;
+      const anchorLength = sharedAnnotationOverlayMode
+        ? snippet.length
+        : Math.max(0, range.to - range.from);
+
+      let studyId: string | null = null;
+      try {
+        const res = await fetch(`/api/notes/${sourceNoteId}/study-threads`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            withStudyThreadContext(
+              {
+                entryKind: 'miniNote',
+                sourceSnippet: snippet,
+                highlightAccentRaw: session.accent,
+                anchorTextSnapshot: snippet,
+                anchorLocation,
+                anchorLength,
+              },
+              contextSpaceId,
+            ),
+          ),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          studyId = data.studyThread?.id ?? null;
+          if (studyId) syncStudyThreadList(sourceNoteId);
+        }
+      } catch {
+        /* fall through to the toast below */
+      }
+
+      if (!studyId) {
+        window.toast?.error('Could not add your reply. Try again.');
+        return;
+      }
+
+      /*
+        No editor mark. In shared-annotation mode the document is someone else's
+        and the editor is not editable — the overlay paints the span from the
+        entry rows, which now include this one.
+      */
+      releaseEditorFocusForStudyDock();
+      setStudyDockStack((s) =>
+        openOrFocusHighlight(s, {
+          studyThreadEntryId: studyId,
+          accent: session.accent,
+          excerpt: snippet,
+          range,
+          entryKind: 'miniNote',
+          focusTitle: deriveHighlightFocusTitle(snippet),
+          miniNoteBody: '',
+          isOwnHighlight: true,
+        }),
+      );
+      onSharedAnnotationCreated?.();
+    },
+    [
+      contextSpaceId,
+      editor,
+      editorChromeMode,
+      onSharedAnnotationCreated,
+      releaseEditorFocusForStudyDock,
+      sharedAnnotationOverlayMode,
+      sourceNoteId,
+      syncStudyThreadList,
+    ],
   );
 
   const handleHoverPreviewOpen = useCallback(() => {
@@ -6503,9 +6620,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const handlePointerDownOutside = (e: PointerEvent | MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target?.closest?.('.selection-action-bar')) return;
+      /*
+       * Chrome that takes over the pane, and the controls that raise it.
+       *
+       * These clear immediately rather than falling through to the eligibility re-check
+       * below, because that check asks the wrong question here: it asks whether the
+       * *selection* is still worth a bar, and the selection survives all of this. Clicking
+       * into the Library panel does not collapse it, so the bar stayed up — floating over
+       * the panel, still offering to act on text nobody could see. The question that
+       * matters is whether the note is still the surface in front of you.
+       */
       if (
         target?.closest?.(
-          '.study-dock-card, .highlight-dock-web, .study-dock-carousel, .reference-dock-web',
+          '.study-dock-card, .highlight-dock-web, .study-dock-carousel, .reference-dock-web, .proto-library-sheet, .proto-library-panel, .proto-library-chip, .proto-settings-modal-overlay',
         )
       ) {
         clearSelectionActionBar();
@@ -8116,6 +8243,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (Date.now() < formatToolbarInteractionUntilRef.current) return;
         editorWasFocusedForToolbarRef.current = false;
         setIsEditorFocused(false);
+        /*
+         * Focus has genuinely left the editor — not to the toolbar, a dock, the picker or
+         * the bar itself, all of which returned above. The selection may still be there in
+         * the document, but a floating bar for it has no business staying up over whatever
+         * took focus: it was sitting on top of the Library panel, still offering to act on
+         * text nobody was looking at. The selection itself is untouched; select again and
+         * the bar comes back.
+         */
+        clearSelectionActionBar();
         if (editorChromeMode === 'prototypeNative') {
           setShowFormatBarForActivity(false);
           if (formatBarHideTimerRef.current) {
@@ -8150,7 +8286,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         editor.off('selectionUpdate', handleSelectionUpdate);
       }
     };
-  }, [editor, toolbarAtBottom, editorChromeMode, bumpFormatToolbarActivity]);
+  }, [editor, toolbarAtBottom, editorChromeMode, bumpFormatToolbarActivity, clearSelectionActionBar]);
 
   useEffect(() => {
     if (editorChromeMode !== 'prototypeNative') return;
@@ -10307,6 +10443,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         entry.session.studyThreadEntryId === focusMiniNoteThreadId
                       }
                       onMiniNoteFocused={() => setFocusMiniNoteThreadId(null)}
+                      /* Only where answering is something you can do: someone
+                         else's annotation, in a room you are both in. The dock
+                         checks the "someone else's" half itself; this supplies
+                         the room. */
+                      onReply={
+                        sharedAnnotationOverlayMode
+                          ? () => void replyToAnnotation(entry.session)
+                          : undefined
+                      }
                       expanded={cardExpanded}
                       onExpandedChange={(next) => {
                         setStudyDockStack((s) =>

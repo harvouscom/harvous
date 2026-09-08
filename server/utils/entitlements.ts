@@ -18,7 +18,9 @@ import {
   UserMetadata,
   eq,
   and,
-  countDistinct,
+  count,
+  isNotNull,
+  isNull,
 } from '../db';
 import type { Auth } from '../middleware/types';
 import {
@@ -28,8 +30,9 @@ import {
   limitsForFeatures,
   planForProductId,
   isFeatureKey,
+  isFeatureWithheld,
   isChurchProductId,
-  foundingPlan,
+  foundingOffer,
   FOUNDING_CAP,
 } from '@/lib/billing-plans';
 import { getPolarClient, isPolarConfigured } from './polar-client';
@@ -57,6 +60,10 @@ async function listActiveFeatureKeys(userId: string): Promise<FeatureKey[]> {
 }
 
 export async function hasEntitlementForUserId(userId: string, key: FeatureKey): Promise<boolean> {
+  // A withheld feature is closed to everyone, including accounts that hold a live row for it.
+  // Checked before the query rather than after, so hiding a feature also stops paying for the
+  // read that would only be discarded.
+  if (isFeatureWithheld(key)) return false;
   const keys = await listActiveFeatureKeys(userId);
   return keys.includes(key);
 }
@@ -188,27 +195,35 @@ export async function setFeatureEntitlement(
 // ─── Founding cap ───────────────────────────────────────────────────────────
 
 /**
- * How many people have ever claimed the founding price.
+ * How many people have ever claimed the founding offer.
  *
- * Counts distinct users with a row on the founding product **regardless of
- * status** — the promise is "the first 99 people", not "99 at a time". A
- * founder who cancels must not quietly free a lifetime-locked slot for someone
- * else, so canceled/expired rows still occupy their claim.
+ * Vestigial since the offer was retired (`foundingOffer()` returns null, so
+ * `getFoundingAvailability` always reports unavailable and nothing new can be
+ * claimed). Kept because the count is still the honest answer for anyone who
+ * did claim it, and because the retirement is reversible.
+ *
+ * Counts stamped claims **regardless of subscription status** — the promise is
+ * "the first 99 people", not "99 at a time". A founder who cancels must not
+ * quietly free a slot for someone else, so `foundingClaimedAt` is never
+ * cleared.
+ *
+ * Read locally rather than from Polar's `redemptions_count`: this drives the
+ * "N spots left" line on `/upgrade`, which would otherwise cost an outbound
+ * provider call on every pageview. Polar's `max_redemptions` is the enforcing
+ * copy; this one is for display and for the pre-checkout check.
  */
 export async function countFoundingClaims(): Promise<number> {
-  const plan = foundingPlan();
-  if (!plan?.productId) return 0;
   try {
     const row = first(
       await db
-        .select({ cnt: countDistinct(Entitlements.userId) })
-        .from(Entitlements)
-        .where(eq(Entitlements.productId, plan.productId)),
+        .select({ cnt: count() })
+        .from(UserMetadata)
+        .where(isNotNull(UserMetadata.foundingClaimedAt)),
     );
     return Number(row?.cnt ?? 0);
   } catch (error) {
     console.error('[entitlements] countFoundingClaims failed:', error);
-    // Fail closed: an unknown count must not hand out an unbounded lifetime price.
+    // Fail closed: an unknown count must not hand out an unbounded discount.
     return FOUNDING_CAP;
   }
 }
@@ -216,23 +231,28 @@ export async function countFoundingClaims(): Promise<number> {
 /**
  * Founding slots left (0 when sold out or unconfigured).
  *
- * Known race: two checkouts started at slot 99 can both succeed. Selling 101 of
- * 99 is not worth a distributed lock at launch volume — honor anyone who got a
- * checkout open, and let the overshoot stand.
+ * The read-then-checkout race this used to document ("two checkouts started at
+ * slot 99 can both succeed") is now Polar's problem and Polar solves it: the
+ * discount carries `max_redemptions`, enforced when the checkout is created.
+ * This count can lag by a request; the catalog cannot oversell.
  */
 export async function getFoundingAvailability(): Promise<{
   total: number;
   claimed: number;
   remaining: number;
   available: boolean;
+  /** What a founder pays for year one. Null when the offer isn't configured. */
+  firstYearCents: number | null;
 }> {
+  const offer = foundingOffer();
   const claimed = await countFoundingClaims();
   const remaining = Math.max(0, FOUNDING_CAP - claimed);
   return {
     total: FOUNDING_CAP,
     claimed: Math.min(claimed, FOUNDING_CAP),
     remaining,
-    available: remaining > 0 && Boolean(foundingPlan()?.productId),
+    available: remaining > 0 && Boolean(offer),
+    firstYearCents: offer?.firstYearCents ?? null,
   };
 }
 
@@ -262,6 +282,46 @@ export async function setPolarCustomerId(userId: string, customerId: string): Pr
     id: crypto.randomUUID(),
     userId,
     polarCustomerId: customerId,
+    highestSimpleNoteId: 0,
+    userColor: 'blue',
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+/**
+ * Stamp this user as a founder, once.
+ *
+ * Idempotent by design: the `WHERE foundingClaimedAt IS NULL` keeps a resent
+ * webhook (or a `subscription.updated` that still carries the first invoice's
+ * discount) from moving the date, and the claim is never cleared — a founder
+ * who cancels keeps their slot, because the promise was "the first 99 people".
+ */
+export async function markFoundingClaimed(userId: string): Promise<void> {
+  const now = new Date();
+  const updated = await db
+    .update(UserMetadata)
+    .set({ foundingClaimedAt: now, updatedAt: now })
+    .where(and(eq(UserMetadata.userId, userId), isNull(UserMetadata.foundingClaimedAt)))
+    .returning({ userId: UserMetadata.userId });
+
+  if (updated.length > 0) return;
+
+  // No row updated means either the claim already stands or the user has no
+  // metadata row yet. Only the second case needs an insert.
+  const existing = first(
+    await db
+      .select({ userId: UserMetadata.userId })
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, userId))
+      .limit(1),
+  );
+  if (existing) return;
+
+  await db.insert(UserMetadata).values({
+    id: crypto.randomUUID(),
+    userId,
+    foundingClaimedAt: now,
     highestSimpleNoteId: 0,
     userColor: 'blue',
     createdAt: now,

@@ -43,6 +43,23 @@ export function isNoteConnectionsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'NoteConnections');
 }
 
+/**
+ * The push tables and the four UserMetadata columns land in one additive migration
+ * (`npm run push:schema:apply`), so between a deploy and that command every reminder read
+ * would throw. Reminders are optional chrome; the settings page says "not set up yet"
+ * rather than showing an error to someone who only opened Settings.
+ */
+export function isPushRemindersSchemaMissing(error: unknown): boolean {
+  return (
+    isPgUndefinedRelation(error, 'PushSubscriptions') ||
+    isPgUndefinedRelation(error, 'ReminderDeliveries') ||
+    isPgUndefinedColumn(error, 'reminderSettings') ||
+    isPgUndefinedColumn(error, 'lastReminderSentOn') ||
+    isPgUndefinedColumn(error, 'lastActiveAt') ||
+    isPgUndefinedColumn(error, 'timezone')
+  );
+}
+
 export function isSpaceMembershipsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SpaceMemberships');
 }
@@ -63,12 +80,55 @@ export function isRecallEventsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'RecallEvents');
 }
 
+export function isSearchEventsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'SearchEvents');
+}
+
 export function isReadingEventsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'ReadingEvents');
 }
 
 export function isNoteVisitEventsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'NoteVisitEvents');
+}
+
+export function isReviewItemsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'ReviewItems');
+}
+
+export function isReviewEventsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'ReviewEvents');
+}
+
+export function isUserNodeStatesTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'UserNodeStates');
+}
+
+export function isChallengesTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'Challenges');
+}
+
+/**
+ * Columns added to ReviewItems after its first apply — the engine's provenance line.
+ *
+ * A column guard rather than a table one because the tables exist by now on any database that
+ * has run the feature at all. Treated the same way: an unmigrated database is an empty Review
+ * section, not a broken Activity page. This is what keeps the window between deploying the code
+ * and applying the DDL survivable, and it is the same pattern as
+ * `isStudyThreadNamingColumnMissing`.
+ */
+export function isReviewSourceColumnMissing(error: unknown): boolean {
+  return isPgUndefinedColumn(error, 'sourceLabel') || isPgUndefinedColumn(error, 'sourceAt');
+}
+
+/** Any of the three Review/Challenge tables, or a column not yet applied to them. */
+export function isReviewTableMissing(error: unknown): boolean {
+  return (
+    isReviewItemsTableMissing(error) ||
+    isReviewEventsTableMissing(error) ||
+    isChallengesTableMissing(error) ||
+    isReviewSourceColumnMissing(error)
+  );
 }
 
 export function isSupportTicketsTableMissing(error: unknown): boolean {

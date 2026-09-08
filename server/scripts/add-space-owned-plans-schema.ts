@@ -24,6 +24,7 @@
 import 'dotenv/config';
 import postgres from 'postgres';
 import { pathToFileURL } from 'node:url';
+import { requireDbTarget } from '../utils/require-db-target';
 
 export const SPACE_OWNED_PLANS_DDL = [
   `ALTER TABLE "ChurchServices" ALTER COLUMN "churchId" DROP NOT NULL`,
@@ -42,6 +43,8 @@ export async function runAddSpaceOwnedPlansSchema(
     console.log('[space-plans:schema] review, then re-run with --apply');
     return;
   }
+  // Only past the dry run: printing the DDL connects to nothing.
+  requireDbTarget({ scriptName: 'owned-plans:schema', writes: true, argv, env });
 
   const databaseUrl = env.SUPABASE_DIRECT_URL?.trim();
   if (!databaseUrl) {

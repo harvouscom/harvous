@@ -53,3 +53,44 @@ export function readerRouteForReference(
     },
   };
 }
+
+/**
+ * The same route, stamped so it lands again even when you are already on it.
+ *
+ * Two things conspire without this. The router treats an identical URL as no navigation at
+ * all, and the reader's landing — the focus that singles the verse out from the rest of the
+ * chapter — is dismissible by a stray tap anywhere in the page. So following the same row,
+ * pill or cross-reference a second time did nothing at all, which reads as the link having
+ * quietly stopped working.
+ *
+ * `req` is what `PrototypeBibleReaderPane` keys its landing off (`landRequestKey`), so the
+ * value only has to differ between taps — it never has to mean anything.
+ *
+ * Separate from `readerRouteForReference` rather than folded into it: that function answers
+ * "where does this reference live", which is a fact and worth keeping pure and preloadable.
+ * This one answers "and I am asking again now", which is about the gesture.
+ */
+let landingRequests = 0;
+
+export function landAgain<T extends { search: Record<string, unknown> }>(
+  route: T,
+): Omit<T, 'search'> & { search: T['search'] & { req: string } } {
+  /*
+   * A counter, not `Date.now()` alone. The clock is only millisecond-resolution, so two asks
+   * inside the same millisecond produce the same stamp and the second one is silently not a
+   * navigation — the exact failure this function exists to prevent. The time is kept because
+   * it makes a stamp legible in a URL someone is looking at; the counter is what makes it true.
+   */
+  landingRequests += 1;
+  /*
+   * The return type widens `search` rather than echoing `T`.
+   *
+   * It used to say it returned `T` unchanged, which was a lie in the one way that mattered:
+   * this function's entire purpose is to add `req`, so every caller was handed a type with no
+   * `req` on it. Nothing broke at the call sites — they pass the result straight to
+   * `navigate`, and the read route's `validateSearch` accepts `req` — so the only place it
+   * surfaced was a test reading the field back, which is exactly where a stamp should be
+   * checked.
+   */
+  return { ...route, search: { ...route.search, req: `${Date.now()}-${landingRequests}` } };
+}

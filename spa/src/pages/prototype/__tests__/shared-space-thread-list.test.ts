@@ -4,7 +4,7 @@ import {
   isSharedSpaceThreadDrillId,
   sharedSpaceThreadsEmptyDescription,
 } from '../shared-space-thread-list';
-import { sharedThreadDashboardModel } from '../PrototypeSidebarSharedSpaceView';
+import { sharedThreadDashboardModel } from '../PrototypeSpaceHub';
 import type { SpaceGroupStudyThread } from '../../../hooks/queries/useSpaceGroupThreads';
 import { buildDeleteSharedThreadRequest } from '../../../hooks/mutations/useDeleteSharedThread';
 

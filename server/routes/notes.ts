@@ -159,7 +159,48 @@ import {
   authorizeNoteThreadMutationInTransaction,
   SharedSpaceLifecycleError,
 } from '../utils/shared-space-lifecycle';
+import {
+  connectionTouches,
+  noteTouch,
+  threadTouchForNote,
+  touchNodes,
+} from '../utils/study-bible-layer';
+import { nodeKey } from '@/utils/study-bible-nodes';
+import {
+  LINKED_NOTES_SOURCE,
+  NOTE_EXPANDED_SOURCE,
+  THREAD_NAMED_SOURCE,
+} from '@/utils/study-bible-source-copy';
 const route = new Hono();
+
+/**
+ * Record a link in the reader's Study Bible layer: the connection node, both note nodes, and
+ * the Thread the link now belongs to. Fire-and-forget — the link is already saved.
+ */
+async function recordConnectionNodes(
+  userId: string,
+  fromNoteId: string,
+  toNoteId: string,
+): Promise<void> {
+  const at = new Date();
+  const titles = await db
+    .select({ id: Notes.id, title: Notes.title })
+    .from(Notes)
+    .where(and(eq(Notes.userId, userId), inArray(Notes.id, [fromNoteId, toNoteId])));
+  const titleById = new Map(titles.map((row) => [row.id, row.title]));
+
+  await touchNodes(userId, [
+    ...connectionTouches({
+      fromNoteId,
+      toNoteId,
+      at,
+      sourceLabel: LINKED_NOTES_SOURCE,
+      fromTitle: titleById.get(fromNoteId) ?? null,
+      toTitle: titleById.get(toNoteId) ?? null,
+    }),
+    ...(await threadTouchForNote(userId, fromNoteId, 'connection', at, LINKED_NOTES_SOURCE)),
+  ]);
+}
 
 function noteJsonWithParsedSecondaries<T extends { secondaryCollections?: string | null; dismissedAutoTags?: string | null }>(note: T) {
   const raw = note.secondaryCollections;
@@ -685,6 +726,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
           spaceId: associationSpaceId ?? finalSpaceId ?? null,
           createdAt: nowISO(),
         });
+        void recordConnectionNodes(auth.userId, resolvedLinkedFromNoteId, newNote.id);
       } catch {
         // Duplicate or constraint error — connection already exists, safe to ignore.
       }
@@ -1171,6 +1213,23 @@ route.put('/api/notes/update', requireAuth, rateLimit('note-save'), async (c) =>
       }),
     );
     const updatedNote = versionedUpdate.note;
+    // Study Bible layer: a later checkpoint on your own note is you writing more about it.
+    // Only the author's saves, and only past the first — the first one is the note existing.
+    if (
+      versionedUpdate.createdVersion &&
+      versionedUpdate.currentVersion.version > 1 &&
+      actorRole !== 'collaborator'
+    ) {
+      void touchNodes(auth.userId, [
+        noteTouch({
+          noteId,
+          title: updatedNote.title,
+          signal: 'expansion',
+          at: new Date(),
+          sourceLabel: NOTE_EXPANDED_SOURCE,
+        }),
+      ]);
+    }
     if (actorRole === 'collaborator') {
       console.log(
         '[co-edit] collaborator save',
@@ -1450,6 +1509,11 @@ route.post('/api/notes/connect-link', requireAuth, rateLimit('write'), async (c)
     } catch {
       /* member order is best-effort */
     }
+
+    // Study Bible layer: the link is its own node, because the reader can be asked about it
+    // later. Both notes get the connection signal too — the strongest thing they can say
+    // about a note without typing a word.
+    void recordConnectionNodes(auth.userId, parentNoteId, linkedNoteId);
 
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: parentNoteId });
     broadcastInvalidation(auth.userId, { type: 'note:updated', id: linkedNoteId });
@@ -1841,6 +1905,21 @@ route.patch('/api/notes/:id/study-thread-title', requireAuth, rateLimit('write')
           updatedAt: nowISO(),
         };
         await applyNamingToCluster(manualPayload, clusterIds);
+        // Study Bible layer: naming a Thread is saying what the whole cluster is, which is the
+        // most deliberate thing the app can observe someone doing without reading their words.
+        if (typeof title === 'string' && title.trim()) {
+          void touchNodes(auth.userId, [
+            {
+              key: nodeKey.thread(repNoteId),
+              kind: 'thread',
+              signal: 'synthesis',
+              at: new Date(),
+              label: title.trim(),
+              noteId: repNoteId,
+              sourceLabel: THREAD_NAMED_SOURCE,
+            },
+          ]);
+        }
       }
 
       if (pinned !== undefined) {

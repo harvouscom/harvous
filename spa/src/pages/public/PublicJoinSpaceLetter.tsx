@@ -41,6 +41,14 @@ export interface PublicJoinSpaceLetterProps {
   space: PublicJoinSpaceLetterSpace;
   /** Invite flow (join page) vs read-only about card in shared space dashboard. */
   variant?: 'invite' | 'about';
+  /**
+   * Drop the tile-and-name at the top of the `about` variant.
+   *
+   * For a caller whose own chrome already says which room this is. Inside the space sheet the
+   * name is stated twice above this — once by the sheet's header, once by the masthead of the
+   * room standing behind it — so a third is not identity, it is repetition.
+   */
+  hideMasthead?: boolean;
   isSignedIn?: boolean;
   isJoinPending?: boolean;
   toastMessage?: string;
@@ -73,6 +81,7 @@ function ownerInitial(name: string): string {
 export default function PublicJoinSpaceLetter({
   space,
   variant = 'invite',
+  hideMasthead = false,
   isSignedIn = false,
   isJoinPending = false,
   toastMessage = '',
@@ -114,18 +123,26 @@ export default function PublicJoinSpaceLetter({
   };
 
   if (isAbout) {
+    /*
+     * With the masthead suppressed there may be nothing left. A room that has not written a
+     * description or set a rhythm has genuinely nothing to say about itself, and an empty
+     * wrapper would still take the block's own margins — a gap where a paragraph would be.
+     */
+    if (hideMasthead && !description && !cadenceLine && !staleDisclaimer) return null;
     return (
       <div className="public-join-letter-about">
-        <div className="public-join-letter-about__header">
-          <span
-            className={`public-join-letter-about__icon space-icon-tile${colorScheme === 'dark' ? ' space-icon-tile--on-dark' : ''}`}
-            aria-hidden
-            style={{ ['--space-icon-accent' as string]: iconAccent }}
-          >
-            <Icon name={tileIconName} size={22} />
-          </span>
-          <h1 className="public-addon-letter__title">{space.title}</h1>
-        </div>
+        {hideMasthead ? null : (
+          <div className="public-join-letter-about__header">
+            <span
+              className={`public-join-letter-about__icon space-icon-tile${colorScheme === 'dark' ? ' space-icon-tile--on-dark' : ''}`}
+              aria-hidden
+              style={{ ['--space-icon-accent' as string]: iconAccent }}
+            >
+              <Icon name={tileIconName} size={22} />
+            </span>
+            <h1 className="public-addon-letter__title">{space.title}</h1>
+          </div>
+        )}
         {description ? <p className="public-join-letter-about__description">{description}</p> : null}
         {cadenceLine ? (
           <p className="public-join-letter-about__cadence proto-caption">

@@ -3,6 +3,7 @@ import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path
 import {
   buildNoteDockOrigin,
   buildRecallCardStackOrigin,
+  buildReviewCardStackOrigin,
   buildRevisitCardStackOrigin,
   morphFromIfStillPlaced,
   noteDockReturnSearch,
@@ -223,5 +224,79 @@ describe('morphFromIfStillPlaced', () => {
 
   it('passes through the no-morph case', () => {
     expect(morphFromIfStillPlaced(undefined, placement)).toBeUndefined();
+  });
+});
+
+describe('buildReviewCardStackOrigin', () => {
+  const item = (extra: Record<string, unknown> = {}) => ({
+    id: 'review_1',
+    prompt: 'Before opening it, what did you observe in My journey?',
+    noteTitle: 'My journey',
+    secondaryNoteTitle: null,
+    scriptureReference: null,
+    ...extra,
+  });
+
+  it('carries the item and the attempt, which is what the edge answers with', () => {
+    const origin = buildReviewCardStackOrigin(item(), { attempted: true, attempt: 'adoption' }, { to: '/' });
+    expect(origin.kind).toBe('reviewCard');
+    expect(origin.review).toMatchObject({ itemId: 'review_1', attempted: true, attempt: 'adoption' });
+  });
+
+  it('carries the question, so the result can recap what was asked', () => {
+    /*
+     * Answering from the stack's edge clears the stack, so the dock renders the result for a
+     * card that is already gone. Without these the result arrived as a bare verdict with no
+     * question above it — which is the thing that made a result card unreadable everywhere.
+     */
+    const origin = buildReviewCardStackOrigin(item(), { attempted: false }, { to: '/' });
+    expect(origin.review?.prompt).toBe('Before opening it, what did you observe in My journey?');
+    // The question already names the note, so the subject line would say it twice.
+    expect(origin.review?.subject).toBeNull();
+  });
+
+  it('names the subject where the question does not', () => {
+    const origin = buildReviewCardStackOrigin(
+      item({ prompt: 'Pick the note this line is from.', noteTitle: 'My journey' }),
+      { attempted: false },
+      { to: '/' },
+    );
+    expect(origin.review?.subject).toBe('My journey');
+  });
+
+  it('titles the card with the question, not the note', () => {
+    // The edge is asking something; naming the note would make it a breadcrumb instead.
+    const origin = buildReviewCardStackOrigin(item(), { attempted: false }, { to: '/' });
+    expect(origin.base.type === 'originCard' && origin.base.title).toBe(
+      'Before opening it, what did you observe in My journey?',
+    );
+  });
+
+  it('names both notes for a connection', () => {
+    const origin = buildReviewCardStackOrigin(
+      item({ noteTitle: 'Adoption', secondaryNoteTitle: 'Abba in Galatians' }),
+      { attempted: false },
+      { to: '/' },
+    );
+    expect(origin.base.type === 'originCard' && origin.base.meta).toBe('Adoption · Abba in Galatians');
+  });
+
+  it('falls back to the reference when there is no note title', () => {
+    const origin = buildReviewCardStackOrigin(
+      item({ noteTitle: null, scriptureReference: 'John 15:5' }),
+      { attempted: false },
+      { to: '/' },
+    );
+    expect(origin.base.type === 'originCard' && origin.base.meta).toBe('John 15:5');
+  });
+
+  it('never carries a server auto-untitled name through to the edge', () => {
+    const origin = buildReviewCardStackOrigin(
+      item({ noteTitle: 'Untitled Note' }),
+      { attempted: false },
+      { to: '/' },
+    );
+    const meta = origin.base.type === 'originCard' ? origin.base.meta : 'x';
+    expect(meta === undefined || !/Untitled/.test(meta)).toBe(true);
   });
 });
