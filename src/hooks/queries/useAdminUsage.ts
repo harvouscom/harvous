@@ -7,13 +7,28 @@ const API_BASE =
     ? String(import.meta.env.VITE_API_BASE_URL)
     : '';
 
+const ADMIN_FETCH_MS = 45_000;
+
 async function adminApiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      credentials: 'include',
+      signal: AbortSignal.timeout(ADMIN_FETCH_MS),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as { error?: string }).error || `HTTP ${res.status}`);
+    }
+    return res.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new Error('Timed out waiting for Usage. Try again in a few seconds.');
+    }
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new Error('Timed out waiting for Usage. Try again in a few seconds.');
+    }
+    throw error;
   }
-  return res.json() as Promise<T>;
 }
 
 export type DiscoveryRankItem = { name: string; count: number };
@@ -105,6 +120,7 @@ const ADMIN_USAGE_STALE_MS = 30 * 60 * 1000;
 const adminUsageQueryOptions = {
   staleTime: ADMIN_USAGE_STALE_MS,
   gcTime: ADMIN_USAGE_STALE_MS,
+  retry: 1,
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
 } as const;

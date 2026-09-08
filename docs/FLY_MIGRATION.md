@@ -316,6 +316,15 @@ app, the native app and the offline queue.
 The other scheduled workflows are short and unaffected, but any new job that
 might exceed roughly half a minute belongs on the direct host.
 
+Admin Pulse and Usage are the other long-running path. They used to fan out
+~20 aggregations through `Promise.all` against a pool of ten — harmless on
+Netlify (one isolate, one pool, one request) and fatal on Fly (one process,
+every other request queued behind them, no first byte before the idle
+timeout). They now run three-wide, cache in-process for a minute, and the
+browser gives up at 45s so the tab cannot spin forever. The first compute
+after a cold cache still continues on Fly after a client timeout; retrying
+joins that in-flight work.
+
 ## Do not "upgrade" the Netlify plan
 
 Netlify may offer to move the account onto its newer credit-based free tier.

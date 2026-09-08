@@ -65,6 +65,7 @@ import { createInitialNoteVersion } from '../utils/note-version-service';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { getUsageOverview, getUsageTrends, getUsageDiscovery } from '../utils/admin-usage-stats';
 import { getAdminPulse } from '../utils/admin-pulse-stats';
+import { cachedAdminDashboard } from '../utils/admin-dashboard-cache';
 import {
   generateAdminMonthlyReport,
   getStoredMonthlyReport,
@@ -109,7 +110,8 @@ app.get('/api/admin/usage/overview', async (c) => {
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query('days') ?? '30', 10);
-    const overview = await getUsageOverview(Number.isFinite(daysParam) ? daysParam : 30);
+    const days = Number.isFinite(daysParam) ? daysParam : 30;
+    const overview = await cachedAdminDashboard(`usage-overview:${days}`, () => getUsageOverview(days));
     return c.json(overview);
   } catch (error: unknown) {
     console.error('[admin usage overview]', error);
@@ -122,7 +124,8 @@ app.get('/api/admin/usage/trends', async (c) => {
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query('days') ?? '30', 10);
-    const trends = await getUsageTrends(Number.isFinite(daysParam) ? daysParam : 30);
+    const days = Number.isFinite(daysParam) ? daysParam : 30;
+    const trends = await cachedAdminDashboard(`usage-trends:${days}`, () => getUsageTrends(days));
     return c.json(trends);
   } catch (error: unknown) {
     console.error('[admin usage trends]', error);
@@ -135,7 +138,8 @@ app.get('/api/admin/usage/discovery', async (c) => {
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query('days') ?? '30', 10);
-    const discovery = await getUsageDiscovery(Number.isFinite(daysParam) ? daysParam : 30);
+    const days = Number.isFinite(daysParam) ? daysParam : 30;
+    const discovery = await cachedAdminDashboard(`usage-discovery:${days}`, () => getUsageDiscovery(days));
     return c.json(discovery);
   } catch (error: unknown) {
     console.error('[admin usage discovery]', error);
@@ -148,7 +152,8 @@ app.get('/api/admin/pulse', async (c) => {
   if (denied) return denied;
   try {
     const daysParam = parseInt(c.req.query('days') ?? '7', 10);
-    const pulse = await getAdminPulse(Number.isFinite(daysParam) ? daysParam : 7);
+    const days = Number.isFinite(daysParam) ? daysParam : 7;
+    const pulse = await cachedAdminDashboard(`pulse:${days}`, () => getAdminPulse(days));
     return c.json(pulse);
   } catch (error: unknown) {
     console.error('[admin pulse]', error);
