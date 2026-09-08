@@ -38,6 +38,7 @@ const TIMEZONE = 'America/Chicago';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const BASE_SETTINGS: ReminderSettings = {
+  cadence: 'twice-weekly',
   sunday: true,
   midweek: true,
   midweekDay: 3,
@@ -51,6 +52,8 @@ interface Scenario {
   name: string;
   /** Newest first, one week apart. */
   history: Outcome[];
+  /** Which rhythm's history this is. Defaults to the twice-weekly Sunday. */
+  kind?: 'sunday' | 'daily';
   variants?: string[];
   settings?: Partial<ReminderSettings>;
   /** Distinct days of reading activity to seed, for the re-arm rule. */
@@ -112,6 +115,29 @@ const SCENARIOS: Scenario[] = [
     expectRearmed: 0,
   },
   {
+    name: 'daily: four ignored is a long weekend, not a verdict',
+    kind: 'daily',
+    settings: { cadence: 'daily' },
+    history: ['ignored', 'ignored', 'ignored', 'ignored'],
+    expectReason: 'ok',
+    expectPaused: 0,
+  },
+  {
+    name: 'daily: ten ignored is a fortnight, and stops',
+    kind: 'daily',
+    settings: { cadence: 'daily' },
+    history: Array(10).fill('ignored') as Outcome[],
+    expectReason: 'paused-by-policy',
+    expectPaused: 1,
+  },
+  {
+    name: 'daily: sends on a Sunday as one reminder, not two',
+    kind: 'daily',
+    settings: { cadence: 'daily' },
+    history: [],
+    expectReason: 'ok',
+  },
+  {
     name: 'the better-performing variant is preferred',
     history: ['clicked', 'clicked', 'opened', 'ignored', 'ignored', 'ignored'],
     variants: ['pickup', 'pickup', 'pickup', 'verse', 'verse', 'verse'],
@@ -151,12 +177,13 @@ async function seed(userId: string, scenario: Scenario, now: Date): Promise<void
     failCount: 0,
   });
 
+  const spacingDays = scenario.kind === 'daily' ? 1 : 7;
   for (const [index, outcome] of scenario.history.entries()) {
-    const sentAt = new Date(now.getTime() - (index + 1) * 7 * DAY_MS);
+    const sentAt = new Date(now.getTime() - (index + 1) * spacingDays * DAY_MS);
     await db.insert(ReminderDeliveries).values({
       id: crypto.randomUUID(),
       userId,
-      kind: 'sunday',
+      kind: scenario.kind ?? 'sunday',
       variant: scenario.variants?.[index] ?? 'verse',
       sentAt,
       localDate: sentAt.toISOString().slice(0, 10),

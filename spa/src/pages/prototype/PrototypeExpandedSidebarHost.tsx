@@ -9,6 +9,7 @@
 import type { ProtoExpandRect } from '../../layouts/proto-shell-context';
 import PrototypeExpandedPlanner from './planner/PrototypeExpandedPlanner';
 import PrototypeExpandedLibraryManager from './library/PrototypeExpandedLibraryManager';
+import PrototypeExpandedDiscover from './PrototypeExpandedDiscover';
 
 export type ExpandedSidebarToolProps = {
   exiting: boolean;
@@ -32,6 +33,8 @@ export default function PrototypeExpandedSidebarHost({
       return <PrototypeExpandedPlanner exiting={exiting} origin={origin} onClose={onClose} />;
     case 'library':
       return <PrototypeExpandedLibraryManager exiting={exiting} origin={origin} onClose={onClose} />;
+    case 'discover':
+      return <PrototypeExpandedDiscover exiting={exiting} origin={origin} onClose={onClose} />;
     default:
       return null;
   }

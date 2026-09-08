@@ -17,7 +17,7 @@ import { getLocalCalendarDateString } from './votd-local-date';
 import { resolveVotdForLocalDate } from './votd-today-public';
 import type { ReminderNotificationPayload } from './web-push-client';
 
-export type ReminderKind = 'sunday' | 'midweek' | 'test';
+export type ReminderKind = 'sunday' | 'midweek' | 'daily' | 'test';
 /** Which copy went out. Recorded per delivery so open rates can compare them. */
 export type ReminderVariant = 'verse' | 'pickup' | 'plain';
 
@@ -82,6 +82,18 @@ function verseTitle(kind: ReminderKind): string {
 }
 
 /**
+ * Daily is the one rhythm that is *about* the passage.
+ *
+ * Someone who asks for a reminder every day is asking for the day's reading, so it leads with
+ * the verse and only falls back when there is none — rather than letting the variant
+ * preference move it to "where you left off", which would quietly turn the feature they chose
+ * into a different one.
+ */
+function prefersVerse(kind: ReminderKind): boolean {
+  return kind === 'daily';
+}
+
+/**
  * The midweek pick-up title names the chapter when it fits, and says so generically when it
  * does not.
  *
@@ -93,17 +105,20 @@ function verseTitle(kind: ReminderKind): string {
  */
 function pickupTitle(kind: ReminderKind, reference: string): string {
   if (kind === 'sunday') return 'A few minutes before church?';
+  if (kind === 'daily') return 'Where you left off';
   const withReference = `Still in ${reference}`;
   return withReference.length <= TITLE_MAX ? withReference : 'Where you left off';
 }
 
 function plainTitle(kind: ReminderKind): string {
   if (kind === 'sunday') return "It's Sunday";
+  if (kind === 'daily') return "Today's passage";
   return 'Midweek check-in';
 }
 
 function plainBody(kind: ReminderKind): string {
   if (kind === 'sunday') return 'A quiet minute with Scripture before the day starts.';
+  if (kind === 'daily') return 'A few minutes in the Word.';
   return 'Ten minutes in the Word today.';
 }
 
@@ -116,6 +131,7 @@ function verseBody(verse: VerseContent): string {
 
 function pickupBody(kind: ReminderKind, reference: string): string {
   if (kind === 'sunday') return `You left off in ${reference}. Pick it up where you were.`;
+  if (kind === 'daily') return `You're in ${reference}. Read the next few verses.`;
   // Names the chapter regardless of whether the title managed to: the title's fallback drops
   // it, and a reminder that says only "where you left off" leaves the reader guessing.
   return `You're in ${reference}. Read the next few verses.`;
@@ -200,7 +216,7 @@ export async function buildReminderPayload(
   const position = parseLastReadPosition(meta?.lastReadPosition ?? null);
   const verse = await loadVerseContent(localDate).catch(() => null);
 
-  const wantsPickup = preferVariant === 'pickup' && position;
+  const wantsPickup = preferVariant === 'pickup' && position && !prefersVerse(kind);
   let variant: ReminderVariant;
   let title: string;
   let body: string;

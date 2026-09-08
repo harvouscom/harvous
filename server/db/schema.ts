@@ -2919,3 +2919,135 @@ export const AppSyncCursors = pgTable('AppSyncCursors', {
   value: text('value').notNull(),
   updatedAt: ts('updatedAt').notNull(),
 });
+
+// ─── Discover (public catalog) ────────────────────────────────────────────────
+
+/**
+ * One thing someone offered to everyone — and the submission that offered it.
+ *
+ * Submission and listing are the same row; `status` is the lifecycle. That is
+ * the one place this departs from `LibraryItemSuggestions`, and deliberately:
+ * there, the suggestion (a URL and a sentence) is genuinely a different shape
+ * from the item it becomes. Here the submission already carries the finished
+ * artifact, so a second table would duplicate every column and reduce approval
+ * to a copy. What is kept from that table is its vocabulary — `status`,
+ * `reviewedByUserId`, `reviewedAt`, `staffReadAt` — and its two index shapes.
+ *
+ * **The listing snapshots the artifact; it does not point at it.** `payload`
+ * holds the whole thing, and `sourceId` / `submittedByUserId` are provenance
+ * that no read path joins through. Three reasons, in order of how much they
+ * cost to learn later:
+ *
+ *   1. Approval has to be of bytes. Approving a pointer approves whatever the
+ *      author writes next, which is not review.
+ *   2. The anonymous read then needs no permission check — one predicate,
+ *      `status = 'listed'`. A live reference would make every public GET
+ *      re-derive "is this still allowed to be public", which is the shape a
+ *      leak takes.
+ *   3. The author can delete their note without taking the listing, its
+ *      install count, and someone else's inbound link with it.
+ *
+ * It is also how this codebase already thinks: `Notes.startedFromTemplateName`
+ * and `Notes.copiedFromAuthorDisplayName` are both snapshots taken precisely
+ * because the source can vanish.
+ *
+ * `authorDisplayName` is snapshotted for the same reason and one more — it is
+ * the public byline, and a byline that re-resolves is a byline that can change
+ * under someone after they agreed to it. Attribution only: there is no creator
+ * profile, no handle, and nothing here is ever sold.
+ *
+ * Editing a listed item is a new row through the queue; `supersedesListingId`
+ * records the chain rather than mutating what people already installed.
+ *
+ * Row ids: `dsc_${crypto.randomUUID()}`.
+ */
+export const DiscoverListings = pgTable(
+  'DiscoverListings',
+  {
+    id: text('id').primaryKey(),
+    /** 'template' | 'note' | 'pack' | 'resource'. */
+    kind: text('kind').notNull(),
+    /** The row this was snapshotted from. Provenance only — never joined. */
+    sourceId: text('sourceId').notNull(),
+    /** Notes.currentVersionId at submit; feeds buildIndependentCopyAttribution. */
+    sourceVersionId: text('sourceVersionId'),
+    submittedByUserId: text('submittedByUserId').notNull(),
+    /** Snapshotted "Firstname L." — the public byline. Never re-resolved. */
+    authorDisplayName: text('authorDisplayName'),
+    title: text('title').notNull(),
+    description: text('description'),
+    /** One id from DISCOVER_CATEGORIES. Set by the reviewer, not the submitter. */
+    category: text('category'),
+    /** URL identity, unique across kinds. Assigned on approval; immutable after. */
+    slug: text('slug'),
+    /** JSON — the whole artifact, as installed. */
+    payload: text('payload').notNull(),
+    /** JSON — sanitized excerpt for lists and the static site. Never the full body. */
+    preview: text('preview'),
+    /** 'submitted' | 'listed' | 'declined' | 'withdrawn' | 'delisted' | 'superseded'. */
+    status: text('status').notNull().default('submitted'),
+    installCount: integer('installCount').notNull().default(0),
+    listedAt: ts('listedAt'),
+    reviewedByUserId: text('reviewedByUserId'),
+    reviewedAt: ts('reviewedAt'),
+    /** Why it was declined — read back to the submitter, so write it for them. */
+    reviewNote: text('reviewNote'),
+    /** Drives the unread badge, the way SupportTickets.adminReadAt does. */
+    staffReadAt: ts('staffReadAt'),
+    supersedesListingId: text('supersedesListingId'),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('DiscoverListings_status_listedAtIndex').on(table.status, table.listedAt),
+    index('DiscoverListings_status_createdAtIndex').on(table.status, table.createdAt),
+    index('DiscoverListings_submittedBy_createdAtIndex').on(
+      table.submittedByUserId,
+      table.createdAt,
+    ),
+    index('DiscoverListings_status_category_listedAtIndex').on(
+      table.status,
+      table.category,
+      table.listedAt,
+    ),
+    // Partial, because only a listed row owns a slug. Pending rows carry NULL
+    // and cannot collide, and a declined submission frees its slug again.
+    uniqueIndex('DiscoverListings_slug_unique')
+      .on(table.slug)
+      .where(sql`${table.slug} IS NOT NULL`),
+  ],
+);
+
+/**
+ * Who installed what. The idempotency key for every kind.
+ *
+ * Not replaceable by `Notes.copiedFromNoteId`: that column lives on one of the
+ * four destination tables, so it can only answer for one kind. And the cost of
+ * having no key is not hypothetical — `POST /api/shared/add-to-harvous` has no
+ * duplicate guard today, so a double-tap there writes a second thread and every
+ * note again. Installs insert here *first, inside the transaction*, which makes
+ * the duplicate impossible by construction rather than by a check-then-act race.
+ *
+ * **This row names a person against something they took, which is observed
+ * behaviour — so it is confined.** `userId` is read only in the installing
+ * caller's own `eq(userId, auth.userId)` lookup and is projected into no
+ * response; the public number is a COUNT(*). No queue, export, or serializer
+ * selects it. `server/routes/__tests__/discover-routes.test.ts` holds that line.
+ *
+ * Row ids: `dsci_${crypto.randomUUID()}`.
+ */
+export const DiscoverInstalls = pgTable(
+  'DiscoverInstalls',
+  {
+    id: text('id').primaryKey(),
+    listingId: text('listingId').notNull(),
+    userId: text('userId').notNull(),
+    /** note_/thread_/ntpl_/libi_ — the "already yours" answer, for all four kinds. */
+    createdRefId: text('createdRefId').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('DiscoverInstalls_listing_user_unique').on(table.listingId, table.userId),
+    index('DiscoverInstalls_userId_createdAtIndex').on(table.userId, table.createdAt),
+  ],
+);

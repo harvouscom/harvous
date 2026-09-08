@@ -173,12 +173,24 @@ export const ENGINE_MIN_COMMITTED_SIGNALS = 2;
 export const ENGINE_COLD_START_MIN_READY = 5;
 
 /**
- * The `meaningWeight` a note must clear.
+ * The `meaningWeight` a note must clear — and, since the signals gate stopped applying to notes,
+ * the whole of what Review asks of one.
  *
  * From `computeMeaningWeight`: a 200-character body is 0.10, one cited passage 0.05, one
  * highlight 0.067, and each of pinned / deliberately filed / linked is 0.125. So 0.2 is roughly
- * "a real paragraph plus one deliberate act", and it excludes the two things that made the
- * queue feel arbitrary — a note holding a single scripture pill, and a two-line jotting.
+ * "a real paragraph, or a short one that was also done something with", and it excludes the two
+ * things that made the queue feel arbitrary — a note holding a single scripture pill, and a
+ * two-line jotting.
+ *
+ * **It stays at 0.2 now that it stands alone, and raising it would not be a smaller widening —
+ * it would be a widening plus a narrowing.** A note with two committed signals and a weight of
+ * 0.25 is askable today; at 0.3 it becomes `too-thin` and stops being offered. On the account
+ * this was measured against that is 5 of 31 notes. Shipping a fix for "I have nothing in Review"
+ * that simultaneously retires notes which already qualified is the wrong trade.
+ *
+ * What makes one number safe is that `meaningWeight ?? 0` fails closed: a note with no
+ * fingerprint row scores zero, and `computeAndStoreNoteFingerprint` writes none for a
+ * `noteType === 'scripture'` note, so generated passage notes can never clear it.
  *
  * Notes only. A verse has no fingerprint and needs none: citing it *is* the deliberate act.
  */
@@ -250,8 +262,15 @@ function countCommittedSignalsForNote(node: ReviewCandidateNode): number {
     // Opening a note twice is a signal; opening it thirty times is still one.
     signals += 1;
   }
-  // Filing a note under a tag by hand is a deliberate act about *this* note. One signal however
-  // many tags: the decision was to file it, not how many drawers.
+  /*
+   * Filing a note under a tag by hand is a deliberate act about *this* note. One signal however
+   * many tags: the decision was to file it, not how many drawers.
+   *
+   * `nodeReadiness` no longer consults this for notes — writing one is itself the deliberate act
+   * and the meaning floor is the gate. Kept because it is a true measure of intent and this
+   * function is exported on its own, and because putting the two-signal rule back on notes is a
+   * decision someone should have to make on purpose rather than by restoring a line.
+   */
   if (node.nodeKind === 'note' && (node.manualTagCount ?? 0) > 0) signals += 1;
   return signals;
 }
@@ -273,10 +292,28 @@ export function nodeReadiness(
   const minAge =
     node.nodeKind === 'chapter' ? ENGINE_MIN_CHAPTER_AGE_DAYS : ENGINE_MIN_NODE_AGE_DAYS;
   if (daysBetween(node.firstStudiedAt, now) < minAge) return 'too-new';
-  if (countCommittedSignals(node, context) < ENGINE_MIN_COMMITTED_SIGNALS) return 'too-few-signals';
-  if (node.nodeKind === 'note' && (meaningWeight ?? 0) < NOTE_MEANING_WEIGHT_FLOOR) {
-    return 'too-thin';
+
+  /*
+   * For a note the meaning floor *is* the gate, and the signal count does not apply.
+   *
+   * The signals gate asks "has the reader done something with this beyond seeing it?" — which is
+   * the right question for a verse or a chapter, where the node is created by contact. A note is
+   * not created by contact. Someone sat down and wrote it, and no counter in this file can
+   * observe an act more deliberate than that.
+   *
+   * Requiring a *second* act on top of it said that writing something does not count until you
+   * come back to it, and the effect was not subtle: on a real account, 31 notes cleared the
+   * floor and one was ever askable. Never returning to a note is not evidence you would rather
+   * forget what is in it.
+   *
+   * The age gate above still applies, and it is the one doing the work the cold start cares
+   * about — nothing written today is asked about today, however substantial it is.
+   */
+  if (node.nodeKind === 'note') {
+    return (meaningWeight ?? 0) < NOTE_MEANING_WEIGHT_FLOOR ? 'too-thin' : 'ready';
   }
+
+  if (countCommittedSignals(node, context) < ENGINE_MIN_COMMITTED_SIGNALS) return 'too-few-signals';
   return 'ready';
 }
 
@@ -304,15 +341,28 @@ export function engineHasEnoughReady(
   let ready = 0;
   for (const node of nodes) {
     /*
-     * Chapters do not count toward the cold start.
+     * Chapters count, and used to not.
      *
-     * The gate asks whether this is an account someone has been *studying* in, and reading is
-     * the one signal that arrives without any writing at all. Counted here, a reader who has
-     * turned to five chapters and written nothing would unlock the engine and be asked about
-     * five chapters — which is the demo-of-a-feature the cold start exists to prevent. They
-     * still get chapter items once the account clears the gate on its own study.
+     * The exclusion read: "reading is the one signal that arrives without any writing at all.
+     * Counted here, a reader who has turned to five chapters and written nothing would unlock
+     * the engine and be asked about five chapters — the demo-of-a-feature the cold start exists
+     * to prevent."
+     *
+     * The fear is right and the guard was in the wrong place, because it describes chapters that
+     * `nodeIsReady` already refuses. A chapter needs two committed signals, and for a chapter
+     * those are reads and study dwells, plus one for having marked something in it —
+     * `countCommittedSignals` scores a glance at nothing at all. "Turned to five chapters" is
+     * five glances: none of them ready, none of them counted, with or without this line.
+     *
+     * What the line did instead was refuse the reader it was written to protect. Someone who has
+     * read eleven chapters and gone back to six of them has been studying by any honest reading
+     * of the word, and none of it moved them one step closer to a feature that exists to bring
+     * their study back. Reading is how a great many people study, and an engine that waits for
+     * writing before it believes them is making a claim about what study looks like that this
+     * app should not make.
+     *
+     * `nodeIsReady` is the arbiter, which is what it is for.
      */
-    if (node.nodeKind === 'chapter') continue;
     const weight = node.noteId ? meaningWeightByNoteId.get(node.noteId) ?? null : null;
     if (nodeIsReady(node, now, weight, context)) {
       ready += 1;
@@ -320,6 +370,77 @@ export function engineHasEnoughReady(
     }
   }
   return false;
+}
+
+/** What the cold-start gate is waiting for, in terms a reader can be told. */
+export interface EngineColdStart {
+  /** Non-chapter nodes already past every gate. */
+  ready: number;
+  /** How many are needed before the engine will create anything. */
+  needed: number;
+  /**
+   * When the gate opens if the reader does nothing else, or null when waiting is not enough.
+   *
+   * Null is the honest answer far more often than a date is. Age is only one of three reasons a
+   * node is held back — the others are too few committed signals and, for notes, too little
+   * substance — and neither of those resolves by itself. Promising a Tuesday to someone whose
+   * study will still not qualify on Tuesday is worse than saying nothing.
+   */
+  opensAt: Date | null;
+}
+
+/**
+ * Why the engine has not started, and when it will.
+ *
+ * Separate from {@link engineHasEnoughReady} because the two questions have different audiences:
+ * that one gates the engine and only needs a boolean, this one is for telling someone what is
+ * happening. An account can sit behind the gate for days, and Review showing nothing at all in
+ * the meantime is indistinguishable from Review being broken — which is exactly how it was
+ * reported.
+ *
+ * A node is only counted toward `opensAt` if it would actually be ready once it is old enough,
+ * which is checked by asking `nodeReadiness` about it at the date it matures rather than by
+ * re-deriving the other two gates here. Duplicating them is how this drifts from the gate it
+ * describes.
+ */
+export function describeEngineColdStart(
+  nodes: readonly ReviewCandidateNode[],
+  now: Date,
+  meaningWeightByNoteId: ReadonlyMap<string, number>,
+  context: CommittedSignalContext = {},
+): EngineColdStart {
+  let ready = 0;
+  const maturesAt: number[] = [];
+
+  for (const node of nodes) {
+    const weight = node.noteId ? meaningWeightByNoteId.get(node.noteId) ?? null : null;
+    const readiness = nodeReadiness(node, now, weight, context);
+    if (readiness === 'ready') {
+      ready += 1;
+      continue;
+    }
+    if (readiness !== 'too-new') continue;
+
+    /*
+     * A chapter matures a day after it was read, not three — reading is a different act from
+     * writing and `nodeReadiness` already says so. Asking the wrong threshold here would put the
+     * estimate two days behind the gate it is describing, which is the quiet way an explanation
+     * stops being about the thing it explains.
+     */
+    const minAge =
+      node.nodeKind === 'chapter' ? ENGINE_MIN_CHAPTER_AGE_DAYS : ENGINE_MIN_NODE_AGE_DAYS;
+    const matureAt = new Date(node.firstStudiedAt.getTime() + minAge * DAY_MS);
+    if (nodeReadiness(node, matureAt, weight, context) === 'ready') maturesAt.push(matureAt.getTime());
+  }
+
+  const needed = ENGINE_COLD_START_MIN_READY;
+  if (ready >= needed) return { ready, needed, opensAt: null };
+
+  const short = needed - ready;
+  if (maturesAt.length < short) return { ready, needed, opensAt: null };
+
+  maturesAt.sort((a, b) => a - b);
+  return { ready, needed, opensAt: new Date(maturesAt[short - 1]) };
 }
 
 /**

@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useProfile } from './useProfile';
+import { isQuerySettled } from '@/utils/prototype-home-ready';
 import type { ChurchClock, ChurchSermon } from '../../lib/church-services';
 
 export type ChurchSermonsResponse = {
@@ -32,13 +33,38 @@ export function churchSermonsQueryKey(userId: string | null | undefined) {
 export function useChurchSermons(options?: { enabled?: boolean }) {
   const { userId } = useAuth();
   const authReady = useAuthReady();
-  const { data: profile } = useProfile();
-  const connected = Boolean(profile?.connectedOrgId);
+  const profileQuery = useProfile();
+  const connected = Boolean(profileQuery.data?.connectedOrgId);
 
-  return useQuery({
+  const query = useQuery({
     queryKey: churchSermonsQueryKey(userId),
     enabled: authReady && !!userId && connected && options?.enabled !== false,
     queryFn: () => api.get<ChurchSermonsResponse>('/api/church/services'),
     staleTime: 60_000,
   });
+
+  /*
+   * Whether this query has finished having anything to say — which, for a query that may never
+   * run at all, is not what `isPending` answers.
+   *
+   * Home's presentation gate ANDs a settled flag per query and paints once. This one is disabled
+   * for every account without a church, and a disabled query keeps `status: 'pending'` forever in
+   * React Query v5, so the flag was permanently false and the gate could never fire: Home reached
+   * `contentReady` only via its 2.5s deadline, on every cold load, painting with whatever had
+   * arrived by then and growing the rest a section at a time.
+   *
+   * The profile half is what keeps the cure from becoming the disease. `connected` is read off
+   * profile data, so before that lands this query is disabled *transiently* — reporting settled
+   * there would let the gate fire early and pop "This Sunday" in late for the accounts that
+   * actually have a church. `isPlaceholderData` is part of it rather than pedantry: the profile's
+   * sessionStorage snapshot can be missing `connectedOrgId` (see the placeholder note in
+   * `useProfile`), which is the one field this reads.
+   */
+  const profileSettled = !profileQuery.isPending && !profileQuery.isPlaceholderData;
+
+  return {
+    ...query,
+    isSettled:
+      profileSettled && isQuerySettled(query.isPending, query.data != null, query.isEnabled),
+  };
 }
