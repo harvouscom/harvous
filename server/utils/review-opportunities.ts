@@ -221,10 +221,11 @@ export async function engineColdStartFor(
 /**
  * Top up the reader's queue from their own study, and return whatever it added.
  *
- * **Waits before it offers anything.** A node has to be a few days old, carry two distinct
- * deliberate acts, and — for a note — hold enough study to clear `NOTE_MEANING_WEIGHT_FLOOR`;
- * and the account itself has to have `ENGINE_COLD_START_MIN_READY` such nodes before the engine
- * runs at all. Before this the only gate was a 24-hour quiet rule, so anything opened once and
+ * **Waits before it offers anything.** A node has to be a few days old; a verse or a chapter has
+ * to carry two distinct deliberate acts; a note has to clear `NOTE_MEANING_WEIGHT_FLOOR`, which
+ * for a note is the whole test, because writing one is already the deliberate act and asking for
+ * a second said that study does not count until you come back to it. The account itself has to
+ * have `ENGINE_COLD_START_MIN_READY` such nodes before the engine runs at all. Before this the only gate was a 24-hour quiet rule, so anything opened once and
  * abandoned was eligible — and because learning need is measured from `lastSeenAt`, the longer
  * it was ignored the higher it climbed. Against a real account the gate takes 86 candidates down
  * to 14.
