@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { isStorageSecurityError } from '@/utils/storage-security';
 
 // Sync status for offline entities
 export type SyncStatus = 'synced' | 'pending' | 'conflict' | 'deleted';
@@ -353,6 +354,14 @@ class OfflineDatabase extends Dexie {
 // Create singleton instance
 export const offlineDB = new OfflineDatabase();
 
+offlineDB.open().catch((error: unknown) => {
+  if (isStorageSecurityError(error)) {
+    // Safari private browsing, storage blocked, insecure context.
+    return;
+  }
+  console.error('[offlineDB] open failed:', error);
+});
+
 /**
  * Ensure database is open, reopen if closed
  * This is necessary because the database can be closed after deletion or other operations
@@ -369,6 +378,9 @@ export async function ensureDatabaseOpen(): Promise<void> {
     // Only log warnings/errors when reopening actually fails
     await offlineDB.open();
   } catch (error: any) {
+    if (isStorageSecurityError(error)) {
+      return;
+    }
     // If open fails, it might be because the database was deleted
     // Try to open again - Dexie will recreate the database if needed
     if (error?.name === 'DatabaseClosedError' || error?.message?.includes('closed')) {
@@ -376,6 +388,7 @@ export async function ensureDatabaseOpen(): Promise<void> {
       try {
         await offlineDB.open();
       } catch (retryError) {
+        if (isStorageSecurityError(retryError)) return;
         console.error('[ensureDatabaseOpen] Failed to reopen database after retry:', retryError);
         throw retryError;
       }
@@ -404,6 +417,10 @@ export async function retryIndexedDBOperation<T>(
       // Check if it's a quota error - these are usually permanent
       if (error?.name === 'QuotaExceededError') {
         console.error('[retryIndexedDBOperation] Quota exceeded, cannot retry:', error);
+        throw error;
+      }
+
+      if (isStorageSecurityError(error)) {
         throw error;
       }
       

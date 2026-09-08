@@ -1,7 +1,15 @@
 // Register the service worker for PWA support
 // Deferred to avoid blocking initial render - runs after page is interactive
 (function() {
-  if ('serviceWorker' in navigator) {
+  // Safari private browsing throws SecurityError on the getter itself — `'serviceWorker' in
+  // navigator` is still true. Capture once and bail if the browser will not hand it over.
+  var serviceWorker = null;
+  try {
+    serviceWorker = navigator.serviceWorker || null;
+  } catch (_) {
+    serviceWorker = null;
+  }
+  if (serviceWorker) {
     // Store registration reference for update checks
     let registrationRef = null;
     let reloadingForUpdate = false; // Prevent infinite reload loops
@@ -119,7 +127,7 @@
 
     // Set up controller change listener once
     // Only reload if this isn't a fresh page load (performance.navigation.type check)
-    navigator.serviceWorker.addEventListener('controllerchange', async () => {
+    serviceWorker.addEventListener('controllerchange', async () => {
       if (reloadingForUpdate) {
         return; // Already reloading
       }
@@ -202,7 +210,7 @@
       if (registration.installing) {
         const installingWorker = registration.installing;
         installingWorker.addEventListener('statechange', () => {
-          if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          if (installingWorker.state === 'installed' && serviceWorker.controller) {
             // New service worker installed, send skipWaiting
             installingWorker.postMessage({ type: 'SKIP_WAITING' });
           }
@@ -230,7 +238,7 @@
         runFetchAndActivateWorker(registrationRef);
         return;
       }
-      navigator.serviceWorker
+      serviceWorker
         .getRegistration()
         .then(function (reg) {
           if (reg) runFetchAndActivateWorker(reg);
@@ -242,7 +250,7 @@
 
     // Register service worker asynchronously after page load to avoid blocking render
     const registerServiceWorker = () => {
-      navigator.serviceWorker.register('/sw.js')
+      serviceWorker.register('/sw.js')
         .then(registration => {
           registrationRef = registration;
 
@@ -257,7 +265,7 @@
             const newWorker = registration.installing;
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                if (newWorker.state === 'installed' && serviceWorker.controller) {
                   // New service worker available - activate it (controllerchange will handle reload)
                   newWorker.postMessage({ type: 'SKIP_WAITING' });
                 }
@@ -352,16 +360,16 @@
       }
 
       // …and one warmup ping (the SW answers this with a single /api/health fetch).
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage('warmup');
+      if (serviceWorker.controller) {
+        serviceWorker.controller.postMessage('warmup');
       }
     });
 
     // Also warm up on initial load (deferred)
     const warmupOnLoad = () => {
       lastForegroundRefreshAt = Date.now();
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage('warmup');
+      if (serviceWorker.controller) {
+        serviceWorker.controller.postMessage('warmup');
       }
     };
     

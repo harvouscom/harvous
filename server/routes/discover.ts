@@ -50,6 +50,7 @@ import {
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { isUniqueViolationError } from '../utils/db-errors';
+import { isDiscoverTableMissing } from '../utils/pg-undefined-relation';
 import { requireHarvousAdmin, getHarvousSystemUserId } from '../utils/harvous-admin';
 import { DISCOVER_CATEGORIES, isDiscoverCategory } from '@/data/discover-categories';
 import { NOTE_TEMPLATE_DESCRIPTION_MAX_LENGTH } from '@/data/note-templates';
@@ -242,6 +243,25 @@ async function resolveAuthorDisplayName(userId: string): Promise<string> {
   return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
 }
 
+/**
+ * An unmigrated database is an empty catalog, not a 500. Same seam as Review:
+ * deploy the code, then push the tables, and the window between them must not
+ * surface as "A database error occurred" on Home.
+ */
+function respondDiscoverError(
+  c: { json: (body: unknown, status?: number) => Response },
+  error: unknown,
+  context: { endpoint: string; action: string },
+  empty: unknown,
+  emptyStatus = 200,
+) {
+  if (isDiscoverTableMissing(error)) {
+    return c.json(empty, emptyStatus);
+  }
+  const standardError = handleAPIError(error, context);
+  return c.json({ error: standardError.message, code: standardError.code }, 500);
+}
+
 // ─── GET /api/discover/listings ─────────────────────────────────────────────
 /** The catalog. Anonymous; listed rows only. */
 app.get('/api/discover/listings', rateLimit('read'), async (c) => {
@@ -322,11 +342,12 @@ app.get('/api/discover/listings', rateLimit('read'), async (c) => {
       nextCursor,
     });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/discover/listings',
-      action: 'discover_list',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/discover/listings', action: 'discover_list' },
+      { listings: [], installedSlugs: [], nextCursor: null },
+    );
   }
 });
 
@@ -351,11 +372,13 @@ app.get('/api/discover/listings/:slug', rateLimit('read'), async (c) => {
     c.header('Cache-Control', 'private, max-age=0, no-store');
     return c.json({ listing: serializePublic(row) });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/discover/listings/[slug]',
-      action: 'discover_detail',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/discover/listings/[slug]', action: 'discover_detail' },
+      { error: 'Not found', code: 'LISTING_NOT_FOUND' },
+      404,
+    );
   }
 });
 
@@ -396,11 +419,12 @@ app.get('/api/discover/export', rateLimit('read'), async (c) => {
       { 'Cache-Control': 'public, max-age=300' },
     );
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/discover/export',
-      action: 'discover_export',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/discover/export', action: 'discover_export' },
+      { categories: DISCOVER_CATEGORIES, listings: [] },
+    );
   }
 });
 
@@ -529,11 +553,13 @@ app.post('/api/discover/submit', requireAuth, rateLimit('write'), async (c) => {
 
     return c.json({ success: true, listing: serializeMine(row) });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/discover/submit',
-      action: 'discover_submit',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/discover/submit', action: 'discover_submit' },
+      { error: 'Discover is not available yet', code: 'NOT_READY' },
+      503,
+    );
   }
 });
 
@@ -550,11 +576,12 @@ app.get('/api/discover/mine', requireAuth, async (c) => {
       .limit(100);
     return c.json({ listings: rows.map(serializeMine) });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/discover/mine',
-      action: 'discover_mine',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/discover/mine', action: 'discover_mine' },
+      { listings: [] },
+    );
   }
 });
 
@@ -605,11 +632,13 @@ app.post('/api/discover/withdraw', requireAuth, rateLimit('write'), async (c) =>
 
     return c.json({ success: true, status: 'withdrawn' });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/discover/withdraw',
-      action: 'discover_withdraw',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/discover/withdraw', action: 'discover_withdraw' },
+      { error: 'Discover is not available yet', code: 'NOT_READY' },
+      503,
+    );
   }
 });
 
@@ -742,11 +771,13 @@ app.post('/api/discover/install', requireAuth, rateLimit('write'), async (c) => 
       warnings,
     });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/discover/install',
-      action: 'discover_install',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/discover/install', action: 'discover_install' },
+      { error: 'Discover is not available yet', code: 'NOT_READY' },
+      503,
+    );
   }
 });
 
@@ -774,11 +805,12 @@ app.get('/api/admin/discover/submissions', requireAuth, async (c) => {
 
     return c.json({ submissions: rows.map(serializeForReview), unreadCount: unread.length });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/admin/discover/submissions',
-      action: 'discover_admin_list',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/admin/discover/submissions', action: 'discover_admin_list' },
+      { submissions: [], unreadCount: 0 },
+    );
   }
 });
 
@@ -897,11 +929,13 @@ app.post('/api/admin/discover/review', requireAuth, rateLimit('write'), async (c
 
     return c.json({ success: true, status: 'listed' });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/admin/discover/review',
-      action: 'discover_admin_review',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/admin/discover/review', action: 'discover_admin_review' },
+      { error: 'Discover is not available yet', code: 'NOT_READY' },
+      503,
+    );
   }
 });
 
@@ -945,11 +979,13 @@ app.post('/api/admin/discover/delist', requireAuth, rateLimit('write'), async (c
 
     return c.json({ success: true, status: 'delisted' });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/admin/discover/delist',
-      action: 'discover_admin_delist',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/admin/discover/delist', action: 'discover_admin_delist' },
+      { error: 'Discover is not available yet', code: 'NOT_READY' },
+      503,
+    );
   }
 });
 
@@ -967,11 +1003,13 @@ app.post('/api/admin/discover/mark-read', requireAuth, async (c) => {
       );
     return c.json({ success: true });
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/admin/discover/mark-read',
-      action: 'discover_admin_mark_read',
-    });
-    return c.json({ error: standardError.message, code: standardError.code }, 500);
+    return respondDiscoverError(
+      c,
+      error,
+      { endpoint: '/api/admin/discover/mark-read', action: 'discover_admin_mark_read' },
+      { error: 'Discover is not available yet', code: 'NOT_READY' },
+      503,
+    );
   }
 });
 

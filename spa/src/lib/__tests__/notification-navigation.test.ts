@@ -274,6 +274,22 @@ describe('waiting for the router', () => {
       .toHaveBeenCalled();
   });
 
+  it('does not throw when the service worker getter is insecure', () => {
+    // Safari private browsing: `'serviceWorker' in navigator` is true and the getter throws.
+    installCacheStorage();
+    vi.stubGlobal('navigator', {
+      get serviceWorker() {
+        throw new DOMException('The operation is insecure.', 'SecurityError');
+      },
+    });
+    vi.stubGlobal('document', {
+      visibilityState: 'visible',
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    expect(() => initNotificationNavigation()).not.toThrow();
+  });
+
   it('navigates once when the message and the peek both resolve the same tap', async () => {
     installCacheStorage({ url: 'https://app.harvous.com/read/today', at: Date.now() });
     const listeners = stubServiceWorker();

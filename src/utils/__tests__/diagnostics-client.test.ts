@@ -85,4 +85,30 @@ describe('diagnostics-client', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('labels API failures with the redacted path so one endpoint is one issue', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const { reportApiDiagnostic } = await import('../diagnostics-client');
+
+    reportApiDiagnostic('/api/discover/listings', 500, 'A database error occurred');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.message).toBe('A database error occurred (/api/discover/listings)');
+  });
+
+  it('drops leftover push-nav instrumentation and insecure-context noise', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const { reportClientError } = await import('../diagnostics-client');
+
+    reportClientError('[push-nav] client navigate path=/read/today via=visible-peek waitedMs=0');
+    reportClientError('The operation is insecure.');
+    reportClientError('WebSocket not available: The operation is insecure.');
+    reportClientError(
+      "@clerk/clerk-react: You've added multiple <ClerkProvider> components in your React component tree. Wrap your components in a single <ClerkProvider>.",
+    );
+    reportClientError("'text/html' is not a valid JavaScript MIME type.");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

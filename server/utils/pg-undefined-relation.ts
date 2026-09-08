@@ -143,6 +143,15 @@ export function isDiagnosticIssueTriageTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'DiagnosticIssueTriage');
 }
 
+/**
+ * Discover shipped as a catalog on top of two new tables. Until `npm run db:push`
+ * has created them, every Home/catalog load would 500 as "A database error occurred".
+ * An unmigrated database is an empty catalog, not a broken app.
+ */
+export function isDiscoverTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'DiscoverListings') || isPgUndefinedRelation(error, 'DiscoverInstalls');
+}
+
 /** Postgres undefined_column (42703) — schema not pushed yet. */
 export function isPgUndefinedColumn(error: unknown, columnName: string): boolean {
   const needles = [`column "${columnName}" does not exist`, `column ${columnName} does not exist`];

@@ -1,4 +1,5 @@
 import { clearAppCachesThen } from './prototype-app-update-notice';
+import { readServiceWorkerContainer } from './storage-security';
 
 /**
  * Refuse to boot a development-Clerk bundle on a production host, and self-heal.
@@ -44,11 +45,12 @@ function clearFlag(): void {
 }
 
 function unregisterServiceWorkersThen(done: () => void): void {
-  if (typeof navigator === 'undefined' || !navigator.serviceWorker) {
+  const serviceWorker = readServiceWorkerContainer();
+  if (!serviceWorker) {
     done();
     return;
   }
-  navigator.serviceWorker
+  serviceWorker
     .getRegistrations()
     .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
     .then(done)

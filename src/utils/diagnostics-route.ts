@@ -85,3 +85,19 @@ export function scrubDiagnosticText(text: string): string {
     .replace(/\b[0-9a-f]{24,}\b/gi, '[token]')
     .trim();
 }
+
+/**
+ * Client noise that is either leftover instrumentation, an environmental browser
+ * limitation, or a symptom already handled elsewhere. Dropped at capture and at
+ * ingest so an old PWA build cannot keep filling the admin list.
+ */
+export function isNoiseDiagnosticMessage(message: string): boolean {
+  const lower = message.trim().toLowerCase();
+  if (!lower) return false;
+  if (lower.startsWith('[push-nav]')) return true;
+  if (lower.includes("you've added multiple <clerkprovider>")) return true;
+  // Safari private browsing, insecure contexts, blocked storage / workers / WebSocket.
+  if (lower.includes('the operation is insecure')) return true;
+  if (lower.includes('is not a valid javascript mime type')) return true;
+  return false;
+}

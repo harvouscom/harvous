@@ -26,4 +26,15 @@ describe('validateDiagnosticEventInput', () => {
     expect(result?.manualNote).toBe('Could not save my note');
     expect(result?.issueSignature).toHaveLength(32);
   });
+
+  it('returns null for leftover push-nav instrumentation', () => {
+    expect(
+      validateDiagnosticEventInput({
+        source: 'client_js',
+        message: '[push-nav] probe from setup',
+        anonymousSessionId: 'abc',
+        platform: 'web',
+      }),
+    ).toBeNull();
+  });
 });

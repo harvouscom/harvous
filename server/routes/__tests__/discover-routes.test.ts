@@ -66,6 +66,17 @@ describe('discover routes', () => {
     expect(body).not.toContain('serializeMine');
   });
 
+  it('treats a missing catalog table as empty, not a 500', () => {
+    // Same seam as Review: the tables land in db:push after the code, and the
+    // window between them must not surface as "A database error occurred" on Home.
+    const text = routes();
+    expect(text).toContain('isDiscoverTableMissing');
+    expect(text).toContain('respondDiscoverError');
+    for (const marker of PUBLIC_HANDLERS) {
+      expect(handlerBody(text, marker)).toContain('respondDiscoverError');
+    }
+  });
+
   it('never lets a public serializer emit review state or the submitter', () => {
     const text = routes();
     const start = text.indexOf('function serializePublic');
@@ -374,7 +385,8 @@ describe('discover routes', () => {
     expect(catches.length).toBeGreaterThan(0);
     for (const at of catches) {
       const block = text.slice(at, at + 400);
-      const reports = block.includes('handleAPIError(error, {');
+      const reports =
+        block.includes('handleAPIError(error, {') || block.includes('respondDiscoverError(');
       // The install's duplicate branch is the one catch that handles rather than
       // reports: a unique violation there is the expected answer, not a fault.
       const rethrows = block.includes('throw error');

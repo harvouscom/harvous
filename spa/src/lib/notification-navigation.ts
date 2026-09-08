@@ -19,6 +19,8 @@
  *   3. `addEventListener('message')` does not start the client message queue. Only assigning
  *      `onmessage` or calling `startMessages()` does, per spec.
  */
+import { readServiceWorkerContainer } from '@/utils/storage-security';
+
 export const NOTIFICATION_NAVIGATE_MESSAGE = 'HARVOUS_NOTIFICATION_NAVIGATE';
 
 /** Must match `PENDING_NAV_CACHE` / `PENDING_NAV_KEY` in public/sw.js. */
@@ -197,15 +199,16 @@ export function initNotificationNavigation(): () => void {
     if (document.visibilityState === 'visible') checkPending();
   };
 
-  navigator.serviceWorker?.addEventListener('message', onMessage);
+  const serviceWorker = readServiceWorkerContainer();
+  serviceWorker?.addEventListener('message', onMessage);
   // Starts the client message queue, which addEventListener alone does not, and flushes
   // anything the worker posted before this listener existed.
-  navigator.serviceWorker?.startMessages?.();
+  serviceWorker?.startMessages?.();
   document.addEventListener('visibilitychange', onVisible);
   checkPending();
 
   return () => {
-    navigator.serviceWorker?.removeEventListener('message', onMessage);
+    serviceWorker?.removeEventListener('message', onMessage);
     document.removeEventListener('visibilitychange', onVisible);
   };
 }

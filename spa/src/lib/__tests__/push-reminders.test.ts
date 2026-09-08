@@ -80,6 +80,19 @@ describe('getPushSupport', () => {
     expect(getPushSupport()).toBe('unsupported');
   });
 
+  it('treats a throwing service worker getter as unsupported rather than throwing', () => {
+    // Safari private browsing. Optional chaining still accesses the getter.
+    setup({});
+    vi.stubGlobal('navigator', {
+      userAgent: DESKTOP_UA,
+      get serviceWorker() {
+        throw new DOMException('The operation is insecure.', 'SecurityError');
+      },
+    });
+    expect(() => getPushSupport()).not.toThrow();
+    expect(getPushSupport()).toBe('unsupported');
+  });
+
   it('tells an iPhone in Safari to install first, even though the APIs are present', () => {
     setup({ userAgent: IOS_UA });
     expect(getPushSupport()).toBe('needs-home-screen');

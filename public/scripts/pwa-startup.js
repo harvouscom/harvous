@@ -18,9 +18,13 @@ function warmUpApp() {
   if (isWarmedUp) return;
   isWarmedUp = true;
   
-  // Signal service worker to warm up
-  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage('warmup');
+  // Signal service worker to warm up. Safari private browsing throws on the getter.
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage('warmup');
+    }
+  } catch (_) {
+    /* insecure context / private browsing */
   }
   
   // Prefetch low-priority routes when idle
