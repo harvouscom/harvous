@@ -24,6 +24,7 @@ import {
   REVIEW_ENGINE_DAILY_CAP,
   REVIEW_ENGINE_WINDOW_HOURS,
   REVIEW_ENGINE_MAX_OUTSTANDING,
+  REVIEW_INBOX_MAX_ROWS,
   type ReviewAskableKind,
 } from '@/utils/review-item-kinds';
 import {
@@ -156,8 +157,6 @@ async function loadEngineCandidates(userId: string): Promise<{
     fingerprints.map((row) => [row.noteId, row.meaningWeight ?? 0]),
   );
 
-  // Tags the reader applied by hand, one count per note. `NoteTags` carries no userId; the
-  // note ids come from this reader's own nodes, so the lookup is scoped by construction.
   const noteIds = [...new Set(nodes.map((row) => row.noteId).filter((id): id is string => Boolean(id)))];
   const manualTags = noteIds.length
     ? await db
@@ -194,17 +193,6 @@ async function loadEngineCandidates(userId: string): Promise<{
   return { candidates, meaningWeightByNoteId, signalContext };
 }
 
-/**
- * Why the engine has not started for this reader, and when it will.
- *
- * Only worth asking when the queue came back empty, which is the one case a reader cannot tell
- * apart from the feature being broken. It was reported as broken three times by someone whose
- * account simply had not cleared the gate — every node younger than three days, and the ten
- * chapters they had read deliberately not counting toward it.
- *
- * Reuses `loadEngineCandidates`, so the explanation is computed from exactly the rows the gate
- * itself judges.
- */
 export async function engineColdStartFor(
   userId: string,
   now: Date = new Date(),
@@ -214,30 +202,10 @@ export async function engineColdStartFor(
     if (engineHasEnoughReady(candidates, now, meaningWeightByNoteId, signalContext)) return null;
     return describeEngineColdStart(candidates, now, meaningWeightByNoteId, signalContext);
   } catch {
-    /* An explanation is not worth failing the inbox over — no explanation is the old behaviour. */
     return null;
   }
 }
 
-/**
- * Top up the reader's queue from their own study, and return whatever it added.
- *
- * **Waits before it offers anything.** A node has to be a few days old; a verse or a chapter has
- * to carry two distinct deliberate acts; a note has to clear `NOTE_MEANING_WEIGHT_FLOOR`, which
- * for a note is the whole test, because writing one is already the deliberate act and asking for
- * a second said that study does not count until you come back to it. The account itself has to
- * have `ENGINE_COLD_START_MIN_READY` such nodes before the engine runs at all. Before this the only gate was a 24-hour quiet rule, so anything opened once and
- * abandoned was eligible — and because learning need is measured from `lastSeenAt`, the longer
- * it was ignored the higher it climbed. Against a real account the gate takes 86 candidates down
- * to 14.
- *
- * A new account therefore sees no engine reviews for at least a few days. That is the intent:
- * three cards on someone's first afternoon are a demo of a feature, not a memory aid. Items the
- * reader adds by hand, and items a challenge creates, are untouched — those are them asking.
- *
- * Never throws: it runs at the top of a read the reader is waiting on, and an empty section is
- * a better outcome than a failed one.
- */
 export async function refillReviewQueue(
   userId: string,
   now: Date = new Date(),
@@ -245,9 +213,6 @@ export async function refillReviewQueue(
   try {
     const windowStart = new Date(now.getTime() - REVIEW_ENGINE_WINDOW_HOURS * 60 * 60 * 1000);
 
-    /*
-     * Two questions, one round trip: how many were added today, and how many are still waiting.
-     */
     const [recent, outstanding] = await Promise.all([
       db
         .select({ id: ReviewItems.id })
@@ -260,21 +225,6 @@ export async function refillReviewQueue(
           ),
         )
         .limit(REVIEW_ENGINE_DAILY_CAP + 1),
-      /*
-       * How much the reader already owes.
-       *
-       * The daily cap limits how fast the queue grows, not how large it gets. Three a day with
-       * nothing answered is ninety in a month, and the inbox only ever shows three — so the pile
-       * is invisible right up until something surfaces the count and the reader is told they are
-       * ninety behind. That is the number `review-item-kinds.ts` calls "a debt, not a practice".
-       *
-       * This was academic while the engine could barely find anything to ask about. Notes are in
-       * scope now, and an account with a few hundred of them can hit the cap every single day, so
-       * the ceiling has to be a real one.
-       *
-       * Counts only what is *due*: something scheduled for next week is not owed yet, and holding
-       * back because of it would stop the queue for a debt the reader does not have.
-       */
       db
         .select({ id: ReviewItems.id })
         .from(ReviewItems)
@@ -289,19 +239,14 @@ export async function refillReviewQueue(
         .limit(REVIEW_ENGINE_MAX_OUTSTANDING),
     ]);
 
-    const room = engineDailyRoom(recent.length);
+    const dailyRoom = engineDailyRoom(recent.length);
+    const sessionShortfall = Math.max(0, REVIEW_INBOX_MAX_ROWS - outstanding.length);
+    const room = Math.max(dailyRoom, sessionShortfall);
     if (room <= 0) return [];
-    /*
-     * Stop adding, rather than adding less. Half a batch on top of a backlog is still a backlog,
-     * and the way out is answering some — which clears the block on its own, with no state to
-     * reset and nothing for the reader to dismiss.
-     */
-    if (outstanding.length >= REVIEW_ENGINE_MAX_OUTSTANDING) return [];
+    if (outstanding.length >= REVIEW_ENGINE_MAX_OUTSTANDING && sessionShortfall === 0) return [];
 
     const [engine, existing] = await Promise.all([
       loadEngineCandidates(userId),
-      // Any status: a paused or archived item means the reader has already had this question
-      // and put it down, and re-adding it would be the app arguing with them.
       db
         .select({ sourceKey: ReviewItems.sourceKey })
         .from(ReviewItems)
@@ -309,19 +254,6 @@ export async function refillReviewQueue(
     ]);
     const { candidates, meaningWeightByNoteId, signalContext } = engine;
 
-    /*
-     * Ask for more than there is room for. Some picks are dropped below — a note whose material
-     * has gone, a kind with no question — and without the slack a skip would silently cost the
-     * reader one of their three.
-     */
-    /*
-     * Nothing at all until the account has enough worked-on study to be worth resurfacing.
-     *
-     * Three cards on someone's first afternoon are a demo of a feature, not a memory aid. A new
-     * account therefore sees no engine reviews for at least `ENGINE_MIN_NODE_AGE_DAYS` and until
-     * `ENGINE_COLD_START_MIN_READY` nodes have been worked on. Adding an item by hand, and the
-     * items a challenge creates, are unaffected — those are the reader asking.
-     */
     if (!engineHasEnoughReady(candidates, now, meaningWeightByNoteId, signalContext)) return [];
 
     const picks = selectReviewBatch(candidates, {
@@ -339,13 +271,6 @@ export async function refillReviewQueue(
       const kind = REVIEW_KIND_FOR_NODE[pick.nodeKind];
       if (!kind) continue;
 
-      /*
-       * A note with nothing to ask about is not a review item.
-       *
-       * Checked here rather than inside `selectReviewBatch`, which is pure and has no note
-       * bodies — and should not grow a database dependency to answer one question about one
-       * kind. The batch is over-fetched above so a skip costs no slot.
-       */
       if (kind === 'note' && pick.noteId && !(await noteHasReviewableMaterial(userId, pick.noteId))) {
         continue;
       }
@@ -367,14 +292,10 @@ export async function refillReviewQueue(
         {
           kind,
           noteId: pick.noteId,
-          // Only a connection ever had a second note, and the engine no longer makes those.
           secondaryNoteId: null,
           scriptureReference: reference,
-          // The translation it was read in, off the node's own meta — so a chapter question is
-          // asked in the words the reader met it in.
           translation: reference ? parseTranslation(pick.meta ?? null) : null,
           origin: 'engine',
-          // Copied, not read live, so a row's stated reason never changes mid-sitting.
           sourceLabel: pick.lastSourceLabel,
           sourceAt: pick.lastSourceAt,
         },
