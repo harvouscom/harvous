@@ -16,6 +16,9 @@ config({ path: resolve(import.meta.dirname || __dirname, '..', '..', '.env') });
 
 export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
   Spaces: ['deletedAt', 'recoveryUntil'],
+  // Without these the shared-thread import has nothing to be idempotent on,
+  // and a repeat click silently forks a second copy of the whole thread.
+  Threads: ['copiedFromThreadId', 'copiedFromAuthorId'],
   Notes: [
     'currentVersionId',
     'copiedFromNoteId',
@@ -187,6 +190,8 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
 
 const REQUIRED_INDEXES: Record<string, readonly string[]> = {
   Spaces: ['Spaces_deletedAt_recoveryUntilIndex'],
+  /** The import's duplicate guard itself, not an access path. */
+  Threads: ['Threads_copiedFromThread_unique'],
   Notes: [
     'Notes_copiedFromNoteIdIndex',
     'Notes_startedFromServiceIdIndex',
