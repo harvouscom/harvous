@@ -1,8 +1,17 @@
 /**
- * Read-only: what the review engine currently makes of this reader's chapter nodes.
+ * Read-only: what the review engine currently makes of one reader's study.
  *
- * Prints each chapter node with its counters and the readiness verdict, so the gates can be
- * checked against real reading without creating anything.
+ * Prints the readiness verdict for every node, a tally per kind, whether the cold start has
+ * opened, and what the engine would pick next — creating nothing. `selectReviewBatch` and
+ * `nodeReadiness` are pure, and nothing here writes, so it is safe to point at production.
+ *
+ * Usage:
+ *   npx tsx server/scripts/preview-review-engine.ts --user=user_xxx
+ *
+ * `--user` is required on purpose. It used to default to a hardcoded account, which is how you
+ * end up measuring one reader and drawing conclusions about another — the exact mistake that
+ * sent a day's worth of "Review is empty" debugging in the wrong direction, because the dev and
+ * live Clerk instances mint different ids against the same database.
  */
 import 'dotenv/config';
 import { db, UserNodeStates, StudyThreadEntries, ReviewItems, NoteFingerprints, eq, and, isNull, desc } from '../db';
@@ -15,7 +24,11 @@ import {
 } from '@/utils/review-opportunity-scoring';
 import { nodeKey, verseNodesForReference, type NodeKind } from '@/utils/study-bible-nodes';
 
-const uid = process.argv.find((a) => a.startsWith('--user='))?.split('=')[1] ?? 'user_2x04WKuLGMxuPpNpvwwA4JgRplX';
+const uid = process.argv.find((a) => a.startsWith('--user='))?.split('=')[1];
+if (!uid) {
+  console.error('usage: npx tsx server/scripts/preview-review-engine.ts --user=<clerk user id>');
+  process.exit(1);
+}
 const now = new Date();
 
 const marks = await db
@@ -78,5 +91,17 @@ const picks = selectReviewBatch(candidates, {
   existingSourceKeys: new Set(existing.map((r) => r.sourceKey)),
   signalContext: { highlightedChapterKeys },
 });
+
+// Readiness across every kind, which is the number the cold start is actually counting.
+const byKind: Record<string, Record<string, number>> = {};
+for (const c of candidates) {
+  const weight = c.noteId ? weights.get(c.noteId) ?? null : null;
+  const verdict = nodeReadiness(c, now, weight, { highlightedChapterKeys });
+  (byKind[c.nodeKind] ??= {})[verdict] = ((byKind[c.nodeKind] ??= {})[verdict] ?? 0) + 1;
+}
+for (const [kind, verdicts] of Object.entries(byKind)) {
+  console.log(`${kind.padEnd(8)} ${JSON.stringify(verdicts)}`);
+}
+
 for (const pick of picks) console.log('would add:', pick.nodeKind, pick.nodeKey, '|', pick.label);
 process.exit(0);

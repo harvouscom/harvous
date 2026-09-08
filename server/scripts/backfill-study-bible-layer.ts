@@ -48,6 +48,7 @@ import {
   scriptureTouches,
   touchNodes,
   type NodeTouch,
+  noteWrittenTouches,
 } from '../utils/study-bible-layer';
 import { nodeKey } from '@/utils/study-bible-nodes';
 import type { RecallState } from '@/utils/review-item-kinds';
@@ -58,7 +59,6 @@ import {
   readChapterSource,
   LINKED_NOTES_SOURCE,
   NOTE_OPENED_SOURCE,
-  NOTE_WRITTEN_SOURCE,
   REVIEWED_SOURCE,
   THREAD_NAMED_SOURCE,
 } from '@/utils/study-bible-source-copy';
@@ -127,26 +127,33 @@ class TouchCollector {
 
 async function collectForUser(userId: string, since: Date): Promise<TouchCollector> {
   const collector = new TouchCollector();
+  const now = new Date();
 
   // ── Notes: written, and every later checkpoint as an expansion ──────────────
   const notes = await db
-    .select({ id: Notes.id, title: Notes.title, createdAt: Notes.createdAt })
+    .select({
+      id: Notes.id,
+      title: Notes.title,
+      createdAt: Notes.createdAt,
+      noteType: Notes.noteType,
+      addedBy: Notes.addedBy,
+      threadId: Notes.threadId,
+      primaryCollection: Notes.primaryCollection,
+    })
     .from(Notes)
     .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), countableUserNotesWhere()));
   const titleById = new Map(notes.map((n) => [n.id, n.title]));
 
-  collector.add(
-    'notes',
-    notes.map((note) =>
-      noteTouch({
-        noteId: note.id,
-        title: note.title,
-        signal: 'exposure',
-        at: note.createdAt ?? since,
-        sourceLabel: NOTE_WRITTEN_SOURCE,
-      }),
-    ),
-  );
+  /*
+   * Through `noteWrittenTouches`, which is what the live save path calls, so a replay and a save
+   * cannot claim different things about the same note.
+   *
+   * It also carries an exclusion this block did not have: `countableUserNotesWhere()` only filters
+   * `addedBy = 'system'`, so a Discover install or a shared-space import — `'discover'` and
+   * `'shared'` — was replayed as twenty nodes labelled "You wrote this" about someone else's
+   * study. The builder refuses those.
+   */
+  collector.add('notes', notes.flatMap((note) => noteWrittenTouches({ ...note, createdAt: note.createdAt ?? since }, now)));
 
   const noteIds = notes.map((n) => n.id);
   if (noteIds.length) {

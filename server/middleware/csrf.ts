@@ -31,6 +31,11 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 const DEFAULT_ORIGINS = [
   'https://app.harvous.com',
+  // NOTE: no Capacitor/iOS/Android app ships today — web + PWA only, and the PWA
+  // runs at app.harvous.com so it sends that origin. If a Capacitor build ever
+  // ships, add 'https://localhost' (androidScheme in capacitor.config.ts) and
+  // 'capacitor://localhost' (iOS default), or every mutation from it 403s. The
+  // first-party Swift app needs nothing: URLSession sends no Origin header.
   'https://new.harvous.com',
   'https://status.harvous.com',
   'https://harvous.com',
@@ -39,6 +44,30 @@ const DEFAULT_ORIGINS = [
   'http://localhost:4321',  // Astro dev
   'http://localhost:4322',  // SPA Vite dev
 ];
+
+/**
+ * Enforcement gate. Default is OBSERVE: the checks run and log what they *would*
+ * reject, but let the request through.
+ *
+ * This exists because this middleware was disabled from ~2025 to 2026 after false
+ * 403s in production, and nobody could prove what was being rejected. Turning it
+ * straight back on repeats that bet. Run in observe mode, read the logs, then set
+ * CSRF_ENFORCE=true on Fly once the rejection set is empty or understood.
+ */
+function isEnforcing(): boolean {
+  return process.env.CSRF_ENFORCE === 'true';
+}
+
+/**
+ * Proxies can duplicate a header into "value, value". Netlify did this and it is
+ * what broke CSRF originally — the Origin comparison saw the doubled string and
+ * never matched. getSelfOrigin() already splits Host and X-Forwarded-Proto; this
+ * applies the same rule to Origin and Referer, which it did not.
+ */
+function firstHeaderValue(v: string | undefined): string | undefined {
+  if (!v) return v;
+  return v.split(',')[0].trim();
+}
 
 /** Build the allowed origins set once at startup */
 let allowedOrigins: Set<string> | null = null;
@@ -101,8 +130,8 @@ export async function csrfProtection(c: Context, next: Next) {
     return next();
   }
 
-  const origin = c.req.header('Origin');
-  const referer = c.req.header('Referer');
+  const origin = firstHeaderValue(c.req.header('Origin'));
+  const referer = firstHeaderValue(c.req.header('Referer'));
 
   // If Origin header is present, validate it
   if (origin) {
@@ -110,7 +139,7 @@ export async function csrfProtection(c: Context, next: Next) {
     const selfOrigin = getSelfOrigin(c);
 
     if (!allowed.has(origin) && origin !== selfOrigin) {
-      console.warn('[csrf] Rejected origin:', {
+      console.warn(isEnforcing() ? '[csrf] Rejected origin:' : '[csrf][observe] WOULD reject origin:', {
         origin,
         selfOrigin,
         host: c.req.header('Host'),
@@ -119,6 +148,7 @@ export async function csrfProtection(c: Context, next: Next) {
         allowedCount: allowed.size,
         path: c.req.path,
       });
+      if (!isEnforcing()) return next();
       return c.json(
         { error: 'Forbidden: invalid origin', code: 'CSRF_REJECTED' },
         403
@@ -135,7 +165,7 @@ export async function csrfProtection(c: Context, next: Next) {
       const selfOrigin = getSelfOrigin(c);
 
       if (!allowed.has(refererOrigin) && refererOrigin !== selfOrigin) {
-        console.warn('[csrf] Rejected referer:', {
+        console.warn(isEnforcing() ? '[csrf] Rejected referer:' : '[csrf][observe] WOULD reject referer:', {
           refererOrigin,
           selfOrigin,
           host: c.req.header('Host'),
@@ -143,6 +173,7 @@ export async function csrfProtection(c: Context, next: Next) {
           xfp: c.req.header('X-Forwarded-Proto'),
           path: c.req.path,
         });
+        if (!isEnforcing()) return next();
         return c.json(
           { error: 'Forbidden: invalid referer', code: 'CSRF_REJECTED' },
           403
@@ -151,6 +182,8 @@ export async function csrfProtection(c: Context, next: Next) {
       return next();
     } catch {
       // Malformed referer URL — reject
+      console.warn('[csrf] Malformed referer:', { referer, path: c.req.path, enforcing: isEnforcing() });
+      if (!isEnforcing()) return next();
       return c.json(
         { error: 'Forbidden: malformed referer', code: 'CSRF_REJECTED' },
         403

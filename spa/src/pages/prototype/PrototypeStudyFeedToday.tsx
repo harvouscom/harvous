@@ -15,6 +15,7 @@
  * the same three Continue slots and the same recall rows rather than a subset — it takes the
  * whole thing as one prop so a value added there cannot go unnoticed here.
  */
+import Icon from '@/components/react/Icon';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeThisSunday from './PrototypeHomeThisSunday';
@@ -38,6 +39,8 @@ import { useDismissibleImportPrompt } from './use-dismissible-import-prompt';
 import { useNavigate } from '@tanstack/react-router';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { prototypeSettingsDataRouteTo } from '@/lib/prototype-path';
+import { onboardingOwnsOffer } from './onboarding-visible-steps';
+import { useOnboardingState } from './useOnboardingState';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 
 /** A note as a Continue row — the sidebar's `HomeNoteCard`, in this surface's row shape. */
@@ -74,7 +77,12 @@ export default function PrototypeStudyFeedToday({
   const scriptureQuery = usePrototypeSpaceScriptureIndex(homeSpaceId ?? undefined);
   const libraryNav = useLibraryPanelNav();
   const navigate = useNavigate();
+  /* The checklist lists importing too, and both land on this same screen. While its row is
+     up, this one steps aside; when the checklist retires, this becomes the only pointer to
+     importing again — which is the audience it was aimed at in the first place. */
+  const { state: onboardingState } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
+  const onboardingOwnsImport = onboardingOwnsOffer(onboardingState, 'import', isGuest);
   const { dismissed: importDismissed, dismiss: dismissImportPrompt } = useDismissibleImportPrompt();
 
   const {
@@ -228,7 +236,7 @@ export default function PrototypeStudyFeedToday({
             * ending of its own the way "N notes need a folder" does, so without a way to say
             * no it would be permanent furniture. Saying no is permanent too.
             */}
-          {!isGuest && !importDismissed ? (
+          {!isGuest && !importDismissed && !onboardingOwnsImport ? (
             <PrototypeHomeRow
               icon="cloud-arrow-up"
               title="Bring your notes from another app"
@@ -244,7 +252,7 @@ export default function PrototypeStudyFeedToday({
                     dismissImportPrompt();
                   }}
                 >
-                  <span aria-hidden>×</span>
+                  <Icon name="xmark" size={12} aria-hidden />
                 </button>
               }
             />

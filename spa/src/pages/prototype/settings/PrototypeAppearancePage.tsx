@@ -24,6 +24,7 @@ import {
   type ColorSchemePreference,
   type ProtoBg,
 } from '../../../lib/prototype-background';
+import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
 import { AppearancePreviewTile } from './AppearancePreviewTile';
 import { SettingsGroup, SettingsShell } from './SettingsShell';
 import {
@@ -73,6 +74,7 @@ export default function PrototypeAppearancePage() {
     setBgKind(bg?.kind === 'image-preset' ? 'photos' : 'colors');
     void applyBackgroundWithImageTint(readActiveBackground());
     schedulePushAppearanceToAccount();
+    markOnboardingStep('appearance');
   };
 
   const applyForMode = (mode: 'light' | 'dark', next: ProtoBg) => {
@@ -81,6 +83,10 @@ export default function PrototypeAppearancePage() {
     writeBackgroundForMode(mode, next);
     void applyBackgroundWithImageTint(readActiveBackground());
     schedulePushAppearanceToAccount();
+    /* Latched beside the account write rather than on arrival: the checklist row is a
+       shortcut to this page, and opening a page is not picking anything. Both write points
+       are covered because every real pick funnels through one of them. */
+    markOnboardingStep('appearance');
   };
 
   const onPickColorPreset = (preset: BgPreset) => {

@@ -87,6 +87,23 @@ import { openWelcome3 } from './welcome3-bridge';
  */
 const WELCOME_SHEET_MAJOR = '3';
 
+/**
+ * Whether the row opens the welcome sheet rather than the release notes.
+ *
+ * Exported and pure because this decision has now regressed three times, each time silently:
+ * the wrong branch opens a real page, so nothing errors and nothing looks broken unless you
+ * already know which of the two you were owed. Inline in the component it had no test that
+ * could hold it.
+ *
+ * An unknown version answers `false`, which is the honest reading — we cannot claim a major we
+ * were never told. It should also now be unreachable: `appVersion()` prefers the build-time
+ * define, so the value no longer depends on an effect having run. That ordering was the way
+ * this could break without anyone editing this file.
+ */
+export function opensWelcomeSheet(version: string | undefined | null): boolean {
+  return (releaseMarkerFor(version) ?? '').split('.')[0] === WELCOME_SHEET_MAJOR;
+}
+
 export default function PrototypeWhatsNewPill() {
   const version = appVersion();
   const releaseNotesUrl = useReleaseNotesUrl(version);
@@ -94,8 +111,7 @@ export default function PrototypeWhatsNewPill() {
     previewKey: PROTO_WHATS_NEW_PREVIEW_KEY,
   });
 
-  const showsWelcomeSheet =
-    (releaseMarkerFor(version) ?? '').split('.')[0] === WELCOME_SHEET_MAJOR;
+  const showsWelcomeSheet = opensWelcomeSheet(version);
 
   /* `releaseNotesUrl` belongs in the deps: it starts on the index and upgrades in place once
      the site answers, so a callback that captured only the first value would have pinned every
@@ -117,31 +133,32 @@ export default function PrototypeWhatsNewPill() {
       title="What's new in Harvous"
       aria-label={showsWelcomeSheet ? 'See what is new in Harvous 3' : 'Read the release notes'}
       onClick={open}
+      /*
+       * Dismiss only. There used to be an eye beside it, shown during 3.x, that opened the
+       * release notes — offered as a shortcut on the one release where the row itself goes
+       * somewhere else.
+       *
+       * It was reported three times as "what's new goes to the release notes", and each time
+       * the row was investigated and found correct, because it is: the row opens the sheet.
+       * The eye was the thing being pressed. A 12px glyph with no label, sitting against the
+       * dismiss cross, reads as part of that cross's furniture rather than as a second
+       * destination — so a row that says one thing had two answers depending on which half of
+       * a few pixels you hit.
+       *
+       * Nothing is lost by removing it. The sheet it opens carries "See release notes" as its
+       * own secondary button, spelled out in words, one click further on. That is the same
+       * journey with the destination named rather than guessed at.
+       */
       trailing={
-        <>
-          {/* Only where the row itself goes somewhere else. On every other release the row is
-              already the notes, and this would be a button that repeats it. */}
-          {showsWelcomeSheet ? (
-            <button
-              type="button"
-              className="proto-side-panel__action-btn"
-              aria-label="Read the release notes"
-              title="Release notes"
-              onClick={openNotes}
-            >
-              <Icon name="eye" size={12} aria-hidden />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="proto-side-panel__action-btn"
-            aria-label="Dismiss what's new"
-            title="Not now"
-            onClick={dismiss}
-          >
-            <Icon name="xmark" size={12} aria-hidden />
-          </button>
-        </>
+        <button
+          type="button"
+          className="proto-side-panel__action-btn"
+          aria-label="Dismiss what's new"
+          title="Not now"
+          onClick={dismiss}
+        >
+          <Icon name="xmark" size={12} aria-hidden />
+        </button>
       }
     />
   );

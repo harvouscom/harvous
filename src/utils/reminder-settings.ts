@@ -5,9 +5,15 @@
  * page validates what it is about to send, the endpoint validates what it received, and the
  * hourly tick reads the stored column. One shape, one parser, no drift.
  *
- * Deliberately small. Two nudges a week is the ceiling — a Sunday morning and one weekday —
- * and the response layer (`server/utils/reminder-policy.ts`) can only ever lower that, never
- * raise it. A field for "how many" would be an invitation to send more.
+ * Deliberately small, and shaped as a *rhythm* rather than a count. The reader picks one
+ * cadence — twice a week, or the day's passage every day — and the response layer
+ * (`server/utils/reminder-policy.ts`) can only ever lower it from there, never raise it.
+ * A free-form "how many" would be an invitation to send more.
+ *
+ * The two cadences are exclusive on purpose. As independent switches, "every day" and
+ * "Sunday" both claim a Sunday, and the tick would have had to dedupe them at send time —
+ * a rule that exists only because the settings let someone ask for something incoherent.
+ * One picker makes the double impossible rather than handled.
  */
 
 /**
@@ -19,7 +25,23 @@
  */
 export type MidweekDay = 2 | 3 | 4;
 
+/**
+ * How often reminders come.
+ *
+ * `twice-weekly` reads `sunday` / `midweek` / `midweekDay` below; `daily` ignores all three
+ * and sends every day at `hour`. They are kept rather than cleared when switching to daily,
+ * so going back restores the days someone already chose.
+ */
+export type ReminderCadence = 'twice-weekly' | 'daily';
+
+export const REMINDER_CADENCES: readonly ReminderCadence[] = ['twice-weekly', 'daily'];
+
+export function reminderCadenceLabel(cadence: ReminderCadence): string {
+  return cadence === 'daily' ? 'Every day' : 'Sunday and midweek';
+}
+
 export interface ReminderSettings {
+  cadence: ReminderCadence;
   sunday: boolean;
   midweek: boolean;
   midweekDay: MidweekDay;
@@ -31,11 +53,12 @@ export interface ReminderSettings {
    */
   pausedByPolicy?: {
     at: string;
-    kind: 'sunday' | 'midweek' | 'all';
+    kind: 'sunday' | 'midweek' | 'daily' | 'all';
   } | null;
 }
 
 export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+  cadence: 'twice-weekly',
   sunday: true,
   midweek: true,
   midweekDay: 3,
@@ -64,6 +87,19 @@ function isMidweekDay(value: unknown): value is MidweekDay {
   return value === 2 || value === 3 || value === 4;
 }
 
+/**
+ * Read a cadence, defaulting to the rhythm every stored account already has.
+ *
+ * Accounts saved before this field existed have no `cadence` at all, and they were all on
+ * the twice-weekly rhythm by definition. Treating a missing value as `twice-weekly` is what
+ * lets those rows keep working untouched rather than needing a migration — and it is the
+ * safe direction to be wrong in, since the alternative would silently start sending someone
+ * seven reminders a week they never asked for.
+ */
+function readCadence(value: unknown): ReminderCadence {
+  return value === 'daily' ? 'daily' : 'twice-weekly';
+}
+
 function isHour(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 23;
 }
@@ -72,7 +108,7 @@ function parsePaused(raw: unknown): ReminderSettings['pausedByPolicy'] {
   if (!raw || typeof raw !== 'object') return null;
   const { at, kind } = raw as Record<string, unknown>;
   if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) return null;
-  if (kind !== 'sunday' && kind !== 'midweek' && kind !== 'all') return null;
+  if (kind !== 'sunday' && kind !== 'midweek' && kind !== 'daily' && kind !== 'all') return null;
   return { at, kind };
 }
 
@@ -82,11 +118,13 @@ function parsePaused(raw: unknown): ReminderSettings['pausedByPolicy'] {
  */
 export function validateReminderSettingsInput(body: unknown): ReminderSettings | null {
   if (!body || typeof body !== 'object') return null;
-  const { sunday, midweek, midweekDay, hour, pausedByPolicy } = body as Record<string, unknown>;
+  const { cadence, sunday, midweek, midweekDay, hour, pausedByPolicy } = body as Record<string, unknown>;
   if (typeof sunday !== 'boolean' || typeof midweek !== 'boolean') return null;
   if (!isMidweekDay(midweekDay) || !isHour(hour)) return null;
   if (pausedByPolicy !== undefined && pausedByPolicy !== null) return null;
-  return { sunday, midweek, midweekDay, hour, pausedByPolicy: null };
+  // Anything unrecognised falls to twice-weekly rather than being rejected: an older client
+  // that does not know about cadence still sends a valid schedule.
+  return { cadence: readCadence(cadence), sunday, midweek, midweekDay, hour, pausedByPolicy: null };
 }
 
 /**
@@ -102,14 +140,22 @@ export function parseReminderSettings(raw: string | null | undefined): ReminderS
     return null;
   }
   if (!parsed || typeof parsed !== 'object') return null;
-  const { sunday, midweek, midweekDay, hour, pausedByPolicy } = parsed as Record<string, unknown>;
+  const { cadence, sunday, midweek, midweekDay, hour, pausedByPolicy } = parsed as Record<string, unknown>;
   if (typeof sunday !== 'boolean' || typeof midweek !== 'boolean') return null;
   if (!isMidweekDay(midweekDay) || !isHour(hour)) return null;
-  return { sunday, midweek, midweekDay, hour, pausedByPolicy: parsePaused(pausedByPolicy) };
+  return {
+    cadence: readCadence(cadence),
+    sunday,
+    midweek,
+    midweekDay,
+    hour,
+    pausedByPolicy: parsePaused(pausedByPolicy),
+  };
 }
 
 export function serializeReminderSettings(settings: ReminderSettings): string {
   return JSON.stringify({
+    cadence: settings.cadence,
     sunday: settings.sunday,
     midweek: settings.midweek,
     midweekDay: settings.midweekDay,
@@ -118,15 +164,23 @@ export function serializeReminderSettings(settings: ReminderSettings): string {
   });
 }
 
-/** Either switch on. The policy pause is separate: a paused kind is still "enabled" in intent. */
+/**
+ * Whether reminders are wanted at all. The policy pause is separate: a paused rhythm is still
+ * "enabled" in intent.
+ *
+ * Daily needs no switch of its own — choosing that rhythm *is* the switch. Only the
+ * twice-weekly rhythm can be on with neither of its days selected, which means off.
+ */
 export function isReminderEnabled(settings: ReminderSettings | null | undefined): boolean {
-  return !!settings && (settings.sunday || settings.midweek);
+  if (!settings) return false;
+  if (settings.cadence === 'daily') return true;
+  return settings.sunday || settings.midweek;
 }
 
 /** Whether the policy has this kind on hold right now. */
 export function isKindPausedByPolicy(
   settings: ReminderSettings,
-  kind: 'sunday' | 'midweek',
+  kind: 'sunday' | 'midweek' | 'daily',
 ): boolean {
   const paused = settings.pausedByPolicy;
   if (!paused) return false;

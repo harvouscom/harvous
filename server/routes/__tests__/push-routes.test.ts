@@ -218,3 +218,35 @@ describe('manifest', () => {
     expect(sizes).toContain('512x512');
   });
 });
+
+/*
+ * Staging and production are two Workers proxying /api/* to one Fly machine, and the live
+ * Clerk cookie reaches both — so enabling reminders on new.harvous.com used to write a row
+ * against the developer's real userId, and the displacement delete (keyed on userId+userAgent,
+ * not origin) then removed their genuine app.harvous.com subscription.
+ */
+describe('subscribe refuses an origin the reminders are not sent for', () => {
+  const push = () => source('server/routes/push.ts');
+
+  it('judges the Origin before writing anything', () => {
+    const text = push();
+    const block = routeBlock(text, "app.post('/api/push/subscribe'");
+    expect(block).toContain('isSubscribableOrigin(c)');
+    // Ordering is the whole point: judged after the insert is a row already written.
+    expect(block.indexOf('isSubscribableOrigin(c)')).toBeLessThan(
+      block.indexOf('.insert(PushSubscriptions)'),
+    );
+  });
+
+  it('answers with a code the client can act on, not a bare failure', () => {
+    expect(routeBlock(push(), "app.post('/api/push/subscribe'")).toContain("code: 'wrong_origin'");
+  });
+
+  it('leaves localhost and non-browser callers alone', () => {
+    const text = push();
+    // Browsers set Origin on every POST, same-origin included, so a request without one is
+    // not a browser — failing those closed would break callers this has no quarrel with.
+    expect(text).toContain('if (!origin) return true;');
+    expect(text).toContain("hostname === 'localhost'");
+  });
+});

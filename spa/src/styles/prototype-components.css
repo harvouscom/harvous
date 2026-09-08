@@ -5218,6 +5218,49 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
   background: var(--pds-bg-ghost);
 }
 
+/*
+ * Out to Discover, beside the thing this corner is really for.
+ *
+ * Two columns rather than two rows: stacked, the pair took a second line of the
+ * footer's height off a list that is already the point of the panel, and a
+ * centred text action under a full-width gradient reads as a caption on it
+ * rather than as its own control.
+ *
+ * Scoped with `:has()` so the class keeps its single-button behaviour
+ * everywhere else — the same slot holds the bulk bar and the sidebar's own
+ * footer, and neither has a second action.
+ */
+.proto-collection-grid-actions:has(.proto-collection-grid-actions__secondary) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * The primary keeps the room; the secondary asks only for its word.
+ *
+ * Both need `width: auto` explicitly. Each carries `width: 100%` from its own
+ * base rule — the primary from the footer's gradient rule, the secondary from
+ * `.proto-sheet-quiet-action`, which is built to sit *under* a primary — and
+ * with `flex-basis: auto` that width becomes the basis. Left alone, the quiet
+ * action claimed the whole row and the gradient shrank to the width of its
+ * wrapped label.
+ */
+.proto-collection-grid-actions:has(.proto-collection-grid-actions__secondary)
+  .proto-collection-grid-actions__btn {
+  flex: 1 1 0%;
+  width: auto;
+  min-width: 0;
+}
+
+.proto-collection-grid-actions:has(.proto-collection-grid-actions__secondary)
+  .proto-collection-grid-actions__secondary {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+  padding-inline: 10px;
+}
+
 /* The gradient primary — but only in the footer. The same `__btn` class is
    shared with `.proto-list-create-empty__btn` and `.proto-drill-empty__cta`,
    which are empty-state CTAs sitting in the middle of a blank pane; those keep
@@ -6515,11 +6558,31 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   font-weight: 400;
   line-height: 1.45;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
-  /* `pretty`, not `balance`. Balance equalises line lengths, which on a
-     three-sentence description means every line shrinks to the shortest one can
-     be — a tall narrow column in a pane that had width to spare. `pretty` keeps
-     the orphan control and lets the lines run full. */
-  text-wrap: pretty;
+  /*
+   * A measure and a balance, and the measure is what makes the balance safe.
+   *
+   * This was `pretty`, on the reasoning that `balance` "equalises line lengths, which on a
+   * three-sentence description means every line shrinks to the shortest one can be — a tall
+   * narrow column in a pane that had width to spare". That was written for a ~300px sidebar,
+   * where lines running full is also lines running short.
+   *
+   * The same empty state now appears on the Home canvas, where the card is wide enough to run
+   * body text past 130 characters — beyond any comfortable measure, and what left "up here."
+   * stranded alone under a line three times its length. So the width is capped first: a cap
+   * rather than a fixed width, so it only bites where there is width to spare and a sidebar,
+   * already narrower than this, is untouched.
+   *
+   * With the cap in place the old objection does not survive measurement. `balance` keeps the
+   * line *count* and only evens the widths, so it cannot produce the taller column it was
+   * rejected for. Measured at this cap, same string:
+   *
+   *   pretty   2 lines, 357px + 225px, 36px tall
+   *   balance  2 lines, 297px + 286px, 36px tall
+   *
+   * and on a longer one, 3 lines and 54px tall either way. Same height, evener lines.
+   */
+  max-width: 46ch;
+  text-wrap: balance;
 }
 
 /* Enough air that the action reads as a next step rather than a caption's
@@ -7420,6 +7483,127 @@ button.proto-home-card--tappable:focus-visible {
 .proto-install-web-app-card__learn:focus-visible {
   outline: none;
   border-radius: 4px;
+}
+
+/* The room's passage card, and the "Not now" that rests it.
+
+   The markup puts that control outside the card deliberately — the card is one
+   big button and a button cannot nest in one — but it shipped with no styles at
+   all under either class name. So it fell into the flow as a plain block above
+   the card, left-aligned, reading as a stray link sitting on the card's own
+   "Showing up in your notes" eyebrow.
+
+   Treated as the daily passage pill's dismiss is treated, because it is the
+   same gesture on the same kind of card: a small pill in the corner, out of the
+   way until wanted, and always present where there is no hover to reveal it. */
+.proto-space-passage {
+  position: relative;
+}
+
+.proto-space-passage__rest {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: none;
+  border-radius: 999px;
+  background: var(--pds-glass-shell);
+  box-shadow: var(--pds-glass-rim);
+  -webkit-backdrop-filter: var(--pds-glass-blur-control);
+  backdrop-filter: var(--pds-glass-blur-control);
+  font-family: var(--pds-font-body);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pds-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.proto-space-passage:hover .proto-space-passage__rest,
+.proto-space-passage:focus-within .proto-space-passage__rest {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.proto-space-passage__rest:hover {
+  color: var(--pds-text-primary);
+}
+
+/* No hover to reveal it on a touch screen, so it simply stays. */
+@media (hover: none) {
+  .proto-space-passage__rest {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* A count on a chip — how many suggestions staff have not read yet. Sized from
+   the chip's own text so it stays a badge rather than becoming a second label,
+   and tabular so a two-digit count does not shift the chip's width mid-glance. */
+.proto-chip__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--pds-accent, var(--pds-text-primary));
+  color: var(--pds-bg-page);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* What a congregant has sent, under the form they sent it from.
+
+   Padded to the sheet's own 14px column, because it is a sibling of the form
+   rather than a child of it: without this it ran full-bleed and its rows were
+   clipped by the sheet's edges while every label above them stayed inset.
+
+   The rule spans the full width on purpose, matching the footer's own border
+   under it — the divide is the sheet's, not the section's. */
+.proto-suggest-mine {
+  padding: 12px 14px 0;
+  border-top: 0.5px solid var(--pds-border-control);
+}
+
+/* One surface, not two.
+
+   `proto-church-tools` paints a glass panel because on a page it is a card
+   lying on the background. In here the sheet is already that card, so the
+   panel was a second rounded fill inset inside the first, with its own border
+   and shadow. The rows keep every one of their own styles; only the box they
+   arrived in loses its. Same treatment the space Tools popover gives it. */
+.proto-suggest-mine .proto-church-tools {
+  background: none;
+  background-image: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* The row then supplies its own left edge, since the panel is no longer
+   indenting it. */
+.proto-suggest-mine .proto-church-tools__row {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Inline beside the row rather than stacked under it — `proto-sheet-quiet-action`
+   carries `width: 100%` for the footer's stacked case, which here would push the
+   row's text off its own line. Same fix the library queue's actions needed. */
+.proto-suggest-mine .proto-sheet-quiet-action {
+  width: auto;
+  flex-shrink: 0;
 }
 
 /* ── Add to home screen — platform toggle, then steps that look like steps ──
@@ -12397,27 +12581,62 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
    trailing mark dims — one glyph in the column shouting while the rest are punctuation.
    
    Deliberately not a descendant selector. The popover lives inside `.proto-recall-row__more`
-   too, and `trailing button` would dim every item in the open menu along with the trigger. */
+   too, and `trailing button` would dim every item in the open menu along with the trigger.
+   
+   `.proto-review-row__more` and `.proto-review-section__plus` are the same grandchild shape —
+   an anchor for a portaled menu, and a badge sitting beside its dismiss — and were missed when
+   they were built, so those two trailing marks stayed at full strength beside dimmed ones. */
 .proto-list-panel__row-trailing > button,
-.proto-list-panel__row-trailing > .proto-recall-row__more > button {
+.proto-list-panel__row-trailing > .proto-recall-row__more > button,
+.proto-list-panel__row-trailing > .proto-review-row__more > button,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button {
   opacity: 0.4;
   transition: opacity var(--pds-duration-press) var(--pds-ease-standard);
 }
 
-.proto-list-panel__row:hover .proto-list-panel__row-trailing > button,
-.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-recall-row__more > button {
+/*
+ * The mark the pointer is actually on is excluded here, or it never reaches full.
+ *
+ * A row-hover selector carries three classes and a pseudo-class; the reach-for-it rule below
+ * carries one class and a pseudo-class, so the row won the cascade and pinned its own control
+ * at 0.62 — the "rises to full on the pointer" above was a comment describing something that
+ * did not happen. Standing the specificity contest up as `:not()` rather than piling `:hover`
+ * onto the row-hover arms keeps the two states named once each.
+ *
+ * `:focus-visible` is excluded for the same reason: a keyboard focus that lands while the
+ * pointer happens to rest on the row is still a control being reached for.
+ */
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > button:not(:hover):not(:focus-visible):not([aria-expanded='true']),
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-recall-row__more > button:not(:hover):not(:focus-visible):not([aria-expanded='true']),
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-review-row__more > button:not(:hover):not(:focus-visible):not([aria-expanded='true']),
+.proto-list-panel__row:hover .proto-list-panel__row-trailing > .proto-review-section__plus > button:not(:hover):not(:focus-visible):not([aria-expanded='true']) {
   opacity: 0.62;
 }
 
 .proto-list-panel__row-trailing > button:hover,
 .proto-list-panel__row-trailing > button:focus-visible,
 .proto-list-panel__row-trailing > .proto-recall-row__more > button:hover,
-.proto-list-panel__row-trailing > .proto-recall-row__more > button:focus-visible {
+.proto-list-panel__row-trailing > .proto-recall-row__more > button:focus-visible,
+.proto-list-panel__row-trailing > .proto-review-row__more > button:hover,
+.proto-list-panel__row-trailing > .proto-review-row__more > button:focus-visible,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button:hover,
+.proto-list-panel__row-trailing > .proto-review-section__plus > button:focus-visible {
   opacity: 1;
 }
 
-/* An open menu keeps its trigger lit, or the ⋮ fades out from under the panel it opened. */
-.proto-list-panel__row-trailing > .proto-recall-row__more:has(.proto-recall-row__menu) > button {
+/*
+ * An open menu keeps its trigger lit, or the ⋮ fades out from under the panel it opened.
+ *
+ * Asked of `aria-expanded`, which the trigger already carries for assistive tech, rather than
+ * of the menu's presence. This was `:has(.proto-recall-row__menu)`, and that condition stopped
+ * being satisfiable the day the popover was portaled to `document.body`: React keeps it a child
+ * in its own tree, but `:has()` reads the DOM, where the menu is no longer inside the anchor.
+ * The rule had been quietly dead ever since — the ⋮ dimmed under its own open panel — which is
+ * the same thing that happened to the row-lift `z-index` the note above records removing.
+ */
+.proto-list-panel__row-trailing > button[aria-expanded='true'],
+.proto-list-panel__row-trailing > .proto-recall-row__more > button[aria-expanded='true'],
+.proto-list-panel__row-trailing > .proto-review-row__more > button[aria-expanded='true'] {
   opacity: 1;
 }
 
@@ -20816,6 +21035,25 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /*
+ * The break between the tour and "Make it yours".
+ *
+ * Spacing only, no rule: a line across the panel would make two lists out of one card, and
+ * the whole point is that these rows belong to the same ambient group. The label is
+ * `aria-hidden` because the rows beneath it already say what they are — a screen reader
+ * meeting "Make it yours" as a heading would expect a landmark that is not there.
+ */
+.proto-onboarding-dock__section {
+  margin: 10px 0 2px;
+  padding: 0 4px;
+  opacity: 0.62;
+}
+
+/* Nothing above it to separate from when the tour is already finished. */
+.proto-onboarding-dock__section:first-child {
+  margin-top: 0;
+}
+
+/*
  * Collapse without measuring.
  *
  * `grid-template-rows: 1fr → 0fr` animates a row's height without JS ever reading one,
@@ -22891,7 +23129,10 @@ button.proto-feed-sheet__stat:hover {
    * deep red of a warning, and this is an option that has been used, in the same family as the
    * blue one beside it that was right.
    */
-  background: linear-gradient(180deg, #f05252 0%, #d42828 55%, #be1f1f 100%);
+  /* Held in a variable so the hover rule below can restate it without a second copy of the
+     gradient — two literals is how the resting state and the hover state drift apart. */
+  --proto-verdict-bg: linear-gradient(180deg, #f05252 0%, #d42828 55%, #be1f1f 100%);
+  background: var(--proto-verdict-bg);
   box-shadow: var(--pds-shadow-destructive-button);
   color: var(--pds-on-accent) !important;
   opacity: 1;
@@ -22938,9 +23179,31 @@ button.proto-feed-sheet__stat:hover {
 }
 
 .proto-review-dock__choice[data-correct] {
-  background: var(--pds-bg-accent-button);
+  --proto-verdict-bg: var(--pds-bg-accent-button);
+  background: var(--proto-verdict-bg);
   box-shadow: var(--pds-shadow-accent-button);
   color: var(--pds-on-accent) !important;
+}
+
+/*
+ * A spent chip keeps its verdict under the pointer.
+ *
+ * `.proto-settings-btn--secondary:hover:not(:disabled)` is 0,3,0 and the verdict rules above are
+ * 0,2,0, so the neutral row-hover background won outright. The white the verdict paints its words
+ * with survives, because that is set with `!important` and again through
+ * `-webkit-text-fill-color` — so hovering an answered option left white text on pale grey and the
+ * words disappeared.
+ *
+ * Restated rather than fought with another `!important`: these chips are no longer offers, they
+ * are the answer being shown, so there is nothing for a hover to preview. `:focus-visible` gets
+ * the same treatment, since a keyboard reader would otherwise lose the words at the moment they
+ * arrived on them.
+ */
+.proto-review-dock__choice[data-correct]:hover:not(:disabled),
+.proto-review-dock__choice[data-correct]:focus-visible,
+.proto-review-dock__choice[data-missed]:hover:not(:disabled),
+.proto-review-dock__choice[data-missed]:focus-visible {
+  background: var(--proto-verdict-bg);
 }
 
 /* The gap's line carries its verdict, the same line that carries focus. */
@@ -23408,6 +23671,23 @@ button.proto-feed-sheet__stat:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+/* One surface, not two — the same fix the church suggestion sheet needed. Both
+   of these row lists arrive wearing a glass panel, which is right on a page and
+   wrong inside a sheet that is already the card. */
+.proto-space-suggestions .proto-church-tools {
+  background: none;
+  background-image: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.proto-space-suggestions .proto-church-tools__row {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* Same reason as the library queue: inline beside the row, the quiet action

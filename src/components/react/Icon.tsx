@@ -123,6 +123,7 @@ import checkDoubleSvg from '@fortawesome/fontawesome-free/svgs/solid/check-doubl
 import trophySvg from '@fortawesome/fontawesome-free/svgs/solid/trophy.svg?raw';
 import layerGroupSvg from '@fortawesome/fontawesome-free/svgs/solid/layer-group.svg?raw';
 import magnifyingGlassSvg from '@fortawesome/fontawesome-free/svgs/solid/magnifying-glass.svg?raw';
+import compassSvg from '@fortawesome/fontawesome-free/svgs/solid/compass.svg?raw';
 import wifiSvg from '@fortawesome/fontawesome-free/svgs/solid/wifi.svg?raw';
 import penToSquareSvg from '@fortawesome/fontawesome-free/svgs/solid/pen-to-square.svg?raw';
 import circleInfoSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-info.svg?raw';
@@ -254,6 +255,9 @@ const icons = {
 
   'layer-group': svgRootCurrentColor(layerGroupSvg),
   'magnifying-glass': svgRootCurrentColor(magnifyingGlassSvg),
+  /* Discover. Deliberately not the magnifying glass — that is search, which is
+     looking for something you know you have. */
+  compass: svgRootCurrentColor(compassSvg),
   wifi: svgRootCurrentColor(wifiSvg),
   // Font Awesome Solid wifi-slash (not bundled in @fortawesome/fontawesome-free SVG set); path via Iconify fa-solid:wifi-slash
   /* Was FA Pro `wifi-slash`; `plug-circle-xmark` is the Free set's

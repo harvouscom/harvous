@@ -256,6 +256,7 @@ describe('suggestion box', () => {
     for (const marker of [
       "app.post('/api/church/library/suggestions/create'",
       "app.get('/api/church/library/suggestions/mine'",
+      "app.post('/api/church/library/suggestions/withdraw'",
     ]) {
       const body = handlerBody(suggestions(), marker);
       expect(body, marker).not.toMatch(/c\.req\.query\(['"]orgId/);
@@ -312,6 +313,14 @@ describe('suggestion box', () => {
       expect(text, `${path} reads a user column`).not.toContain('UserMetadata');
       expect(text, `${path} imports the name helper`).not.toContain('suggestion-display-names');
     }
+    /* Discover reads UserMetadata directly and deliberately — it snapshots a
+       public byline once at submit, which is a different fact from the queue
+       attribution this helper exists for. What it must not do is become a third
+       importer, because that is what turns two justified exceptions into a
+       general-purpose name lookup. */
+    expect(source('server/routes/discover.ts')).not.toContain(
+      "from '../utils/suggestion-display-names'",
+    );
   });
 
   it('approves inside a transaction so a status change cannot outlive its item', () => {
@@ -326,6 +335,62 @@ describe('suggestion box', () => {
     const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/review'");
     expect(body).toContain('ALREADY_REVIEWED');
     expect(body).toMatch(/status !== 'open'/);
+  });
+
+  it('lets someone take back only their own, and only while it waits', () => {
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/withdraw'");
+    // All four in the query. Filtering after the fact is how a delete reaches a
+    // row that was never the caller's.
+    expect(body).toContain('eq(LibraryItemSuggestions.suggestedByUserId, auth.userId)');
+    expect(body).toContain("eq(LibraryItemSuggestions.status, 'open')");
+    expect(body).toContain('eq(LibraryItemSuggestions.churchId, viewer.church.id)');
+    expect(body).toContain('db\n      .delete(LibraryItemSuggestions)');
+  });
+
+  it('will not delete a suggestion that has been decided', () => {
+    // An approved one has a library item behind it; a delete here orphans it.
+    // A declined one is the church's record of what was asked.
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/withdraw'");
+    expect(body).not.toMatch(/status, 'approved'/);
+    expect(body).not.toMatch(/status, 'declined'/);
+  });
+
+  it('answers a withdraw the same way whoever asks', () => {
+    // Never yours, already decided, or never existed all read as not found, so
+    // a probe cannot tell them apart.
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/withdraw'");
+    expect(body.match(/SUGGESTION_NOT_FOUND/g)?.length).toBeGreaterThanOrEqual(2);
+    /* The emitted key, not the word — a handler slice runs to the next `app.`
+       and picks up the following docblock, which names the field it explains.
+       The same trap the attribution test above documents. */
+    expect(body).not.toContain('suggestedByName:');
+  });
+
+  it('marks read on reading, not on deciding', () => {
+    /* The bug this closes: `staffReadAt` was only ever written by a review, so
+       every waiting suggestion had a null in it and an unread badge counting
+       nulls would have counted the queue. Reading is its own event now, the way
+       `admin-support-tickets.ts` stamps a ticket when it is opened. */
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/mark-read'");
+    expect(body).toContain('assertCanManageChurchLibrary');
+    expect(body).toContain('staffReadAt: new Date()');
+    expect(body).toMatch(/status, 'open'/);
+    expect(body).toContain('isNull(LibraryItemSuggestions.staffReadAt)');
+  });
+
+  it('never lets marking read overwrite when a decision was made', () => {
+    // A reviewed row carries the time it was decided. Someone scrolling past it
+    // afterwards must not restamp that.
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/mark-read'");
+    expect(body).toContain('isNull(LibraryItemSuggestions.staffReadAt)');
+    expect(body).not.toMatch(/status, 'approved'/);
+    expect(body).not.toMatch(/status, 'declined'/);
+  });
+
+  it('marking read names nobody', () => {
+    const body = handlerBody(suggestions(), "app.post('/api/church/library/suggestions/mark-read'");
+    expect(body).not.toContain('suggestedByName');
+    expect(body).not.toContain('displayNamesFor');
   });
 
   it('caps open suggestions per person', () => {

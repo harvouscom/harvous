@@ -23,6 +23,7 @@ import {
   and,
   eq,
   desc,
+  isNull,
   Churches,
   LibraryItems,
   LibraryItemSuggestions,
@@ -189,6 +190,65 @@ app.get('/api/church/library/suggestions/mine', requireAuth, async (c) => {
   }
 });
 
+// ─── POST /api/church/library/suggestions/withdraw ──────────────────────────
+/**
+ * Taking your own suggestion back, while it is still waiting.
+ *
+ * A congregant endpoint, so it takes no `orgId` like the other two: the church
+ * comes from the caller's own connection, and the row is found by the caller's
+ * id rather than by a church anyone can name.
+ *
+ * Own and open, both in the query rather than checked afterwards. A reviewed
+ * suggestion is the church's record — the staff decision is how it leaves the
+ * queue — and an approved one has a library item behind it that a delete here
+ * would orphan.
+ *
+ * Not sponsorship-gated, unlike creating one. A lapsed plan should not trap
+ * somebody's link in a queue nobody can act on; taking it back is the one thing
+ * that still ought to work.
+ */
+app.post('/api/church/library/suggestions/withdraw', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const viewer = await resolveChurchLibraryViewer(auth.userId);
+    if (viewer.kind === 'none') {
+      return c.json({ error: 'Suggestion not found', code: 'SUGGESTION_NOT_FOUND' }, 404);
+    }
+
+    const body = (await c.req.json().catch(() => ({}))) as { suggestionId?: string };
+    const suggestionId = clean(body.suggestionId, 200);
+    if (!suggestionId) {
+      return c.json({ error: 'suggestionId is required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    const deleted = await db
+      .delete(LibraryItemSuggestions)
+      .where(
+        and(
+          eq(LibraryItemSuggestions.id, suggestionId),
+          eq(LibraryItemSuggestions.churchId, viewer.church.id),
+          eq(LibraryItemSuggestions.suggestedByUserId, auth.userId),
+          eq(LibraryItemSuggestions.status, 'open'),
+        ),
+      )
+      .returning({ id: LibraryItemSuggestions.id });
+
+    if (deleted.length === 0) {
+      /* Same answer whether it was never yours, already decided, or never
+         existed — a probe should not learn which. */
+      return c.json({ error: 'Suggestion not found', code: 'SUGGESTION_NOT_FOUND' }, 404);
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/library/suggestions/withdraw',
+      action: 'library_suggestion_withdraw',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── GET /api/church/library/suggestions ────────────────────────────────────
 /**
  * The staff review queue.
@@ -236,6 +296,50 @@ app.get('/api/church/library/suggestions', requireAuth, async (c) => {
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/library/suggestions',
       action: 'library_suggestion_queue',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/church/library/suggestions/mark-read ─────────────────────────
+/**
+ * Staff have looked at the queue.
+ *
+ * `staffReadAt` was only ever stamped by a review, which made it useless as the
+ * unread signal its docblock claims to be: every waiting suggestion had a null
+ * there by definition, so a badge counting nulls would have counted the queue
+ * itself and never gone down until someone approved or declined. It is stamped
+ * on *reading* now, which is what `SupportTickets.adminReadAt` does — see
+ * `admin-support-tickets.ts`, where opening a ticket marks it read.
+ *
+ * Only open rows, and only ones not already stamped: a reviewed suggestion
+ * carries the time it was decided, and that must not be overwritten by someone
+ * scrolling past it afterwards.
+ */
+app.post('/api/church/library/suggestions/mark-read', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = (await c.req.json().catch(() => ({}))) as { orgId?: string };
+
+    const gate = await assertCanManageChurchLibrary(auth.userId, (body.orgId ?? '').trim());
+    if (!gate.ok) return c.json({ error: gate.error, code: gate.code }, gate.status);
+
+    await db
+      .update(LibraryItemSuggestions)
+      .set({ staffReadAt: new Date() })
+      .where(
+        and(
+          eq(LibraryItemSuggestions.churchId, gate.church.id),
+          eq(LibraryItemSuggestions.status, 'open'),
+          isNull(LibraryItemSuggestions.staffReadAt),
+        ),
+      );
+
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/church/library/suggestions/mark-read',
+      action: 'library_suggestion_mark_read',
     });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }

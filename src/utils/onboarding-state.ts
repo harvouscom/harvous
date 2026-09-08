@@ -23,7 +23,34 @@
  */
 export const ONBOARDING_VERSION = 1;
 
-export type OnboardingStepId = 'read' | 'note' | 'pill' | 'highlight' | 'thread' | 'recall';
+export type OnboardingStepId =
+  | 'read'
+  | 'note'
+  | 'pill'
+  | 'highlight'
+  | 'thread'
+  | 'recall'
+  | OnboardingCustomizeId;
+
+/**
+ * The customization offers — reminders, appearance, import.
+ *
+ * Deliberately *not* part of `ONBOARDING_STEP_IDS`, which is the tour: the six things that
+ * teach someone what Harvous is. These three teach nothing. They are settings worth knowing
+ * about, ridden along in the same dock because that is where a new account is already looking.
+ *
+ * Keeping them out of the tour set is what makes this change free of blast radius. The dock's
+ * whole lifecycle — `shouldShowOnboarding`, `withCompletion`, `onboardingProgress`,
+ * `canRestoreOnboarding`, and the auto-complete seed — is defined over the tour, so adding a
+ * row here cannot un-settle an account that already finished. Folding them in instead would
+ * bring the dock back for everyone who completed it, and the documented remedy for that
+ * (bumping `ONBOARDING_VERSION`) is worse still: it also clears the protection on everyone who
+ * dismissed. A version bump means "the tour changed, ask again". This is not that.
+ *
+ * They still live in the same `steps` record, so they persist, merge, and dismiss through
+ * exactly the machinery the tour uses — see `ALL_STEP_IDS`.
+ */
+export type OnboardingCustomizeId = 'reminders' | 'appearance' | 'import';
 
 /** Display order, and the set `shouldShowOnboarding` counts against. */
 export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
@@ -35,7 +62,32 @@ export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
   'recall',
 ];
 
-const STEP_ID_SET = new Set<string>(ONBOARDING_STEP_IDS);
+/** Display order of the "Make it yours" section, beneath the tour. */
+export const CUSTOMIZE_STEP_IDS: readonly OnboardingCustomizeId[] = [
+  'reminders',
+  'appearance',
+  'import',
+];
+
+/**
+ * Every id the `steps` record holds.
+ *
+ * Only the shape-level operations use this — creating the record, narrowing keys off storage,
+ * and merging. Everything that decides what the dock *does* uses `ONBOARDING_STEP_IDS`.
+ */
+export const ALL_STEP_IDS: readonly OnboardingStepId[] = [
+  ...ONBOARDING_STEP_IDS,
+  ...CUSTOMIZE_STEP_IDS,
+];
+
+const STEP_ID_SET = new Set<string>(ALL_STEP_IDS);
+
+const CUSTOMIZE_ID_SET = new Set<string>(CUSTOMIZE_STEP_IDS);
+
+/** Narrow a string back to one of the customization rows. */
+export function isOnboardingCustomizeId(value: string): value is OnboardingCustomizeId {
+  return CUSTOMIZE_ID_SET.has(value);
+}
 
 /** Narrow a string that came from storage or a URL back to a step id. */
 export function isOnboardingStepId(value: string): value is OnboardingStepId {
@@ -93,7 +145,7 @@ export interface OnboardingSignals {
 
 function emptySteps(): Record<OnboardingStepId, OnboardingStepState> {
   const steps = {} as Record<OnboardingStepId, OnboardingStepState>;
-  for (const id of ONBOARDING_STEP_IDS) steps[id] = { done: false, dismissed: false };
+  for (const id of ALL_STEP_IDS) steps[id] = { done: false, dismissed: false };
   return steps;
 }
 
@@ -188,8 +240,12 @@ function mergeStep(a: OnboardingStepState, b: OnboardingStepState): OnboardingSt
  * changes the result, which is the whole reason the sync layer can merge in both directions.
  */
 export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): OnboardingState {
+  /* Every id, not just the tour: a client that predates the customization rows drops those
+     keys on parse, so its copy reads as `{done:false,dismissed:false}` there and loses the
+     `||` against whatever the account really holds. That is what makes shipping a new row
+     safe without coordinating a client rollout. */
   const steps = {} as Record<OnboardingStepId, OnboardingStepState>;
-  for (const id of ONBOARDING_STEP_IDS) steps[id] = mergeStep(a.steps[id], b.steps[id]);
+  for (const id of ALL_STEP_IDS) steps[id] = mergeStep(a.steps[id], b.steps[id]);
   return {
     version: Math.max(a.version, b.version),
     dismissedVersion: Math.max(a.dismissedVersion, b.dismissedVersion),

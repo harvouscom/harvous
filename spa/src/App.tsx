@@ -6,9 +6,10 @@ import { hasClerkSessionCookieHint } from './hooks/queries/useProfile';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
-import React, { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
 import { buildClerkAppearance } from './lib/clerk-appearance';
 import { getColorSchemeSnapshot, subscribeColorScheme } from './lib/prototype-background';
+import { getInstallPlatform } from '@/utils/platform-detect';
 import { createPortal } from 'react-dom';
 import { shouldSuppressAppToasts } from '@/utils/should-suppress-app-toasts';
 import { Toaster, toast as sonnerToast } from 'sonner';
@@ -22,7 +23,6 @@ import {
   HARVOUS_TOASTER_MOBILE_BOTTOM_VAR,
 } from '@/utils/mobile-offline-chip-layout';
 import { subscribeSheetOverlayInset } from '@/utils/sheet-overlay-inset';
-import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import { SyncCacheBridge } from './lib/sync-cache-bridge';
 import { SharedSpacesEntitlementBridge } from './lib/SharedSpacesEntitlementBridge';
 import { PostHogBridge } from './components/PostHogBridge';
@@ -430,60 +430,39 @@ function UserIdSync() {
   return null;
 }
 
-function PwaInstallInstructionsModal({ onClose }: { onClose: () => void }) {
-  const { portalTarget } = useDesktopMainModalPortal();
-  return createPortal(
-    <div
-      className="pwa-install-modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="pwa-install-modal-title"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
-    >
-      <div className="pwa-install-modal" onClick={(e) => e.stopPropagation()}>
-        <h2 id="pwa-install-modal-title" className="pwa-install-modal__title">
-          Add Harvous to your home screen
-        </h2>
-        <div className="pwa-install-modal__section">
-          <strong>iPhone (Safari)</strong>
-          <ol>
-            <li>Tap the <strong>Share</strong> icon (square with arrow)</li>
-            <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
-            <li>Tap <strong>Add</strong></li>
-          </ol>
-        </div>
-        <div className="pwa-install-modal__section">
-          <strong>Android (Chrome)</strong>
-          <ol>
-            <li>Tap the menu (⋮)</li>
-            <li>Tap <strong>Install app</strong> or <strong>Add to Home Screen</strong></li>
-          </ol>
-        </div>
-        <p className="pwa-install-modal__footer">
-          Then open Harvous from your home screen for a faster, app-like experience.
-        </p>
-        <button
-          type="button"
-          className="btn btn--primary btn--sm btn-animate-squish pwa-install-modal__close"
-          onClick={onClose}
-        >
-          <span className="btn__content">Close</span>
-          <span className="btn__shadow-overlay" aria-hidden="true" />
-        </button>
-      </div>
-    </div>,
-    portalTarget
-  );
-}
+/*
+  The install explainer, which is the one the prototype shell already has.
+
+  This was a second copy written out here: a plain two-list modal whose own
+  class names (`pwa-install-modal*`) are defined in no stylesheet in this repo,
+  so anything reaching it would have got unstyled text — and it still carried
+  the claim that only Safari can add to a home screen on iPhone, which stopped
+  being true in iOS 16.4.
+
+  Two explainers that disagree is one too many. The event stays as the seam, so
+  `window.harvousToast.pwaPrompt`'s action keeps working; what it opens is now
+  the sheet the home card opens, with the platform toggle, the browser's own
+  icon, and the one-tap install where the browser offers one.
+
+  Lazy, for the reason the card's is: most sessions never ask for it.
+*/
+const PrototypeInstallWebAppSheet = lazy(
+  () => import('./pages/prototype/PrototypeInstallWebAppSheet'),
+);
 
 function SpaToaster() {
   const [isMobile, setIsMobile] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [showPwaInstructions, setShowPwaInstructions] = useState(false);
+  /* Mounted from the first request onward rather than only while open, so the
+     sheet can animate itself out; before that its chunk is never fetched. */
+  const [pwaInstructionsRequested, setPwaInstructionsRequested] = useState(false);
 
   useEffect(() => {
-    const handler = () => setShowPwaInstructions(true);
+    const handler = () => {
+      setPwaInstructionsRequested(true);
+      setShowPwaInstructions(true);
+    };
     window.addEventListener(PWA_INSTALL_INSTRUCTIONS_EVENT, handler);
     return () => window.removeEventListener(PWA_INSTALL_INSTRUCTIONS_EVENT, handler);
   }, []);
@@ -552,8 +531,14 @@ function SpaToaster() {
 
   return (
     <>
-      {showPwaInstructions && (
-        <PwaInstallInstructionsModal onClose={() => setShowPwaInstructions(false)} />
+      {pwaInstructionsRequested && (
+        <Suspense fallback={null}>
+          <PrototypeInstallWebAppSheet
+            open={showPwaInstructions}
+            onClose={() => setShowPwaInstructions(false)}
+            platform={getInstallPlatform()}
+          />
+        </Suspense>
       )}
       <Toaster
         position={isMobile ? 'bottom-center' : 'bottom-right'}

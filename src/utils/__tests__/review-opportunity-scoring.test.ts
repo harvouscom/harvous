@@ -3,6 +3,7 @@ import {
   ENGINE_PER_KIND_CAP,
   NOTE_MEANING_WEIGHT_FLOOR,
   ENGINE_MIN_CHAPTER_AGE_DAYS,
+  ENGINE_MIN_NODE_AGE_DAYS,
   ENGINE_NODE_KINDS,
   countCommittedSignals,
   engineDailyRoom,
@@ -11,12 +12,14 @@ import {
   intentScore,
   scoreNode,
   selectReviewBatch,
+  describeEngineColdStart,
   type ReviewCandidateNode,
 } from '@/utils/review-opportunity-scoring';
 import { nodeKey } from '@/utils/study-bible-nodes';
 
 const NOW = new Date('2026-09-01T12:00:00Z');
 const daysAgo = (days: number) => new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000);
+const daysFromNow = (days: number) => new Date(NOW.getTime() + days * 24 * 60 * 60 * 1000);
 
 function node(overrides: Partial<ReviewCandidateNode> & Pick<ReviewCandidateNode, 'nodeKind' | 'nodeKey'>): ReviewCandidateNode {
   return {
@@ -224,10 +227,15 @@ describe('nodeReadiness', () => {
       explicitConnectionCount: 0,
       synthesisCount: 0,
     });
-    expect(nodeReadiness(seenALot, NOW, 0.5)).toBe('too-few-signals');
-    // Two opens plus one deliberate act is two distinct signals, which is enough.
+    /*
+     * Nine opens is still one signal, and that is the idea this case was written for. It no
+     * longer decides the note's readiness — a substantial note is ready on the strength of having
+     * been written — so the claim is asserted where it is still load-bearing: `intentScore` reads
+     * these counters to rank one ready note above another.
+     */
+    expect(countCommittedSignals(seenALot)).toBe(1);
     expect(
-      nodeReadiness(
+      countCommittedSignals(
         node({
           nodeKind: 'note',
           nodeKey: 'note:n1',
@@ -237,10 +245,8 @@ describe('nodeReadiness', () => {
           revisitCount: 0,
           expansionCount: 1,
         }),
-        NOW,
-        0.5,
       ),
-    ).toBe('ready');
+    ).toBe(2);
   });
 
   it('reads exposure differently for a passage than for a note', () => {
@@ -306,7 +312,15 @@ describe('nodeReadiness', () => {
       reviewCount: 9,
     });
     expect(countCommittedSignals(reviewed)).toBe(0);
-    expect(nodeReadiness(reviewed, NOW, 0.5)).toBe('too-few-signals');
+    /*
+     * Readiness is no longer where this is caught for a note — a substantial one is ready on the
+     * strength of having been written. A note already on a schedule is kept out by `scoreNode`'s
+     * `nextReviewAt` check and by `existingSourceKeys`, which is the right place for it: having
+     * answered a question is a reason not to ask it *again yet*, not a reason to decide the study
+     * was never worth asking about.
+     */
+    expect(nodeReadiness(reviewed, NOW, 0.5)).toBe('ready');
+    expect(scoreNode({ ...reviewed, nextReviewAt: daysFromNow(4) }, NOW)).toBe(0);
   });
 
   it('holds a note to the meaning floor, and a verse to none', () => {
@@ -317,6 +331,52 @@ describe('nodeReadiness', () => {
     expect(nodeReadiness(thin, NOW, null)).toBe('too-thin');
     // A verse has no fingerprint and needs none: citing it is the deliberate act.
     expect(nodeReadiness(verse('v', ready), NOW, null)).toBe('ready');
+  });
+
+  it('asks about a note you wrote and never went back to', () => {
+    /*
+     * The case the whole note rule exists for. One `exposure` and nothing else is what the save
+     * path writes when someone writes a note and leaves it — no revisit, no link, no tag. Under
+     * the old two-signal rule that was zero signals and the note was unaskable forever, which on
+     * a real account made 30 of 31 substantial notes invisible to Review.
+     *
+     * Never returning to something is not evidence you would rather forget what is in it.
+     */
+    const written = noteNode('n', {
+      firstStudiedAt: daysAgo(30),
+      exposureCount: 1,
+      revisitCount: 0,
+      expansionCount: 0,
+      explicitConnectionCount: 0,
+      synthesisCount: 0,
+      manualTagCount: 0,
+    });
+    expect(countCommittedSignals(written)).toBe(0);
+    expect(nodeReadiness(written, NOW, NOTE_MEANING_WEIGHT_FLOOR)).toBe('ready');
+
+    // The floor is the whole test, so it still turns a jotting away.
+    expect(nodeReadiness(written, NOW, 0.19)).toBe('too-thin');
+    expect(nodeReadiness(written, NOW, null)).toBe('too-thin');
+
+    // And the age gate still holds — nothing written today is asked about today.
+    expect(nodeReadiness({ ...written, firstStudiedAt: daysAgo(2) }, NOW, 0.5)).toBe('too-new');
+  });
+
+  it('widens notes and nothing else', () => {
+    /*
+     * The regression this change could have caused. Dropping the signals gate for notes must not
+     * drop it for the two kinds whose nodes are created by contact rather than by authorship —
+     * one glance at a chapter is not study, however many times it is repeated.
+     */
+    const once = { firstStudiedAt: daysAgo(30), exposureCount: 1, revisitCount: 0 };
+    expect(nodeReadiness(verse('v', once), NOW, null)).toBe('too-few-signals');
+    expect(
+      nodeReadiness(
+        node({ nodeKind: 'chapter', nodeKey: nodeKey.chapter({ book: 'John', chapter: 3 }), ...once, exposureCount: 50 }),
+        NOW,
+        null,
+      ),
+    ).toBe('too-few-signals');
   });
 });
 
@@ -356,16 +416,24 @@ describe('a tag the reader applied by hand', () => {
     expect(countCommittedSignals({ ...filed, manualTagCount: 0 })).toBe(0);
   });
 
-  it('can be the signal that makes a note ready, alongside one other', () => {
+  it('is still counted, though a note no longer needs it to be ready', () => {
+    /*
+     * This used to be the case that made a note ready — two signals, one of them the filing.
+     * Readiness for a note is the meaning floor alone now, so the tag decides nothing here. The
+     * count is still true and still feeds `intentScore`, which is what ranks one ready note above
+     * another, so it is asserted on its own terms rather than deleted.
+     */
     const opened = noteNode('n', {
       firstStudiedAt: daysAgo(30),
       exposureCount: 2,
       revisitCount: 0,
       manualTagCount: 0,
     });
-    // A real meaning weight, since the thinness gate is a separate question from this one.
-    expect(nodeReadiness(opened, NOW, 0.6)).toBe('too-few-signals');
-    expect(nodeReadiness({ ...opened, manualTagCount: 2 }, NOW, 0.6)).toBe('ready');
+    expect(nodeReadiness(opened, NOW, 0.6)).toBe('ready');
+    expect(countCommittedSignals(opened)).toBe(1);
+    expect(countCommittedSignals({ ...opened, manualTagCount: 2 })).toBe(2);
+    // And the floor is still the thing that can turn a note away.
+    expect(nodeReadiness({ ...opened, manualTagCount: 2 }, NOW, 0.1)).toBe('too-thin');
   });
 
   it('says nothing about a passage, which has no tags of its own', () => {
@@ -432,16 +500,49 @@ describe('a chapter the reader has been through', () => {
     expect(nodeReadiness(yesterday, NOW, null)).toBe('ready');
   });
 
-  it('never unlocks the engine on its own', () => {
-    /*
-     * The cold start asks whether this is an account someone has been studying in, and reading
-     * is the one signal that arrives with no writing at all. Five read chapters and nothing
-     * else must not open the queue, or a new reader's first week is five chapter quizzes.
-     */
+  /*
+   * This used to assert the opposite: "never unlocks the engine on its own", on the reasoning
+   * that reading is the one signal arriving with no writing at all, and that five read chapters
+   * would make a new reader's first week five chapter quizzes.
+   *
+   * The fear was right and the guard was in the wrong place. What it actually refused was the
+   * reader it was written to protect — someone who had read eleven chapters and gone back to six
+   * of them, studying by any honest reading of the word, and no closer to a feature that exists
+   * to bring their study back. Reading is how a great many people study.
+   *
+   * The protection lives in `nodeReadiness`, which is where it belongs, and the pair below is
+   * the whole argument: chapters that were read count, chapters that were merely opened do not.
+   */
+  it('unlocks the engine when the chapters were genuinely read', () => {
     const chapters = [1, 2, 3, 4, 5, 6, 7].map((n) =>
       chapter(nodeKey.chapter({ book: 'John', chapter: n }), { revisitCount: 2 }),
     );
-    expect(engineHasEnoughReady(chapters, NOW, new Map())).toBe(false);
+    expect(engineHasEnoughReady(chapters, NOW, new Map())).toBe(true);
+  });
+
+  it('is not unlocked by chapters that were only opened', () => {
+    /*
+     * The case the old exclusion was really aimed at, and the one it never had to catch itself.
+     * `countCommittedSignals` scores a glance at nothing: exposure however high is worth zero
+     * for a chapter, so "turned to seven chapters" is seven nodes that are not ready.
+     */
+    const glanced = [1, 2, 3, 4, 5, 6, 7].map((n) =>
+      chapter(nodeKey.chapter({ book: 'John', chapter: n }), { revisitCount: 0, exposureCount: 9 }),
+    );
+    expect(engineHasEnoughReady(glanced, NOW, new Map())).toBe(false);
+  });
+
+  it('counts a chapter that was read once and marked in', () => {
+    // One read plus a highlight is two deliberate acts, the same bar a note or verse clears.
+    const key = nodeKey.chapter({ book: 'John', chapter: 3 });
+    const read = [1, 2, 3, 4, 5].map((n) =>
+      chapter(nodeKey.chapter({ book: 'John', chapter: n }), { revisitCount: 1 }),
+    );
+    expect(engineHasEnoughReady(read, NOW, new Map())).toBe(false);
+    const marked = read.map((c) => ({ ...c, nodeKey: key }));
+    expect(
+      engineHasEnoughReady(marked, NOW, new Map(), { highlightedChapterKeys: new Set([key]) }),
+    ).toBe(true);
   });
 
   it('is picked once the account has cleared the gate on its own study', () => {
@@ -450,5 +551,126 @@ describe('a chapter the reader has been through', () => {
       existingSourceKeys: emptyKeys,
     });
     expect(picked.map((n) => n.nodeKey)).toEqual([john3]);
+  });
+});
+
+/**
+ * What the cold start is waiting for, in terms a reader can be told.
+ *
+ * The gate can hold an account for days, and Review rendering nothing at all in the meantime is
+ * indistinguishable from Review being broken — which is how it was reported, three times, by
+ * someone who could see the feature existed and never saw a single item.
+ *
+ * The estimate has to be honest about which of the three holds applies. Only age resolves on its
+ * own; too few committed signals and too thin a note both need the reader to do something, and a
+ * date promised to someone whose study will still not qualify is worse than no date.
+ */
+describe('describeEngineColdStart', () => {
+  const readyVerse = (key: string) =>
+    verse(key, { exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(30) });
+  /** Would qualify on every count except that it was studied today. */
+  const newVerse = (key: string, ageDays: number) =>
+    verse(key, { exposureCount: 2, revisitCount: 1, firstStudiedAt: daysAgo(ageDays) });
+
+  it('reports how far off the gate is', () => {
+    const state = describeEngineColdStart(['a', 'b'].map(readyVerse), NOW, new Map());
+    expect(state.ready).toBe(2);
+    expect(state.needed).toBe(5);
+  });
+
+  it('gives a date when waiting alone will open it', () => {
+    // Two qualify now; three more were studied today and need to reach three days old.
+    const nodes = [
+      ...['a', 'b'].map(readyVerse),
+      ...['c', 'd', 'e'].map((k) => newVerse(k, 0)),
+    ];
+    const state = describeEngineColdStart(nodes, NOW, new Map());
+    expect(state.ready).toBe(2);
+    expect(state.opensAt).toBeInstanceOf(Date);
+    // The third of the young ones is the one that tips it, three days after it was studied.
+    expect(state.opensAt!.getTime()).toBe(daysAgo(0).getTime() + 3 * 24 * 60 * 60 * 1000);
+  });
+
+  it('names the date the fifth node matures, not the last', () => {
+    const nodes = [
+      ...['a', 'b', 'c', 'd'].map(readyVerse),
+      newVerse('e', 1),
+      newVerse('f', 0),
+    ];
+    // Four are ready, so only one more is needed — the older of the two young ones.
+    const state = describeEngineColdStart(nodes, NOW, new Map());
+    expect(state.opensAt!.getTime()).toBe(daysAgo(1).getTime() + 3 * 24 * 60 * 60 * 1000);
+  });
+
+  it('gives no date when there is not enough study to mature', () => {
+    // Three nodes in total can never reach five by waiting.
+    const state = describeEngineColdStart(['a', 'b', 'c'].map((k) => newVerse(k, 0)), NOW, new Map());
+    expect(state.opensAt).toBeNull();
+  });
+
+  it('gives no date for a node that will still not qualify once it is old enough', () => {
+    // Studied today and never returned to — age is not the only thing holding it back, so its
+    // third birthday changes nothing and promising that date would be a lie.
+    const barren = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      verse(k, { exposureCount: 0, revisitCount: 0, firstStudiedAt: daysAgo(0) }),
+    );
+    expect(describeEngineColdStart(barren, NOW, new Map()).opensAt).toBeNull();
+  });
+
+  it('counts read chapters, matching the gate it describes', () => {
+    // Was asserted the other way, alongside the exclusion in `engineHasEnoughReady`. These two
+    // have to agree about what a ready node is, or the estimate describes a different gate.
+    const chapters = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      node({ nodeKind: 'chapter', nodeKey: k, revisitCount: 2, firstStudiedAt: daysAgo(30) }),
+    );
+    const state = describeEngineColdStart(chapters, NOW, new Map());
+    expect(state.ready).toBe(5);
+    expect(engineHasEnoughReady(chapters, NOW, new Map())).toBe(true);
+  });
+
+  it('dates a chapter a day out, not three', () => {
+    // Chapters mature on `ENGINE_MIN_CHAPTER_AGE_DAYS`. Using the note threshold here would put
+    // the estimate two days behind the gate.
+    const chapters = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      node({ nodeKind: 'chapter', nodeKey: k, revisitCount: 2, firstStudiedAt: daysAgo(0) }),
+    );
+    const state = describeEngineColdStart(chapters, NOW, new Map());
+    expect(state.opensAt!.getTime()).toBe(daysAgo(0).getTime() + ENGINE_MIN_CHAPTER_AGE_DAYS * 24 * 60 * 60 * 1000);
+  });
+
+  it('agrees with the gate about when the engine may run', () => {
+    const five = ['a', 'b', 'c', 'd', 'e'].map(readyVerse);
+    expect(engineHasEnoughReady(five, NOW, new Map())).toBe(true);
+    expect(describeEngineColdStart(five, NOW, new Map()).ready).toBeGreaterThanOrEqual(5);
+  });
+
+  it('counts written notes, matching the gate it describes', () => {
+    /*
+     * The same parity claim as the chapter case above, for the kind that just changed. These two
+     * functions have to agree about what a ready node is; when they drifted this morning the
+     * estimate described a gate that was not the one running, and Review left Home entirely.
+     *
+     * Five notes written and never returned to — nothing but the write touch on any of them.
+     */
+    const written = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      noteNode(k, { exposureCount: 1, revisitCount: 0, firstStudiedAt: daysAgo(30) }),
+    );
+    const weights = new Map(written.map((n) => [n.noteId!, 0.5]));
+    expect(describeEngineColdStart(written, NOW, weights).ready).toBe(5);
+    expect(engineHasEnoughReady(written, NOW, weights)).toBe(true);
+  });
+
+  it('dates a written note that is only too new, and promises nothing for a thin one', () => {
+    const young = ['a', 'b', 'c', 'd', 'e'].map((k) =>
+      noteNode(k, { exposureCount: 1, revisitCount: 0, firstStudiedAt: daysAgo(0) }),
+    );
+    const substantial = new Map(young.map((n) => [n.noteId!, 0.5]));
+    expect(describeEngineColdStart(young, NOW, substantial).opensAt!.getTime()).toBe(
+      daysAgo(0).getTime() + ENGINE_MIN_NODE_AGE_DAYS * 24 * 60 * 60 * 1000,
+    );
+
+    // Thin notes never qualify by waiting, so no date is the honest answer.
+    const thin = new Map(young.map((n) => [n.noteId!, 0.1]));
+    expect(describeEngineColdStart(young, NOW, thin).opensAt).toBeNull();
   });
 });

@@ -77,7 +77,18 @@ jobs:
           # across is what failed all three Fly cutovers.
           VITE_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
           PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ github.ref_name == 'main' && secrets.VITE_CLERK_PUBLISHABLE_KEY_LIVE || secrets.VITE_CLERK_PUBLISHABLE_KEY_DEV }}
-          PUBLIC_POSTHOG_KEY: ${{ secrets.PUBLIC_POSTHOG_KEY }}
+          # Staging gets no key, so posthog.ts returns before init() and sends nothing.
+          # Unconditional, this was the one var that made new.harvous.com indistinguishable
+          # from production in the dashboard: every staging pageview, identify and capture
+          # landed in the live project, against real user ids because staging authenticates
+          # off the same Clerk cookie. env.DEV is false in a CI build, so the dev suppression
+          # in initPostHog() never applied here.
+          #
+          # Production is untouched — `main` still reads the same secret, so its bundle stays
+          # byte-identical, which is what the "EXACTLY 10 vars" note above is protecting.
+          # A staging-only project would go here as PUBLIC_POSTHOG_KEY_STAGING if the events
+          # ever turn out to be worth keeping.
+          PUBLIC_POSTHOG_KEY: ${{ github.ref_name == 'main' && secrets.PUBLIC_POSTHOG_KEY || '' }}
           PUBLIC_POSTHOG_HOST: ${{ secrets.PUBLIC_POSTHOG_HOST }}
           VITE_CLERK_SHARED_SPACES_PLAN_ID: ${{ secrets.VITE_CLERK_SHARED_SPACES_PLAN_ID }}
           # Public plan identifiers, not secrets (netlify.toml carried them in
@@ -134,6 +145,18 @@ jobs:
           if find dist-spa -type f -size +5242880c ! -name '*.map' | grep -q .; then
             echo "Asset over the 5 MiB Workers limit:" >&2
             find dist-spa -type f -size +5242880c ! -name '*.map' -exec ls -lh {} \; >&2
+            exit 1
+          fi
+
+      # The env expression above is easy to make unconditional again by accident, and the
+      # symptom — staging traffic quietly counted as production — shows up in a dashboard
+      # weeks later rather than in a failed deploy. So the built bundle is asked directly.
+      - name: Assert staging ships no analytics key
+        if: github.ref_name != 'main'
+        run: |
+          if grep -rlq 'phc_' dist-spa; then
+            echo "A PostHog project key was inlined into a staging bundle:" >&2
+            grep -rl 'phc_' dist-spa >&2
             exit 1
           fi
 

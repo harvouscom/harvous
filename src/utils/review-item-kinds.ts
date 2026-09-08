@@ -294,3 +294,19 @@ export const REVIEW_SESSION_CAP = 10;
  */
 export const REVIEW_ENGINE_DAILY_CAP = 3;
 export const REVIEW_ENGINE_WINDOW_HOURS = 24;
+
+/**
+ * How much unanswered study the engine will let pile up before it stops offering more.
+ *
+ * `REVIEW_ENGINE_DAILY_CAP` limits how fast the queue grows; nothing limited how big it got.
+ * Three a day, none of them answered, is ninety in a month — and because the inbox shows three,
+ * the pile stays invisible until something names the count and the reader is told they are ninety
+ * behind. This file already argues that a number like that is a debt rather than a practice.
+ *
+ * Twelve, which is four sittings' worth at `REVIEW_INBOX_MAX_ROWS`. Enough that a normal week of
+ * skipping a day does not trip it, low enough that nobody meets a wall of their own study.
+ *
+ * It is a pause, not a penalty: answering a few drops the count back under and the engine resumes
+ * on its own. Only *due* items count, so something scheduled for next week never holds it.
+ */
+export const REVIEW_ENGINE_MAX_OUTSTANDING = REVIEW_INBOX_MAX_ROWS * 4;

@@ -81,13 +81,26 @@ export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
  *
  * The nothing-yet one says where reviews come from, because a new reader looking at an empty
  * feature has no way to know it is fed by their own study rather than by a button they missed.
+ *
+ * It says only that. It used to add "Mark a verse or write a note, and they start showing up
+ * here", which pushed the block to four lines and, sat above a date, read as a list of chores
+ * standing between the reader and the thing they were promised. One sentence for where reviews
+ * come from and one for when, and the pair fits in two lines.
  */
 export const REVIEW_EMPTY_UP_TO_DATE_TITLE = 'You are up to date';
 export const REVIEW_EMPTY_NOTHING_YET_TITLE = 'Nothing to review yet';
-export const REVIEW_EMPTY_NOTHING_YET_BODY =
-  'Reviews come from your own study. Mark a verse or write a note, and they start showing up here.';
+export const REVIEW_EMPTY_NOTHING_YET_BODY = 'Reviews come from your own study.';
 export const REVIEW_EMPTY_SETTLED_BODY = 'Nothing waiting right now.';
 export const reviewNextDueCopy = (when: string) => `The next one comes back ${when}.`;
+
+/**
+ * When the engine has not started yet and waiting is all it needs.
+ *
+ * Only ever shown with a date the gate can actually keep: age is one of three things holding a
+ * piece of study back, and the other two need the reader to do something. Saying "Thursday" to
+ * someone whose notes will still not qualify on Thursday is worse than the silence it replaces.
+ */
+export const reviewColdStartOpensCopy = (when: string) => `The first ones should arrive ${when}.`;
 
 /*
  * Both halves of one toggle, not a link.
