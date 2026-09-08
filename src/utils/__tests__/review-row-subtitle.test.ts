@@ -204,6 +204,28 @@ describe('reviewRowSubject', () => {
     ).toBe('One of your passages');
   });
 
+  it('leads with the quoted line when the name would be the answer', () => {
+    expect(
+      reviewRowSubject({
+        prompt: 'x',
+        kind: 'note',
+        noteLabel: 'Adoption',
+        ladderStep: 0,
+        promptKey: 'note.recognize',
+        cue: 'chose us before the foundation of the world',
+      }),
+    ).toBe('chose us before the foundation of the world');
+    expect(
+      reviewRowSubject({
+        prompt: 'x',
+        kind: 'verse',
+        scriptureReference: 'John 15:5',
+        promptKey: 'verse.locate',
+        cue: 'apart from me you can do nothing',
+      }),
+    ).toBe('apart from me you can do nothing');
+  });
+
   it('names the note when the resolved rung is not recognize', () => {
     // Step 0 with a walked-forward prompt used to hide the name too, so "Pick a passage
     // you cited" sat under "One of your notes" five times in a row.

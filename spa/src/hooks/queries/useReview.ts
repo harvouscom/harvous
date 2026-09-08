@@ -50,6 +50,8 @@ export interface ReviewItemView {
   /** Why this row is here, in the reader's words. Null on items they added themselves. */
   sourceLabel: string | null;
   sourceAt: string | null;
+  /** Quoted line or verse fragment, when the row cannot name the subject. */
+  cue: string | null;
 }
 
 /**

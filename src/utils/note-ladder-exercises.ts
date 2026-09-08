@@ -161,6 +161,8 @@ export function buildNoteRecognize(input: {
   span?: NoteSpan | null;
   answerLabel: string;
   poolLabels: readonly string[];
+  /** Same-book / linked notes go in `poolLabels`; the rest of the library sits here. */
+  fallbackLabels?: readonly string[];
   seed: string;
 }): NoteRecognizeExercise | null {
   const fragment = input.fragment.trim();
@@ -169,6 +171,7 @@ export function buildNoteRecognize(input: {
   const choice = buildChoiceExercise({
     answers: [input.answerLabel],
     pool: input.poolLabels,
+    fallbackPool: input.fallbackLabels,
     optionCount: OPTION_COUNT,
     seed: input.seed,
   });
@@ -285,6 +288,7 @@ export function buildNoteAnnotation(input: {
   annotation: string;
   reference: string;
   poolReferences: readonly string[];
+  fallbackReferences?: readonly string[];
   seed: string;
 }): NoteRecognizeExercise | null {
   const annotation = input.annotation.replace(/\s+/g, ' ').trim();
@@ -301,6 +305,7 @@ export function buildNoteAnnotation(input: {
   const choice = buildChoiceExercise({
     answers: [reference],
     pool: input.poolReferences,
+    fallbackPool: input.fallbackReferences,
     optionCount: OPTION_COUNT,
     seed: input.seed,
   });

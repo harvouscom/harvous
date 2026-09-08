@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { interleaveSession, sessionGroupKeyFor, type SessionOrderInput } from '../review-session-order';
+import { interleaveSession, sessionGroupKeyFor, composeSitting, type SessionOrderInput } from '../review-session-order';
 
 const NOW = new Date('2026-09-03T12:00:00.000Z');
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
+const daysFromNow = (n: number) => new Date(NOW.getTime() + n * 24 * 60 * 60 * 1000);
 
 function item(id: string, kind: string, groupKey: string, overdue: number, reviewCount = 1): SessionOrderInput {
   return { id, kind, groupKey, dueAt: daysAgo(overdue), reviewCount };
@@ -100,5 +101,53 @@ describe('rung shape', () => {
       { ...item('c', 'verse', 'psalm 23', 1), ladderStep: 1 },
     ];
     expect(ids(interleaveSession(items, NOW))).toEqual(['a', 'c', 'b']);
+  });
+});
+
+describe('composeSitting', () => {
+  it('pulls a near-due passage into a notes-only handful', () => {
+    const due = [1, 2, 3, 4, 5].map((n) => item(`n${n}`, 'note', `note-${n}`, 0));
+    const upcoming = [{ ...item('v1', 'verse', 'john 3', 0), dueAt: daysFromNow(1) }];
+    const sitting = composeSitting(due, upcoming, 5, NOW);
+    expect(sitting.some((i) => i.kind === 'verse')).toBe(true);
+    expect(sitting.some((i) => i.kind === 'note')).toBe(true);
+    expect(sitting).toHaveLength(5);
+  });
+
+  it('does not raid something due next week', () => {
+    const due = [1, 2, 3, 4, 5].map((n) => item(`n${n}`, 'note', `note-${n}`, 0));
+    const upcoming = [{ ...item('v1', 'verse', 'john 3', 0), dueAt: daysFromNow(7) }];
+    const sitting = composeSitting(due, upcoming, 5, NOW);
+    expect(sitting.every((i) => i.kind === 'note')).toBe(true);
+    expect(ids(sitting)).not.toContain('v1');
+  });
+
+  it('caps the dominant half when the other is waiting nearby', () => {
+    const due = [1, 2, 3, 4, 5].map((n) => item(`n${n}`, 'note', `note-${n}`, 0));
+    const upcoming = [1, 2, 3].map((n) => ({
+      ...item(`v${n}`, 'verse', `john ${n}`, 0),
+      dueAt: daysFromNow(1),
+    }));
+    const sitting = composeSitting(due, upcoming, 5, NOW);
+    expect(sitting.filter((i) => i.kind === 'note').length).toBeLessThanOrEqual(3);
+    expect(sitting.filter((i) => i.kind === 'verse').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('leaves an empty due pile empty, even if something is due tomorrow', () => {
+    const upcoming = [{ ...item('v1', 'verse', 'john 3', 0), dueAt: daysFromNow(1) }];
+    expect(composeSitting([], upcoming, 5, NOW)).toEqual([]);
+  });
+
+  it('leaves a mixed due pile on the due items', () => {
+    const due = [
+      item('n1', 'note', 'n-1', 0),
+      item('n2', 'note', 'n-2', 0),
+      item('v1', 'verse', 'john 3', 0),
+      item('v2', 'verse', 'romans 8', 0),
+      item('n3', 'note', 'n-3', 0),
+    ];
+    const upcoming = [{ ...item('v3', 'verse', 'psalm 23', 0), dueAt: daysFromNow(1) }];
+    const sitting = composeSitting(due, upcoming, 5, NOW);
+    expect(sitting.every((i) => due.some((d) => d.id === i.id))).toBe(true);
   });
 });

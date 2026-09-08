@@ -45,6 +45,11 @@ export interface ReviewRowSubtitleInput {
   scriptureReference?: string | null;
   /** ISO date, the last resort for a note with no name and no passage. */
   noteWrittenAt?: string | null;
+  /**
+   * The stem of the question, when the subject's name *is* the answer.
+   * A quoted line from the note, or a fragment of the verse — unique, and not a spoiler.
+   */
+  cue?: string | null;
 }
 
 /** "9 Aug" / "9 Aug 2025" — formatted on the client, which is the only side that knows the zone. */
@@ -164,6 +169,10 @@ export function reviewRowSubject(
   now: Date = new Date(),
 ): string {
   if (rungIdentityIsTheAnswer(item)) {
+    // The quoted line is the question, not the answer. "One of your notes" five times
+    // was a shelf of identical rows; the fragment is how the reader tells them apart.
+    const cue = item.cue?.trim();
+    if (cue) return cue;
     return item.kind === 'verse' ? REVIEW_SUBJECT_HIDDEN_VERSE : REVIEW_SUBJECT_HIDDEN_NOTE;
   }
 
