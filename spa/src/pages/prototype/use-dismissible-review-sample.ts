@@ -18,6 +18,36 @@
 import { useCallback, useState } from 'react';
 
 export const PROTO_REVIEW_SAMPLE_DISMISSED_KEY = 'harvous-prototype-review-sample-dismissed';
+export const PROTO_REVIEW_SAMPLE_RESULT_KEY = 'harvous-prototype-review-sample-result';
+
+export interface ReviewSampleResult {
+  day: string;
+  correct: boolean;
+  verseText: string;
+  translation?: string;
+}
+
+export function readReviewSampleResult(day: string): ReviewSampleResult | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(PROTO_REVIEW_SAMPLE_RESULT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ReviewSampleResult;
+    if (parsed?.day !== day || typeof parsed.verseText !== 'string') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function writeReviewSampleResult(result: ReviewSampleResult): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PROTO_REVIEW_SAMPLE_RESULT_KEY, JSON.stringify(result));
+  } catch {
+    // Session state in the card still holds for this visit.
+  }
+}
 
 function read(): boolean {
   if (typeof window === 'undefined') return false;
