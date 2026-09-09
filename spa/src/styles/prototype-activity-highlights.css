@@ -1,0 +1,18 @@
+/*
+ * Activity highlight rows: clock on the quote line (same place a note keeps it),
+ * and two lines of the marked words instead of a single clipped fragment.
+ *
+ * Lives beside prototype-route-overrides.css so that file is not rewritten to add
+ * one rule.
+ */
+html.harvous-prototype-route .proto-feed-said__quote {
+  align-self: stretch;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.45;
+  text-underline-offset: 3px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
