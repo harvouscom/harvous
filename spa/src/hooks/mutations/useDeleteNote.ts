@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
 import { clearCachedNoteDetail, clearNoteParentThreadLocalCache } from '../queries/useNote';
@@ -13,6 +13,7 @@ import {
   spaceNotesQueryKey,
 } from '../../lib/space-notes-cache';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
+import { invalidatePrototypeStudyThreadListQueries } from '@/utils/prototype-study-thread-list-sync';
 import { markNotesDeleted, unmarkNotesDeleted } from '../../pages/prototype/proto-deleted-notes';
 
 function purgeDeletedNoteClientCaches(queryClient: QueryClient, noteId: string) {
@@ -71,6 +72,8 @@ export function useDeleteNote() {
       // which is how a note deleted a moment ago kept being named on the Suggested shelf.
       queryClient.invalidateQueries({ queryKey: ['note-connect-suggestions'] });
       queryClient.invalidateQueries({ queryKey: ['note-crossref-gaps'] });
+      // Activity's trail and Home's highlight shelf. Prefix-matches every study-feed scope.
+      invalidatePrototypeStudyThreadListQueries(queryClient, variables.spaceId);
 
       const sid = normalizeSpaceIdForCache(variables.spaceId);
       if (!sid) return;
