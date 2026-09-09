@@ -5,9 +5,12 @@ import {
   ONBOARDING_STEP_IDS,
   ONBOARDING_VERSION,
   deriveInitialLatches,
+  canRestoreOnboarding,
   dismissOnboarding,
   dismissStep,
   emptyOnboardingState,
+  isOnboardingClusterDismissed,
+  restoreOnboarding,
   markStep,
   markSteps,
   mergeOnboardingStates,
@@ -66,7 +69,6 @@ describe('parseOnboardingState', () => {
     expect(state!.version).toBe(1);
     expect(state!.dismissedVersion).toBe(0);
     expect(state!.completedAt).toBeNull();
-    // A truthy non-boolean must not count as done — only `true` does.
     expect(state!.steps.note.done).toBe(false);
   });
 
@@ -100,7 +102,6 @@ describe('mergeOnboardingStates', () => {
   });
 
   it('is commutative and idempotent for a two-device race', () => {
-    // Phone did two steps offline; laptop did two others and dismissed one.
     const phone = markSteps(emptyOnboardingState(), ['read', 'note'], T1);
     const laptop = dismissStep(markSteps(emptyOnboardingState(), ['pill', 'thread'], T2), 'recall');
 
@@ -125,8 +126,6 @@ describe('mergeOnboardingStates', () => {
   });
 
   it('survives a stale device pushing over newer progress', () => {
-    // The bug this whole module exists to prevent: laptop syncs Wednesday's progress, then
-    // a phone that has been offline since Tuesday flushes its copy.
     const account = markSteps(emptyOnboardingState(), ['read', 'note', 'pill'], T3);
     const stalePhone = markStep(emptyOnboardingState(), 'read', T1);
     const afterFlush = mergeOnboardingStates(account, stalePhone);
@@ -140,7 +139,7 @@ describe('markStep / completion', () => {
     const once = markStep(emptyOnboardingState(), 'note', T1);
     const twice = markStep(once, 'note', T3);
     expect(twice.steps.note.at).toBe(T1);
-    expect(twice).toBe(once); // no-op returns the same reference
+    expect(twice).toBe(once);
   });
 
   it('stamps completedAt only when every step is done', () => {
@@ -203,6 +202,19 @@ describe('shouldShowOnboarding', () => {
     for (const id of ONBOARDING_STEP_IDS.slice(1)) state = markStep(state, id, T1);
     expect(shouldShowOnboarding(state)).toBe(true);
   });
+
+  it('comes back after a restore, even though dismissedVersion stays set', () => {
+    const putAway = dismissOnboarding(emptyOnboardingState());
+    expect(isOnboardingClusterDismissed(putAway)).toBe(true);
+    expect(canRestoreOnboarding(putAway)).toBe(true);
+    expect(shouldShowOnboarding(putAway)).toBe(false);
+
+    const back = restoreOnboarding(putAway);
+    expect(back.dismissedVersion).toBe(ONBOARDING_VERSION);
+    expect(isOnboardingClusterDismissed(back)).toBe(false);
+    expect(canRestoreOnboarding(back)).toBe(false);
+    expect(shouldShowOnboarding(back)).toBe(true);
+  });
 });
 
 describe('onboardingProgress', () => {
@@ -215,11 +227,6 @@ describe('onboardingProgress', () => {
   });
 });
 
-/*
- * The customization rows ride in the same record as the tour but must not touch its
- * lifecycle. Every assertion here is really the same one: shipping a new row cannot bring
- * the dock back for an account that already finished or dismissed it.
- */
 describe('customization steps', () => {
   const completedTour = (): ReturnType<typeof emptyOnboardingState> => {
     let state = emptyOnboardingState();
@@ -265,8 +272,6 @@ describe('customization steps', () => {
   });
 
   it('survive a merge with a client that predates them', () => {
-    /* What an older build pushes: the tour keys only. Its copy must not read as a "no" on
-       rows it has never heard of, or one stale device would sweep them for the account. */
     const legacy = parseOnboardingState(
       JSON.stringify({
         version: 1,
