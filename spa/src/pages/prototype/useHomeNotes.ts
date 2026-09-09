@@ -13,13 +13,14 @@
  * The queries are the same ones the sidebar already runs, so the extra cost is a cache read
  * rather than a round trip — React Query dedupes them by key.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useSpaceNotes } from '../../hooks/queries/useSpace';
 
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import { sortNotesByLastUpdated } from '@/utils/sorting';
 import { isEffectivelyEmptyPrototypeNote } from '@/utils/prototype-note-empty';
+import { isNoteDeleted, subscribeDeletedNotes } from './proto-deleted-notes';
 
 export interface HomeNotes {
   notes: SpaceNoteRow[];
@@ -44,17 +45,23 @@ export function useHomeNotes(overrideSpaceId?: string | null): HomeNotes {
      staying idle, so the greeting simply has nothing to say until Home resolves. */
   const spaceId = homeSpaceId ?? undefined;
   const notesQuery = useSpaceNotes(spaceId ?? '', 20);
+  const [deletedTick, setDeletedTick] = useState(0);
+  useEffect(() => subscribeDeletedNotes(() => setDeletedTick((n) => n + 1)), []);
 
   /*
    * De-duplicated and stripped of blanks, exactly as `PrototypeSidebar` does before handing
    * the same list to the same greeting. Flattening the raw pages instead is what made the
    * chip read "30 notes" on the day sheet while the sidebar said 27: a page boundary can
    * repeat a row, and a note with no title and no body is not one the sentence should count.
+   *
+   * Deleted ids are dropped here so Continue can pick the next live note in the same render
+   * as the delete, even if the notes cache has not finished refetching.
    */
   const notes = useMemo(() => {
     const flat = notesQuery.data?.pages.flatMap((page) => page.notes) ?? [];
     const byId = new Map<string, SpaceNoteRow>();
     for (const note of flat) {
+      if (isNoteDeleted(note.id)) continue;
       const existing = byId.get(note.id);
       if (!existing) {
         byId.set(note.id, note);
@@ -67,7 +74,7 @@ export function useHomeNotes(overrideSpaceId?: string | null): HomeNotes {
     return sortNotesByLastUpdated(Array.from(byId.values())).filter(
       (n: SpaceNoteRow) => !isEffectivelyEmptyPrototypeNote(n.title, n.content),
     );
-  }, [notesQuery.data]);
+  }, [notesQuery.data, deletedTick]);
   const total = notesQuery.data?.pages[0]?.total ?? null;
 
   /* The count arithmetic these two feed is `useHomeSurfaceData`'s, so the sidebar and the

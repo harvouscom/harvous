@@ -1,0 +1,22 @@
+/*
+ * Activity highlight rows: clock on the quote line (same place a note keeps it),
+ * and at most two lines of the marked words.
+ *
+ * `-webkit-line-clamp` plus a max-height cap so a long underline cannot blow past
+ * two lines if the box clamp is ignored. `white-space: normal` is required for wrap.
+ */
+html.harvous-prototype-route .proto-feed-said__head .proto-feed-said__quote,
+html.harvous-prototype-route .proto-feed-said__quote {
+  align-self: stretch;
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.45;
+  text-underline-offset: 3px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  max-height: calc(1.45em * 2);
+}

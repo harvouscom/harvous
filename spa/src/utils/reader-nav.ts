@@ -54,6 +54,36 @@ export function readerRouteForReference(
   };
 }
 
+export type ReadRouteSearch = {
+  v?: string;
+  vEnd?: string;
+  t?: string;
+  c?: string;
+  ref?: string;
+  req?: string;
+};
+
+/**
+ * `?ref=` is a dictionary headword. Activity used to put a verse there
+ * ("Ecclesiastes 4:3"), which opened Easton's on a title with no entry.
+ *
+ * A scripture-shaped value is dropped and, when the URL did not already name a
+ * verse, copied onto `v` / `vEnd` so the reader still lands on the passage.
+ */
+export function sanitizeReadSearch(search: ReadRouteSearch): ReadRouteSearch {
+  const rawRef = search.ref?.trim();
+  if (!rawRef) return search;
+  const parsed = parseScriptureReference(rawRef);
+  if (!parsed) return search;
+  const route = readerRouteForReference(rawRef, search.t || 'NET');
+  return {
+    ...search,
+    v: search.v || route?.search.v,
+    vEnd: search.vEnd || route?.search.vEnd,
+    ref: undefined,
+  };
+}
+
 /**
  * The same route, stamped so it lands again even when you are already on it.
  *

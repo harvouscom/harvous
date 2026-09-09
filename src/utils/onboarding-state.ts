@@ -33,10 +33,10 @@ export type OnboardingStepId =
   | OnboardingCustomizeId;
 
 /**
- * The customization offers — reminders, appearance, import.
+ * The customization offers — reminders, appearance, translation, import.
  *
  * Deliberately *not* part of `ONBOARDING_STEP_IDS`, which is the tour: the six things that
- * teach someone what Harvous is. These three teach nothing. They are settings worth knowing
+ * teach someone what Harvous is. These four teach nothing. They are settings worth knowing
  * about, ridden along in the same dock because that is where a new account is already looking.
  *
  * Keeping them out of the tour set is what makes this change free of blast radius. The dock's
@@ -50,7 +50,7 @@ export type OnboardingStepId =
  * They still live in the same `steps` record, so they persist, merge, and dismiss through
  * exactly the machinery the tour uses — see `ALL_STEP_IDS`.
  */
-export type OnboardingCustomizeId = 'reminders' | 'appearance' | 'import';
+export type OnboardingCustomizeId = 'reminders' | 'appearance' | 'translation' | 'import';
 
 /** Display order, and the set `shouldShowOnboarding` counts against. */
 export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
@@ -66,6 +66,7 @@ export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
 export const CUSTOMIZE_STEP_IDS: readonly OnboardingCustomizeId[] = [
   'reminders',
   'appearance',
+  'translation',
   'import',
 ];
 
@@ -94,44 +95,20 @@ export function isOnboardingStepId(value: string): value is OnboardingStepId {
   return STEP_ID_SET.has(value);
 }
 
-/**
- * The four steps Home can see the answer to without being told.
- *
- * These are latched from data the sidebar already loads, so they arrive pre-checked for
- * anyone who did the thing before the dock existed. The other two ('thread', 'recall') are
- * event-stored — deriving them would mean new queries on a surface that already waits on
- * fifteen.
- */
 export const DERIVED_STEP_IDS: readonly OnboardingStepId[] = ['read', 'note', 'pill', 'highlight'];
 
-/**
- * Derived signals this many or more means the account is already a going concern, and the
- * checklist auto-completes instead of introducing someone to their own app.
- */
 export const ONBOARDING_AUTOCOMPLETE_MIN_SIGNALS = 3;
 
 export interface OnboardingStepState {
   done: boolean;
   dismissed: boolean;
-  /** When the step was first satisfied. Absent while `done` is false. */
   at?: string;
 }
 
 export interface OnboardingState {
   version: number;
-  /** Version at which the whole cluster was put away; 0 = never. */
   dismissedVersion: number;
-  /**
-   * Version at which the reader asked for it back from settings; 0 = never.
-   *
-   * A second counter rather than resetting `dismissedVersion`, because every field here is
-   * monotonic and merges by taking the larger — clearing the dismissal would simply lose to
-   * whichever device still remembered it, and the checklist would vanish again on the next
-   * sync. Two climbing numbers survive that: the cluster is hidden only while the dismissal
-   * is ahead of the restore, and either action can be taken any number of times.
-   */
   restoredVersion: number;
-  /** When every step was first satisfied. Informational — visibility derives from the steps. */
   completedAt: string | null;
   steps: Record<OnboardingStepId, OnboardingStepState>;
 }
@@ -171,14 +148,6 @@ function parseStep(raw: unknown): OnboardingStepState {
   return done && at ? { done, dismissed, at } : { done, dismissed };
 }
 
-/**
- * Parse the stored JSON, or `null` when there is nothing usable there.
- *
- * Tolerant by design: an unreadable value means the checklist starts over, which is a
- * strictly better failure than a thrown parse taking Home down with it. Unknown step keys
- * are dropped rather than kept — a v2 that renames a step should not carry the old key
- * around forever.
- */
 export function parseOnboardingState(raw: string | null | undefined): OnboardingState | null {
   if (!raw) return null;
   let obj: unknown;
@@ -215,7 +184,6 @@ export function serializeOnboardingState(state: OnboardingState): string {
   return JSON.stringify(state);
 }
 
-/** The earlier of two ISO stamps, ignoring unparseable ones. */
 function earliestIso(a: string | null | undefined, b: string | null | undefined): string | null {
   if (!a) return b ?? null;
   if (!b) return a;
@@ -229,21 +197,11 @@ function earliestIso(a: string | null | undefined, b: string | null | undefined)
 function mergeStep(a: OnboardingStepState, b: OnboardingStepState): OnboardingStepState {
   const done = a.done || b.done;
   const dismissed = a.dismissed || b.dismissed;
-  // Earliest wins: `done` is monotonic, so the first device to see it is the one that was
-  // actually there. Taking the newest would let a late-syncing phone restate Tuesday as today.
   const at = done ? earliestIso(a.done ? a.at : null, b.done ? b.at : null) : null;
   return at ? { done, dismissed, at } : { done, dismissed };
 }
 
-/**
- * Combine two copies of the state. Commutative and idempotent — order of arrival never
- * changes the result, which is the whole reason the sync layer can merge in both directions.
- */
 export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): OnboardingState {
-  /* Every id, not just the tour: a client that predates the customization rows drops those
-     keys on parse, so its copy reads as `{done:false,dismissed:false}` there and loses the
-     `||` against whatever the account really holds. That is what makes shipping a new row
-     safe without coordinating a client rollout. */
   const steps = {} as Record<OnboardingStepId, OnboardingStepState>;
   for (const id of ALL_STEP_IDS) steps[id] = mergeStep(a.steps[id], b.steps[id]);
   return {
@@ -255,7 +213,6 @@ export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): O
   };
 }
 
-/** Which derived steps the account's own data already answers "yes" to. */
 export function deriveInitialLatches(signals: OnboardingSignals): OnboardingStepId[] {
   const done: OnboardingStepId[] = [];
   if (signals.hasReadPosition) done.push('read');
@@ -265,17 +222,10 @@ export function deriveInitialLatches(signals: OnboardingSignals): OnboardingStep
   return done;
 }
 
-/**
- * Whether an account is established enough that the checklist should never appear.
- *
- * Someone who has read, written, cited and highlighted does not need to be walked through
- * reading, writing, citing and highlighting. Checked once, when the state is first created.
- */
 export function shouldAutoCompleteOnboarding(signals: OnboardingSignals): boolean {
   return deriveInitialLatches(signals).length >= ONBOARDING_AUTOCOMPLETE_MIN_SIGNALS;
 }
 
-/** Mark a step done, keeping the first timestamp if it was already done. */
 export function markStep(
   state: OnboardingState,
   id: OnboardingStepId,
@@ -290,7 +240,6 @@ export function markStep(
   return withCompletion(next, nowIso);
 }
 
-/** Latch several steps at once — the derived-signal path, which fires on a single render. */
 export function markSteps(
   state: OnboardingState,
   ids: readonly OnboardingStepId[],
@@ -308,37 +257,23 @@ export function dismissStep(state: OnboardingState, id: OnboardingStepId): Onboa
   };
 }
 
-/** Put the whole cluster away for this version. */
 export function dismissOnboarding(state: OnboardingState): OnboardingState {
-  /* Has to clear the restore as well as the current version, or putting the checklist away
-     after asking for it back would leave the two counters level and change nothing. */
   const next = Math.max(ONBOARDING_VERSION, state.restoredVersion + 1);
   if (state.dismissedVersion >= next) return state;
   return { ...state, dismissedVersion: next };
 }
 
-/**
- * Bring the checklist back after it was dismissed — the way back in, from settings.
- *
- * Only the cluster. A step put away on its own stays away: that was a separate answer about
- * that step, and sweeping it up in a general "show me this again" would re-ask a question
- * already answered. `canRestoreOnboarding` is what a settings row should offer itself on, so
- * it does not present an action with nothing to undo.
- */
 export function restoreOnboarding(state: OnboardingState): OnboardingState {
   if (state.restoredVersion >= state.dismissedVersion) return state;
   return { ...state, restoredVersion: state.dismissedVersion };
 }
 
-/** Whether there is a dismissal for `restoreOnboarding` to lift. */
 export function canRestoreOnboarding(state: OnboardingState | null): boolean {
   if (!state) return false;
   if (state.dismissedVersion <= state.restoredVersion) return false;
-  /* Nothing to come back to if every step is done or was individually put away. */
   return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
 }
 
-/** A step is settled when it has been done or individually put away. */
 function isStepSettled(step: OnboardingStepState): boolean {
   return step.done || step.dismissed;
 }
@@ -352,7 +287,6 @@ function withCompletion(state: OnboardingState, nowIso: string): OnboardingState
 export interface OnboardingProgress {
   done: number;
   total: number;
-  /** Steps still worth rendering — not individually dismissed. */
   visible: OnboardingStepId[];
 }
 
@@ -362,14 +296,6 @@ export function onboardingProgress(state: OnboardingState): OnboardingProgress {
   return { done, total: visible.length, visible };
 }
 
-/**
- * Whether the dock belongs on Home right now.
- *
- * Hidden once the cluster has been dismissed at the current version, or once every step is
- * settled. There is deliberately no "is this a new account" test: an established account
- * simply has all its derived steps latched, which lands in the same place without needing
- * to know anyone's signup date.
- */
 export function shouldShowOnboarding(state: OnboardingState | null): boolean {
   if (!state) return true;
   if (state.dismissedVersion >= ONBOARDING_VERSION && state.dismissedVersion > state.restoredVersion)

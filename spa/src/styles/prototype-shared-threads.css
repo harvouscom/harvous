@@ -46,13 +46,32 @@
 }
 
 .proto-shared-thread-action {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
   border: 0.5px solid var(--pds-border-control);
   border-radius: var(--pds-radius-button);
-  padding: 7px 10px;
+  padding: 7px 12px;
   background: var(--pds-bg-glass-medium);
   color: var(--pds-text-primary);
-  font: 600 12px/1 var(--pds-font-body);
+  font: 600 12px/1.2 var(--pds-font-body);
+  text-decoration: none;
   cursor: pointer;
+}
+
+.proto-shared-thread-drilldown__progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.proto-shared-thread-drilldown__progress-line {
+  margin: 0;
+  min-width: 0;
 }
 
 .proto-shared-thread-action--primary {

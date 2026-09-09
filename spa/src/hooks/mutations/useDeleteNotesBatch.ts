@@ -42,6 +42,7 @@ export function useDeleteNotesBatch() {
       void queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] });
       void queryClient.invalidateQueries({ queryKey: ['note-connect-suggestions'] });
       void queryClient.invalidateQueries({ queryKey: ['note-crossref-gaps'] });
+      void queryClient.invalidateQueries({ queryKey: ['study-feed'] });
     },
   });
 }

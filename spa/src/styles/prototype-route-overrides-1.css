@@ -1,0 +1,139 @@
+/* ─── Prototype buttons + all descendants ─────────────────────────────────── */
+html.harvous-prototype-route button[class*='proto-'],
+html.harvous-prototype-route [class*='proto-'] button,
+html.harvous-prototype-route button[class*='proto-'] span,
+html.harvous-prototype-route button[class*='proto-'] div,
+html.harvous-prototype-route button[class*='proto-'] p,
+html.harvous-prototype-route button[class*='proto-'] *,
+html.harvous-prototype-route [class*='proto-'] button span,
+html.harvous-prototype-route [class*='proto-'] button div,
+html.harvous-prototype-route [class*='proto-'] button p,
+html.harvous-prototype-route [class*='proto-'] button * {
+  color: var(--pds-text-primary) !important;
+  font-family: var(--pds-font-body) !important;
+}
+
+/*
+ * Harvous 3 welcome — white label on the accent button.
+ *
+ * The blanket rule above matches `button[class*='proto-']` and forces `--pds-text-primary`
+ * with `!important`, which lands dark ink on the blue gradient. Restated here rather than in
+ * the component CSS because only an `!important` in this file can beat it.
+ *
+ * Worth knowing: this whole file is scoped to `html.harvous-prototype-route`, so the design
+ * gallery does not see any of it. A button that looks right at /__dev/design-system can still
+ * be wrong on the real route — check both.
+ */
+html.harvous-prototype-route button.proto-welcome3__cta,
+html.harvous-prototype-route button.proto-welcome3__cta * {
+  color: #fff !important;
+}
+
+/*
+ * Offline badge — one neutral chip, both states.
+ *
+ * It sits inside the translation row's button, so the blanket rule above would otherwise
+ * flatten it to primary; this restates the chip colour rather than letting that happen. The
+ * `*` is for the check icon, whose SVG fills with `currentColor`.
+ *
+ * "Ready" used to be green here, which is what kept the badge green long after
+ * `.proto-offline-badge` in prototype-components.css was restyled neutral — this file is
+ * imported later and shouts `!important`, so it simply won. The states tell themselves apart
+ * by icon and label (a checkmark + "Offline" vs. plain "Part-saved"); green read as a success
+ * toast rather than a fact about a download, and matched no other pill in the app.
+ */
+html.harvous-prototype-route .proto-offline-badge,
+html.harvous-prototype-route .proto-offline-badge * {
+  color: var(--pds-text-secondary) !important;
+}
+
+/* Search clear (circle-xmark) — tertiary like select chevrons; beat blanket button * primary */
+html.harvous-prototype-route button.hmc-church-picker__clear,
+html.harvous-prototype-route button.hmc-church-picker__clear *,
+html.harvous-prototype-route button.proto-sidebar-search__clear,
+html.harvous-prototype-route button.proto-sidebar-search__clear * {
+  color: var(--pds-text-tertiary, var(--pds-text-secondary)) !important;
+}
+
+html.harvous-prototype-route button.hmc-church-picker__clear:hover:not(:disabled),
+html.harvous-prototype-route button.hmc-church-picker__clear:hover:not(:disabled) *,
+html.harvous-prototype-route button.proto-sidebar-search__clear:hover:not(:disabled),
+html.harvous-prototype-route button.proto-sidebar-search__clear:hover:not(:disabled) * {
+  color: var(--pds-text-secondary) !important;
+}
+
+html.harvous-prototype-route button.hmc-church-picker__clear path,
+html.harvous-prototype-route button.proto-sidebar-search__clear path {
+  fill: currentColor !important;
+}
+
+/*
+  Destructive icon actions — white glyph on the red fill.
+
+  The fill itself lives with the component (`.proto-side-panel__action-btn--danger`
+  in prototype-components.css); only the *colour* has to be re-stated here,
+  because the blanket rule above pins every proto button and its descendants to
+  `--pds-text-primary !important`, which no amount of specificity beats. Same
+  reason the search-clear exception exists. Descendants are listed explicitly
+  since the glyph sits in a `<span style="color: inherit">`, and that span is
+  itself caught by the blanket `button *`.
+*/
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:hover:not(:disabled),
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:hover:not(:disabled) *,
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:focus-visible,
+html.harvous-prototype-route button.proto-side-panel__action-btn--danger:focus-visible * {
+  color: var(--pds-on-accent, #fff) !important;
+}
+
+/* Sidebar list view + toolbar folder chip + sidebar layer switch — GSF axes inside buttons.
+ *
+ * Every label in this row has to be named here or it silently loses the axes: something in
+ * the button reset drops them, and only `ROND` survives to the computed value. The switch's
+ * halves were missing, so they rendered at `font-weight: 500` while the folder chip inches
+ * away rendered at `wght 500` *and* `opsz 14` — the same nominal weight reached two different
+ * ways, which is exactly the near-miss this file exists to close. */
+html.harvous-prototype-route button.proto-sidebar-list-view__trigger,
+html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-sidebar-list-view__label,
+html.harvous-prototype-route button.proto-sidebar-seg__btn,
+html.harvous-prototype-route button.proto-sidebar-seg__btn .proto-sidebar-seg__label,
+html.harvous-prototype-route button.proto-toolbar-folder-chip,
+html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label {
+  font-variation-settings: var(--pds-font-body-variation-toolbar-chip) !important;
+}
+
+/* Sidebar list rows — HarvousFonts axisSettings inside buttons (native noteList* parity) */
+html.harvous-prototype-route button.proto-note-row__main .proto-note-row__title-text,
+html.harvous-prototype-route button.proto-note-row__main .pds-list-title,
+html.harvous-prototype-route .proto-note-row .pds-list-title {
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-title) !important;
+}
+
+html.harvous-prototype-route button.proto-note-row__main .pds-list-timestamp {
+  font-synthesis: none;
+  font-weight: 500 !important;
+  font-variation-settings: var(--pds-font-body-variation-list-timestamp) !important;
+}
+
+html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,
+html.harvous-prototype-route button.proto-note-row__main .pds-list-preview,
+html.harvous-prototype-route .proto-note-row .pds-list-preview {
+  font-synthesis: none;
+  font-variation-settings: var(--pds-font-body-variation-list-preview) !important;
+}
+
+html.harvous-prototype-route [class*='proto-'] button svg,
+html.harvous-prototype-route [class*='proto-'] button path {
+  fill: currentColor !important;
+}
+
+/* Space icon tile glyph (switcher rows) — hue-matched, beats blanket currentColor fill above. */
+html.harvous-prototype-route .space-icon-tile:not(.space-icon-tile--on-dark) svg,
+html.harvous-prototype-route .space-icon-tile:not(.space-icon-tile--on-dark) path {
+  fill: oklch(from var(--space-icon-accent) calc(l * 0.58) min(c * 3.5, 0.2) h) !important;
+}
+
+html.harvous-prototype-route .space-icon-tile--on-dark svg,
+html.harvous-prototype-route .space-icon-tile--on-dark path {
+  fill: rgba(255, 255, 255, 0.96) !important;
+}

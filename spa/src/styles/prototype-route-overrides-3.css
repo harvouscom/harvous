@@ -1,0 +1,106 @@
+/* A row's trailing controls read as punctuation, like the chevron they stand in for — the
+   blanket rule above paints every proto button's glyph at full strength, which made each
+   dismissable row look like it was asking to be dismissed. The weight comes from opacity in
+   prototype-components.css; this only stops the colour being forced. */
+html.harvous-prototype-route .proto-list-panel__row-trailing > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button path,
+html.harvous-prototype-route .proto-list-panel__row-trailing > button *,
+/* The overflow trigger is a grandchild — see the opacity rules in prototype-components.css,
+   which had the same blind spot for the same reason. The review shelf's own overflow and the
+   Plus prompt's dismiss are the same shape and were missed alongside it. */
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-recall-row__more > button path,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-row__more > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-row__more > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-row__more > button path,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-section__plus > button,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-section__plus > button svg,
+html.harvous-prototype-route .proto-list-panel__row-trailing > .proto-review-section__plus > button path {
+  color: var(--pds-text-primary) !important;
+}
+
+/* Translation chip inside passage-context rows — beat blanket `button *` primary above */
+html.harvous-prototype-route [class*='proto-'] button .scripture-pill-chrome__trans-chip,
+html.harvous-prototype-route .passage-context-strip__row .scripture-pill-chrome__trans-chip {
+  color: var(--pds-text-secondary) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+}
+
+/* Settings nav icons — explicit colors (never inherit from button) */
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon span:not(.proto-admin-sidebar__badge),
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon svg,
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon path {
+  color: var(--pds-text-secondary) !important;
+  fill: currentColor !important;
+}
+
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon span:not(.proto-admin-sidebar__badge),
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon svg,
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon path {
+  color: var(--pds-text-primary) !important;
+  fill: currentColor !important;
+}
+
+html.harvous-prototype-route .proto-settings__nav-item .proto-settings__nav-icon .proto-admin-sidebar__badge,
+html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .proto-settings__nav-icon .proto-admin-sidebar__badge {
+  color: #fff !important;
+}
+
+/* On-accent controls — must beat blanket `[class*='proto-'] button` rule above */
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary),
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary) *,
+html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secondary),
+html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secondary) *,
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive,
+html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive *,
+html.harvous-prototype-route button.proto-glass-action--primary,
+html.harvous-prototype-route button.proto-glass-action--primary *,
+/* `span` explicitly: the blanket rule above lists `button[class*='proto-'] span`
+   (0,2,3), which outranks a trailing `*` (0,2,2). Most buttons in this list wrap
+   bare text and never hit it; this one has a real label span. */
+html.harvous-prototype-route button.proto-glass-action--primary span,
+html.harvous-prototype-route button.proto-glass-action--primary svg,
+html.harvous-prototype-route button.proto-fte-field__btn--apply,
+html.harvous-prototype-route button.proto-fte-field__btn--apply *,
+html.harvous-prototype-route button.proto-share-popover__primary,
+html.harvous-prototype-route button.proto-share-popover__primary *,
+html.harvous-prototype-route button.proto-update-toast__action:not(.proto-update-toast__action--secondary),
+html.harvous-prototype-route button.proto-update-toast__action:not(.proto-update-toast__action--secondary) *,
+html.harvous-prototype-route button.proto-note-action-bar__pill--share-active,
+html.harvous-prototype-route button.proto-note-action-bar__pill--share-active *,
+html.harvous-prototype-route button.proto-thread-review__btn--primary,
+html.harvous-prototype-route button.proto-thread-review__btn--primary *,
+html.harvous-prototype-route button.proto-shared-thread-action--primary,
+html.harvous-prototype-route button.proto-shared-thread-action--primary *,
+html.harvous-prototype-route button.admin-usage__window-chip--active,
+html.harvous-prototype-route button.admin-usage__window-chip--active:hover,
+html.harvous-prototype-route button.admin-usage__window-chip--active:focus-visible,
+html.harvous-prototype-route button.admin-usage__window-chip--active *,
+html.harvous-prototype-route a.admin-usage__section-nav-pill--active,
+html.harvous-prototype-route a.admin-usage__section-nav-pill--active * {
+  color: var(--pds-on-accent) !important;
+  fill: var(--pds-on-accent) !important;
+}
+
+html.harvous-prototype-route button.admin-usage__window-chip--active,
+html.harvous-prototype-route button.admin-usage__window-chip--active:hover,
+html.harvous-prototype-route button.admin-usage__window-chip--active:focus-visible {
+  background: var(--pds-bg-accent-button) !important;
+  box-shadow: var(--pds-shadow-accent-button) !important;
+  border-color: transparent !important;
+}
+
+/* Accent check orb inside list rows — white glyph (beats blanket `[class*='proto-'] button *`) */
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb,
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb *,
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb span,
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb svg,
+html.harvous-prototype-route [class*='proto-'] button .proto-accent-check-orb path {
+  color: var(--pds-on-accent) !important;
+  fill: var(--pds-on-accent) !important;
+}

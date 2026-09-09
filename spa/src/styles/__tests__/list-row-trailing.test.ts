@@ -13,7 +13,7 @@
  * literal `"<selector> {"` asserts the *ordering* of the arms as much as their presence, and
  * broke the moment two more wrappers with the same shape were added beside this one.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -21,10 +21,12 @@ const components = readFileSync(
   resolve(process.cwd(), 'spa/src/styles/prototype-components.css'),
   'utf8',
 );
-const overrides = readFileSync(
-  resolve(process.cwd(), 'spa/src/styles/prototype-route-overrides.css'),
-  'utf8',
-);
+const stylesDir = resolve(process.cwd(), 'spa/src/styles');
+const overrides = readdirSync(stylesDir)
+  .filter((name) => name.startsWith('prototype-route-overrides') && name.endsWith('.css'))
+  .sort()
+  .map((name) => readFileSync(resolve(stylesDir, name), 'utf8'))
+  .join('\n');
 
 /*
  * Comments stripped before anything is asserted about *absence*.

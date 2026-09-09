@@ -78,4 +78,18 @@ describe('the two kinds of moment', () => {
     );
     expect(container.querySelectorAll('.proto-feed-said__body').length).toBe(1);
   });
+
+  it('puts a highlight’s clock on the quote row, like a written note', () => {
+    const { container } = renderPart([wrote, quoted]);
+    const highlight = container.querySelector('[data-feed-item-id="highlight-scripture:h1"]');
+    const head = highlight?.querySelector('.proto-feed-said__head');
+    expect(head?.querySelector('.proto-feed-said__quote')?.textContent).toContain(
+      'no condemnation',
+    );
+    expect(head?.querySelector('.proto-feed-said__time')).not.toBeNull();
+    expect(highlight?.querySelector('.proto-feed-said__foot')?.textContent).toContain(
+      'Romans 8:1',
+    );
+    expect(highlight?.querySelector('.proto-feed-said__foot .proto-feed-said__time')).toBeNull();
+  });
 });

@@ -5,6 +5,7 @@ import { useUpdateTranslation } from '../../../hooks/mutations/useUpdateTranslat
 import { useBiblePacks } from '../../../hooks/useBiblePacks';
 import { SettingsGroup, SettingsIntro, SettingsShell } from './SettingsShell';
 import PrototypeTranslationRow from './PrototypeTranslationRow';
+import { markOnboardingStep } from '../../../lib/proto-onboarding-sync';
 
 /**
  * Bytes as something a person can picture.
@@ -72,18 +73,6 @@ export default function PrototypeTranslationPage() {
 
   return (
     <SettingsShell>
-      {/*
-        One line, like every other settings intro on this shell.
-
-        This was four sentences: what choosing does, the limit, that your default saves itself,
-        and that chapters are kept as you read. The last two described behaviour rather than
-        asking anything of the reader — and both are already visible in the list, where the
-        default wears an Offline badge and the rest do not. Explaining machinery every visit is
-        how a settings page ends up with more prose than controls.
-
-        The size stays, because it is the one thing the rows cannot say: "3 of 3" is a limit to
-        take on trust, "14 MB" is a fact someone can weigh against their own device.
-      */}
       <SettingsIntro>
         Pick what you read in, and keep up to {maxPacks} offline.
         {savedCount > 0 ? (
@@ -102,37 +91,9 @@ export default function PrototypeTranslationPage() {
           const isSelected = id === selected;
           const pack = packs.find((p) => p.translationId === id);
           const isDownloading = downloading?.translationId === id;
-          /* Asked for, but another pack is still transferring — `queue` includes the one in
-             flight, so the head is excluded rather than shown twice. */
           const isQueued = !isDownloading && queue.includes(id);
           const canDownload = !pack?.complete && !isDownloading && (!atLimit || !!pack);
 
-          /*
-            How far the copy has got, in words, for the meta line.
-
-            Books, not bytes: a count that moves 66 times says more about how far along
-            this is than a percentage that creeps. Complete says nothing here — the badge
-            on the title line already did, and saying it twice was the old design's habit.
-          */
-          const offlineStatus = isDownloading
-            ? `Saving ${downloading.booksSaved} of ${downloading.booksTotal}`
-            : pack && !pack.complete
-              ? `${pack.booksSaved} of ${pack.booksTotal} saved`
-              : null;
-
-          /* A fraction only while there is something in flight or half-done. A full bar
-             under a finished pack would be a widget reporting a fact the badge already
-             states. */
-          const offlineFraction = isDownloading
-            ? downloading.booksTotal > 0
-              ? downloading.booksSaved / downloading.booksTotal
-              : 0
-            : pack && !pack.complete && pack.booksTotal > 0
-              ? pack.booksSaved / pack.booksTotal
-              : null;
-
-          /* One shape for the six states, resolved here so the row stays presentational
-             and the gallery can render every one of them without a pack store. */
           const state = isDownloading
             ? ({
                 kind: 'saving',
@@ -163,6 +124,7 @@ export default function PrototypeTranslationPage() {
               onChoose={() => {
                 if (updateTranslation.isPending || isSelected) return;
                 updateTranslation.mutate(id);
+                markOnboardingStep('translation');
               }}
               onSave={() => void download(id)}
               onStop={() => cancel(id)}

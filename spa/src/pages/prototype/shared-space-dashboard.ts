@@ -318,5 +318,5 @@ export function sharedThreadNoteCountPreview(noteCount: number): string {
   return `${noteCount} ${noteCount === 1 ? 'note' : 'notes'}`;
 }
 
-export const SHARED_THREAD_DRILLDOWN_ADD_EXISTING_LABEL = 'Add existing';
-export const SHARED_THREAD_DRILLDOWN_COMPOSE_LABEL = 'Compose';
+export const SHARED_THREAD_DRILLDOWN_ADD_EXISTING_LABEL = 'Add a note';
+export const SHARED_THREAD_DRILLDOWN_COMPOSE_LABEL = 'New note';
