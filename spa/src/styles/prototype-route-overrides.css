@@ -5,6 +5,8 @@
  * html.harvous-prototype-route only. Font weight is owned by prototype component CSS.
  */
 
+@import './prototype-activity-highlights.css';
+
 /* ─── Prototype buttons + all descendants ───────────────────────────────────── */
 html.harvous-prototype-route button[class*='proto-'],
 html.harvous-prototype-route [class*='proto-'] button,
