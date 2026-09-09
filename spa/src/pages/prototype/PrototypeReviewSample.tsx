@@ -62,13 +62,14 @@ export default function PrototypeReviewSample({
       return stored ? { correct: stored.correct, verseText: stored.verseText } : null;
     },
   );
-  const translationLabel = TRANSLATIONS[sample.translation]?.abbreviation ?? sample.translation;
+  const translation = sample.translation?.trim() || 'NET';
+  const translationLabel = TRANSLATIONS[translation]?.abbreviation ?? translation;
 
   const filled = sample.cloze.blankLengths.every((_, i) => (blanks[i] ?? '').trim().length > 0);
 
   const submit = () => {
     answer.mutate(
-      { day, translation: sample.translation, words: sample.cloze.blankLengths.map((_, i) => (blanks[i] ?? '').trim()), attemptNumber },
+      { day, translation, words: sample.cloze.blankLengths.map((_, i) => (blanks[i] ?? '').trim()), attemptNumber },
       {
         onSuccess: (data) => {
           if (data.finalized === false) {
@@ -78,7 +79,7 @@ export default function PrototypeReviewSample({
           }
           const next = { correct: data.correct, verseText: data.verseText ?? '' };
           setResult(next);
-          writeReviewSampleResult({ day, translation: sample.translation, ...next });
+          writeReviewSampleResult({ day, translation, ...next });
           onAnswered?.();
         },
       },
@@ -96,13 +97,13 @@ export default function PrototypeReviewSample({
           <label>
             <select
               className="proto-caption"
-              value={sample.translation}
+              value={translation}
               onChange={(event) => onTranslationChange(event.target.value)}
               aria-label="Translation"
             >
-              {TRANSLATION_ORDER.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.abbreviation}
+              {TRANSLATION_ORDER.map((id) => (
+                <option key={id} value={id}>
+                  {TRANSLATIONS[id]?.abbreviation ?? id}
                 </option>
               ))}
             </select>
