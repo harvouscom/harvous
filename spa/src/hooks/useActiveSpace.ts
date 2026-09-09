@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useProtoShell } from '../layouts/proto-shell-context';
 import { usePrototypeHomeSpaceId } from './usePrototypeHomeSpaceId';
+import { usePrototypeStudyThreadListSyncListener } from './usePrototypeStudyThreadListSyncListener';
 import { useNavigation, type NavSpace, type NavigationData } from './queries/useNavigation';
 import { getCachedSpaceBootstrap, useSpace } from './queries/useSpace';
 
@@ -120,6 +121,9 @@ export function useActiveSpace(): {
 } {
   const { activeSpaceId: persistedId, setActiveSpaceId } = useProtoShell();
   const { homeSpaceId, authReady, navReady } = usePrototypeHomeSpaceId();
+  // Highlight / annotation writes fire `studyThreadListChanged`. This listener was
+  // defined and never mounted, so Home and Activity kept a 60s-stale copy until refresh.
+  usePrototypeStudyThreadListSyncListener(homeSpaceId ?? undefined);
   const { data: nav, isFetching: navFetching } = useNavigation();
 
   const optimisticSelection = useMemo(
