@@ -3,37 +3,13 @@
  *
  * Loaded from SimplifiedPrototypeLayout (after prototype CSS). Scoped to
  * html.harvous-prototype-route only. Font weight is owned by prototype component CSS.
+ *
+ * The body lives in `prototype-route-overrides-*.css` so a contents-API push cannot
+ * truncate the file back to a stub.
  */
 
 @import './prototype-activity-highlights.css';
-
-/* ─── Prototype buttons + all descendants ───────────────────────────────────── */
-html.harvous-prototype-route button[class*='proto-'],
-html.harvous-prototype-route [class*='proto-'] button,
-html.harvous-prototype-route button[class*='proto-'] span,
-html.harvous-prototype-route button[class*='proto-'] div,
-html.harvous-prototype-route button[class*='proto-'] p,
-html.harvous-prototype-route button[class*='proto-'] *,
-html.harvous-prototype-route [class*='proto-'] button span,
-html.harvous-prototype-route [class*='proto-'] button div,
-html.harvous-prototype-route [class*='proto-'] button p,
-html.harvous-prototype-route [class*='proto-'] button * {
-  color: var(--pds-text-primary) !important;
-  font-family: var(--pds-font-body) !important;
-}
-
-/*
- * Harvous 3 welcome — white label on the accent button.
- *
- * The blanket rule above matches `button[class*='proto-']` and forces `--pds-text-primary`
- * with `!important`, which lands dark ink on the blue gradient. Restated here rather than in
- * the component CSS because only an `!important` in this file can beat it.
- *
- * Worth knowing: this whole file is scoped to `html.harvous-prototype-route`, so the design
- * gallery does not see any of it. A button that looks right at /__dev/design-system can still
- * be wrong on the real route — check both.
- */
-html.harvous-prototype-route button.proto-welcome3__cta,
-html.harvous-prototype-route button.proto-welcome3__cta * {
-  color: #fff !important;
-}
+@import './prototype-route-overrides-1.css';
+@import './prototype-route-overrides-2.css';
+@import './prototype-route-overrides-3.css';
+@import './prototype-route-overrides-4.css';
