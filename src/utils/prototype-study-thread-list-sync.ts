@@ -40,6 +40,13 @@ export function invalidatePrototypeStudyThreadListQueries(
   if (parentNoteId) {
     queryClient.invalidateQueries({ queryKey: ['note', parentNoteId] });
   }
+  /*
+   * Activity is its own query (`['study-feed', scope]`), with a 60s staleTime and a comment
+   * that "everything they do here invalidates it explicitly". Nothing did. A highlight made
+   * in the reader, or a note erased from Continue, sat invisible until a full refresh.
+   * Prefix-match every scope.
+   */
+  queryClient.invalidateQueries({ queryKey: ['study-feed'] });
 }
 
 /** Convenience for editor components after raw fetch mutations. */
