@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
@@ -5,11 +6,13 @@ import {
   mergeStudyFeedPages,
   mergeStudyFeedReviewAnswers,
   serializeStudyFeedScope,
+  studyFeedItemNoteId,
   STUDY_FEED_SCOPE_ALL,
   type StudyFeedItem,
   type StudyFeedResponse,
   type StudyFeedScope,
 } from '@/utils/study-feed-items';
+import { isNoteDeleted, subscribeDeletedNotes } from '../../pages/prototype/proto-deleted-notes';
 
 export const studyFeedQueryKey = (scope: StudyFeedScope) =>
   ['study-feed', serializeStudyFeedScope(scope)] as const;
@@ -27,6 +30,8 @@ export const studyFeedQueryKey = (scope: StudyFeedScope) =>
  */
 export function useStudyFeed(scope: StudyFeedScope = STUDY_FEED_SCOPE_ALL) {
   const authReady = useAuthReady();
+  const [deletedTick, setDeletedTick] = useState(0);
+  useEffect(() => subscribeDeletedNotes(() => setDeletedTick((n) => n + 1)), []);
 
   const query = useInfiniteQuery({
     queryKey: studyFeedQueryKey(scope),
@@ -43,9 +48,15 @@ export function useStudyFeed(scope: StudyFeedScope = STUDY_FEED_SCOPE_ALL) {
     staleTime: 60_000,
   });
 
-  const items: StudyFeedItem[] = mergeStudyFeedPages(
-    query.data?.pages.map((page) => page.items ?? []) ?? [],
-  );
+  const items: StudyFeedItem[] = useMemo(() => {
+    const merged = mergeStudyFeedPages(
+      query.data?.pages.map((page) => page.items ?? []) ?? [],
+    );
+    return merged.filter((item) => {
+      const noteId = studyFeedItemNoteId(item);
+      return !noteId || !isNoteDeleted(noteId);
+    });
+  }, [query.data, deletedTick]);
 
   const reviewAnswers = mergeStudyFeedReviewAnswers(
     query.data?.pages.map((page) => page.reviewAnswers) ?? [],
