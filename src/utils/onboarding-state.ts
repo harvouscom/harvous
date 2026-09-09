@@ -33,7 +33,7 @@ export type OnboardingStepId =
   | OnboardingCustomizeId;
 
 /**
- * The customization offers — reminders, appearance, translation, import.
+ * The customization offers — translation, import, appearance, reminders.
  *
  * Deliberately *not* part of `ONBOARDING_STEP_IDS`, which is the tour: the six things that
  * teach someone what Harvous is. These four teach nothing. They are settings worth knowing
@@ -64,10 +64,10 @@ export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
 
 /** Display order of the "Make it yours" section, beneath the tour. */
 export const CUSTOMIZE_STEP_IDS: readonly OnboardingCustomizeId[] = [
-  'reminders',
-  'appearance',
   'translation',
   'import',
+  'appearance',
+  'reminders',
 ];
 
 /**
@@ -268,9 +268,24 @@ export function restoreOnboarding(state: OnboardingState): OnboardingState {
   return { ...state, restoredVersion: state.dismissedVersion };
 }
 
+/**
+ * Whether the cluster has been put away for the current version, and not asked back.
+ *
+ * `dismissedVersion` is monotonic — restore never clears it — so "is it away?" is the
+ * comparison against `restoredVersion`, not a check that a dismissal ever happened.
+ * The dock used to do the latter, which is why Support could restore the chip and still
+ * paint an empty card.
+ */
+export function isOnboardingClusterDismissed(state: OnboardingState | null): boolean {
+  if (!state) return false;
+  return (
+    state.dismissedVersion >= ONBOARDING_VERSION && state.dismissedVersion > state.restoredVersion
+  );
+}
+
 export function canRestoreOnboarding(state: OnboardingState | null): boolean {
   if (!state) return false;
-  if (state.dismissedVersion <= state.restoredVersion) return false;
+  if (!isOnboardingClusterDismissed(state)) return false;
   return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
 }
 
@@ -298,7 +313,6 @@ export function onboardingProgress(state: OnboardingState): OnboardingProgress {
 
 export function shouldShowOnboarding(state: OnboardingState | null): boolean {
   if (!state) return true;
-  if (state.dismissedVersion >= ONBOARDING_VERSION && state.dismissedVersion > state.restoredVersion)
-    return false;
+  if (isOnboardingClusterDismissed(state)) return false;
   return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
 }

@@ -3,9 +3,12 @@
  *
  * It used to exist only at the top of Activity, which meant the one surface that explains the
  * app was the one surface you had to already know how to get back to. This is the same list in
- * the toolbar's card, on every screen, still dismissible — and still not a tour: no overlay, no
- * scrim, no arrow pointing at anything, nothing that has to be got past. It opens because
- * someone asked for it.
+ * the toolbar's card, on every screen — and still not a tour: no overlay, no scrim, no arrow
+ * pointing at anything, nothing that has to be got past. It opens because someone asked for it.
+ *
+ * Closing the card is not putting the checklist away. The ✕, a click outside, and Escape only
+ * hide the card. "Hide getting started" at the bottom is the cluster dismiss, which Support
+ * can undo.
  *
  * Rows hand off rather than navigate. Home owns `handleOnboardingStep`, which knows that
  * "write a note" means a compose session and "revisit" means glowing the recall shelf; the
@@ -89,18 +92,11 @@ export default function PrototypeOnboardingPopover({
             {progress.done} of {progress.total}
           </span>
         </p>
-        {/*
-          "Put it away" rather than a plain close: closing a popover and retiring the checklist
-          are different intentions, and the ✕ in the corner already means the first one.
-        */}
         <button
           type="button"
           className="proto-side-panel__action-btn"
-          aria-label="Dismiss getting started"
-          onClick={() => {
-            dismissAll();
-            onDismiss();
-          }}
+          aria-label="Close getting started"
+          onClick={onDismiss}
         >
           <Icon name="xmark" size={12} aria-hidden />
         </button>
@@ -114,6 +110,17 @@ export default function PrototypeOnboardingPopover({
           void navigate({ to: prototypeHomeRouteTo() });
         }}
       />
+
+      <button
+        type="button"
+        className="proto-onboarding-popover__hide"
+        onClick={() => {
+          dismissAll();
+          onDismiss();
+        }}
+      >
+        Hide getting started
+      </button>
     </ProtoPopoverShell>,
     document.body,
   );

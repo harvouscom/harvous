@@ -152,3 +152,41 @@ html.harvous-prototype-route .proto-feed-said__quote {
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
+
+/*
+ * Getting-started card: close is not put-away. The footer is the cluster dismiss.
+ * Also drop the extra panel chrome when Make it yours rides in the same card.
+ */
+html.harvous-prototype-route .proto-onboarding-popover .proto-feed-part__panel {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+html.harvous-prototype-route .proto-onboarding-popover .proto-feed-part__eyebrow {
+  margin: 10px 0 2px;
+  padding: 0 var(--pds-space-1);
+}
+
+html.harvous-prototype-route button.proto-onboarding-popover__hide,
+html.harvous-prototype-route button.proto-onboarding-popover__hide * {
+  display: block;
+  width: 100%;
+  margin: var(--pds-space-2) 0 0;
+  padding: var(--pds-space-2) var(--pds-space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--pds-text-secondary) !important;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+html.harvous-prototype-route button.proto-onboarding-popover__hide:hover,
+html.harvous-prototype-route button.proto-onboarding-popover__hide:focus-visible,
+html.harvous-prototype-route button.proto-onboarding-popover__hide:hover *,
+html.harvous-prototype-route button.proto-onboarding-popover__hide:focus-visible * {
+  color: var(--pds-text-primary) !important;
+}
