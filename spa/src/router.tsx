@@ -44,3 +44,38 @@ import {
 import { requestFreezeMainForSettings } from './lib/prototype-settings-main-keepalive';
 import { markPendingComposeSession } from './lib/pending-compose-session';
 import { sanitizeReadSearch } from './utils/reader-nav';
+
+/**
+ * Default TanStack search decode coerces bare digits to numbers (bad for space ids)
+ * and stringify JSON-quotes numeric-looking strings (`space=%221785%22`).
+ * Keep flat string params bare and un-coerced; still JSON-encode objects/arrays.
+ */
+function parsePrototypeSearch(searchStr: string): Record<string, unknown> {
+  const raw = searchStr.startsWith('?') ? searchStr.slice(1) : searchStr;
+  const params = new URLSearchParams(raw);
+  const result: Record<string, unknown> = Object.create(null);
+  for (const [key, value] of params.entries()) {
+    if (value === 'true') {
+      result[key] = true;
+      continue;
+    }
+    if (value === 'false') {
+      result[key] = false;
+      continue;
+    }
+    if (
+      (value.startsWith('{') && value.endsWith('}')) ||
+      (value.startsWith('[') && value.endsWith(']')) ||
+      (value.startsWith('"') && value.endsWith('"'))
+    ) {
+      try {
+        result[key] = JSON.parse(value);
+        continue;
+      } catch {
+        /* keep string */
+      }
+    }
+    result[key] = value;
+  }
+  return result;
+}
