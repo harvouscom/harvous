@@ -29,7 +29,7 @@ import { prototypeSettingsTranslationRouteTo } from './prototype-settings-transl
 import { CUSTOMIZE_STEP_COPY } from './onboarding-customize-copy';
 import type { PushSupport } from '../../lib/push-reminders';
 import {
-  ONBOARDING_VERSION,
+  isOnboardingClusterDismissed,
   type OnboardingCustomizeId,
   type OnboardingStepId,
 } from '@/utils/onboarding-state';
@@ -113,8 +113,8 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
     [navigate],
   );
 
-  const dismissed = state.dismissedVersion >= ONBOARDING_VERSION;
-  const showing = !dismissed && (visible || isGuest || exiting.length > 0);
+  const showing =
+    !isOnboardingClusterDismissed(state) && (visible || isGuest || exiting.length > 0);
   const liveIds = showing
     ? [...rows, ...customizeRows].filter((r) => !exiting.includes(r.id)).map((r) => r.id)
     : [];
@@ -240,7 +240,12 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
     return (
       <>
         {list}
-        {customizePanel}
+        {customizePanel ? (
+          <>
+            <p className="proto-caption proto-feed-part__eyebrow">Make it yours</p>
+            {customizePanel}
+          </>
+        ) : null}
       </>
     );
   }
@@ -264,7 +269,7 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
             <button
               type="button"
               className="proto-side-panel__action-btn proto-onboarding-dock__dismiss"
-              aria-label="Dismiss getting started"
+              aria-label="Hide getting started"
               onClick={dismissAll}
             >
               <Icon name="xmark" size={12} aria-hidden />
