@@ -16,8 +16,10 @@
  * subscription with.
  */
 import { Fragment, useState } from 'react';
+import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { useAnswerReviewSample } from '../../hooks/mutations/useReviewMutations';
 import type { ReviewSampleView } from '../../hooks/queries/useReview';
+import { readReviewSampleResult, writeReviewSampleResult } from './use-dismissible-review-sample';
 import Icon from '@/components/react/Icon';
 import {
   REVIEW_CHECK_COPY,
@@ -39,12 +41,14 @@ export default function PrototypeReviewSample({
   onSeePlus,
   onNotNow,
   onAnswered,
+  onTranslationChange,
 }: {
   sample: ReviewSampleView;
   day: string;
   maxAttempts: number;
   onSeePlus: () => void;
   onNotNow: () => void;
+  onTranslationChange?: (translation: string) => void;
   /** So the section can drop its own offer row once this card is carrying one. */
   onAnswered?: () => void;
 }) {
@@ -52,13 +56,19 @@ export default function PrototypeReviewSample({
   const [blanks, setBlanks] = useState<string[]>([]);
   const [attemptNumber, setAttemptNumber] = useState(1);
   const [missed, setMissed] = useState(false);
-  const [result, setResult] = useState<{ correct: boolean; verseText: string } | null>(null);
+  const [result, setResult] = useState<{ correct: boolean; verseText: string } | null>(
+    () => {
+      const stored = readReviewSampleResult(day);
+      return stored ? { correct: stored.correct, verseText: stored.verseText } : null;
+    },
+  );
+  const translationLabel = TRANSLATIONS[sample.translation]?.abbreviation ?? sample.translation;
 
   const filled = sample.cloze.blankLengths.every((_, i) => (blanks[i] ?? '').trim().length > 0);
 
   const submit = () => {
     answer.mutate(
-      { day, words: sample.cloze.blankLengths.map((_, i) => (blanks[i] ?? '').trim()), attemptNumber },
+      { day, translation: sample.translation, words: sample.cloze.blankLengths.map((_, i) => (blanks[i] ?? '').trim()), attemptNumber },
       {
         onSuccess: (data) => {
           if (data.finalized === false) {
@@ -66,7 +76,9 @@ export default function PrototypeReviewSample({
             setAttemptNumber((n) => Math.min(maxAttempts, n + 1));
             return;
           }
-          setResult({ correct: data.correct, verseText: data.verseText ?? '' });
+          const next = { correct: data.correct, verseText: data.verseText ?? '' };
+          setResult(next);
+          writeReviewSampleResult({ day, translation: sample.translation, ...next });
           onAnswered?.();
         },
       },
@@ -79,6 +91,25 @@ export default function PrototypeReviewSample({
         {sample.source === 'yours' ? REVIEW_SAMPLE_EYEBROW_YOURS : REVIEW_SAMPLE_EYEBROW_WELL_KNOWN}
         {' · '}
         {sample.reference}
+        {' · '}
+        {onTranslationChange && !result ? (
+          <label>
+            <select
+              className="proto-caption"
+              value={sample.translation}
+              onChange={(event) => onTranslationChange(event.target.value)}
+              aria-label="Translation"
+            >
+              {TRANSLATION_ORDER.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.abbreviation}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          translationLabel
+        )}
       </p>
       {result ? (
         <div className="proto-review-dock__result">
@@ -99,11 +130,6 @@ export default function PrototypeReviewSample({
               </span>
             </p>
           </div>
-          {/*
-            * The offer, now that there is something it refers to. Both ways out: a card with
-            * only "See Plus" on it is a toll gate, and the reader has just done the one thing
-            * that makes the answer to it obvious either way.
-            */}
           <p className="proto-review-dock__result-text">{REVIEW_SAMPLE_AFTER}</p>
           <div className="proto-review-dock__actions">
             <button
