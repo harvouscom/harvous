@@ -10,7 +10,6 @@ import {
   useReviewItems,
   useReviewItemsSummary,
   useReviewSample,
-  type ReviewItemView,
 } from '../../hooks/queries/useReview';
 import { REVIEW_MAX_ATTEMPTS, REVIEW_INBOX_MAX_ROWS } from '@/utils/review-item-kinds';
 import PrototypeReviewSample from './PrototypeReviewSample';
@@ -35,23 +34,15 @@ import {
 } from './proto-review-copy';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import { prototypeChallengeRouteTo } from '@/lib/prototype-path';
-import { type ReviewItemKind } from '@/utils/review-item-kinds';
 import { fillFraming } from '@/utils/review-framing';
 import { reviewRowSource, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
 import { describeNextDue } from '@/utils/review-scheduling';
 import { recallChip } from './PrototypeRecallStateChip';
 import { reviewFoldRemainder } from './review-fold-remainder';
+import { collapsedReviewRows } from './review-collapsed-rows';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 import { useDismissibleReviewSample } from './use-dismissible-review-sample';
-
-const PASSAGE_KINDS = new Set<ReviewItemKind>(['verse', 'highlight', 'chapter']);
-
-function collapsedReviewRows(items: readonly ReviewItemView[]): ReviewItemView[] {
-  const note = items.find((item) => !PASSAGE_KINDS.has(item.kind));
-  const passage = items.find((item) => PASSAGE_KINDS.has(item.kind));
-  return items.filter((item) => item === note || item === passage);
-}
 
 function foldedLabel(folded: number | null): string {
   return folded !== null && folded > 0 ? `${folded} more` : REVIEW_SEE_ALL_COPY;
@@ -277,7 +268,7 @@ export default function PrototypeReviewSection() {
             <Icon name={setAsideOpen ? 'caret-up' : 'caret-down'} size={10} />
           </button>
           {setAsideOpen
-            ? setAside.map((item) => (
+            ? setAside.slice(0, REVIEW_INBOX_MAX_ROWS).map((item) => (
                 <PrototypeHomeRow
                   key={item.id}
                   icon={item.status === 'paused' ? 'circle-minus' : 'eye-slash'}
