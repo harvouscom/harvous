@@ -4,6 +4,7 @@ import {
   dismissStep,
   emptyOnboardingState,
   markStep,
+  restoreOnboarding,
   ONBOARDING_STEP_IDS,
   type OnboardingState,
 } from '@/utils/onboarding-state';
@@ -61,6 +62,11 @@ describe('onboardingOwnsOffer', () => {
 
   it('hands it back when the checklist is dismissed', () => {
     expect(onboardingOwnsOffer(dismissOnboarding(live()), 'import', false)).toBe(false);
+  });
+
+  it('takes the offer again after Support restores the checklist', () => {
+    const back = restoreOnboarding(dismissOnboarding(live()));
+    expect(onboardingOwnsOffer(back, 'import', false)).toBe(true);
   });
 
   it('hands it back for a row the reader has already settled', () => {
