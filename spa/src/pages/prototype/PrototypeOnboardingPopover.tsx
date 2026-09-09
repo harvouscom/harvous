@@ -41,7 +41,7 @@ export default function PrototypeOnboardingPopover({
   exiting?: boolean;
 }) {
   const navigate = useNavigate();
-  const { state, dismissAll } = useOnboardingState();
+  const { dismissAll } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
   const progress = shownOnboardingProgress(state, isGuest);
   const cardRef = useRef<HTMLDivElement | null>(null);
