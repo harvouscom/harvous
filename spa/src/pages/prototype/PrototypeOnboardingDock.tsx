@@ -1,11 +1,8 @@
 /**
  * The getting-started dock — Home's ambient checklist.
  *
- * Passive by construction. It never covers anything, never interrupts, and every row is
- * both a shortcut and a receipt: tap it to be taken to the thing, or just go do the thing
- * and watch the row check itself off.
- *
- * "Make it yours" is a sibling Home group, not a heading inside Getting started.
+ * "Make it yours" is a sibling of Getting started on Home, using the same part
+ * chrome as "This evening" (eyebrow outside the card, own panel).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -96,6 +93,7 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
   const customizeRows = CUSTOMIZE_STEP_COPY.filter((step) => {
     if (isGuest) return false;
     if (exiting.includes(step.id)) return true;
+    if (!state.steps[step.id]) return false;
     if (state.steps[step.id].done || state.steps[step.id].dismissed) return false;
     if (step.id === 'reminders') return remindersRowApplies(pushSupport);
     return true;
@@ -164,7 +162,7 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
 
   useEffect(() => {
     const newlyDone = [...ONBOARDING_STEP_COPY, ...CUSTOMIZE_STEP_COPY].filter(
-      (step) => state.steps[step.id].done && renderedRef.current.has(step.id),
+      (step) => state.steps[step.id]?.done && renderedRef.current.has(step.id),
     ).map((step) => step.id);
     if (newlyDone.length === 0) return;
 
@@ -252,9 +250,9 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
     </div>
   );
 
-  const customizeList =
+  const customizePanel =
     customizeRows.length === 0 ? null : (
-      <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-onboarding-dock__list">
+      <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-feed-part__panel">
         {customizeRows.map((step, index) => {
           const meta =
             step.id === 'reminders' && pushSupport === 'needs-home-screen'
@@ -275,7 +273,7 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
     return (
       <>
         {list}
-        {customizeList}
+        {customizePanel}
       </>
     );
   }
@@ -309,15 +307,10 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
         </section>
       ) : null}
 
-      {customizeList ? (
-        <section
-          className="proto-home-section proto-onboarding-dock proto-onboarding-dock--customize"
-          aria-label="Make it yours"
-        >
-          <div className="proto-onboarding-dock__head">
-            <p className="proto-caption proto-onboarding-dock__eyebrow">Make it yours</p>
-          </div>
-          {customizeList}
+      {customizePanel ? (
+        <section className="proto-feed-part proto-onboarding-dock--customize" aria-label="Make it yours">
+          <p className="proto-caption proto-feed-part__eyebrow">Make it yours</p>
+          {customizePanel}
         </section>
       ) : null}
     </>
