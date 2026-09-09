@@ -29,7 +29,6 @@ describe('reviewRowSubtitle', () => {
   });
 
   it('stays quiet when the question already names it', () => {
-    // "What did you observe in My journey?" does not need "My journey" underneath.
     expect(
       reviewRowSubtitle(
         { prompt: 'Before opening it, what did you observe in My journey?', noteLabel: 'My journey' },
@@ -57,8 +56,6 @@ describe('reviewRowSubtitle', () => {
   });
 
   it('places a note in time only when nothing else names it at all', () => {
-    // The regression this file exists for: a row about "Untitled Note 4" said "this note"
-    // and nothing more, and the reader could not tell which note it meant.
     expect(
       reviewRowSubtitle(
         {
@@ -135,11 +132,6 @@ describe('reviewRowSource', () => {
 });
 
 describe('which rungs hide the identity line', () => {
-  /*
-   * The first cut suppressed the subtitle on every graded rung, which read as "What did you link
-   * this to?" above nothing at all — a question with a right answer, about a note the reader was
-   * never told the name of. A right answer is not a reason to withhold the question.
-   */
   const note = {
     prompt: 'What did you link this to?',
     kind: 'note',
@@ -160,7 +152,6 @@ describe('which rungs hide the identity line', () => {
   it('hides the reference on "where is this from?" and nowhere else on the verse ladder', () => {
     const verse = { prompt: 'Where is this from?', kind: 'verse', scriptureReference: 'John 15:5' };
     expect(reviewRowSubtitle({ ...verse, ladderStep: VERSE_LOCATE_STEP })).toBeNull();
-    // Putting the words back in order is not made easier by knowing the address.
     expect(reviewRowSubtitle({ ...verse, prompt: 'Put these back in order', ladderStep: VERSE_SEQUENCE_STEP })).toBe(
       'John 15:5',
     );
@@ -178,10 +169,6 @@ describe('reviewRowSubject', () => {
   });
 
   it('says only what kind of thing it is where the subject is the answer', () => {
-    /*
-     * "Pick the note this line is from" printed above the note's own name is not a question.
-     * Same for "Say where this is from" above the reference.
-     */
     expect(
       reviewRowSubject({ prompt: 'x', kind: 'note', noteLabel: 'Adoption', ladderStep: 0 }),
     ).toBe('One of your notes');
@@ -214,7 +201,7 @@ describe('reviewRowSubject', () => {
         promptKey: 'note.recognize',
         cue: 'chose us before the foundation of the world',
       }),
-    ).toBe('chose us before the foundation of the world');
+    ).toBe('“chose us before the foundation of the world”');
     expect(
       reviewRowSubject({
         prompt: 'x',
@@ -223,12 +210,10 @@ describe('reviewRowSubject', () => {
         promptKey: 'verse.locate',
         cue: 'apart from me you can do nothing',
       }),
-    ).toBe('apart from me you can do nothing');
+    ).toBe('“apart from me you can do nothing”');
   });
 
   it('names the note when the resolved rung is not recognize', () => {
-    // Step 0 with a walked-forward prompt used to hide the name too, so "Pick a passage
-    // you cited" sat under "One of your notes" five times in a row.
     expect(
       reviewRowSubject({
         prompt: 'x',
@@ -250,7 +235,6 @@ describe('reviewRowSubject', () => {
   });
 
   it('falls back to when it was written, and never to nothing', () => {
-    // Day and month order is the runtime's, not ours — `writtenAtLabel` formats by locale.
     const written = reviewRowSubject(
       { prompt: 'x', kind: 'note', noteWrittenAt: '2026-08-09T10:00:00Z', ladderStep: 1 },
       NOW,
@@ -262,7 +246,6 @@ describe('reviewRowSubject', () => {
   });
 
   it('drops a verse reason that names the verse on the rung asking for it', () => {
-    // "Marked Romans 1:7 in a note" beneath "Say where this is from" is the answer.
     const item = { sourceLabel: 'Marked John 15:5 in a note', kind: 'verse' };
     expect(reviewRowSource({ ...item, ladderStep: VERSE_LOCATE_STEP }, null)).toBeNull();
     expect(reviewRowSource({ ...item, ladderStep: 1 }, null)).toBe('Marked John 15:5 in a note');
@@ -276,7 +259,6 @@ describe('a chapter row', () => {
     for (const step of [0, 1, 2]) {
       expect(rungIdentityIsTheAnswer({ kind: 'chapter', ladderStep: step })).toBe(false);
     }
-    // The prompt already names it, so nothing is repeated underneath.
     expect(reviewRowSubtitle({ ...item, ladderStep: 0 })).toBeNull();
   });
 });
@@ -294,10 +276,6 @@ describe('reviewRowRecallLabel', () => {
   });
 
   it('leaves it to the framing line where that already said it', () => {
-    /*
-     * A durable item with no reader or curated fact to show read "Pick what comes next · You
-     * have this one. Keep it. · You have this" — one thing said twice in two registers.
-     */
     expect(
       reviewRowRecallLabel({ recallState: 'durable', framing: { template: 'holding' } }, labels),
     ).toBeNull();
