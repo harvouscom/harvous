@@ -3,6 +3,7 @@
  *
  * "Make it yours" is a sibling of Getting started on Home, using the same part
  * chrome as "This evening" (eyebrow outside the card, own panel).
+ * Each customize row opens the matching Settings page.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -19,7 +20,6 @@ import PrototypeHomeRow from './PrototypeHomeRow';
 import { useOnboardingState } from './useOnboardingState';
 import { PROTO_ONBOARDING_ROW_EXIT_MS, PROTO_ONBOARDING_ROW_DWELL_MS } from '../../layouts/proto-motion';
 import { showPrototypeFeedbackToast } from '@/utils/prototype-feedback-toast';
-import { toast } from '@/utils/toast';
 import {
   prototypeSettingsAppearanceRouteTo,
   prototypeSettingsDataRouteTo,
@@ -54,13 +54,20 @@ const COPY_BY_ID = new Map(
   [...ONBOARDING_STEP_COPY, ...CUSTOMIZE_STEP_COPY].map((step) => [step.id, step]),
 );
 
+function customizeSettingsRoute(id: OnboardingCustomizeId) {
+  if (id === 'reminders') return prototypeSettingsRemindersRouteTo();
+  if (id === 'appearance') return prototypeSettingsAppearanceRouteTo();
+  if (id === 'translation') return prototypeSettingsTranslationRouteTo();
+  return prototypeSettingsDataRouteTo();
+}
+
 type Props = {
   onStepAction: (id: OnboardingStepId) => void;
   variant?: 'home' | 'popover';
 };
 
 export default function PrototypeOnboardingDock({ onStepAction, variant = 'home' }: Props) {
-  const { state, visible, dismissStep, dismissAll, markDone } = useOnboardingState();
+  const { state, visible, dismissStep, dismissAll } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
   const navigate = useNavigate();
 
@@ -99,46 +106,11 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
     return true;
   });
 
-  const [enablingReminders, setEnablingReminders] = useState(false);
-
-  const turnOnReminders = useCallback(async () => {
-    setEnablingReminders(true);
-    try {
-      const mod = await import('../../lib/push-reminders');
-      const result = await mod.enablePushReminders();
-      setPushSupport(result.support);
-      if (result.ok) {
-        markDone('reminders');
-        toast.success('Reminders are on. Sunday morning and midweek.');
-      } else if (result.support === 'denied') {
-        toast.error('Notifications are blocked for Harvous in this browser.');
-      } else if (result.error) {
-        toast.error(result.error);
-      }
-    } finally {
-      setEnablingReminders(false);
-    }
-  }, [markDone]);
-
   const pressCustomizeRow = useCallback(
     (id: OnboardingCustomizeId) => {
-      if (id === 'reminders') {
-        if (pushSupport === 'needs-home-screen') {
-          void navigate({ to: prototypeSettingsRemindersRouteTo() });
-          return;
-        }
-        void turnOnReminders();
-        return;
-      }
-      const to =
-        id === 'appearance'
-          ? prototypeSettingsAppearanceRouteTo()
-          : id === 'translation'
-            ? prototypeSettingsTranslationRouteTo()
-            : prototypeSettingsDataRouteTo();
-      void navigate({ to });
+      void navigate({ to: customizeSettingsRoute(id) });
     },
-    [navigate, pushSupport, turnOnReminders],
+    [navigate],
   );
 
   const dismissed = state.dismissedVersion >= ONBOARDING_VERSION;
@@ -253,19 +225,14 @@ export default function PrototypeOnboardingDock({ onStepAction, variant = 'home'
   const customizePanel =
     customizeRows.length === 0 ? null : (
       <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-feed-part__panel">
-        {customizeRows.map((step, index) => {
-          const meta =
-            step.id === 'reminders' && pushSupport === 'needs-home-screen'
-              ? 'Add Harvous to your Home Screen first.'
-              : step.meta;
-          const busy = step.id === 'reminders' && enablingReminders;
-          return renderRow(
-            { ...step, meta },
+        {customizeRows.map((step, index) =>
+          renderRow(
+            step,
             index,
-            busy ? undefined : () => pressCustomizeRow(step.id as OnboardingCustomizeId),
-            busy,
-          );
-        })}
+            () => pressCustomizeRow(step.id as OnboardingCustomizeId),
+            false,
+          ),
+        )}
       </div>
     );
 
