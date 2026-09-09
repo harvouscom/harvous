@@ -33,7 +33,7 @@ export type OnboardingStepId =
   | OnboardingCustomizeId;
 
 /**
- * The customization offers — reminders, appearance, translation, import.
+ * The customization offers — translation, import, appearance, reminders.
  *
  * Deliberately *not* part of `ONBOARDING_STEP_IDS`, which is the tour: the six things that
  * teach someone what Harvous is. These four teach nothing. They are settings worth knowing
@@ -64,10 +64,10 @@ export const ONBOARDING_STEP_IDS: readonly OnboardingStepId[] = [
 
 /** Display order of the "Make it yours" section, beneath the tour. */
 export const CUSTOMIZE_STEP_IDS: readonly OnboardingCustomizeId[] = [
-  'reminders',
-  'appearance',
   'translation',
   'import',
+  'appearance',
+  'reminders',
 ];
 
 /**
