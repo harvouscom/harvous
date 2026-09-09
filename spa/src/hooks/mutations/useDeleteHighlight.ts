@@ -3,6 +3,7 @@ import { api } from '../../lib/api';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import { runOfflineFirst } from './withOfflineQueue';
 import { deleteStudyThreadEntryOffline } from '@/utils/offline-mutations';
+import { invalidatePrototypeStudyThreadListQueries } from '@/utils/prototype-study-thread-list-sync';
 
 interface DeleteHighlightInput {
   id: string;
@@ -32,16 +33,11 @@ export function useDeleteHighlight() {
       return outcome.online!;
     },
     onSuccess: (_data, variables) => {
-      const sid = normalizePrototypeApiSpaceId(variables.spaceId);
-      queryClient.invalidateQueries({
-        queryKey: ['prototype', 'space', sid, 'study-thread-highlights'],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['prototype', 'space', sid, 'study-threads-by-scripture'],
-      });
-      if (variables.parentNoteId) {
-        queryClient.invalidateQueries({ queryKey: ['note', variables.parentNoteId] });
-      }
+      invalidatePrototypeStudyThreadListQueries(
+        queryClient,
+        variables.spaceId,
+        variables.parentNoteId,
+      );
     },
   });
 }
