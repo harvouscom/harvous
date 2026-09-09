@@ -46,11 +46,15 @@ function Substance({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void }
           <Icon name={studyFeedItemIcon(item)} size={13} />
         </span>
         <span className="proto-feed-said__col">
-          <span className="proto-feed-said__quote">“{item.excerpt}”</span>
-          <span className="proto-feed-said__foot">
-            {source ? <span>{source}</span> : <span />}
+          <span className="proto-feed-said__head">
+            <span className="proto-feed-said__quote">“{item.excerpt}”</span>
             <span className="proto-feed-said__time">{studyFeedClockTime(item.at)}</span>
           </span>
+          {source ? (
+            <span className="proto-feed-said__foot">
+              <span>{source}</span>
+            </span>
+          ) : null}
         </span>
       </button>
     );
