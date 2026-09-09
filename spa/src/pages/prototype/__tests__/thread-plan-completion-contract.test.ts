@@ -40,7 +40,7 @@ describe('finishing a plan is not a manager’s privilege', () => {
     const start = text.indexOf('<PrototypeThreadPlanProgress');
     expect(start).toBeGreaterThan(-1);
     /* The nearest gate above it must be the sequence/step one, not a role one —
-       `canManageSequence` guards the menu that holds "Close this run". */
+       `canManageSequence` guards the menu that holds "End this study". */
     const before = text.slice(Math.max(0, start - 400), start);
     expect(before).not.toContain('canManageSequence');
   });
