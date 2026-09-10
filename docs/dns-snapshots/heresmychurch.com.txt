@@ -1,0 +1,67 @@
+# DNS snapshot — heresmychurch.com
+# captured 2026-09-06T13:56:36Z via ns2.hover.com
+# Diff Cloudflare's import against BOTH this file and the registrar's panel.
+
+A	@	75.2.60.5|
+MX	@	10 mx.hover.com.cust.hostedemail.com.|
+TXT	@	"google-site-verification=KvNAdnLndhkJlGjDGdMnfLxn-A-zG4_khlhzOpo2r-E"|
+NS	@	ns1.hover.com.|ns2.hover.com.|
+SOA	@	ns1.hover.com. dnsmaster.hover.com. 1773196026 10800 3600 604800 300|
+A	www	heresmychurch.netlify.app.|
+CNAME	www	heresmychurch.netlify.app.|
+TXT	www	heresmychurch.netlify.app.|
+MX	www	heresmychurch.netlify.app.|
+A	mail	216.40.34.41|
+A	smtp	216.40.34.41|
+A	imap	216.40.34.41|
+A	pop	216.40.34.41|
+A	webmail	216.40.34.41|
+A	ftp	216.40.34.41|
+A	app	216.40.34.41|
+A	api	216.40.34.41|
+A	cdn	216.40.34.41|
+A	static	216.40.34.41|
+A	assets	216.40.34.41|
+A	img	216.40.34.41|
+A	images	216.40.34.41|
+A	media	216.40.34.41|
+A	blog	216.40.34.41|
+A	docs	216.40.34.41|
+A	help	216.40.34.41|
+A	support	216.40.34.41|
+A	status	216.40.34.41|
+A	dashboard	216.40.34.41|
+A	admin	216.40.34.41|
+A	portal	216.40.34.41|
+A	shop	216.40.34.41|
+A	store	216.40.34.41|
+A	news	216.40.34.41|
+A	autodiscover	216.40.34.41|
+A	autoconfig	216.40.34.41|
+A	_dmarc	216.40.34.41|
+A	_domainkey	216.40.34.41|
+A	_atproto	216.40.34.41|
+A	_webflow	216.40.34.41|
+A	_acme-challenge	216.40.34.41|
+A	clerk	216.40.34.41|
+A	accounts	216.40.34.41|
+A	clkmail	216.40.34.41|
+A	clk._domainkey	216.40.34.41|
+A	clk2._domainkey	216.40.34.41|
+A	heymail._domainkey	216.40.34.41|
+A	hey1._domainkey	216.40.34.41|
+A	hey2._domainkey	216.40.34.41|
+A	google._domainkey	216.40.34.41|
+A	k1._domainkey	216.40.34.41|
+A	k2._domainkey	216.40.34.41|
+A	s1._domainkey	216.40.34.41|
+A	s2._domainkey	216.40.34.41|
+A	selector1._domainkey	216.40.34.41|
+A	selector2._domainkey	216.40.34.41|
+A	fm1._domainkey	216.40.34.41|
+A	fm2._domainkey	216.40.34.41|
+A	fm3._domainkey	216.40.34.41|
+A	mailgun._domainkey	216.40.34.41|
+A	subdomain-owner-verification	216.40.34.41|
+A	_github-pages-challenge	216.40.34.41|
+A	_gh-pages	216.40.34.41|

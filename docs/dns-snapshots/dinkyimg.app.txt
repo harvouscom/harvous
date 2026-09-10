@@ -1,0 +1,12 @@
+# DNS snapshot — dinkyimg.app
+# captured 2026-09-06T13:54:42Z via ns1.hover.com
+# Diff Cloudflare's import against BOTH this file and the registrar's panel.
+
+A	@	75.2.60.5|
+MX	@	10 mx.hover.com.cust.hostedemail.com.|
+NS	@	ns1.hover.com.|ns2.hover.com.|
+SOA	@	ns1.hover.com. dnsmaster.hover.com. 1776353789 10800 3600 604800 300|
+A	www	dinkyimg.netlify.app.|
+CNAME	www	dinkyimg.netlify.app.|
+TXT	www	dinkyimg.netlify.app.|
+MX	www	dinkyimg.netlify.app.|
