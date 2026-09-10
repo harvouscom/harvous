@@ -109,16 +109,6 @@
   border: 0;
 }
 
-.pds-gallery__title {
-  margin: 0 0 var(--pds-space-1);
-  font-weight: 600;
-}
-
-.pds-gallery__subtitle {
-  margin: 0 0 var(--pds-space-4);
-  color: var(--pds-text-secondary);
-}
-
 .pds-gallery__phase {
   margin-bottom: var(--pds-space-4);
 }
@@ -312,13 +302,6 @@
   gap: var(--pds-space-3);
 }
 
-.pds-gallery-status-chips {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pds-space-3);
-  max-width: 420px;
-}
-
 .pds-gallery-btn-row {
   display: flex;
   flex-wrap: wrap;
@@ -368,8 +351,7 @@
 
   .pds-gallery-empty-grid {
     grid-template-columns: 1fr;
-  }
-}
+  }}
 
 /* Marks a scene in the nav as an unbuilt exploration, not shipped UI. */
 .pds-gallery__scene-tag {
@@ -479,4 +461,3 @@
   border: 0.5px solid var(--pds-border);
   border-radius: var(--pds-radius-card);
 }
-

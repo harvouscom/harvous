@@ -22,26 +22,10 @@
   transition: margin-right var(--pds-inspector-transition-duration) var(--pds-inspector-transition-ease);
 }
 
-/* The inspector's reserve is no longer taken out of the editor here — it is taken out of
-   the shell's main pane (`prototype-shell.css`, `.proto-shell__main-inner`), so that a
-   paper-stack's back layer shifts by the same amount as the sheet in front of it. Reserving
-   inside the note pane moved the editor and left the chapter behind it sitting under the
-   panel. The `--inspector-open` class is still what says "docked"; it just says it to the
-   shell now. */
-
-.proto-note-pane-row--thread-docked .proto-editor-surface {
-  margin-right: var(--pds-inspector-reserve-w);
-}
-
-.proto-note-pane-row--thread-expanded .proto-editor-surface {
-  margin-right: clamp(368px, min(728px, calc(60vw + 8px)), 728px);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .proto-note-pane-row .proto-editor-surface {
     transition: none;
-  }
-}
+  }}
 
 .proto-editor-surface {
   position: relative;
@@ -121,8 +105,7 @@
  * of hoisted, for the same reason: each has to be read inside its own pane's container.
  */
 @container proto-editor-scroll (min-width: 832px) {
-  .proto-editor-content-wrap,
-  .proto-editor-loading-wrap {
+  .proto-editor-content-wrap{
     --pds-paper-column: clamp(
       var(--pds-paper-column-min),
       100cqi - 2 * var(--pds-paper-column-gutter),
@@ -131,8 +114,7 @@
     --pds-editor-paper-padding-x: calc(
       (var(--pds-paper-column) - var(--pds-paper-measure)) / 2
     );
-  }
-}
+  }}
 
 /*
  * Editor sheet — white page separated from the column by a subtle shadow only.
@@ -155,16 +137,14 @@
     padding: var(--pds-editor-paper-padding-top-narrow)
       var(--pds-editor-paper-padding-x-narrow)
       var(--pds-editor-paper-padding-bottom);
-  }
-}
+  }}
 
 @container proto-editor-scroll (max-width: 480px) {
   .proto-editor-paper {
     padding: var(--pds-editor-paper-padding-top-narrow)
       var(--pds-editor-paper-padding-x-compact)
       var(--pds-editor-paper-padding-bottom);
-  }
-}
+  }}
 
 /* Narrow editor pane — slightly smaller title/body (matches tighter horizontal padding). */
 @container proto-editor-scroll (max-width: 480px) {
@@ -194,102 +174,7 @@
 
   .proto-editor-surface .card-full-editable__content-html h4 {
     font-size: 0.9375rem !important;
-  }
-}
-
-/* ─── Note metadata / date strip ─────────────────────────────────────────── */
-.proto-editor-date {
-  font-family: var(--pds-font-body);
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--pds-text-tertiary);
-  letter-spacing: 0.01em;
-  margin-bottom: 20px;
-  display: block;
-}
-
-/* ─── Loading skeleton ───────────────────────────────────────────────────── */
-.proto-editor-loading {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  container-type: inline-size;
-  container-name: proto-editor-scroll;
-}
-
-.proto-editor-loading-wrap {
-  flex: 1;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  /* Same column as the real paper above, or the sheet changes width as the note loads. */
-  max-width: min(
-    var(--pds-paper-column),
-    100% - 2 * var(--pds-paper-column-gutter-narrow)
-  );
-  margin: 0 auto;
-  width: 100%;
-  padding: var(--pds-editor-paper-inset-top) 0 0;
-}
-
-.proto-editor-loading-inner {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-sizing: border-box;
-  padding: var(--pds-editor-paper-padding-top)
-    var(--pds-editor-paper-padding-x)
-    var(--pds-editor-paper-padding-bottom);
-}
-
-@container proto-editor-scroll (max-width: 640px) {
-  .proto-editor-loading-inner {
-    padding: var(--pds-editor-paper-padding-top-narrow)
-      var(--pds-editor-paper-padding-x-narrow)
-      var(--pds-editor-paper-padding-bottom);
-  }
-}
-
-@container proto-editor-scroll (max-width: 480px) {
-  .proto-editor-loading-inner {
-    padding: var(--pds-editor-paper-padding-top-narrow)
-      var(--pds-editor-paper-padding-x-compact)
-      var(--pds-editor-paper-padding-bottom);
-  }
-}
-
-.proto-editor-loading-line {
-  height: 16px;
-  border-radius: 4px;
-  background: var(--pds-bg-chip);
-  animation: proto-shimmer 1.4s ease-in-out infinite;
-}
-
-.proto-editor-loading-line--title {
-  height: 22px;
-  width: 55%;
-  margin-bottom: 8px;
-}
-
-.proto-editor-loading-line--short {
-  width: 40%;
-}
-
-@keyframes proto-shimmer {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
-}
-
-/* ─── Not found / error states ───────────────────────────────────────────── */
-.proto-editor-error {
-  padding: 32px;
-  font-family: var(--pds-font-body);
-  font-size: 15px;
-  color: var(--pds-text-secondary);
-}
+  }}
 
 /* ─── Scripture pill (prototype editor) — native mac geometry; accent surface in scripture-pill-accent.css ─ */
 /* inline-flex keeps pad in-layout (no paint-outside-line-box clip) and baseline-aligns text with prose. */
@@ -342,56 +227,6 @@
 .proto-editor-surface .scripture-pill-draft * {
   -webkit-user-select: text !important;
   user-select: text !important;
-}
-
-/* Inline ✓ confirm button rendered as a widget at the draft's trailing edge —
-   blue gradient + white icon, matching the daily passage modal FAB. */
-.proto-editor-surface .scripture-pill-draft__confirm {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin: 0 1px 0 4px;
-  padding: 0;
-  vertical-align: baseline;
-  border: none;
-  border-radius: 50%;
-  background: var(--pds-bg-accent-button);
-  color: var(--pds-on-accent);
-  box-shadow: var(--pds-shadow-accent-button);
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  line-height: 0;
-  transition: filter 0.1s;
-}
-
-/* Beat global.css `button *`, .proto-shell button path, and prototype-route-overrides fill rules. */
-html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confirm > svg,
-html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confirm svg path {
-  color: var(--pds-on-accent) !important;
-  stroke: var(--pds-on-accent) !important;
-  fill: none !important;
-}
-
-.proto-editor-surface .scripture-pill-draft__confirm:hover {
-  filter: brightness(1.06);
-}
-.proto-editor-surface .scripture-pill-draft__confirm:active {
-  filter: brightness(0.95);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme='light']) .proto-editor-surface .scripture-pill-draft__confirm {
-    background: var(--pds-selection-bg);
-    box-shadow: none;
-  }
-}
-
-:root[data-color-scheme='dark'] .proto-editor-surface .scripture-pill-draft__confirm {
-  background: var(--pds-selection-bg);
-  box-shadow: none;
 }
 
 /* Translation suffix (e.g. NET) — smaller, shares baseline with reference */
@@ -681,8 +516,7 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   :root:not([data-color-scheme="light"]) .proto-editor-surface .ProseMirror mark[data-color="coralRose"],
   :root:not([data-color-scheme="light"]) .proto-editor-surface .card-full-editable__content-html mark[data-color="coralRose"] {
     text-shadow: 0 0 12px color-mix(in oklab, var(--pds-highlight-coral-rose, var(--study-dock-accent-coralRose)) 60%, transparent);
-  }
-}
+  }}
 
 :root[data-color-scheme="dark"] .proto-editor-surface .ProseMirror mark,
 :root[data-color-scheme="dark"] .proto-editor-surface .card-full-editable__content-html mark {
@@ -799,36 +633,13 @@ html.harvous-prototype-route .proto-editor-surface .scripture-pill-draft__confir
   .proto-editor-bottom-bar[data-mode='format'] {
     animation: none;
     will-change: auto;
-  }
-}
+  }}
 
 /* The format toolbar host — TiptapEditor portals the toolbar inside this div. */
 .proto-editor-bottom-bar__format {
   width: 100%;
   min-width: 0;
   align-items: center;
-}
-
-.proto-editor-bottom-bar__scripture {
-  width: 100%;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.proto-editor-bottom-bar__highlight {
-  width: 100%;
-}
-
-.proto-editor-bottom-bar__reference {
-  width: 100%;
-}
-
-/* Dock roots in the shell bottom bar — transparent; floating docks live in `.proto-shell__study-dock-layer`. */
-.proto-editor-bottom-bar__scripture .scripture-pill-chrome,
-.proto-editor-bottom-bar__highlight .highlight-dock-web,
-.proto-editor-bottom-bar__reference .reference-dock-web {
-  border-top: none;
-  background: transparent;
 }
 
 /* Scripture reference strip — prototype PDS only (not classic SPA translation-dropdown chrome). */
@@ -904,17 +715,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 .proto-editor-surface .scripture-ref-cluster .harvous-menu-pill__trigger:hover,
 .proto-editor-surface .scripture-ref-cluster .harvous-menu-pill__trigger[aria-expanded='true'] {
   background: var(--pds-bg-chip);
-}
-
-/* Connect / linked-note strip (note-actions mode) */
-.proto-editor-bottom-bar__note-actions-stack {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.proto-editor-bottom-bar__note-actions-stack > .proto-note-action-bar {
-  border-top: 0.5px solid var(--pds-border);
 }
 
 /* Portal-rendered prototype toolbar — full-bleed, no border/radius/shadow. */
@@ -1056,8 +856,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   .proto-editor-surface .tiptap-toolbar--prototype-native button:hover:not(:disabled) {
     background: var(--pds-bg-control);
     color: var(--pds-text-primary);
-  }
-}
+  }}
 
 .proto-editor-bottom-bar .tiptap-toolbar--prototype-native button[aria-pressed='true'],
 .proto-editor-bottom-bar .tiptap-toolbar--prototype-native button.is-active,
@@ -1069,113 +868,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
 .proto-editor-surface .tiptap-toolbar--prototype-native button[data-active='true'] {
   color: var(--pds-text-primary);
   background: var(--pds-bg-chip);
-}
-
-.proto-note-action-bar {
-  width: 100%;
-  font-family: var(--pds-font-body);
-}
-
-.proto-note-action-bar__scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  width: 100%;
-}
-
-.proto-note-action-bar__scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.proto-note-action-bar__strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 20px;
-  width: max-content;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.proto-note-action-bar__strip--solo {
-  justify-content: flex-start;
-  width: 100%;
-}
-
-.proto-note-action-bar__cluster {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.proto-note-action-bar__sep {
-  flex-shrink: 0;
-  opacity: 0.38;
-  color: var(--pds-text-tertiary);
-}
-
-.proto-note-action-bar__current {
-  flex-shrink: 0;
-  max-width: 200px;
-  padding: 6px 10px;
-  border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-control-hover);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--pds-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.proto-note-action-bar__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  padding: 7px 12px;
-  border-radius: var(--pds-radius-pill);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.2;
-  text-decoration: none;
-  border: none;
-  cursor: pointer;
-  font-family: var(--pds-font-body) !important;
-  color: var(--pds-text-secondary);
-  background: var(--pds-bg-control);
-  transition: background 0.1s, color 0.1s;
-}
-
-.proto-note-action-bar__pill:hover:not(.proto-note-action-bar__pill--share-active) {
-  background: var(--pds-bg-control-strong);
-  color: var(--pds-text-primary);
-}
-
-.proto-note-action-bar__pill--link {
-  color: var(--pds-text-secondary);
-}
-
-.proto-note-action-bar__pill--connect {
-  color: var(--pds-text-secondary);
-}
-
-/* Share pill — when sharing is enabled, paint it blue so the user can tell at
-   a glance that the current note is public. The neutral pill is identical to
-   `--connect` so the action bar stays visually consistent. */
-.proto-note-action-bar__pill--share-active {
-  color: var(--pds-on-accent);
-  background: var(--pds-bg-accent-button);
-  box-shadow: var(--pds-shadow-accent-button);
-  transition: filter 0.1s;
-}
-.proto-note-action-bar__pill--share-active:hover {
-  background: var(--pds-bg-accent-button);
-  filter: brightness(1.06);
-  color: var(--pds-on-accent);
 }
 
 /* ─── Find in note highlights (CSS Custom Highlight API) ───────────────────
@@ -1386,24 +1078,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .highlight-dock-web_
   padding: 6px 10px;
   border-radius: 8px;
   line-height: 1.4;
-}
-
-.proto-note-action-bar__pill-git {
-  flex-shrink: 0;
-  opacity: 0.85;
-}
-
-.proto-note-action-bar__pill-text {
-  min-width: 0;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.proto-note-action-bar__pill svg {
-  flex-shrink: 0;
-  display: block;
 }
 
 /*
@@ -1626,5 +1300,4 @@ html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.o
 
   html.harvous-prototype-route .proto-editor-surface .card-full-editable .flex-1.overflow-auto h4 {
     font-size: 0.9375rem !important;
-  }
-}
+  }}

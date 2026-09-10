@@ -98,8 +98,7 @@
 @media (prefers-reduced-motion: reduce) {
   .proto-shell__editor-chrome-row[data-mode='format'] .proto-shell__study-dock-layer {
     transition: none;
-  }
-}
+  }}
 
 /* Shadow room lives on `.study-dock-card__outer` padding — not an extra track gap. */
 .proto-shell__study-dock-layer .study-dock-carousel__track {
@@ -146,8 +145,7 @@
 @media (min-width: 900px) {
   .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card) {
     padding-left: var(--proto-sidebar-w-clamped);
-  }
-}
+  }}
 
 .proto-shell__study-dock-layer__slot:not(:empty) {
   /* Only dock cards capture clicks — padded/empty slot area must not block the inspector. */
@@ -294,10 +292,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   border-radius: var(--pds-shell-frame-radius) var(--pds-shell-frame-radius) 0 0;
 }
 
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference {
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format{
   padding-left: var(--proto-format-toolbar-paper-inset, 0px);
   padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
 }
@@ -311,11 +306,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   padding-right: var(--proto-format-toolbar-overhang);
 }
 
-/* Inspector column (when open on desktop) */
-.proto-shell--inspector-open {
-  grid-template-columns: var(--proto-sidebar-w-clamped) minmax(0, 1fr) var(--pds-inspector-w);
-}
-
 /* No footer (search route) — note routes add a chrome row via --note-chrome instead. */
 .proto-shell--no-footer:not(.proto-shell--note-chrome) {
   grid-template-rows: var(--pds-toolbar-h) minmax(0, 1fr);
@@ -327,9 +317,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
 }
 .proto-shell--no-sidebar {
   grid-template-columns: minmax(0, 1fr);
-}
-.proto-shell--no-sidebar.proto-shell--inspector-open {
-  grid-template-columns: minmax(0, 1fr) var(--pds-inspector-w);
 }
 
 /* Desktop sidebar collapsed (⌘\ equivalent) */
@@ -351,9 +338,6 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
 }
 .proto-shell--sidebar-collapsed:not(.proto-shell--no-sidebar) {
   grid-template-columns: 0 minmax(0, 1fr);
-}
-.proto-shell--sidebar-collapsed.proto-shell--inspector-open:not(.proto-shell--no-sidebar) {
-  grid-template-columns: 0 minmax(0, 1fr) var(--pds-inspector-w);
 }
 
 /* ─── Grid cells ─────────────────────────────────────────────────────────── */
@@ -483,8 +467,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 @media (prefers-reduced-motion: reduce) {
   .proto-shell__main-inner {
     transition: none;
-  }
-}
+  }}
 
 /* The `hidden` attribute's UA `display:none` (specificity 0,0,1) loses to the
    `.proto-shell__main-inner { display:flex }` rule above (0,1,0), so a hidden
@@ -513,68 +496,19 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 
   .proto-shell--no-sidebar .proto-shell__right-panel-host {
     grid-column: 1;
-  }
-
-  .proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__right-panel-host {
-    grid-column: 1;
-  }
-}
+  }}
 
 @media (max-width: 899px) {
   .proto-shell__right-panel-host {
     display: none;
-  }
-}
+  }}
 
 .proto-shell__sidebar-resize-handle {
   display: none;
 }
 
-.proto-shell__inspector-cell {
-  grid-column: 3;
-  grid-row: 2;
-  min-height: 0;
-  overflow: hidden;
-  border-left: 1px solid var(--pds-border);
-  background: var(--pds-bg-sidebar);
-  display: flex;
-  flex-direction: column;
-}
-
 .proto-shell--no-sidebar .proto-shell__main-cell {
   grid-column: 1;
-}
-.proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__main-cell {
-  grid-column: 1;
-}
-.proto-shell--no-sidebar.proto-shell--inspector-open .proto-shell__inspector-cell {
-  grid-column: 2;
-}
-
-.proto-shell__footer-cell {
-  grid-column: 1 / -1;
-  grid-row: 3;
-  border-top: 1px solid var(--pds-border);
-  background: transparent;
-  box-shadow: var(--pds-glass-rim);
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  position: relative;
-}
-
-.proto-shell__footer-cell::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--pds-glass-sheen);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.proto-shell__footer-cell > * {
-  position: relative;
-  z-index: 1;
 }
 
 /* ─── Sidebar root ───────────────────────────────────────────────────────── */
@@ -600,56 +534,12 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   scroll-padding-bottom: 16px;
 }
 
-.proto-load-more-sentinel {
-  height: 4px;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-
-.proto-load-more-status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 18px 16px;
-  min-height: 28px;
-  flex-shrink: 0;
-}
-
-.proto-load-more-retry {
-  border: none;
-  background: transparent;
-  padding: 4px 0;
-  cursor: pointer;
-  font-family: inherit;
-  color: var(--pds-text-secondary);
-  text-decoration: none;
-}
-
-.proto-load-more-retry:hover {
-  color: var(--pds-text-primary);
-  text-decoration: none;
-}
-
 /* ─── Main pane ──────────────────────────────────────────────────────────── */
 .proto-main-pane {
   flex: 1;
   min-height: 0;
   overflow: auto;
   font-family: var(--pds-font-body);
-}
-
-.proto-main-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  padding: 32px;
-  color: var(--pds-text-secondary);
-  font-size: 0.9375rem;
-  text-align: center;
-  gap: 8px;
 }
 
 /* ─── Mobile drawer ──────────────────────────────────────────────────────── */
@@ -763,18 +653,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     background: var(--pds-paper-sheet);
   }
 
-  .proto-shell--inspector-open {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .proto-shell__footer-cell {
-    display: none;
-  }
-
-  .proto-shell__inspector-cell {
-    display: none;
-  }
-
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar {
     position: fixed;
     top: calc(var(--pds-toolbar-h) + 8px);
@@ -839,9 +717,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-root::after {
     display: none;
   }
-
-  /* List type menu — opaque popover above the scrolling note list (same fix as desktop sidebar). */
-  .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-list-view:has(.proto-menu__popover),
   .proto-shell__sidebar-cell.proto-shell-drawer-sidebar .proto-sidebar-toolbar:has(.proto-menu__popover) {
     z-index: 100;
   }
@@ -995,8 +870,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     .proto-inspector-mobile-panel--exiting,
     .proto-shell-drawer-sidebar--exiting {
       animation: none;
-    }
-  }
+    }}
 
   /*
    * Expanded sidebar tool surface — mobile takeover.
@@ -1052,48 +926,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     .proto-sidebar-expanded-panel,
     .proto-sidebar-expanded-panel--exiting {
       animation: none;
-    }
-  }
-
-  /* Reusable expandable right-side panel — mobile variants. */
-  .proto-side-panel-mobile-backdrop {
-    position: fixed;
-    inset: var(--pds-toolbar-h) 0 0 0;
-    z-index: 155;
-    background: transparent;
-    pointer-events: auto;
-  }
-
-  .proto-side-panel-mobile {
-    position: fixed;
-    top: calc(var(--pds-toolbar-h) + 8px);
-    right: 8px;
-    bottom: 8px;
-    width: min(var(--pds-inspector-w), calc(92vw - 16px));
-    z-index: 160;
-    border-radius: var(--pds-shell-frame-radius);
-    background: var(--pds-bg-page);
-    box-shadow: var(--pds-shadow-drawer);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    animation: proto-inspector-mobile-in 0.26s cubic-bezier(0.32, 0.72, 0.24, 1) forwards;
-    transition: width 0.26s cubic-bezier(0.32, 0.72, 0.24, 1);
-  }
-
-  .proto-side-panel-mobile--expanded {
-    width: calc(92vw - 16px);
-  }
-
-  .proto-side-panel-mobile--docked {
-    width: min(var(--pds-inspector-w), calc(92vw - 16px));
-  }
-
-  .proto-side-panel-mobile--exiting {
-    animation: proto-inspector-mobile-out 200ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
-    transition: none;
-  }
-}
+    }}}
 
 @media (min-width: 900px) {
   /* Full-width track — allow single-dock card overhang past track edges. */
@@ -1131,8 +964,7 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   @media (prefers-reduced-motion: reduce) {
     .proto-shell__study-dock-layer .study-dock-carousel__track > .study-dock-carousel__item:only-child {
       transition: none;
-    }
-  }
+    }}
 
   /* Grid + chrome padding ease on open and on close (close uses --sidebar-closing). */
   .proto-shell {
@@ -1151,9 +983,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar[data-mode='format'],
   .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-  .proto-shell--sidebar-resizing .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
   .proto-shell--sidebar-resizing .proto-shell__study-dock-layer__slot:not(:empty),
   .proto-shell--sidebar-resizing
     .proto-shell__study-dock-layer
@@ -1237,9 +1066,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   }
 
   .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-  .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
   .proto-shell__study-dock-layer__slot:not(:empty),
   .proto-shell__study-dock-layer .study-dock-carousel__track > .study-dock-carousel__item:only-child,
   .proto-shell:has(.proto-note-pane-row--inspector-open) .proto-shell__study-dock-layer__slot:not(:empty) {
@@ -1264,15 +1090,6 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
     .proto-shell__editor-chrome-row
     .proto-editor-bottom-bar__format,
-  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
-    .proto-shell__editor-chrome-row
-    .proto-editor-bottom-bar__scripture,
-  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
-    .proto-shell__editor-chrome-row
-    .proto-editor-bottom-bar__highlight,
-  .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
-    .proto-shell__editor-chrome-row
-    .proto-editor-bottom-bar__reference,
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing) .proto-shell__study-dock-layer__slot:not(:empty),
   .proto-shell--sidebar-collapsed:not(.proto-shell--sidebar-closing)
     .proto-shell__study-dock-layer
@@ -1284,10 +1101,18 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   /*
    * Expanded sidebar tool surface — desktop.
    *
-   * Anchored to the sidebar's own edge (left 8px, same inset and radius as the
-   * frame) and grown rightward over the main pane, so the move reads as "the
-   * sidebar took the room it needed" rather than "a modal appeared". The note
-   * editor stays mounted underneath, untouched.
+   * **Centred**, within the same 8px inset and radius as the frame. It used to be
+   * pinned to `left: 8px` so the move read as "the sidebar took the room it
+   * needed" rather than "a modal appeared" — true while the sidebar was the only
+   * way in. The sidebar is retired and every other surface in this shell is
+   * centred, so on any screen wider than 1056px the panel simply sat off to one
+   * side of everything else.
+   *
+   * `left`/`right` both inset with `margin-inline: auto` rather than a
+   * `translateX(-50%)`: the width below is animated, and a transform would have
+   * to be recomputed against it every frame. Auto margins re-centre on their own,
+   * and they keep the 8px gutter as a floor once the viewport is narrower than
+   * the cap.
    *
    * Above `.proto-side-panel` (21) and the right-panel host (7), below the
    * toolbar cells (1300) — the toolbar stays live while a tool is open.
@@ -1296,7 +1121,9 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     position: absolute;
     top: calc(var(--pds-toolbar-h) + 8px);
     left: 8px;
+    right: 8px;
     bottom: 8px;
+    margin-inline: auto;
     width: min(calc(100% - 16px), 1040px);
     z-index: 30;
     border-radius: var(--pds-shell-frame-radius);
@@ -1411,18 +1238,13 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   @media (prefers-reduced-motion: reduce) {
     .proto-shell,
     .proto-shell__editor-chrome-row .proto-editor-bottom-bar__format,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__scripture,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__highlight,
-    .proto-shell__editor-chrome-row .proto-editor-bottom-bar__reference,
     .proto-shell__study-dock-layer__slot:not(:empty),
     .proto-shell-drawer-sidebar--exiting .proto-sidebar-root,
     .proto-sidebar-expanded-panel,
     .proto-sidebar-expanded-panel--exiting {
       transition: none;
       animation: none;
-    }
-  }
-}
+    }}}
 
 /* Custom canvas (color or image) — shell card stacks above html wallpaper. */
 html.harvous-proto-wallpaper-color .proto-shell-frame,
@@ -1449,7 +1271,6 @@ html.harvous-prototype-route .proto-shell {
 html.harvous-prototype-route .proto-shell__toolbar-cell,
 html.harvous-prototype-route .proto-shell__sidebar-toolbar-cell,
 html.harvous-prototype-route .proto-shell__detail-toolbar-cell,
-html.harvous-prototype-route .proto-shell__footer-cell,
 html.harvous-prototype-route .proto-shell__editor-chrome-row {
   background: transparent;
 }
@@ -1458,8 +1279,7 @@ html.harvous-prototype-route .proto-shell__editor-chrome-row {
   html.harvous-prototype-route .proto-shell-frame {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-  }
-}
+  }}
 
 /* iOS standalone PWA: the installed app gets the same glass shell over the same wallpaper
    as everywhere else. Both used to be stripped here to avoid WebKit process kills, which
@@ -1477,8 +1297,7 @@ html.harvous-prototype-route .proto-shell__editor-chrome-row {
 @media (max-width: 899px) {
   html.ios-pwa.harvous-prototype-route {
     background-attachment: scroll !important;
-  }
-}
+  }}
 
 .proto-popover-shell__content {
   position: relative;
@@ -1490,7 +1309,6 @@ html.harvous-prototype-route .proto-menu__popover,
 html.harvous-prototype-route .proto-menu__popover--sidebar-list-view,
 html.harvous-prototype-route .proto-share-popover,
 html.harvous-prototype-route .proto-find-popover,
-html.harvous-prototype-route .proto-folder-popover,
 html.harvous-prototype-route .proto-connect-note-popover,
 html.harvous-prototype-route .proto-shared-space-about,
 html.harvous-prototype-route .harvous-delete-confirm,
@@ -1537,9 +1355,7 @@ html.harvous-proto-wallpaper-color .proto-menu-item--destructive .proto-menu-ite
 
 /* Match share/folder popover text readability to menu treatment. */
 html.harvous-proto-wallpaper-image .proto-share-popover,
-html.harvous-proto-wallpaper-image .proto-folder-popover,
-html.harvous-proto-wallpaper-color .proto-share-popover,
-html.harvous-proto-wallpaper-color .proto-folder-popover {
+html.harvous-proto-wallpaper-color .proto-share-popover{
   color: var(--pds-text-on-chrome);
 }
 
@@ -1906,8 +1722,7 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   .proto-library-recents__toggle:hover {
     background: var(--pds-bg-control);
     color: var(--pds-text-primary);
-  }
-}
+  }}
 
 .proto-library-recents__toggle[aria-expanded='true'] {
   background: var(--pds-bg-control);
@@ -2286,25 +2101,12 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   animation: proto-library-sheet-in 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
 }
 
-.proto-library-sheet--exiting {
-  animation: proto-library-sheet-out 220ms cubic-bezier(0.32, 0.72, 0.24, 1) both;
-}
-
 @keyframes proto-library-sheet-in {
   from {
     transform: translateY(100%);
   }
   to {
     transform: translateY(0);
-  }
-}
-
-@keyframes proto-library-sheet-out {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(100%);
   }
 }
 
@@ -2357,8 +2159,7 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
     transition:
       opacity 120ms linear,
       visibility 0s 120ms;
-  }
-}
+  }}
 
 /*
  * The kind picker, in the header row beside the field.
@@ -2691,4 +2492,3 @@ html.harvous-proto-guest .proto-shell-frame {
 html.harvous-prototype-route button[class*='proto-'].proto-accent-btn-sm {
   color: var(--pds-on-accent) !important;
 }
-

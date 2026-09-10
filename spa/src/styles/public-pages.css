@@ -165,33 +165,6 @@
   user-select: none;
 }
 
-.public-toolbar__icon {
-  display: inline-flex;
-  align-items: center;
-}
-
-.public-toolbar__wordmark {
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
-  color: var(--site-ink);
-}
-
-/* Nav link ("Features") inside the pill — muted text, hover to ink. */
-.public-toolbar__nav-link {
-  font-family:
-    "Google Sans", "Reddit Sans", ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-  color: var(--site-ink-soft);
-  text-decoration: none;
-  transition: color 120ms ease;
-}
-.public-toolbar__nav-link:hover {
-  color: var(--site-ink);
-}
-
 /* CTA pill ("Open app" / "Sign in" / "Back to my Harvous") — secondary
    control (light fill + ink text), same recipe as `.upgrade-secondary-btn`.
    Keep boot critical CSS in sync to avoid white-on-light FOUC. */
@@ -260,8 +233,7 @@
     padding-top: 28px;
     padding-bottom: 32px;
     gap: 16px;
-  }
-}
+  }}
 
 /* ─── Creator byline ─────────────────────────────────────────────────────── */
 
@@ -362,31 +334,6 @@
   border-bottom: none;
 }
 
-/* ─── Thread row (join-space preview) ───────────────────────────────────── */
-
-.public-thread-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--pds-border-soft);
-}
-
-.public-thread-row__accent {
-  width: 4px;
-  height: 32px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-.public-thread-row__title {
-  flex: 1;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-  line-height: 1.3;
-}
-
 .public-thread-row__badge {
   font-size: 0.75rem;
   font-weight: 600;
@@ -395,15 +342,6 @@
   padding: 2px 8px;
   border-radius: var(--pds-radius-pill);
   flex-shrink: 0;
-}
-
-/* ─── People count (join-space) ─────────────────────────────────────────── */
-
-.public-people-count {
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--pds-border-soft);
-  font-size: 0.875rem;
-  color: var(--pds-text-secondary);
 }
 
 /* ─── Invitation-specific ───────────────────────────────────────────────── */
@@ -1050,22 +988,6 @@
   border-bottom: none;
 }
 
-.public-thread-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 22px;
-  border-bottom: 1px solid var(--site-rule);
-}
-
-.public-thread-row__title {
-  flex: 1;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--site-ink);
-  line-height: 1.3;
-}
-
 .public-thread-row__badge {
   font-size: 0.6875rem;
   font-weight: 600;
@@ -1076,13 +998,6 @@
   flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-
-.public-people-count {
-  padding: 14px 22px;
-  border-bottom: 1px solid var(--site-rule);
-  font-size: 0.875rem;
-  color: var(--site-ink-soft);
 }
 
 .public-invite-message {
@@ -1180,8 +1095,7 @@
 
   .public-content--status .public-status-mount > .subtle-content-mount__inner {
     gap: 32px;
-  }
-}
+  }}
 
 .public-content--status .public-footer--rich {
   padding: 0;
@@ -1245,8 +1159,7 @@
 
   .public-paper-stack.public-paper-stack--status .public-paper-stack__leaf {
     inset: 12px 24px;
-  }
-}
+  }}
 
 .public-status-sheet {
   position: relative;
@@ -1277,8 +1190,7 @@
   .public-status-sheet {
     --status-sheet-inset: 32px;
     min-height: 520px;
-  }
-}
+  }}
 
 .public-status-sheet::before {
   content: "";
@@ -1305,8 +1217,7 @@
 @media (min-width: 700px) {
   .public-status-sheet__header {
     padding-top: 36px;
-  }
-}
+  }}
 
 .public-status-sheet__header::after {
   content: "";
@@ -1407,8 +1318,7 @@
 @media (min-width: 700px) {
   .public-status-table-wrap {
     margin: 24px var(--status-sheet-inset) 32px;
-  }
-}
+  }}
 
 .public-status-table-wrap--operational {
   border-color: color-mix(in srgb, var(--status-operational-border) 55%, var(--site-rule));
@@ -1788,8 +1698,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-}
+  }}
 
 @media (max-width: 699px) {
   .public-status-table thead th,
@@ -1820,8 +1729,7 @@
     padding: 2px 6px;
     font-size: 0.625rem;
     letter-spacing: 0.02em;
-  }
-}
+  }}
 
 @media (max-width: 479px) {
   .public-status-table thead th:nth-child(2),
@@ -1835,8 +1743,7 @@
 
   .public-status-table thead th:nth-child(3) {
     width: auto;
-  }
-}
+  }}
 
 .public-status-table__status .public-status-badge {
   vertical-align: middle;
@@ -1972,8 +1879,7 @@
 @media (min-width: 700px) {
   .public-status-sheet__support {
     padding-bottom: 32px;
-  }
-}
+  }}
 
 .public-status-sheet__support::before {
   content: "";
@@ -1993,8 +1899,7 @@
 @media (min-width: 520px) {
   .public-status-support {
     grid-template-columns: repeat(2, 1fr);
-  }
-}
+  }}
 
 .public-status-support__link {
   display: flex;

@@ -88,8 +88,7 @@ html.harvous-prototype-route button.proto-sidebar-list-view__trigger .proto-side
 html.harvous-prototype-route button.proto-sidebar-seg__btn,
 html.harvous-prototype-route button.proto-sidebar-seg__btn .proto-sidebar-seg__label,
 html.harvous-prototype-route button.proto-toolbar-folder-chip,
-html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label,
-html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__extra {
+html.harvous-prototype-route button.proto-toolbar-folder-chip .proto-toolbar-folder-chip__label{
   font-variation-settings: var(--pds-font-body-variation-toolbar-chip) !important;
 }
 
@@ -149,10 +148,6 @@ html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-ite
   color: var(--pds-text-secondary) !important;
 }
 
-html.harvous-prototype-route [class*='proto-'] button .proto-home-card__meta-sep {
-  color: var(--pds-text-tertiary) !important;
-}
-
 /* List row preview lines inside buttons — beat blanket `button *` primary above.
    Timestamp stays secondary; excerpt body uses list-preview (native secondary / tertiary). */
 html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview,
@@ -163,16 +158,12 @@ html.harvous-prototype-route button.proto-thread-trail__step-main .proto-note-ro
 html.harvous-prototype-route button.proto-thread-trail__step-main .proto-note-row__preview *,
 html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-preview,
 html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-preview *,
-html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview,
-html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview *,
 html.harvous-prototype-route .proto-note-row .pds-list-preview,
 html.harvous-prototype-route .proto-note-row .pds-list-preview *,
 html.harvous-prototype-route [class*='proto-'] button .pds-list-preview,
 html.harvous-prototype-route [class*='proto-'] button .pds-list-preview *,
 html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview,
-html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview *,
-html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview,
-html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview * {
+html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview *{
   color: var(--pds-text-list-preview) !important;
 }
 
@@ -180,17 +171,14 @@ html.harvous-prototype-route button.proto-note-row__main .pds-list-preview .pds-
 html.harvous-prototype-route button.proto-note-row__main .proto-note-row__preview .pds-list-timestamp,
 html.harvous-prototype-route button.proto-thread-trail__step-main .proto-note-row__preview .pds-list-timestamp,
 html.harvous-prototype-route button.proto-thread-trail__step-main .pds-list-preview .pds-list-timestamp,
-html.harvous-prototype-route button.proto-thread-trail__step-main .proto-thread-trail__preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .pds-list-preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .proto-note-row__preview .pds-list-timestamp,
-html.harvous-prototype-route [class*='proto-'] button .proto-thread-trail__preview .pds-list-timestamp,
 html.harvous-prototype-route [class*='proto-'] button .proto-inspector-activity__subject-row .pds-list-timestamp {
   color: var(--pds-text-secondary) !important;
 }
 
 html.harvous-prototype-route [class*='proto-'] button .pds-caption,
-html.harvous-prototype-route [class*='proto-'] button .proto-caption,
-html.harvous-prototype-route [class*='proto-'] button .proto-footnote {
+html.harvous-prototype-route [class*='proto-'] button .proto-caption{
   color: var(--pds-text-secondary) !important;
 }
 
@@ -303,21 +291,12 @@ html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secon
 html.harvous-prototype-route a.proto-settings-btn:not(.proto-settings-btn--secondary) *,
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive,
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn--destructive *,
-html.harvous-prototype-route button.proto-glass-action--primary,
-html.harvous-prototype-route button.proto-glass-action--primary *,
-/* `span` explicitly: the blanket rule above lists `button[class*='proto-'] span`
-   (0,2,3), which outranks a trailing `*` (0,2,2). Most buttons in this list wrap
-   bare text and never hit it; this one has a real label span. */
-html.harvous-prototype-route button.proto-glass-action--primary span,
-html.harvous-prototype-route button.proto-glass-action--primary svg,
 html.harvous-prototype-route button.proto-fte-field__btn--apply,
 html.harvous-prototype-route button.proto-fte-field__btn--apply *,
 html.harvous-prototype-route button.proto-share-popover__primary,
 html.harvous-prototype-route button.proto-share-popover__primary *,
 html.harvous-prototype-route button.proto-update-toast__action:not(.proto-update-toast__action--secondary),
 html.harvous-prototype-route button.proto-update-toast__action:not(.proto-update-toast__action--secondary) *,
-html.harvous-prototype-route button.proto-note-action-bar__pill--share-active,
-html.harvous-prototype-route button.proto-note-action-bar__pill--share-active *,
 html.harvous-prototype-route button.proto-thread-review__btn--primary,
 html.harvous-prototype-route button.proto-thread-review__btn--primary *,
 html.harvous-prototype-route button.proto-shared-thread-action--primary,
@@ -408,12 +387,6 @@ html.harvous-prototype-route button.proto-inspector-delete-btn,
 html.harvous-prototype-route button.proto-inspector-delete-btn *,
 html.harvous-prototype-route button.proto-inspector-delete-btn svg,
 html.harvous-prototype-route button.proto-inspector-delete-btn path {
-  color: var(--pds-destructive) !important;
-  fill: currentColor !important;
-}
-
-html.harvous-prototype-route button.proto-thread-review__dismiss--danger,
-html.harvous-prototype-route button.proto-thread-review__dismiss--danger * {
   color: var(--pds-destructive) !important;
   fill: currentColor !important;
 }

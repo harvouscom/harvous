@@ -193,6 +193,45 @@
   width: 100%;
 }
 
+/*
+  The viewer's own standing in the plan, and the button that changes it.
+
+  Its own row above the compose actions rather than a third cell in their grid:
+  those two are both "add something here", and this is the one place a member
+  states a fact about their own study. The button stays secondary — the primary
+  in the grid below is the room's call to action, and two accents within twelve
+  pixels of each other fight.
+*/
+.proto-shared-thread-drilldown__progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.proto-shared-thread-drilldown__progress-line {
+  /* The app reset carries `* { flex-shrink: 0 }`, so the line needs both of
+     these to ellipsize instead of pushing the button off the row. */
+  flex-shrink: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pds-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  The member's counterpart to `__pulse`. Deliberately a word and not a count:
+  the leader's line measures a room, and one person's own step does not measure
+  anything.
+*/
+.proto-shared-thread-step__opened {
+  color: var(--pds-text-tertiary);
+}
+
 .proto-shared-thread-drilldown__scroll {
   min-height: 0;
 }
@@ -306,50 +345,39 @@
 
   .proto-shared-thread-action--primary {
     background: var(--pds-bg-accent-button);
-  }
-}
-
-/*
-  Non-current Thread cards carry two actions — open, and "Set current" — so the
-  card itself can't be the button (a button cannot contain a button). The title
-  becomes the open target instead and has to shed all button chrome to keep
-  reading as the card's title.
-*/
-.proto-shared-thread-card__open {
-  min-width: 0;
-  flex: 1 1 auto;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  /* The card's own title colour, not the blanket button colour. */
-  color: var(--pds-text-primary);
-}
-
-/* Never the browser's default link underline — this is a card title, not a
-   link. The card tints under the cursor instead, so the whole row reads as the
-   target rather than just the glyphs of the word. */
-.proto-shared-thread-card__open {
-  text-decoration: none;
-}
-
-@media (hover: hover) {
-  .proto-home-card:has(.proto-shared-thread-card__open:hover) {
-    background: var(--pds-bg-control);
-  }
-}
-
-.proto-shared-thread-card__open:focus-visible {
-  outline: 2px solid var(--pds-accent-focus-ring);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
+  }}
 
 /* The shared chip bar carries sidebar-list margins; under the section eyebrow
    it only needs a little air above the cards. */
 .proto-shared-thread-tabs {
   margin: 0 0 8px;
+}
+/*
+  The room's passage, and the one control that moves it on.
+
+  "Not now" is positioned over the card's top-right rather than placed in flow:
+  the card fills the section and is itself the tap target, so a sibling in normal
+  flow would either push it down or sit under it. Quiet by default — it is an
+  escape hatch, not the thing the section is offering.
+*/
+.proto-space-passage {
+  position: relative;
+}
+
+.proto-space-passage__rest {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  margin: 0;
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: 500 11px/1 var(--pds-font-body);
+  color: var(--pds-text-tertiary);
+}
+
+.proto-space-passage__rest:hover {
+  color: var(--pds-text-secondary);
 }

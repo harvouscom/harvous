@@ -814,8 +814,7 @@ html.harvous-prototype-route {
     --pds-glass-blur: none;
     --pds-glass-blur-elevated: none;
     --pds-glass-blur-control: none;
-  }
-}
+  }}
 
 /* Paper (base) + color preset — darker lines in light mode, more visible alpha. */
 html.harvous-prototype-route:not(.harvous-proto-wallpaper-image) {
@@ -1099,8 +1098,7 @@ html.harvous-proto-wallpaper-image {
     --pds-glass-panel-frost: oklch(var(--pds-lch-bg-page) / 0.08);
     --pds-glass-bar-frost: oklch(var(--pds-lch-bg-page) / 0.22);
     --pds-glass-blur: blur(44px) saturate(1.15);
-  }
-}
+  }}
 
 /* ─── Forced dark mode (overrides system light) ──────────────────────────── */
 
@@ -1670,28 +1668,6 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   color: var(--pds-text-tertiary);
 }
 
-/* HarvousTypography.inspectorBody — 12pt / 400 */
-.pds-inspector-body {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--pds-text-primary);
-  line-height: 1.4;
-}
-
-/* HarvousTypography.searchSpotlightTitle — 13pt / 500 */
-.pds-search-result-title {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--pds-text-primary);
-}
-
-/* HarvousTypography.searchSpotlightMeta — 11pt / 400 */
-.pds-search-result-meta {
-  font-size: 0.6875rem;
-  font-weight: 400;
-  color: var(--pds-text-secondary);
-}
-
 /* ─── Legacy proto-* aliases (referenced from existing JSX) ──────────────── */
 /* These map old class names to new token values without SPA dependencies. */
 
@@ -1704,56 +1680,8 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   -webkit-font-smoothing: antialiased;
 }
 
-.proto-display {
-  font-family: var(--pds-font-display);
-  font-variation-settings: var(--pds-font-display-variation);
-}
-
-.proto-title-lg {
-  font-family: var(--pds-font-display);
-  font-variation-settings: var(--pds-font-display-variation);
-  font-size: 1.25rem;
-  font-weight: 580;
-  letter-spacing: -0.018em;
-  line-height: 1.2;
-}
-
-.proto-title-md {
-  font-family: var(--pds-font-display);
-  font-variation-settings: var(--pds-font-display-variation);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-.proto-body {
-  font-size: 1rem;
-  font-weight: 400;
-  line-height: 1.45;
-}
-
-.proto-list-title {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--pds-text-primary);
-}
-
-.proto-list-preview {
-  font-size: 0.75rem;
-  font-weight: 400;
-  line-height: 1.35;
-  color: var(--pds-text-list-preview);
-}
-
 .proto-caption {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--pds-text-secondary);
-}
-
-.proto-footnote {
-  font-size: 0.6875rem;
-  font-weight: 400;
   color: var(--pds-text-secondary);
 }
