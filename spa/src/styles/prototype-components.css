@@ -22805,6 +22805,40 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-primary);
 }
 
+/*
+  Which kind of exercise the card is about to ask, above the instruction.
+
+  A caption, not a badge. It sits in the same muted register as every other caption in the dock
+  because it is orientation rather than content — the reader's eye should land on the question,
+  notice the label on the way past, and not come back to it.
+*/
+.proto-review-dock__exercise {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 6px;
+  color: var(--pds-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+}
+
+.proto-review-dock__exercise svg {
+  flex: none;
+  opacity: 0.85;
+}
+
+/*
+  The same name on a shelf row, where it shares the meta line with the task.
+
+  Inline rather than flex: the row's meta is a run of text with separators between its parts, and
+  a flex child here would break out of that line and take the separator with it.
+*/
+.proto-review-row__exercise {
+  margin-left: 4px;
+  color: var(--pds-text-secondary);
+}
+
 /* Which note the question is about, when the question itself does not name it. Quiet, and
    directly under the prompt so the two read as one thing. */
 .proto-review-dock__subject {

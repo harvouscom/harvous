@@ -26,6 +26,8 @@ export interface ReviewItemView {
   kind: ReviewItemKind;
   prompt: string;
   task: string;
+  /** Which kind of exercise this is, resolved server-side so the client never re-derives a rung. */
+  exercise?: { id: string; label: string; icon: string; typed: boolean } | null;
   framing: ReviewFramingSpec | null;
   promptKey: string;
   recallState: RecallState;

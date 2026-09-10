@@ -35,7 +35,7 @@ import {
 } from '@/utils/review-answer-echo';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import Icon from '@/components/react/Icon';
+import Icon, { type IconName } from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { canJudgeRecall, resolveReviewDockItem } from '@/utils/review-dock-state';
@@ -968,7 +968,22 @@ export default function PrototypeReviewDock() {
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats
              repeating the prompt down here, where it would read as a second, separate ask. */
           <p className="proto-review-dock__handoff">Answer at the top of your note.</p>
-        ) : noteChoice ? (
+        ) : (
+          <>
+            {/*
+              * Which kind of exercise this is, above the instruction rather than inside it.
+              *
+              * One glyph and one word. The prompt already says what to do; this says what sort
+              * of doing it is, which is what tells a reader whether they are about to type or to
+              * tap — and gives them the word to ask for more or less of it in Settings.
+              */}
+            {item.exercise ? (
+              <p className="proto-caption proto-review-dock__exercise">
+                <Icon name={item.exercise.icon as IconName} size={11} />
+                <span>{item.exercise.label}</span>
+              </p>
+            ) : null}
+            {noteChoice ? (
           /*
            * A note rung. The fragment is the reader's own writing, quoted back — and the
            * question above already says what is being asked, so this needs no other framing.
@@ -1416,6 +1431,8 @@ export default function PrototypeReviewDock() {
               <div className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
             ) : null}
             {verdictRow}
+          </>
+            )}
           </>
         )}
       </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import Icon from '@/components/react/Icon';
+import Icon, { type IconName } from '@/components/react/Icon';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
@@ -46,6 +46,25 @@ import { useDismissibleReviewSample } from './use-dismissible-review-sample';
 
 function foldedLabel(folded: number | null): string {
   return folded !== null && folded > 0 ? `${folded} more` : REVIEW_SEE_ALL_COPY;
+}
+
+/**
+ * The task line, with the exercise it is wearing named in front of it.
+ *
+ * A glyph and one word — "Blanks · Fill in the blanks" — so a reader scanning the shelf can see
+ * at a glance which rows are a tap and which will want typing, and pick the one they have a
+ * minute for. Falls back to the bare task for an item from before the server sent a family.
+ */
+function reviewRowTask(item: { task: string; exercise?: { label: string; icon: string } | null }) {
+  if (!item.exercise) return item.task;
+  return (
+    <>
+      <Icon name={item.exercise.icon as IconName} size={10} />
+      <span className="proto-review-row__exercise">{item.exercise.label}</span>
+      {' · '}
+      {item.task}
+    </>
+  );
 }
 
 export default function PrototypeReviewSection() {
@@ -189,7 +208,7 @@ export default function PrototypeReviewSection() {
           icon={reviewKindIcon(item.kind)}
           title={reviewRowSubject(item)}
           meta={[
-            item.task,
+            reviewRowTask(item),
             item.framing ? fillFraming(item.framing) : reviewRowSource(item, reviewRowSubject(item)),
           ]}
           titleTrailing={recallChip(item)}
@@ -243,7 +262,7 @@ export default function PrototypeReviewSection() {
                   key={item.id}
                   icon={reviewKindIcon(item.kind)}
                   title={reviewRowSubject(item)}
-                  meta={[item.task, describeNextDue(item.dueAt)]}
+                  meta={[reviewRowTask(item), describeNextDue(item.dueAt)]}
                   titleTrailing={recallChip(item)}
                   onOpen={() => openInDock(item.id)}
                   actions={reviewRowActions({

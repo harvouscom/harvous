@@ -191,6 +191,7 @@ import {
   type NoteSpan,
 } from '@/utils/note-ladder-exercises';
 import type { ChoiceExercise } from '@/utils/choice-exercise';
+import { reviewExerciseFamily } from '@/utils/review-exercise-families';
 import { getNotePassages } from './scripture-knowledge';
 import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
 import { READING_DWELL_BUCKETS, readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
@@ -238,6 +239,14 @@ export interface ReviewItemView {
    * existing consumer of `prompt` keeps working.
    */
   task: string;
+  /**
+   * Which kind of exercise this is, in one word and one glyph.
+   *
+   * Resolved here rather than on the client: the rung a step wears depends on the item's seed
+   * and on material only the server holds, so a client deriving it from `promptKey` alone would
+   * be right until the day it was not. See `verseRungFor`.
+   */
+  exercise: { id: string; label: string; icon: string; typed: boolean };
   /**
    * One line saying why this is here or what it connects to, or null. A template and its
    * arguments rather than text, because the month in it belongs in the reader's zone — the
@@ -1081,6 +1090,10 @@ export async function buildReviewItemViews(
         ? fillReviewPrompt(noteRung, { reference: row.scriptureReference, noteTitle, threadTitle })
         : prompt,
       task: reviewTaskFor(noteRung ?? key),
+      exercise: (() => {
+        const family = reviewExerciseFamily(noteRung ?? key);
+        return { id: family.id, label: family.label, icon: family.icon, typed: family.typed };
+      })(),
       promptKey: noteRung ?? key,
       recallState: row.recallState as RecallState,
       status: row.status as ReviewItemStatus,
