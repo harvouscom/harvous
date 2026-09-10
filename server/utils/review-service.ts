@@ -77,16 +77,20 @@ import {
 } from '@/utils/review-prompts';
 import { splitChapterHtmlIntoVerses, verseHtml, versesHtml, type ChapterVerse } from '@/utils/chapter-text';
 import {
+  CHAPTER_CUE_WORDS,
   WELL_KNOWN_CHAPTERS,
   askablePeople,
   askablePlaces,
   buildChapterFinish,
+  buildChapterMarked,
   buildChapterOrder,
   buildChapterPerson,
   buildChapterPlace,
   buildChapterVerse,
+  chapterCueCandidates,
   chapterCueFor,
   chapterFinishCandidates,
+  gradeChapterMarked,
   gradeChapterVerse,
   type ChapterFinishExercise,
   type ChapterOrderExercise,
@@ -2357,6 +2361,7 @@ const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
   finishCandidates: 0,
   personCount: 0,
   placeCount: 0,
+  highlightCount: 0,
 };
 
 /**
@@ -2490,6 +2495,7 @@ async function loadChapterMaterial(
     finishCandidates: chapterFinishCandidates(verses, highlightedNumbers).length,
     personCount: askablePeople(people).length,
     placeCount: askablePlaces(places).length,
+    highlightCount: highlightedNumbers.length,
   };
 }
 
@@ -2602,6 +2608,30 @@ async function buildChapterPlaceFor(
   return buildChapterPlace({ places: material.places, pool, fallbackPool: fallback, seed });
 }
 
+/**
+ * "Pick the verse you marked in this chapter." Pure, so it takes no round trip: the highlights
+ * are already on the material, loaded once per chapter per request.
+ */
+function buildChapterMarkedFor(
+  material: ChapterKnowledgeMaterial,
+  seed: string,
+): ChapterVerseExercise | null {
+  return buildChapterMarked({
+    verses: material.verses,
+    highlightedNumbers: material.highlightedNumbers,
+    seed,
+  });
+}
+
+/** The cue of every verse the reader marked here — all of them are right answers. */
+function markedCuesFor(material: ChapterKnowledgeMaterial): string[] {
+  const marked = new Set(material.highlightedNumbers);
+  return chapterCueCandidates(material.verses)
+    .filter((verse) => marked.has(verse.number))
+    .map((verse) => verseCue(verse.text, CHAPTER_CUE_WORDS))
+    .filter(Boolean);
+}
+
 export async function gradeChapterAnswer(
   userId: string,
   item: ReviewItemRow,
@@ -2641,6 +2671,15 @@ export async function gradeChapterAnswer(
       correctAnswer: exercise.options[exercise.answerIndex] ?? null,
     };
   }
+  if (rung.key === 'chapter.marked' && typeof answer.option === 'string') {
+    const exercise = buildChapterMarkedFor(material, seed);
+    if (!exercise) return null;
+    // Any verse they marked is right, whichever one the build put forward.
+    return {
+      correct: gradeChapterMarked(exercise, answer.option, markedCuesFor(material)),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+    };
+  }
   if (rung.key === 'chapter.place' && typeof answer.option === 'string') {
     const exercise = await buildChapterPlaceFor(userId, material, seed);
     if (!exercise) return null;
@@ -2673,6 +2712,10 @@ export async function chapterTruthFor(item: ReviewItemRow, userId: string): Prom
   }
   if (rung.key === 'chapter.verse') {
     const exercise = await buildChapterVerseFor(userId, material, seed);
+    return exercise ? verseHtml(exercise.verse) : null;
+  }
+  if (rung.key === 'chapter.marked') {
+    const exercise = buildChapterMarkedFor(material, seed);
     return exercise ? verseHtml(exercise.verse) : null;
   }
   return null;
@@ -3395,6 +3438,11 @@ export async function buildReviewReveal(
     if (rung.key === 'chapter.place') {
       const exercise = await buildChapterPlaceFor(userId, material, seed);
       payload.choice = exercise ? { options: exercise.options, opening: false } : null;
+    }
+    if (rung.key === 'chapter.marked') {
+      const exercise = buildChapterMarkedFor(material, seed);
+      // Openings, so the reader recognises the words rather than a verse number.
+      payload.choice = exercise ? { options: exercise.options, opening: true } : null;
     }
   }
 

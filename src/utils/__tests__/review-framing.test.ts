@@ -225,3 +225,27 @@ describe('a chapter', () => {
     expect(fillFraming({ template: 'markedIn', args: {} }, NOW)).toBe('You marked a verse here.');
   });
 });
+
+describe('the marked rung does not frame itself', () => {
+  const markedChapter: ReviewFramingFacts = {
+    ...BASE,
+    kind: 'chapter',
+    readerMarked: true,
+    lastReadAt: daysAgoIso(1),
+  };
+
+  it('never says "you marked a verse here" above "pick the verse you marked"', () => {
+    for (const seed of SEEDS) {
+      const spec = reviewFraming({ ...markedChapter, rungKey: 'chapter.marked' }, seed, NOW);
+      expect(spec?.template).not.toBe('markedIn');
+      expect(spec?.template).not.toBe('marked');
+    }
+  });
+
+  it('still says it on the chapter rungs that are not about the marking', () => {
+    const templates = new Set(
+      SEEDS.map((seed) => reviewFraming({ ...markedChapter, rungKey: 'chapter.order' }, seed, NOW)?.template),
+    );
+    expect(templates.has('markedIn')).toBe(true);
+  });
+});

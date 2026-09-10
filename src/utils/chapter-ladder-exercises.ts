@@ -135,6 +135,65 @@ export function gradeChapterVerse(exercise: ChapterVerseExercise, option: string
   return gradeChoiceExercise(exercise, option, [exercise.options[exercise.answerIndex]]);
 }
 
+/**
+ * "Pick the verse you marked in this chapter."
+ *
+ * Every other chapter rung is keyed to the chapter's text or to the curated index. This one is
+ * keyed to the reader: the answer is a verse they dragged a highlighter over, and the wrong
+ * answers are verses from the same chapter they did not. That makes it the only chapter question
+ * whose answer is a thing they *did* rather than a thing the chapter contains — which is also
+ * why it is worth asking. Recognising your own marks is how you find your way back into a
+ * chapter you have read.
+ *
+ * Any marked verse is right, because there is no such thing as *the* one. Every marked verse is
+ * barred from being a distractor for the same reason.
+ *
+ * Returns null when the reader marked nothing, and when they marked so much of the chapter that
+ * there are too few unmarked verses left to ask against — a question whose every option is right
+ * is not a question.
+ */
+export function buildChapterMarked(input: {
+  verses: readonly ChapterVerse[];
+  /** Verse numbers the reader highlighted in this chapter. */
+  highlightedNumbers: readonly number[];
+  seed: string;
+}): ChapterVerseExercise | null {
+  const seed = `${input.seed}:marked`;
+  const marked = new Set(input.highlightedNumbers);
+  const candidates = chapterCueCandidates(input.verses);
+  const answers = candidates.filter((verse) => marked.has(verse.number));
+  const rest = candidates.filter((verse) => !marked.has(verse.number));
+  if (!answers.length || rest.length < MIN_MARKED_DISTRACTORS) return null;
+
+  const verse = pickSeeded(answers, seed);
+  if (!verse) return null;
+  const answer = verseCue(verse.text, CHAPTER_CUE_WORDS);
+  const prefix = openingPrefix(answer);
+  const pool = rest
+    .map((other) => verseCue(other.text, CHAPTER_CUE_WORDS))
+    .filter((cue) => cue && openingPrefix(cue) !== prefix);
+
+  const choice = buildChoiceExercise({
+    // Every marked verse is right; the primitive bars all of them as distractors.
+    answers: answers.map((entry) => verseCue(entry.text, CHAPTER_CUE_WORDS)).filter(Boolean),
+    pool,
+    seed,
+  });
+  return choice ? { ...choice, verse } : null;
+}
+
+/** Three unmarked verses to sit beside the marked one, or the question answers itself. */
+const MIN_MARKED_DISTRACTORS = 3;
+
+/** True when the reader picked any verse they had actually marked. */
+export function gradeChapterMarked(
+  exercise: ChapterVerseExercise,
+  option: string,
+  markedCues: readonly string[],
+): boolean {
+  return gradeChoiceExercise(exercise, option, markedCues);
+}
+
 // ─── chapter.order: put these in the order they come ─────────────────────────
 
 export interface ChapterOrderExercise extends VerseSequenceExercise {

@@ -51,6 +51,7 @@ export const REVIEW_PROMPT_KEYS = [
   // Appended, never inserted: `ladderStep` is live data and the list's order is its identity.
   'verse.place',
   'chapter.place',
+  'chapter.marked',
 ] as const;
 
 export type ReviewPromptKey = (typeof REVIEW_PROMPT_KEYS)[number];
@@ -237,6 +238,12 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     named(ctx, (s) => `Pick the place ${s} names.`, 'Pick the place this verse names.'),
   'chapter.place': (ctx) =>
     named(ctx, (s) => `Pick a place named in ${s}.`, 'Pick a place named in this chapter.'),
+  /*
+   * The one chapter rung whose answer is something the reader did rather than something the
+   * chapter contains. "Marked" is the word the app uses for a highlight everywhere else.
+   */
+  'chapter.marked': (ctx) =>
+    named(ctx, (s) => `Pick the verse you marked in ${s}.`, 'Pick the verse you marked here.'),
 };
 
 /**
@@ -275,6 +282,7 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'chapter.person': 'Pick who is in it',
   'verse.place': 'Pick the place it names',
   'chapter.place': 'Pick a place it names',
+  'chapter.marked': 'Pick the verse you marked',
 };
 
 export function reviewTaskFor(key: ReviewPromptKey): string {
@@ -506,6 +514,8 @@ export interface ChapterMaterial {
   personCount: number;
   /** Places the index names in the chapter, after the trivial labels are barred. */
   placeCount?: number;
+  /** Verses of this chapter the reader highlighted. */
+  highlightCount?: number;
 }
 
 /**
@@ -526,7 +536,7 @@ export interface ChapterMaterial {
  */
 export const CHAPTER_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
   ['chapter.verse'],
-  ['chapter.finish', 'chapter.verse'],
+  ['chapter.finish', 'chapter.marked', 'chapter.verse'],
   // `chapter.verse` stays last: it is the fallback the draw reaches only when nothing else builds.
   ['chapter.order', 'chapter.person', 'chapter.place', 'chapter.verse'],
 ];
@@ -550,6 +560,9 @@ export function chapterFamilyMemberAvailable(
       return material.personCount >= 1;
     case 'chapter.place':
       return (material.placeCount ?? 0) >= 1;
+    case 'chapter.marked':
+      // Four verses at least, or there is nothing unmarked left to ask against.
+      return (material.highlightCount ?? 0) >= 1 && material.verseCount >= 4;
     default:
       return true;
   }

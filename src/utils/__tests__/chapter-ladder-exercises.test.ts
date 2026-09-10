@@ -14,6 +14,8 @@ import {
   askablePlaces,
   buildChapterPlace,
   BARRED_PLACE_LABELS,
+  buildChapterMarked,
+  gradeChapterMarked,
 } from '@/utils/chapter-ladder-exercises';
 import { gradeChoiceExercise } from '@/utils/choice-exercise';
 import { markVerseSequence } from '@/utils/verse-ladder-exercises';
@@ -184,5 +186,51 @@ describe('chapter places', () => {
     });
     expect(exercise!.options).not.toContain('heaven');
     expect(exercise!.options).not.toContain('the earth');
+  });
+});
+
+describe('chapter.marked', () => {
+  const verses = Array.from({ length: 10 }, (_, i) => ({
+    number: i + 1,
+    text: `Verse number ${i + 1} says a distinct thing worth reading here today.`,
+  }));
+
+  it('asks about a verse the reader marked, never one they did not', () => {
+    const exercise = buildChapterMarked({ verses, highlightedNumbers: [4], seed: 'item:1' });
+    expect(exercise).not.toBeNull();
+    expect(exercise!.verse.number).toBe(4);
+    expect(exercise!.options[exercise!.answerIndex]).toContain('number 4');
+  });
+
+  it('never offers another marked verse as the wrong answer', () => {
+    const exercise = buildChapterMarked({ verses, highlightedNumbers: [2, 7], seed: 'item:1' });
+    const wrong = exercise!.options.filter((_, i) => i !== exercise!.answerIndex);
+    expect(wrong.some((option) => option.includes('number 2'))).toBe(false);
+    expect(wrong.some((option) => option.includes('number 7'))).toBe(false);
+  });
+
+  it('marks the verse they marked as right and an unmarked one as wrong', () => {
+    const exercise = buildChapterMarked({ verses, highlightedNumbers: [2, 7], seed: 'item:1' })!;
+    const shown = exercise.options[exercise.answerIndex];
+    const wrong = exercise.options.find((_, i) => i !== exercise.answerIndex)!;
+    // Every verse they marked is acceptable, not only the one this build put forward.
+    const acceptable = [verses[1], verses[6]].map((verse) =>
+      verse.text.split(' ').slice(0, 8).join(' '),
+    );
+    expect(gradeChapterMarked(exercise, shown, acceptable)).toBe(true);
+    expect(gradeChapterMarked(exercise, wrong, acceptable)).toBe(false);
+  });
+
+  it('has no question when the reader marked nothing', () => {
+    expect(buildChapterMarked({ verses, highlightedNumbers: [], seed: 's' })).toBeNull();
+  });
+
+  it('has no question when almost every verse is marked, because every option would be right', () => {
+    const all = verses.map((verse) => verse.number);
+    expect(buildChapterMarked({ verses, highlightedNumbers: all, seed: 's' })).toBeNull();
+    // Three unmarked left is still too few to ask against without the answer standing out.
+    expect(
+      buildChapterMarked({ verses, highlightedNumbers: all.slice(0, 8), seed: 's' }),
+    ).toBeNull();
   });
 });

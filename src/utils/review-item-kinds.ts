@@ -156,6 +156,7 @@ const CHOICE_RUNGS = new Set<string>([
   'chapter.verse',
   'chapter.person',
   'chapter.place',
+  'chapter.marked',
 ]);
 
 export function maxAttemptsFor(promptKey: string | null | undefined): number {

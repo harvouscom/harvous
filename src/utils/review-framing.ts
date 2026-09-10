@@ -113,6 +113,12 @@ export function reviewFraming(
   const personLeaks = key === 'verse.person' || key === 'chapter.person';
   const crossrefLeaks = key === 'verse.crossref' || key === 'verse.locate';
   const citedLeaks = key === 'verse.connect';
+  /*
+   * "You marked a verse here" printed above "pick the verse you marked here" does not give the
+   * answer away outright, but it confirms there is one to find and turns a question about the
+   * reader's own study into a hint. The fact is the question; it cannot also be the framing.
+   */
+  const markedLeaks = key === 'chapter.marked';
 
   const reader: ReviewFramingSpec[] = [];
   if (facts.revisitCount >= 2) reader.push({ template: 'returning', args: {} });
@@ -130,13 +136,15 @@ export function reviewFraming(
     if ((facts.readCount ?? 0) >= 2) {
       reader.push({ template: 'readTwice', args: { n: facts.readCount } });
     }
-    if (facts.readerMarked) reader.push({ template: 'markedIn', args: {} });
+    if (facts.readerMarked && !markedLeaks) reader.push({ template: 'markedIn', args: {} });
   }
   if (facts.citedInNotes >= 2 && !citedLeaks) {
     reader.push({ template: 'cited', args: { n: facts.citedInNotes } });
   }
   // The verse half of the same fact. A chapter says "you marked a verse here" instead.
-  if (facts.readerMarked && facts.kind !== 'chapter') reader.push({ template: 'marked', args: {} });
+  if (facts.readerMarked && facts.kind !== 'chapter' && !markedLeaks) {
+    reader.push({ template: 'marked', args: {} });
+  }
   if (age !== null && age >= 60 && facts.revisitCount >= 1 && facts.firstStudiedAt) {
     reader.push({ template: 'since', args: { sinceIso: facts.firstStudiedAt } });
   }
