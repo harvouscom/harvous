@@ -348,7 +348,25 @@ export async function refillReviewQueue(
     });
 
     const created: ReviewItemRow[] = [];
+    /*
+     * Where the opening-rung stagger picks up from, per kind.
+     *
+     * It restarted at zero on every refill, which sounds harmless and is not. The engine adds at
+     * most `ENGINE_PER_KIND_CAP` of a kind per run and usually adds one, so `openingLadderStep`
+     * was asked for index 0 nearly every time and almost every item in the queue opened on the
+     * same rung. Measured on a real account: 25 of 29 items sitting on step 0, and since both
+     * step-0 families have exactly one member, every one of them asked the same shape of
+     * question — the "it is always the same" this stagger exists to prevent.
+     *
+     * Counting what the reader already has makes the rotation continue across runs, which is
+     * what a counter called `alreadyOfKind` always read as. Free: `existing` is loaded already
+     * for the source-key check, and a source key leads with its kind.
+     */
     const addedOfKind: Record<string, number> = { verse: 0, note: 0, chapter: 0 };
+    for (const row of existing) {
+      const kind = row.sourceKey.split(':')[0];
+      if (kind in addedOfKind) addedOfKind[kind] += 1;
+    }
     for (const pick of picks) {
       if (created.length >= room) break;
       const kind = REVIEW_KIND_FOR_NODE[pick.nodeKind];
