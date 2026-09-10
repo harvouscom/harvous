@@ -48,6 +48,9 @@ export const REVIEW_PROMPT_KEYS = [
   'chapter.finish',
   'chapter.order',
   'chapter.person',
+  // Appended, never inserted: `ladderStep` is live data and the list's order is its identity.
+  'verse.place',
+  'chapter.place',
 ] as const;
 
 export type ReviewPromptKey = (typeof REVIEW_PROMPT_KEYS)[number];
@@ -223,6 +226,17 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
     ),
   'chapter.person': (ctx) =>
     named(ctx, (s) => `Pick who appears in ${s}.`, 'Pick who appears in this chapter.'),
+  /*
+   * Places, the twin of the two `person` rungs.
+   *
+   * "Names" rather than "is set in", and deliberately. The index records that a place is named
+   * at a verse, not that the passage happens there — Bethany is named in John 11 from a good
+   * way off — so a prompt claiming the second would be asserting something the data never said.
+   */
+  'verse.place': (ctx) =>
+    named(ctx, (s) => `Pick the place ${s} names.`, 'Pick the place this verse names.'),
+  'chapter.place': (ctx) =>
+    named(ctx, (s) => `Pick a place named in ${s}.`, 'Pick a place named in this chapter.'),
 };
 
 /**
@@ -259,6 +273,8 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'chapter.finish': 'Finish a verse from it',
   'chapter.order': 'Put them in order',
   'chapter.person': 'Pick who is in it',
+  'verse.place': 'Pick the place it names',
+  'chapter.place': 'Pick a place it names',
 };
 
 export function reviewTaskFor(key: ReviewPromptKey): string {
@@ -351,6 +367,8 @@ export interface VerseMaterial {
   themeCount: number;
   /** Curated people on this verse. */
   personCount: number;
+  /** Curated places named at this verse, after the trivial labels are barred. */
+  placeCount?: number;
   /** Cross-reference targets at or above the vote floor, with text available. */
   crossRefCount: number;
   /** Other references of the reader's own that could stand beside this one on locate. */
@@ -378,7 +396,7 @@ export const VERSE_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
   ['verse.recall', 'verse.keywords'],
   ['verse.next', 'verse.before'],
   // The context step: what this verse is connected to, by the reader or by the index.
-  ['verse.connect', 'verse.theme', 'verse.person', 'verse.crossref'],
+  ['verse.connect', 'verse.theme', 'verse.person', 'verse.place', 'verse.crossref'],
   ['verse.sequence'],
   // The book is the easier locate, and is only *available* while the reader's own reference
   // pool is too thin for a fair one — see `verseFamilyMemberAvailable`.
@@ -412,6 +430,8 @@ export function verseFamilyMemberAvailable(
       return material.themeCount >= 1;
     case 'verse.person':
       return material.personCount >= 1;
+    case 'verse.place':
+      return (material.placeCount ?? 0) >= 1;
     case 'verse.crossref':
       return material.crossRefCount >= 1;
     case 'verse.book':
@@ -484,6 +504,8 @@ export interface ChapterMaterial {
   finishCandidates: number;
   /** People the index places in the chapter, after the trivial names are barred. */
   personCount: number;
+  /** Places the index names in the chapter, after the trivial labels are barred. */
+  placeCount?: number;
 }
 
 /**
@@ -505,7 +527,8 @@ export interface ChapterMaterial {
 export const CHAPTER_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
   ['chapter.verse'],
   ['chapter.finish', 'chapter.verse'],
-  ['chapter.order', 'chapter.person', 'chapter.verse'],
+  // `chapter.verse` stays last: it is the fallback the draw reaches only when nothing else builds.
+  ['chapter.order', 'chapter.person', 'chapter.place', 'chapter.verse'],
 ];
 
 export const CHAPTER_LADDER_MAX_STEP = CHAPTER_FAMILIES.length - 1;
@@ -525,6 +548,8 @@ export function chapterFamilyMemberAvailable(
       return material.verseCount >= 3;
     case 'chapter.person':
       return material.personCount >= 1;
+    case 'chapter.place':
+      return (material.placeCount ?? 0) >= 1;
     default:
       return true;
   }
@@ -586,6 +611,7 @@ const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>([
   'verse.connect',
   'verse.theme',
   'verse.person',
+  'verse.place',
   'verse.crossref',
   'verse.altered',
   'verse.sequence',

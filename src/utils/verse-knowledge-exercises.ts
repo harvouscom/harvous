@@ -90,6 +90,35 @@ export function buildVersePerson(input: {
 }
 
 /**
+ * "Pick the place this verse names."
+ *
+ * The twin of the person rung, and askable for the same reason: the index puts a place at a
+ * verse, so it is either named there or it is not, and no reading of the text decides it. What
+ * the rung must never become is "where did this happen" — the index says Bethany is *named* in
+ * John 11, not that the whole chapter takes place there, and the prompt is worded to match.
+ *
+ * `onVerse` bars every place the index puts here, so a verse naming both Jerusalem and Bethany
+ * never offers Bethany as the wrong answer to Jerusalem.
+ */
+export function buildVersePlace(input: {
+  answers: readonly string[];
+  onVerse: readonly string[];
+  pool: readonly string[];
+  fallbackPool?: readonly string[];
+  seed: string;
+}): ChoiceExercise | null {
+  if (!input.answers.length) return null;
+  return buildChoiceExercise({
+    answers: input.answers,
+    pool: input.pool,
+    fallbackPool: input.fallbackPool,
+    exclude: input.onVerse,
+    optionCount: OPTION_COUNT,
+    seed: input.seed,
+  });
+}
+
+/**
  * "Pick the passage this verse is cross-referenced with."
  *
  * The same shape as "what comes next": the answer is a verse shown as an eight-word opening,

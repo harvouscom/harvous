@@ -150,7 +150,14 @@ function revealLabelFor(kind: ReviewItemView['kind']): string {
 const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 /** The rungs whose answer key is the curated index rather than the text or the reader. */
-const INDEX_KEYED_RUNGS = new Set(['verse.theme', 'verse.person', 'verse.crossref', 'chapter.person']);
+const INDEX_KEYED_RUNGS = new Set([
+  'verse.theme',
+  'verse.person',
+  'verse.place',
+  'verse.crossref',
+  'chapter.person',
+  'chapter.place',
+]);
 
 /**
  * The options on a multiple-choice rung.

@@ -173,6 +173,8 @@ export interface ChapterKnowledge {
   chapter: number;
   /** Everyone the index places anywhere in the chapter, each once. */
   people: EntityRef[];
+  /** Everywhere it places in the chapter, each once, names normalised. */
+  places: EntityRef[];
 }
 
 /**
@@ -184,20 +186,35 @@ export interface ChapterKnowledge {
  * with no wrong answer. People are placed by verse and are either in the chapter or not.
  */
 export async function getKnowledgeForChapter(book: string, chapter: number): Promise<ChapterKnowledge> {
-  const rows = await db
-    .select({ id: BiblePeople.id, slug: BiblePeople.slug, name: BiblePeople.name })
-    .from(ScriptureEntityRefs)
-    .innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id))
-    .where(
-      and(
-        eq(ScriptureEntityRefs.entityType, 'person'),
-        eq(ScriptureEntityRefs.book, book),
-        eq(ScriptureEntityRefs.chapter, chapter),
-      ),
-    );
-  const byId = new Map<string, EntityRef>();
-  for (const row of rows) if (!byId.has(row.id)) byId.set(row.id, row);
-  return { book, chapter, people: [...byId.values()] };
+  const inChapter = and(eq(ScriptureEntityRefs.book, book), eq(ScriptureEntityRefs.chapter, chapter));
+  const [peopleRows, placeRows] = await Promise.all([
+    db
+      .select({ id: BiblePeople.id, slug: BiblePeople.slug, name: BiblePeople.name })
+      .from(ScriptureEntityRefs)
+      .innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id))
+      .where(and(eq(ScriptureEntityRefs.entityType, 'person'), inChapter)),
+    /*
+     * Places are the same shape of fact as people: the index puts them at a verse, so they are
+     * either in the chapter or not, and nothing has to be interpreted to say so. That is what
+     * makes them askable where a chapter *theme* is not.
+     */
+    db
+      .select({ id: BiblePlaces.id, slug: BiblePlaces.slug, name: BiblePlaces.name })
+      .from(ScriptureEntityRefs)
+      .innerJoin(BiblePlaces, eq(ScriptureEntityRefs.entityId, BiblePlaces.id))
+      .where(and(eq(ScriptureEntityRefs.entityType, 'place'), inChapter)),
+  ]);
+  const dedupe = (rows: EntityRef[]) => {
+    const byId = new Map<string, EntityRef>();
+    for (const row of rows) if (!byId.has(row.id)) byId.set(row.id, row);
+    return [...byId.values()];
+  };
+  return {
+    book,
+    chapter,
+    people: dedupe(peopleRows),
+    places: dedupe(placeRows).map((place) => ({ ...place, name: normalizePlaceName(place.name) })),
+  };
 }
 
 // ─── passage aggregation (for related-notes + passage-aware tagging) ─────────────

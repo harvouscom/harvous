@@ -11,6 +11,9 @@ import {
   chapterFinishCandidates,
   gradeChapterVerse,
   openingPrefix,
+  askablePlaces,
+  buildChapterPlace,
+  BARRED_PLACE_LABELS,
 } from '@/utils/chapter-ladder-exercises';
 import { gradeChoiceExercise } from '@/utils/choice-exercise';
 import { markVerseSequence } from '@/utils/verse-ladder-exercises';
@@ -140,5 +143,46 @@ describe('chapterCueFor', () => {
   it('gives a seeded opening from a chapter, or nothing from an empty one', () => {
     expect(chapterCueFor(chapter, 'x')).toBe(chapterCueFor(chapter, 'x'));
     expect(chapterCueFor([], 'x')).toBeNull();
+  });
+});
+
+describe('chapter places', () => {
+  it('bars the labels that are in every chapter from being an answer', () => {
+    expect(askablePlaces(['Bethany', 'heaven', 'the earth', 'Capernaum'])).toEqual([
+      'Bethany',
+      'Capernaum',
+    ]);
+    expect(BARRED_PLACE_LABELS.has('the world')).toBe(true);
+    // A real place with a real location stays in, however famous.
+    expect(askablePlaces(['Jerusalem'])).toEqual(['Jerusalem']);
+  });
+
+  it('never offers another place from the same chapter as the wrong answer', () => {
+    const exercise = buildChapterPlace({
+      places: ['Bethany', 'Jerusalem'],
+      pool: ['Corinth', 'Ephesus', 'Philippi', 'Rome'],
+      seed: 'item:2',
+    });
+    expect(exercise).not.toBeNull();
+    const wrong = exercise!.options.filter((_, i) => i !== exercise!.answerIndex);
+    expect(wrong).not.toContain('Bethany');
+    expect(wrong).not.toContain('Jerusalem');
+  });
+
+  it('has no question for a chapter the index names nowhere askable in', () => {
+    expect(
+      buildChapterPlace({ places: ['heaven', 'the earth'], pool: ['Rome', 'Corinth'], seed: 's' }),
+    ).toBeNull();
+    expect(buildChapterPlace({ places: [], pool: ['Rome'], seed: 's' })).toBeNull();
+  });
+
+  it('never draws a barred label into the options from the pool either', () => {
+    const exercise = buildChapterPlace({
+      places: ['Bethany'],
+      pool: ['heaven', 'the earth', 'Corinth', 'Ephesus', 'Rome'],
+      seed: 'item:9',
+    });
+    expect(exercise!.options).not.toContain('heaven');
+    expect(exercise!.options).not.toContain('the earth');
   });
 });

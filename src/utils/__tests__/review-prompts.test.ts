@@ -586,3 +586,45 @@ describe('openingLadderStep', () => {
     expect(openingLadderStep('chapter', 2)).toBe(0);
   });
 });
+
+describe('the place rungs', () => {
+  const withPlaces = {
+    citedInNotes: 0, themeCount: 0, personCount: 0, crossRefCount: 0, placeCount: 2,
+  };
+  const withoutPlaces = { ...withPlaces, placeCount: 0 };
+
+  it('sits beside its twin on the context step rather than taking a step of its own', () => {
+    // A step is live data on every reader's rows; a new one in the middle moves all of them.
+    expect(VERSE_FAMILIES[4]).toContain('verse.place');
+    expect(CHAPTER_FAMILIES[2]).toContain('chapter.place');
+    // The always-builds fallback stays last in every chapter family.
+    for (const family of CHAPTER_FAMILIES) {
+      expect(family[family.length - 1]).toBe('chapter.verse');
+    }
+  });
+
+  it('is never asked of a verse the index names no place at', () => {
+    for (let count = 0; count < 12; count++) {
+      const seed = reviewSeed({ id: 'i', ladderStep: 4, reviewCount: count });
+      expect(verseRungFor(4, seed, withoutPlaces).key).not.toBe('verse.place');
+    }
+  });
+
+  it('is reachable for a verse that does name one', () => {
+    const keys = new Set(
+      Array.from({ length: 40 }, (_, i) => verseRungFor(4, `item-${i}:4`, withPlaces).key),
+    );
+    expect(keys.has('verse.place')).toBe(true);
+  });
+
+  it('is marked, like every other option the reader taps', () => {
+    expect(reviewRungIsGraded({ kind: 'verse', ladderStep: 4, promptKey: 'verse.place' })).toBe(true);
+    expect(reviewRungIsGraded({ kind: 'chapter', ladderStep: 2, promptKey: 'chapter.place' })).toBe(true);
+  });
+
+  it('says a place is named, never that the passage happens there', () => {
+    const prompt = REVIEW_PROMPTS['chapter.place']({ reference: 'John 11' });
+    expect(prompt).toContain('named in John 11');
+    expect(prompt).not.toMatch(/set in|takes place|happens/);
+  });
+});

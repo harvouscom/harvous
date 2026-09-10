@@ -85,6 +85,7 @@ export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
   'verse.connect': 0.9,
   'verse.theme': 0.9,
   'verse.person': 0.9,
+  'verse.place': 0.9,
   'verse.crossref': 1.1,
   'verse.sequence': 1.0,
   /*
@@ -105,6 +106,7 @@ export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
   'chapter.finish': 1.0,
   'chapter.order': 0.9,
   'chapter.person': 0.9,
+  'chapter.place': 0.9,
 };
 
 /**
@@ -126,6 +128,9 @@ export const NEVER_LAPSES: ReadonlySet<ReviewPromptKey> = new Set([
   'verse.theme',
   // The same reasoning: who the index says appears in a chapter is the index's reading.
   'chapter.person',
+  // And where it says a chapter names. Each place rung follows its own twin exactly, which is
+  // why `verse.place` is absent: `verse.person` is not here either.
+  'chapter.place',
 ]);
 
 export function lapseDamping(lapseCount: number): number {

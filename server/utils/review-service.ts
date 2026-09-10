@@ -42,6 +42,7 @@ import {
   first,
   ScriptureTopics,
   BiblePeople,
+  BiblePlaces,
   isNull,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
@@ -78,9 +79,11 @@ import { splitChapterHtmlIntoVerses, verseHtml, versesHtml, type ChapterVerse } 
 import {
   WELL_KNOWN_CHAPTERS,
   askablePeople,
+  askablePlaces,
   buildChapterFinish,
   buildChapterOrder,
   buildChapterPerson,
+  buildChapterPlace,
   buildChapterVerse,
   chapterCueFor,
   chapterFinishCandidates,
@@ -142,9 +145,11 @@ import {
   VERSE_THEME_MIN_RELEVANCE,
   buildVerseCrossref,
   buildVersePerson,
+  buildVersePlace,
   buildVerseTheme,
 } from '@/utils/verse-knowledge-exercises';
 import { getKnowledgeForChapter, getKnowledgeForReference } from './scripture-knowledge';
+import { normalizePlaceName } from '@/utils/bible-place-name';
 import { curatedTopicLabelForDisplay } from '@/utils/prototype-home-trends';
 import { gradeChoiceExercise } from '@/utils/choice-exercise';
 import { reviewFraming, type ReviewFramingSpec } from '@/utils/review-framing';
@@ -1800,6 +1805,8 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   /** Every topic on the verse at any relevance — barred as a distractor. */
   allThemeLabels: string[];
   people: string[];
+  /** Places the index names at this verse, normalised, barred labels included. */
+  places: string[];
   /** Cross-reference targets above the vote floor whose text could be fetched. */
   crossRefs: { reference: string; text: string }[];
   /** How many targets clear the vote floor at all, for the framing line. Capped by the query. */
@@ -1815,10 +1822,12 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   citedInNotes: 0,
   themeCount: 0,
   personCount: 0,
+  placeCount: 0,
   crossRefCount: 0,
   themes: [],
   allThemeLabels: [],
   people: [],
+  places: [],
   crossRefs: [],
   crossRefTotal: 0,
   citingNoteLabels: [],
@@ -1885,10 +1894,14 @@ async function loadVerseMaterial(
     citedInNotes: citing.length,
     themeCount: themesAbove.length,
     personCount: knowledge?.people.length ?? 0,
+    // The count is of places that can actually be asked, so a verse naming only "the earth"
+    // never resolves to a place rung the builder would then refuse.
+    placeCount: askablePlaces((knowledge?.places ?? []).map((place) => place.name)).length,
     crossRefCount: crossRefs.length,
     themes: themesAbove.map(label),
     allThemeLabels: (knowledge?.themes ?? []).map(label),
     people: (knowledge?.people ?? []).map((p) => p.name),
+    places: (knowledge?.places ?? []).map((place) => place.name),
     crossRefs,
     crossRefTotal: knowledge?.crossReferences.length ?? 0,
     citingNoteLabels: citing,
@@ -1978,7 +1991,14 @@ async function buildVerseContextFor(
         themeLimit: 6,
         crossRefLimit: 0,
       }).catch(() => null);
-      return k ? { ref, themes: k.themes.map((t) => curatedTopicLabelForDisplay(t.label)), people: k.people.map((p) => p.name) } : null;
+      return k
+        ? {
+            ref,
+            themes: k.themes.map((t) => curatedTopicLabelForDisplay(t.label)),
+            people: k.people.map((p) => p.name),
+            places: k.places.map((place) => place.name),
+          }
+        : null;
     }),
   );
 
@@ -2008,6 +2028,25 @@ async function buildVerseContextFor(
       seed,
     });
     return exercise ? { exercise, acceptable: material.people, opening: false } : null;
+  }
+
+  if (rungKey === 'verse.place') {
+    /*
+     * `answers` is the askable set and `onVerse` is every place the index names here, barred
+     * labels included — so "the earth" is never the answer, and never a wrong answer either.
+     */
+    const answers = askablePlaces(material.places);
+    if (!answers.length) return null;
+    const pool = others.flatMap((o) => o?.places ?? []);
+    const fallback = await samplePlaceNames(seed);
+    const exercise = buildVersePlace({
+      answers,
+      onVerse: material.places,
+      pool,
+      fallbackPool: fallback,
+      seed,
+    });
+    return exercise ? { exercise, acceptable: answers, opening: false } : null;
   }
 
   if (rungKey === 'verse.crossref') {
@@ -2052,10 +2091,22 @@ async function samplePeopleNames(seed: string): Promise<string[]> {
   return rows.map((r) => r.name);
 }
 
+async function samplePlaceNames(seed: string): Promise<string[]> {
+  const rows = await db
+    .select({ name: BiblePlaces.name })
+    .from(BiblePlaces)
+    .orderBy(BiblePlaces.id)
+    .limit(12)
+    .offset(hashSeed(seed) % 1200)
+    .catch(() => []);
+  return askablePlaces(rows.map((r) => normalizePlaceName(r.name)));
+}
+
 const VERSE_CONTEXT_KEYS = new Set<ReviewPromptKey>([
   'verse.connect',
   'verse.theme',
   'verse.person',
+  'verse.place',
   'verse.crossref',
 ]);
 
@@ -2277,6 +2328,8 @@ interface ChapterKnowledgeMaterial extends ChapterMaterial {
   highlightedNumbers: number[];
   /** Everyone the index places in the chapter, barred names included (they bar distractors). */
   people: string[];
+  /** Everywhere it names in the chapter, barred labels included (they bar distractors). */
+  places: string[];
   /** How many of the reader's notes cite any verse in this chapter. For the framing line only. */
   citedInNotes: number;
   /**
@@ -2297,11 +2350,13 @@ const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
   verses: [],
   highlightedNumbers: [],
   people: [],
+  places: [],
   citedInNotes: 0,
   lastReadAt: null,
   verseCount: 0,
   finishCandidates: 0,
   personCount: 0,
+  placeCount: 0,
 };
 
 /**
@@ -2419,6 +2474,7 @@ async function loadChapterMaterial(
   ]);
   const verses = html ? splitChapterHtmlIntoVerses(html) : [];
   const people = (knowledge?.people ?? []).map((p) => p.name);
+  const places = (knowledge?.places ?? []).map((place) => place.name);
   return {
     reference: label,
     book: parts.book,
@@ -2427,11 +2483,13 @@ async function loadChapterMaterial(
     verses,
     highlightedNumbers,
     people,
+    places,
     citedInNotes,
     lastReadAt,
     verseCount: verses.length,
     finishCandidates: chapterFinishCandidates(verses, highlightedNumbers).length,
     personCount: askablePeople(people).length,
+    placeCount: askablePlaces(places).length,
   };
 }
 
@@ -2524,6 +2582,26 @@ async function buildChapterPersonFor(
   return buildChapterPerson({ people: material.people, pool, fallbackPool: fallback, seed });
 }
 
+/**
+ * "Pick a place named in this chapter."
+ *
+ * The same shape as the person rung, drawing its distractors from other chapters the reader has
+ * read so a wrong answer is somewhere they have actually been.
+ */
+async function buildChapterPlaceFor(
+  userId: string,
+  material: ChapterKnowledgeMaterial,
+  seed: string,
+): Promise<ChoiceExercise | null> {
+  if (!material.places.length) return null;
+  const others = await listUserReadChapters(userId, material, CHAPTER_DISTRACTOR_CHAPTERS);
+  const pool = (
+    await Promise.all(others.map((c) => getKnowledgeForChapter(c.book, c.chapter).catch(() => null)))
+  ).flatMap((k) => k?.places.map((place) => place.name) ?? []);
+  const fallback = await samplePlaceNames(seed);
+  return buildChapterPlace({ places: material.places, pool, fallbackPool: fallback, seed });
+}
+
 export async function gradeChapterAnswer(
   userId: string,
   item: ReviewItemRow,
@@ -2560,6 +2638,15 @@ export async function gradeChapterAnswer(
     // Anyone the index places in the chapter is right, whichever one the build showed.
     return {
       correct: gradeChoiceExercise(exercise, answer.option, askablePeople(material.people)),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+    };
+  }
+  if (rung.key === 'chapter.place' && typeof answer.option === 'string') {
+    const exercise = await buildChapterPlaceFor(userId, material, seed);
+    if (!exercise) return null;
+    // Anywhere the index names in the chapter is right, whichever one the build showed.
+    return {
+      correct: gradeChoiceExercise(exercise, answer.option, askablePlaces(material.places)),
       correctAnswer: exercise.options[exercise.answerIndex] ?? null,
     };
   }
@@ -3303,6 +3390,10 @@ export async function buildReviewReveal(
     }
     if (rung.key === 'chapter.person') {
       const exercise = await buildChapterPersonFor(userId, material, seed);
+      payload.choice = exercise ? { options: exercise.options, opening: false } : null;
+    }
+    if (rung.key === 'chapter.place') {
+      const exercise = await buildChapterPlaceFor(userId, material, seed);
       payload.choice = exercise ? { options: exercise.options, opening: false } : null;
     }
   }

@@ -147,6 +147,7 @@ const CHOICE_RUNGS = new Set<string>([
   'verse.connect',
   'verse.theme',
   'verse.person',
+  'verse.place',
   'verse.crossref',
   'note.recognize',
   'note.passage',
@@ -154,6 +155,7 @@ const CHOICE_RUNGS = new Set<string>([
   'note.annotation',
   'chapter.verse',
   'chapter.person',
+  'chapter.place',
 ]);
 
 export function maxAttemptsFor(promptKey: string | null | undefined): number {

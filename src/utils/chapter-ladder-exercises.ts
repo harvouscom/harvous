@@ -20,7 +20,7 @@ import {
   contentWords,
   type VerseSequenceExercise,
 } from '@/utils/verse-ladder-exercises';
-import { buildVersePerson } from '@/utils/verse-knowledge-exercises';
+import { buildVersePerson, buildVersePlace } from '@/utils/verse-knowledge-exercises';
 import type { ChapterVerse } from '@/utils/chapter-text';
 
 /** Openings are eight words, as on every rung that shows the start of a verse. */
@@ -280,5 +280,57 @@ export function buildChapterPerson(input: {
     pool: askablePeople(input.pool),
     fallbackPool: askablePeople(input.fallbackPool ?? []),
     seed: `${input.seed}:person`,
+  });
+}
+
+/**
+ * Places that are never an answer and never a distractor.
+ *
+ * The same rule as the barred names, for the same reason. "Earth" and "heaven" are in most
+ * chapters, so as answers they are trivial; as *wrong* answers they are worse, because offering
+ * "heaven" as the mistaken reading of a chapter is a claim about the text the index did not make.
+ * The list is small on purpose: a real place with a real location stays in, however famous.
+ */
+export const BARRED_PLACE_LABELS: ReadonlySet<string> = new Set([
+  'earth',
+  'the earth',
+  'heaven',
+  'the heavens',
+  'heavens',
+  'world',
+  'the world',
+  'hell',
+  'sheol',
+  'hades',
+  'paradise',
+  'the deep',
+  'sea',
+  'the sea',
+]);
+
+export function askablePlaces(names: readonly string[]): string[] {
+  return names.filter((name) => !BARRED_PLACE_LABELS.has(name.trim().toLowerCase()));
+}
+
+/**
+ * Four places, one of them named in this chapter by the index. Any place in the chapter is a
+ * right answer; every place in it is barred from being a wrong one.
+ */
+export function buildChapterPlace(input: {
+  /** Everywhere the index names in the chapter, barred labels included. */
+  places: readonly string[];
+  /** Places from other chapters the reader has read. */
+  pool: readonly string[];
+  fallbackPool?: readonly string[];
+  seed: string;
+}): ChoiceExercise | null {
+  const answers = askablePlaces(input.places);
+  if (!answers.length) return null;
+  return buildVersePlace({
+    answers,
+    onVerse: input.places,
+    pool: askablePlaces(input.pool),
+    fallbackPool: askablePlaces(input.fallbackPool ?? []),
+    seed: `${input.seed}:place`,
   });
 }
