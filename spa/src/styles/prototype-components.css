@@ -14378,14 +14378,48 @@ html.harvous-prototype-route
   So: the caption's own size and colour, a little space, and nothing else. Not bold, not tinted,
   no glyph. It should be legible when looked at and silent when not.
 */
+/*
+ * How well a passage is held, as three segments rather than three words.
+ *
+ * Sized to sit on a title line without lifting it: 3px tall against an 11px label's cap height,
+ * which is why the segments are set with `vertical-align: middle` and no line box of their own.
+ * Steps are the three the copy makes — see `RECALL_STATE_LABELS`, where `fragile` and `forming`
+ * deliberately share a phrase and therefore share a fill.
+ */
 .proto-recall-mark {
+  display: inline-flex;
+  gap: 2px;
   margin-left: 8px;
-  color: var(--pds-text-tertiary);
-  font-weight: 400;
-  font-size: 11px;
-  line-height: 1.4;
-  white-space: nowrap;
   vertical-align: middle;
+}
+
+.proto-recall-mark__seg {
+  width: 9px;
+  height: 3px;
+  border-radius: 999px;
+  /* The unfilled ground. Faint enough that a learning row reads as one mark, not three. */
+  background: var(--pds-border-on-paper);
+}
+
+/* Learning: the first of three. */
+.proto-recall-mark[data-hold='learning'] .proto-recall-mark__seg:nth-child(1) {
+  background: var(--pds-accent);
+}
+
+/* Held: all three. */
+.proto-recall-mark[data-hold='held'] .proto-recall-mark__seg {
+  background: var(--pds-accent);
+}
+
+/*
+ * Slipped: two of three, in the warning tone.
+ *
+ * Not one — a passage that has slipped was held once, and drawing it level with something just
+ * being learned would be a lie about the reader's own history. Reduced-from-full is what
+ * actually happened, and the tone is what makes it an invitation rather than a demotion.
+ */
+.proto-recall-mark[data-hold='slipped'] .proto-recall-mark__seg:nth-child(-n + 2) {
+  background: var(--pds-warning);
 }
 
 /* Owner / You markers — subtle neutral pill (matches our chip language). */
