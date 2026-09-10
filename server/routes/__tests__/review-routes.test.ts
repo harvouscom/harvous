@@ -582,7 +582,7 @@ describe('the context-step rungs', () => {
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
     expect(reveal).toMatch(/verseRungFor\(item\.ladderStep, seed, material\)/);
     const truth = text.slice(text.indexOf('export async function verseTruthFor'));
-    expect(truth.slice(0, 600)).toMatch(/verseRungFor\(item\.ladderStep, `\$\{item\.id\}:\$\{item\.ladderStep\}`, material\)/);
+    expect(truth.slice(0, 600)).toMatch(/verseRungFor\(item\.ladderStep, reviewSeed\(item\), material\)/);
     const list = text.slice(text.indexOf('export async function buildReviewItemViews'));
     expect(list).toContain('material: verseMaterial');
   });

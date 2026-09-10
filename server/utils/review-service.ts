@@ -68,6 +68,7 @@ import {
   fillReviewPrompt,
   nextLadderStep,
   reviewPromptFor,
+  reviewSeed,
   reviewTaskFor,
   type ReviewPromptKey,
   verseRungFor,
@@ -666,7 +667,7 @@ function noteRungFor(row: ReviewItemRow, material: Map<string, NoteMaterial>) {
   return resolveNoteRung(
     row.ladderStep,
     material.get(row.noteId) ?? EMPTY_NOTE_MATERIAL,
-    `${row.id}:${row.ladderStep}`,
+    reviewSeed(row),
   );
 }
 
@@ -1005,7 +1006,7 @@ export async function buildReviewItemViews(
             content: body.content,
             contentEncrypted: body.contentEncrypted,
             spans: recognizeSpans.get(row.noteId) ?? [],
-            seed: `${row.id}:${row.ladderStep}`,
+            seed: reviewSeed(row),
             ownLabel: recognizeLabels.get(row.noteId)?.label ?? null,
           })?.fragment ?? null
         : null;
@@ -1022,7 +1023,7 @@ export async function buildReviewItemViews(
     }
     const framingNodeKey = nodeKeyFor(row);
     const node = framingNodeKey ? nodeByKey.get(framingNodeKey) : undefined;
-    const seed = `${row.id}:${row.ladderStep}`;
+    const seed = reviewSeed(row);
     const pass =
       kind === 'verse'
         ? verseRungFor(row.ladderStep, seed, verseMaterial).pass
@@ -2095,7 +2096,7 @@ async function buildVerseAlteredFor(item: ReviewItemRow): Promise<VerseAlteredEx
   return buildVerseAltered({
     text: stripHtml(html),
     candidateTexts: texts.filter(Boolean).map((candidate) => stripHtml(candidate)),
-    seed: `${item.id}:${item.ladderStep}`,
+    seed: reviewSeed(item),
   });
 }
 
@@ -2107,7 +2108,7 @@ export async function verseTruthFor(item: ReviewItemRow, userId?: string): Promi
   const material = userId
     ? await loadVerseMaterial(userId, item.scriptureReference, item.translation ?? 'NET')
     : undefined;
-  const rung = verseRungFor(item.ladderStep, `${item.id}:${item.ladderStep}`, material);
+  const rung = verseRungFor(item.ladderStep, reviewSeed(item), material);
   // `verse.altered` most of all: leaving someone with a falsified line and no correction is the
   // one ending this rung must never have.
   const withheld = new Set<ReviewPromptKey>([
@@ -2146,7 +2147,7 @@ async function buildVerseNextFor(item: ReviewItemRow): Promise<VerseNextExercise
   return buildVerseNext({
     answerText: stripHtml(answerHtml),
     neighbourTexts: texts.filter(Boolean).map((html) => stripHtml(html)),
-    seed: `${item.id}:${item.ladderStep}`,
+    seed: reviewSeed(item),
   });
 }
 
@@ -2172,7 +2173,7 @@ async function buildVerseRecognizeFor(
   return buildVerseRecognize({
     answerText: text,
     poolTexts: pool,
-    seed: `${item.id}:${item.ladderStep}`,
+    seed: reviewSeed(item),
   });
 }
 
@@ -2529,7 +2530,7 @@ export async function gradeChapterAnswer(
   answer: { order?: number[]; option?: string; words?: string[] },
 ): Promise<GradedAnswer | null> {
   if (item.kind !== 'chapter' || !item.scriptureReference) return null;
-  const seed = `${item.id}:${item.ladderStep}`;
+  const seed = reviewSeed(item);
   const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
   const rung = chapterRungFor(item.ladderStep, seed, material);
 
@@ -2572,7 +2573,7 @@ export async function gradeChapterAnswer(
  */
 export async function chapterTruthFor(item: ReviewItemRow, userId: string): Promise<string | null> {
   if (item.kind !== 'chapter' || !item.scriptureReference) return null;
-  const seed = `${item.id}:${item.ladderStep}`;
+  const seed = reviewSeed(item);
   const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
   const rung = chapterRungFor(item.ladderStep, seed, material);
   if (rung.key === 'chapter.finish') {
@@ -2607,7 +2608,7 @@ export async function gradeVerseAnswer(
   answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string },
 ): Promise<GradedAnswer | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
-  const seedForRung = `${item.id}:${item.ladderStep}`;
+  const seedForRung = reviewSeed(item);
   const material = await loadVerseMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
   const rung = verseRungFor(item.ladderStep, seedForRung, material);
 
@@ -2674,7 +2675,7 @@ export async function gradeVerseAnswer(
     if (!html) return null;
     const cloze = buildVerseCloze(
       stripHtml(html),
-      `${item.id}:${item.ladderStep}`,
+      reviewSeed(item),
       verseClozeRatio(rung.pass),
     );
     const marked = markVerseRebuild(cloze, answer.words!);
@@ -2699,7 +2700,7 @@ export async function gradeVerseAnswer(
   const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
   if (!html) return null;
   const text = stripHtml(html);
-  const seed = `${item.id}:${item.ladderStep}`;
+  const seed = reviewSeed(item);
 
   if (isSequence) {
     const exercise = buildVerseSequence(text, seed);
@@ -2963,10 +2964,10 @@ async function buildNoteExercise(
 
   const material = (await loadNoteMaterial(userId, [item.noteId])).get(item.noteId);
   if (!material) return null;
-  const rung = resolveNoteRung(item.ladderStep, material, `${item.id}:${item.ladderStep}`);
+  const rung = resolveNoteRung(item.ladderStep, material, reviewSeed(item));
   if (!rung) return null;
 
-  const seed = `${item.id}:${item.ladderStep}`;
+  const seed = reviewSeed(item);
   const labels = await loadNoteOptionLabels(userId, item.noteId);
 
   if (rung === 'note.recognize') {
@@ -3170,7 +3171,7 @@ export async function buildReviewReveal(
       payload.verseText = html || null;
       if (item.kind === 'verse' && html) {
         const text = stripHtml(html);
-        const seed = `${item.id}:${item.ladderStep}`;
+        const seed = reviewSeed(item);
         /*
          * Which rung this is, rather than which number the step happens to be. Past the top of
          * the ladder the same rungs come round again on a maintenance pass, and every branch
@@ -3285,7 +3286,7 @@ export async function buildReviewReveal(
    * the branches it already has.
    */
   if (item.kind === 'chapter' && item.scriptureReference) {
-    const seed = `${item.id}:${item.ladderStep}`;
+    const seed = reviewSeed(item);
     const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
     const rung = chapterRungFor(item.ladderStep, seed, material);
     if (rung.key === 'chapter.verse') {

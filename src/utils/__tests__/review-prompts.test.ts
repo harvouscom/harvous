@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { REVIEW_ASKABLE_KINDS, REVIEW_ITEM_KINDS, isReviewAskableKind } from '../review-item-kinds';
 import { rungIdentityIsTheAnswer } from '../review-row-subtitle';
 import {
+  reviewSeed,
   NOTE_LADDER,
   NOTE_LADDER_MAX_STEP,
   REVIEW_PROMPTS,
@@ -530,11 +531,48 @@ describe('a family with two members draws both', () => {
   });
 });
 
+describe('reviewSeed', () => {
+  it('is stable for the same item, step and count', () => {
+    expect(reviewSeed({ id: 'a', ladderStep: 4, reviewCount: 2 })).toBe(
+      reviewSeed({ id: 'a', ladderStep: 4, reviewCount: 2 }),
+    );
+  });
+
+  it('moves when the item has been answered again', () => {
+    expect(reviewSeed({ id: 'a', ladderStep: 4, reviewCount: 0 })).not.toBe(
+      reviewSeed({ id: 'a', ladderStep: 4, reviewCount: 1 })
+    );
+  });
+
+  it('treats a missing count as none, so an unanswered item is stable', () => {
+    expect(reviewSeed({ id: 'a', ladderStep: 1 })).toBe(
+      reviewSeed({ id: 'a', ladderStep: 1, reviewCount: 0 }),
+    );
+  });
+
+  it('lets a step that was answered wrong come back as a different question', () => {
+    /*
+     * The step does not move on a miss, so before the count was in the seed this reader met the
+     * identical question — same member, same distractors — every time until they got it right.
+     */
+    const material = { citedInNotes: 3, themeCount: 3, personCount: 3, crossRefCount: 3 };
+    const keys = new Set(
+      [0, 1, 2, 3, 4, 5].map(
+        (count) => verseRungFor(4, reviewSeed({ id: 'item-42', ladderStep: 4, reviewCount: count }), material).key,
+      ),
+    );
+    expect(keys.size).toBeGreaterThan(1);
+  });
+});
+
 describe('openingLadderStep', () => {
-  it('staggers new verses across recognize, rebuild, and next', () => {
-    expect(VERSE_OPENING_STEPS).toEqual([0, 1, 3]);
-    expect([0, 1, 2].map((n) => openingLadderStep('verse', n))).toEqual([0, 1, 3]);
-    expect(openingLadderStep('verse', 3)).toBe(0);
+  it('staggers new verses across recognize, rebuild, next and context', () => {
+    expect(VERSE_OPENING_STEPS).toEqual([0, 1, 3, 4]);
+    expect([0, 1, 2, 3].map((n) => openingLadderStep('verse', n))).toEqual([0, 1, 3, 4]);
+    expect(openingLadderStep('verse', 4)).toBe(0);
+    // Never recall (2), locate (6) or altered (7) on a first asking.
+    expect(VERSE_OPENING_STEPS).not.toContain(2);
+    expect(VERSE_OPENING_STEPS).not.toContain(6);
   });
 
   it('walks new notes across recognize, passage, connect, annotation', () => {

@@ -308,12 +308,13 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
  * First-sitting rungs the engine may open on, so a handful of new verses is not five
  * "pick how it begins".
  *
- * Recognize, rebuild (blanks), then next/before. Never recall or locate on a first asking —
- * those are how a verse is kept, not how it is met.
+ * Recognize, rebuild (blanks), next/before, then the context step — what the verse is connected
+ * to, by the reader or by the index. Never recall or locate on a first asking: those are how a
+ * verse is kept, not how it is met.
  *
  * Notes walk the four rungs so a handful of new notes is not five "pick the note this is from".
  */
-export const VERSE_OPENING_STEPS = [0, 1, 3] as const;
+export const VERSE_OPENING_STEPS = [0, 1, 3, 4] as const;
 export const CHAPTER_OPENING_STEPS = [0, 1] as const;
 export const NOTE_OPENING_STEPS = [0, 1, 2, 3] as const;
 
@@ -643,12 +644,20 @@ export function pickPromptKey(
 ): ReviewPromptKey {
   // Past the top the ladder wraps into maintenance rather than stopping — see `verseRungFor`.
   if (kind === 'verse') {
-    return verseRungFor(ladderStep, itemId ? `${itemId}:${ladderStep}` : undefined, material).key;
+    return verseRungFor(
+      ladderStep,
+      itemId ? reviewSeed({ id: itemId, ladderStep, reviewCount }) : undefined,
+      material,
+    ).key;
   }
   // Explicit, and before the note fall-through: a third kind read as a note would be handed
   // `note.recognize` and a question about a note it does not have.
   if (kind === 'chapter') {
-    return chapterRungFor(ladderStep, itemId ? `${itemId}:${ladderStep}` : undefined, chapterMaterial).key;
+    return chapterRungFor(
+      ladderStep,
+      itemId ? reviewSeed({ id: itemId, ladderStep, reviewCount }) : undefined,
+      chapterMaterial,
+    ).key;
   }
   /*
    * The *nominal* rung for a note. What it can actually be asked depends on whether it has a
@@ -657,6 +666,29 @@ export function pickPromptKey(
    */
   const step = Math.min(Math.max(0, Math.trunc(ladderStep)), NOTE_LADDER_MAX_STEP);
   return NOTE_LADDER[step];
+}
+
+/**
+ * The seed every rung is built from.
+ *
+ * `reviewCount` is in here, and that is the whole point. The seed used to be the item and its
+ * step, and a step only advances on a clean recall — so getting a question wrong meant meeting
+ * *exactly* the same question next time: the same family member, the same fragment, the same
+ * distractors in the same order. The one reader who most needed a second angle on a verse was
+ * the one guaranteed never to get one.
+ *
+ * Every surface must build from this: the list, the reveal, the grader and the truth. The
+ * outcome route resolves the rung, grades it and restores the truth *before* the counter moves,
+ * so an answer is always marked against the question that was actually asked.
+ */
+export function reviewSeed(item: {
+  id?: string | null;
+  ladderStep?: number | null;
+  reviewCount?: number | null;
+}): string {
+  const step = Math.max(0, Math.trunc(Number.isFinite(item.ladderStep) ? (item.ladderStep as number) : 0));
+  const count = Math.max(0, Math.trunc(Number.isFinite(item.reviewCount) ? (item.reviewCount as number) : 0));
+  return `${item.id ?? ''}:${step}:${count}`;
 }
 
 export function fillReviewPrompt(key: ReviewPromptKey, ctx: ReviewPromptContext): string {
