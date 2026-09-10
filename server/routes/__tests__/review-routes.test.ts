@@ -123,6 +123,27 @@ describe('the two graded rungs are marked on the server', () => {
     expect(reveal).toContain('buildNoteExercise');
   });
 
+  it('quotes one line per note, chosen the same way on the shelf and in the dock', () => {
+    /*
+     * The row printed a random window of the prose while the card preferred a span the reader
+     * had marked, so the same item quoted two different lines and the better one never reached
+     * the list. Both go through `noteStemFor` now, with the same seed and the same `avoid`.
+     */
+    const text = service();
+    const views = text.slice(text.indexOf('export async function buildReviewItemViews'));
+    const viewsBlock = views.slice(0, views.indexOf('export async function', 10));
+    expect(viewsBlock).toContain('noteStemFor(');
+    expect(viewsBlock).toContain('loadNoteSpans(');
+    // The window is the last resort inside the chooser, never a call of its own out here.
+    expect(viewsBlock).not.toContain('noteFragment(');
+
+    const exercise = text.slice(text.indexOf('async function buildNoteExercise'));
+    const exerciseBlock = exercise.slice(0, exercise.indexOf('\nasync function', 10));
+    expect(exerciseBlock).toContain('noteStemFor(');
+    expect(exerciseBlock).toContain('loadNoteSpans(');
+    expect(exerciseBlock).not.toContain('noteFragment(');
+  });
+
   it('never sends a note rung its own answer', () => {
     const text = service();
     const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));

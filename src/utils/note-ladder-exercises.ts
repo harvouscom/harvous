@@ -22,6 +22,7 @@
 
 import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
 import { hashSeed, mulberry32, seededIndex } from '@/utils/verse-cloze';
+import { noteProseText, pickNoteStem } from '@/utils/note-stem';
 import type { ReviewPromptKey } from '@/utils/review-prompts';
 import { NOTE_LADDER } from '@/utils/review-prompts';
 
@@ -324,4 +325,45 @@ export function gradeNoteChoice(
   acceptable: readonly string[],
 ): boolean {
   return gradeChoiceExercise(exercise, chosen, acceptable);
+}
+
+// ─── One stem, for the row and the card alike ────────────────────────────────
+
+/**
+ * The line a note is quoted by, wherever it is shown.
+ *
+ * This exists because the shelf and the dock disagreed. The dock preferred a span the reader had
+ * marked and fell back to a window; the row only ever took the window. Same item, same seed, two
+ * different lines — and the better of the two, the one the reader had deliberately dragged a
+ * highlighter over, never reached the list at all.
+ *
+ * The order is a ranking of how much of the choice was the reader's:
+ *
+ * 1. **A span they marked.** They already said this line mattered. Picked by hash over the spans
+ *    in a fixed order, which is the draw the dock has always used — kept exactly, so items in
+ *    flight keep the span they were showing.
+ * 2. **The best sentence of their prose**, scored and drawn by seed (`note-stem.ts`).
+ * 3. **The old twelve-word window**, over prose with quoted Scripture and headings removed. Only
+ *    a note with no sentence in it reaches here.
+ *
+ * `avoid` must be the same at every call site or the two surfaces resolve different lines — the
+ * whole failure this replaces. Pass the note's own option label.
+ */
+export function chooseNoteStem(input: {
+  html: string;
+  spans: readonly NoteSpan[];
+  seed: string;
+  avoid?: readonly string[];
+}): { fragment: string; span: NoteSpan | null; truncated: boolean } | null {
+  const spans = input.spans.filter(Boolean);
+  if (spans.length) {
+    const span = spans[hashSeed(input.seed) % spans.length];
+    return { fragment: span.quote, span, truncated: false };
+  }
+
+  const picked = pickNoteStem(input.html, input.seed, { avoid: input.avoid });
+  if (picked) return { fragment: picked.text, span: null, truncated: picked.truncated };
+
+  const fragment = noteFragment(noteProseText(input.html), input.seed);
+  return fragment ? { fragment, span: null, truncated: false } : null;
 }

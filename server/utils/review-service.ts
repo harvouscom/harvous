@@ -171,7 +171,7 @@ import {
   labelNamesWhat,
   buildNoteRecognize,
   gradeNoteChoice,
-  noteFragment,
+  chooseNoteStem,
   resolveNoteRung,
   type NoteMaterial,
   buildNoteSpan,
@@ -894,12 +894,21 @@ export async function buildReviewItemViews(
         .map((row) => row.noteId as string),
     ),
   ];
-  const recognizeBodies = recognizeNoteIds.length
-    ? await db
-        .select({ id: Notes.id, content: Notes.content, contentEncrypted: Notes.contentEncrypted })
-        .from(Notes)
-        .where(and(eq(Notes.userId, userId), inArray(Notes.id, recognizeNoteIds)))
-    : [];
+  /*
+   * The body, the marked spans and the note's own option label — the three things `noteStemFor`
+   * needs, batched. The row has to build the same stem the dock will, and the dock builds it
+   * from all three; loading only the body here is what let the two surfaces disagree.
+   */
+  const [recognizeBodies, recognizeSpans, recognizeLabels] = recognizeNoteIds.length
+    ? await Promise.all([
+        db
+          .select({ id: Notes.id, content: Notes.content, contentEncrypted: Notes.contentEncrypted })
+          .from(Notes)
+          .where(and(eq(Notes.userId, userId), inArray(Notes.id, recognizeNoteIds))),
+        loadNoteSpans(userId, recognizeNoteIds),
+        loadNoteSubjectLabels(userId, recognizeNoteIds),
+      ])
+    : [[], new Map<string, NoteSpan[]>(), new Map<string, { label: string; distinguishing: boolean }>()];
   const recognizeBodyById = new Map(recognizeBodies.map((row) => [row.id, row]));
 
   const views: ReviewItemView[] = [];
@@ -991,10 +1000,15 @@ export async function buildReviewItemViews(
     let subjectCue: string | null = cue;
     if (resolvedKey === 'note.recognize' && row.noteId) {
       const body = recognizeBodyById.get(row.noteId);
-      subjectCue =
-        body && !body.contentEncrypted
-          ? noteFragment(stripHtml(body.content ?? ''), `${row.id}:${row.ladderStep}`)
-          : null;
+      subjectCue = body
+        ? noteStemFor({
+            content: body.content,
+            contentEncrypted: body.contentEncrypted,
+            spans: recognizeSpans.get(row.noteId) ?? [],
+            seed: `${row.id}:${row.ladderStep}`,
+            ownLabel: recognizeLabels.get(row.noteId)?.label ?? null,
+          })?.fragment ?? null
+        : null;
     } else if (
       (resolvedKey === 'verse.locate' || resolvedKey === 'verse.book') &&
       row.scriptureReference
@@ -1693,6 +1707,13 @@ export interface ReviewRevealPayload {
     fragment: string | null;
     /** Present when the stem is a span the reader marked: the quote, and the words either side. */
     span?: { before: string; quote: string; after: string } | null;
+    /**
+     * The stem is a clause, not a whole sentence.
+     *
+     * The card quotes the fragment, and a quotation that reads as a complete sentence when it is
+     * half of one is a small lie about the reader's own writing. An ellipsis says where it stops.
+     */
+    truncated?: boolean;
     options: string[];
   } | null;
   /**
@@ -2787,6 +2808,76 @@ async function loadNoteOptionLabels(
   };
 }
 
+/**
+ * Every span the reader marked in these notes, in the order the picker has always used.
+ *
+ * Batched, because the shelf builds a page of rows at once and the dock builds one. Both draw
+ * from this so a row and the card it opens quote the same line — see `chooseNoteStem`. The
+ * ordering is load-bearing: the span is picked by hash over the array, so a query without
+ * `orderBy` would hand the row one span and the reveal another from the same seed.
+ */
+async function loadNoteSpans(
+  userId: string,
+  noteIds: readonly string[],
+): Promise<Map<string, NoteSpan[]>> {
+  const unique = [...new Set(noteIds.filter(Boolean))];
+  const out = new Map<string, NoteSpan[]>();
+  if (!unique.length) return out;
+
+  const rows = await db
+    .select({
+      parentNoteId: StudyThreadEntries.parentNoteId,
+      quote: StudyThreadEntries.anchorQuote,
+      prefix: StudyThreadEntries.anchorPrefixContext,
+      suffix: StudyThreadEntries.anchorSuffixContext,
+    })
+    .from(StudyThreadEntries)
+    .where(
+      and(
+        eq(StudyThreadEntries.userId, userId),
+        inArray(StudyThreadEntries.parentNoteId, unique),
+        eq(StudyThreadEntries.anchorStatus, 'resolved'),
+        eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
+        isNotNull(StudyThreadEntries.anchorQuote),
+      ),
+    )
+    .orderBy(StudyThreadEntries.createdAt, StudyThreadEntries.id);
+
+  for (const row of rows) {
+    if (!row.parentNoteId || !row.quote) continue;
+    // Only spans that clear the floor are in the draw, so a short one cannot win the seed.
+    const span = buildNoteSpan({ quote: row.quote, prefix: row.prefix, suffix: row.suffix });
+    if (!span) continue;
+    const list = out.get(row.parentNoteId);
+    if (list) list.push(span);
+    else out.set(row.parentNoteId, [span]);
+  }
+  return out;
+}
+
+/**
+ * The line a note is quoted by — the one call both the shelf row and the dock card make.
+ *
+ * They used to choose separately, and chose differently: the card preferred a span the reader
+ * had marked, the row only ever took a random window of the prose. Same note, same seed, two
+ * different lines, and the better one never reached the list. One helper, one seed, one `avoid`.
+ */
+function noteStemFor(input: {
+  content: string | null;
+  contentEncrypted: boolean | null;
+  spans: readonly NoteSpan[];
+  seed: string;
+  ownLabel: string | null;
+}): { fragment: string; span: NoteSpan | null; truncated: boolean } | null {
+  if (input.contentEncrypted) return null;
+  return chooseNoteStem({
+    html: input.content ?? '',
+    spans: input.spans,
+    seed: input.seed,
+    avoid: input.ownLabel ? [input.ownLabel] : [],
+  });
+}
+
 /** The option label for specific notes, which may be older than the pool reaches. */
 async function loadNoteSubjectLabels(
   userId: string,
@@ -2864,6 +2955,8 @@ async function buildNoteExercise(
   fragment: string | null;
   /** The marked span behind `fragment`, where the reader highlighted rather than the app chose. */
   span: NoteSpan | null;
+  /** The stem is a clause cut out of a longer sentence, so the card may show it as partial. */
+  truncated?: boolean;
   acceptable: string[];
 } | null> {
   if (item.kind !== 'note' || !item.noteId) return null;
@@ -2885,40 +2978,20 @@ async function buildNoteExercise(
     if (!note || note.contentEncrypted) return null;
 
     /*
-     * A span the reader marked beats a fragment the app chose, and it comes with the words
-     * either side: a quote that starts mid-clause is a puzzle about grammar before it is one
-     * about study.
-     *
-     * Ordered and picked by seed. This was `limit(1)` with no `orderBy`, so a note with several
-     * highlights could hand the reveal one row and the grader another — the same seed, a
-     * different question.
+     * A span the reader marked beats a sentence the app chose, and a sentence beats a window
+     * cut out of the middle of the note. `chooseNoteStem` holds that order, and the shelf row
+     * calls it with the same seed and the same `avoid`, so the list and this card agree.
      */
-    const quoted = await db
-      .select({
-        quote: StudyThreadEntries.anchorQuote,
-        prefix: StudyThreadEntries.anchorPrefixContext,
-        suffix: StudyThreadEntries.anchorSuffixContext,
-      })
-      .from(StudyThreadEntries)
-      .where(
-        and(
-          eq(StudyThreadEntries.userId, userId),
-          eq(StudyThreadEntries.parentNoteId, item.noteId),
-          eq(StudyThreadEntries.anchorStatus, 'resolved'),
-          eq(StudyThreadEntries.entryKindRaw, 'miniNote'),
-          isNotNull(StudyThreadEntries.anchorQuote),
-        ),
-      )
-      .orderBy(StudyThreadEntries.createdAt, StudyThreadEntries.id);
-
-    // Only spans that clear the floor are in the draw, so a short one cannot win the seed.
-    const spans = quoted
-      .map((row) => (row.quote ? buildNoteSpan({ quote: row.quote, prefix: row.prefix, suffix: row.suffix }) : null))
-      .filter((s): s is NonNullable<typeof s> => s !== null);
-    const span = spans.length ? spans[hashSeed(seed) % spans.length] : null;
-
-    const fragment = span?.quote || noteFragment(stripHtml(note.content ?? ''), seed);
-    if (!fragment) return null;
+    const spans = (await loadNoteSpans(userId, [item.noteId])).get(item.noteId) ?? [];
+    const stem = noteStemFor({
+      content: note.content,
+      contentEncrypted: note.contentEncrypted,
+      spans,
+      seed,
+      ownLabel: labels.own,
+    });
+    if (!stem) return null;
+    const { fragment, span } = stem;
 
     // An answer nobody could name is not an answer. Falls through to the passage rung.
     if (!labels.ownDistinguishing) return null;
@@ -2932,7 +3005,14 @@ async function buildNoteExercise(
       seed,
     });
     return exercise
-      ? { rung, exercise, fragment: exercise.fragment, span: span ?? null, acceptable: [labels.own] }
+      ? {
+          rung,
+          exercise,
+          fragment: exercise.fragment,
+          span: span ?? null,
+          truncated: stem.truncated,
+          acceptable: [labels.own],
+        }
       : null;
   }
 
@@ -3238,6 +3318,7 @@ export async function buildReviewReveal(
           fragment: built.fragment,
           // `span` only where the reader marked one; `answerIndex` never.
           span: built.span,
+          truncated: built.truncated ?? false,
           options: built.exercise.options,
         }
       : null;

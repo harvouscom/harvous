@@ -982,7 +982,10 @@ export default function PrototypeReviewDock() {
                 {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
               </p>
             ) : noteChoice.fragment ? (
-              <p className="proto-review-dock__verse">“{noteChoice.fragment}”</p>
+              /* An ellipsis where the sentence was cut, so a clause is not passed off as one. */
+              <p className="proto-review-dock__verse">
+                “{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
+              </p>
             ) : null}
             {retryLine}
             <ReviewChoiceChips

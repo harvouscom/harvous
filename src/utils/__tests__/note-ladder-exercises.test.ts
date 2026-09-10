@@ -9,8 +9,10 @@ import {
   type NoteMaterial,
   buildNoteSpan,
   buildNoteAnnotation,
+  chooseNoteStem,
   NOTE_SPAN_MIN_WORDS,
 } from '@/utils/note-ladder-exercises';
+import { hashSeed } from '@/utils/verse-cloze';
 
 const ALL: NoteMaterial = { canRecognize: true, canPassage: true, canConnect: true, canAnnotation: true };
 const NONE: NoteMaterial = { canRecognize: false, canPassage: false, canConnect: false, canAnnotation: false };
@@ -348,5 +350,51 @@ describe('buildNoteSpan floor', () => {
     expect(buildNoteSpan({ quote: 'two words' })).toBeNull();
     expect(buildNoteSpan({ quote: 'a relationship with God' })?.quote).toBe('a relationship with God');
     expect(NOTE_SPAN_MIN_WORDS).toBe(3);
+  });
+});
+
+describe('chooseNoteStem', () => {
+  const HTML =
+    '<h2>A heading nobody should be quoted by</h2>' +
+    '<p>An opening line that names the note itself.</p>' +
+    '<p>God chose us before the foundation of the world because it pleased him.</p>' +
+    '<blockquote data-scripture-quote-reference="Ephesians 1:4">' +
+    '<p>For he chose us in him before the creation of the world to be holy.</p>' +
+    '</blockquote>';
+
+  const span = (quote: string) => buildNoteSpan({ quote })!;
+
+  it('quotes a line the reader marked before one the app chose', () => {
+    const spans = [span('the whole ground of adoption'), span('nothing we brought to it')];
+    const stem = chooseNoteStem({ html: HTML, spans, seed: 'item:0' });
+    expect(stem?.span).not.toBeNull();
+    // The draw the dock has always used, kept exactly so items in flight do not move.
+    expect(stem?.fragment).toBe(spans[hashSeed('item:0') % spans.length].quote);
+  });
+
+  it('falls back to a scored sentence, never to a heading or a quoted passage', () => {
+    const stem = chooseNoteStem({ html: HTML, spans: [], seed: 'item:0' });
+    expect(stem?.span).toBeNull();
+    expect(stem?.fragment).not.toContain('holy');
+    expect(stem?.fragment).not.toContain('A heading');
+  });
+
+  it('falls back to the old window for a note with no sentence in it', () => {
+    const wall =
+      '<p>' +
+      'no punctuation anywhere in this note at all just a long run of words that never stops '.repeat(3) +
+      '</p>';
+    const stem = chooseNoteStem({ html: wall, spans: [], seed: 'item:0' });
+    expect(stem?.fragment.split(' ').length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('gives the same line to two callers passing the same seed and avoid', () => {
+    const a = chooseNoteStem({ html: HTML, spans: [], seed: 'item:3', avoid: ['A note'] });
+    const b = chooseNoteStem({ html: HTML, spans: [], seed: 'item:3', avoid: ['A note'] });
+    expect(a?.fragment).toBe(b?.fragment);
+  });
+
+  it('has nothing to offer when the note is only a heading', () => {
+    expect(chooseNoteStem({ html: '<h1>Only this</h1>', spans: [], seed: 's' })).toBeNull();
   });
 });

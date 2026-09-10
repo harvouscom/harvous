@@ -78,6 +78,8 @@ export interface ReviewRevealResponse {
   noteChoice?: {
     fragment: string | null;
     span?: { before: string; quote: string; after: string } | null;
+    /** The stem is a clause cut from a longer sentence; the card marks it as partial. */
+    truncated?: boolean;
     options: string[];
   } | null;
   next?: { options: string[] } | null;
