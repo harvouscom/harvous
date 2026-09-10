@@ -1,0 +1,16 @@
+# DNS snapshot — testamentmade.com
+# captured 2026-09-06T13:55:11Z via ns2.hover.com
+# Diff Cloudflare's import against BOTH this file and the registrar's panel.
+
+A	@	75.2.60.5|
+MX	@	10 mx.hover.com.cust.hostedemail.com.|
+NS	@	ns1.hover.com.|ns2.hover.com.|
+SOA	@	ns1.hover.com. dnsmaster.hover.com. 1778613663 10800 3600 604800 300|
+A	www	testamentmade.netlify.app.|
+CNAME	www	testamentmade.netlify.app.|
+TXT	www	testamentmade.netlify.app.|
+MX	www	testamentmade.netlify.app.|
+A	mail	mail.hover.com.cust.hostedemail.com.|
+CNAME	mail	mail.hover.com.cust.hostedemail.com.|
+TXT	mail	mail.hover.com.cust.hostedemail.com.|
+MX	mail	mail.hover.com.cust.hostedemail.com.|

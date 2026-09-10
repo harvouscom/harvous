@@ -1,0 +1,18 @@
+# DNS snapshot — heyderekj.com
+# captured 2026-09-06T13:52:19Z via ns2.hover.com
+# Diff Cloudflare's import against BOTH this file and the registrar's panel.
+
+A	@	75.2.60.5|
+MX	@	10 mx.hover.com.cust.hostedemail.com.|
+TXT	@	"google-site-verification=thDph-TqBCK2qbABcyosJ99z2WQ7A-UIGVGtZ6JZ9t4"|
+NS	@	ns1.hover.com.|ns2.hover.com.|
+SOA	@	ns1.hover.com. dnsmaster.hover.com. 1777061813 1800 900 604800 300|
+A	www	heyderekj-com.netlify.app.|
+CNAME	www	heyderekj-com.netlify.app.|
+TXT	www	heyderekj-com.netlify.app.|
+MX	www	heyderekj-com.netlify.app.|
+A	mail	mail.hover.com.cust.hostedemail.com.|
+CNAME	mail	mail.hover.com.cust.hostedemail.com.|
+TXT	mail	mail.hover.com.cust.hostedemail.com.|
+MX	mail	mail.hover.com.cust.hostedemail.com.|
+TXT	_atproto	"did=did:plc:v7k45e5zpicxbusqgc4hluo6"|

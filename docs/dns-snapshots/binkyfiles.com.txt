@@ -1,0 +1,13 @@
+# DNS snapshot — binkyfiles.com
+# captured 2026-09-06T13:54:57Z via ns1.hover.com
+# Diff Cloudflare's import against BOTH this file and the registrar's panel.
+
+A	@	75.2.60.5|
+MX	@	10 mx.hover.com.cust.hostedemail.com.|
+TXT	@	"google-site-verification=vNHQvk526yNDeqZeDhhOzqKJG1Zhb68XMlZYkFso3Zw"|
+NS	@	ns1.hover.com.|ns2.hover.com.|
+SOA	@	ns1.hover.com. dnsmaster.hover.com. 1777529290 10800 3600 604800 300|
+A	www	binkyfiles.netlify.app.|
+CNAME	www	binkyfiles.netlify.app.|
+TXT	www	binkyfiles.netlify.app.|
+MX	www	binkyfiles.netlify.app.|
