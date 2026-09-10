@@ -35,7 +35,7 @@ import {
 } from '@/utils/review-answer-echo';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import Icon, { type IconName } from '@/components/react/Icon';
+import Icon from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import { canJudgeRecall, resolveReviewDockItem } from '@/utils/review-dock-state';
@@ -746,10 +746,19 @@ export default function PrototypeReviewDock() {
       headerTitle={
         <span className="study-dock-card__header-primary-text">
           Review
-          {/* Only while collapsed. Expanded, the question is the first thing in the body, and a
-              muted copy of it in the header asked the same thing twice in two lines. */}
-          {item && !reviewDock.expanded ? (
-            <span className="proto-review-dock__header-prompt">{item.prompt}</span>
+          {/*
+            * Collapsed: the question, since the body is not showing it.
+            *
+            * Expanded: which kind of exercise it is. That began as an eyebrow above the prompt
+            * and was a whole extra tier — a third text size and a second glyph stacked between
+            * the card's title and its question, on a card whose entire job is to ask one thing.
+            * This slot already exists, already sits at the header's own size, and is already the
+            * muted half of the line, so the name costs no new hierarchy at all.
+            */}
+          {item ? (
+            <span className="proto-review-dock__header-prompt">
+              {reviewDock.expanded ? item.exercise?.label ?? null : item.prompt}
+            </span>
           ) : null}
         </span>
       }
@@ -970,19 +979,6 @@ export default function PrototypeReviewDock() {
           <p className="proto-review-dock__handoff">Answer at the top of your note.</p>
         ) : (
           <>
-            {/*
-              * Which kind of exercise this is, above the instruction rather than inside it.
-              *
-              * One glyph and one word. The prompt already says what to do; this says what sort
-              * of doing it is, which is what tells a reader whether they are about to type or to
-              * tap — and gives them the word to ask for more or less of it in Settings.
-              */}
-            {item.exercise ? (
-              <p className="proto-caption proto-review-dock__exercise">
-                <Icon name={item.exercise.icon as IconName} size={11} />
-                <span>{item.exercise.label}</span>
-              </p>
-            ) : null}
             {noteChoice ? (
           /*
            * A note rung. The fragment is the reader's own writing, quoted back — and the

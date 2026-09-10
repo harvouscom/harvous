@@ -65,12 +65,32 @@ export function isRecallState(value: string): value is RecallState {
   return (RECALL_STATES as readonly string[]).includes(value);
 }
 
+/**
+ * How well the reader holds something, said the way a person would.
+ *
+ * These were statuses — "Still learning", "Slipping away" — and they read like a system filing
+ * the reader into a band. Every other line on the same row speaks to them directly ("You keep
+ * coming back to this one", "You marked this while reading", "You have read this 13 times"), so
+ * the one label written in the third person was the odd voice out.
+ *
+ * **Second person, and about what the reader is doing rather than how well they scored.** "You
+ * are learning this" is an account of where they are; "Still learning" was a verdict on where
+ * they had not got to. That is the whole difference, and it keeps the rule the rest of the
+ * feature keeps: never grade someone's grasp of Scripture at a glance.
+ *
+ * `slipping` is an invitation rather than a report. "Slipping away" was the most judgmental of
+ * the three and the least useful — it named a loss and left the reader holding it. Asking them
+ * to look again names the one thing they can actually do about it.
+ *
+ * Short, because they sit beside a title. Three or four words, never a sentence.
+ */
 export const RECALL_STATE_LABELS: Record<RecallState, string> = {
-  new: 'New',
-  fragile: 'Still learning',
-  forming: 'Still learning',
-  durable: 'You know this',
-  slipping: 'Slipping away',
+  // Never rendered — a first asking carries no label at all — but a state needs a word.
+  new: 'Just added',
+  fragile: "You're learning this",
+  forming: "You're learning this",
+  durable: 'You have this',
+  slipping: 'Give this another look',
 };
 
 export const REVIEW_ITEM_ORIGINS = ['user', 'seed', 'challenge', 'engine'] as const;

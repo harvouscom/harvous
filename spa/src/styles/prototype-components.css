@@ -14227,47 +14227,25 @@ html.harvous-prototype-route
  * row would be a scoreboard, and grading someone's grasp of Scripture at a glance is the one
  * thing this feature refuses to do.
  */
-.proto-recall-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 8px;
-  border: 0.5px solid var(--pds-border-control);
-  border-radius: 999px;
-  background: var(--pds-bg-chip);
-  color: var(--pds-text-primary);
-  font-weight: 600;
+/*
+  How well the reader holds something, beside the title.
+
+  Deliberately not a chip any more. It was one — bordered, filled, bold, with a coloured glyph —
+  to keep it from reading as another clause of the caption sentence beneath. Moving it to the
+  title line solved that by position, and once the exercise label arrived on the meta line the
+  row was carrying two glyphs and two labels before it got to the thing being reviewed.
+
+  So: the caption's own size and colour, a little space, and nothing else. Not bold, not tinted,
+  no glyph. It should be legible when looked at and silent when not.
+*/
+.proto-recall-mark {
+  margin-left: 8px;
+  color: var(--pds-text-tertiary);
+  font-weight: 400;
   font-size: 11px;
   line-height: 1.4;
   white-space: nowrap;
   vertical-align: middle;
-}
-
-.proto-recall-chip__mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-/*
- * Every state's colour carries `!important` and an attribute selector, for one reason.
- *
- * A row is a `<button>`, and global.css forces `button * { color: … !important }` on everything
- * inside one. The glyph is drawn with `currentColor`, so without this all three states come out
- * the same grey. `!important` alone is not enough either: among important declarations the more
- * specific selector wins, and that global rule out-specifies a lone class.
- */
-.proto-recall-chip[data-state] .proto-recall-chip__mark {
-  color: var(--pds-text-secondary) !important;
-}
-
-.proto-recall-chip[data-state='durable'] .proto-recall-chip__mark {
-  color: var(--pds-accent-gradient-end) !important;
-}
-
-.proto-recall-chip[data-state='slipping'] .proto-recall-chip__mark {
-  color: var(--pds-destructive) !important;
 }
 
 /* Owner / You markers — subtle neutral pill (matches our chip language). */
@@ -22805,37 +22783,7 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-primary);
 }
 
-/*
-  Which kind of exercise the card is about to ask, above the instruction.
-
-  A caption, not a badge. It sits in the same muted register as every other caption in the dock
-  because it is orientation rather than content — the reader's eye should land on the question,
-  notice the label on the way past, and not come back to it.
-*/
-.proto-review-dock__exercise {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin: 0 0 6px;
-  color: var(--pds-text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 10px;
-}
-
-.proto-review-dock__exercise svg {
-  flex: none;
-  opacity: 0.85;
-}
-
-/*
-  The same name on a shelf row, where it shares the meta line with the task.
-
-  Inline rather than flex: the row's meta is a run of text with separators between its parts, and
-  a flex child here would break out of that line and take the separator with it.
-*/
 .proto-review-row__exercise {
-  margin-left: 4px;
   color: var(--pds-text-secondary);
 }
 

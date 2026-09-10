@@ -1,38 +1,26 @@
 /**
- * How well the reader holds something, as a chip rather than a bare word at the end of a line.
+ * How well the reader holds something: two quiet words beside the title.
  *
- * The shared-spaces author chip is the pattern: the same neutral pill, the same small bold
- * label. Here a status glyph leads instead of a face — a seedling for something being learned,
- * a check for something known, a turned-back clock for something being lost.
+ * **It was a pill, and the pill was doing a job the position now does.** The state used to be
+ * the third `·`-separated fragment of the caption — "Cross-referenced 28 times · Needs work" —
+ * where it read as another clause of a sentence about the verse when it is really a sentence
+ * about the reader. A chip separated the two by shape. Then the state moved to the *title* line,
+ * which separates them by position, and the chip's border, fill, weight and glyph were all
+ * paying for a problem that had already been solved somewhere else.
  *
- * Why a chip at all. The state was the third `·`-separated fragment on a caption line, sitting
- * after a sentence and reading as another clause of it — "Cross-referenced 28 times · Needs
- * work" parses as one thought when it is two, and the second one is about the reader rather
- * than the verse. A chip separates them by shape, so the eye takes the sentence as provenance
- * and the chip as status without reading either twice.
+ * What tipped it was the exercise label arriving on the meta line: two glyphs and two labels on
+ * one row, none of them the thing the reader came to read. So the row keeps one icon — the
+ * subject's — and the state is words alone.
  *
- * The colour is on the glyph and nowhere else. The label stays the caption's own grey, because a
- * fully tinted pill at the end of every row would be a scoreboard, and the one thing this
- * feature refuses to do is grade someone's grasp of Scripture at a glance.
+ * No colour, still. A tinted marker at the end of every row would be a scoreboard, and the one
+ * thing this feature refuses to do is grade someone's grasp of Scripture at a glance. The words
+ * carry it on their own — and they describe the passage's hold rather than the reader's
+ * performance, which is why they read as an observation instead of a mark. See
+ * `RECALL_STATE_LABELS`.
  */
 import type { ReactNode } from 'react';
-import Icon from '@/components/react/Icon';
-import type { IconName } from '@/components/react/Icon';
 import { RECALL_STATE_LABELS, type RecallState } from '@/utils/review-item-kinds';
 import { reviewRowRecallLabel } from '@/utils/review-row-subtitle';
-
-/**
- * A glyph per state, and only three of them, because `fragile` and `forming` are one thing to
- * a reader — see `RECALL_STATE_LABELS`.
- */
-export const RECALL_STATE_ICONS: Record<RecallState, IconName> = {
-  // Never rendered: a row being asked for the first time carries no state at all.
-  new: 'seedling',
-  fragile: 'seedling',
-  forming: 'seedling',
-  durable: 'check',
-  slipping: 'clock-rotate-left',
-};
 
 export default function PrototypeRecallStateChip({
   state,
@@ -41,11 +29,10 @@ export default function PrototypeRecallStateChip({
   state: RecallState;
   label: string;
 }) {
+  // `data-state` is kept though nothing styles it: it is what a test and a screenshot read to
+  // tell a fragile row from a forming one, since the two share a label.
   return (
-    <span className="proto-recall-chip" data-state={state}>
-      <span className="proto-recall-chip__mark" aria-hidden>
-        <Icon name={RECALL_STATE_ICONS[state]} size={10} />
-      </span>
+    <span className="proto-recall-mark" data-state={state}>
       {label}
     </span>
   );

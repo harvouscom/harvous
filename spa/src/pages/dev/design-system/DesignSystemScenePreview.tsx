@@ -20,6 +20,7 @@ import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
 import PrototypeWelcome3Sheet from '../../prototype/PrototypeWelcome3Sheet';
 import PrototypeHomeRow from '../../prototype/PrototypeHomeRow';
+import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
 import { buildStudyFeedDays, type StudyFeedItem } from '@/utils/study-feed-items';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
 import {
@@ -1370,27 +1371,21 @@ function ReviewVerdictsScene() {
       </div>
 
       <div>
-        {/* The shared-spaces author chip with a status glyph where the face goes. The glyph
-            carries the state; the label never does. */}
+        {/* Words beside a title, not a chip. It was a bordered, tinted pill; the position it
+            sits in now does the separating that the chrome used to do. */}
         <p className="pds-caption">How well you hold it</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span className="proto-recall-chip" data-state="fragile">
-            <span className="proto-recall-chip__mark" aria-hidden>
-              <Icon name="seedling" size={10} />
-            </span>
-            Still learning
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <span className="pds-list-title">
+            John 15:5
+            <span className="proto-recall-mark" data-state="fragile">{RECALL_STATE_LABELS.fragile}</span>
           </span>
-          <span className="proto-recall-chip" data-state="durable">
-            <span className="proto-recall-chip__mark" aria-hidden>
-              <Icon name="check" size={10} />
-            </span>
-            You know this
+          <span className="pds-list-title">
+            Romans 8:28
+            <span className="proto-recall-mark" data-state="durable">{RECALL_STATE_LABELS.durable}</span>
           </span>
-          <span className="proto-recall-chip" data-state="slipping">
-            <span className="proto-recall-chip__mark" aria-hidden>
-              <Icon name="clock-rotate-left" size={10} />
-            </span>
-            Slipping away
+          <span className="pds-list-title">
+            Psalms 23:1
+            <span className="proto-recall-mark" data-state="slipping">{RECALL_STATE_LABELS.slipping}</span>
           </span>
         </div>
       </div>

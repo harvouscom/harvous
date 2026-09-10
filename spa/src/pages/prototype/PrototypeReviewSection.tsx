@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import Icon, { type IconName } from '@/components/react/Icon';
+import Icon from '@/components/react/Icon';
 import PrototypeHomeSection from './PrototypeHomeSection';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
@@ -52,15 +52,19 @@ function foldedLabel(folded: number | null): string {
 /**
  * The task line, with the exercise it is wearing named in front of it.
  *
- * A glyph and one word — "Blanks · Fill in the blanks" — so a reader scanning the shelf can see
- * at a glance which rows are a tap and which will want typing, and pick the one they have a
- * minute for. Falls back to the bare task for an item from before the server sent a family.
+ * One word — "Blanks · Fill in the blanks" — so a reader scanning the shelf can see which rows
+ * are a tap and which will want typing, and pick the one they have a minute for.
+ *
+ * **No glyph here, though the dock has one.** A row already carries an icon for its subject, and
+ * a second one for the exercise put two glyphs and two labels in front of the thing being
+ * reviewed. The dock has one card and room to spare; a shelf does not.
+ *
+ * Falls back to the bare task for an item from before the server sent a family.
  */
-function reviewRowTask(item: { task: string; exercise?: { label: string; icon: string } | null }) {
+function reviewRowTask(item: { task: string; exercise?: { label: string } | null }) {
   if (!item.exercise) return item.task;
   return (
     <>
-      <Icon name={item.exercise.icon as IconName} size={10} />
       <span className="proto-review-row__exercise">{item.exercise.label}</span>
       {' · '}
       {item.task}
