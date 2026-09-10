@@ -15,21 +15,9 @@ describe('ProtoIconBlock', () => {
     expect(screen.getByText('Not helpful')).toBeTruthy();
   });
 
-  it('keeps the visible word as the accessible name when it needs no lengthening', () => {
+  it('uses the visible word as the accessible name, with nothing spoken that is not shown', () => {
     render(<ProtoIconBlock icon="thumbs-up" label="Good question" onSelect={() => {}} />);
     expect(screen.getByRole('button', { name: 'Good question' })).toBeTruthy();
-  });
-
-  it('lets a longer sentence be the accessible name where the word is a shortening', () => {
-    render(
-      <ProtoIconBlock
-        icon="eye-slash"
-        label="Remove"
-        ariaLabel="Remove from Review"
-        onSelect={() => {}}
-      />,
-    );
-    expect(screen.getByRole('button', { name: 'Remove from Review' })).toBeTruthy();
   });
 
   it('says which way it was pressed, and only once it has been', () => {

@@ -1309,15 +1309,6 @@ function ReviewVerdictsScene() {
       </div>
 
       <div>
-        <p className="pds-caption">The same block, in a row's menu</p>
-        <div className="proto-icon-block-row">
-          <ProtoIconBlock icon="clock-rotate-left" label="Not now" onSelect={() => {}} />
-          <ProtoIconBlock icon="circle-minus" label="Pause" ariaLabel="Pause this" onSelect={() => {}} />
-          <ProtoIconBlock icon="eye-slash" label="Remove" ariaLabel="Remove from Review" onSelect={() => {}} />
-        </div>
-      </div>
-
-      <div>
         <p className="pds-caption">Goes</p>
         <span className="proto-review-dock__goes" aria-label="Attempt 2 of 3">
           <span className="proto-review-dock__go" data-spent aria-hidden />

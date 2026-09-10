@@ -41,13 +41,6 @@ export const reviewComingBackCopy = (count: number) =>
   count === 1 ? '1 coming back later' : `${count} coming back later`;
 export const REVIEW_REMOVE_COPY = 'Remove from Review';
 
-/*
- * The same three actions, in the word that fits under a glyph in the row's icon-block menu.
- * The full sentences above stay the accessible names — "Pause" alone would not say what is
- * being paused to someone listening rather than looking.
- */
-export const REVIEW_PAUSE_SHORT_COPY = 'Pause';
-export const REVIEW_REMOVE_SHORT_COPY = 'Remove';
 export const REVIEW_MORE_COPY = 'More';
 
 /**

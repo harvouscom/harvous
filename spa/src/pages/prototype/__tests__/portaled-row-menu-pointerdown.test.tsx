@@ -69,9 +69,7 @@ describe('a review row’s overflow menu', () => {
   it('runs the action when a menu item is pressed, not just clicked', () => {
     const { onRemove } = renderRow();
     openMenu();
-    /* By role and accessible name, not by visible text: the menu shows icon blocks, whose
-       visible word is a shortening ("Remove") of the full sentence that names the action. */
-    pressLikeABrowser(screen.getByRole('menuitem', { name: REVIEW_REMOVE_COPY }));
+    pressLikeABrowser(screen.getByText(REVIEW_REMOVE_COPY));
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
 

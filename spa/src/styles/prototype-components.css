@@ -1681,9 +1681,12 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
  * An icon block: a glyph over a word, in a pressable block.
  *
  * The word is not optional. This feature already removed a bare `+` for being an unexplained
- * icon, and a glyph meaning "fewer of these" has no settled shape at all. Two surfaces share
- * this control — Review's question feedback and the Activity row's overflow — because they are
- * the same gesture at the same size, and a second copy would drift.
+ * icon, and a glyph meaning "fewer of these" has no settled shape at all.
+ *
+ * Review's question feedback is the one thing wearing it. The Activity row's overflow menu was
+ * built this way too and put back to a list: a menu of actions reads better as rows you scan
+ * down than as a strip of blocks, and the full sentences ("Remove from Review") are the point
+ * there in a way a one-word label cannot carry.
  */
 
 .proto-icon-block {
@@ -1812,13 +1815,6 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   display: flex;
   align-items: stretch;
   gap: var(--pds-space-2);
-}
-
-/* A popover holding a row of blocks rather than a list of rows: it should be as wide as they are. */
-.proto-menu__popover--blocks {
-  min-width: 0;
-  width: max-content;
-  padding: 6px;
 }
 
 /* Trailing checkmark on an already-shared space row. */

@@ -1,15 +1,17 @@
 /**
  * A glyph over a word, in a pressable block.
  *
- * Two surfaces share it: the question feedback on Review's result card, and the Activity row's
- * overflow menu. They are the same gesture at the same size, and a second copy would drift the
- * way the shelf row and the dock once drifted over which stem to show.
+ * Review's question feedback is the one thing wearing it: two blocks under the result, where the
+ * reader says what they thought of the exercise they were just given. It lives in its own file
+ * rather than inside the dock because the pressed state is the app's accent button and the rules
+ * that get it there are fiddly enough to be worth naming once — see `.proto-icon-block` in
+ * `prototype-components.css`.
  *
  * **The word is not optional.** This feature already removed a bare `+` for being an unexplained
  * icon (see `REVIEW_ADD_COPY`), and "fewer questions like this" has no settled glyph at all. So
- * `label` is required, and `ariaLabel` only overrides the accessible name where the visible word
- * is a genuine shortening of it — otherwise the accessible name stays the visible text, which is
- * what label-in-name asks for.
+ * `label` is required, and it is also the accessible name — there is no separate `aria-label`,
+ * because a control whose spoken name differs from its visible word is the thing label-in-name
+ * exists to prevent.
  */
 
 import Icon, { type IconName } from '@/components/react/Icon';
@@ -18,32 +20,25 @@ import { haptics } from '@/utils/haptics';
 export default function ProtoIconBlock({
   icon,
   label,
-  ariaLabel,
   selected,
   disabled,
-  role,
   onSelect,
   className,
 }: {
   icon: IconName;
-  /** The word under the glyph. Never omitted — this control is not a bare icon. */
+  /** The word under the glyph, and the accessible name. Never omitted. */
   label: string;
-  /** The full sentence, where the visible word is a shortening of it. Defaults to `label`. */
-  ariaLabel?: string;
+  /** Omitted entirely where the block is an action rather than a choice. */
   selected?: boolean;
   disabled?: boolean;
-  /** `menuitem` inside a popover; omitted for a plain group of buttons. */
-  role?: string;
   onSelect: () => void;
   className?: string;
 }) {
   return (
     <button
       type="button"
-      role={role}
       className={`proto-icon-block${className ? ` ${className}` : ''}`}
       aria-pressed={typeof selected === 'boolean' ? selected : undefined}
-      aria-label={ariaLabel && ariaLabel !== label ? ariaLabel : undefined}
       disabled={disabled}
       onClick={() => {
         haptics.light();
