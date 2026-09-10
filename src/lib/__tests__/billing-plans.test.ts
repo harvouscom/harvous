@@ -29,13 +29,13 @@ describe('billing-plans registry', () => {
   });
 
   it('resolves free limits when no features', () => {
-    expect(limitsForFeatures([])).toEqual({ ownedSpaces: 0, membersPerSpace: 50 });
+    expect(limitsForFeatures([])).toEqual({ ownedSpaces: 0, membersPerSpace: 12 });
   });
 
   it('resolves Plus limits for shared_spaces', () => {
     expect(limitsForFeatures(['shared_spaces'])).toEqual({
       ownedSpaces: UNLIMITED,
-      membersPerSpace: 50,
+      membersPerSpace: 12,
     });
   });
 

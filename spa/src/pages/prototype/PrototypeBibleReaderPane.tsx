@@ -42,6 +42,7 @@ import {
 } from '@/utils/bible-book-chapters';
 import { canonGroupForBook } from '@/utils/admin-pulse-canon-groups';
 import { bookAbbreviation } from '@/utils/scripture-osis';
+import { spanKeyForSelection } from '@/utils/scripture-span-key';
 import { PrototypePaneEmptyState } from './design-system';
 import {
   usePrefetchAdjacentChapters,
@@ -419,6 +420,8 @@ export interface PrototypeBibleReaderPaneProps {
      */
     highlights?: ReadonlyMap<number, ReaderVerseHighlight>;
     versePaints?: ReadonlyMap<number, PassageHighlightPaint[]>;
+    /** Span rows by span key — see `spanHighlights` on the top-level props. */
+    spanHighlights?: ReadonlyMap<string, ReaderVerseHighlight>;
   } | null;
   /** Open, change (`id`) or close (`null`) the second column. */
   onChangeCompare?: (translation: string | null) => void;
@@ -444,6 +447,14 @@ export interface PrototypeBibleReaderPaneProps {
    * mechanism, not a different value: see `versePaints` in PrototypeReadPage.
    */
   versePaints?: ReadonlyMap<number, PassageHighlightPaint[]>;
+  /**
+   * Sub-verse highlights by span key, for *finding* one rather than drawing it.
+   *
+   * `versePaints` above draws them and carries no annotation; `highlights` skips them entirely.
+   * Without this a dragged phrase could be painted but never looked up, so Annotate on one
+   * always opened blank over a note that already existed.
+   */
+  spanHighlights?: ReadonlyMap<string, ReaderVerseHighlight>;
   /**
    * Paint the selected verses in this accent.
    *
@@ -473,10 +484,19 @@ export interface PrototypeBibleReaderPaneProps {
    * so the reader threads the id back in once it resolves, letting the dock's own pending-edit
    * flush pick up whatever was typed in the meantime.
    */
+  /*
+   * Positionally identical to `onHighlight` — deliberately, because the page binds both to the
+   * *same* function. This used to declare `translation` in the fourth slot while the
+   * implementation read a `passageText` there. Both are `string | undefined`, so nothing failed
+   * to compile; the argument simply landed in the wrong parameter, and Annotate wrote a
+   * different row than Highlight for the same selection.
+   */
   onAnnotate?: (
     range: { start: number; end: number },
     accent: StudyHighlightAccentKey,
     excerpt: string,
+    /** The full text of the verses in `range` — how the caller tells a phrase from a passage. */
+    passageText?: string,
     /** As `onHighlight`'s: set only from the comparison's second column. */
     translation?: string,
   ) => Promise<string | null> | void;
@@ -558,6 +578,7 @@ export default function PrototypeBibleReaderPane({
   fontOverride,
   highlights,
   versePaints,
+  spanHighlights,
   onHighlight,
   onAnnotate,
   onRemoveHighlight,
@@ -1663,6 +1684,7 @@ export default function PrototypeBibleReaderPane({
   const inCompare = activeColumn === 'compare' && !!compare;
   const activeVerses = inCompare ? compare.verses : verses;
   const activeHighlights = inCompare ? compare.highlights : highlights;
+  const activeSpanHighlights = inCompare ? compare.spanHighlights : spanHighlights;
   const activeTranslation = inCompare ? compare.translation : data.translation;
   /**
    * Passed to the write handlers only from the second column.
@@ -1741,7 +1763,24 @@ export default function PrototypeBibleReaderPane({
    * silently reopen verse 20's annotation instead of offering a new highlight over all five.
    */
   const existingHighlight = (() => {
-    if (!selection || !activeHighlights) return undefined;
+    if (!selection) return undefined;
+
+    /*
+     * A drag looks the phrase up by its span key, not by verse. `verseHighlightMap` on the page
+     * skips span rows on purpose (a `Map<verse, …>` cannot hold several spans in one verse), so
+     * for a dragged selection `activeHighlights` is silent by design — and reading it anyway is
+     * why Annotate on a phrase always behaved as if nothing were there: it opened a blank note
+     * over a saved one, showed no "already annotated" mark, and opened the palette on the
+     * toolbar's last accent rather than this row's.
+     *
+     * `spanKeyForSelection` returns null when the drag covers the whole passage, which is the
+     * same collapse the write path does — so a drag over an entire verse falls through to the
+     * whole-verse lookup below and finds the row a tap would have made.
+     */
+    const spanKey = spanKeyForSelection(selectedText, passageText);
+    if (spanKey) return activeSpanHighlights?.get(spanKey);
+
+    if (!activeHighlights) return undefined;
     const first = activeHighlights.get(selection.start);
     if (!first) return undefined;
     for (let v = selection.start + 1; v <= selection.end; v += 1) {
@@ -1937,6 +1976,21 @@ export default function PrototypeBibleReaderPane({
                         { start: annotated.start, end: annotated.end },
                         accent,
                         selectedText,
+                        /*
+                         * Both arguments, in order — this passed `actionTranslation` here, into
+                         * the `fullPassageText` slot, so Annotate and Highlight wrote different
+                         * rows for the same gesture.
+                         *
+                         * On the primary column `actionTranslation` is undefined, so the span
+                         * key fell back to comparing the excerpt with itself and came out null:
+                         * annotating a dragged phrase silently wrote (or reused) the *whole
+                         * verse's* row instead of a span of its own. On the compare column it
+                         * was worse — the version id was compared against as if it were the
+                         * passage, and with nothing left for `inTranslation` the note was filed
+                         * against the page's translation, which is the "NIV words under ESV"
+                         * failure `applyHighlight` warns about in as many words.
+                         */
+                        passageText,
                         actionTranslation,
                       ),
                     ).then((id) => {
@@ -2620,6 +2674,33 @@ export default function PrototypeBibleReaderPane({
                     entryKind="scriptureLink"
                     studyThreadEntryId={entry.session.studyThreadEntryId}
                     contextSpaceId={homeSpaceId}
+                    /*
+                     * The session has to learn what was typed, the way the note side already
+                     * does (`TiptapEditor`). Without these the session's `miniNoteBody` stayed
+                     * frozen at whatever it was when the card opened — and `openOrFocusHighlight`
+                     * *replaces* the session when a card for the same span already exists, so
+                     * re-tapping Annotate reset the textarea to the stale value while
+                     * `userTouchedMiniNoteRef` stayed true. The next flush then wrote that
+                     * emptiness over a real annotation.
+                     */
+                    onMiniNoteChange={(body) => {
+                      setDockStack((s) =>
+                        updateDockEntry(s, entry.id, (e) =>
+                          e.kind === 'highlight'
+                            ? { ...e, session: { ...e.session, miniNoteBody: body } }
+                            : e,
+                        ),
+                      );
+                    }}
+                    onFocusTitleChange={(title) => {
+                      setDockStack((s) =>
+                        updateDockEntry(s, entry.id, (e) =>
+                          e.kind === 'highlight'
+                            ? { ...e, session: { ...e.session, focusTitle: title } }
+                            : e,
+                        ),
+                      );
+                    }}
                     onAccentChange={(next) => {
                       setAccent(next);
                       // The card's own verses, not whatever the reader last focused. With

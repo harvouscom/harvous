@@ -21,6 +21,7 @@ import {
 } from '@/utils/save-reference-study-thread';
 import { notifyStudyThreadListChanged } from '@/utils/prototype-study-thread-list-sync';
 import { toast } from '@/utils/toast';
+import { toastError } from '../../lib/error-copy';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useProtoShell, type PaperStackOrigin } from '../../layouts/proto-shell-context';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
@@ -123,6 +124,32 @@ function versePaintMap(rows: ChapterHighlight[] | undefined): Map<number, Passag
       list.push({ id: h.id, excerpt: h.excerpt, accentRaw: h.highlightAccent, entryKind: 'scriptureLink' });
       map.set(v, list);
     }
+  }
+  return map;
+}
+
+/**
+ * Sub-verse highlights by their span key — the lookup `versePaintMap` cannot serve.
+ *
+ * A third map rather than a third painter. `versePaintMap` next door answers "what marks go in
+ * this verse" and deliberately drops everything the painter does not need, `miniNoteBody`
+ * included; `verseHighlightMap` above skips span rows entirely because one verse can hold
+ * several and a `Map<verse, …>` cannot. Between them a dragged phrase had no way to be *found*,
+ * only drawn — so Annotate on one always took the "new highlight" branch with an empty note,
+ * never showed the annotation already on it, and overwrote it on the next keystroke.
+ *
+ * Keyed by `spanKey` because that is what the row is keyed by on the server, so the reader's
+ * side of the lookup is the same question the upsert asks.
+ */
+function spanHighlightMap(rows: ChapterHighlight[] | undefined): Map<string, ReaderVerseHighlight> {
+  const map = new Map<string, ReaderVerseHighlight>();
+  for (const h of rows ?? []) {
+    if (!h.spanKey) continue;
+    map.set(h.spanKey, {
+      accent: h.highlightAccent,
+      studyThreadEntryId: h.id,
+      miniNoteBody: h.miniNoteBody,
+    });
   }
   return map;
 }
@@ -253,6 +280,13 @@ export default function PrototypeReadPage() {
     [compareChapterHighlights],
   );
 
+  /** The same span rows again, but findable — see `spanHighlightMap`. */
+  const spanHighlights = useMemo(() => spanHighlightMap(chapterHighlights), [chapterHighlights]);
+  const compareSpanHighlights = useMemo(
+    () => spanHighlightMap(compareChapterHighlights),
+    [compareChapterHighlights],
+  );
+
   /**
    * Saved word look-ups on this chapter, keyed by (reference, word) — what tells the reader a
    * dotted word already has a reference kept against it, instead of opening "Save" again on
@@ -348,14 +382,49 @@ export default function PrototypeReadPage() {
          were two of them. */
       const write =
         inTranslation && inTranslation === compareTranslation ? createCompareHighlight : createHighlight;
+
+      /*
+       * The guard `handleSaveReference` grew, for the same reason — and this is the path that
+       * needed it more, because Annotate has somewhere for the reader's words to go and lose
+       * them.
+       *
+       * `homeSpaceId` is null for a few hundred ms after a cold load of a reader URL (deep link,
+       * refresh, back-nav) while Clerk and /api/navigation/data resolve, and the mutation throws
+       * `No space to save this highlight to yet`. This used to answer `catch { return null }`.
+       * The pane reads null as "no row yet", so the highlight dock opened, took everything typed
+       * into `pendingMiniNoteRef`, and dropped it on close — the unmount flush is skipped when
+       * there is no row id. Nothing was shown, logged, or retried. That is the whole of
+       * "annotations aren't being saved".
+       *
+       * Deliberately *not* gated on `isGuest`, unlike the reference path next door. A reference
+       * row is server data a guest cannot have; a highlight is not — `useCreateChapterHighlight`
+       * has a full guest branch that writes to the local store and returns a real id, precisely
+       * so a guest's first Annotate has a row to attach to. Sending guests to `offerGuestAccount`
+       * here would take away a feature they are meant to have. The space check is skipped for the
+       * same reason: a guest has no space and never will, so waiting for one cannot end.
+       */
+      if (!isGuest && !homeSpaceId) {
+        toast.error('Still getting your space ready — try again in a moment');
+        return null;
+      }
+
       try {
         const result = await write.mutateAsync({ reference, accent, excerpt, spanKey });
         return result?.highlight?.id ?? null;
-      } catch {
+      } catch (error) {
+        toastError(error, "Couldn't save that highlight — try again", { scope: 'reader-highlight' });
         return null;
       }
     },
-    [book, chapter, createHighlight, createCompareHighlight, compareTranslation],
+    [
+      book,
+      chapter,
+      createHighlight,
+      createCompareHighlight,
+      compareTranslation,
+      isGuest,
+      homeSpaceId,
+    ],
   );
 
   const handleRemoveHighlight = useCallback(
@@ -841,6 +910,7 @@ export default function PrototypeReadPage() {
                   verses: compareData?.verses ?? [],
                   highlights: compareHighlights,
                   versePaints: compareVersePaints,
+                  spanHighlights: compareSpanHighlights,
                 }
               : null
           }
@@ -852,6 +922,7 @@ export default function PrototypeReadPage() {
           fontOverride={fontOverride}
           highlights={highlights}
           versePaints={versePaints}
+          spanHighlights={spanHighlights}
           onHighlight={applyHighlight}
           // Annotate records the highlight; the pane opens the highlight dock over it, so the
           // dock lifecycle stays with the surface that owns the selection.

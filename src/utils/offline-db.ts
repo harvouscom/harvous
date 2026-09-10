@@ -219,8 +219,8 @@ export interface OfflineBiblePack {
  * taken of any book they read online — and the rows are identical. Without this table the
  * only available reading of "has stored books" was "is an offline pack", so comparing a
  * verse in three versions created three packs of one book each, each shown as "Part-saved"
- * with a Finish button, and together they spent the three-translation limit that the ones
- * the reader actually wanted then hit.
+ * with a Finish button, and together they spent much of the offline-translation limit that
+ * the ones the reader actually wanted then hit.
  *
  * So intent is recorded where intent happens, and stays a separate fact from what is stored.
  * `biblePacks` remains the cache it always was; this says which translations are meant to be

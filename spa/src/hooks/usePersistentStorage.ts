@@ -13,9 +13,12 @@ import { useEffect } from 'react';
  * The offline-pack limit was standing in for this. `MAX_OFFLINE_TRANSLATIONS` is documented
  * as a storage guard — "browsers evict whole origins rather than individual records… so a
  * reader who saves everything risks losing everything, including their unsynced notes" — but
- * three translations is 14MB against a multi-gigabyte quota, and the app's own service-worker
- * asset cache is already nearly three times that with no limit at all. Rationing the small
- * bucket does not change an eviction decision made about the whole origin. This does.
+ * five translations is ~23MB against a multi-gigabyte quota, and the app's own service-worker
+ * asset cache is already larger than that with no limit at all. Rationing the small bucket
+ * does not change an eviction decision made about the whole origin. This does.
+ *
+ * That limit was explicitly held at three pending this call and has since been raised to five,
+ * so this hook is now load-bearing for the thing the cap was only gesturing at.
  *
  * ## What it actually does
  *

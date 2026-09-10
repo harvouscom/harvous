@@ -17,7 +17,7 @@
  * used to say the distinction was "a question for the download bookkeeping, not for the
  * reader", and the settings page is exactly a reader asking it. Reading one chapter each in
  * three versions produced three packs of one book, each offering to Finish a download nobody
- * started, and between them they spent the three-translation limit.
+ * started, and between them they spent most of the offline-translation limit.
  *
  * So `listPacks` reports **requested** translations only. Cached books still answer
  * `readPackedChapter` on a plane, and once a translation *is* requested they count toward its
@@ -30,8 +30,9 @@ import { orderedCanonBooks } from './bible-book-chapters';
 /**
  * How many translations may be kept offline at once.
  *
- * Not a licensing limit — a storage one. Three is enough for the translation someone reads in,
- * one they compare against, and one for a study they are in.
+ * Not a licensing limit — a storage one. Five covers the translation someone reads in, one or
+ * two they compare against, and one for a study they are in, without the limit being the thing
+ * they meet first.
  *
  * **The reasoning behind the number is weaker than it looks, and the measurements are here so
  * the next person does not have to take it on trust.** Measured Aug 2026 in Chrome: a
@@ -41,16 +42,18 @@ import { orderedCanonBooks } from './bible-book-chapters';
  *
  * The stated fear — browsers evict whole origins rather than individual records, taking
  * unsynced notes with the scripture — is real, but a cap does not answer it: eviction is a
- * decision about the whole origin under device-wide pressure, and 51MB versus 14MB barely
+ * decision about the whole origin under device-wide pressure, and 51MB versus 23MB barely
  * enters into it. The lever that does is `navigator.storage.persist()`, which
- * `usePersistentStorage` now asks for at boot.
+ * `usePersistentStorage` asks for at boot.
  *
- * So this stays at three for now, not because three is defensible on size, but because
- * persistence is not yet granted (Chrome declines it until a site earns engagement or is
- * installed). Raise it when it is — and prefer showing the reader the megabytes, which the
- * settings page now does, over rationing on their behalf.
+ * This was three, held there on one stated condition: "persistence is not yet granted… raise it
+ * when it is." `usePersistentStorage` now asks at boot, so the condition is met and this is the
+ * raise it named — not a re-argument of the number, which was never the part doing the work.
+ * Five rather than eleven only because a cap that has never been reached costs nothing to keep,
+ * and the honest lever remains showing the reader the megabytes (which the settings page does)
+ * over rationing on their behalf.
  */
-export const MAX_OFFLINE_TRANSLATIONS = 3;
+export const MAX_OFFLINE_TRANSLATIONS = 5;
 
 export interface PackProgress {
   translationId: string;

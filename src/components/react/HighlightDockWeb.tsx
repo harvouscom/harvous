@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isGuestModeActive } from '../../../spa/src/lib/guest-session';
 import { updateGuestHighlight } from '../../../spa/src/lib/guest-store';
 import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
+import { api } from '../../../spa/src/lib/api';
+import { toastError } from '../../../spa/src/lib/error-copy';
+import { notifyHighlightAnnotationSaved } from '@/utils/prototype-study-thread-list-sync';
 import Icon from '@/components/react/Icon';
 import DockAccentSwatchButton, { SCRIPTURE_DOCK_ACCENT_COLORS } from '@/components/react/DockAccentSwatchButton';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
@@ -76,36 +79,52 @@ export interface HighlightDockWebProps {
   onReply?: () => void;
 }
 
-function patchStudyThread(
+/**
+ * Write one edit from this dock, and say whether it landed.
+ *
+ * Every edit funnels through here, which is why the guest branch belongs at this line rather
+ * than in `useUpdateHighlight` — the dock never calls that hook, it has its own request, so a
+ * branch there was reached by nothing.
+ *
+ * This is also the only way a guest can write. The full editor needs a space and a server; a
+ * thought attached to a verse needs neither, and it is the same `miniNoteBody` field the
+ * account version writes, so adoption carries it up with the highlight.
+ *
+ * **Returns a result now, and goes through `api`.** This was a bare `fetch(...).catch(() => {})`
+ * with no `res.ok` check and no await, so a 401, 403, 404, 429 or 500 was indistinguishable from
+ * success — the textarea kept showing the words either way because they were local state. Three
+ * things that fixes: `api` attaches the Clerk bearer token (its own comment says this exists for
+ * the cold-start cookie race, which is exactly the window a fresh reader load sits in), it
+ * prefixes `BASE_URL` so the request does not go to the wrong origin on split-origin builds, and
+ * it throws on a bad status. The endpoint is behind `rateLimit('write')` while this fires every
+ * 400ms of typing, so 429 is a real case, not a theoretical one.
+ */
+async function patchStudyThread(
   id: string,
   body: Record<string, string>,
   contextSpaceId?: string | null,
-) {
-  /*
-   * Every edit this dock makes funnels through here, which is why the guest branch belongs at
-   * this line rather than in `useUpdateHighlight` — the dock never calls that hook, it has its
-   * own fetch, so a branch there was reached by nothing.
-   *
-   * This is also the only way a guest can write. The full editor needs a space and a server; a
-   * thought attached to a verse needs neither, and it is the same `miniNoteBody` field the
-   * account version writes, so adoption carries it up with the highlight.
-   */
+): Promise<boolean> {
   if (isGuestModeActive()) {
     updateGuestHighlight(id, {
       ...(body.miniNoteBody === undefined ? {} : { miniNoteBody: body.miniNoteBody }),
       ...(body.focusTitle === undefined ? {} : { focusTitle: body.focusTitle }),
     });
     if (body.miniNoteBody?.trim()) markOnboardingStep('note');
-    return;
+    notifyHighlightAnnotationSaved(contextSpaceId);
+    return true;
   }
-  void fetch(`/api/study-threads/${id}`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(withStudyThreadContext(body, contextSpaceId)),
-  }).catch(() => {
-    /* ignore */
-  });
+  try {
+    await api.patch(`/api/study-threads/${id}`, withStudyThreadContext(body, contextSpaceId));
+    notifyHighlightAnnotationSaved(contextSpaceId);
+    return true;
+  } catch (error) {
+    /* Scoped so a run of failures on the same dock replaces its own toast rather than stacking
+       one per keystroke-pause. */
+    toastError(error, "Couldn't save that note — it's still here, try again", {
+      scope: 'highlight-annotation',
+    });
+    return false;
+  }
 }
 
 export default function HighlightDockWeb({
@@ -222,22 +241,40 @@ export default function HighlightDockWeb({
     if (userTouchedTitleRef.current || pendingTitleRef.current != null) {
       patch.focusTitle = titleToSave;
     }
-    if (Object.keys(patch).length > 0) {
-      patchStudyThread(threadId, patch, contextSpaceId);
+    if (Object.keys(patch).length === 0) {
+      pendingMiniNoteRef.current = null;
+      pendingTitleRef.current = null;
+      return;
     }
-    pendingMiniNoteRef.current = null;
-    pendingTitleRef.current = null;
+    /*
+     * Cleared only once the write lands. This used to null both refs unconditionally on the line
+     * after a fire-and-forget call, so a rejected flush threw the words away and left nothing to
+     * retry from — and since this is also the unmount path, that was the last chance they had.
+     */
+    void patchStudyThread(threadId, patch, contextSpaceId).then((saved) => {
+      if (!saved) return;
+      if (patch.miniNoteBody !== undefined && pendingMiniNoteRef.current === noteToSave) {
+        pendingMiniNoteRef.current = null;
+      }
+      if (patch.focusTitle !== undefined && pendingTitleRef.current === titleToSave) {
+        pendingTitleRef.current = null;
+      }
+    });
   }, [contextSpaceId, readOnly]);
 
   const persistTitle = useCallback(
     (value: string) => {
       if (readOnly) return;
       onFocusTitleChange?.(value);
+      /* Held pending until the write is confirmed, so a failure still has something to flush
+         on close. `=== value` guards against clearing words typed while this was in flight. */
+      pendingTitleRef.current = value;
       if (studyThreadEntryId) {
-        patchStudyThread(studyThreadEntryId, { focusTitle: value }, contextSpaceId);
-        pendingTitleRef.current = null;
-      } else {
-        pendingTitleRef.current = value;
+        void patchStudyThread(studyThreadEntryId, { focusTitle: value }, contextSpaceId).then(
+          (saved) => {
+            if (saved && pendingTitleRef.current === value) pendingTitleRef.current = null;
+          },
+        );
       }
     },
     [contextSpaceId, readOnly, studyThreadEntryId, onFocusTitleChange],
@@ -247,11 +284,15 @@ export default function HighlightDockWeb({
     (value: string) => {
       if (readOnly) return;
       onMiniNoteChange?.(value);
+      /* Same as the title above: pending until confirmed. With no row id yet this is the only
+         copy there is — it is what the id-arrives effect and the unmount flush both read. */
+      pendingMiniNoteRef.current = value;
       if (studyThreadEntryId) {
-        patchStudyThread(studyThreadEntryId, { miniNoteBody: value }, contextSpaceId);
-        pendingMiniNoteRef.current = null;
-      } else {
-        pendingMiniNoteRef.current = value;
+        void patchStudyThread(studyThreadEntryId, { miniNoteBody: value }, contextSpaceId).then(
+          (saved) => {
+            if (saved && pendingMiniNoteRef.current === value) pendingMiniNoteRef.current = null;
+          },
+        );
       }
     },
     [contextSpaceId, readOnly, studyThreadEntryId, onMiniNoteChange],
