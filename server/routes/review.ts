@@ -10,7 +10,14 @@
  * stored and never graded. See docs/future/REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md.
  */
 
-import { reviewRungIsGraded } from '@/utils/review-prompts';
+import { reviewRungIsGraded, type ReviewPromptKey } from '@/utils/review-prompts';
+import { TRANSLATION_ORDER } from '@/data/translations';
+import {
+  DEFAULT_SAMPLE_EXERCISE,
+  isSampleExercise,
+  type SampleAnswer,
+  type SampleExercise,
+} from '@/utils/review-sample';
 import { composeSitting, sessionGroupKeyFor } from '@/utils/review-session-order';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
@@ -61,6 +68,8 @@ const route = new Hono();
 const MAX_WORD_INDEX = 400;
 /** `MAX_BLANK_SHARE` caps a cloze well below this; the bound is for what arrives, not what we build. */
 const MAX_CLOZE_BLANKS = 24;
+/** The same twelve the outcome route allows: no verse splits into more phrases than that. */
+const MAX_ORDER_POSITIONS = 12;
 const MAX_CLOZE_WORD_LENGTH = 40;
 const MAX_ATTEMPT_LENGTH = 4000;
 
@@ -564,7 +573,12 @@ route.get('/api/review/sample', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const day = sampleDayFrom(c.req.query('day'));
-    const sample = await buildReviewSample(auth.userId, day);
+    const sample = await buildReviewSample(
+      auth.userId,
+      day,
+      sampleTranslationFrom(c.req.query('translation')),
+      sampleExerciseFrom(c.req.query('exercise')),
+    );
     return c.json({ success: true, sample });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/review/sample', action: 'review_sample' });
@@ -572,27 +586,63 @@ route.get('/api/review/sample', requireAuth, rateLimit('read'), async (c) => {
   }
 });
 
+/** A translation the app actually has, or NET. Never the raw query value: it reaches a file read. */
+function sampleTranslationFrom(value: unknown): string {
+  const id = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  return TRANSLATION_ORDER.includes(id) ? id : 'NET';
+}
+
+function sampleExerciseFrom(value: unknown): SampleExercise {
+  return isSampleExercise(value) ? value : DEFAULT_SAMPLE_EXERCISE;
+}
+
+/**
+ * The paid rung each sample exercise stands in for, so `maxAttemptsFor` gives it the same number
+ * of goes the real thing gets: three where the reader types, two where they tap.
+ */
+const SAMPLE_PROMPT_KEYS: Record<SampleExercise, ReviewPromptKey> = {
+  blanks: 'verse.rebuild',
+  letters: 'verse.initials',
+  order: 'verse.sequence',
+  next: 'verse.next',
+};
+
 route.post('/api/review/sample/answer', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const day = sampleDayFrom(typeof body?.day === 'string' ? body.day : undefined);
-    // The sample is a fill-in-the-gaps, so it gets what every typed rung gets.
-    const sampleAttempts = maxAttemptsFor('verse.rebuild');
+    const translation = sampleTranslationFrom(body?.translation);
+    const kind = sampleExerciseFrom(body?.exercise);
+    // The same attempt rule the paid rung of this kind gets: two goes on a tap, three on typing.
+    const sampleAttempts = maxAttemptsFor(SAMPLE_PROMPT_KEYS[kind]);
     const attemptNumber = Number.isInteger(body?.attemptNumber)
       ? Math.max(1, Math.min(sampleAttempts, body.attemptNumber))
       : 1;
-    const words = Array.isArray(body?.words)
-      ? body.words
-          .filter((w: unknown) => typeof w === 'string')
-          .slice(0, MAX_CLOZE_BLANKS)
-          .map((w: string) => w.slice(0, MAX_CLOZE_WORD_LENGTH))
-      : [];
-    const graded = await gradeReviewSample(auth.userId, day, words);
+    /*
+     * Bounded exactly as the outcome route bounds the same fields. A sample is unauthenticated
+     * only in the sense that it is unpaid; everything else about it is a real request.
+     */
+    const answer: SampleAnswer = {
+      words: Array.isArray(body?.words)
+        ? body.words
+            .filter((w: unknown) => typeof w === 'string')
+            .slice(0, MAX_CLOZE_BLANKS)
+            .map((w: string) => w.slice(0, MAX_CLOZE_WORD_LENGTH))
+        : undefined,
+      text: typeof body?.text === 'string' ? body.text.slice(0, MAX_ATTEMPT_LENGTH) : undefined,
+      order: Array.isArray(body?.order)
+        ? body.order
+            .filter((n: unknown) => Number.isInteger(n))
+            .slice(0, MAX_ORDER_POSITIONS)
+            .map((n: number) => Math.max(0, Math.min(MAX_ORDER_POSITIONS, n)))
+        : undefined,
+      option: typeof body?.option === 'string' ? body.option.slice(0, MAX_ATTEMPT_LENGTH) : undefined,
+    };
+    const graded = await gradeReviewSample(auth.userId, day, answer, translation, kind);
     if (!graded) return c.json({ error: 'No sample today', code: 'REVIEW_SAMPLE_UNAVAILABLE' }, 404);
-    // Same attempt rule as the real thing — three, for a rung the reader types into: a miss
-    // with a go left keeps the question up
-    // and shows nothing; only the final answer brings the verse out.
+    // A miss with a go left keeps the question up and shows nothing; only the final answer
+    // brings the verse out.
     if (!graded.correct && attemptNumber < sampleAttempts) {
       return c.json({ success: true, correct: false, finalized: false, attemptsLeft: sampleAttempts - attemptNumber });
     }

@@ -35,8 +35,12 @@ const sample = { data: undefined as undefined | { sample: unknown } };
 const sampleView = {
   reference: 'John 15:5',
   source: 'yours',
-  cloze: { segments: ['I am the vine, you are the ', '.'], blankLengths: [8] },
-  blankCount: 1,
+  available: ['blanks'],
+  exercise: {
+    kind: 'blanks',
+    cloze: { segments: ['I am the vine, you are the ', '.'], blankLengths: [8] },
+    blankCount: 1,
+  },
 };
 
 vi.mock('../../../hooks/useHarvousIdentity', () => ({

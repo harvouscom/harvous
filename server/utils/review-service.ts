@@ -9,11 +9,17 @@
  */
 
 import {
+  DEFAULT_SAMPLE_EXERCISE,
+  availableSampleExercises,
   buildSampleExercise,
   gradeSampleAnswer,
   pickSampleReference,
   sampleSeed,
+  type ReviewSampleExercise,
   type ReviewSampleSpec,
+  type SampleAnswer,
+  type SampleExercise,
+  type SampleMaterial,
   type SampleSource,
 } from '@/utils/review-sample';
 import type { VerseClozeSegments } from '@/utils/verse-cloze';
@@ -3613,11 +3619,15 @@ export async function retireReviewForStudyThreadEntry(
 export async function buildReviewSample(
   userId: string,
   dayKey: string,
+  translation = 'NET',
+  kind: SampleExercise = DEFAULT_SAMPLE_EXERCISE,
 ): Promise<{
   reference: string;
   source: SampleSource;
-  cloze: VerseClozeSegments;
-  blankCount: number;
+  translation: string;
+  exercise: ReviewSampleExercise;
+  /** Which of the four this verse can carry, so the chips only offer what will build. */
+  available: SampleExercise[];
 } | null> {
   const seed = sampleSeed(userId, dayKey);
   const own = await listUserVerseReferences(userId, '');
@@ -3637,28 +3647,89 @@ export async function buildReviewSample(
   const candidates: ReviewSampleSpec[] = ordered.map((reference) => ({ reference, source: 'yours' }));
   candidates.push(pickSampleReference({ ownReferences: [], seed }));
   for (const candidate of candidates) {
-    const html = await fetchVerseText(candidate.reference, 'NET');
-    if (!html) continue;
-    const exercise = buildSampleExercise(stripHtml(html), seed);
+    const material = await loadSampleMaterial(candidate.reference, translation);
+    if (!material) continue;
+    const available = availableSampleExercises(material, seed);
+    if (!available.length) continue;
+    /*
+     * A verse that cannot carry the chosen exercise falls back to one it can, rather than to no
+     * question at all. The response says which are available, so the chips can grey out the rest
+     * and the card can show what it actually got.
+     */
+    const chosen = available.includes(kind) ? kind : available[0];
+    const exercise = buildSampleExercise(material, seed, chosen);
     if (!exercise) continue;
-    return { reference: candidate.reference, source: candidate.source, ...exercise };
+    return {
+      reference: candidate.reference,
+      source: candidate.source,
+      translation,
+      exercise,
+      available,
+    };
   }
   return null;
 }
 
-/** Mark the sample against the same cloze the page was shown; the verse comes back with it. */
+/**
+ * The verse the sample asks about, plus what "what follows" needs.
+ *
+ * The translation was ignored here until now: the card has shown a picker since it shipped and
+ * sent the chosen translation on both requests, and both ends hard-coded NET — so the verse on
+ * screen was NET whatever the label beside it said.
+ */
+async function loadSampleMaterial(
+  reference: string,
+  translation: string,
+): Promise<(SampleMaterial & { html: string }) | null> {
+  const html = await fetchVerseText(reference, translation);
+  if (!html) return null;
+  const next = nextVerseAddress(reference);
+  const [nextHtml, neighbourHtml] = await Promise.all([
+    next ? fetchVerseText(formatVerseAddress(next), translation) : Promise.resolve(''),
+    Promise.all(
+      neighbourVerseAddresses(reference, SAMPLE_NEXT_NEIGHBOURS).map((address) =>
+        fetchVerseText(formatVerseAddress(address), translation),
+      ),
+    ),
+  ]);
+  return {
+    html,
+    text: stripHtml(html),
+    nextText: nextHtml ? stripHtml(nextHtml) : null,
+    neighbourTexts: neighbourHtml.filter(Boolean).map((entry) => stripHtml(entry)),
+  };
+}
+
+/** Enough that "what follows" has three wrong answers from the same chapter. */
+const SAMPLE_NEXT_NEIGHBOURS = 5;
+
+/** Mark the sample against the same question the page was shown; the verse comes back with it. */
 export async function gradeReviewSample(
   userId: string,
   dayKey: string,
-  words: readonly string[],
+  answer: SampleAnswer,
+  translation = 'NET',
+  kind: SampleExercise = DEFAULT_SAMPLE_EXERCISE,
 ): Promise<{ correct: boolean; reference: string; verseText: string } | null> {
-  const sample = await buildReviewSample(userId, dayKey);
+  const sample = await buildReviewSample(userId, dayKey, translation, kind);
   if (!sample) return null;
-  const html = await fetchVerseText(sample.reference, 'NET');
-  if (!html) return null;
+  const material = await loadSampleMaterial(sample.reference, translation);
+  if (!material) return null;
   return {
-    correct: gradeSampleAnswer(stripHtml(html), sampleSeed(userId, dayKey), words),
+    // `sample.exercise.kind` rather than `kind`: a verse that could not carry the chosen
+    // exercise was shown a different one, and the answer must be marked against what was asked.
+    correct: gradeSampleAnswer(material, sampleSeed(userId, dayKey), sample.exercise.kind, answer),
     reference: sample.reference,
-    verseText: html,
+    /*
+     * "What follows" is the one exercise whose truth is not this verse: the reader was asked
+     * which verse comes after it, so showing this one back would answer a different question.
+     */
+    verseText: sample.exercise.kind === 'next' ? await nextVerseHtml(sample.reference, translation) : material.html,
   };
+}
+
+async function nextVerseHtml(reference: string, translation: string): Promise<string> {
+  const next = nextVerseAddress(reference);
+  if (!next) return '';
+  return (await fetchVerseText(formatVerseAddress(next), translation)) || '';
 }

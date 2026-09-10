@@ -22839,6 +22839,31 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
 }
 
+/*
+  The sample's chooser: the same verse, asked four ways.
+
+  A row of secondary buttons rather than a segmented control, because that is what every other
+  set of choices in this feature already is — the ordering chips, the multiple choice. The
+  current one is marked by weight and a border, never by colour alone.
+*/
+.proto-review-sample__exercises {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.proto-review-sample__exercises button[data-current] {
+  border-color: var(--pds-border-control-strong, var(--pds-text-tertiary));
+  color: var(--pds-text-primary);
+  font-weight: 600;
+}
+
+/* The first-letter aid reads as the verse's shape, so it keeps the verse's own face. */
+.proto-review-dock__initials {
+  letter-spacing: 0.04em;
+}
+
 /* Which note the question is about, when the question itself does not name it. Quiet, and
    directly under the prompt so the two read as one thing. */
 .proto-review-dock__subject {

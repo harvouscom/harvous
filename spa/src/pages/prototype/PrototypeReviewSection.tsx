@@ -10,6 +10,7 @@ import {
   useReviewItems,
   useReviewItemsSummary,
   useReviewSample,
+  type SampleExerciseKind,
 } from '../../hooks/queries/useReview';
 import { REVIEW_MAX_ATTEMPTS, REVIEW_INBOX_MAX_ROWS } from '@/utils/review-item-kinds';
 import PrototypeReviewSample from './PrototypeReviewSample';
@@ -89,8 +90,18 @@ export default function PrototypeReviewSection() {
   });
   const challengesQuery = useHomeChallenges();
   const hasAnyFeature = review.has || challengesFeature.has;
+  /*
+   * Which verse, in which translation, asked which way — the three things the sample card can
+   * change. All three are query inputs rather than card state, because the question is built on
+   * the server and marked there: the card cannot rebuild one locally without the two ends
+   * disagreeing about what was asked.
+   */
+  const [sampleTranslation, setSampleTranslation] = useState<string | undefined>(undefined);
+  const [sampleExercise, setSampleExercise] = useState<SampleExerciseKind | undefined>(undefined);
   const sampleQuery = useReviewSample({
     enabled: review.ready && !hasAnyFeature && !sampleDismissed,
+    translation: sampleTranslation,
+    exercise: sampleExercise,
   });
   const [sampleAnswered, setSampleAnswered] = useState(false);
   const defer = useDeferReview();
@@ -114,6 +125,8 @@ export default function PrototypeReviewSection() {
             onSeePlus={() => void navigate({ to: '/upgrade' })}
             onNotNow={dismissSample}
             onAnswered={() => setSampleAnswered(true)}
+            onTranslationChange={setSampleTranslation}
+            onExerciseChange={setSampleExercise}
           />
         ) : null}
         {plusPromptDismissed || sampleAnswered ? null : (

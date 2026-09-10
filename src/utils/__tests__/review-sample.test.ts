@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DEFAULT_SAMPLE_EXERCISE,
+  SAMPLE_EXERCISES,
   SAMPLE_FALLBACK_REFERENCES,
+  availableSampleExercises,
+  isSampleExercise,
+  sampleExerciseSeed,
   buildSampleExercise,
   gradeSampleAnswer,
   pickSampleReference,
@@ -61,21 +66,33 @@ describe('pickSampleReference', () => {
 });
 
 describe('the sample exercise', () => {
+  const MATERIAL = {
+    text: VERSE,
+    nextText: 'For God did not send his Son into the world to condemn the world.',
+    neighbourTexts: [
+      'The one who believes in him is not condemned.',
+      'And this is the basis for judging that the light has come into the world.',
+      'For everyone who does evil deeds hates the light and does not come to the light.',
+    ],
+  };
+  const SEED = sampleSeed('u', '2026-09-03');
+
   it('ships the pieces around the gaps and the gap sizes, never the words', () => {
-    const exercise = buildSampleExercise(VERSE, sampleSeed('u', '2026-09-03'));
-    expect(exercise).not.toBeNull();
-    expect(exercise!.blankCount).toBeGreaterThan(0);
-    expect(exercise!.cloze.segments).toHaveLength(exercise!.blankCount + 1);
+    const exercise = buildSampleExercise(MATERIAL, SEED, 'blanks');
+    expect(exercise?.kind).toBe('blanks');
+    if (exercise?.kind !== 'blanks') throw new Error('expected blanks');
+    expect(exercise.blankCount).toBeGreaterThan(0);
+    expect(exercise.cloze.segments).toHaveLength(exercise.blankCount + 1);
     expect(JSON.stringify(exercise)).not.toMatch(/"word"/);
   });
 
   it('refuses a verse too short to hide anything in', () => {
-    expect(buildSampleExercise('Jesus wept.', 's')).toBeNull();
+    expect(buildSampleExercise({ text: 'Jesus wept.' }, 's', 'blanks')).toBeNull();
   });
 
   it('marks the same gaps it asked, from the same seed', () => {
-    const seed = sampleSeed('u', '2026-09-03');
-    const exercise = buildSampleExercise(VERSE, seed)!;
+    const exercise = buildSampleExercise(MATERIAL, SEED, 'blanks')!;
+    if (exercise.kind !== 'blanks') throw new Error('expected blanks');
     // Rebuild the answers from the visible pieces: what is missing between segments.
     const answers: string[] = [];
     let rest = VERSE;
@@ -87,9 +104,66 @@ describe('the sample exercise', () => {
       answers.push(rest.slice(0, end).trim());
       rest = rest.slice(end);
     }
-    expect(gradeSampleAnswer(VERSE, seed, answers)).toBe(true);
-    expect(gradeSampleAnswer(VERSE, seed, answers.map(() => 'wrong'))).toBe(false);
+    expect(gradeSampleAnswer(MATERIAL, SEED, 'blanks', { words: answers })).toBe(true);
+    expect(gradeSampleAnswer(MATERIAL, SEED, 'blanks', { words: answers.map(() => 'wrong') })).toBe(false);
     // A different day is a different question; yesterday's answers do not fit.
-    expect(gradeSampleAnswer(VERSE, sampleSeed('u', '2026-09-02'), answers)).toBe(false);
+    expect(
+      gradeSampleAnswer(MATERIAL, sampleSeed('u', '2026-09-02'), 'blanks', { words: answers }),
+    ).toBe(false);
+  });
+
+  it('offers four ways to be asked about the same verse', () => {
+    expect(SAMPLE_EXERCISES).toEqual(['blanks', 'letters', 'order', 'next']);
+    const kinds = availableSampleExercises(MATERIAL, SEED);
+    expect(kinds).toEqual(['blanks', 'letters', 'order', 'next']);
+    for (const kind of kinds) {
+      expect(buildSampleExercise(MATERIAL, SEED, kind)?.kind).toBe(kind);
+    }
+  });
+
+  it('never ships the answer key in any of them', () => {
+    for (const kind of SAMPLE_EXERCISES) {
+      const built = JSON.stringify(buildSampleExercise(MATERIAL, SEED, kind));
+      // `"order"` as a *value* is the exercise's own name; as an array it is the answer key.
+      expect(built).not.toMatch(/"order":\s*\[/);
+      expect(built).not.toMatch(/"answerIndex"/);
+      expect(built).not.toMatch(/"blanks":\s*\[/);
+      expect(built).not.toMatch(/"word"/);
+    }
+  });
+
+  it('marks first letters by what was written, not how it was punctuated', () => {
+    expect(gradeSampleAnswer(MATERIAL, SEED, 'letters', { text: VERSE })).toBe(true);
+    expect(gradeSampleAnswer(MATERIAL, SEED, 'letters', { text: 'no idea at all' })).toBe(false);
+  });
+
+  it('marks the order against the arrangement it shuffled', () => {
+    const exercise = buildSampleExercise(MATERIAL, SEED, 'order')!;
+    if (exercise.kind !== 'order') throw new Error('expected order');
+    expect(exercise.phrases.length).toBeGreaterThanOrEqual(3);
+    const wrong = exercise.phrases.map((_, i) => i);
+    // Not asserting the right answer here — the key never leaves the builder. A guess of
+    // "leave everything where it is" is wrong by construction, which is the point of the rotate.
+    expect(gradeSampleAnswer(MATERIAL, SEED, 'order', { order: wrong })).toBe(false);
+  });
+
+  it('has no "what follows" for a verse with nothing after it', () => {
+    const last = { text: VERSE, nextText: null };
+    expect(buildSampleExercise(last, SEED, 'next')).toBeNull();
+    expect(availableSampleExercises(last, SEED)).not.toContain('next');
+    // And an answer to a question that could not be built is wrong, never right.
+    expect(gradeSampleAnswer(last, SEED, 'next', { option: 'anything' })).toBe(false);
+  });
+
+  it('asks a different question of the same verse for each exercise', () => {
+    const seeds = SAMPLE_EXERCISES.map((kind) => sampleExerciseSeed(SEED, kind));
+    expect(new Set(seeds).size).toBe(SAMPLE_EXERCISES.length);
+  });
+
+  it('accepts only the four names, and defaults the rest', () => {
+    expect(isSampleExercise('blanks')).toBe(true);
+    expect(isSampleExercise('verse.rebuild')).toBe(false);
+    expect(isSampleExercise(null)).toBe(false);
+    expect(SAMPLE_EXERCISES).toContain(DEFAULT_SAMPLE_EXERCISE);
   });
 });

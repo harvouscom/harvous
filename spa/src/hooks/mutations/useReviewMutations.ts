@@ -11,6 +11,7 @@ import {
   reviewQueryKey,
   reviewSessionQueryKey,
   type ReviewItemView,
+  type SampleExerciseKind,
 } from '../queries/useReview';
 import type { ReviewItemKind, ReviewItemStatus, ReviewOutcome } from '@/utils/review-item-kinds';
 
@@ -149,14 +150,27 @@ export function useAnswerReviewSample() {
   return useMutation({
     mutationFn: ({
       day,
-      words,
       attemptNumber,
       translation,
+      exercise,
+      ...answer
     }: {
       day: string;
-      words: string[];
       attemptNumber: number;
       translation?: string;
-    }) => api.post<ReviewSampleAnswerResponse>('/api/review/sample/answer', { day, words, attemptNumber, translation }),
+      exercise?: SampleExerciseKind;
+      /** One of these, depending on the exercise. The server marks against what it asked. */
+      words?: string[];
+      text?: string;
+      order?: number[];
+      option?: string;
+    }) =>
+      api.post<ReviewSampleAnswerResponse>('/api/review/sample/answer', {
+        day,
+        attemptNumber,
+        translation,
+        exercise,
+        ...answer,
+      }),
   });
 }

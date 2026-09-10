@@ -20,11 +20,15 @@ const PrototypeReviewSample = (await import('../PrototypeReviewSample')).default
 const sample = {
   reference: 'John 15:5',
   source: 'yours' as const,
-  cloze: {
-    segments: ['I am the vine; you are the ', '. The one who ', ' in me bears much fruit.'],
-    blankLengths: [8, 7],
+  available: ['blanks', 'letters', 'order', 'next'] as const,
+  exercise: {
+    kind: 'blanks' as const,
+    cloze: {
+      segments: ['I am the vine; you are the ', '. The one who ', ' in me bears much fruit.'],
+      blankLengths: [8, 7],
+    },
+    blankCount: 2,
   },
-  blankCount: 2,
 };
 
 beforeEach(() => {
@@ -61,7 +65,13 @@ describe('the sample card', () => {
     expect(check.disabled).toBe(false);
     fireEvent.click(check);
     expect(mutate).toHaveBeenCalledWith(
-      { day: '2026-09-03', words: ['branches', 'remains'], attemptNumber: 1 },
+      {
+        day: '2026-09-03',
+        translation: 'NET',
+        exercise: 'blanks',
+        attemptNumber: 1,
+        words: ['branches', 'remains'],
+      },
       expect.anything(),
     );
   });
@@ -119,5 +129,98 @@ describe('the sample card', () => {
     expect(seePlus).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: /not now/i }));
     expect(notNow).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('choosing how to be asked', () => {
+  const withChooser = (kind: 'blanks' | 'letters' | 'order' | 'next', exercise: unknown) => ({
+    ...sample,
+    exercise: exercise as typeof sample.exercise,
+    available: ['blanks', 'letters', 'order', 'next'] as const,
+    __kind: kind,
+  });
+
+  it('offers the other ways to be asked about the same verse', () => {
+    const onExercise = vi.fn();
+    render(
+      <PrototypeReviewSample
+        sample={sample}
+        day="2026-09-03"
+        maxAttempts={2}
+        onSeePlus={seePlus}
+        onNotNow={notNow}
+        onExerciseChange={onExercise}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'First letters' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Order' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'What follows' }));
+    expect(onExercise).toHaveBeenCalledWith('next');
+  });
+
+  it('does not offer a chooser when the verse can only carry one', () => {
+    render(
+      <PrototypeReviewSample
+        sample={{ ...sample, available: ['blanks'] as never }}
+        day="2026-09-03"
+        maxAttempts={2}
+        onSeePlus={seePlus}
+        onNotNow={notNow}
+        onExerciseChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Order' })).toBeNull();
+  });
+
+  it('shows the first letters and takes the verse written back', () => {
+    render(
+      <PrototypeReviewSample
+        sample={withChooser('letters', { kind: 'letters', initials: 'I a t v; y a t b.', wordCount: 8 })}
+        day="2026-09-03"
+        maxAttempts={3}
+        onSeePlus={seePlus}
+        onNotNow={notNow}
+      />,
+    );
+    expect(screen.getByText('I a t v; y a t b.')).toBeTruthy();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'I am the vine' } });
+    fireEvent.click(screen.getByRole('button', { name: /check/i }));
+    expect(mutate.mock.calls[0][0]).toMatchObject({ exercise: 'letters', text: 'I am the vine' });
+  });
+
+  it('will not check an ordering until every phrase is placed', () => {
+    render(
+      <PrototypeReviewSample
+        sample={withChooser('order', { kind: 'order', phrases: ['you are the branches', 'I am the vine', 'bears much fruit'] })}
+        day="2026-09-03"
+        maxAttempts={3}
+        onSeePlus={seePlus}
+        onNotNow={notNow}
+      />,
+    );
+    const check = screen.getByRole('button', { name: /check/i }) as HTMLButtonElement;
+    expect(check.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'I am the vine' }));
+    expect(check.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'you are the branches' }));
+    fireEvent.click(screen.getByRole('button', { name: 'bears much fruit' }));
+    expect(check.disabled).toBe(false);
+    fireEvent.click(check);
+    expect(mutate.mock.calls[0][0]).toMatchObject({ exercise: 'order', order: [1, 0, 2] });
+  });
+
+  it('sends a tap straight off, with no button to press afterwards', () => {
+    render(
+      <PrototypeReviewSample
+        sample={withChooser('next', { kind: 'next', options: ['Remain in me', 'I am the door', 'Greater love has'] })}
+        day="2026-09-03"
+        maxAttempts={2}
+        onSeePlus={seePlus}
+        onNotNow={notNow}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /check/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Remain in me/ }));
+    expect(mutate.mock.calls[0][0]).toMatchObject({ exercise: 'next', option: 'Remain in me' });
   });
 });

@@ -236,12 +236,21 @@ export function useReviewReveal(itemId: string | null, options?: { enabled?: boo
   });
 }
 
+export type SampleExerciseKind = 'blanks' | 'letters' | 'order' | 'next';
+
+export type ReviewSampleExerciseView =
+  | { kind: 'blanks'; cloze: { segments: string[]; blankLengths: number[] }; blankCount: number }
+  | { kind: 'letters'; initials: string; wordCount: number }
+  | { kind: 'order'; phrases: string[] }
+  | { kind: 'next'; options: string[] };
+
 export interface ReviewSampleView {
   reference: string;
   source: 'yours' | 'well-known';
-  cloze: { segments: string[]; blankLengths: number[] };
-  blankCount: number;
   translation?: string;
+  exercise: ReviewSampleExerciseView;
+  /** Which kinds this verse can carry, so the chips only offer what will build. */
+  available: SampleExerciseKind[];
 }
 
 export function reviewSampleDayKey(now: Date = new Date()): string {
@@ -251,19 +260,24 @@ export function reviewSampleDayKey(now: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-export function useReviewSample(options: { enabled: boolean; translation?: string }) {
+export function useReviewSample(options: {
+  enabled: boolean;
+  translation?: string;
+  exercise?: SampleExerciseKind;
+}) {
   const authReady = useAuthReady();
   const access = useReviewAccess();
   const day = reviewSampleDayKey();
   const translation = options.translation;
+  const exercise = options.exercise;
   return useQuery({
-    queryKey: ['review', 'sample', day, translation ?? 'default'] as const,
+    queryKey: ['review', 'sample', day, translation ?? 'default', exercise ?? 'blanks'] as const,
     enabled: authReady && !access && options.enabled,
     queryFn: () =>
       api.get<{ sample: ReviewSampleView | null }>(
         `/api/review/sample?day=${encodeURIComponent(day)}${
           translation ? `&translation=${encodeURIComponent(translation)}` : ''
-        }`,
+        }${exercise ? `&exercise=${encodeURIComponent(exercise)}` : ''}`,
       ),
     staleTime: 5 * 60_000,
   });

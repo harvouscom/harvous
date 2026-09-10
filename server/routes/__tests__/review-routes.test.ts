@@ -719,12 +719,22 @@ describe('the sample, for an account without Review', () => {
 
   it('keeps the retry rule and bounds what the page sends', () => {
     const block = sampleRoutes();
-    // The sample is a fill-in-the-gaps, so it gets what every typed rung gets.
-    expect(block).toContain("maxAttemptsFor('verse.rebuild')");
+    /*
+     * Each sample exercise gets the goes its own paid rung gets — three where the reader types,
+     * two where they tap — rather than the blanks rung's three for all four.
+     */
+    expect(block).toContain('maxAttemptsFor(SAMPLE_PROMPT_KEYS[kind])');
+    expect(block).toContain("blanks: 'verse.rebuild'");
+    expect(block).toContain("next: 'verse.next'");
     expect(block).toContain('attemptNumber < sampleAttempts');
     expect(block).toContain('finalized: false');
+    // Every field the page may send is bounded exactly as the outcome route bounds it.
     expect(block).toContain('.slice(0, MAX_CLOZE_BLANKS)');
     expect(block).toContain('w.slice(0, MAX_CLOZE_WORD_LENGTH)');
+    expect(block).toContain('.slice(0, MAX_ATTEMPT_LENGTH)');
+    expect(block).toContain('.slice(0, MAX_ORDER_POSITIONS)');
+    // The translation reaches a file read, so it is checked against the list, never trusted.
+    expect(block).toContain('TRANSLATION_ORDER.includes(id)');
   });
 
   it('accepts only a calendar day from the page, and falls back rather than trusting it', () => {

@@ -271,6 +271,35 @@ export const CHALLENGE_RETIRED_COPY = 'The note this path was built on is gone.'
 export const REVIEW_SAMPLE_EYEBROW_YOURS = 'From your own study';
 export const REVIEW_SAMPLE_EYEBROW_WELL_KNOWN = 'A verse to try it on';
 export const REVIEW_SAMPLE_PROMPT = 'Fill in the blanks.';
+
+/**
+ * The instruction for each way the sample can ask.
+ *
+ * Written the way every other prompt in the feature is: an instruction ending in a full stop,
+ * never a question. The sample is a real rung, so it speaks like one.
+ */
+export const REVIEW_SAMPLE_PROMPTS: Record<string, string> = {
+  blanks: 'Fill in the blanks.',
+  letters: 'Write the verse from its first letters.',
+  order: 'Put the verse back in order.',
+  next: 'Pick the verse that follows.',
+};
+
+/**
+ * The chips above the question.
+ *
+ * The same words the paid feature uses for these families, so what a reader learns here is what
+ * they see inside — and what they can ask for more of in Settings.
+ */
+export const REVIEW_SAMPLE_EXERCISE_LABELS: Record<string, string> = {
+  blanks: 'Blanks',
+  letters: 'First letters',
+  order: 'Order',
+  next: 'What follows',
+};
+
+/** Above the chips: what the row of them is for, said once. */
+export const REVIEW_SAMPLE_CHOOSE = 'Try it another way';
 /**
  * After the sample is answered, in the reader's second person rather than the app's third.
  *
