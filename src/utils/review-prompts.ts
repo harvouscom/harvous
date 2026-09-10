@@ -389,6 +389,17 @@ export interface VerseMaterial {
   contentWordCount?: number;
   /** Words in the span the reader marked on this verse, 0 when they marked none. */
   readerSpanWords?: number;
+  /**
+   * Rungs the reader has asked not to be given, from Settings.
+   *
+   * Read here rather than in the engine because this is the one place a step becomes a rung, and
+   * the list, the reveal, the grader and the truth all resolve through it. A preference applied
+   * anywhere else would move the question under an answer already in flight.
+   *
+   * Never a reason to resolve to nothing: the walk still falls forward to the family default,
+   * which is why the always-on families cannot be switched off at all.
+   */
+  skip?: ReadonlySet<ReviewPromptKey>;
 }
 
 /** Below this many rivals of the reader's own, "where is this from?" is a coin toss. */
@@ -437,6 +448,8 @@ export function verseFamilyMemberAvailable(
   material: VerseMaterial | undefined,
 ): boolean {
   if (!material) return VERSE_FAMILIES.some((family) => family[0] === key);
+  // A reader's preference is one more reason to walk past a member, never to return none.
+  if (material.skip?.has(key)) return false;
   switch (key) {
     case 'verse.connect':
       return material.citedInNotes >= 1;
@@ -524,6 +537,8 @@ export interface ChapterMaterial {
   placeCount?: number;
   /** Verses of this chapter the reader highlighted. */
   highlightCount?: number;
+  /** Rungs the reader has asked not to be given. See `VerseMaterial.skip`. */
+  skip?: ReadonlySet<ReviewPromptKey>;
 }
 
 /**
@@ -559,6 +574,7 @@ export function chapterFamilyMemberAvailable(
   material: ChapterMaterial | undefined,
 ): boolean {
   if (!material) return key === 'chapter.verse';
+  if (material.skip?.has(key)) return false;
   switch (key) {
     case 'chapter.finish':
       return material.finishCandidates >= 1;

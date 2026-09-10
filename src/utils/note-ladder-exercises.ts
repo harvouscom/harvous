@@ -36,6 +36,14 @@ export interface NoteMaterial {
   canConnect: boolean;
   /** A highlight in it carries words the reader typed, on a passage that can be named. */
   canAnnotation: boolean;
+  /**
+   * Rungs the reader has asked not to be given, from Settings.
+   *
+   * Applied in `resolveNoteRung` alongside the material gates, because the two answer the same
+   * question — can this note be asked this — for different reasons. `note.recognize` is not
+   * switchable, so a note with a body can always be asked something.
+   */
+  skip?: ReadonlySet<ReviewPromptKey>;
 }
 
 /**
@@ -60,6 +68,10 @@ export function resolveNoteRung(
     'note.connect': material.canConnect,
     'note.annotation': material.canAnnotation,
   } as Record<ReviewPromptKey, boolean>;
+  // A rung the reader turned off is walked past exactly as one with no material is.
+  if (material.skip) {
+    for (const key of NOTE_LADDER) if (material.skip.has(key)) can[key] = false;
+  }
 
   const nominal = Number.isFinite(step) ? Math.max(0, Math.trunc(step)) : 0;
   /*

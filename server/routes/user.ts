@@ -92,6 +92,10 @@ import {
   serializeReminderSettings,
   validateReminderSettingsInput,
 } from '@/utils/reminder-settings';
+import {
+  serializeReviewExerciseSettings,
+  validateReviewExerciseSettingsInput,
+} from '@/utils/review-exercise-settings';
 import { isPushRemindersSchemaMissing } from '../utils/pg-undefined-relation';
 import { isValidIanaTimeZone } from '../utils/votd-local-date';
 import { handleAPIError } from '@/utils/error-handling';
@@ -1016,6 +1020,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     let sharedSpaceSwitcherOrder: string[] | null = null;
     let timezone: string | null = null;
     let reminderSettings: string | null = null;
+    let reviewExerciseSettings: string | null = null;
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       if (um) {
@@ -1036,6 +1041,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
         sharedSpaceSwitcherOrder = parseSharedSpaceSwitcherOrder(um.sharedSpaceSwitcherOrder);
         timezone = um.timezone ?? null;
         reminderSettings = um.reminderSettings ?? null;
+        reviewExerciseSettings = um.reviewExerciseSettings ?? null;
 
         // Reconcile: user picked HMC before the church was registered on Harvous.
         if (churchData.hmcChurchId && !churchData.connectedOrgId) {
@@ -1104,6 +1110,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       sharedSpaceSwitcherOrder,
       timezone,
       reminderSettings,
+      reviewExerciseSettings,
       hasLockPinSet
     // Overrides app.ts's blanket `private, max-age=30, stale-while-revalidate=60` default.
     // That default assumes "user-specific data unlikely to change within seconds" — this
@@ -1382,6 +1389,49 @@ app.post('/api/user/update-reminders', requireAuth, rateLimit('write'), async (c
     }
     const e = handleAPIError(error, { endpoint: '/api/user/update-reminders', action: 'update_reminders' });
     return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+/**
+ * Which kinds of Review exercise the reader would rather not be given.
+ *
+ * Overwrites rather than merges, like the reminder schedule above and for the same reason: it is
+ * a preference, and the newest edit is the truest one. The engine reads it when it resolves a
+ * rung, so a change takes effect on the next question rather than the next sitting.
+ */
+app.post('/api/user/review-exercise-settings', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const body = await c.req.json().catch(() => null);
+    const validated = validateReviewExerciseSettingsInput(body?.reviewExerciseSettings ?? body);
+    if (!validated) {
+      return c.json({ error: 'Invalid exercise settings', code: 'REVIEW_EXERCISES_INVALID' }, 400);
+    }
+    const reviewExerciseSettings = serializeReviewExerciseSettings(validated);
+    const existing = first(
+      await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1),
+    );
+    if (existing) {
+      await db
+        .update(UserMetadata)
+        .set({ reviewExerciseSettings, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        reviewExerciseSettings,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      });
+    }
+    return c.json({ success: true, reviewExerciseSettings });
+  } catch (error) {
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/user/review-exercise-settings',
+      action: 'review_exercise_settings',
+    });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 

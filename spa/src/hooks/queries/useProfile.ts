@@ -245,6 +245,8 @@ export interface UserProfile {
    */
   timezone?: string | null;
   reminderSettings?: string | null;
+  /** Which Review exercises the reader has turned off. See review-exercise-settings.ts. */
+  reviewExerciseSettings?: string | null;
 }
 
 export interface XPData {
@@ -295,6 +297,7 @@ function fetchProfile(userId: string): Promise<UserProfile> {
         lastReadPosition?: string | null;
         timezone?: string | null;
         reminderSettings?: string | null;
+        reviewExerciseSettings?: string | null;
       }
     >('/api/user/get-profile')
     .then((data) => {

@@ -49,6 +49,7 @@ import {
   ScriptureTopics,
   BiblePeople,
   BiblePlaces,
+  UserMetadata,
   isNull,
 } from '../db';
 import { generateTimestampId } from '@/utils/ids';
@@ -198,6 +199,10 @@ import {
 } from '@/utils/note-ladder-exercises';
 import type { ChoiceExercise } from '@/utils/choice-exercise';
 import { reviewExerciseFamily } from '@/utils/review-exercise-families';
+import {
+  parseReviewExerciseSettings,
+  skippedKeySet,
+} from '@/utils/review-exercise-settings';
 import { getNotePassages } from './scripture-knowledge';
 import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
 import { READING_DWELL_BUCKETS, readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
@@ -444,7 +449,7 @@ async function loadNoteMaterial(
   const out = new Map<string, NoteMaterial>();
   if (!unique.length) return out;
 
-  const [bodies, viaPill, ownPassage, links, quotes, annotated, pool, labels] = await Promise.all([
+  const [bodies, viaPill, ownPassage, links, quotes, annotated, pool, labels, skip] = await Promise.all([
     db
       .select({
         id: Notes.id,
@@ -521,6 +526,7 @@ async function loadNoteMaterial(
       ),
     loadNoteLabelPool(userId),
     loadNoteSubjectLabels(userId, unique),
+    loadSkippedRungs(userId),
   ]);
 
   const withAnnotation = new Set(
@@ -567,6 +573,7 @@ async function loadNoteMaterial(
       canPassage: withPassage.has(row.id),
       canConnect: withLink.has(row.id),
       canAnnotation: withAnnotation.has(row.id),
+      skip,
     });
   }
   return out;
@@ -1121,6 +1128,42 @@ export async function buildReviewItemViews(
     });
   }
   return views;
+}
+
+/**
+ * The reader's exercise preferences, read once per request.
+ *
+ * Memoised because a sitting resolves a rung for every item in it, and each resolution needs the
+ * same set. Without this a queue of eighteen would read the same row eighteen times on the way to
+ * one response. The cache is per-call rather than process-wide: a preference changed in Settings
+ * must take effect on the next question, not the next deploy.
+ */
+const skipCache = new Map<string, Promise<ReadonlySet<ReviewPromptKey>>>();
+
+async function loadSkippedRungs(userId: string): Promise<ReadonlySet<ReviewPromptKey>> {
+  const cached = skipCache.get(userId);
+  if (cached) return cached;
+  const pending = (async () => {
+    try {
+      const [row] = await db
+        .select({ value: UserMetadata.reviewExerciseSettings })
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, userId))
+        .limit(1);
+      return skippedKeySet(parseReviewExerciseSettings(row?.value ?? null));
+    } catch {
+      /*
+       * An unreadable preference is "no preferences", never a broken queue. This runs before the
+       * column exists on a database the migration has not reached, and Review working is worth
+       * more than a preference being honoured a deploy early.
+       */
+      return new Set<ReviewPromptKey>();
+    }
+  })();
+  skipCache.set(userId, pending);
+  // Cleared on the next tick: within one request the answer is fixed, across requests it is not.
+  void pending.finally(() => queueMicrotask(() => skipCache.delete(userId)));
+  return pending;
 }
 
 /** Verse text arrives as formatted HTML with superscript verse numbers. */
@@ -1875,7 +1918,7 @@ async function loadVerseMaterial(
   const at = lastVerseOf(ref);
   if (!at) return { ...EMPTY_VERSE_MATERIAL, reference: ref };
 
-  const [knowledge, citing, ownHtml, rivals, readerSpan] = await Promise.all([
+  const [knowledge, citing, ownHtml, rivals, readerSpan, skip] = await Promise.all([
     getKnowledgeForReference(at.book, at.chapter, at.verse, {
       minRelevance: 0,
       minVotes: CROSSREF_MIN_VOTES,
@@ -1888,6 +1931,7 @@ async function loadVerseMaterial(
     listUserVerseReferences(userId, ref),
     // What the reader marked on this verse, for the rung that asks them to find it again.
     loadReaderSpan(userId, ref).catch(() => null),
+    loadSkippedRungs(userId),
   ]);
   const text = ownHtml ? stripHtml(ownHtml) : '';
   const markedSpan = readerSpanFragment(readerSpan, text);
@@ -1942,6 +1986,7 @@ async function loadVerseMaterial(
     contentWordCount: contentWords(text).length,
     readerSpanWords: markedSpan ? markedSpan.split(' ').filter(Boolean).length : 0,
     markedSpan,
+    skip,
   };
 }
 
@@ -2530,12 +2575,13 @@ async function loadChapterMaterial(
   const parts = reference ? chapterKeyPartsFromReference(reference) : null;
   if (!parts) return EMPTY_CHAPTER_MATERIAL;
   const label = chapterReferenceLabel(parts);
-  const [html, highlightedNumbers, knowledge, citedInNotes, lastReadAt] = await Promise.all([
+  const [html, highlightedNumbers, knowledge, citedInNotes, lastReadAt, skip] = await Promise.all([
     fetchVerseText(label, translation).catch(() => ''),
     loadReaderHighlightsInChapter(userId, parts),
     getKnowledgeForChapter(parts.book, parts.chapter).catch(() => null),
     countNotesCitingChapter(userId, parts),
     loadLastReadAt(userId, parts),
+    loadSkippedRungs(userId),
   ]);
   const verses = html ? splitChapterHtmlIntoVerses(html) : [];
   const people = (knowledge?.people ?? []).map((p) => p.name);
@@ -2556,6 +2602,7 @@ async function loadChapterMaterial(
     personCount: askablePeople(people).length,
     placeCount: askablePlaces(places).length,
     highlightCount: highlightedNumbers.length,
+    skip,
   };
 }
 

@@ -61,6 +61,19 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: 'bell',
     footnote: 'A Sunday and midweek nudge to come back.',
   },
+  /*
+   * Also web-only, and for a different reason: Review itself is. The row is listed for everyone
+   * rather than gated on the subscription, because a settings list that changes shape with what
+   * you have bought is harder to learn than one that does not — and the page reads as a
+   * description of the feature to someone who has not got it yet.
+   */
+  {
+    key: 'reviewExercises',
+    title: 'Review exercises',
+    route: prototypeHref('settings/review-exercises'),
+    icon: 'arrows-rotate',
+    footnote: 'Which kinds of question Review asks you.',
+  },
   // lockPin temporarily hidden while note lock is disabled in the prototype.
   // The route itself is unregistered too (see spa/src/router.tsx — no
   // prototypeSettingsLockPinRoute) so it isn't reachable by direct URL either.

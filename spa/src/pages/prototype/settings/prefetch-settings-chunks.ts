@@ -26,6 +26,7 @@ export function prefetchSettingsCategoryChunks(): void {
     void import('./PrototypeTranslationPage').catch(swallow);
     void import('./PrototypeAppearancePage').catch(swallow);
     void import('./PrototypeRemindersPage').catch(swallow);
+    void import('./PrototypeReviewExercisesPage').catch(swallow);
     void import('./PrototypeChurchPage').catch(swallow);
     // PrototypeLockPinPage intentionally not prefetched — its route isn't
     // registered while note lock is disabled. See settingsCategories.ts.

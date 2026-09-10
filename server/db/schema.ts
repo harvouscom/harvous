@@ -1309,6 +1309,12 @@ export const UserMetadata = pgTable('UserMetadata', {
    */
   reminderSettings: text('reminderSettings'),
   /**
+   * Which kinds of Review exercise the reader has asked not to be given. JSON string — see
+   * src/utils/review-exercise-settings.ts. `null` = never set, which the engine reads as "all of
+   * them", so silence is consent and a newly added exercise reaches everybody.
+   */
+  reviewExerciseSettings: text('reviewExerciseSettings'),
+  /**
    * Coarse "opened the app" stamp, written fire-and-forget by check-monthly-attendance,
    * which the shell already calls on every mount. Exists so the reminder tick can skip
    * someone who was just here, and so a reminder followed by an app open can be credited
