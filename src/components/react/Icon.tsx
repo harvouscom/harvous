@@ -57,6 +57,8 @@ import circleCheckSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-chec
 import ellipsisVerticalSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis-vertical.svg?raw';
 import ellipsisSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg?raw';
 import thumbtackSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg?raw';
+import thumbsUpSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbs-up.svg?raw';
+import thumbsDownSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbs-down.svg?raw';
 import trashCanSvg from '@fortawesome/fontawesome-free/svgs/solid/trash-can.svg?raw';
 import penSvg from '@fortawesome/fontawesome-free/svgs/solid/pen.svg?raw';
 import linkSvg from '@fortawesome/fontawesome-free/svgs/solid/link.svg?raw';
@@ -233,6 +235,10 @@ const icons = {
   'ellipsis-vertical': svgRootCurrentColor(ellipsisVerticalSvg),
   ellipsis: svgRootCurrentColor(ellipsisSvg),
   thumbtack: svgRootCurrentColor(thumbtackSvg),
+  /* Review's question feedback. Solid, like every other glyph here — the pressed state is
+     carried by colour, not by swapping in the regular weight. */
+  'thumbs-up': withCurrentColor(thumbsUpSvg),
+  'thumbs-down': withCurrentColor(thumbsDownSvg),
   gear: withCurrentColor(gearSvg),
   key: withCurrentColor(keySvg),
   keyboard: withCurrentColor(keyboardSvg),

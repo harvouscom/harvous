@@ -20,15 +20,27 @@ import {
   REVIEW_MORE_COPY,
   REVIEW_PAUSE_COPY,
   REVIEW_REMOVE_COPY,
+  REVIEW_PAUSE_SHORT_COPY,
+  REVIEW_REMOVE_SHORT_COPY,
 } from './proto-review-copy';
+import ProtoIconBlock from './ProtoIconBlock';
 
-/** Matches `.proto-review-row__menu`; used only until the real popover can be measured. */
-const MENU_WIDTH = 200;
-const MENU_FALLBACK_HEIGHT = 124;
+/*
+ * Matches `.proto-review-row__menu`; used only until the real popover can be measured.
+ *
+ * Kept honest by hand because these decide the first frame: three 72px blocks, two 8px gaps and
+ * 6px of padding either side is 244, and a block is 56 tall inside 12 of padding. A stale pair
+ * here makes the flip decision wrong on a row near the edge, for one frame, every time.
+ */
+const MENU_WIDTH = 244;
+const MENU_FALLBACK_HEIGHT = 80;
 
 export interface StudyInboxRowAction {
   key: string;
+  /** The full sentence, and the accessible name. */
   label: string;
+  /** The word that fits under a glyph. Falls back to `label` where it is already short. */
+  shortLabel?: string;
   icon: IconName;
   onSelect: () => void;
 }
@@ -134,26 +146,25 @@ export default function PrototypeReviewRow({
               ? createPortal(
                   <div
                     ref={popoverRef}
-                    className="proto-menu__popover proto-menu__popover--list-view proto-review-row__menu"
+                    className="proto-menu__popover proto-menu__popover--blocks proto-review-row__menu"
                     role="menu"
+                    aria-orientation="horizontal"
                     aria-label={`${REVIEW_MORE_COPY} — ${title}`}
                     /* Off-screen until measured, so the first paint is never in the wrong place. */
                     style={{ top: anchorPos?.top ?? -9999, left: anchorPos?.left ?? 0 }}
                   >
-                    {actions.map((action) => (
-                      <button
-                        key={action.key}
-                        type="button"
-                        role="menuitem"
-                        className="proto-menu-item"
-                        onClick={answer(action.onSelect)}
-                      >
-                        <span className="proto-menu-item__icon" aria-hidden>
-                          <Icon name={action.icon} size={14} />
-                        </span>
-                        <span className="proto-menu-item__label">{action.label}</span>
-                      </button>
-                    ))}
+                    <div className="proto-icon-block-row">
+                      {actions.map((action) => (
+                        <ProtoIconBlock
+                          key={action.key}
+                          role="menuitem"
+                          icon={action.icon}
+                          label={action.shortLabel ?? action.label}
+                          ariaLabel={action.label}
+                          onSelect={answer(action.onSelect)}
+                        />
+                      ))}
+                    </div>
                   </div>,
                   document.body,
                 )
@@ -171,9 +182,14 @@ export function reviewRowActions(handlers: {
   onPause: () => void;
   onRemove: () => void;
 }): StudyInboxRowAction[] {
+  /*
+   * `label` stays the full sentence — it is the accessible name, and "Remove from Review" is what
+   * the action actually does. `shortLabel` is the word that fits under a glyph. Both are present
+   * so the block is never a bare icon and never a truncated one.
+   */
   return [
     { key: 'defer', label: REVIEW_DEFER_COPY, icon: 'clock-rotate-left', onSelect: handlers.onDefer },
-    { key: 'pause', label: REVIEW_PAUSE_COPY, icon: 'circle-minus', onSelect: handlers.onPause },
-    { key: 'remove', label: REVIEW_REMOVE_COPY, icon: 'eye-slash', onSelect: handlers.onRemove },
+    { key: 'pause', label: REVIEW_PAUSE_COPY, shortLabel: REVIEW_PAUSE_SHORT_COPY, icon: 'circle-minus', onSelect: handlers.onPause },
+    { key: 'remove', label: REVIEW_REMOVE_COPY, shortLabel: REVIEW_REMOVE_SHORT_COPY, icon: 'eye-slash', onSelect: handlers.onRemove },
   ];
 }

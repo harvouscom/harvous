@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
+import ProtoIconBlock from '../../prototype/ProtoIconBlock';
 import {
   PrototypeListEmptyState,
   PrototypeListRow,
@@ -1285,6 +1286,37 @@ const MARK_SAMPLE = 'the light shines in the darkness';
 function ReviewVerdictsScene() {
   return (
     <div className="pds-stack" style={{ gap: 20, maxWidth: 520 }}>
+      <div>
+        {/*
+          * Rating the question, which is a third thing: the verdict says how the recall went,
+          * these say what the reader thought of the exercise. Shown at rest, chosen, and spent,
+          * because the spent state is the one that has to stay legible rather than fading out.
+          */}
+        <p className="pds-caption">Question feedback</p>
+        <p className="pds-caption">This kind of question</p>
+        <div className="proto-icon-block-row">
+          <ProtoIconBlock icon="thumbs-up" label="Good question" onSelect={() => {}} />
+          <ProtoIconBlock icon="thumbs-down" label="Not helpful" onSelect={() => {}} />
+        </div>
+      </div>
+
+      <div>
+        <p className="pds-caption">Once the vote is in</p>
+        <div className="proto-icon-block-row">
+          <ProtoIconBlock icon="thumbs-up" label="Good question" selected disabled onSelect={() => {}} />
+          <ProtoIconBlock icon="thumbs-down" label="Not helpful" disabled onSelect={() => {}} />
+        </div>
+      </div>
+
+      <div>
+        <p className="pds-caption">The same block, in a row's menu</p>
+        <div className="proto-icon-block-row">
+          <ProtoIconBlock icon="clock-rotate-left" label="Not now" onSelect={() => {}} />
+          <ProtoIconBlock icon="circle-minus" label="Pause" ariaLabel="Pause this" onSelect={() => {}} />
+          <ProtoIconBlock icon="eye-slash" label="Remove" ariaLabel="Remove from Review" onSelect={() => {}} />
+        </div>
+      </div>
+
       <div>
         <p className="pds-caption">Goes</p>
         <span className="proto-review-dock__goes" aria-label="Attempt 2 of 3">

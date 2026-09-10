@@ -68,6 +68,9 @@ export function resolveNoteRung(
     'note.connect': material.canConnect,
     'note.annotation': material.canAnnotation,
   } as Record<ReviewPromptKey, boolean>;
+  /* What the note could be asked before any preference is applied — the floor for the second
+     pass below, so a skip can never be the reason a note goes unasked. */
+  const buildable: Record<ReviewPromptKey, boolean> = { ...can };
   // A rung the reader turned off is walked past exactly as one with no material is.
   if (material.skip) {
     for (const key of NOTE_LADDER) if (material.skip.has(key)) can[key] = false;
@@ -85,6 +88,19 @@ export function resolveNoteRung(
   for (let i = 0; i < NOTE_LADDER.length; i++) {
     const key = NOTE_LADDER[(start + i) % NOTE_LADDER.length];
     if (can[key]) return key;
+  }
+  /*
+   * Second pass, ignoring what the reader asked not to be given.
+   *
+   * Skipping is one more reason to walk past a member, never a reason to return nothing — the
+   * rule `review-exercise-settings.ts` states and `verseRungFor` keeps by falling forward to
+   * `members[0]`. This walk had no such floor: a note whose only buildable rung was skipped
+   * resolved to null, and null means `dropUnaskable` removes the note from the queue entirely.
+   * Turning a preference into a disappearance is the one thing a preference must not do.
+   */
+  for (let i = 0; i < NOTE_LADDER.length; i++) {
+    const key = NOTE_LADDER[(start + i) % NOTE_LADDER.length];
+    if (buildable[key]) return key;
   }
   return null;
 }
