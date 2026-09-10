@@ -346,6 +346,14 @@ export const VERSE_OPENING_STEPS = [0, 1, 3, 4] as const;
 export const CHAPTER_OPENING_STEPS = [0, 1] as const;
 export const NOTE_OPENING_STEPS = [0, 1, 2, 3] as const;
 
+/** The rungs a new item of this kind may open on. One list, so the stagger and the step-back
+ *  out of a stalled item draw from the same set of "ways in". */
+export function openingStepsFor(kind: string): readonly number[] {
+  if (kind === 'verse') return VERSE_OPENING_STEPS;
+  if (kind === 'chapter') return CHAPTER_OPENING_STEPS;
+  return NOTE_OPENING_STEPS;
+}
+
 export function openingLadderStep(kind: 'verse' | 'note' | 'chapter', alreadyOfKind: number): number {
   if (kind === 'verse') return VERSE_OPENING_STEPS[alreadyOfKind % VERSE_OPENING_STEPS.length];
   if (kind === 'chapter') return CHAPTER_OPENING_STEPS[alreadyOfKind % CHAPTER_OPENING_STEPS.length];

@@ -68,6 +68,7 @@ import {
   firstDueAt,
   firstDueAtFor,
   nextReviewAfter,
+  reviewHasStalled,
   stepBackRung,
 } from '@/utils/review-scheduling';
 import {
@@ -1507,6 +1508,8 @@ export interface ReviewOutcomeResult {
   nextReturnDays: number;
   /** This miss made the item a leech: the dock offers a step back rather than a fifth go. */
   leech: boolean;
+  /** The same offer, for an item never once recalled. The card says it differently. */
+  stalled: boolean;
 }
 
 /**
@@ -1585,26 +1588,41 @@ export async function applyReviewOutcome(
   // this table; ReviewItems above stays the authority on the schedule itself.
   void recordReviewOutcomeNodes(userId, item, outcome, attempt, next, now);
 
-  return { item: updated, nextReturnDays: next.intervalDays, leech: next.leech };
+  return {
+    item: updated,
+    nextReturnDays: next.intervalDays,
+    leech: next.leech,
+    stalled: next.stalled ?? false,
+  };
 }
 
 /**
- * The way down for a leech, at the reader's request: one rung easier, lapses forgiven.
+ * The way out for an item that has stopped working, at the reader's request: a different ask,
+ * lapses forgiven.
  *
- * Refused unless the item is actually slipping. Stepping back is not a general control — the
- * engine is not the reader's to tune — it is the one offer Review makes when its own asking
- * has stopped working.
+ * Refused unless the item has actually stopped working. Stepping back is not a general control —
+ * the engine is not the reader's to tune — it is the one offer Review makes when its own asking
+ * has failed. Two things count as failure: four lapses, and never having recalled it at all. The
+ * second was missing, and it is the case where the offer matters most.
  */
 export async function stepBackReviewItem(
   userId: string,
   item: ReviewItemRow,
   now: Date = new Date(),
 ): Promise<ReviewItemRow | null> {
-  if ((item.lapseCount ?? 0) < REVIEW_LEECH_LAPSES) return null;
+  const stalled = reviewHasStalled({
+    reviewCount: item.reviewCount,
+    successStreak: item.successStreak,
+    lapseCount: item.lapseCount,
+    lastOutcome: item.lastOutcome as ReviewOutcome | null,
+  });
+  if ((item.lapseCount ?? 0) < REVIEW_LEECH_LAPSES && !stalled) return null;
   const back = stepBackRung({
     ladderStep: item.ladderStep,
     reviewCount: item.reviewCount,
     successStreak: item.successStreak,
+    // Only read at the foot of the ladder, where the way out is sideways rather than down.
+    kind: item.kind as ReviewItemKind,
   });
   return first(
     await db

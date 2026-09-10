@@ -667,8 +667,10 @@ describe('a scheduler that remembers', () => {
     expect(block).not.toMatch(/applyReviewOutcome\([^)]*answer\.promptKey/);
   });
 
-  it('says so only when this miss made the item a leech', () => {
-    expect(outcome()).toMatch(/\.\.\.\(leech \? \{ leech: true \} : \{\}\)/);
+  it('says so only when this miss made the item stop working, and says which way', () => {
+    // Two roads in: four lapses after being held, or never once recalled. The card words them
+    // differently, because "keeps slipping away" is untrue of something never held.
+    expect(outcome()).toMatch(/\.\.\.\(leech \? \{ leech: true, stalled \} : \{\}\)/);
   });
 
   it('refuses a step back on anything that is not slipping', () => {

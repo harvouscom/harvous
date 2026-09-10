@@ -3,6 +3,8 @@ import {
   MAX_REVIEW_INTERVAL_DAYS,
   REVIEW_INTERVAL_DAYS,
   REVIEW_LEECH_LAPSES,
+  REVIEW_STALL_ATTEMPTS,
+  reviewHasStalled,
   REVIEW_RUNG_WEIGHT,
   lapseDamping,
   rungWeight,
@@ -19,7 +21,7 @@ import {
   NEVER_LAPSES,
   nextReviewAfter,
 } from '../review-scheduling';
-import { REVIEW_PROMPT_KEYS } from '../review-prompts';
+import { REVIEW_PROMPT_KEYS, VERSE_OPENING_STEPS } from '../review-prompts';
 
 const NOW = new Date('2026-09-01T12:00:00.000Z');
 const fresh = { intervalDays: 1, successStreak: 0, reviewCount: 0 };
@@ -220,7 +222,15 @@ describe('leeches', () => {
       lapseCount: 0,
       recallState: 'fragile',
     });
-    expect(stepBackRung({ ladderStep: 0, reviewCount: 9, successStreak: 0 }).ladderStep).toBe(0);
+  });
+
+  it('does not strand an item at the foot of the ladder', () => {
+    /*
+     * This used to return 0 from 0, which read as "there is nothing below the first rung" and is
+     * true — but the offer was being made to an item sitting on that rung, so the way out led
+     * back to where it started. It moves across the ways-in instead. See `stepBackRung`.
+     */
+    expect(stepBackRung({ ladderStep: 0, reviewCount: 9, successStreak: 0 }).ladderStep).not.toBe(0);
   });
 });
 
@@ -264,5 +274,84 @@ describe('describeNextDue', () => {
     expect(at('2026-09-04T11:00:00')).toBeNull();
     expect(at('not a date')).toBeNull();
     expect(describeNextDue(null, NOW)).toBeNull();
+  });
+});
+
+describe('an item that was never held', () => {
+  const missed = (reviewCount: number, extra: Record<string, unknown> = {}) => ({
+    reviewCount,
+    successStreak: 0,
+    intervalDays: 1,
+    lapseCount: 0,
+    rungKey: 'verse.recognize' as const,
+    lastOutcome: 'revealed' as const,
+    ...extra,
+  });
+
+  it('is not a lapse, because nothing was lost', () => {
+    // The definition is right and is left alone: a lapse needs a streak behind it.
+    expect(nextReviewAfter('revealed', missed(9)).lapseCount).toBe(0);
+  });
+
+  it('still counts as not working, once it has been asked enough times', () => {
+    /*
+     * The hole this closes. Never recalled means no streak, so no lapse, so the leech count is
+     * never reached and the reader is offered nothing — the item just comes back tomorrow, asked
+     * the same way, forever. One verse on a real account had been through this 34 times.
+     */
+    expect(nextReviewAfter('revealed', missed(REVIEW_STALL_ATTEMPTS - 2)).leech).toBe(false);
+    const stalled = nextReviewAfter('revealed', missed(REVIEW_STALL_ATTEMPTS - 1));
+    expect(stalled.leech).toBe(true);
+    expect(stalled.stalled).toBe(true);
+  });
+
+  it('says which of the two it is, so the card does not describe a loss that never happened', () => {
+    const lapsing = nextReviewAfter('revealed', missed(20, { successStreak: 3, lapseCount: 3 }));
+    expect(lapsing.leech).toBe(true);
+    expect(lapsing.stalled).toBe(false);
+  });
+
+  it('is not claimed of one that half-remembered, or of one that has been recalled', () => {
+    // "Almost" retrieved something, so it is not a stall however often it happens.
+    expect(reviewHasStalled({ reviewCount: 30, successStreak: 0, lapseCount: 0, lastOutcome: 'almost' })).toBe(false);
+    // A lapse on record proves a streak once existed, so the item was held at some point.
+    expect(reviewHasStalled({ reviewCount: 30, successStreak: 0, lapseCount: 2, lastOutcome: 'revealed' })).toBe(false);
+    // And a live streak is the plainest disproof of all.
+    expect(reviewHasStalled({ reviewCount: 30, successStreak: 1, lapseCount: 0, lastOutcome: 'revealed' })).toBe(false);
+  });
+});
+
+describe('the way out of an item that has stopped working', () => {
+  it('steps down a rung when there is one below', () => {
+    expect(stepBackRung({ ladderStep: 4, reviewCount: 9, successStreak: 0, kind: 'verse' }).ladderStep).toBe(3);
+  });
+
+  it('moves sideways at the foot of the ladder rather than nowhere', () => {
+    /*
+     * Subtracting one from zero is zero, so the item most likely to need this — a verse never
+     * once recalled, sitting on the first rung — was offered a way out that returned it to
+     * exactly where it was. The first rung's family has one member, so the seed could not vary
+     * it either.
+     */
+    const out = stepBackRung({ ladderStep: 0, reviewCount: 34, successStreak: 0, kind: 'verse' });
+    expect(out.ladderStep).not.toBe(0);
+    expect(VERSE_OPENING_STEPS).toContain(out.ladderStep);
+  });
+
+  it('never lands on a rung that is how a verse is kept rather than how it is met', () => {
+    for (let count = 0; count < 20; count++) {
+      const out = stepBackRung({ ladderStep: 0, reviewCount: count, successStreak: 0, kind: 'verse' });
+      expect(VERSE_OPENING_STEPS).toContain(out.ladderStep);
+      expect(out.ladderStep).not.toBe(0);
+    }
+  });
+
+  it("does the same for a chapter, on that kind's own set of ways in", () => {
+    expect(stepBackRung({ ladderStep: 0, reviewCount: 7, successStreak: 0, kind: 'chapter' }).ladderStep).toBe(1);
+  });
+
+  it('forgives the lapses either way, because the point is a fresh start', () => {
+    expect(stepBackRung({ ladderStep: 0, reviewCount: 34, successStreak: 0, kind: 'verse' }).lapseCount).toBe(0);
+    expect(stepBackRung({ ladderStep: 5, reviewCount: 9, successStreak: 0, kind: 'verse' }).lapseCount).toBe(0);
   });
 });

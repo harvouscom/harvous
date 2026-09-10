@@ -75,6 +75,7 @@ import {
   REVIEW_CROSSED_TO_HOLDING_COPY,
   REVIEW_PAUSE_COPY,
   REVIEW_SLIPPING_COPY,
+  REVIEW_STALLED_COPY,
   REVIEW_STEP_BACK_COPY,
   REVIEW_STEPPED_BACK_COPY,
   REVIEW_OUTCOME_ACK_COPY,
@@ -572,6 +573,7 @@ export default function PrototypeReviewDock() {
                 reached: data.reached ?? null,
                 fromIndex: INDEX_KEYED_RUNGS.has(item.promptKey),
                 leech: data.leech === true,
+                stalled: data.stalled === true,
                 itemId: item.id,
                 at: Date.now(),
               });
@@ -904,7 +906,9 @@ export default function PrototypeReviewDock() {
                   </p>
                 ) : (
                   <>
-                    <p className="proto-caption proto-review-dock__retry">{REVIEW_SLIPPING_COPY}</p>
+                    <p className="proto-caption proto-review-dock__retry">
+                      {lastResult.stalled ? REVIEW_STALLED_COPY : REVIEW_SLIPPING_COPY}
+                    </p>
                     <div className="proto-review-dock__actions">
                       <button
                         type="button"

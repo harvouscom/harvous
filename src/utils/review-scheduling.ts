@@ -20,7 +20,7 @@ import {
   type ReviewItemOrigin,
   type ReviewOutcome,
 } from './review-item-kinds';
-import type { ReviewPromptKey } from './review-prompts';
+import { openingStepsFor, type ReviewPromptKey } from './review-prompts';
 
 /**
  * The three base intervals.
@@ -123,6 +123,41 @@ export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
  * working, so the outcome says so and the reader is offered a step back down the ladder.
  */
 export const REVIEW_LEECH_LAPSES = 4;
+
+/**
+ * The other way an item stops working: it was never held in the first place.
+ *
+ * A lapse is losing something you had, which is why it needs a streak behind it. That definition
+ * is right, and it left a hole: an item never once recalled has no streak to lose, so it never
+ * lapses, never reaches the leech count, and is never offered anything. It simply comes back
+ * tomorrow, asked the same way, for as long as the reader keeps missing it. On a real account one
+ * verse had been through this thirty-four times.
+ *
+ * Thirty-four attempts with nothing to show is the same fact a leech reports — this way of asking
+ * is not working — arriving by a different road, so it earns the same offer.
+ */
+export const REVIEW_STALL_ATTEMPTS = 4;
+
+/**
+ * Has this item never once been recalled cleanly, over enough attempts to say so?
+ *
+ * Derived rather than stored, and the derivation is exact. A clean recall sets the streak to at
+ * least one, and the only way back to zero is a miss — which, with a streak in hand, is a lapse.
+ * So a zero streak and zero lapses together mean no recall has ever happened here.
+ */
+export function reviewHasStalled(state: {
+  reviewCount: number;
+  successStreak: number;
+  lapseCount?: number | null;
+  lastOutcome?: ReviewOutcome | null;
+}): boolean {
+  return (
+    state.successStreak <= 0 &&
+    (state.lapseCount ?? 0) === 0 &&
+    state.reviewCount >= REVIEW_STALL_ATTEMPTS &&
+    state.lastOutcome === 'revealed'
+  );
+}
 /** How much each lapse slows compounding: 15% per lapse, never below half speed. */
 export const LAPSE_DAMPING_PER_LAPSE = 0.15;
 export const LAPSE_DAMPING_FLOOR = 0.5;
@@ -173,6 +208,13 @@ export interface ReviewScheduleResult {
   lapseCount: number;
   /** This answer made it a leech, or it already was one and slipped again. */
   leech: boolean;
+  /**
+   * The item has never once been recalled. The offer is the same; the wording is not.
+   *
+   * "This one keeps slipping away" is false about something the reader never had, and a card
+   * that describes a loss they cannot remember is a card they will distrust.
+   */
+  stalled?: boolean;
 }
 
 /**
@@ -234,7 +276,15 @@ export function nextReviewAfter(
       recallState: deriveRecallState({ reviewCount, successStreak: 0, lastOutcome: outcome, lapseCount }),
       lastOutcome: outcome,
       lapseCount,
-      leech: lapsed && lapseCount >= REVIEW_LEECH_LAPSES,
+      /*
+       * Two roads to "this is not working": losing what you held four times over, and never
+       * having held it at all. The second reads on `reviewCount` because there is no streak to
+       * count against — see `reviewHasStalled`.
+       */
+      leech:
+        (lapsed && lapseCount >= REVIEW_LEECH_LAPSES) ||
+        reviewHasStalled({ reviewCount, successStreak: 0, lapseCount, lastOutcome: outcome }),
+      stalled: reviewHasStalled({ reviewCount, successStreak: 0, lapseCount, lastOutcome: outcome }),
     };
   }
 
@@ -264,23 +314,56 @@ export function nextReviewAfter(
 }
 
 /**
- * The way down for a leech: one rung easier, lapses forgiven, the schedule otherwise untouched.
+ * The way out for an item that has stopped working: a different ask, lapses forgiven, the
+ * schedule otherwise untouched.
  *
  * Stepping back is the reader's call, offered once the item is slipping. The count resets
- * because the point is a fresh start on an easier ask, not the same ask with a warning
- * attached; the interval and streak stay, since the item is due tomorrow anyway.
+ * because the point is a fresh start, not the same ask with a warning attached; the interval and
+ * streak stay, since the item is due tomorrow anyway.
+ *
+ * **At the foot of the ladder it moves sideways rather than down.** Subtracting one from zero is
+ * zero, so the one item most likely to need this — a verse never once recalled, sitting on the
+ * first rung — was offered a way out that returned it to exactly where it was. Worse, the first
+ * rung's family has a single member, so there was nothing for the seed to vary either. It now
+ * rotates to another of the rungs a verse is *met* on, which is the same set new items are
+ * staggered across: a different way in, never a harder one.
  */
-export function stepBackRung(state: { ladderStep: number; reviewCount: number; successStreak: number }): {
+export function stepBackRung(state: {
+  ladderStep: number;
+  reviewCount: number;
+  successStreak: number;
+  /** Needed only at the foot of the ladder, where the way out is sideways. */
+  kind?: ReviewItemKind | null;
+}): {
   ladderStep: number;
   lapseCount: number;
   recallState: RecallState;
 } {
-  const ladderStep = Math.max(0, Math.trunc(state.ladderStep) - 1);
+  const current = Math.max(0, Math.trunc(state.ladderStep));
+  const ladderStep =
+    current > 0 ? current - 1 : otherOpeningStep(state.kind ?? 'verse', current, state.reviewCount);
   return {
     ladderStep,
     lapseCount: 0,
     recallState: deriveRecallState({ ...state, lapseCount: 0 }),
   };
+}
+
+/**
+ * Another rung a new item could have opened on — never the one it is already stuck on.
+ *
+ * Walks the opening list from where the review count lands, so a reader who steps back twice
+ * does not arrive back where they started. Falls through to the current step only when the kind
+ * has a single opening rung, which no kind does today.
+ */
+function otherOpeningStep(kind: ReviewItemKind, current: number, reviewCount: number): number {
+  const steps = openingStepsFor(kind);
+  const start = Math.max(0, Math.trunc(reviewCount)) % steps.length;
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[(start + i) % steps.length];
+    if (step !== current) return step;
+  }
+  return current;
 }
 
 /**

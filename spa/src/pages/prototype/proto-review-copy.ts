@@ -214,6 +214,14 @@ export const REVIEW_INDEX_ANSWER_LABEL = 'The reference works say';
  * way four times since it was last held, and a fifth is not going to work.
  */
 export const REVIEW_SLIPPING_COPY = 'This one keeps slipping away. An easier ask next time?';
+/*
+ * The same offer, for an item that was never held rather than lost.
+ *
+ * "Keeps slipping away" describes a loss, and saying that to someone about a verse they have
+ * never once got right is describing something that did not happen to them. This says what is
+ * actually true and offers the same way out.
+ */
+export const REVIEW_STALLED_COPY = 'This way of asking is not landing. Try a different one?';
 export const REVIEW_STEP_BACK_COPY = 'Make it easier';
 export const REVIEW_STEPPED_BACK_COPY = 'Done. It comes back easier next time.';
 /**

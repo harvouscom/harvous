@@ -448,7 +448,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         : 'revealed'
       : null;
 
-    const { item: updated, nextReturnDays, leech } = await applyReviewOutcome(
+    const { item: updated, nextReturnDays, leech, stalled } = await applyReviewOutcome(
       auth.userId,
       item,
       verdict ?? outcome,
@@ -488,7 +488,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       attempts: { used: attemptNumber, total: maxAttempts },
       item: (await buildReviewItemViews(auth.userId, [updated]))[0],
       ...(truth ? { truth: { verseText: truth } } : {}),
-      ...(leech ? { leech: true } : {}),
+      ...(leech ? { leech: true, stalled } : {}),
       next: {
         intervalDays: nextReturnDays,
         dueAt: updated.dueAt.toISOString(),
@@ -541,7 +541,8 @@ route.post('/api/review/items/:id/status', requireAuth, rateLimit('write'), requ
 });
 
 /**
- * The one offer Review makes when its own asking has stopped working: a leech steps back a rung.
+ * The one offer Review makes when its own asking has stopped working. A leech steps back a rung;
+ * an item never once recalled moves sideways, since there is no rung below the one it is on.
  * Refused on anything that is not slipping — this is not a way to pick the rung.
  */
 route.post('/api/review/items/:id/step-back', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {

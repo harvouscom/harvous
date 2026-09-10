@@ -491,10 +491,16 @@ export type ReviewDockResult = {
    */
   echo?: ReviewAnswerEcho | null;
   /**
-   * Missed four times after being held. The one moment Review says a thing is not working
-   * rather than asking again, so the result carries the item to act on.
+   * The one moment Review says a thing is not working rather than asking again, so the result
+   * carries the item to act on. Two ways to get here: missed four times after being held, or
+   * never once recalled at all.
    */
   leech?: boolean;
+  /**
+   * It is the second of those. The offer is identical; the sentence above it is not, because
+   * "keeps slipping away" is untrue of something the reader never had.
+   */
+  stalled?: boolean;
   itemId?: string;
   /**
    * The option that was right, after the last go was spent on a wrong one.

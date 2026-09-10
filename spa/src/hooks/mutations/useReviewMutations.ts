@@ -61,6 +61,8 @@ export interface ReviewOutcomeResponse {
   parts?: boolean[];
   reached?: { matched: number; total: number };
   leech?: boolean;
+  /** The item has never once been recalled; the offer is worded for that. */
+  stalled?: boolean;
   item: ReviewItemView;
   next: { intervalDays: number; dueAt: string; recallState: string; label: string };
   truth?: { verseText: string } | null;
