@@ -7,6 +7,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import type { SampleExerciseKind } from '../../../hooks/queries/useReview';
 
 const mutate = vi.fn();
 const seePlus = vi.fn();
@@ -20,7 +21,7 @@ const PrototypeReviewSample = (await import('../PrototypeReviewSample')).default
 const sample = {
   reference: 'John 15:5',
   source: 'yours' as const,
-  available: ['blanks', 'letters', 'order', 'next'] as const,
+  available: ['blanks', 'letters', 'order', 'next'] as SampleExerciseKind[],
   exercise: {
     kind: 'blanks' as const,
     cloze: {
@@ -136,7 +137,7 @@ describe('choosing how to be asked', () => {
   const withChooser = (kind: 'blanks' | 'letters' | 'order' | 'next', exercise: unknown) => ({
     ...sample,
     exercise: exercise as typeof sample.exercise,
-    available: ['blanks', 'letters', 'order', 'next'] as const,
+    available: ['blanks', 'letters', 'order', 'next'] as SampleExerciseKind[],
     __kind: kind,
   });
 
@@ -161,7 +162,7 @@ describe('choosing how to be asked', () => {
   it('does not offer a chooser when the verse can only carry one', () => {
     render(
       <PrototypeReviewSample
-        sample={{ ...sample, available: ['blanks'] as never }}
+        sample={{ ...sample, available: ['blanks'] }}
         day="2026-09-03"
         maxAttempts={2}
         onSeePlus={seePlus}
