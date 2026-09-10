@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import PrototypeHomeSection from './PrototypeHomeSection';
@@ -13,7 +13,12 @@ import {
   type SampleExerciseKind,
 } from '../../hooks/queries/useReview';
 import { REVIEW_MAX_ATTEMPTS, REVIEW_INBOX_MAX_ROWS } from '@/utils/review-item-kinds';
-import PrototypeReviewSample from './PrototypeReviewSample';
+/*
+ * The one card here that only an account *without* Review ever renders — and it carries four
+ * answer surfaces, its own copy and a chooser. Eagerly imported it sat on the critical path of
+ * every route, including sign-in, for every subscriber who will never see it.
+ */
+const PrototypeReviewSample = lazy(() => import('./PrototypeReviewSample'));
 import { useHomeChallenges } from '../../hooks/queries/useChallenges';
 import { useDeferReview, useSetReviewStatus } from '../../hooks/mutations/useReviewMutations';
 import { useHasFeature } from '../../hooks/useHasFeature';
@@ -122,6 +127,9 @@ export default function PrototypeReviewSection() {
     return (
       <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
         {sample ? (
+          /* No fallback: the card only exists once its own fetch has answered, and a
+             placeholder would flash where it is about to be. */
+          <Suspense fallback={null}>
           <PrototypeReviewSample
             sample={sample}
             day={reviewSampleDayKey()}
@@ -132,6 +140,7 @@ export default function PrototypeReviewSection() {
             onTranslationChange={setSampleTranslation}
             onExerciseChange={setSampleExercise}
           />
+          </Suspense>
         ) : null}
         {plusPromptDismissed || sampleAnswered ? null : (
         <PrototypeHomeRow

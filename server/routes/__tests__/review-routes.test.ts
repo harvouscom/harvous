@@ -659,10 +659,10 @@ describe('a scheduler that remembers', () => {
      * the schedule must not take the page's word for which rung was asked — a `verse.locate`
      * claim on a recognize card would buy a fortnight for a four-option tap.
      */
-    // Resolved once, near the top, and used for both the weight and the attempt budget.
+    // Resolved once, near the top, and used for both the weight and the attempt budget. It is
+    // `askedRungFor` rather than a whole view build now — same resolution, a second less of it.
     const block = outcome();
-    expect(block).toContain('buildReviewItemViews(auth.userId, [item])');
-    expect(block).toMatch(/const askedKey =[\s\S]*promptKey \?\? null/);
+    expect(block).toContain('const askedKey = await askedRungFor(auth.userId, item)');
     expect(block).toMatch(/applyReviewOutcome\([\s\S]*askedKey,/);
     expect(block).not.toMatch(/applyReviewOutcome\([^)]*answer\.promptKey/);
   });

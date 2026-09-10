@@ -44,6 +44,7 @@ import {
   verseTruthFor,
   buildReviewItemSummaries,
   filterAskableReviewRows,
+  askedRungFor,
   buildReviewItemViews,
   buildReviewReveal,
   createReviewItem,
@@ -399,8 +400,14 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
             promptKey: typeof body.answer.promptKey === 'string' ? body.answer.promptKey : undefined,
           }
         : null;
-    // The rung the server resolved, which is also what decides how many goes it allows.
-    const askedKey = (await buildReviewItemViews(auth.userId, [item]))[0]?.promptKey ?? null;
+    /*
+     * The rung the server resolved, which is also what decides how many goes it allows.
+     *
+     * Resolved on its own rather than by building the item's whole view for one string — see
+     * `askedRungFor`. The full build cost more than a second of the answer's round trip and
+     * every part of it but this was thrown away.
+     */
+    const askedKey = await askedRungFor(auth.userId, item);
     const maxAttempts = maxAttemptsFor(askedKey);
     // Marked by kind inside the service, so a new kind can never fall into another's grader.
     const graded = answer ? await gradeAnswerFor(auth.userId, item, answer) : null;

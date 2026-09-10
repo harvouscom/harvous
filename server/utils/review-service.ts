@@ -1924,9 +1924,80 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   readerSpanWords: 0,
 };
 
-const CROSSREF_TEXT_FETCHES = 3;
+/**
+ * One material load per passage per request, instead of four.
+ *
+ * Recording a single answer used to load the same verse's material four times over: once to
+ * resolve which rung was asked, once to mark it, once to fetch the verse it withheld, and once
+ * more to build the row that comes back. Measured against a real account, that was 2.9 seconds
+ * for one tap, on a database whose round-trip floor is 82ms — the work was not expensive, there
+ * was just four times too much of it.
+ *
+ * A short time-to-live rather than a request scope, because the four callers are separate
+ * exported functions with no shared context to hang one on, and threading a material object
+ * through every signature would put the burden of not double-loading on every future caller.
+ * The window is a couple of seconds: long enough to span one request's passes, far too short to
+ * serve a reader a stale answer to a later one.
+ *
+ * **Safe against the drift this file warns about elsewhere.** The reveal, the grader and the
+ * truth must resolve the same rung from the same material; sharing one load makes them agree by
+ * construction rather than by coincidence. The risk of a cache here is staleness, not
+ * disagreement — and a highlight added two seconds ago changing which rung is offered on the
+ * next question is not a defect anyone can observe.
+ */
+const MATERIAL_TTL_MS = 3000;
+/** Bounded so a long-lived process cannot accumulate one entry per passage ever asked about. */
+const MATERIAL_CACHE_MAX = 200;
+
+const materialMemo = new Map<string, { at: number; value: Promise<unknown> }>();
+
+function memoisedMaterial<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const hit = materialMemo.get(key);
+  if (hit && now - hit.at < MATERIAL_TTL_MS) return hit.value as Promise<T>;
+
+  const value = load();
+  materialMemo.set(key, { at: now, value });
+  // A failed load must not be served for the rest of the window.
+  void value.catch(() => materialMemo.delete(key));
+
+  if (materialMemo.size > MATERIAL_CACHE_MAX) {
+    for (const [k, entry] of materialMemo) {
+      if (now - entry.at >= MATERIAL_TTL_MS) materialMemo.delete(k);
+    }
+    // Still over after dropping the expired: evict oldest-first until it fits.
+    while (materialMemo.size > MATERIAL_CACHE_MAX) {
+      const oldest = materialMemo.keys().next().value;
+      if (oldest === undefined) break;
+      materialMemo.delete(oldest);
+    }
+  }
+  return value;
+}
 
 async function loadVerseMaterial(
+  userId: string,
+  reference: string | null,
+  translation: string,
+): Promise<VerseKnowledgeMaterial> {
+  return memoisedMaterial(`${userId}:verse:${reference ?? ''}:${translation}`, () =>
+    loadVerseMaterialUncached(userId, reference, translation),
+  );
+}
+
+async function loadChapterMaterial(
+  userId: string,
+  reference: string | null,
+  translation: string,
+): Promise<ChapterKnowledgeMaterial> {
+  return memoisedMaterial(`${userId}:chapter:${reference ?? ''}:${translation}`, () =>
+    loadChapterMaterialUncached(userId, reference, translation),
+  );
+}
+
+const CROSSREF_TEXT_FETCHES = 3;
+
+async function loadVerseMaterialUncached(
   userId: string,
   reference: string | null,
   translation: string,
@@ -2585,7 +2656,7 @@ async function loadReaderHighlightsInChapter(
   return [...numbers].sort((a, b) => a - b);
 }
 
-async function loadChapterMaterial(
+async function loadChapterMaterialUncached(
   userId: string,
   reference: string | null,
   translation: string,
@@ -3404,6 +3475,40 @@ export async function gradeNoteAnswer(
  * into whichever branch was the `else` — a chapter would have been marked as a verse and
  * returned null, and null on a graded rung means the client's own verdict is recorded as truth.
  */
+/**
+ * Which rung this item is being asked on, and nothing else.
+ *
+ * The outcome route needs one string — the resolved prompt key, which decides how many goes the
+ * reader gets — and was getting it by building the item's whole view: framing lines, node states,
+ * thread titles, the note label pool, every row's provenance sentence. Measured against a real
+ * account that was 1.1 of the 2.9 seconds it took to record a single answer.
+ *
+ * Resolved exactly the way `buildReviewItemViews` resolves it, through the same three functions
+ * and the same seed, because a route that graded against a different rung than the one the reader
+ * was shown would be worse than a slow one.
+ */
+export async function askedRungFor(
+  userId: string,
+  item: ReviewItemRow,
+): Promise<ReviewPromptKey | null> {
+  const kind = item.kind as ReviewItemKind;
+  if (!isReviewAskableKind(kind)) return null;
+
+  if (kind === 'note') {
+    if (!item.noteId) return null;
+    const material = (await loadNoteMaterial(userId, [item.noteId])).get(item.noteId);
+    return material ? resolveNoteRung(item.ladderStep, material, reviewSeed(item)) : null;
+  }
+
+  const translation = item.translation ?? 'NET';
+  if (kind === 'chapter') {
+    const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
+    return chapterRungFor(item.ladderStep, reviewSeed(item), material).key;
+  }
+  const material = await loadVerseMaterial(userId, item.scriptureReference, translation);
+  return verseRungFor(item.ladderStep, reviewSeed(item), material).key;
+}
+
 export async function gradeAnswerFor(
   userId: string,
   item: ReviewItemRow,
