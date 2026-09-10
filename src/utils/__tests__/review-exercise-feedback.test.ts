@@ -78,6 +78,29 @@ describe('the settings offer', () => {
   });
 });
 
+describe('a vote on an item that was never asked', () => {
+  /*
+   * Found by testing the live endpoint. An item with no `lastRungKey` writes a row with a null
+   * rung, and the tally skips those — but the family lookup falls back to `opening`, so the
+   * response used to name a family the vote had not been filed under.
+   */
+  it('names no family, because it was counted toward none', () => {
+    expect(describeDislike(null, rows(BLANKS, ['a', 'b']))).toEqual({
+      family: null,
+      offerSettings: false,
+    });
+  });
+
+  it('cannot reach the threshold, however many are cast', () => {
+    const nulls: ReviewDislikeRow[] = ['a', 'b', 'c', 'd'].map((reviewItemId) => ({
+      reviewItemId,
+      rungKey: null,
+    }));
+    expect(describeDislike(null, nulls).offerSettings).toBe(false);
+    expect(quietedFamilies(nulls).size).toBe(0);
+  });
+});
+
 describe('the key set handed to the rung walk', () => {
   it('covers every rung in a quieted family, not just the one thumbed down', () => {
     const keys = quietedKeySet(rows(BLANKS, ['a', 'b', 'c']));

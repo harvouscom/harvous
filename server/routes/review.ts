@@ -566,7 +566,7 @@ route.post('/api/review/items/:id/feedback', requireAuth, rateLimit('write'), re
     return c.json({
       success: true,
       offerSettings,
-      family: { id: family, label: REVIEW_EXERCISE_FAMILIES[family].label },
+      family: family ? { id: family, label: REVIEW_EXERCISE_FAMILIES[family].label } : null,
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/feedback', action: 'review_feedback' });

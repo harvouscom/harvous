@@ -129,11 +129,18 @@ export function mayOfferExerciseSetting(id: ReviewExerciseFamilyId): boolean {
  *
  * `offerSettings` is true only on the vote that reaches the threshold exactly — a fourth and a
  * fifth dislike say "Noted." like the rest, because an offer repeated is a nag.
+ *
+ * **A vote with no rung names no family.** An item that has never been answered has no
+ * `lastRungKey`, and `reviewExerciseFamilyId` would helpfully fall back to `opening` — but the
+ * tally skips null-rung rows, so the vote counts toward nothing. Reporting a family it was not
+ * filed under is the endpoint describing work it did not do. The row is still logged; it simply
+ * has nothing to say about which exercise it was about.
  */
 export function describeDislike(
   rungKey: string | null,
   rowsIncludingThisVote: readonly ReviewDislikeRow[],
-): { family: ReviewExerciseFamilyId; offerSettings: boolean } {
+): { family: ReviewExerciseFamilyId | null; offerSettings: boolean } {
+  if (!rungKey) return { family: null, offerSettings: false };
   const family = reviewExerciseFamilyId(rungKey);
   const items = dislikedItemsByFamily(rowsIncludingThisVote).get(family);
   const reachedNow = items?.size === REVIEW_DISLIKE_THRESHOLD;
