@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import { api, APIError } from '../../lib/api';
 import { navigationQueryKeyPrefix } from '../queries/useNavigation';
+import { chapterNotesKeyPrefix } from '../queries/usePrototypeChapterNotes';
 import { updateSpaceNoteInCache } from '../../lib/space-notes-cache';
 import {
   mergeNoteTagsInCache,
@@ -650,6 +651,17 @@ export function useUpdateNote() {
           queryClient.invalidateQueries({ queryKey: ['thread'] });
         }
         queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+        /*
+         * The reader's margin bars, when the body was part of the save.
+         *
+         * Nothing invalidated this before, so adding a scripture pill and then opening that
+         * chapter showed a margin with no bar for the note just written — the server had the
+         * row, the client was still holding the answer from before it existed. Skipped for
+         * metadata-only saves (pin, folder, tag), which cannot change what a note cites.
+         */
+        if (variables.content !== undefined) {
+          queryClient.invalidateQueries({ queryKey: [...chapterNotesKeyPrefix] });
+        }
         invalidatePrototypeSpaceDerivedQueries(queryClient, affectedSpaceId);
       }
       window.dispatchEvent(

@@ -163,7 +163,73 @@ export function resolvePillNoteIdForProcessing(
   return pillNoteId;
 }
 
-async function upsertScriptureMetadataForNote(
+/** One already-resolved scripture pill found in a note body. */
+export interface ResolvedPill {
+  /** The `data-note-id` the pill carries. In pills-only mode this is the PARENT note's id. */
+  scriptureNoteId: string;
+  /** The pill's reference, as written. */
+  reference: string;
+}
+
+/**
+ * Every scripture pill in a body that already carries a real note id.
+ *
+ * Keyed by the note id AND the normalized reference, not by the note id alone.
+ *
+ * In pills-only mode every pill in a note carries the PARENT note's id — that is what
+ * `resolvePillNoteIdForProcessing` and the canonical transform make true — so a note-id key
+ * collapsed the whole document to a single entry, and only one reference per save ever reached
+ * `upsertScriptureMetadataForNote`. Every other passage the note cited was dropped.
+ *
+ * That mattered because this is the ONLY upsert path left for a pill that is already resolved:
+ * the detected-reference loop skips anything in `existingReferences`, which is derived from the
+ * note's HTML rather than from the database, so a pill that arrives carrying a real note id
+ * (paste, import, native sync, a note older than that path) is treated as "already indexed"
+ * without anyone having checked. The reader's margin bars read `ScriptureMetadata`, so a
+ * missing row is a passage that silently marks nothing, forever.
+ *
+ * Safe for the legacy child-note path too, where each pill points at its own scripture note:
+ * one id maps to one reference there, so the composite key is the same key it always was.
+ *
+ * Exported for its own test — the collapse is invisible from outside without a database, and
+ * the shape of the map is the whole bug.
+ */
+export function collectResolvedPills(noteContent: string): Map<string, ResolvedPill> {
+  const out = new Map<string, ResolvedPill>();
+
+  const patterns: Array<{ re: RegExp; refIdx: number; noteIdIdx: number }> = [
+    { re: /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+  ];
+
+  let match: RegExpExecArray | null;
+  for (const { re, refIdx, noteIdIdx } of patterns) {
+    re.lastIndex = 0;
+    while ((match = re.exec(noteContent)) !== null) {
+      const scriptureNoteId = match[noteIdIdx];
+      const reference = match[refIdx];
+      if (!scriptureNoteId || scriptureNoteId === 'pending' || scriptureNoteId === 'null') continue;
+      const key = `${scriptureNoteId} :: ${normalizeScriptureReference(reference)}`;
+      if (out.has(key)) continue;
+      out.set(key, { scriptureNoteId, reference });
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Exported for `server/scripts/backfill-scripture-metadata.ts`, which repairs notes whose pills
+ * never reached this function. Sharing the writer rather than reimplementing it is the point:
+ * a backfill that wrote rows a slightly different shape would be a second source of truth for
+ * the reader's margin.
+ */
+export async function upsertScriptureMetadataForNote(
   targetNoteId: string,
   normalizedReference: string,
   effectiveTranslation: string,
@@ -1178,35 +1244,13 @@ async function processScriptureReferencesInternal(
 
   // ADDITIONAL FIX: Extract ALL scripture pills with real noteIds from content
   // and ensure junction entries exist (handles manually linked scripture notes, paste, etc.)
-  const allExistingPills = new Map<string, string>(); // scriptureNoteId -> reference
-
-  function collectPill(scriptureNoteId: string, reference: string) {
-    if (scriptureNoteId && scriptureNoteId !== 'pending' && scriptureNoteId !== 'null' && scriptureNoteId !== '' && !allExistingPills.has(scriptureNoteId)) {
-      allExistingPills.set(scriptureNoteId, reference);
-    }
-  }
-
-  const allPillPatterns: Array<{ re: RegExp; refIdx: number; noteIdIdx: number }> = [
-    { re: /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
-    { re: /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
-    { re: /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
-    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
-    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
-    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
-    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
-  ];
-
-  let pillMatch;
-  for (const { re, refIdx, noteIdIdx } of allPillPatterns) {
-    re.lastIndex = 0;
-    while ((pillMatch = re.exec(noteContent)) !== null) {
-      collectPill(pillMatch[noteIdIdx], pillMatch[refIdx]);
-    }
-  }
+  // Keyed by note id AND reference — see `collectResolvedPills` for why that distinction is
+  // load-bearing, and what it cost when the key was the note id alone.
+  const allExistingPills = collectResolvedPills(noteContent);
 
   // After processing all detected references, ensure junction entries exist for ALL pills
   // This handles pills that were pasted with noteIds from other notes
-  for (const [scriptureNoteId, reference] of allExistingPills.entries()) {
+  for (const { scriptureNoteId, reference } of allExistingPills.values()) {
     if (pillsOnly) {
       try {
         const normalizedRef = normalizeScriptureReference(reference);
@@ -1432,7 +1476,10 @@ async function processScriptureReferencesInternal(
     for (const mappedNoteId of existingReferences.values()) {
       if (mappedNoteId) presentScriptureNoteIds.add(mappedNoteId);
     }
-    for (const mappedNoteId of allExistingPills.keys()) {
+    // `.values()`, not `.keys()` — the map is keyed by note id AND reference now, and a
+    // composite key can never match a junction's `scriptureNoteId`, so reading keys here would
+    // treat every still-present pill as absent and prune the junctions it stands for.
+    for (const { scriptureNoteId: mappedNoteId } of allExistingPills.values()) {
       if (mappedNoteId) presentScriptureNoteIds.add(mappedNoteId);
     }
 

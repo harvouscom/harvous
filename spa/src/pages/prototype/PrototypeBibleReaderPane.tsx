@@ -30,6 +30,7 @@ import {
   type ReaderColumn,
   type VerseSelection,
 } from './reader-verse-selection';
+import { landingScrollTop, READER_LANDING_MIN_VIEWPORT } from './reader-landing-scroll';
 import { swipeDirection } from './reader-version-swipe';
 // For `.scripture-pill-chrome__trans-chip` — the reader states the translation in the
 // same chip the dock does, so it borrows the chip rather than growing a second one.
@@ -155,6 +156,58 @@ function dockEntryVerseRange(
   if (!Number.isFinite(start)) return null;
   const end = endRaw ? Number.parseInt(endRaw, 10) : start;
   return [start, Number.isFinite(end) && end >= start ? end : start];
+}
+
+/**
+ * The verse as it is actually on screen — there can be two of it.
+ *
+ * A comparison renders every verse number twice, and on a phone one of the two is
+ * `display: none`. A plain `querySelector` takes the first in the DOM, which is the primary
+ * column's: right while both are showing, and silently wrong once someone swipes to the
+ * other version, because a hidden element has no client rects and every mark would drop out.
+ * Asking for the one with a rect is the same answer at every width without knowing which
+ * width it is, and it lets the marks follow the swipe.
+ */
+function renderedVerseIn(column: HTMLElement, n: number): HTMLElement | null {
+  for (const el of column.querySelectorAll<HTMLElement>(`[data-reader-verse="${n}"]`)) {
+    if (el.getClientRects().length > 0) return el;
+  }
+  return null;
+}
+
+/**
+ * Where a verse range sits on the column, in the column's own coordinates.
+ *
+ * The top of the start verse's FIRST rect down to the bottom of the end verse's LAST rect.
+ * Both ends matter — a verse that wraps across four lines has four rects, and using the
+ * bounding box instead would start the mark at the wrong line whenever a range begins
+ * mid-paragraph.
+ *
+ * Shared by the note margin bars and the arrival mark rather than written twice: they are
+ * the same measurement of the same text, and two copies would drift the first time one of
+ * them learnt something about wrapping that the other did not.
+ *
+ * `base` is passed in because the bars measure a whole set in one pass and re-reading the
+ * column's rect per span would be a layout read per bar.
+ */
+function measureVerseSpan(
+  column: HTMLElement,
+  base: number,
+  startVerse: number,
+  endVerse: number,
+): { top: number; height: number } | null {
+  const startEl = renderedVerseIn(column, startVerse);
+  const endEl = renderedVerseIn(column, endVerse);
+  if (!startEl || !endEl) return null;
+  const startRects = startEl.getClientRects();
+  const endRects = endEl.getClientRects();
+  const first = startRects[0];
+  const last = endRects[endRects.length - 1];
+  if (!first || !last) return null;
+  return {
+    top: Math.round(first.top - base),
+    height: Math.max(4, Math.round(last.bottom - first.top)),
+  };
 }
 
 /** Breathing room above and below the passage a note card holds up. */
@@ -915,6 +968,21 @@ export default function PrototypeBibleReaderPane({
   const [landing, setLanding] = useState<[number, number] | null>(null);
 
   /**
+   * The passage you were sent here for — the same verses as `landing`, kept longer.
+   *
+   * Two states rather than one because they answer different questions and so cannot share a
+   * lifetime. `landing` is focus mode: it dims the rest of the chapter, and like anything you
+   * open by pointing at it, it closes by pointing elsewhere. This one is the fact of the
+   * arrival — "you came here for 16-18" — which a stray tap does not stop being true. Left as
+   * one state, following a pill into the reader and then touching the page put you in a
+   * chapter with nothing at all to say which verses you had asked for.
+   *
+   * Cleared only by a new arrival or by the chapter/translation reset below, both of which
+   * genuinely replace the passage in question.
+   */
+  const [arrival, setArrival] = useState<[number, number] | null>(null);
+
+  /**
    * A new chapter is a new document: keep no selection or roving focus from the last one, or
    * verse 12 of John 3 stays lit while reading John 4.
    *
@@ -940,6 +1008,8 @@ export default function PrototypeBibleReaderPane({
     if (isFirstRender) return;
     setSelection(null);
     setLanding(null);
+    // A new chapter cannot be the passage you were sent to in the old one.
+    setArrival(null);
     setFocusedVerse(null);
     // Back to the version the page is in. A chapter opens in its own translation whatever you
     // had swapped to in the last one — the swap is about this passage, not a setting.
@@ -1050,34 +1120,12 @@ export default function PrototypeBibleReaderPane({
       setBars([]);
       return;
     }
-    /*
-     * The verse as it is actually on screen — there can be two of it.
-     *
-     * A comparison renders every verse number twice, and on a phone one of the two is
-     * `display: none`. A plain `querySelector` takes the first in the DOM, which is the primary
-     * column's: right while both are showing, and silently wrong once someone swipes to the
-     * other version, because a hidden element has no client rects and every bar would drop out.
-     * Asking for the one with a rect is the same answer at every width without knowing which
-     * width it is, and it lets the marks follow the swipe.
-     */
-    const renderedVerse = (n: number): HTMLElement | null => {
-      for (const el of column.querySelectorAll<HTMLElement>(`[data-reader-verse="${n}"]`)) {
-        if (el.getClientRects().length > 0) return el;
-      }
-      return null;
-    };
     const measure = () => {
       const base = column.getBoundingClientRect().top;
       const next: MarginBar[] = [];
       for (const a of anchorLanes) {
-        const startEl = renderedVerse(a.startVerse);
-        const endEl = renderedVerse(a.endVerse);
-        if (!startEl || !endEl) continue;
-        const startRects = startEl.getClientRects();
-        const endRects = endEl.getClientRects();
-        const first = startRects[0];
-        const last = endRects[endRects.length - 1];
-        if (!first || !last) continue;
+        const span = measureVerseSpan(column, base, a.startVerse, a.endVerse);
+        if (!span) continue;
         const notes = a.notes.map((n) => ({
           noteId: n.noteId,
           title: n.title?.trim() || 'Untitled note',
@@ -1085,8 +1133,8 @@ export default function PrototypeBibleReaderPane({
         }));
         next.push({
           key: `${a.startVerse}-${a.endVerse}:${a.lane}`,
-          top: Math.round(first.top - base),
-          height: Math.max(4, Math.round(last.bottom - first.top)),
+          top: span.top,
+          height: span.height,
           lane: a.lane,
           startVerse: a.startVerse,
           endVerse: a.endVerse,
@@ -1113,6 +1161,37 @@ export default function PrototypeBibleReaderPane({
       observer.disconnect();
     };
   }, [anchorLanes, verseLayout, verses, compare, visibleColumn]);
+
+  /**
+   * The arrival mark, measured the same way the note bars are.
+   *
+   * Its own state rather than a member of `bars` because it is a different fact drawn in a
+   * different place: the note bars answer "what have you written about these verses", which
+   * takes a fetch and can be turned off; this answers "which verses did you just ask for",
+   * which the reader already knows from the URL and should show on the first frame of the
+   * morph out of the dock card. Folding it into the lane packing would also have cost it a
+   * lane it does not fit into — the 28px gutter holds three, and all three are spoken for.
+   */
+  const [arrivalMark, setArrivalMark] = useState<{ top: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const column = columnRef.current;
+    if (!column || !arrival) {
+      setArrivalMark(null);
+      return;
+    }
+    const measure = () => {
+      const base = column.getBoundingClientRect().top;
+      setArrivalMark(measureVerseSpan(column, base, arrival[0], arrival[1]));
+    };
+    const raf = requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [arrival, verseLayout, verses, compare, visibleColumn]);
 
   /**
    * The bar being pointed at or pinned — the note whose card is showing.
@@ -1347,31 +1426,87 @@ export default function PrototypeBibleReaderPane({
   useLayoutEffect(() => {
     if (!focusVerse || verses.length === 0) return;
     const scroller = scrollRef.current;
-    const el = scroller?.querySelector<HTMLElement>(`[data-reader-verse="${focusVerse}"]`);
-    if (!scroller || !el) return;
-    // Measured as a delta between two rects in the same space, rather than from `offsetTop`:
-    // the verse's offset parent is the column, not the scroller, so an offset chain would
-    // have to be walked and would still break the first time something between them gained
-    // a `position`.
-    const elRect = el.getBoundingClientRect();
-    const scrollerRect = scroller.getBoundingClientRect();
-    const centreOffset = (scroller.clientHeight - elRect.height) / 2;
-    scroller.scrollTop = Math.max(0, scroller.scrollTop + (elRect.top - scrollerRect.top) - centreOffset);
+    if (!scroller) return;
     /*
-     * The whole passage, not just its first verse. Scrolling still targets `focusVerse` —
-     * a range starts where it starts — but the focus that dims the rest of the chapter runs
-     * to `focusVerseEnd`, so opening "John 3:16-18" leaves all three lit rather than lighting
-     * 16 and dimming the two verses that were the reason for the link.
+     * The whole passage, not just its first verse. The focus that dims the rest of the chapter
+     * runs to `focusVerseEnd`, so opening "John 3:16-18" leaves all three lit rather than
+     * lighting 16 and dimming the two verses that were the reason for the link.
      *
      * Focus only: no `setSelection` here. Landing says "here is the passage", and arming the
      * action toolbar over verses nobody has touched yet would answer a question that has not
      * been asked.
      */
     const end = focusVerseEnd && focusVerseEnd > focusVerse ? focusVerseEnd : focusVerse;
+
+    /*
+     * The focus and the mark do not wait for a measurement — they are facts about the URL, not
+     * about the layout, and they are correct the instant the verses exist.
+     */
     setLanding([focusVerse, end]);
+    // Outlives the fade — see `arrival`.
+    setArrival([focusVerse, end]);
+
+    let landed = false;
+    let observer: ResizeObserver | null = null;
+
+    const attempt = () => {
+      if (landed) return;
+      /*
+       * A viewport with no height cannot be landed in.
+       *
+       * Every rect inside a collapsed scroller is degenerate, so the delta this computes is
+       * arbitrary — and it is arbitrary in the one place it matters most: arriving out of a
+       * scripture dock, where the pane is mid-morph and can measure zero on the frame the
+       * chapter first commits. The old centring hit this too and landed at the far end of the
+       * chapter; it just had no way to say so. Waiting is the honest answer, and the observer
+       * below means the wait ends the moment there is something to measure against.
+       */
+      if (scroller.clientHeight < READER_LANDING_MIN_VIEWPORT) return;
+      const el = scroller.querySelector<HTMLElement>(`[data-reader-verse="${focusVerse}"]`);
+      if (!el) return;
+
+      // Measured as deltas between rects in the same space, rather than from `offsetTop`: the
+      // verse's offset parent is the column, not the scroller, so an offset chain would have to
+      // be walked and would still break the first time something between them gained a `position`.
+      const scrollerRect = scroller.getBoundingClientRect();
+      const startRect = el.getBoundingClientRect();
+      const endEl =
+        end === focusVerse
+          ? el
+          : (scroller.querySelector<HTMLElement>(`[data-reader-verse="${end}"]`) ?? el);
+      const endRect = endEl.getBoundingClientRect();
+
+      // Whether to move, and where to — see `landingScrollTop`. Null means the passage is
+      // already there to be read and the right amount of scrolling is none.
+      const target = landingScrollTop({
+        scrollTop: scroller.scrollTop,
+        clientHeight: scroller.clientHeight,
+        scrollHeight: scroller.scrollHeight,
+        viewportTop: scrollerRect.top,
+        startTop: startRect.top,
+        endBottom: endRect.bottom,
+      });
+      if (target != null) scroller.scrollTop = target;
+
+      // Once only. A landing is an arrival, not a mode: re-running it on every later resize
+      // would drag the page back to the passage each time the sidebar opened or the window
+      // changed shape, long after you had read on.
+      landed = true;
+      observer?.disconnect();
+    };
+
     // Landing is always in the page's own translation — a deep link names a chapter and a
     // verse, never a column of a comparison the reader may or may not have open.
     setFocusedVerse({ column: 'primary', number: focusVerse });
+
+    // Synchronously first, so the normal case — a pane that already has a size — still puts
+    // the right verse under the morph's clip on the very first frame.
+    attempt();
+    if (!landed) {
+      observer = new ResizeObserver(attempt);
+      observer.observe(scroller);
+    }
+    return () => observer?.disconnect();
     // `landRequestKey` so asking for the verse you are already on lands on it again: the
     // verse number has not changed, but the request is new.
   }, [focusVerse, focusVerseEnd, verses.length, landRequestKey]);
@@ -2295,6 +2430,29 @@ export default function PrototypeBibleReaderPane({
               </button>
             ))}
           </div>
+
+          {/*
+            The passage you were sent here for, marked in the RIGHT margin.
+
+            Opposite side from the note bars on purpose. The left gutter means "your notes
+            touch these verses" and is full — three lanes in 28px, and none at all to spare in
+            the narrow variant. The right inset is already reserved at the same width, purely
+            so the text sits square on the sheet (`--pds-reader-text-inset`), and standing an
+            arrival mark in it costs no measure and keeps the two meanings apart: notes on the
+            left, "this is what you asked for" on the right.
+
+            Not gated on `showMarginNotes` — that pref is about other notes' bars. This one is
+            about the navigation just performed, and turning it off would leave following a
+            reference with nothing to show for it.
+          */}
+          {arrivalMark ? (
+            <div className="pds-reader__arrival" aria-hidden>
+              <span
+                className="pds-reader__arrival-mark"
+                style={{ top: arrivalMark.top, height: arrivalMark.height }}
+              />
+            </div>
+          ) : null}
 
           {/* Above the note card. A positioned element paints over in-flow content regardless
               of order, so without this the card would cover the very passage it is holding up. */}

@@ -27,8 +27,17 @@ export interface ChapterNoteAnchor {
   updatedAt: string | null;
 }
 
+/**
+ * Every chapter's anchors at once — what a note save invalidates.
+ *
+ * A save can add or remove a reference in any book, and the client cannot tell which without
+ * parsing the body it just sent, so the prefix is the honest blast radius. It is also small:
+ * only chapters actually visited this session have an entry, and the endpoint is `no-store`.
+ */
+export const chapterNotesKeyPrefix = ['prototype', 'scripture-chapter-notes'] as const;
+
 export function chapterNotesKey(book: string, chapter: number) {
-  return ['prototype', 'scripture-chapter-notes', book, chapter] as const;
+  return [...chapterNotesKeyPrefix, book, chapter] as const;
 }
 
 /**
