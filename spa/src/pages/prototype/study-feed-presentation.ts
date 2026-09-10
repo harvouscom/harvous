@@ -260,12 +260,23 @@ export function summarizeStudyFeedDay(
    * against one always reads as detached — Home's greeting avoids this the same way, by
    * keeping words after its last stat.
    */
-  // "Today" rather than "So far today": the tail already says "so far", and the sentence
-  // was arriving with it at both ends.
-  const lead = options.isToday ? 'Today' : 'You spent this day';
+  /*
+   * The lead has to hand off to a chip, so it ends on the preposition that introduces one.
+   * Without it the sentence rendered as "You spent this day [8 passages], from morning
+   * through evening" — the chip reading as an apposition rather than as the object of
+   * anything. "Across" is the one bridge that survives every stat the day can produce:
+   * notes written, highlights, passages read, notes revisited. A verb cannot, which is why
+   * the copy went verbless in the first place — you do not "save" a passage you read.
+   *
+   * "Today" rather than "So far today": the tail already says "so far", and the sentence
+   * was arriving with it at both ends.
+   */
+  const lead = options.isToday ? 'Today, across' : 'You spent this day across';
   const tail = options.isToday
     ? options.partsCount > 1
-      ? ', across the day'
+      // Not "across the day" any more: the lead now spends that word, and a sentence with
+      // it at both ends reads as a stutter.
+      ? ', through the day'
       : ' so far'
     : focus
       ? ` mostly in ${focus}`
