@@ -23,11 +23,18 @@ import { UNLIMITED, isUnlimited } from '@/lib/billing-plans';
  * invites, and canAddMemberToSpace exempts them.
  *
  * This cap — not the space count — is the fence between a personal plan and a
- * church plan. A congregation hits 50 and the space transfers to the org;
- * a small group never touches it. Do not raise this to "be generous" without
+ * church plan. A congregation hits it and the space transfers to the org; a
+ * small group never touches it. Do not raise this to "be generous" without
  * re-reading that trade: spaces are free to host, seats are the product line.
+ *
+ * Was 50, which sat past almost every group a person actually hosts — so the
+ * fence was never reached and the transfer it exists to trigger never fired.
+ * 12 is sized to the thing being hosted rather than to what a church is under.
+ *
+ * Keep in sync with src/lib/shared-spaces-limits.ts and the `membersPerSpace`
+ * plan limit in src/lib/billing-plans.ts — three copies of this number exist.
  */
-export const MEMBERS_PER_SPACE_CAP = 50;
+export const MEMBERS_PER_SPACE_CAP = 12;
 
 /**
  * Owned shared spaces without Plus. Free is strictly private — the paid line is

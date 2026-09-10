@@ -404,9 +404,19 @@ async function loadNoteLabelPool(
  *
  * `miniNoteBody` first — the note written on the highlight itself — then `notesBody`. Both the
  * probe and the builder read through here so they cannot disagree about which field is the one.
+ *
+ * **Both fields are HTML**, canonicalised as such on write (`server/routes/study-threads.ts`).
+ * This collapsed whitespace but never stripped tags, and the dock renders the result as escaped
+ * text — so an annotation carrying a scripture pill was shown to the reader as a literal
+ * `<span data-scripture-reference="…">…</span>` inside quotation marks. Every neighbouring rung
+ * (note.recognize, the verse cue, the row excerpt) already strips; this was the one that didn't.
+ *
+ * Stripping here also fixes the three-word floor that both call sites apply to this result:
+ * counting `split(/\s+/)` over markup let a one-word annotation qualify on its tags alone.
  */
 function annotationTextOf(row: { miniNoteBody?: string | null; notesBody?: string | null }): string {
-  return (row.miniNoteBody?.trim() || row.notesBody?.trim() || '').replace(/\s+/g, ' ');
+  const raw = row.miniNoteBody?.trim() || row.notesBody?.trim() || '';
+  return stripHtml(raw);
 }
 
 async function loadNoteMaterial(
@@ -2911,9 +2921,24 @@ async function buildNoteExercise(
       )
       .orderBy(StudyThreadEntries.createdAt, StudyThreadEntries.id);
 
-    // Only spans that clear the floor are in the draw, so a short one cannot win the seed.
+    /*
+     * Only spans that clear the floor are in the draw, so a short one cannot win the seed.
+     *
+     * Stripped defensively: these three columns normally hold plain text (the anchor is built
+     * from canonicalised text), but the failure branch in `study-threads.ts` writes the
+     * client-supplied quote raw — and the dock renders all three as escaped text, so one HTML
+     * quote that got through would be shown as markup the way the annotation rung was.
+     */
     const spans = quoted
-      .map((row) => (row.quote ? buildNoteSpan({ quote: row.quote, prefix: row.prefix, suffix: row.suffix }) : null))
+      .map((row) =>
+        row.quote
+          ? buildNoteSpan({
+              quote: stripHtml(row.quote),
+              prefix: row.prefix ? stripHtml(row.prefix) : row.prefix,
+              suffix: row.suffix ? stripHtml(row.suffix) : row.suffix,
+            })
+          : null,
+      )
       .filter((s): s is NonNullable<typeof s> => s !== null);
     const span = spans.length ? spans[hashSeed(seed) % spans.length] : null;
 

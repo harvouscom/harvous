@@ -10,8 +10,8 @@ export { UNLIMITED, isUnlimited };
 /** Owned shared spaces with Harvous Plus — unlimited; the member cap is the fence. */
 export const OWNED_SHARED_SPACES_ADDON_LIMIT = UNLIMITED;
 
-/** Total people in a space (including owner). */
-export const MEMBERS_PER_SPACE_CAP = 50;
+/** Total people in a space (including owner). Keep in sync with server/utils/tier-limits.ts. */
+export const MEMBERS_PER_SPACE_CAP = 12;
 
 /**
  * Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short.

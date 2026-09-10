@@ -116,7 +116,9 @@ export const RATE_LIMITS = {
     maxRequests: 20,
     windowMs: 60 * 1000 // 1 minute
   },
-  // Space invite: higher limit so owners can onboard larger spaces (e.g. 50 members)
+  // Space invite: higher limit so an owner can onboard a whole space in one sitting without
+  // being throttled. Comfortably above MEMBERS_PER_SPACE_CAP (12) — deliberately not tuned
+  // down to it, since retries and re-sends share this bucket.
   INVITE: {
     maxRequests: 60,
     windowMs: 60 * 1000 // 1 minute

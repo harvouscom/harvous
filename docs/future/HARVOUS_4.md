@@ -19,7 +19,7 @@ The four plans are **Personal** (free), **Plus**, **Church**, and **Challenges**
 | Plan | Who it is for | What they get | What they do not lose |
 |---|---|---|---|
 | **Personal** | Anyone studying the Bible. No card. | Unlimited notes, pills, highlights, threads, @ mentions, reminders, Daily Passage, joining spaces. | The whole core app. Challenges they can join. A recap study guide after a season. |
-| **Plus** | The student who wants Review and rooms of their own. | Review. Host Shared Spaces (cover, threads, up to 50). Deeper recall history. | Everything in Personal. Can run a small group challenge inside a space they host. Pre-challenge study guide when they already have a Harvous home. |
+| **Plus** | The student who wants Review and rooms of their own. | Review. Host Shared Spaces (cover, threads, up to 12). Deeper recall history. | Everything in Personal. Can run a small group challenge inside a space they host. Pre-challenge study guide when they already have a Harvous home. |
 | **Church** | A congregation, campus, or ministry that wants to host study at scale. | Church Space(s), member roles, seasonal Challenge hosting, branded cover, staff Review packs, reporting that stays pastoral — not surveillance. | Members keep Personal (or Plus) homes. Church never swallows private notes. |
 | **Challenges** | The public. Existing users. Churches that want a season with a finish line. | Open, time-boxed seasons. Challenge mode from a persistent dock. Curated timed tests. Practice sittings. Study guides before (existing users) and after (everyone). | Joining is free. Hosting a public season may sit on Plus or Church. Your private notes stay yours. |
 
@@ -35,7 +35,7 @@ In Harvous 4, Personal also means: you can enter a public Challenge from the doc
 
 ## Plus — Review and rooms
 
-Plus stays the individual paid plan. The current shape is already right: Review (write an answer from memory, then say how it went, from your own notes and verses) and hosting Shared Spaces — unlimited spaces, up to 50 people each, joining always free.
+Plus stays the individual paid plan. The current shape is already right: Review (write an answer from memory, then say how it went, from your own notes and verses) and hosting Shared Spaces — unlimited spaces, up to 12 people each, joining always free.
 
 Harvous 4 should deepen Plus without turning it into Church-lite:
 

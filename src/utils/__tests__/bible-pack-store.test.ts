@@ -236,18 +236,26 @@ describe('canAddPack', () => {
     savedAt: 0,
   });
 
+  /*
+   * Fixtures are sized from the constant rather than written out. This block held three packs
+   * by hand and then asserted `toHaveLength(MAX_OFFLINE_TRANSLATIONS)` against them, so raising
+   * the limit broke the test that existed to describe it — the assertion was checking the
+   * fixture, not the behaviour.
+   */
+  const packs = (n: number) => Array.from({ length: n }, (_, i) => pack(`T${i + 1}`));
+  const full = packs(MAX_OFFLINE_TRANSLATIONS);
+
   it('allows up to the limit', () => {
     expect(canAddPack([], 'NLT')).toBe(true);
-    expect(canAddPack([pack('KJV'), pack('ESV')], 'NLT')).toBe(true);
+    expect(canAddPack(packs(MAX_OFFLINE_TRANSLATIONS - 1), 'NLT')).toBe(true);
   });
 
-  it('refuses a fourth translation', () => {
-    const full = [pack('KJV'), pack('ESV'), pack('NIV')];
+  it('refuses one past the limit', () => {
     expect(full).toHaveLength(MAX_OFFLINE_TRANSLATIONS);
     expect(canAddPack(full, 'NLT')).toBe(false);
   });
 
   it('still allows one already stored, so a partial pack can be resumed at the limit', () => {
-    expect(canAddPack([pack('KJV'), pack('ESV'), pack('NIV')], 'ESV')).toBe(true);
+    expect(canAddPack(full, full[0].translationId)).toBe(true);
   });
 });

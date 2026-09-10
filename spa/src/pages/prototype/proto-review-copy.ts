@@ -43,6 +43,34 @@ export const REVIEW_REMOVE_COPY = 'Remove from Review';
 export const REVIEW_MORE_COPY = 'More';
 
 /**
+ * What a row's answer says back.
+ *
+ * The queue keeps its shape when an item leaves it — `refillReviewQueue` fills the freed slot on
+ * the same refetch, deliberately, so the section does not shrink as you use it. The cost is that
+ * the strongest answer in the menu looked like it had done nothing at all: the row went, another
+ * took its place, and nothing said which had happened. These confirm the act.
+ *
+ * Still no counting and no blame, per the note at the top of this file — "Removed from Review",
+ * not "1 removed", and "Coming back later" echoes `reviewComingBackCopy` rather than naming a
+ * date the reader did not choose.
+ */
+export const REVIEW_REMOVED_TOAST = 'Removed from Review';
+export const REVIEW_PAUSED_TOAST = 'Paused';
+export const REVIEW_RESUMED_TOAST = 'Back in Review';
+export const REVIEW_DEFERRED_TOAST = 'Coming back later';
+
+/**
+ * Failure copy for the same three answers.
+ *
+ * These mutations shipped with no `onError` at all, so a 4xx or 5xx was indistinguishable from
+ * success — the menu closed either way. Written as the caller's fallback for `toastError`, which
+ * only shows server prose when the code is allow-listed as user-authored.
+ */
+export const REVIEW_REMOVE_FAILED_TOAST = "Couldn't remove that — try again";
+export const REVIEW_PAUSE_FAILED_TOAST = "Couldn't change that — try again";
+export const REVIEW_DEFER_FAILED_TOAST = "Couldn't put that off — try again";
+
+/**
  * The section heading on Activity.
  *
  * It was "Study Inbox" for its first week and the word was wrong twice over. An inbox is

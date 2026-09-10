@@ -252,11 +252,23 @@ function RecallRow({
   onDismiss: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(null);
-  useDismissOnOutside(menuRef, () => setMenuOpen(false), menuOpen);
+  /*
+   * The ref is the portaled card, not the trigger. When the menu moved into a portal (below)
+   * this stayed pointing at the trigger, and a portaled node is not a DOM descendant of it — so
+   * the hook's capture-phase `pointerdown` read every menu item as "outside", closed the menu
+   * and unmounted the portal before `click` could land. Snooze and Not interested were dead in
+   * a real browser for as long as the portal has existed; only `fireEvent.click` in the tests,
+   * which never dispatches `pointerdown`, still saw them work.
+   *
+   * `ignoreSelector` exempts the trigger, which is now itself "outside" — otherwise pointerdown
+   * would dismiss and the button's onClick would toggle it back open, leaving no way to close.
+   */
+  useDismissOnOutside(popoverRef, () => setMenuOpen(false), menuOpen, {
+    ignoreSelector: '.proto-recall-row__more',
+  });
 
   /*
    * Portaled and measured, the way every other menu in this chrome already is.
@@ -315,7 +327,10 @@ function RecallRow({
       onMouseEnter={onPrefetch}
       onFocus={onPrefetch}
       trailing={
-        <span className="proto-recall-row__more" ref={menuRef}>
+        <span
+          /* This class is what `ignoreSelector` above matches to exempt the trigger. */
+          className="proto-recall-row__more"
+        >
           <button
             ref={triggerRef}
             type="button"
