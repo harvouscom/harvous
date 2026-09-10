@@ -251,7 +251,20 @@ jobs:
             echo "::error::$HOST never served $EXPECTED_BUNDLE from this deploy"; exit 1
           fi
 
-          "${CURL[@]}" "https://$HOST/$SERVED" -o bundle.js || { echo "::error::could not fetch $SERVED"; exit 1; }
+          # The asset itself is a distinct object from `/` with its own edge-propagation
+          # timing — confirmed live on 2026-09-10, where `/` already named the new bundle on
+          # the first attempt but the JS file 404'd for several seconds after. One un-retried
+          # fetch here failed a deploy that had actually succeeded: `/`, the asset and `/sw.js`
+          # all served correctly seconds later, checked by hand against the live host.
+          BUNDLE_OK=1
+          for attempt in 1 2 3 4 5 6; do
+            "${CURL[@]}" "https://$HOST/$SERVED" -o bundle.js && { BUNDLE_OK=0; break; }
+            echo "attempt $attempt: could not fetch $SERVED"
+            sleep 10
+          done
+          if [ "$BUNDLE_OK" != "0" ]; then
+            echo "::error::could not fetch $SERVED"; exit 1
+          fi
 
           # A trailing run of key characters is what separates a real key from the badge's own
           # `startsWith("pk_test_")` literal, which is present in EVERY build by design.
