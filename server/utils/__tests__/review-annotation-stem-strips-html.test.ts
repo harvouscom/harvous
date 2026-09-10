@@ -49,12 +49,19 @@ describe('the note-annotation stem', () => {
 });
 
 describe('the note-span stem', () => {
-  it('strips the anchor columns too, since the dock renders them as text', () => {
-    /* Normally plain text, but the failure branch in study-threads.ts writes the client-supplied
-       quote raw — the same way an unstripped string reached the screen on the annotation rung. */
+  it('strips the anchor columns too, since both surfaces that show a span render it as text', () => {
+    /*
+     * Normally plain text, but the failure branch in study-threads.ts writes the client-supplied
+     * quote raw — the same way an unstripped string reached the screen on the annotation rung.
+     *
+     * Lives in `loadNoteSpans` rather than inline in `buildNoteExercise` now: the row cue and
+     * the dock card used to build a span each in their own place and could disagree about which
+     * line a note was quoted by, so both were consolidated into one loader both call. The strip
+     * moved with it — one seam, read by both surfaces, instead of two copies to keep in step.
+     */
     const spans = source.slice(
-      source.indexOf('const spans = quoted'),
-      source.indexOf('const span = spans.length'),
+      source.indexOf('async function loadNoteSpans('),
+      source.indexOf('function noteStemFor('),
     );
     expect(spans).toContain('stripHtml(row.quote)');
     expect(spans).toContain('stripHtml(row.prefix)');
