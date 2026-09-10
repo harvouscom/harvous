@@ -13,13 +13,15 @@ import {
   inArray,
   Notes,
   NoteConnections,
+  NoteScriptureReferences,
   ScriptureMetadata,
   ScriptureTopics,
 } from '../db';
 import {
+  getRelatedNoteCandidates,
   getRelatedNotesForPassages,
-  getNotePassages,
   type RelatedNote,
+  type VerseKey,
 } from './scripture-knowledge';
 import { isNoteConnectionsTableMissing } from './pg-undefined-relation';
 
@@ -138,6 +140,69 @@ async function resolveSharedThemeLabels(pairs: RankedPair[]): Promise<ConnectSug
   });
 }
 
+
+/**
+ * Every candidate's passages in two queries instead of two per candidate.
+ *
+ * `getNotePassages` is the single-note version and stays the right call for a single note.
+ * The chunked loop below already stopped this from being twenty round trips *in series*, but
+ * they were still twenty round trips: parallelising work is not the same as not doing it.
+ * Same rows, same dedupe, one pass.
+ */
+async function getNotePassagesBatch(noteIds: string[]): Promise<Map<string, VerseKey[]>> {
+  const out = new Map<string, VerseKey[]>();
+  if (!noteIds.length) return out;
+
+  // A note's passages are its own scripture metadata plus that of every scripture note it
+  // links to, so the linked ids have to be resolved before the metadata can be asked for.
+  const links = await db
+    .select({ noteId: NoteScriptureReferences.noteId, sid: NoteScriptureReferences.scriptureNoteId })
+    .from(NoteScriptureReferences)
+    .where(inArray(NoteScriptureReferences.noteId, noteIds));
+
+  const linkedByNote = new Map<string, string[]>();
+  for (const l of links) {
+    const list = linkedByNote.get(l.noteId);
+    if (list) list.push(l.sid);
+    else linkedByNote.set(l.noteId, [l.sid]);
+  }
+
+  const metadataIds = [...new Set([...noteIds, ...links.map((l) => l.sid)])];
+  const rows = await db
+    .select({
+      noteId: ScriptureMetadata.noteId,
+      book: ScriptureMetadata.book,
+      chapter: ScriptureMetadata.chapter,
+      verse: ScriptureMetadata.verse,
+    })
+    .from(ScriptureMetadata)
+    .where(inArray(ScriptureMetadata.noteId, metadataIds));
+
+  const rowsByNote = new Map<string, VerseKey[]>();
+  for (const r of rows) {
+    const list = rowsByNote.get(r.noteId);
+    const key = { book: r.book, chapter: r.chapter, verse: r.verse };
+    if (list) list.push(key);
+    else rowsByNote.set(r.noteId, [key]);
+  }
+
+  for (const noteId of noteIds) {
+    const seen = new Set<string>();
+    const passages: VerseKey[] = [];
+    for (const sourceId of [noteId, ...(linkedByNote.get(noteId) ?? [])]) {
+      for (const v of rowsByNote.get(sourceId) ?? []) {
+        const k = `${v.book}|${v.chapter}|${v.verse}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        passages.push(v);
+      }
+    }
+    out.set(noteId, passages);
+  }
+
+  return out;
+}
+
 /**
  * Find the strongest pair of the user's notes that are related (by passage/cross-ref/theme) but
  * not yet connected via NoteConnections. Checks the top N notes by meaning weight (from fingerprints)
@@ -190,6 +255,26 @@ export async function getConnectSuggestions(
   const candidates = noteIds.slice(0, candidateLimit);
 
   /*
+   * Both per-candidate lookups, lifted out of the loop and done once.
+   *
+   * Chunking made the remaining round trips concurrent; these two remove them. The passage
+   * lookups collapse into one batched pair of queries, and the related-notes scan — which is
+   * per-*user*, returning every scripture-tagged note they have, and differs between
+   * candidates only by which single note it excludes — now runs once instead of once per
+   * candidate, with the exclusion applied in memory. That scan was the expensive half of
+   * each ranking pass, so it was being paid for twenty times over to throw away one row's
+   * difference each time.
+   */
+  const [passagesByNote, relatedCandidates] = await Promise.all([
+    getNotePassagesBatch(candidates),
+    getRelatedNoteCandidates(userId),
+  ]);
+  // A candidate with no passages has nothing to match on, so it never reaches the ranker.
+  // Dropping those here rather than inside a chunk means the concurrency below is spent
+  // entirely on candidates that can actually produce a pair.
+  const rankable = candidates.filter((noteId) => (passagesByNote.get(noteId) ?? []).length > 0);
+
+  /*
    * A chunk at a time, in parallel — this loop used to be the slowest request the app makes.
    *
    * Each candidate costs at least three sequential round trips (`getNotePassages` is two on
@@ -212,17 +297,15 @@ export async function getConnectSuggestions(
    * twenty candidates' worth of work.
    */
   const CHUNK = 4;
-  for (let i = 0; i < candidates.length && out.length < limit; i += CHUNK) {
-    const chunk = candidates.slice(i, i + CHUNK);
+  for (let i = 0; i < rankable.length && out.length < limit; i += CHUNK) {
+    const chunk = rankable.slice(i, i + CHUNK);
 
     const found = await Promise.all(
       chunk.map(async (noteId) => {
-        const passages = await getNotePassages(noteId);
-        if (!passages.length) return null;
-
-        const related = await getRelatedNotesForPassages(userId, passages, {
+        const related = await getRelatedNotesForPassages(userId, passagesByNote.get(noteId)!, {
           excludeNoteId: noteId,
           limit: 10,
+          candidates: relatedCandidates,
         });
 
         return pickBestUnlinkedPair(

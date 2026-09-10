@@ -1,0 +1,227 @@
+import { describe, it, expect } from 'vitest';
+import { fillFraming, reviewFraming, type ReviewFramingFacts } from '@/utils/review-framing';
+
+const NOW = new Date('2026-09-03T12:00:00Z');
+const daysAgoIso = (d: number) => new Date(NOW.getTime() - d * 86_400_000).toISOString();
+
+const BASE: ReviewFramingFacts = {
+  kind: 'verse',
+  rungKey: 'verse.rebuild',
+  identityIsAnswer: false,
+  pass: 0,
+  recallState: 'forming',
+  revisitCount: 0,
+  citedInNotes: 0,
+  firstStudiedAt: null,
+  topTheme: null,
+  person: null,
+  crossRefCount: 0,
+  readerMarked: false,
+};
+
+const SEEDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+describe('reviewFraming', () => {
+  it('says nothing rather than something generic', () => {
+    expect(reviewFraming(BASE, 'a', NOW)).toBeNull();
+  });
+
+  it('prefers what the reader did over what the index says, and both over ladder state', () => {
+    const everything: ReviewFramingFacts = {
+      ...BASE,
+      revisitCount: 3,
+      citedInNotes: 3,
+      readerMarked: true,
+      firstStudiedAt: daysAgoIso(90),
+      topTheme: 'adoption',
+      person: 'Paul',
+      crossRefCount: 12,
+      pass: 2,
+      recallState: 'durable',
+    };
+    for (const seed of SEEDS) {
+      const spec = reviewFraming(everything, seed, NOW)!;
+      expect(['returning', 'cited', 'marked', 'since']).toContain(spec.template);
+    }
+    const curatedOnly = { ...everything, revisitCount: 0, citedInNotes: 0, readerMarked: false, firstStudiedAt: daysAgoIso(40) };
+    for (const seed of SEEDS) {
+      expect(['themeSince', 'person', 'crossrefs']).toContain(reviewFraming(curatedOnly, seed, NOW)!.template);
+    }
+    const stateOnly = { ...BASE, pass: 1, recallState: 'durable' as const };
+    for (const seed of SEEDS) {
+      expect(['pass', 'holding']).toContain(reviewFraming(stateOnly, seed, NOW)!.template);
+    }
+  });
+
+  it('varies within a group by seed, so a shelf of revisited verses is not one sentence repeated', () => {
+    const facts = { ...BASE, revisitCount: 3, citedInNotes: 3, readerMarked: true };
+    const seen = new Set(SEEDS.map((s) => reviewFraming(facts, s, NOW)!.template));
+    expect(seen.size).toBeGreaterThan(1);
+    // And the same seed always gives the same line.
+    expect(reviewFraming(facts, 'a', NOW)).toEqual(reviewFraming(facts, 'a', NOW));
+  });
+
+  describe('never prints the answer under the question', () => {
+    it('never names the theme on the theme rung', () => {
+      const facts = { ...BASE, rungKey: 'verse.theme' as const, topTheme: 'adoption', firstStudiedAt: daysAgoIso(90) };
+      for (const seed of SEEDS) {
+        const spec = reviewFraming(facts, seed, NOW);
+        expect(spec?.template).not.toBe('theme');
+        expect(spec?.template).not.toBe('themeSince');
+      }
+    });
+
+    it('never names the person on the person rung', () => {
+      const facts = { ...BASE, rungKey: 'verse.person' as const, person: 'Paul' };
+      expect(reviewFraming(facts, 'a', NOW)).toBeNull();
+    });
+
+    it('never counts cross-references on the cross-reference rung, nor on locate', () => {
+      for (const rungKey of ['verse.crossref', 'verse.locate'] as const) {
+        const facts = { ...BASE, rungKey, crossRefCount: 20 };
+        expect(reviewFraming(facts, 'a', NOW)?.template).not.toBe('crossrefs');
+      }
+    });
+
+    it('never counts citing notes on the rung that asks which note cites it', () => {
+      const facts = { ...BASE, rungKey: 'verse.connect' as const, citedInNotes: 4 };
+      expect(reviewFraming(facts, 'a', NOW)).toBeNull();
+    });
+
+    it('says nothing at all where the subject is the answer', () => {
+      const facts = { ...BASE, identityIsAnswer: true, revisitCount: 9, topTheme: 'adoption' };
+      expect(reviewFraming(facts, 'a', NOW)).toBeNull();
+    });
+  });
+
+  it('holds its thresholds', () => {
+    expect(reviewFraming({ ...BASE, revisitCount: 1 }, 'a', NOW)).toBeNull();
+    expect(reviewFraming({ ...BASE, citedInNotes: 1 }, 'a', NOW)).toBeNull();
+    expect(reviewFraming({ ...BASE, crossRefCount: 7 }, 'a', NOW)).toBeNull();
+    // "Since" needs both age and at least one return; a passage cited once long ago is not a habit.
+    expect(reviewFraming({ ...BASE, firstStudiedAt: daysAgoIso(90) }, 'a', NOW)).toBeNull();
+    expect(reviewFraming({ ...BASE, firstStudiedAt: daysAgoIso(90), revisitCount: 1 }, 'a', NOW)?.template).toBe('since');
+  });
+
+  it('never frames a note with a person', () => {
+    expect(reviewFraming({ ...BASE, kind: 'note', rungKey: 'note.passage', person: 'Paul' }, 'a', NOW)).toBeNull();
+  });
+});
+
+describe('fillFraming', () => {
+  it('renders the month in the reader own zone and drops the year when current', () => {
+    const line = fillFraming({ template: 'since', args: { sinceIso: daysAgoIso(90) } }, NOW);
+    expect(line.startsWith('In your study since ')).toBe(true);
+    expect(line).toMatch(/June|May/);
+    expect(line).not.toContain('2026');
+    const old = fillFraming({ template: 'since', args: { sinceIso: '2024-03-10T00:00:00Z' } }, NOW);
+    expect(old).toContain('2024');
+  });
+
+  it('renders every template as a sentence', () => {
+    const specs = [
+      { template: 'returning' as const, args: {} },
+      { template: 'cited' as const, args: { n: 3 } },
+      { template: 'marked' as const, args: {} },
+      { template: 'themeSince' as const, args: { label: 'adoption', sinceIso: daysAgoIso(40) } },
+      { template: 'theme' as const, args: { label: 'adoption' } },
+      { template: 'person' as const, args: { label: 'Paul' } },
+      { template: 'crossrefs' as const, args: { n: 12 } },
+      { template: 'pass' as const, args: {} },
+      { template: 'holding' as const, args: {} },
+    ];
+    for (const spec of specs) {
+      const line = fillFraming(spec, NOW);
+      expect(line.endsWith('.')).toBe(true);
+      expect(line).not.toMatch(/undefined|null|\{/);
+    }
+  });
+});
+
+describe('a chapter', () => {
+  const base = {
+    identityIsAnswer: false,
+    pass: 0,
+    recallState: 'new' as const,
+    revisitCount: 0,
+    citedInNotes: 0,
+    firstStudiedAt: null,
+    topTheme: null,
+    crossRefCount: 0,
+    readerMarked: false,
+  };
+  const NOW = new Date('2026-09-04T12:00:00Z');
+  const daysBefore = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOString();
+
+  it('can be framed by a person, but never on the rung that asks who appears', () => {
+    const facts = { ...base, kind: 'chapter' as const, person: 'Nicodemus' };
+    expect(reviewFraming({ ...facts, rungKey: 'chapter.verse' }, 's')).toEqual({
+      template: 'person',
+      args: { label: 'Nicodemus' },
+    });
+    expect(reviewFraming({ ...facts, rungKey: 'chapter.person' }, 's')).toBeNull();
+  });
+
+  it('says when it was read, in the reader own week', () => {
+    const spec = reviewFraming(
+      { ...base, kind: 'chapter', person: null, rungKey: 'chapter.verse', lastReadAt: daysBefore(3) },
+      's',
+      NOW,
+    );
+    expect(spec?.template).toBe('readOn');
+    // Rendered on the client, because the weekday belongs to their locale and their zone.
+    expect(fillFraming(spec!, NOW)).toMatch(/^You read this on \w+\.$/);
+    expect(fillFraming({ template: 'readOn', args: { atIso: NOW.toISOString() } }, NOW)).toBe(
+      'You read this today.',
+    );
+    expect(fillFraming({ template: 'readOn', args: { atIso: daysBefore(1) } }, NOW)).toBe(
+      'You read this yesterday.',
+    );
+  });
+
+  it('never names today weekday, which would mean either today or a week ago', () => {
+    const weekAgo = reviewFraming(
+      { ...base, kind: 'chapter', person: null, rungKey: 'chapter.verse', lastReadAt: daysBefore(7) },
+      's',
+      NOW,
+    );
+    expect(weekAgo?.template).not.toBe('readOn');
+    const sixDays = reviewFraming(
+      { ...base, kind: 'chapter', person: null, rungKey: 'chapter.verse', lastReadAt: daysBefore(6) },
+      's',
+      NOW,
+    );
+    expect(sixDays?.template).toBe('readOn');
+  });
+
+  it('lets a weekday go once it is no longer this week', () => {
+    const spec = reviewFraming(
+      { ...base, kind: 'chapter', person: null, rungKey: 'chapter.verse', lastReadAt: daysBefore(20) },
+      's',
+      NOW,
+    );
+    // "You read this on Tuesday" three weeks later names the wrong Tuesday.
+    expect(spec?.template).not.toBe('readOn');
+  });
+
+  it('counts reads and names a marked verse without naming the verse', () => {
+    const facts = {
+      ...base,
+      kind: 'chapter' as const,
+      person: null,
+      rungKey: 'chapter.finish' as const,
+      readCount: 4,
+      readerMarked: true,
+    };
+    const seen = new Set<string>();
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const spec = reviewFraming(facts, seed, NOW);
+      if (spec) seen.add(spec.template);
+    }
+    expect(seen.has('readTwice')).toBe(true);
+    expect(seen.has('markedIn')).toBe(true);
+    expect(fillFraming({ template: 'readTwice', args: { n: 4 } }, NOW)).toBe('You have read this 4 times.');
+    expect(fillFraming({ template: 'readTwice', args: { n: 2 } }, NOW)).toBe('You have read this twice.');
+    expect(fillFraming({ template: 'markedIn', args: {} }, NOW)).toBe('You marked a verse here.');
+  });
+});

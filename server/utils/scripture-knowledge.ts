@@ -166,6 +166,40 @@ export async function getKnowledgeForReference(
   };
 }
 
+// ─── getKnowledgeForChapter ─────────────────────────────────────────────────────
+
+export interface ChapterKnowledge {
+  book: string;
+  chapter: number;
+  /** Everyone the index places anywhere in the chapter, each once. */
+  people: EntityRef[];
+}
+
+/**
+ * The people of a whole chapter — the one aggregate the chapter review rungs need.
+ *
+ * Themes are deliberately *not* aggregated. A verse carries a handful of topics; a chapter is
+ * the union of thirty-six such handfuls (John 3 counts over a thousand), and at that breadth
+ * almost any theme is defensible, which makes "pick the theme this chapter carries" a question
+ * with no wrong answer. People are placed by verse and are either in the chapter or not.
+ */
+export async function getKnowledgeForChapter(book: string, chapter: number): Promise<ChapterKnowledge> {
+  const rows = await db
+    .select({ id: BiblePeople.id, slug: BiblePeople.slug, name: BiblePeople.name })
+    .from(ScriptureEntityRefs)
+    .innerJoin(BiblePeople, eq(ScriptureEntityRefs.entityId, BiblePeople.id))
+    .where(
+      and(
+        eq(ScriptureEntityRefs.entityType, 'person'),
+        eq(ScriptureEntityRefs.book, book),
+        eq(ScriptureEntityRefs.chapter, chapter),
+      ),
+    );
+  const byId = new Map<string, EntityRef>();
+  for (const row of rows) if (!byId.has(row.id)) byId.set(row.id, row);
+  return { book, chapter, people: [...byId.values()] };
+}
+
 // ─── passage aggregation (for related-notes + passage-aware tagging) ─────────────
 
 /** A note's cited passages — its own ScriptureMetadata plus any linked scripture notes, deduped. */
@@ -332,9 +366,35 @@ export interface RelatedNotesOptions {
   maxCrossRefs?: number;
 }
 
+/** One of the user's scripture-tagged notes, as the candidate scan returns it. */
+export interface RelatedNoteCandidate extends VerseKey {
+  noteId: string;
+}
+
 export interface RelatedNotesForPassagesOptions extends RelatedNotesOptions {
   /** When set, exclude this note from candidate matches (e.g. the source note). */
   excludeNoteId?: string;
+  /**
+   * The user's candidate rows, already fetched.
+   *
+   * The scan is per-user, not per-passage: it returns every scripture-tagged note the user
+   * has, and the only thing the source note changes about it is which single note gets
+   * filtered out. A caller ranking one note should leave this alone. A caller ranking many
+   * in a row — connect-suggestions walks up to twenty — would otherwise run the same scan
+   * once per note and throw away all but one row's difference each time, which was most of
+   * what made that endpoint slow. Pass {@link getRelatedNoteCandidates} once and the
+   * exclusion still happens here, in memory.
+   */
+  candidates?: RelatedNoteCandidate[];
+}
+
+/** The candidate scan on its own, for callers that rank several notes against one user. */
+export async function getRelatedNoteCandidates(userId: string): Promise<RelatedNoteCandidate[]> {
+  return db
+    .select({ noteId: ScriptureMetadata.noteId, book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse })
+    .from(ScriptureMetadata)
+    .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+    .where(and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture')));
 }
 
 /**
@@ -383,15 +443,19 @@ export async function getRelatedNotesForPassages(
     .limit(maxThemes);
   const themeIds = [...new Set(themeRows.map((t) => t.topicId))];
 
-  const candidateWhere = excludeNoteId
-    ? and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), ne(ScriptureMetadata.noteId, excludeNoteId))
-    : and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'));
-
-  const candidates = await db
-    .select({ noteId: ScriptureMetadata.noteId, book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse })
-    .from(ScriptureMetadata)
-    .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
-    .where(candidateWhere);
+  // Filtering the supplied rows rather than re-querying keeps the two paths identical: the
+  // SQL exclusion below is the same `!= excludeNoteId` predicate, just pushed to the database.
+  const candidates = opts.candidates
+    ? (excludeNoteId ? opts.candidates.filter((c) => c.noteId !== excludeNoteId) : opts.candidates)
+    : await db
+        .select({ noteId: ScriptureMetadata.noteId, book: ScriptureMetadata.book, chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse })
+        .from(ScriptureMetadata)
+        .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+        .where(
+          excludeNoteId
+            ? and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture'), ne(ScriptureMetadata.noteId, excludeNoteId))
+            : and(eq(Notes.userId, userId), ne(Notes.noteType, 'scripture')),
+        );
 
   const verseToNotes = new Map<string, Set<string>>();
   for (const c of candidates) {

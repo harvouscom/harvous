@@ -77,7 +77,7 @@ import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import HomeSection from './PrototypeHomeSection';
-import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
+import { useProtoHomeViewClassName, useProtoSpaceLoaderState } from './useProtoHomeViewEnter';
 import {
   buildSharedSpaceNoteCardSlots,
   buildSharedSpaceSocialIntro,
@@ -706,6 +706,7 @@ function PrototypeSpaceHubLive() {
     groupThreadsSettled &&
     scriptureSettled;
   const homeViewClassName = useProtoHomeViewClassName(contentReady, activeSpaceId);
+  const { showLoader, loaderLeaving } = useProtoSpaceLoaderState(contentReady);
 
   /*
    * Into the Library panel, which is where a list lives now.
@@ -953,7 +954,9 @@ function PrototypeSpaceHubLive() {
   }
 
   if (!contentReady) {
-    return frame(<ProtoSpaceLoading label="Loading space" />);
+    // Withheld for the first 150ms so a warm remount shows nothing rather than a flash of
+    // dots. See useProtoSpaceLoaderState.
+    return frame(showLoader ? <ProtoSpaceLoading label="Loading space" /> : null);
   }
 
 
@@ -1109,6 +1112,9 @@ function PrototypeSpaceHubLive() {
 
       <div className="proto-sidebar-scroll">
         <div className={homeViewClassName}>
+          {/* Fading out over the dashboard arriving underneath, so the two states overlap
+              rather than swapping between frames. Out of flow; costs the layout nothing. */}
+          {showLoader ? <ProtoSpaceLoading label="Loading space" leaving={loaderLeaving} /> : null}
           {/*
             What this room is studying next. Staff-gated server-side, so it is
             only requested for someone who can already see the church's plans;
@@ -1224,7 +1230,7 @@ function PrototypeSpaceHubLive() {
                 <>
                   {/* Rows in one panel, not a pile of cards to expand. A list you can read
                       beats a stack you have to open. */}
-                  <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
+                  <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-cascade">
                     {availableThreads.map((thread) => renderThreadRow(thread))}
                   </div>
                   {threadPinError ? (
@@ -1235,7 +1241,7 @@ function PrototypeSpaceHubLive() {
                 </>
               ) : threadStackItems.length > 0 ? (
                 <>
-                  <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel">
+                  <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-cascade">
                     {threadStackItems.map((thread) => renderThreadRow(thread))}
                   </div>
                   {threadPinError ? (
@@ -1362,7 +1368,7 @@ function PrototypeSpaceHubLive() {
           {companionRows.length > 0 ? (
             <div className="proto-home-section">
               <p className="proto-caption proto-home-section__eyebrow">Paired with</p>
-              <ProtoToolsRowList rows={companionRows} />
+              <ProtoToolsRowList rows={companionRows} cascade />
             </div>
           ) : null}
 

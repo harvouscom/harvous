@@ -17,6 +17,7 @@ import { db } from '../db/client';
 import { sql } from 'drizzle-orm';
 import { recallKindDisplayLabel } from '@/utils/recall-opportunity-kinds';
 import { isRecallEventsTableMissing } from '../utils/pg-undefined-relation';
+import { requireDbTarget } from '../utils/require-db-target';
 
 function parseArgs() {
   let days = 60;
@@ -37,6 +38,7 @@ type Row = {
 };
 
 async function main() {
+  requireDbTarget({ scriptName: 'recall-open-rate-by-kind', writes: false });
   const { days } = parseArgs();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 

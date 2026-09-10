@@ -1,3 +1,4 @@
+import type { ReviewAnswerEcho } from '@/utils/review-answer-echo';
 import type { RecallOpportunityKind } from '@/utils/recall-opportunity-kinds';
 import { clearComposeRestoreStash } from '../lib/compose-session-restore';
 import {
@@ -348,7 +349,7 @@ export type PaperStackMorphFrom = {
 };
 
 export type PaperStackOrigin = {
-  kind: 'reader' | 'homeCard' | 'noteDock';
+  kind: 'reader' | 'homeCard' | 'noteDock' | 'reviewCard';
   /** See `PaperStackMorphFrom`. Absent means "no morph" — the sheet just arrives. */
   morphFrom?: PaperStackMorphFrom;
   /** Sub-kind for `homeCard` (a RecallOpportunityKind or 'revisit'). Telemetry only. */
@@ -362,6 +363,32 @@ export type PaperStackOrigin = {
    * nothing proposed them — so their edge stays a plain way back.
    */
   suggestion?: { id: string; kind: string };
+  /**
+   * The review item this sheet is the answer to.
+   *
+   * A `reviewCard` origin means the note on screen was opened to answer a question about it, so
+   * the edge stops being a way back and becomes the verdict: "I almost had it" / "I recalled it".
+   * `attempted` decides which verdicts are offered — someone who wrote something, or said they
+   * had it in mind, is judging a real retrieval; someone who revealed cold is not, and gets the
+   * single honest answer instead. Snapshotted here rather than read from the dock because the
+   * edge renders in the layout, and a keystroke in the dock must not re-render the shell.
+   */
+  review?: {
+    itemId: string;
+    attempted: boolean;
+    attempt?: string;
+    /** Where recall stood before this answer, so the result can say when it crossed into holding. */
+    recallState?: string;
+    /**
+     * The question and what it was about, carried so the result card can recap them.
+     *
+     * Read from here rather than from `base.title` below: that is a display slot on a union,
+     * and a result that depended on how a card happens to be laid out would break the first
+     * time the layout changed.
+     */
+    prompt?: string;
+    subject?: string | null;
+  };
   label: string;
   icon: string;
   returnTo: PaperStackReturnTo;
@@ -399,6 +426,94 @@ export type PaperStackState = {
    * is `clearPaperStack`.
    */
   open: boolean;
+};
+
+/**
+ * The Review dock's own state, which is the reason Review is not a page.
+ *
+ * It lives here rather than in a route or in the dock component because the card has to outlive
+ * both: you can be asked about a note on Activity, open the note, read a chapter, and come back
+ * without the question being lost. The host renders outside the router's Outlet, so the card
+ * itself never unmounts; this is what tells it which item to show and whether it is open.
+ *
+ * Deliberately does NOT hold the attempt text. The context value is one large memo, so a
+ * keystroke here would re-render every consumer in the shell; the dock keeps its own draft and
+ * hands a snapshot to `PaperStackOrigin.review` when it reveals.
+ */
+/**
+ * What just happened, so the dock can say so.
+ *
+ * Lives on shell state rather than inside the dock because a verdict can be given from the
+ * paper stack's edge, and answering there clears the stack synchronously — the card that
+ * would show the result is unmounting at the moment the answer lands. The dock, which is
+ * always mounted, picks it up from here instead.
+ */
+export type ReviewDockResult = {
+  outcome: 'recalled' | 'almost' | 'revealed';
+  /** "Back in 2 weeks", phrased once on the server so web and native cannot drift. */
+  label: string;
+  recallState: string;
+  /** True when this answer is what moved it into "Holding" — worth marking, once. */
+  crossedToDurable: boolean;
+  /**
+   * The verse a rung withheld while asking, shown once the answer is in.
+   *
+   * Null on every rung that had the verse on screen all along. Putting the words back in order
+   * and naming the reference are the two that hide it, and leaving the reader with four
+   * shuffled phrases and no verse is not how a review should end.
+   */
+  verseText?: string | null;
+  /** How much of the verse that answer reached. A count; it names no word. */
+  reached?: { matched: number; total: number } | null;
+  /**
+   * The question, as it was asked.
+   *
+   * The result used to arrive without it, so a card read "The answer / I am the vine; you are
+   * the branches." with nothing above it saying what had been asked — and on the rungs keyed to
+   * the curated index, "The index has this as / Moses" with no question at all. A recap that
+   * leaves out the question is not a recap.
+   */
+  prompt?: string | null;
+  /**
+   * Which thing it was about, where the question does not name it.
+   *
+   * Also where the rungs that deliberately *hid* the subject can finally say it: "say where
+   * this is from" cannot name the passage while it is the answer, and has every reason to once
+   * the answer is in.
+   */
+  subject?: string | null;
+  /**
+   * What the reader submitted, marked.
+   *
+   * Absent where there is nothing to hand back — the self-judged rungs, where they read the
+   * note and said how it went, have no answer for the card to echo.
+   */
+  echo?: ReviewAnswerEcho | null;
+  /**
+   * Missed four times after being held. The one moment Review says a thing is not working
+   * rather than asking again, so the result carries the item to act on.
+   */
+  leech?: boolean;
+  itemId?: string;
+  /**
+   * The option that was right, after the last go was spent on a wrong one.
+   *
+   * Only on the rungs whose answer is one of the options: where the answer is the verse, the
+   * verse comes back instead.
+   */
+  correctAnswer?: string | null;
+  /** True when that answer is the curated index's reading rather than the text's or the reader's. */
+  fromIndex?: boolean;
+  /** Set fresh on each answer so the dock's dwell timer restarts. */
+  at: number;
+};
+
+export type ReviewDockState = {
+  /** Which item is being asked. Null means "whatever is next in the session". */
+  itemId: string | null;
+  expanded: boolean;
+  /** The moment after an answer, cleared once the dock has shown it. */
+  lastResult: ReviewDockResult | null;
 };
 
 /** Bottom chrome on note routes — format bar, scripture dock, etc. */
@@ -600,6 +715,19 @@ type ProtoShellContextValue = {
    */
   composeSeed: PrototypeComposeSeed | null;
   /** Non-null while a sheet is stacked over an origin paper (reader, Home card, note). */
+  /**
+   * The Review dock — one question, floating at the foot of the pane on every view.
+   *
+   * Null when closed. `openReviewDock()` with no id means "ask whatever is next".
+   */
+  reviewDock: ReviewDockState | null;
+  openReviewDock: (itemId?: string | null, options?: { expanded?: boolean }) => void;
+  closeReviewDock: () => void;
+  setReviewDockExpanded: (expanded: boolean) => void;
+  /** Move the dock to another item — used when the current one is answered and leaves the queue. */
+  setReviewDockItem: (itemId: string | null) => void;
+  /** Record what an answer produced, from either verdict path. Null clears the moment. */
+  setReviewDockResult: (result: ReviewDockResult | null) => void;
   paperStack: PaperStackState | null;
   /** Stack a sheet over an origin. Replaces any existing stack — there is exactly one edge. */
   stackNote: (origin: PaperStackOrigin, noteId?: string) => void;
@@ -672,6 +800,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   drawerOpenRef.current = drawerOpen;
   const threadPanelExpandedRef = useRef(threadPanelExpanded);
   threadPanelExpandedRef.current = threadPanelExpanded;
+  const [reviewDock, setReviewDock] = useState<ReviewDockState | null>(null);
   const [expandedSidebarTool, setExpandedSidebarTool] = useState<string | null>(null);
   const [expandedSidebarExiting, setExpandedSidebarExiting] = useState(false);
   /**
@@ -1555,6 +1684,38 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
    */
   const composeSeed = resolveComposeSeed(composeSeedState, composeSessionEpoch);
 
+  /*
+   * Opening with no id keeps whichever item was already up, so the toolbar and a row on the
+   * Inbox can both open the dock without one of them silently changing the question.
+   *
+   * No history entry, unlike `openExpandedSidebar`. The dock is not a place you navigated to —
+   * Back should leave the surface you are on, not close a card that is following you around.
+   */
+  const openReviewDock = useCallback(
+    (itemId?: string | null, options?: { expanded?: boolean }) => {
+      setReviewDock((current) => ({
+        itemId: itemId !== undefined ? itemId : (current?.itemId ?? null),
+        expanded: options?.expanded ?? true,
+        lastResult: null,
+      }));
+    },
+    [],
+  );
+  const closeReviewDock = useCallback(() => setReviewDock(null), []);
+  const setReviewDockExpanded = useCallback((expanded: boolean) => {
+    setReviewDock((current) => (current ? { ...current, expanded } : current));
+  }, []);
+  const setReviewDockItem = useCallback((itemId: string | null) => {
+    setReviewDock((current) => (current ? { ...current, itemId } : current));
+  }, []);
+  const setReviewDockResult = useCallback((result: ReviewDockResult | null) => {
+    // Answering from the stack's edge expands the dock: the card is the only thing left on
+    // screen that can show the result, and collapsed it would show nothing at all.
+    setReviewDock((current) =>
+      current ? { ...current, lastResult: result, expanded: result ? true : current.expanded } : current,
+    );
+  }, []);
+
   const stackNote = useCallback((origin: PaperStackOrigin, noteId?: string) => {
     setPaperStack({ origin, noteId, open: true });
   }, []);
@@ -1690,6 +1851,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,
       beginPrototypeComposeSession,
+      reviewDock,
+      openReviewDock,
+      closeReviewDock,
+      setReviewDockExpanded,
+      setReviewDockItem,
+      setReviewDockResult,
       paperStack,
       stackNote,
       setStackSheetOpen,
@@ -1786,6 +1953,12 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       clearComposeTargetSpaceIdOverride,
       setComposeTargetSpaceId,
       beginPrototypeComposeSession,
+      reviewDock,
+      openReviewDock,
+      closeReviewDock,
+      setReviewDockExpanded,
+      setReviewDockItem,
+      setReviewDockResult,
       paperStack,
       stackNote,
       setStackSheetOpen,

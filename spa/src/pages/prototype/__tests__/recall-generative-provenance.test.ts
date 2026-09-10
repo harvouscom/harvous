@@ -84,6 +84,18 @@ const CASES: { kind: string; overrides: Record<string, unknown> }[] = [
     overrides: { searchGap: { query: 'patience' } },
   },
   {
+    kind: 'readingNote',
+    overrides: {
+      readingNote: {
+        book: 'John',
+        bookOrder: 42,
+        chapter: 3,
+        readAt: new Date().toISOString(),
+        translation: 'NET',
+      },
+    },
+  },
+  {
     kind: 'reflection',
     overrides: {
       reflectionPrompt: {

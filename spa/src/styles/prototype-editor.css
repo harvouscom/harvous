@@ -105,7 +105,7 @@
  * of hoisted, for the same reason: each has to be read inside its own pane's container.
  */
 @container proto-editor-scroll (min-width: 832px) {
-  .proto-editor-content-wrap{
+  .proto-editor-content-wrap {
     --pds-paper-column: clamp(
       var(--pds-paper-column-min),
       100cqi - 2 * var(--pds-paper-column-gutter),
@@ -157,7 +157,6 @@
   }
 
   .proto-editor-surface .card-full-editable__title,
-  .proto-editor-surface .card-full-editable__title-input,
   .proto-editor-surface [data-proto-note-title] {
     font-size: 1.25rem !important;
   }
@@ -174,7 +173,8 @@
 
   .proto-editor-surface .card-full-editable__content-html h4 {
     font-size: 0.9375rem !important;
-  }}
+  }
+}
 
 /* ─── Scripture pill (prototype editor) — native mac geometry; accent surface in scripture-pill-accent.css ─ */
 /* inline-flex keeps pad in-layout (no paint-outside-line-box clip) and baseline-aligns text with prose. */
@@ -287,8 +287,7 @@
 
 /* Force SF body stack across card surface to prevent inherited Reddit Sans. */
 .proto-editor-surface .card-full-editable__content-html,
-.proto-editor-surface .card-full-editable__content-html *,
-.proto-editor-surface .card-full-editable__date {
+.proto-editor-surface .card-full-editable__content-html *{
   font-family: var(--pds-font-body) !important;
 }
 

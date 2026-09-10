@@ -24,17 +24,19 @@ import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import {
-  db,
-  Notes,
   NoteVersions,
   NoteVisitEvents,
+  Notes,
   ReadingEvents,
+  ReviewEvents,
+  ReviewItems,
   SpaceMemberships,
   SpaceNotes,
   Spaces,
   StudyThreadEntries,
   SyncDeletedEntities,
   and,
+  db,
   desc,
   eq,
   gte,
@@ -46,6 +48,7 @@ import {
 import {
   isNoteVisitEventsTableMissing,
   isReadingEventsTableMissing,
+  isReviewTableMissing,
   isStudyThreadEntriesTableMissing,
   isSyncDeletedEntitiesTableMissing,
 } from '../utils/pg-undefined-relation';
@@ -59,6 +62,7 @@ import {
   type NoteUpdateSpan,
 } from '../utils/study-feed-collapse';
 import { batchAuthorAttribution } from '../utils/dashboard-data';
+import { REVIEW_OUTCOMES } from '@/utils/review-item-kinds';
 import {
   parseStudyFeedScope,
   studyFeedItemNoteId,
@@ -81,6 +85,8 @@ const FEED_WINDOW_DAYS = 180;
 const SOURCE_ROW_CAP = 300;
 const DEFAULT_LIMIT = 40;
 const MAX_LIMIT = 100;
+/** A hard stop on the answer aggregate: the daily engine cap makes this months of study. */
+const REVIEW_ANSWER_LIMIT = 2000;
 
 /**
  * Run one source; if its table has not been migrated yet, contribute nothing.
@@ -478,7 +484,47 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
      */
     const nextCursor = items.length > limit && page.length > 0 ? page[page.length - 1].at : null;
 
-    const body: StudyFeedResponse = { success: true, items: page, nextCursor };
+    /*
+     * How the reader did, for the day's sentence and the week caption — timestamps and a flag,
+     * never an item id or a typed attempt. `shown` is not an answer and is left out.
+     */
+    const reviewAnswers = await source(
+      () =>
+        db
+          .select({
+            at: ReviewEvents.createdAt,
+            action: ReviewEvents.action,
+            // What was asked about, by the name the feed already prints on its other rows.
+            // Ids and the reader's typed attempt stay out; a label is what lets the day say
+            // "you came back to John 15:5" instead of counting at them.
+            reference: ReviewItems.scriptureReference,
+            noteTitle: Notes.title,
+          })
+          .from(ReviewEvents)
+          .leftJoin(ReviewItems, eq(ReviewItems.id, ReviewEvents.reviewItemId))
+          .leftJoin(Notes, eq(Notes.id, ReviewItems.noteId))
+          .where(
+            and(
+              eq(ReviewEvents.userId, auth.userId),
+              inArray(ReviewEvents.action, [...REVIEW_OUTCOMES]),
+              ...windowed(ReviewEvents.createdAt),
+            ),
+          )
+          .limit(REVIEW_ANSWER_LIMIT),
+      isReviewTableMissing,
+      'review answers',
+    );
+
+    const body: StudyFeedResponse = {
+      success: true,
+      items: page,
+      nextCursor,
+      reviewAnswers: reviewAnswers.map((row) => ({
+        at: row.at.toISOString(),
+        held: row.action === 'recalled',
+        label: row.reference?.trim() || row.noteTitle?.trim() || null,
+      })),
+    };
     return c.json(body);
   } catch (error) {
     const standardError = handleAPIError(error, {

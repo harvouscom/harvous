@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   formatPlanPrice,
-  foundingPlan,
+  formatCents,
   planFor,
   type PlanDefinition,
 } from '@/lib/billing-plans';
@@ -22,15 +22,20 @@ type FoundingAvailability = {
   claimed: number;
   remaining: number;
   available: boolean;
+  firstYearCents: number | null;
 };
 
 type PlanOption = {
   id: string;
   productId: string;
-  /** Short chip label, e.g. "$30/yr". */
+  /** Short chip label, e.g. "$49/yr". */
   chip: string;
   /** Full accessible name for the option. */
   label: string;
+  /** Renewal price, shown under the toggle. Only the founding offer has one. */
+  renewalNote?: string;
+  /** Send the founding discount with this checkout. */
+  founding?: boolean;
 };
 
 /** Segmented chip toggle — short price labels only. */
@@ -109,7 +114,6 @@ export default function UpgradeCheckoutButton({
 
   const monthPlan = planFor('plus', 'month');
   const yearPlan = planFor('plus', 'year');
-  const founderPlan = foundingPlan();
 
   const resolvedMonthlyLabel = priceMonthlyLabel ?? priceLabel(monthPlan, 'per month');
   const resolvedAnnualLabel = priceAnnualLabel ?? priceLabel(yearPlan, 'per year');
@@ -130,18 +134,36 @@ export default function UpgradeCheckoutButton({
     void loadFounding();
   }, [loadFounding]);
 
-  const foundingAvailable = Boolean(founding?.available && founderPlan?.productId);
+  const foundingCents = founding?.firstYearCents ?? null;
+  const foundingAvailable = Boolean(founding?.available && yearPlan?.productId && foundingCents);
 
-  // While founding spots remain: Founding + Monthly. After sell-out: Monthly
-  // only (standard $45/yr stays unlisted while Founding is the yearly path).
+  /**
+   * Two options, always: yearly and monthly. Founding is a first-year discount
+   * on the yearly product rather than a third product, so selling out changes
+   * the price on the annual chip instead of removing a chip — which is why the
+   * toggle no longer has to move the user's selection when the last slot goes.
+   */
   const options: PlanOption[] = [
-    ...(foundingAvailable && founderPlan
+    ...(yearPlan
       ? [
           {
-            id: 'founding',
-            productId: founderPlan.productId,
-            chip: chipLabel(founderPlan),
-            label: priceLabel(founderPlan, 'per year'),
+            id: 'year',
+            productId: yearPlan.productId,
+            chip:
+              foundingAvailable && foundingCents
+                ? `${formatCents(foundingCents, yearPlan.currencyCode)} first year`
+                : chipLabel(yearPlan),
+            label:
+              foundingAvailable && foundingCents
+                ? `${formatCents(foundingCents, yearPlan.currencyCode)} for the first year, then ${formatPlanPrice(yearPlan)} per year`
+                : resolvedAnnualLabel,
+            // The renewal price belongs on the checkout, not in an email eleven
+            // months later.
+            renewalNote:
+              foundingAvailable && foundingCents
+                ? `then ${formatPlanPrice(yearPlan)}/yr`
+                : undefined,
+            founding: foundingAvailable,
           },
         ]
       : []),
@@ -155,37 +177,11 @@ export default function UpgradeCheckoutButton({
           },
         ]
       : []),
-    ...(!foundingAvailable && yearPlan
-      ? [
-          {
-            id: 'year',
-            productId: yearPlan.productId,
-            chip: chipLabel(yearPlan),
-            label: resolvedAnnualLabel,
-          },
-        ]
-      : []),
   ];
 
-  const defaultId = foundingAvailable ? 'founding' : yearPlan ? 'year' : 'month';
+  const defaultId = yearPlan ? 'year' : 'month';
   const [selectedId, setSelectedId] = useState<string>(defaultId);
-
-  // Founding resolves after mount; move the selection onto it once, unless the
-  // user already picked something themselves.
   const [userPicked, setUserPicked] = useState(false);
-  useEffect(() => {
-    if (userPicked) return;
-    setSelectedId(foundingAvailable ? 'founding' : yearPlan ? 'year' : 'month');
-  }, [foundingAvailable, userPicked, yearPlan]);
-
-  // If founding sells out while the user still had it selected, land on yearly.
-  useEffect(() => {
-    if (foundingAvailable) {
-      if (selectedId === 'year') setSelectedId(userPicked ? 'month' : 'founding');
-      return;
-    }
-    if (selectedId === 'founding') setSelectedId(yearPlan ? 'year' : 'month');
-  }, [foundingAvailable, selectedId, userPicked, yearPlan]);
 
   const selected = options.find((o) => o.id === selectedId) ?? options[options.length - 1];
 
@@ -195,7 +191,7 @@ export default function UpgradeCheckoutButton({
     setIsStarting(true);
     try {
       trackCheckoutStarted({
-        plan: selected.id === 'founding' ? 'founding' : 'plus',
+        plan: selected.founding ? 'founding' : 'plus',
         interval: selected.id === 'month' ? 'month' : 'year',
         productId: selected.productId,
       });
@@ -204,17 +200,20 @@ export default function UpgradeCheckoutButton({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: selected.productId }),
+        body: JSON.stringify({
+          productId: selected.productId,
+          ...(selected.founding ? { founding: true } : {}),
+        }),
       });
 
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
         if (body.code === 'FOUNDING_SOLD_OUT') {
-          // Someone took the last slot while this page was open — fall back cleanly.
+          // Someone took the last slot while this page was open. Same product,
+          // so nothing to re-select — reloading availability drops the
+          // first-year price off the annual chip.
           await loadFounding();
-          setUserPicked(false);
-          setSelectedId('year');
-          throw new Error('The founding price was just claimed. Standard pricing is selected.');
+          throw new Error('The founding price was just claimed. Standard pricing is shown.');
         }
         throw new Error(body.error || 'Unable to start checkout');
       }
@@ -252,6 +251,9 @@ export default function UpgradeCheckoutButton({
         }}
         disabled={isStarting}
       />
+      {selected?.renewalNote ? (
+        <p className="upgrade-checkout__renewal">{selected.renewalNote}</p>
+      ) : null}
       {error ? (
         <p className="upgrade-checkout__error" role="alert">
           {error}

@@ -4,19 +4,37 @@ import {
   reloadPrototypeAfterUpdate,
   showPrototypeAppUpdateNotice,
 } from '@/utils/prototype-app-update-notice';
-import { useCallback, useEffect, useState } from 'react';
+import { isAppUpdateToastHeld, onAppUpdateToastRelease } from '../pages/prototype/welcome3-bridge';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export default function PrototypeAppUpdateToast() {
   const [visible, setVisible] = useState(false);
+  /* An update that arrived while the Harvous 3 welcome was up. Deferred rather than dropped —
+     the reload still needs asking for, just not stacked on top of the welcome. */
+  const pendingRef = useRef(false);
 
   const dismiss = useCallback(() => {
     setVisible(false);
   }, []);
 
   const show = useCallback(() => {
+    if (isAppUpdateToastHeld()) {
+      pendingRef.current = true;
+      return;
+    }
     setVisible(true);
   }, []);
+
+  useEffect(
+    () =>
+      onAppUpdateToastRelease(() => {
+        if (!pendingRef.current) return;
+        pendingRef.current = false;
+        setVisible(true);
+      }),
+    [],
+  );
 
   useEffect(() => {
     window.__harvousShowAppUpdateNotice = (opts) => {

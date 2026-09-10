@@ -27,8 +27,7 @@ import {
   setPolarCancelAtPeriodEnd,
 } from '../utils/polar-billing';
 import {
-  foundingPlan,
-  isFoundingProductId,
+  foundingOffer,
   listedPlans,
   planFor,
   type PlanInterval,
@@ -53,6 +52,7 @@ const app = new Hono();
 app.get('/api/billing/plans', async (c) => {
   try {
     const founding = await getFoundingAvailability();
+    const offer = foundingOffer();
     const plans = listedPlans().map((plan) => ({
       key: plan.key,
       name: plan.name,
@@ -60,9 +60,17 @@ app.get('/api/billing/plans', async (c) => {
       amountCents: plan.amountCents,
       currencyCode: plan.currencyCode,
       productId: plan.productId,
-      founding: Boolean(plan.founding),
-      /** Founding disappears from the buy flow once claimed out. */
-      available: plan.founding ? founding.available : true,
+      /**
+       * Founding is a discount on this row, not a row of its own, so annual
+       * carries a first-year price while seats remain. Every plan stays
+       * `available` — selling out changes the price shown, not the shelf.
+       */
+      founding: Boolean(offer && plan.productId === offer.plan.productId && founding.available),
+      foundingFirstYearCents:
+        offer && plan.productId === offer.plan.productId && founding.available
+          ? offer.firstYearCents
+          : null,
+      available: true,
     }));
     return c.json({ plans, founding }, 200, { 'Cache-Control': 'public, max-age=30' });
   } catch (error) {
@@ -103,8 +111,6 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
     let productId: string | undefined;
     if (body.productId && allowed.has(body.productId)) {
       productId = body.productId;
-    } else if (body.founding && planKey === 'plus') {
-      productId = foundingPlan()?.productId;
     } else {
       productId = planFor(planKey, interval)?.productId;
     }
@@ -113,9 +119,12 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
       return c.json({ error: 'Invalid or unconfigured plan product' }, 400);
     }
 
-    // Re-check the cap server-side: the page may have been open since before
-    // the last slot went. Falls back to standard pricing rather than failing.
-    if (isFoundingProductId(productId)) {
+    // Founding is a discount on the annual product, not a product of its own,
+    // so it rides the same checkout. Re-check the cap server-side: the page may
+    // have been open since before the last slot went.
+    const offer = foundingOffer();
+    let discountId: string | undefined;
+    if (body.founding && planKey === 'plus' && offer && productId === offer.plan.productId) {
       const founding = await getFoundingAvailability();
       if (!founding.available) {
         return c.json(
@@ -127,6 +136,7 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
           409,
         );
       }
+      discountId = offer.discountId;
     }
 
     const meta = first(
@@ -142,6 +152,7 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
     const polar = getPolarClient();
     const checkout = await polar.checkouts.create({
       products: [productId],
+      ...(discountId ? { discountId } : {}),
       externalCustomerId: auth.userId,
       ...(meta?.email?.includes('@') ? { customerEmail: meta.email } : {}),
       // Hosted Polar checkout; return to /upgrade (legacy /addon redirects preserve query).
@@ -155,7 +166,7 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
       url: checkout.url,
       interval: resolved?.interval ?? interval,
       plan: resolved?.key ?? planKey,
-      founding: Boolean(resolved?.founding),
+      founding: Boolean(discountId),
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/billing/checkout', action: 'create_checkout_session' });

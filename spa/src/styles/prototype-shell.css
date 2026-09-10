@@ -136,6 +136,29 @@
 }
 
 /*
+ * The Review slot — a second slot in the same band, before the note's carousel.
+ *
+ * It carries the shared `__slot` class deliberately rather than a class of its own. That one
+ * name is keyed by ten rules in this file (pointer-events, the empty collapse, the drawer and
+ * inspector reserves, and four breakpoints), and a parallel class would have meant restating
+ * every one of them and keeping them in step forever. The modifier below is only what actually
+ * differs.
+ *
+ * What differs is the offset: a lone card portalled into a slot is centred by the rule above,
+ * but the carousel centres its own track on the paper. The review card is a bare card, so it
+ * takes the carousel's offset explicitly and lines up with the note whether or not the note's
+ * own docks are open beside it.
+ */
+.proto-shell__study-dock-layer__slot--review > .study-dock-card {
+  transform: translateX(var(--proto-study-dock-center-offset, 0px));
+}
+
+/* Two cards in one band need air between them; one card must not gain a stray gap. */
+.proto-shell__study-dock-layer__slot--review:not(:empty) + .proto-shell__study-dock-layer__slot:not(:empty) {
+  margin-top: 4px;
+}
+
+/*
  * Clear the sidebar for a bare card only.
  *
  * Deliberately not extended to the carousel, which the reader now portals here as well: the
@@ -164,6 +187,25 @@
 
 .proto-shell--no-sidebar .proto-shell__study-dock-layer__slot:not(:empty),
 .proto-shell--sidebar-collapsed .proto-shell__study-dock-layer__slot:not(:empty) {
+  padding-left: 0;
+}
+
+/*
+ * ...and the same reset on the LAYER, which is where the bare-card reserve actually lands.
+ *
+ * The two rules above clear the slot and the one below clears the carousel track, but the
+ * sidebar offset for a bare card sits on the layer itself (see the `:has()` rule further up).
+ * So with the sidebar retired, a dock portalled straight into a slot kept a 304px reserve for
+ * a column that is not there, and sat 152px right of centre on every route — most visibly the
+ * Review dock on Activity, where the feed sheet is centred in the full width.
+ *
+ * The selector repeats the `:has()` deliberately: without it this is less specific than the
+ * rule it has to undo, and loses.
+ */
+.proto-shell--no-sidebar
+  .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card),
+.proto-shell--sidebar-collapsed
+  .proto-shell__study-dock-layer:has(> .proto-shell__study-dock-layer__slot > .study-dock-card) {
   padding-left: 0;
 }
 
@@ -292,7 +334,7 @@ html.harvous-prototype-route .proto-shell__study-dock-layer .dock-accent-swatch_
   border-radius: var(--pds-shell-frame-radius) var(--pds-shell-frame-radius) 0 0;
 }
 
-.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format{
+.proto-shell__editor-chrome-row .proto-editor-bottom-bar__format {
   padding-left: var(--proto-format-toolbar-paper-inset, 0px);
   padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
 }
@@ -638,7 +680,14 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     padding-right: var(--proto-format-toolbar-paper-right-inset, 0px);
   }
 
-  html[data-proto-keyboard-open] .proto-shell__study-dock-layer {
+  /*
+   * The band gets out of the keyboard's way — unless what is being typed into is in it.
+   *
+   * The Review dock has a textarea for writing down what you remember. Hiding the band while
+   * someone is mid-sentence would take the card away at the one moment it must not move.
+   */
+  html[data-proto-keyboard-open]
+    .proto-shell__study-dock-layer:not(:has(.proto-review-dock :focus-within)) {
     display: none;
   }
 
@@ -926,7 +975,9 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     .proto-sidebar-expanded-panel,
     .proto-sidebar-expanded-panel--exiting {
       animation: none;
-    }}}
+    }
+  }
+}
 
 @media (min-width: 900px) {
   /* Full-width track — allow single-dock card overhang past track edges. */
@@ -1267,7 +1318,6 @@ html.harvous-prototype-route .proto-shell-frame {
 html.harvous-prototype-route .proto-shell {
   background: transparent;
 }
-
 html.harvous-prototype-route .proto-shell__toolbar-cell,
 html.harvous-prototype-route .proto-shell__sidebar-toolbar-cell,
 html.harvous-prototype-route .proto-shell__detail-toolbar-cell,
@@ -2057,7 +2107,6 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   transition: opacity calc(var(--pds-duration-morph) / 2) linear;
 }
 
-
 /* The chip holds its box while the panel is out — the toolbar must not reflow under a panel
    that is animating out of that exact spot. `visibility` preserves layout where `display`
    would not; it is declared with the crossfade above, so the two cannot disagree. */
@@ -2337,7 +2386,6 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   cursor: default;
   opacity: 0.6;
 }
-
 
 /* ─── Guest mode ─────────────────────────────────────────────────────────── */
 

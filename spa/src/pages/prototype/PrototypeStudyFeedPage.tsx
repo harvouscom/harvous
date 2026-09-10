@@ -16,6 +16,8 @@
  * exists because Home's recall shelf rotates modulo its candidate count, so a late query
  * reshuffles the deck under the reader. Nothing here rotates — days are days.
  */
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
+import { reviewAnswersByDay, reviewDaySubjects } from '@/utils/review-activity-summary';
 import PrototypeStudyFeedDateJump from './PrototypeStudyFeedDateJump';
 import { studyFeedJumpStep } from '@/utils/study-feed-date-jump';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -104,7 +106,8 @@ const JUMP_FLOOR_KEY = '2020-01-01';
 export default function PrototypeStudyFeedPage() {
   const navigate = useNavigate();
   const [scope, setScope] = useState<StudyFeedScope>(STUDY_FEED_SCOPE_ALL);
-  const { items, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } = useStudyFeed(scope);
+  const { items, reviewAnswers, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useStudyFeed(scope);
 
   const libraryNav = useLibraryPanelNav();
   const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
@@ -247,6 +250,18 @@ export default function PrototypeStudyFeedPage() {
   // `now` is read once per render pass, not per item: day labels have to agree with each
   // other, and "Today" computed twice across a midnight boundary would disagree.
   const days = useMemo(() => buildStudyFeedDays(items, new Date()), [items]);
+
+  /*
+   * What the reader came back to, bucketed the same way the days are. Local, because the server
+   * sends timestamps and only this side knows the zone.
+   */
+  const reviewSubjectsForDay = useMemo(() => {
+    const byDay = new Map<string, ReturnType<typeof reviewDaySubjects>>();
+    for (const [dayKey, answers] of reviewAnswersByDay(reviewAnswers)) {
+      byDay.set(dayKey, reviewDaySubjects(answers));
+    }
+    return byDay;
+  }, [reviewAnswers]);
 
   /** Index into `days`, newest first. 0 is today. */
   const [index, setIndex] = useState(0);
@@ -440,6 +455,7 @@ export default function PrototypeStudyFeedPage() {
   const summary = summarizeStudyFeedDay(day.parts.flatMap((part) => part.items), {
     isToday: safeIndex === 0,
     partsCount: day.parts.length,
+    revisited: reviewSubjectsForDay.get(day.dayKey) ?? null,
   });
   const showGreeting = safeIndex === 0 && greeting.ready && home.countForLogic > 0;
 
@@ -457,7 +473,41 @@ export default function PrototypeStudyFeedPage() {
    * The template literals are deliberate: JSX turns a line break between the last chip and
    * the full stop into a text node, leaving the period floating.
    */
+  /*
+   * The named subject opens where it lives: a passage in the reader, anything else in the
+   * library. A reference that will not parse simply does not navigate rather than guessing.
+   */
+  const openRevisited = (label: string) => {
+    const route = readerRouteForReference(label, 'NET');
+    if (route) void navigate(landAgain(route));
+    else openLibraryPanel({ tab: 'notes', drill: null });
+  };
+
+  /*
+   * A day whose only record is the reviews has no stats to list, and "Today  so far." is what
+   * the counting sentence collapses to when there is nothing to count. On those days the clause
+   * carries the sentence on its own.
+   */
   const summarySentence = summary ? (
+    summary.stats.length === 0 && summary.revisited ? (
+      <>
+        {`${summary.lead} `}
+        {summary.revisited.named.map((name, index) => (
+          <span key={name}>
+            {index > 0 ? ' and ' : ''}
+            <button
+              type="button"
+              className="proto-glass-surface proto-feed-sheet__stat"
+              aria-label={`Open ${name}`}
+              onClick={() => openRevisited(name)}
+            >
+              {name}
+            </button>
+          </span>
+        ))}
+        {`${summary.revisited.tail}.`}
+      </>
+    ) : (
     <>
       {`${summary.lead} `}
       {summary.stats.map((stat, i) => (
@@ -487,7 +537,27 @@ export default function PrototypeStudyFeedPage() {
         </>
       ) : null}
       {`${summary.tail}.`}
+      {summary.revisited ? (
+        <>
+          {` ${summary.revisited.lead} `}
+          {summary.revisited.named.map((name, index) => (
+            <span key={name}>
+              {index > 0 ? ' and ' : ''}
+              <button
+                type="button"
+                className="proto-glass-surface proto-feed-sheet__stat"
+                aria-label={`Open ${name}`}
+                onClick={() => openRevisited(name)}
+              >
+                {name}
+              </button>
+            </span>
+          ))}
+          {`${summary.revisited.tail}.`}
+        </>
+      ) : null}
     </>
+    )
   ) : null;
 
   const edges = days.slice(safeIndex + 1, safeIndex + 1 + MAX_EDGES);
@@ -692,7 +762,10 @@ export default function PrototypeStudyFeedPage() {
             {/* Home's own order: what you were doing, then what is coming, then what is
                 offered, and only then the record of the day itself. */}
             {safeIndex === 0 && greeting.ready ? (
-              <PrototypeStudyFeedToday notes={greeting.notes} home={home} />
+              <PrototypeStudyFeedToday
+                notes={greeting.notes}
+                home={home}
+              />
             ) : null}
 
             {onboardingLeads ? null : onboardingDock}

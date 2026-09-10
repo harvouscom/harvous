@@ -50,8 +50,23 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
   it('returns purchase copy when the add-on is inactive', () => {
     const bullets = getSharedSpacesAddonFeatureBullets({ hasAddOn: false });
     expect(bullets[0]).toBe('Everything in free');
-    expect(bullets[1]).toBe('Unlimited shared spaces');
-    expect(bullets).toHaveLength(5);
+    // Review leads: since 3.0 it is what someone is buying, and it works for one
+    // person on the day they pay. Hosting follows.
+    expect(bullets[1]).toBe('Review — return to your own notes on a schedule');
+    expect(bullets[3]).toBe('Unlimited shared spaces');
+    expect(bullets).toHaveLength(7);
+  });
+
+  it('lists Review and Challenges, which shipped in 3.0', () => {
+    for (const bullets of [
+      getSharedSpacesAddonFeatureBullets({ hasAddOn: false }),
+      getSharedSpacesAddonFeatureBullets({ hasAddOn: true, ownedCount: 2, ownedLimit: 10 }),
+    ]) {
+      // Both copies: the active one rewrites exactly one bullet and passes the rest
+      // through, so neither can lose these.
+      expect(bullets.some((b) => /^Review —/.test(b))).toBe(true);
+      expect(bullets.some((b) => /^Challenges —/.test(b))).toBe(true);
+    }
   });
 
   it('keeps Everything in free and swaps the owned-spaces bullet when active', () => {
@@ -61,7 +76,10 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
       ownedLimit: 10,
     });
     expect(bullets[0]).toBe('Everything in free');
-    expect(bullets[1]).toBe('2 out of 10 shared spaces');
+    expect(bullets[1]).toBe('Review — return to your own notes on a schedule');
+    expect(bullets[3]).toBe('2 out of 10 shared spaces');
+    // Only the owned-spaces line is rewritten; everything else passes through.
+    expect(bullets).toHaveLength(7);
   });
 });
 

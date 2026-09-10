@@ -345,7 +345,8 @@
 
   .proto-shared-thread-action--primary {
     background: var(--pds-bg-accent-button);
-  }}
+  }
+}
 
 /* The shared chip bar carries sidebar-list margins; under the section eyebrow
    it only needs a little air above the cards. */

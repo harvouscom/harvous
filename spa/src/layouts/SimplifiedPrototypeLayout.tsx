@@ -1,3 +1,4 @@
+import { reviewAnswerEcho } from '@/utils/review-answer-echo';
 import DevModeBadge from '../components/DevModeBadge';
 import PrototypePinPanels from '../pages/prototype/PrototypePinPanels';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
@@ -5,11 +6,13 @@ import KeyboardShortcutsInit from '../../../src/components/react/KeyboardShortcu
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import PrototypeSyncChip from '../components/PrototypeSyncChip';
 import PrototypeAppUpdateToast from '../components/PrototypeAppUpdateToast';
+import PrototypeWelcome3 from '../pages/prototype/PrototypeWelcome3';
 import PrototypeFeedbackToast from '../components/PrototypeFeedbackToast';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { syncPassageKnowledge } from '../lib/passage-knowledge-sync';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { profileQueryOptions } from '../hooks/queries/useProfile';
 import { HARVOUS_REMOTE_SYNC_COMPLETED } from '@/utils/harvous-remote-sync-event';
 import { refreshPrototypeLists } from '../lib/refresh-client-data';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
@@ -54,6 +57,8 @@ import { cycleLibraryTab } from '../pages/prototype/library-panel/library-panel-
 import { clearLibraryChipRect } from '../pages/prototype/library-panel/library-chip-rect';
 import AdminToolbar from '@/components/react/AdminToolbar';
 import PrototypeEditorChromeBar from '../pages/prototype/PrototypeEditorChromeBar';
+import { useReviewOutcome } from '../hooks/mutations/useReviewMutations';
+import type { ReviewOutcome } from '@/utils/review-item-kinds';
 import PrototypeNotePage from '../pages/prototype/PrototypeNotePage';
 import PrototypePaperStack from '../pages/prototype/PrototypePaperStack';
 import { resolvePaperStackAfterNavigation } from '../pages/prototype/paper-stack-teardown';
@@ -144,9 +149,11 @@ import { useGuestAdoption } from '../hooks/useGuestAdoption';
 import { useGuestExitPrompt } from '../hooks/useGuestExitPrompt';
 
 export default function SimplifiedPrototypeLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
   const identity = useHarvousIdentity();
   const authReady = useAuthReady();
+  // Named for what it is for here: the shell's one read of the profile, shared with `useProfile`.
+  const profileQueryClient = useQueryClient();
   // Hands anything made as a guest to the account, the first moment there is one to hand it to.
   useGuestAdoption();
   // The checklist has nothing to wait for when there is no account — see the function's note.
@@ -215,22 +222,26 @@ export default function SimplifiedPrototypeLayout() {
 
   // Profile appearance / attendance need a session JWT — wait for useAuthReady (Bearer via api).
   useEffect(() => {
-    if (!authReady) return;
-    // One request, two consumers. Both read different fields off the same profile — letting
-    // each fetch its own would double an authenticated round trip on every cold start.
+    if (!authReady || !userId) return;
+    /*
+     * One request, now three consumers. Appearance and onboarding read different fields off
+     * the same profile, and `useProfile` — mounted below this in the tree — reads the rest.
+     *
+     * Through the query cache rather than `api.get`, so all three share one round trip. This
+     * used to fetch its own copy, which made `get-profile` the request an Activity load asked
+     * for twice; `ensureQueryData` returns the in-flight promise when `useProfile` got there
+     * first, and seeds the cache for it when this did.
+     */
     void (async () => {
       try {
-        const profile = await api.get<{
-          appearanceSettings?: string | null;
-          onboardingState?: string | null;
-        }>('/api/user/get-profile');
+        const profile = await profileQueryClient.ensureQueryData(profileQueryOptions(userId));
         void fetchAndHydrateAppearanceFromProfile(profile);
         void fetchAndHydrateOnboardingFromProfile(profile);
       } catch {
         /* offline or mid-auth — both sides keep their local caches */
       }
     })();
-  }, [authReady]);
+  }, [authReady, userId, profileQueryClient]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -350,6 +361,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     adoptStackNoteId,
     retargetStackOrigin,
     clearPaperStack,
+    setReviewDockItem,
+    setReviewDockResult,
     openDrawer,
     clearComposeDraftActive,
     beginPrototypeComposeSession,
@@ -525,6 +538,10 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     if (!stack) return;
     const { origin } = stack;
 
+    // A review edge has no flip-down: its base is a picture of a question, not a place. The
+    // edge renders no flip button, and this guards the keyboard path to the same handler.
+    if (origin.kind === 'reviewCard') return;
+
     if (origin.kind === 'noteDock') {
       if (paperStackExiting) return;
       setPaperStackExiting(true);
@@ -610,6 +627,8 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     });
   }, [paperStack, homeSpaceId, clearPaperStack, isMobileSidebar, openDrawer, chromeRouter]);
 
+  const reviewOutcome = useReviewOutcome();
+
   const handleSuggestionIgnore = useCallback(() => {
     const suggestion = paperStack?.origin.suggestion;
     if (!suggestion) return;
@@ -622,6 +641,55 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
     notifyRecallCooldownChanged();
     clearPaperStack();
   }, [paperStack, homeSpaceId, clearPaperStack]);
+
+  /**
+   * Answer the review question the stacked note was opened for.
+   *
+   * The attempt rides on the origin rather than being read from the dock: this handler lives in
+   * the layout, and reaching into the dock's local draft from here would mean putting keystrokes
+   * in shell state. The snapshot was taken when the note was revealed, which is exactly when the
+   * fact being recorded — whether a retrieval happened first — stopped being able to change.
+   *
+   * Clearing the stack is what advances the queue: the mutation drops the item from the session
+   * optimistically, the dock's resolver falls through to the next one, and the note stays open
+   * underneath because the route was already the note.
+   */
+  const handleReviewVerdict = useCallback(
+    (outcome: ReviewOutcome) => {
+      const review = paperStack?.origin.review;
+      if (!review) return;
+      const wasDurable = review.recallState === 'durable';
+      reviewOutcome.mutate(
+        { itemId: review.itemId, outcome, attempt: review.attempt },
+        {
+          // The stack is already gone by the time this lands — see below — so the moment is
+          // handed to the dock, which is the one surface still on screen.
+          onSuccess: (data) =>
+            setReviewDockResult({
+              outcome,
+              label: data.next.label,
+              recallState: data.next.recallState,
+              crossedToDurable: !wasDurable && data.next.recallState === 'durable',
+              /*
+               * The question, and what the reader wrote before opening the note — unmarked,
+               * because nothing marked it. These rungs are the self-judged ones: they read the
+               * note and said how it went, so there is no verdict to colour their words with,
+               * and the echo says so by marking nothing.
+               */
+              prompt: review.prompt ?? null,
+              subject: review.subject ?? null,
+              echo: reviewAnswerEcho({ submitted: review.attempt ? { text: review.attempt } : null }),
+              at: Date.now(),
+            }),
+        },
+      );
+      // The dock goes back to "whatever is next"; an answered item is rescheduled rather than
+      // deleted, so a pointer left on it would show the same question again. See the dock.
+      setReviewDockItem(null);
+      clearPaperStack();
+    },
+    [paperStack, reviewOutcome, setReviewDockItem, setReviewDockResult, clearPaperStack],
+  );
 
   const handleFlipSheetUp = useCallback(() => {
     setStackSheetOpen(true);
@@ -1019,6 +1087,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
         ) : null}
         {isGuest ? null : <PrototypeSyncChip userId={userId} />}
         <PrototypeAppUpdateToast />
+        {/* Sits beside the update toast because it answers the same question at a different
+            size, and holds the toast back while it is up so they never stack. */}
+        <PrototypeWelcome3 enabled={Boolean(userId) && !isGuest} />
         <PrototypeFeedbackToast />
         <PrototypeShortcutBridge />
         <KeyboardShortcutsInit />
@@ -1126,6 +1197,7 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
                 onDismiss={clearPaperStack}
                 onSuggestionNevermind={handleSuggestionNevermind}
                 onSuggestionIgnore={handleSuggestionIgnore}
+                onReviewVerdict={handleReviewVerdict}
                 /* Parked: the URL is the origin's own address, so the Outlet IS the reader
                    route — hand it down as the paper behind, which is the surface being used
                    now. Any other time the descriptor's stand-in is right, and the Outlet is
@@ -1190,9 +1262,13 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
             It still goes down with a stacked note sheet: with the note flipped away the bar
             below it belongs to the chapter, and leaving the note's toolbar hovering over
             Scripture would also cover the way back up to the note. */}
-        {(isNoteRoute || isPrototypeReadPath(pathname)) && (!paperStack || paperStack.open) ? (
-          <PrototypeEditorChromeBar />
-        ) : null}
+        {/* Always mounted: the Review dock lives in this bar's floating layer and has to reach
+            Activity and the reader too. The old condition now only governs the format bar. */}
+        <PrototypeEditorChromeBar
+          bottomBarActive={
+            (isNoteRoute || isPrototypeReadPath(pathname)) && (!paperStack || paperStack.open)
+          }
+        />
         </div>
       </div>
     </>

@@ -37,6 +37,8 @@ vi.mock('../../db', () => {
 
 vi.mock('@/utils/ids', () => ({ generateTimestampId: () => 'id' }));
 vi.mock('./note-recall-state', () => ({ recordNoteRecallEngaged: vi.fn() }));
+// Reaches `dashboard-data` for real otherwise, which needs schema exports this mock does not carry.
+vi.mock('../study-bible-layer', () => ({ noteTouch: vi.fn(), touchNodes: vi.fn() }));
 
 const { resolveRecallRoomScope } = await import('../record-recall-event');
 

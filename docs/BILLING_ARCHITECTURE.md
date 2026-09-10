@@ -64,7 +64,7 @@ amountCents, features, limits, listed }`.
   grandfathered subscribers keep resolving to the right features and limits.
 - Product ids come from **env** (`POLAR_PLUS_PRODUCT_MONTHLY`/`_ANNUAL` + `VITE_` mirrors) so sandbox and
   live stay distinct.
-- `limitsForFeatures(features)` resolves per-plan caps (owned spaces, members/space). Plus = 10 / 30.
+- `limitsForFeatures(features)` resolves per-plan caps (owned spaces, members/space). Plus = unlimited / 50 — the member cap is the fence, not the space count.
 
 ---
 

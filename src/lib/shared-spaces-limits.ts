@@ -13,17 +13,34 @@ export const OWNED_SHARED_SPACES_ADDON_LIMIT = UNLIMITED;
 /** Total people in a space (including owner). */
 export const MEMBERS_PER_SPACE_CAP = 50;
 
-/** Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short. */
+/**
+ * Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short.
+ *
+ * Review and Challenges lead, because since 3.0 they are what someone is buying:
+ * hosting is social and needs a group, while returning to your own study works
+ * for one person on the day they pay. They were appended at the end when they
+ * shipped; that was a plumbing decision, and this is the ordering one.
+ */
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
+  'Review — return to your own notes on a schedule',
+  'Challenges — short guided paths through a Thread or verse',
   'Unlimited shared spaces',
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
   'Turn a thread into a study plan your group reads together',
   'Joining is always free',
 ] as const;
 
-/** Purchase-copy line for owned spaces (index 1 — after “Everything in Free”). */
-const OWNED_SPACES_PURCHASE_BULLET = SHARED_SPACES_ADDON_FEATURE_BULLETS[1];
+/**
+ * Which bullet the active copy rewrites with live usage. Named rather than
+ * assumed, so reordering the list above is a one-line change here instead of a
+ * silent mismatch between the purchase and active copy.
+ */
+const OWNED_SPACES_BULLET_INDEX = 3;
+
+/** Purchase-copy line for owned spaces. */
+const OWNED_SPACES_PURCHASE_BULLET =
+  SHARED_SPACES_ADDON_FEATURE_BULLETS[OWNED_SPACES_BULLET_INDEX];
 
 /** Owned-spaces bullet when the add-on is active — usage vs plan allotment. */
 export function formatOwnedSharedSpacesFeatureBullet(options: {
@@ -58,20 +75,17 @@ export function getSharedSpacesAddonFeatureBullets(options?: {
     return SHARED_SPACES_ADDON_FEATURE_BULLETS;
   }
 
-  const includesFree = SHARED_SPACES_ADDON_FEATURE_BULLETS[0];
-  const staticTail = SHARED_SPACES_ADDON_FEATURE_BULLETS.slice(2);
   const ownedLimit = options.ownedLimit ?? OWNED_SHARED_SPACES_ADDON_LIMIT;
   const ownedCount = options.ownedCount;
 
-  if (ownedCount == null) {
-    return [includesFree, OWNED_SPACES_PURCHASE_BULLET, ...staticTail];
-  }
+  const ownedBullet =
+    ownedCount == null
+      ? OWNED_SPACES_PURCHASE_BULLET
+      : formatOwnedSharedSpacesFeatureBullet({ ownedCount, ownedLimit });
 
-  return [
-    includesFree,
-    formatOwnedSharedSpacesFeatureBullet({ ownedCount, ownedLimit }),
-    ...staticTail,
-  ];
+  return SHARED_SPACES_ADDON_FEATURE_BULLETS.map((bullet, index) =>
+    index === OWNED_SPACES_BULLET_INDEX ? ownedBullet : bullet,
+  );
 }
 
 export interface SpaceMembersCapacityCopy {

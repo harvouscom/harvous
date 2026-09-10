@@ -1,5 +1,5 @@
 import { useQuery, useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { isSupabaseRealtimeConfigured } from '@/lib/supabase-client';
 import { getSharedSpaceUnseenSince } from '../useSharedSpaceVisit';
 import { useAuthReady } from '../useAuthReady';
@@ -241,6 +241,21 @@ export function useSpace(spaceId: string) {
   });
 }
 
+/**
+ * Notes query keys already repaired since auth last became ready.
+ *
+ * `useSpaceNotes` re-fetches when `authReady` flips false-to-true, which repairs the cold-start
+ * 401 race `useAuthReady` documents: a query that fires before the session JWT is usable fails
+ * and never retries itself. That repair is load-bearing and stays.
+ *
+ * What does not stay is doing it once per *hook instance*. Activity mounts three consumers of
+ * the same notes page — Home's list, the mention picker's source, and the Library panel — so one
+ * page was fetched three times on every load. The latch lives at module scope because those
+ * three are siblings with no shared owner to hold it, and is keyed by query key so another
+ * space, or the same space under a different `unseenSince`, still repairs on its own.
+ */
+const authRepairedNoteKeys = new Set<string>();
+
 export function useSpaceNotes(
   spaceId: string,
   limit = 20,
@@ -258,8 +273,12 @@ export function useSpaceNotes(
   const initialData: InfiniteData<SpaceNotesPage, number> | undefined = cachedFirstPage
     ? { pages: [cachedFirstPage], pageParams: [0] }
     : undefined;
+  const queryKey = useMemo(
+    () => ['space', id, 'notes', 'no-legacy-scripture', 'updated', unseenSince ?? ''],
+    [id, unseenSince],
+  );
   const query = useInfiniteQuery({
-    queryKey: ['space', id, 'notes', 'no-legacy-scripture', 'updated', unseenSince ?? ''],
+    queryKey,
     queryFn: async ({ pageParam = 0 }) => {
       const page = await api.get<SpaceNotesPage>(`/api/spaces/${id}/notes`, {
         offset: pageParam,
@@ -289,14 +308,39 @@ export function useSpaceNotes(
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
 
+  const repairKey = JSON.stringify(queryKey);
+  const refetch = query.refetch;
   const prevAuthReadyRef = useRef(authReady);
   useEffect(() => {
     const wasReady = prevAuthReadyRef.current;
     prevAuthReadyRef.current = authReady;
-    if (!wasReady && authReady && id) {
-      void query.refetch();
+    if (wasReady && !authReady) {
+      // Auth was lost, so the race is ahead of us again and the repair must be available
+      // for the next sign-in. Only a real true-to-false transition releases it — never the
+      // `false` every instance starts at, which is what a late-mounting consumer would
+      // otherwise use to re-open a repair already made.
+      authRepairedNoteKeys.delete(repairKey);
+      return;
     }
-  }, [authReady, id, query.refetch]);
+    if (wasReady || !authReady || !id) return;
+    if (authRepairedNoteKeys.has(repairKey)) return;
+    authRepairedNoteKeys.add(repairKey);
+    /*
+     * `cancelRefetch: false` joins the fetch React Query starts when `enabled` flips rather
+     * than cancelling it and opening a second connection — and cancelling here never closed
+     * the first one, because the query function wires up no abort signal, so the request
+     * still travelled and still cost a round trip.
+     *
+     * Nothing is given up by joining. `enabled: authReady` is what starts that fetch, so it
+     * cannot have begun before the session existed; it already carries the credentials this
+     * repair is here to wait for.
+     */
+    void refetch({ cancelRefetch: false }).then((result) => {
+      // A repair that errored did not happen. Release the latch so the next consumer, or the
+      // next auth transition, can still make it.
+      if (result.isError) authRepairedNoteKeys.delete(repairKey);
+    });
+  }, [authReady, id, repairKey, refetch]);
 
   return query;
 }

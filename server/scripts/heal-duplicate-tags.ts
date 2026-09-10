@@ -18,6 +18,7 @@ import { first } from '../db/helpers';
 import { Tags, NoteTags } from '../db/schema';
 import { and, eq } from 'drizzle-orm';
 import { normalizeTagName } from '../utils/tag-helpers';
+import { requireDbTarget } from '../utils/require-db-target';
 
 function parseArgs() {
   const dryRun = process.argv.includes('--dry-run');
@@ -47,6 +48,7 @@ function pickCanonicalTag(group: TagRow[]): TagRow {
 }
 
 async function main() {
+  requireDbTarget({ scriptName: 'heal-duplicate-tags', writes: true });
   const { dryRun, userId } = parseArgs();
   console.log(dryRun ? '[dry-run] Scanning duplicate tags…' : 'Healing duplicate tags…');
 

@@ -55,6 +55,7 @@ describe('isPrototypeHomePresentationReady', () => {
     churchSermonsSettled: true,
     churchFeedSettled: true,
     readingPositionSettled: true,
+    studyBibleSettled: true,
   };
 
   it('returns true when all presentation deps are settled', () => {
@@ -114,6 +115,7 @@ describe('home readiness composition', () => {
     churchSermonsSettled: true,
     churchFeedSettled: true,
     readingPositionSettled: true,
+    studyBibleSettled: true,
   };
 
   it('is not ready on notes alone', () => {

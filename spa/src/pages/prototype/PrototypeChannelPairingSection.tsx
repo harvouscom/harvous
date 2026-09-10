@@ -56,7 +56,7 @@ export default function PrototypeChannelPairingSection({
   return (
     <div className="proto-home-section">
       <p className="proto-caption proto-home-section__eyebrow">Channels for spaces</p>
-      <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
+      <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-home-cascade">
         {sharedSpaces.map((space) => {
           const paired = channelForSpace.get(space.id) ?? null;
           const isOpen = openFor === space.id;

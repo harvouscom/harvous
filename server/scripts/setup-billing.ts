@@ -29,23 +29,29 @@ type DesiredProduct = {
   envVar: string;
 };
 
+/**
+ * Keep every amount here equal to `getPlans()` in src/lib/billing-plans.ts.
+ * This script matches on name + exact amount and *creates* on a mismatch rather
+ * than editing, so a price changed in only one of the two files silently spawns
+ * a duplicate product instead of failing. `npm run billing:verify` is what
+ * catches the drift.
+ *
+ * Founding is not here on purpose: since 3.0 it is a `duration: once` discount
+ * on the annual product, not a product. Create it in the Polar dashboard with
+ * `max_redemptions` equal to `FOUNDING_CAP`, restricted to the annual product,
+ * and put its id in POLAR_PLUS_FOUNDING_DISCOUNT_ID.
+ */
 const DESIRED: DesiredProduct[] = [
-  {
-    name: 'Harvous Plus — Founding',
-    interval: 'year',
-    amountCents: 3000,
-    envVar: 'POLAR_PLUS_PRODUCT_FOUNDING_ANNUAL',
-  },
   {
     name: 'Harvous Plus (Monthly)',
     interval: 'month',
-    amountCents: 500,
+    amountCents: 700,
     envVar: 'POLAR_PLUS_PRODUCT_MONTHLY',
   },
   {
     name: 'Harvous Plus (Annual)',
     interval: 'year',
-    amountCents: 4500,
+    amountCents: 4900,
     envVar: 'POLAR_PLUS_PRODUCT_ANNUAL',
   },
   {

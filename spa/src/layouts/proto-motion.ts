@@ -126,3 +126,29 @@ export const PROTO_FOUNDER_LETTER_PAPER_MS = 900;
 
 /** Founder letter sheet unmount delay — paper fan-back + small buffer. */
 export const PROTO_FOUNDER_LETTER_SHEET_EXIT_MS = 920;
+
+/**
+ * How long the Review dock holds the moment after an answer.
+ *
+ * Long enough to read "Recalled. Back in two weeks." and short enough that a sitting of three
+ * does not feel gated on animation. The reader can start typing the next answer before it
+ * clears — the timer replaces the card, it does not block anything.
+ */
+export const PROTO_REVIEW_RESULT_DWELL_MS = 1800;
+
+/**
+ * How long a space dashboard wears `--enter` — MUST outlast every animation the class
+ * starts, which is the section fade (`--pds-duration-home-section`) and, running
+ * alongside it rather than after it, the row cascade: `--pds-duration-home-row` plus the
+ * last row's share of `--pds-duration-home-row-step`. The cascade caps at six rows, so
+ * five steps.
+ *
+ * The two are concurrent, so this is the longer of them and not their sum:
+ * max(420, 320 + 5×28) = 460, plus slack for a row that starts a frame late. Adding them
+ * would hold an inert class on the view for most of a second after everything had settled.
+ *
+ * Generous in one direction only. The class is *removed* when the window ends, and removing
+ * it mid-animation snaps a half-faded row to full opacity — visible, and worse than the
+ * wait. `proto-motion-home-enter.test.ts` holds both bounds.
+ */
+export const PROTO_HOME_ENTER_WINDOW_MS = 560;

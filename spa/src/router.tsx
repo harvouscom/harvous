@@ -413,6 +413,49 @@ function buildPrototypeRouteBranch() {
     component: lazyRouteComponent(() => import('./pages/prototype/PrototypeReadTodayPage')),
   });
 
+  /**
+   * Review has no page of its own any more — both of its URLs land on Activity.
+   *
+   * `review/session` went first: the question is asked in a dock, so a session was never a
+   * destination. `review` followed it. It listed the whole queue on a screen nothing in the
+   * app ever linked to, which made the two things only it could do — picking a paused item
+   * back up, recovering one that was put down — reachable only by typing a URL. Those live
+   * under the queue on Activity now, folded away beneath it, next to the actions that create
+   * them.
+   *
+   * Kept as redirects rather than deleted, because both URLs were live and a bookmark or a
+   * stale tab should land somewhere rather than on nothing. Both segments stay in
+   * `RESERVED_PROTOTYPE_SEGMENTS`, which is what keeps the single-segment `$noteId` catch-all
+   * from reading them as a note id.
+   */
+  const prototypeReviewRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'review',
+    beforeLoad: () => {
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
+    },
+  });
+
+  const prototypeReviewSessionRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'review/session',
+    beforeLoad: () => {
+      throw redirect({ to: prototypeHomeRouteTo(), replace: true });
+    },
+  });
+
+  const prototypeChallengesRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'challenges',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeChallengesPage')),
+  });
+
+  const prototypeChallengeRoute = createRoute({
+    getParentRoute: () => simplifiedPrototypeRoute,
+    path: 'challenges/$challengeId',
+    component: lazyRouteComponent(() => import('./pages/prototype/PrototypeChallengePage')),
+  });
+
   const prototypeLegacySpaceRedirectRoute = createRoute({
     getParentRoute: () => simplifiedPrototypeRoute,
     path: 'space/$spaceId',
@@ -580,9 +623,15 @@ function buildPrototypeRouteBranch() {
     prototypeAdminVotdRoute,
     prototypeAdminChurchesRoute,
     ...(prototypeDevRouteErrorPreviewRoute ? [prototypeDevRouteErrorPreviewRoute] : []),
-    // Before the catch-all `$noteId`, which would otherwise swallow `/read`.
+    // Before the catch-all `$noteId`, which would otherwise swallow `/read`, `/review` and
+    // `/challenges`. The two-segment forms come first so they cannot be shadowed by their own
+    // one-segment parents.
     prototypeReadTodayRoute,
     prototypeReadRoute,
+    prototypeReviewSessionRoute,
+    prototypeReviewRoute,
+    prototypeChallengeRoute,
+    prototypeChallengesRoute,
     prototypeNoteFlatRoute,
     prototypeSettingsRoute.addChildren([
       prototypeSettingsIndexRoute,

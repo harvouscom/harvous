@@ -199,7 +199,10 @@ export default function PrototypeDailyPassagePill({
                 title="View notes on this passage"
                 onClick={openScripturePassageNotes}
               >
-                <Icon name="list" size={12} aria-hidden />
+                {/* An eye for looking at what is there; the `plus` in the other branch is a
+                    create. Same pairing as the what's-new row, so "view" reads the same
+                    wherever it appears in a Home group. */}
+                <Icon name="eye" size={12} aria-hidden />
               </button>
             ) : (
               <button

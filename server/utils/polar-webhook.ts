@@ -52,6 +52,10 @@ type PolarWebhookData = {
   external_customer_id?: string | null;
   status?: string | null;
   metadata?: Record<string, unknown> | null;
+  // Discounts: subscriptions carry the applied discount; orders carry it too.
+  discountId?: string | null;
+  discount_id?: string | null;
+  discount?: { id?: string | null } | null;
   // order.paid carries the product on line items / subscription
   items?: Array<{ productId?: string | null; product?: { id?: string | null } | null }>;
 };
@@ -92,6 +96,19 @@ export function customerIdFromPolarData(data: PolarWebhookData | null | undefine
 
 export function subscriptionStatusFromPolarData(data: PolarWebhookData | null | undefined): string | null {
   return data?.status ?? null;
+}
+
+/**
+ * Polar discount id applied to this subscription/order, if any.
+ *
+ * Founding is a `duration: once` discount rather than its own product, so this
+ * is the only signal on the wire that says a founder just checked out. It is
+ * present on the first invoice and gone from every renewal after it — which is
+ * exactly why the claim gets stamped on UserMetadata instead of being re-derived.
+ */
+export function discountIdFromPolarData(data: PolarWebhookData | null | undefined): string | null {
+  if (!data) return null;
+  return data.discountId ?? data.discount_id ?? data.discount?.id ?? null;
 }
 
 /**

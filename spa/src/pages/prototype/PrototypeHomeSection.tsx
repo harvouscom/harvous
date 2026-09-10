@@ -7,7 +7,9 @@
  *
  * The `proto-home-section__list` class stays on the panel because the empty-group rule keys
  * off it: a section whose children all render null should collapse rather than leave a
- * heading over an empty box.
+ * heading over an empty box. `proto-home-cascade` is the separate opt-in that makes the rows
+ * arrive in sequence — separate because the shared space and church hub build their panels
+ * their own way and need the cascade without inheriting the empty-group behaviour.
  */
 import type { ReactNode } from 'react';
 
@@ -27,7 +29,7 @@ export default function PrototypeHomeSection({
       data-proto-spotlight={spotlight}
     >
       <p className="proto-caption proto-home-section__eyebrow">{title}</p>
-      <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-section__list">
+      <div className="proto-glass-surface proto-glass-surface--panel proto-list-panel proto-home-section__list proto-home-cascade">
         {children}
       </div>
     </section>

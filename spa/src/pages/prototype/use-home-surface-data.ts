@@ -40,6 +40,7 @@ import {
 } from '@/lib/prototype-path';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
+import { chapterKeyPartsFromReference } from '@/utils/study-bible-nodes';
 import { parseReaderQuery } from '@/utils/parse-reader-query';
 import { buildRevisitCardStackOrigin } from './paper-stack-origins';
 import { useReadingHistory } from '../../hooks/queries/useReadingHistory';
@@ -47,6 +48,7 @@ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highli
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
 import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useTagsList } from '../../hooks/queries/useTagsList';
+import { useReviewItems } from '../../hooks/queries/useReview';
 import { usePrototypeStudyThreads } from '../../hooks/queries/usePrototypeStudyThreads';
 import {
   usePrototypeSpaceStudyThreadHighlights,
@@ -64,6 +66,7 @@ import type { PrototypeNotesListPhase } from '@/utils/prototype-notes-list-phase
 import {
   isPrototypeHomeContentReady,
   isPrototypeHomePresentationReady,
+  type PrototypeHomePresentationReadyInput,
   isQuerySettled,
 } from '@/utils/prototype-home-ready';
 import {
@@ -71,6 +74,7 @@ import {
   deriveSubjectConnections,
   derivePassageConnections,
   deriveStudyArcs,
+  deriveStudyArcsFromNodes,
   deriveSectionArcs,
   sectionArcCopy,
   deriveTopBooks,
@@ -91,6 +95,7 @@ import {
   recallTrendGreetingParts,
   deriveContinueBook,
   deriveContinueReading,
+  deriveReadingNote,
   deriveRecurringPerson,
   pickBareHighlight,
   deriveReflectionPrompt,
@@ -99,6 +104,7 @@ import {
   type HomeSubjectPassageInput,
   type HomePassageConnectionInput,
   type StudyArcNoteInput,
+  pickMarkNoteCandidate,
 } from '@/utils/prototype-home-trends';
 import chapterSubjectsData from '@/data/chapter-subjects.json';
 import { currentLiturgicalSeason } from '@/utils/liturgical-season';
@@ -132,11 +138,14 @@ import { buildRecallCandidates } from './proto-recall-candidates';
 
 import { type RecallOpportunity } from './PrototypeRecallCarousel';
 
-import { useProtoHomeViewClassName } from './useProtoHomeViewEnter';
+import { useProtoHomeViewClassName, useProtoSpaceLoaderState } from './useProtoHomeViewEnter';
+import { useHomeSettleTrace } from './useHomeSettleTrace';
 
 /** Force Home to present even if an auxiliary query never settles. */
 const HOME_PRESENTATION_DEADLINE_MS = 2500;
 import { useNoteFingerprints } from '../../hooks/queries/useNoteFingerprints';
+import { useStudyBibleNodes } from '../../hooks/queries/useStudyBibleNodes';
+import type { NodeKind } from '@/utils/study-bible-nodes';
 import { deletedNoteIds, isNoteDeleted, subscribeDeletedNotes } from './proto-deleted-notes';
 import { useCrossRefGaps } from '../../hooks/queries/useCrossRefGaps';
 import { useSearchEvents } from '../../hooks/queries/useSearchEvents';
@@ -247,6 +256,9 @@ export type HomeSurfaceInput = {
   destinations: HomeSurfaceDestinations;
 };
 
+/** Only themes, for now. People and places are tracked but nothing on Home reads them yet. */
+const STUDY_ARC_NODE_KINDS: readonly NodeKind[] = ['theme'];
+
 export function useHomeSurfaceData({
   homeSpaceId,
   notes,
@@ -270,6 +282,9 @@ export function useHomeSurfaceData({
   // greeting line rewrites itself a beat later — one more thing moving after first paint.
   const { isLoaded: clerkLoaded } = useUser();
   const fingerprintsQuery = useNoteFingerprints();
+  // Themes from the reader's own Study Bible layer, which counts server-side and so can answer
+  // for someone whose notes are paginated. See the study arc below.
+  const studyBibleNodesQuery = useStudyBibleNodes(STUDY_ARC_NODE_KINDS);
   const recallHistoryQuery = useRecallEventHistory();
   const readingHistoryQuery = useReadingHistory();
   // Declared up here, above the presentation gate, because the gate reads their settled state.
@@ -305,6 +320,9 @@ export function useHomeSurfaceData({
     fingerprintsQuery.isPending,
     fingerprintsQuery.data != null,
   );
+  const studyBibleSettled =
+    isQuerySettled(studyBibleNodesQuery.isPending, studyBibleNodesQuery.data != null) ||
+    Boolean(studyBibleNodesQuery.isError);
   const connectionsSettled =
     isQuerySettled(crossRefConnectionsQuery.isPending, crossRefConnectionsQuery.data != null) &&
     isQuerySettled(
@@ -348,7 +366,11 @@ export function useHomeSurfaceData({
   // each time one of ~9 independent queries landed — the visible jumping. Wait for them
   // all, then present once. isPrototypeHomeContentReady only ever read notesListPhase;
   // the other flags passed to it were silently dropped.
-  const presentationReady = isPrototypeHomePresentationReady({
+  // Annotated, not inferred. The gate's whole contract is that every flag it declares is
+  // actually passed: hoisting the literal into a variable would otherwise drop the
+  // excess-property check that catches a flag added here and never declared there — the
+  // exact mistake that let five queries sit outside the gate for months.
+  const presentationInput: PrototypeHomePresentationReadyInput = {
     notesReady: isPrototypeHomeContentReady(notesListPhase),
     clerkLoaded,
     fingerprintsSettled,
@@ -365,7 +387,9 @@ export function useHomeSurfaceData({
     churchSermonsSettled,
     churchFeedSettled,
     readingPositionSettled,
-  });
+    studyBibleSettled,
+  };
+  const presentationReady = isPrototypeHomePresentationReady(presentationInput);
 
   // Backstop: a disabled query stays `isPending` forever in React Query v5, so without a
   // deadline one misconfigured auxiliary would strand Home on loading dots. Trading a
@@ -382,7 +406,10 @@ export function useHomeSurfaceData({
 
   const contentReady = presentationReady || presentationDeadlinePassed;
 
+  useHomeSettleTrace(presentationInput, contentReady, presentationReady);
+
   const homeViewClassName = useProtoHomeViewClassName(contentReady, homeSpaceId);
+  const { showLoader, loaderLeaving } = useProtoSpaceLoaderState(contentReady);
 
   const tags = tagsQuery.data?.tags ?? [];
   const threads = threadsQuery.data ?? [];
@@ -723,6 +750,32 @@ export function useHomeSurfaceData({
   // (Workstream A) with its timestamp; needs the full note set to count honestly. Tapping opens the
   // thread-review dialog listing notes in the arc.
   const studyArc = useMemo(() => {
+    const nowMs = Date.now();
+
+    /*
+     * The layer's counts first, because they are the only ones that survive pagination.
+     *
+     * The note-side derive below can only count the notes currently in the browser, so it
+     * refuses to answer at all once there are more — a reader with two thousand notes and a
+     * first page of twenty would be told "3 notes on adoption" when the truth is thirty. The
+     * Study Bible layer counted as the study happened, so it has no such limit.
+     */
+    const themeNodes = studyBibleNodesQuery.data?.nodes ?? [];
+    const fromLayer = themeNodes.length
+      ? deriveStudyArcsFromNodes(themeNodes, { nowMs, limit: 1 })[0]
+      : undefined;
+    if (fromLayer) {
+      // The layer knows the theme was studied; the notes on screen are what the arc can open.
+      const noteIds = notes
+        .filter((n) =>
+          (fingerprintsById.get(n.id)?.themes ?? []).some(
+            (theme) => theme.trim().toLowerCase() === fromLayer.theme.toLowerCase(),
+          ),
+        )
+        .map((n) => n.id);
+      return { ...fromLayer, noteIds };
+    }
+
     if (hasMoreNotes) return undefined;
     const arcNotes: StudyArcNoteInput[] = notes.map((n) => {
       const fp = fingerprintsById.get(n.id);
@@ -734,8 +787,8 @@ export function useHomeSurfaceData({
         emotionalTone: fp?.emotionalTone ?? null,
       };
     });
-    return deriveStudyArcs(arcNotes, { nowMs: Date.now(), limit: 1 })[0];
-  }, [notes, fingerprintsById, hasMoreNotes]);
+    return deriveStudyArcs(arcNotes, { nowMs, limit: 1 })[0];
+  }, [notes, fingerprintsById, hasMoreNotes, studyBibleNodesQuery.data]);
 
   const sectionArc = useMemo(() => {
     if (hasMoreNotes || studyArc) return undefined;
@@ -760,7 +813,12 @@ export function useHomeSurfaceData({
     if (studyArc) {
       const since = studyArcSinceLabel(studyArc.firstMs, Date.now());
       const tone = studyArcToneLabel(studyArc.dominantTone);
-      const base = `Across ${studyArc.noteCount} notes since ${since}`;
+      // A zero count means the layer found the arc, and the layer counts touches rather than
+      // notes — see deriveStudyArcsFromNodes. Saying "across 4 notes" when four is really four
+      // verse-citations inside one note is a lie the reader cannot check, so it says nothing.
+      const base = studyArc.noteCount > 0
+        ? `Across ${studyArc.noteCount} notes since ${since}`
+        : `Returning to this since ${since}`;
       return tone ? `${base} · ${tone}` : base;
     }
     if (sectionArc) return sectionArcCopy(sectionArc, Date.now());
@@ -875,8 +933,11 @@ export function useHomeSurfaceData({
     () =>
       (readingHistoryQuery.data?.chapters ?? []).map((c) => ({
         book: c.book,
+        bookOrder: c.bookOrder,
         chapter: c.chapter,
         countsAsRead: readingDwellCountsAsRead(c.dwellBucket),
+        // When it was last actually read, glances excluded — see `collapseReadingHistory`.
+        lastReadAt: c.lastReadAt ?? null,
       })),
     [readingHistoryQuery.data],
   );
@@ -898,6 +959,33 @@ export function useHomeSurfaceData({
     }));
     return deriveContinueBook(input, bibleBookChapterCounts(), { limit: 1 })[0];
   }, [scriptureBooks, hasMoreNotes, readChapters]);
+
+  /**
+   * The chapter worth writing about: read today or yesterday, and not yet cited by any note.
+   *
+   * `scriptureBooks` is the space's whole scripture index — every passage any note cites,
+   * fetched as its own query — so "have I written about this chapter" is answerable in full
+   * however many notes the list has actually loaded.
+   *
+   * Deliberately **not** gated on `hasMoreNotes`, which the neighbouring derivations are. They
+   * make claims about counts ("across 5 of your notes") and a partial library makes those
+   * untrue. This card claims only that you read a chapter, which the reading log knows on its
+   * own. Gated, it would never appear for anyone with more notes than one page — the owner's
+   * own account among them, which is how this was found.
+   */
+  const readingNoteCandidate = useMemo(() => {
+    const cited = new Set<string>();
+    for (const book of scriptureBooks) {
+      for (const passage of book.passages) cited.add(`${book.title}|${passage.chapter}`);
+    }
+    return deriveReadingNote({
+      readChapters: readChapters.map((c) => ({
+        ...c,
+        translation: readingHistoryQuery.data?.lastRead?.translation ?? null,
+      })),
+      citedChapterKeys: cited,
+    });
+  }, [readChapters, scriptureBooks, readingHistoryQuery.data?.lastRead?.translation]);
 
   /**
    * Where to pick reading back up. Kept separate from `continueBookSuggestion`, which answers a
@@ -955,12 +1043,26 @@ export function useHomeSurfaceData({
     return deriveRecurringPerson(input, { limit: 1 })[0];
   }, [notes, fingerprintsById, hasMoreNotes]);
 
+  /*
+   * The reader's own marks, and only those.
+   *
+   * Home is the personal space by design, and the personal endpoint returns only the reader's
+   * rows — so this filter is a guard, not a change. The guard exists because the home space id
+   * falls back to the last space *selected* while navigation is still loading, and that can be
+   * a shared one, whose highlight list is every member's with `isOwnHighlight` flagged. Every
+   * card downstream speaks in the second person — "the verse you marked", "add a thought to
+   * your highlight" — and the reading-note card quotes the mark into a new note under the
+   * reader's name. Another member's words must never get that far. Rows from the personal
+   * endpoint carry no flag at all, which is why the test is `!== false`.
+   */
   const highlightsWithRecency = useMemo(
     () =>
-      highlights.map((h) => ({
-        ...h,
-        recencyMs: Date.parse(prototypeHighlightRecencyIso(h) ?? '') || 0,
-      })),
+      highlights
+        .filter((h) => h.isOwnHighlight !== false)
+        .map((h) => ({
+          ...h,
+          recencyMs: Date.parse(prototypeHighlightRecencyIso(h) ?? '') || 0,
+        })),
     [highlights],
   );
 
@@ -1049,10 +1151,107 @@ export function useHomeSurfaceData({
     return hasNoteAnsweringGap(gap, notes.map((row) => row.title)) ? null : gap;
   }, [searchEventsQuery.data, recallDayIndex, notes]);
 
+  /*
+   * A note to go back into and mark, which is where the five reflective review prompts landed.
+   *
+   * `markedNoteIds` is only what is loaded — highlights arrive a page at a time — so this can
+   * suggest a note that already has marks somewhere out of memory. `pickMarkNoteCandidate`
+   * takes that trade knowingly and prefers the oldest note; the cost is a wasted card, and the
+   * alternative is never suggesting anything until every highlight is in hand.
+   */
+  const markNoteCandidate = useMemo(() => {
+    const marked = new Set<string>();
+    for (const highlight of highlightsWithRecency) {
+      if (highlight.parentNoteId) marked.add(highlight.parentNoteId);
+    }
+    // Everything Home is already pointing at, so one note is never two cards.
+    const spokenFor = new Set<string>(
+      [continueNote?.id, revisitNote?.id, revisitOnHome?.id, ...deletedIdList].filter(
+        (id): id is string => Boolean(id),
+      ),
+    );
+    return pickMarkNoteCandidate(notes, marked, spokenFor);
+  }, [notes, highlightsWithRecency, continueNote, revisitNote, revisitOnHome, deletedIdList]);
+
+  /*
+   * A named Thread to think through, carrying the questions Review retired.
+   *
+   * The spotlight Thread, and skipped when the arc card above is already about it — two cards
+   * about the same cluster in one shelf is the shelf repeating itself. `connectNotes` is not a
+   * clash: that one proposes making a Thread, this one asks about one that exists.
+   */
+  const reflectThreadCandidate = useMemo(() => {
+    if (!spotlightThread) return null;
+    /*
+     * The same Thread the Continue row points at is fine, and deliberately so: Continue is a
+     * way back in, Suggested is something to do, and Home already reads that way for notes —
+     * "The first book" sits in both, as "pick up where you left off" and as "worth marking".
+     * Excluding it here only meant an account with one Thread never saw this card at all.
+     *
+     * Not the arc above it, though: an arc card proposes the same cluster as a topic, and two
+     * cards about one cluster in one shelf is the shelf repeating itself.
+     */
+    if (activeArc && 'title' in activeArc && activeArc.title === spotlightThread.title) return null;
+    return spotlightThread;
+  }, [spotlightThread, activeArc]);
+
+  const handleOpenMarkNote = useCallback(
+    // No card stack: the invitation is to work inside the note, not to keep a trail back.
+    (row: SpaceNoteRow) => handleOpenRevisitNote(row, { stack: false }),
+    [handleOpenRevisitNote],
+  );
+
+  /*
+   * Passages Review has already taken up, so Home's two resurfacing cards can step aside for
+   * them (`review-suggestion-handoff.ts` has the rule). The query gates itself on auth and on
+   * the entitlement, so a free account fires nothing and this is empty — which is the same
+   * answer as "nothing active", and needs no branch here.
+   */
+  const activeReviewItems = useReviewItems('active');
+  /**
+   * Chapters Review has taken up, as `${book}|${chapter}`.
+   *
+   * Kept apart from the reference set above because the two are used by different rules: the
+   * resurfacing kinds defer to any verse item covering their passage, while the reading-note
+   * card defers only to a *chapter* item on that chapter. See `review-suggestion-handoff.ts`.
+   */
+  const activeReviewChapterKeys = useMemo(
+    () =>
+      new Set(
+        (activeReviewItems.data?.items ?? [])
+          .filter((item) => item.kind === 'chapter')
+          .map((item) => {
+            const parts = item.scriptureReference
+              ? chapterKeyPartsFromReference(item.scriptureReference)
+              : null;
+            return parts ? `${parts.book}|${parts.chapter}` : null;
+          })
+          .filter((key): key is string => Boolean(key)),
+      ),
+    [activeReviewItems.data],
+  );
+  const activeReviewReferences = useMemo(
+    () =>
+      new Set(
+        (activeReviewItems.data?.items ?? [])
+          .filter((item) => item.kind === 'verse')
+          .map((item) => item.scriptureReference?.trim().toLowerCase())
+          .filter((reference): reference is string => Boolean(reference)),
+      ),
+    [activeReviewItems.data],
+  );
+
   const recallCandidates = useMemo<RecallOpportunity[]>(
     () =>
       buildRecallCandidates({
         searchGap,
+        activeReviewReferences,
+        activeReviewChapterKeys,
+        readingNote: readingNoteCandidate,
+        markNote: markNoteCandidate,
+        handleOpenMarkNote,
+        reflectThread: reflectThreadCandidate,
+        handleOpenReflectThread: openThread,
         deletedNoteKey,
         continueNote,
         revisitNote,
@@ -1116,6 +1315,8 @@ export function useHomeSurfaceData({
       openCrossRefConnection,
       openPassageConnection,
       continueBookSuggestion,
+      readingNoteCandidate,
+      activeReviewChapterKeys,
       navigate,
       recurringPerson,
       bareHighlight,
@@ -1128,6 +1329,11 @@ export function useHomeSurfaceData({
       startDraftNote,
       openCrossRefGap,
       handleRecallCompleted,
+      markNoteCandidate,
+      handleOpenMarkNote,
+      reflectThreadCandidate,
+      openThread,
+      activeReviewReferences,
     ],
   );
 
@@ -1419,6 +1625,8 @@ export function useHomeSurfaceData({
     /* Gate — the view decides what to paint while this is false. */
     contentReady,
     homeViewClassName,
+    showLoader,
+    loaderLeaving,
 
     /* Greeting. */
     lead,
