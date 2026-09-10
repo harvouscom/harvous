@@ -41,6 +41,7 @@ import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
 import {
   studyFeedEmptyDayCopy,
   studyFeedScopedEmptyCopy,
@@ -837,10 +838,25 @@ export default function PrototypeStudyFeedPage() {
 
             {onboardingLeads || scopedSpace ? null : onboardingDock}
 
-            {day.isEmpty ? (
+            {day.isEmpty && scopedSpace && scopeNeverHadAnything ? (
+              /*
+               * A room that has never had anything in it is not a quiet Tuesday, and a single
+               * grey line in the middle of an empty sheet reads as a page that failed to load.
+               * The app's own empty state says what the surface is for. No action beside it:
+               * `space/$spaceId` is a legacy route that redirects to Home, so the obvious button
+               * would land the reader somewhere that is not the space it named.
+               */
+              <PrototypeListEmptyState
+                iconName="user-group"
+                title={`Nothing in ${scopedSpace.title} yet`}
+                description="What gets shared there stacks up here, a day at a time."
+              />
+            ) : day.isEmpty ? (
+              /* A quiet day inside a room that does have a trail stays a quiet line: the day
+                 nav is right there, and a block this size on every rest day would be furniture. */
               <p className="proto-feed-sheet__rest">
                 {scopedSpace
-                  ? studyFeedScopedEmptyCopy(scopedSpace.title, scopeNeverHadAnything)
+                  ? studyFeedScopedEmptyCopy(scopedSpace.title, false)
                   : studyFeedEmptyDayCopy(safeIndex === 0)}
               </p>
             ) : (
