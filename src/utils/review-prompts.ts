@@ -52,6 +52,7 @@ export const REVIEW_PROMPT_KEYS = [
   'verse.place',
   'chapter.place',
   'chapter.marked',
+  'verse.marked',
 ] as const;
 
 export type ReviewPromptKey = (typeof REVIEW_PROMPT_KEYS)[number];
@@ -244,6 +245,8 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
    */
   'chapter.marked': (ctx) =>
     named(ctx, (s) => `Pick the verse you marked in ${s}.`, 'Pick the verse you marked here.'),
+  'verse.marked': (ctx) =>
+    named(ctx, (s) => `Pick the words you marked in ${s}.`, 'Pick the words you marked here.'),
 };
 
 /**
@@ -283,6 +286,7 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'verse.place': 'Pick the place it names',
   'chapter.place': 'Pick a place it names',
   'chapter.marked': 'Pick the verse you marked',
+  'verse.marked': 'Pick the words you marked',
 };
 
 export function reviewTaskFor(key: ReviewPromptKey): string {
@@ -383,6 +387,8 @@ export interface VerseMaterial {
   locateRivals?: number;
   /** Content words in the verse, for the rungs that ask for them. */
   contentWordCount?: number;
+  /** Words in the span the reader marked on this verse, 0 when they marked none. */
+  readerSpanWords?: number;
 }
 
 /** Below this many rivals of the reader's own, "where is this from?" is a coin toss. */
@@ -408,7 +414,7 @@ export const VERSE_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
   ['verse.sequence'],
   // The book is the easier locate, and is only *available* while the reader's own reference
   // pool is too thin for a fair one — see `verseFamilyMemberAvailable`.
-  ['verse.locate', 'verse.book'],
+  ['verse.locate', 'verse.book', 'verse.marked'],
   ['verse.altered'],
 ];
 
@@ -448,6 +454,8 @@ export function verseFamilyMemberAvailable(
       return (material.contentWordCount ?? 3) >= 3;
     case 'verse.initials':
       return (material.contentWordCount ?? 4) >= 4;
+    case 'verse.marked':
+      return (material.readerSpanWords ?? 0) >= 3;
     default:
       return true;
   }
@@ -625,6 +633,7 @@ const GRADED_VERSE_KEYS = new Set<ReviewPromptKey>([
   'verse.theme',
   'verse.person',
   'verse.place',
+  'verse.marked',
   'verse.crossref',
   'verse.altered',
   'verse.sequence',

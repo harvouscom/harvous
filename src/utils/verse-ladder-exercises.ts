@@ -191,6 +191,102 @@ export function readerSpanFragment(excerpt: string | null | undefined, verseText
   return span;
 }
 
+/**
+ * "Pick the words you marked in this verse."
+ *
+ * The reader dragged a highlighter over part of a verse; the question is whether they can find
+ * that part again among windows of the same verse they did not mark. It is the smallest question
+ * in the product and one of the few whose answer is entirely theirs — no editor, no index, no
+ * reading of the text, just what they chose to underline.
+ *
+ * **The distractors are the hard part.** They are other windows of *the same verse*, cut to the
+ * same length as the span, and none may overlap it: a window sharing three of the span's five
+ * words is not a wrong answer, it is a second right one wearing a disguise. Where the verse is
+ * too short to yield enough non-overlapping windows, neighbouring verses supply the rest — cut
+ * at word boundaries, same length, so the four options read alike and only the marking tells
+ * them apart.
+ */
+/** Four windows of the same length: the one they marked, and three they did not. */
+const MARKED_OPTION_COUNT = 4;
+
+export function buildVerseMarked(input: {
+  /** The verse the reader marked, plain text. */
+  verseText: string;
+  /** Verses either side, for when the verse itself cannot spare enough windows. */
+  neighbourTexts: readonly string[];
+  /** The span they marked, already floored by `readerSpanFragment`. */
+  span: string;
+  seed: string;
+}): ChoiceExercise | null {
+  const span = input.span.replace(/\s+/g, ' ').trim();
+  const spanWords = span.split(' ').filter(Boolean);
+  if (spanWords.length < READER_SPAN_MIN_WORDS) return null;
+
+  const normalise = (value: string) => value.replace(/\s+/g, ' ').toLowerCase().trim();
+  const verseWords = input.verseText.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  const spanAt = indexOfWords(verseWords, spanWords);
+  if (spanAt < 0) return null;
+
+  const windows: string[] = [];
+  const push = (words: readonly string[], from: number) => {
+    const window = words.slice(from, from + spanWords.length);
+    if (window.length !== spanWords.length) return;
+    const text = window.join(' ');
+    // Whole words only, and never a window carrying any part of what they marked.
+    if (overlapsSpan(text, span)) return;
+    if (windows.some((taken) => normalise(taken) === normalise(text))) return;
+    windows.push(text);
+  };
+
+  // The verse's own windows first: a distractor from the same sentence is the fairest one.
+  for (let i = 0; i + spanWords.length <= verseWords.length; i++) {
+    if (i + spanWords.length > spanAt && i < spanAt + spanWords.length) continue;
+    push(verseWords, i);
+  }
+  for (const neighbour of input.neighbourTexts) {
+    const words = neighbour.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    for (let i = 0; i + spanWords.length <= words.length; i += spanWords.length) push(words, i);
+  }
+
+  return buildChoiceExercise({
+    answers: [span],
+    pool: windows,
+    optionCount: MARKED_OPTION_COUNT,
+    seed: `${input.seed}:marked`,
+  });
+}
+
+/** Where `needle` begins inside `haystack`, comparing bare words. -1 when it is not there. */
+function indexOfWords(haystack: readonly string[], needle: readonly string[]): number {
+  const bare = (value: string) => value.replace(/[^\p{L}\p{N}']/gu, '').toLowerCase();
+  for (let i = 0; i + needle.length <= haystack.length; i++) {
+    let hit = true;
+    for (let j = 0; j < needle.length; j++) {
+      if (bare(haystack[i + j]) !== bare(needle[j])) {
+        hit = false;
+        break;
+      }
+    }
+    if (hit) return i;
+  }
+  return -1;
+}
+
+/** True when a candidate shares any content word with the marked span. */
+function overlapsSpan(candidate: string, span: string): boolean {
+  const bare = (value: string) => value.replace(/[^\p{L}\p{N}']/gu, '').toLowerCase();
+  const marked = new Set(
+    span.split(' ').map(bare).filter((word) => word.length > 2 && !STOPWORDS.has(word)),
+  );
+  if (!marked.size) return false;
+  return candidate.split(' ').map(bare).some((word) => marked.has(word));
+}
+
+/** True when the reader picked the words they had actually marked. */
+export function gradeVerseMarked(exercise: ChoiceExercise, chosen: string, span: string): boolean {
+  return gradeChoiceExercise(exercise, chosen, [span]);
+}
+
 export function buildVerseLocate(
   reference: string,
   text: string,

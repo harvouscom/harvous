@@ -22,6 +22,8 @@ import {
   verseRecallCoverage,
   RECALL_MIN_SHARE,
   buildVerseRecognize,
+  buildVerseMarked,
+  gradeVerseMarked,
 } from '@/utils/verse-ladder-exercises';
 
 const JOHN_15_5 =
@@ -442,5 +444,95 @@ describe('the recognition rung', () => {
   it('refuses to ask when there is nothing to choose between', () => {
     expect(buildVerseRecognize({ answerText: verse, poolTexts: [], seed: 's' })).toBeNull();
     expect(buildVerseRecognize({ answerText: '', poolTexts: others, seed: 's' })).toBeNull();
+  });
+});
+
+describe('verse.marked', () => {
+  const VERSE =
+    'I am the vine you are the branches the one who remains in me and I in him bears much fruit';
+  const NEIGHBOURS = [
+    'Remain in me and I will remain in you just as the branch cannot bear fruit by itself',
+    'My father is honoured by this that you bear much fruit and show that you are my disciples',
+  ];
+
+  it('makes the words the reader marked the right answer', () => {
+    const exercise = buildVerseMarked({
+      verseText: VERSE,
+      neighbourTexts: NEIGHBOURS,
+      span: 'bears much fruit',
+      seed: 'item:6',
+    });
+    expect(exercise).not.toBeNull();
+    expect(exercise!.options[exercise!.answerIndex]).toBe('bears much fruit');
+  });
+
+  it('gives every option the same length, so length is not the tell', () => {
+    const exercise = buildVerseMarked({
+      verseText: VERSE,
+      neighbourTexts: NEIGHBOURS,
+      span: 'the one who remains',
+      seed: 'item:6',
+    })!;
+    const lengths = new Set(exercise.options.map((option) => option.split(' ').length));
+    expect(lengths.size).toBe(1);
+    expect([...lengths][0]).toBe(4);
+  });
+
+  it('never offers a window that shares words with what they marked', () => {
+    /*
+     * A distractor carrying part of the span is not a wrong answer, it is a second right one in
+     * disguise — the reader marked "bears much fruit" and "much fruit and show" is half of it.
+     */
+    const exercise = buildVerseMarked({
+      verseText: VERSE,
+      neighbourTexts: NEIGHBOURS,
+      span: 'bears much fruit',
+      seed: 'item:6',
+    })!;
+    const wrong = exercise.options.filter((_, i) => i !== exercise.answerIndex);
+    for (const option of wrong) {
+      expect(option).not.toContain('bears');
+      expect(option).not.toContain('fruit');
+    }
+  });
+
+  it('marks their span right and any other window wrong', () => {
+    const exercise = buildVerseMarked({
+      verseText: VERSE,
+      neighbourTexts: NEIGHBOURS,
+      span: 'bears much fruit',
+      seed: 'item:6',
+    })!;
+    expect(gradeVerseMarked(exercise, 'bears much fruit', 'bears much fruit')).toBe(true);
+    const wrong = exercise.options.find((_, i) => i !== exercise.answerIndex)!;
+    expect(gradeVerseMarked(exercise, wrong, 'bears much fruit')).toBe(false);
+  });
+
+  it('has no question when the marked words are not in the verse', () => {
+    expect(
+      buildVerseMarked({
+        verseText: VERSE,
+        neighbourTexts: NEIGHBOURS,
+        span: 'something else entirely',
+        seed: 's',
+      }),
+    ).toBeNull();
+  });
+
+  it('has no question for a span too short to be a marking', () => {
+    expect(
+      buildVerseMarked({ verseText: VERSE, neighbourTexts: NEIGHBOURS, span: 'vine', seed: 's' }),
+    ).toBeNull();
+  });
+
+  it('gives the same question for the same seed', () => {
+    const build = () =>
+      buildVerseMarked({
+        verseText: VERSE,
+        neighbourTexts: NEIGHBOURS,
+        span: 'bears much fruit',
+        seed: 'item:6',
+      })!;
+    expect(build().options).toEqual(build().options);
   });
 });

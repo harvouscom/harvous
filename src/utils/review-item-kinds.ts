@@ -148,6 +148,7 @@ const CHOICE_RUNGS = new Set<string>([
   'verse.theme',
   'verse.person',
   'verse.place',
+  'verse.marked',
   'verse.crossref',
   'note.recognize',
   'note.passage',

@@ -103,6 +103,7 @@ import {
   buildVerseInitials,
   buildVerseKeywords,
   buildVerseLocate,
+  buildVerseMarked,
   buildVerseNext,
   buildVerseRecognize,
   buildVerseSequence,
@@ -111,6 +112,7 @@ import {
   gradeVerseInitials,
   gradeVerseKeywords,
   gradeVerseLocate,
+  gradeVerseMarked,
   gradeVerseNext,
   gradeVerseRecall,
   gradeVerseSequence,
@@ -1819,6 +1821,8 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   citingNoteLabels: string[];
   /** The verse's own text, stripped, so the text-keyed gates can count its words once. */
   text: string;
+  /** The span the reader marked on this verse, floored and verified against the text. */
+  markedSpan: string | null;
 }
 
 const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
@@ -1836,6 +1840,8 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   crossRefTotal: 0,
   citingNoteLabels: [],
   text: '',
+  markedSpan: null,
+  readerSpanWords: 0,
 };
 
 const CROSSREF_TEXT_FETCHES = 3;
@@ -1850,7 +1856,7 @@ async function loadVerseMaterial(
   const at = lastVerseOf(ref);
   if (!at) return { ...EMPTY_VERSE_MATERIAL, reference: ref };
 
-  const [knowledge, citing, ownHtml, rivals] = await Promise.all([
+  const [knowledge, citing, ownHtml, rivals, readerSpan] = await Promise.all([
     getKnowledgeForReference(at.book, at.chapter, at.verse, {
       minRelevance: 0,
       minVotes: CROSSREF_MIN_VOTES,
@@ -1861,8 +1867,11 @@ async function loadVerseMaterial(
     loadNotesCitingVerse(userId, at),
     fetchVerseText(ref, translation),
     listUserVerseReferences(userId, ref),
+    // What the reader marked on this verse, for the rung that asks them to find it again.
+    loadReaderSpan(userId, ref).catch(() => null),
   ]);
   const text = ownHtml ? stripHtml(ownHtml) : '';
+  const markedSpan = readerSpanFragment(readerSpan, text);
 
   const themesAbove = (knowledge?.themes ?? []).filter(
     (t) => t.relevance >= VERSE_THEME_MIN_RELEVANCE,
@@ -1912,6 +1921,8 @@ async function loadVerseMaterial(
     text,
     locateRivals: rivals.length,
     contentWordCount: contentWords(text).length,
+    readerSpanWords: markedSpan ? markedSpan.split(' ').filter(Boolean).length : 0,
+    markedSpan,
   };
 }
 
@@ -2177,6 +2188,7 @@ export async function verseTruthFor(item: ReviewItemRow, userId?: string): Promi
     'verse.initials',
     'verse.keywords',
     'verse.before',
+    'verse.marked',
   ]);
   if (!withheld.has(rung.key)) return null;
   const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
@@ -2255,6 +2267,35 @@ async function buildVerseBeforeFor(item: ReviewItemRow, text: string, seed: stri
     seed,
   });
 }
+
+/**
+ * "Pick the words you marked in this verse." One builder for the question and the marking.
+ *
+ * Neighbours are fetched only as a top-up: a short verse cannot always spare four windows of
+ * the span's length that do not overlap it, and three distractors is the difference between a
+ * question and a coin toss.
+ */
+async function buildVerseMarkedFor(
+  item: ReviewItemRow,
+  material: VerseKnowledgeMaterial,
+  seed: string,
+): Promise<ChoiceExercise | null> {
+  if (!item.scriptureReference || !material.markedSpan) return null;
+  const translation = item.translation ?? 'NET';
+  const neighbours = neighbourVerseAddresses(item.scriptureReference, VERSE_MARKED_NEIGHBOURS);
+  const texts = await Promise.all(
+    neighbours.map((address) => fetchVerseText(formatVerseAddress(address), translation)),
+  );
+  return buildVerseMarked({
+    verseText: material.text,
+    neighbourTexts: texts.filter(Boolean).map((html) => stripHtml(html)),
+    span: material.markedSpan,
+    seed,
+  });
+}
+
+/** Enough neighbours that a short verse still fills four options. */
+const VERSE_MARKED_NEIGHBOURS = 4;
 
 /** The books behind a list of references, deduplicated, for the book rung's pool. */
 function booksOf(references: readonly string[]): string[] {
@@ -2777,6 +2818,14 @@ export async function gradeVerseAnswer(
     if (!exercise) return null;
     return {
       correct: gradeVerseBefore(exercise, answer.option),
+      correctAnswer: exercise.options[exercise.answerIndex] ?? null,
+    };
+  }
+  if (rung.key === 'verse.marked' && typeof answer.option === 'string') {
+    const exercise = await buildVerseMarkedFor(item, material, seedForRung);
+    if (!exercise) return null;
+    return {
+      correct: gradeVerseMarked(exercise, answer.option, material.markedSpan ?? ''),
       correctAnswer: exercise.options[exercise.answerIndex] ?? null,
     };
   }
@@ -3388,6 +3437,16 @@ export async function buildReviewReveal(
           payload.altered = exercise ? { tokens: exercise.tokens } : null;
           // The true verse alongside a falsified one would answer the question, and worse,
           // would print the passage twice with only one of them right.
+          if (exercise) payload.verseText = null;
+        }
+        if (rung.key === 'verse.marked') {
+          const exercise = await buildVerseMarkedFor(item, material, seed);
+          payload.choice = exercise ? { options: exercise.options, opening: false } : null;
+          /*
+           * The verse itself would print the marked words among the options and again in full,
+           * with only the highlighting missing — which is the question. It comes back as the
+           * truth once the answer is in.
+           */
           if (exercise) payload.verseText = null;
         }
         if (rung.key === 'verse.locate') {

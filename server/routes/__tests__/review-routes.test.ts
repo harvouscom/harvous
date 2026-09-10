@@ -587,6 +587,21 @@ describe('the context-step rungs', () => {
     expect(list).toContain('material: verseMaterial');
   });
 
+  it('withholds the verse on the rung that asks which words were marked', () => {
+    /*
+     * The verse in full would print the marked words among the options and again in the text,
+     * with only the highlighting missing — which is the question. It comes back as the truth.
+     */
+    const text = service();
+    const reveal = text.slice(text.indexOf('export async function buildReviewReveal'));
+    const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.marked'"));
+    const block = branch.slice(0, branch.indexOf("rung.key === 'verse.locate'"));
+    expect(block).toContain('payload.verseText = null');
+    expect(block).not.toContain('answerIndex');
+    const truth = text.slice(text.indexOf('export async function verseTruthFor'));
+    expect(truth.slice(0, 900)).toContain("'verse.marked'");
+  });
+
   it('builds and marks every context rung from one function', () => {
     const text = service();
     expect(text).toContain('async function buildVerseContextFor');

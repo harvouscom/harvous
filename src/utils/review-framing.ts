@@ -118,7 +118,7 @@ export function reviewFraming(
    * answer away outright, but it confirms there is one to find and turns a question about the
    * reader's own study into a hint. The fact is the question; it cannot also be the framing.
    */
-  const markedLeaks = key === 'chapter.marked';
+  const markedLeaks = key === 'chapter.marked' || key === 'verse.marked';
 
   const reader: ReviewFramingSpec[] = [];
   if (facts.revisitCount >= 2) reader.push({ template: 'returning', args: {} });

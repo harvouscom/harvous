@@ -108,6 +108,7 @@ export const REVIEW_RUNG_WEIGHT: Record<ReviewPromptKey, number> = {
   'chapter.person': 0.9,
   'chapter.place': 0.9,
   'chapter.marked': 0.8,
+  'verse.marked': 0.8,
 };
 
 /**
