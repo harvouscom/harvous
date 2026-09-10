@@ -438,8 +438,19 @@ async function loadNoteLabelPool(
  * `miniNoteBody` first — the note written on the highlight itself — then `notesBody`. Both the
  * probe and the builder read through here so they cannot disagree about which field is the one.
  */
+/**
+ * **Both fields are HTML**, canonicalised as such on write (`server/routes/study-threads.ts`).
+ * That collapsed whitespace but never stripped tags, and the dock renders the result as escaped
+ * text — so an annotation carrying a scripture pill was shown to the reader as a literal
+ * `<span data-scripture-reference="…">…</span>` inside quotation marks. Every neighbouring rung
+ * (note.recognize, the verse cue, the row excerpt) already strips; this was the one that didn't.
+ *
+ * Stripping here also fixes the three-word floor both call sites apply to this result: counting
+ * `split(/\s+/)` over markup let a one-word annotation qualify on its tags alone.
+ */
 function annotationTextOf(row: { miniNoteBody?: string | null; notesBody?: string | null }): string {
-  return (row.miniNoteBody?.trim() || row.notesBody?.trim() || '').replace(/\s+/g, ' ');
+  const raw = row.miniNoteBody?.trim() || row.notesBody?.trim() || '';
+  return stripHtml(raw);
 }
 
 async function loadNoteMaterial(
@@ -3180,8 +3191,19 @@ async function loadNoteSpans(
 
   for (const row of rows) {
     if (!row.parentNoteId || !row.quote) continue;
-    // Only spans that clear the floor are in the draw, so a short one cannot win the seed.
-    const span = buildNoteSpan({ quote: row.quote, prefix: row.prefix, suffix: row.suffix });
+    /*
+     * Only spans that clear the floor are in the draw, so a short one cannot win the seed.
+     *
+     * Stripped defensively: these three columns normally hold plain text (the anchor is built
+     * from canonicalised text), but the failure branch in `study-threads.ts` writes the
+     * client-supplied quote raw — and both surfaces that show a span render it as escaped text,
+     * so one HTML quote that got through would print as markup rather than words.
+     */
+    const span = buildNoteSpan({
+      quote: stripHtml(row.quote),
+      prefix: row.prefix ? stripHtml(row.prefix) : row.prefix,
+      suffix: row.suffix ? stripHtml(row.suffix) : row.suffix,
+    });
     if (!span) continue;
     const list = out.get(row.parentNoteId);
     if (list) list.push(span);
