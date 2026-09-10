@@ -20,7 +20,7 @@ A day when **churches have organization accounts** on Harvous for **education an
 
 ### Layer 1: Individual (current)
 
-- **Shared spaces:** User creates a space, gets a link, invites people. Free: 0 owned shared spaces; Harvous Plus: unlimited owned, 50 people/space. Joining is always free.
+- **Shared spaces:** User creates a space, gets a link, invites people. Free: 0 owned shared spaces; Harvous Plus: unlimited owned, 12 people/space. Joining is always free.
 - **Use case:** “I’m leading a small group and want to share a space with them.”
 - **Docs:** [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md), [FEATURES.md](../FEATURES.md).
 

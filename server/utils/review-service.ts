@@ -437,6 +437,15 @@ async function loadNoteLabelPool(
  *
  * `miniNoteBody` first — the note written on the highlight itself — then `notesBody`. Both the
  * probe and the builder read through here so they cannot disagree about which field is the one.
+ *
+ * **Both fields are HTML**, canonicalised as such on write (`server/routes/study-threads.ts`).
+ * This collapsed whitespace but never stripped tags, and the dock renders the result as escaped
+ * text — so an annotation carrying a scripture pill was shown to the reader as a literal
+ * `<span data-scripture-reference="…">…</span>` inside quotation marks. Every neighbouring rung
+ * (note.recognize, the verse cue, the row excerpt) already strips; this was the one that didn't.
+ *
+ * Stripping here also fixes the three-word floor that both call sites apply to this result:
+ * counting `split(/\s+/)` over markup let a one-word annotation qualify on its tags alone.
  */
 /**
  * **Both fields are HTML**, canonicalised as such on write (`server/routes/study-threads.ts`).

@@ -19,6 +19,7 @@
  * pack store, and it is why this row can be looked at rather than only reasoned about.
  */
 import Icon from '@/components/react/Icon';
+import { MAX_OFFLINE_TRANSLATIONS } from '@/utils/bible-pack-store';
 
 export type TranslationRowState =
   /** No copy, and room to make one. */
@@ -195,7 +196,9 @@ export default function PrototypeTranslationRow({
               disabled={state.kind === 'blocked'}
               title={
                 state.kind === 'blocked'
-                  ? 'Remove another translation first — three can be kept offline at once'
+                  ? /* Interpolated, not spelled out: this line said "three" for a release after
+                       the limit stopped being three. */
+                    `Remove another translation first — ${MAX_OFFLINE_TRANSLATIONS} can be kept offline at once`
                   : undefined
               }
             >

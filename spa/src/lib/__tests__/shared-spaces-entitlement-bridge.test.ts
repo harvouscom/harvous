@@ -17,7 +17,7 @@ describe('shared-spaces-entitlement-bridge', () => {
       hasSharedSpaces: false,
       entitlements: [],
       planKey: null,
-      limits: { ownedSpaces: 0, membersPerSpace: 50 },
+      limits: { ownedSpaces: 0, membersPerSpace: 12 },
       currentCount: 0,
       limit: null,
       sharedSpacesOwnedCount: 0,

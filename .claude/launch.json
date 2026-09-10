@@ -142,6 +142,16 @@
       ],
       "port": 4322,
       "autoPort": false
+    },
+    {
+      "name": "dark-mode-popout-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "API_PORT=3005 DB_POOL_MAX=4 VITE_API_PROXY_TARGET=http://localhost:3005 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4330 --strictPort'"
+      ],
+      "port": 4330,
+      "autoPort": false
     }
   ]
 }

@@ -65,6 +65,8 @@ describe('the sample card', () => {
     fireEvent.change(second, { target: { value: 'remains' } });
     expect(check.disabled).toBe(false);
     fireEvent.click(check);
+    /* `translation` rides along because the card now offers one — this fixture carries none, so
+       the value here is the card's own default (`sample.translation?.trim() || 'NET'`). */
     expect(mutate).toHaveBeenCalledWith(
       {
         day: '2026-09-03',

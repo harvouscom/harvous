@@ -130,7 +130,7 @@ to explain.
 - **No free AI Review**, **no trial**. A 30-day money-back guarantee de-risks Plus instead.
 
 **How free users experience hosting before they buy:** they don't host — they *join*. A Plus host
-brings up to 50 free members in, and those members use shared spaces for weeks before they ever
+brings up to 12 free members in, and those members use shared spaces for weeks before they ever
 consider hosting one. That is the trial, and it is already built. The consequence to accept: the
 **first 99 founders are the hard part**, because the loop has no hosts to seed it yet.
 
@@ -154,7 +154,7 @@ consider hosting one. That is the trial, and it is already built. The consequenc
 
 - **Unlimited** owned shared spaces — `PLUS_LIMITS.ownedSpaces = UNLIMITED`
   ([src/lib/billing-plans.ts](../../src/lib/billing-plans.ts))
-- **50 people per space** — `MEMBERS_PER_SPACE_CAP = 50`
+- **12 people per space** — `MEMBERS_PER_SPACE_CAP = 12`
   ([server/utils/tier-limits.ts](../../server/utils/tier-limits.ts))
 - Host/admin surface: roster view, optional private cohort view on the active Compete season
 - Members join owned spaces free; each member who wants AI practice from their own notes subscribes
@@ -162,12 +162,17 @@ consider hosting one. That is the trial, and it is already built. The consequenc
 
 **The member cap is the fence between a personal plan and a church plan — the space count is not.**
 Spaces are rows; they cost nothing, so capping them protects no margin. Seats are the product line: a
-congregation hits 50 and the space transfers to the org (see §7), while a small group rarely touches
-it. 50 is generous for groups and still below most churches — large enough that ordinary groups don't
-hit a wall on a plan they were already paying for, small enough that oversized personal spaces migrate
-to a church org. Set this number by "where does a person end and an org begin", never by cost.
+congregation hits the cap and the space transfers to the org (see §7), while a small group rarely
+touches it. Set this number by "where does a person end and an org begin", never by cost.
 
-The theoretical hole (10 spaces × 50 people) is fine: that's ten distinct communities and real work
+This was 50, justified as "generous for groups and still below most churches". That put the fence
+past almost every group a person actually hosts, so nothing reached it and the transfer path it
+exists to trigger never fired — a fence nobody meets is not a fence. 12 is sized to the thing being
+hosted: a household, a study, a discipleship group. Accept that this is a real tightening, not a
+re-labelling; `canAddMemberToSpace` is never-evict, so spaces already above the cap keep everyone
+and simply cannot add more.
+
+The theoretical hole (10 spaces × 12 people) is fine: that's ten distinct communities and real work
 to run, and that person is a power user worth having.
 
 **Onboarding copy (principle):** *"Run the group on Harvous. Everyone brings their own Review."*

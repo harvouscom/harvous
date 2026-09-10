@@ -7,12 +7,23 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { toast } from '@/utils/toast';
+import { toastError } from '../../lib/error-copy';
 import {
   reviewQueryKey,
   reviewSessionQueryKey,
   type ReviewItemView,
   type SampleExerciseKind,
 } from '../queries/useReview';
+import {
+  REVIEW_DEFERRED_TOAST,
+  REVIEW_DEFER_FAILED_TOAST,
+  REVIEW_PAUSED_TOAST,
+  REVIEW_PAUSE_FAILED_TOAST,
+  REVIEW_REMOVED_TOAST,
+  REVIEW_REMOVE_FAILED_TOAST,
+  REVIEW_RESUMED_TOAST,
+} from '../../pages/prototype/proto-review-copy';
 import type { ReviewItemKind, ReviewItemStatus, ReviewOutcome } from '@/utils/review-item-kinds';
 
 export interface AddReviewItemInput {
@@ -110,7 +121,11 @@ export function useDeferReview() {
     mutationFn: (itemId: string) =>
       api.post<{ dueAt: string }>(`/api/review/items/${encodeURIComponent(itemId)}/defer`, {}),
     onSuccess: () => {
+      toast.success(REVIEW_DEFERRED_TOAST);
       void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
+    },
+    onError: (error) => {
+      toastError(error, REVIEW_DEFER_FAILED_TOAST, { scope: 'review-defer' });
     },
   });
 }
@@ -134,8 +149,22 @@ export function useSetReviewStatus() {
         `/api/review/items/${encodeURIComponent(itemId)}/status`,
         { status },
       ),
-    onSuccess: () => {
+    /*
+     * Spoken here rather than at the two call sites (the Home row menu and the dock's leech
+     * result) so both say the same thing, and so a third surface cannot ship silent.
+     */
+    onSuccess: (_data, { status }) => {
+      if (status === 'archived') toast.success(REVIEW_REMOVED_TOAST);
+      else if (status === 'paused') toast.success(REVIEW_PAUSED_TOAST);
+      else if (status === 'active') toast.success(REVIEW_RESUMED_TOAST);
       void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
+    },
+    onError: (error, { status }) => {
+      toastError(
+        error,
+        status === 'archived' ? REVIEW_REMOVE_FAILED_TOAST : REVIEW_PAUSE_FAILED_TOAST,
+        { scope: 'review-status' },
+      );
     },
   });
 }

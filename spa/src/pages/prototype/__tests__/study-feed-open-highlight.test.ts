@@ -6,7 +6,13 @@ describe('highlightPassageRoute', () => {
     const route = highlightPassageRoute('Ecclesiastes 4:3');
     expect(route?.params).toEqual({ book: 'ecclesiastes', chapter: '4' });
     expect(route?.search.v).toBe('3');
-    expect(route?.search.ref).toBeUndefined();
+    /*
+     * Read through a widened type on purpose. The search type no longer declares `ref` at all,
+     * so `route.search.ref` stopped compiling — but deleting the assertion would remove the
+     * guard that gives this test its name, and leave nothing to fail if `ref` is ever put back
+     * carrying a value.
+     */
+    expect((route?.search as Record<string, unknown> | undefined)?.ref).toBeUndefined();
     expect(route?.search.req).toEqual(expect.any(String));
   });
 

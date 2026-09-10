@@ -151,18 +151,28 @@ const CONNECTOR_FEATURES = ['connector'] as const satisfies readonly FeatureKey[
 const CHURCH_FEATURES = [] as const satisfies readonly FeatureKey[];
 
 /**
- * Unlimited spaces, 50 people each.
+ * Unlimited spaces, 12 people each.
  *
  * The member cap — not the space count — is what keeps a congregation from
- * running off one personal plan; at 50 they hit the wall and the church
+ * running off one personal plan; at the cap they hit the wall and the church
  * conversation starts, which is the space-transfer path. Set this number by
  * "where does a person end and an org begin", never by cost (spaces are rows;
- * they cost nothing). 50 is generous for small groups and still below most
- * churches, so oversized personal spaces migrate to a church org.
+ * they cost nothing).
+ *
+ * Was 50, on the reasoning that it was "generous for small groups and still
+ * below most churches". That put the fence past almost every group a person
+ * actually hosts, so in practice nothing ever reached it and the transfer path
+ * it was supposed to trigger never triggered. 12 is the shape of the thing being
+ * hosted — a household, a study, a discipleship group — so the wall now falls
+ * where a personal space genuinely becomes an org's.
+ *
+ * This is a real tightening, not a re-labelling. `canAddMemberToSpace` is
+ * never-evict, so spaces already above 12 keep everyone and simply cannot add
+ * more; see server/utils/tier-limits.ts.
  */
 const PLUS_LIMITS: PlanLimits = {
   ownedSpaces: UNLIMITED,
-  membersPerSpace: 50,
+  membersPerSpace: 12,
 };
 
 /** Free tier is strictly private: no hosting. Joining someone else's space is always free. */

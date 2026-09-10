@@ -51,11 +51,25 @@ export default function PrototypeReviewRow({
   actions: StudyInboxRowAction[];
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [anchorPos, setAnchorPos] = useState<{ top: number; left: number } | null>(null);
-  useDismissOnOutside(menuRef, () => setMenuOpen(false), menuOpen);
+  /*
+   * The ref is the *portaled card*, not the trigger — which is the whole contract of this hook
+   * ("use this for portaled popovers, where the floating content is NOT a DOM child of the
+   * trigger"). It was the trigger, and that made every action in this menu dead: the hook
+   * dismisses on a capture-phase `pointerdown` using `el.contains(target)`, a menu item in
+   * `document.body` is not a descendant of the trigger, so pressing one closed the menu and
+   * unmounted the portal before `click` could land. Defer, Pause and Remove all ran their
+   * mutations correctly and were simply never called.
+   *
+   * `ignoreSelector` then exempts the trigger, which is now "outside": without it a press would
+   * dismiss on pointerdown and the button's own onClick would toggle it straight back open, so
+   * the menu could never be closed by the control that opened it.
+   */
+  useDismissOnOutside(popoverRef, () => setMenuOpen(false), menuOpen, {
+    ignoreSelector: '.proto-review-row__more',
+  });
 
   // Re-measured on scroll with capture: Activity is a scroller, so a menu anchored once
   // stays where the row was rather than where it is.
@@ -101,7 +115,10 @@ export default function PrototypeReviewRow({
       onClick={onOpen}
       trailing={
         actions.length > 0 ? (
-          <span className="proto-review-row__more" ref={menuRef}>
+          <span
+            /* This class is what `ignoreSelector` above matches to exempt the trigger. */
+            className="proto-review-row__more"
+          >
             <button
               ref={triggerRef}
               type="button"

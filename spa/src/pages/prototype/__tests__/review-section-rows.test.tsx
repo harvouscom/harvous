@@ -251,35 +251,44 @@ describe('what it shows a subscriber', () => {
     };
     challenges.data = { challenges: [challenge('c1')] };
     render(<PrototypeReviewSection />);
-    // All four are notes, so only one qualifies for the closed state.
-    expect(screen.queryAllByText(/^Task /).length).toBe(1);
+    /* Two rows closed, never more than two (#114). All four are notes, so there is no passage to
+       pair one with and the fallback picks two different exercises instead — which is still two,
+       leaving the challenge its line. This asserted one back when a no-passage set collapsed to a
+       single row. */
+    expect(screen.queryAllByText(/^Task /).length).toBe(2);
     expect(screen.getByText('Strengthen Covenant')).toBeInTheDocument();
   });
 
-  it('will not guess how many are folded away before it knows', () => {
-    // The inbox reports `hasMore` as a boolean on purpose, so a closed section cannot count.
-    // Guessing printed "1 more" over two items.
+  /*
+   * The fold names what pressing it will actually open (#112) — `items.length` minus the rows
+   * already on screen, both of which the closed section is holding. It does not need the built
+   * list, which is only fetched on expand.
+   *
+   * This pair used to encode the older rule, where a closed section could not count at all and
+   * said "See all", and then a version that counted every due row off the summary. Both printed
+   * a number that did not match what opening produced, which is the failure #112 named.
+   */
+  it('names how many rows the fold will open, from what it already has', () => {
+    // `allItems` stays undefined (reset in beforeEach): nothing is expanded, so the server was
+    // never asked to build a question, and the count is right anyway.
     inbox.data = {
       items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)),
       hasMore: true,
     };
     render(<PrototypeReviewSection />);
-    expect(screen.getByText('See all')).toBeInTheDocument();
-    expect(screen.queryByText(/\d+ more/)).not.toBeInTheDocument();
+    // Three due, two shown closed — one more to open.
+    expect(screen.getByText('1 more')).toBeInTheDocument();
   });
 
-  /*
-   * The count comes off the summary, which every load already has — so the label can say how
-   * many rather than "See all" without anyone pressing anything first. It used to need the
-   * built list, which is only fetched on expand, so the honest label before that was "See all".
-   */
-  it('counts them from the summary, without waiting for the built list', () => {
-    // `allItems` stays undefined here (reset in beforeEach): nothing is expanded, so the server
-    // was never asked to build a question, and the count is right anyway.
+  it('does not count rows the fold will not open', () => {
+    // Both due rows are already on screen, so opening reveals nothing and there is no fold —
+    // even though the summary knows about a third. Counting the summary here said "1 more" and
+    // opened onto the same two rows.
     inbox.data = { items: ['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)), hasMore: false };
     summaryItems.data = { items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)) };
     render(<PrototypeReviewSection />);
-    expect(screen.getByText('2 more')).toBeInTheDocument();
+    expect(screen.queryByText(/\d+ more/)).not.toBeInTheDocument();
+    expect(screen.queryByText('See all')).not.toBeInTheDocument();
   });
 
   it('says where a challenge is as a position, never as a count of what is left', () => {
