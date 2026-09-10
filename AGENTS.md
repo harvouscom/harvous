@@ -109,6 +109,24 @@ Harvous is a Bible study app. When implementing or reviewing features that touch
 
 - **[Unofficial Rules for AI Apps for Christians](https://faith.tools/posts/unofficial-rules-for-ai-apps-for-christians)** (faith.tools, Cam Pak) — practical norms for faith-oriented AI products: biblically accurate output; do not fabricate or misrepresent Scripture; clearly identify as AI, not human; do not replace human relationships or spiritual practices; balance grace and truth.
 
+### No generative AI for study content
+
+**Nothing in Harvous calls a language model at request time, and that is a product decision
+rather than a gap to be filled.** Study prompts, quiz questions, interpretations, summaries and
+explanations are authored templates filled with the reader's own material; every answer key is
+Scripture's own text, something the reader committed (a highlight, a citation, a link), or the
+curated editorial index. A generated question about someone's study of Scripture is a machine's
+reading of the text handed back to them as a prompt.
+
+Where AI is used at all it may only *surface material that already exists* — search, ranking,
+retrieval over the reader's own notes — never author new content. Offline authoring scripts
+(`server/scripts/author-subjects.ts`, the translation generators) are outside this rule: their
+output is reviewed before it ships.
+
+Canonical: `docs/future/REVIEWS_CHALLENGES_SEASON_PASS_STRATEGY.md`. The cost constraint in
+`src/lib/billing-plans.ts` is a *second*, independent gate. **Both would have to change, in that
+order, before any runtime model is added — do not add one on your own judgement.**
+
 ## E2E Testing
 
 The protected Shared Spaces release specs are `e2e/shared-space-join.spec.ts`,

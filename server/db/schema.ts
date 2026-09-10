@@ -1777,7 +1777,14 @@ export const ReviewItems = pgTable('ReviewItems', {
   /** Consecutive `recalled` answers. Resets to 0 on almost/revealed. */
   successStreak: integer('successStreak').notNull().default(0),
   reviewCount: integer('reviewCount').notNull().default(0),
-  /** Verse ladder position 0..4 (recognize → rebuild → recall → contextualize → connect). */
+  /**
+   * Which rung the item is on. **Live data: never renumber it.**
+   *
+   * A step names a *family* rather than an exercise — see `VERSE_FAMILIES` / `CHAPTER_FAMILIES`
+   * in src/utils/review-prompts.ts — and past the top of a ladder it keeps climbing into a
+   * maintenance cycle. So a new exercise is appended to a family, or a new family to the end of
+   * the list; inserting one in the middle moves every reader who is already on a step.
+   */
   ladderStep: integer('ladderStep').notNull().default(0),
   /** Misses on something once held. Four makes a leech; stepping back a rung resets it. */
   lapseCount: integer('lapseCount').notNull().default(0),

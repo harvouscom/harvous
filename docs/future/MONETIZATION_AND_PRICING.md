@@ -89,7 +89,7 @@ Plus when it ships). **Compete** stays free to play. Hosting Shared Spaces is Pl
 |---|---|---|
 | **Capture** | Notes, threads, scripture pills | Free (notes unlimited on all plans) |
 | **Remember** | Passive resurfacing — nudges, home trend cards, On This Day | Free (deterministic; no runtime AI) |
-| **Review** | Active personal practice — AI quizzes from *your* notes, your pace | **Always paid; individual subscription** |
+| **Review** | Active personal practice — questions built from *your* own notes, passages and highlights, at your pace | **Always paid; individual subscription** |
 | **Compete** | Themed seasons, study guides, leaderboards | Current season **free track**; **Season Pass** for full guide + archive |
 | **Group Sharing** | Unlimited owned shared spaces (host/admin for small groups — roster, optional cohort Compete) | Paid (live today as Premium / `unlimited` tier); members join spaces free and buy **Review** on their own |
 | **Connector** | Read-only reference to your notes, spaces, threads, and study connections from Claude, Cursor, scripts, and MCP-compatible assistants | Paid, individual, **stackable add-on** — see Section 4 |
