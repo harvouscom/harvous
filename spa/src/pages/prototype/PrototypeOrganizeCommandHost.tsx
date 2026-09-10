@@ -60,6 +60,7 @@ import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { useHomeNotes } from './useHomeNotes';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
+import { unpackMixedId } from './library-panel/use-library-selection';
 import ProtoConfirmDialog from './ProtoConfirmDialog';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import PrototypeCreateFolderSheet from './PrototypeCreateFolderSheet';
@@ -90,6 +91,7 @@ export default function PrototypeOrganizeCommandHost({
   const { isOwner: viewerIsSpaceOwner, space: activeSharedSpace } = useActiveSpace();
   const {
     sidebarSelectedIds,
+    sidebarSelectionKind,
     setSidebarSelectMode,
     setSidebarSelection,
     sidebarListSpaceScope,
@@ -132,6 +134,21 @@ export default function PrototypeOrganizeCommandHost({
     anchorRect: DOMRect | null;
   } | null>(null);
 
+  /*
+   * What the verb that is now open was pointed at, taken at the moment it ran.
+   *
+   * Not `sidebarSelectedIds`: on the library panel's "Everything" tab those are composite
+   * (`${kind}:${sourceId}`), because one selection there can hold a note and a folder — and
+   * every mutation below wants the bare source id. The `CommandContext` knows the difference
+   * and has already unpacked it, but the sheets and confirms open *after* `run` returned, so
+   * the answer is captured here rather than re-read from a selection that cannot say which
+   * part of an id is the kind.
+   *
+   * On every other list the two are identical, which is why this went unnoticed: the ids only
+   * diverge on the one tab that can mix.
+   */
+  const [pendingIds, setPendingIds] = useState<string[]>([]);
+
   const [folderSheetOpen, setFolderSheetOpen] = useState(false);
   const [threadSheetOpen, setThreadSheetOpen] = useState(false);
   const [threadPrefill, setThreadPrefill] = useState<CreateThreadPrefill | null>(null);
@@ -139,11 +156,9 @@ export default function PrototypeOrganizeCommandHost({
   const [sharePending, setSharePending] = useState(false);
   const [deleteConfirmAt, setDeleteConfirmAt] = useState<DOMRect | null>(null);
   /*
-   * The mixed delete keeps its own items rather than reading `sidebarSelectedIds`.
-   *
-   * Those ids are composite here (`${kind}:${sourceId}`), and every mutation below wants the
-   * bare source id — so the pairing has to be captured at the moment the verb ran, while the
-   * context that knew it was still in hand.
+   * The mixed delete carries items rather than ids: `pendingIds` above is enough for the
+   * verbs that act on one kind, but deleting a note and removing a folder are different
+   * calls, so this one has to keep which id is which.
    */
   const [mixedConfirm, setMixedConfirm] = useState<{
     items: { kind: 'note' | 'highlight' | 'folder' | 'thread'; id: string }[];
@@ -178,7 +193,7 @@ export default function PrototypeOrganizeCommandHost({
    */
   const shareToSpace = useCallback(
     async (targetSpaceId: string) => {
-      const ids = [...sidebarSelectedIds];
+      const ids = [...pendingIds];
       setSharePending(true);
       try {
         const res = await api.post<{ updatedNotes?: number; errors?: string[] }>(
@@ -202,7 +217,7 @@ export default function PrototypeOrganizeCommandHost({
         setSharePending(false);
       }
     },
-    [sidebarSelectedIds, queryClient, setSidebarSelectMode],
+    [pendingIds, queryClient, setSidebarSelectMode],
   );
 
   /**
@@ -211,7 +226,7 @@ export default function PrototypeOrganizeCommandHost({
    * "Deleted" would be a lie.
    */
   const confirmDelete = useCallback(() => {
-    const ids = [...sidebarSelectedIds];
+    const ids = [...pendingIds];
     deleteNotesBatch.mutate(ids, {
       onSuccess: (res) => {
         setDeleteConfirmAt(null);
@@ -228,7 +243,7 @@ export default function PrototypeOrganizeCommandHost({
         toastError(err, 'Could not delete these notes');
       },
     });
-  }, [sidebarSelectedIds, deleteNotesBatch, setSidebarSelectMode]);
+  }, [pendingIds, deleteNotesBatch, setSidebarSelectMode]);
 
   /* Counted once for the dialog, which asks for the title, the description and the label
      separately and would otherwise recount for each. */
@@ -308,7 +323,7 @@ export default function PrototypeOrganizeCommandHost({
   ]);
 
   const confirmRemoveFromSpace = useCallback(() => {
-    const ids = [...sidebarSelectedIds];
+    const ids = [...pendingIds];
     if (!isScopedSharedSpace || !homeSpaceId) return;
     removeNotesFromSpace.mutate(
       { spaceId: homeSpaceId, noteIds: ids },
@@ -330,7 +345,7 @@ export default function PrototypeOrganizeCommandHost({
       },
     );
   }, [
-    sidebarSelectedIds,
+    pendingIds,
     isScopedSharedSpace,
     homeSpaceId,
     removeNotesFromSpace,
@@ -349,7 +364,7 @@ export default function PrototypeOrganizeCommandHost({
   const confirmCollectionDelete = useCallback(async () => {
     const kind = collectionConfirm?.kind;
     if (!kind || !homeSpaceId) return;
-    const ids = [...sidebarSelectedIds];
+    const ids = [...pendingIds];
     try {
       for (const id of ids) {
         if (kind === 'folder') {
@@ -389,7 +404,7 @@ export default function PrototypeOrganizeCommandHost({
   }, [
     collectionConfirm?.kind,
     homeSpaceId,
-    sidebarSelectedIds,
+    pendingIds,
     removeFolder,
     removeThreadCluster,
     deleteHighlight,
@@ -403,8 +418,12 @@ export default function PrototypeOrganizeCommandHost({
     (commandId: PrototypeCommandId, ctx: CommandContext, options?: OrganizeRunOptions) => {
       if (!availablePrototypeCommands(ctx).some((c) => c.id === commandId)) return;
 
-      /* Acting on a focused row promotes it to the selection first, so the sheets — which
-         all read `sidebarSelectedIds` — see the same thing the verb named. */
+      /* The ids every sheet and confirm below will act on, unpacked and in hand before the
+         context goes out of scope. */
+      setPendingIds(ctx.ids);
+
+      /* Acting on a focused row promotes it to the selection first, so the checkboxes show
+         what the verb named rather than nothing. */
       const commit = () => {
         if (!ctx.fromSelection) setSidebarSelection('note', ctx.ids);
       };
@@ -496,12 +515,37 @@ export default function PrototypeOrganizeCommandHost({
     ],
   );
 
+  /**
+   * The one way in that does not go through `run`, and so has to work out its own target.
+   *
+   * Called with ids ("make a folder of these") it takes them; called bare, from the panel's
+   * New folder footer, it prefills with whatever notes happen to be selected. That second
+   * case is the only place left that has to read the selection directly, so it is also the
+   * only place that has to know the two id shapes apart — and `sidebarSelectionKind` says
+   * which it is holding without anyone having to guess from the ids themselves.
+   *
+   * Notes only, in either shape. A standing folder or Thread selection prefills nothing: a
+   * folder is not something you put inside a folder, and offering its name as a member was
+   * the old code's accident rather than its intent.
+   */
   const openCreateFolder = useCallback(
     (noteIds?: string[]) => {
-      if (noteIds?.length) setSidebarSelection('note', noteIds);
+      if (noteIds?.length) {
+        setSidebarSelection('note', noteIds);
+        setPendingIds(noteIds);
+      } else if (sidebarSelectionKind === 'mixed') {
+        setPendingIds(
+          sidebarSelectedIds
+            .map((id) => unpackMixedId(id))
+            .filter((entry) => entry?.kind === 'note')
+            .map((entry) => (entry as { sourceId: string }).sourceId),
+        );
+      } else {
+        setPendingIds(sidebarSelectionKind === 'note' ? sidebarSelectedIds : []);
+      }
       setFolderSheetOpen(true);
     },
-    [setSidebarSelection],
+    [setSidebarSelection, sidebarSelectedIds, sidebarSelectionKind],
   );
 
   /* Named to stay clear of the HTTP `api` client this file also uses. */
@@ -524,7 +568,7 @@ export default function PrototypeOrganizeCommandHost({
         <PrototypeCreateFolderSheet
           open={folderSheetOpen}
           onOpenChange={setFolderSheetOpen}
-          initialSelectedNoteIds={folderSheetOpen ? sidebarSelectedIds : undefined}
+          initialSelectedNoteIds={folderSheetOpen ? pendingIds : undefined}
           spaceId={homeSpaceId}
           spaceKind={isScopedSharedSpace ? 'shared' : 'personal'}
           spaceNotes={notes}
@@ -595,9 +639,7 @@ export default function PrototypeOrganizeCommandHost({
           >
             <div className="proto-menu-section" role="group">
               <p className="proto-menu-section-label">
-                {`Share ${sidebarSelectedIds.length} note${
-                  sidebarSelectedIds.length === 1 ? '' : 's'
-                } to`}
+                {`Share ${pendingIds.length} note${pendingIds.length === 1 ? '' : 's'} to`}
               </p>
               {shareTargets.length === 0 ? (
                 <p className="proto-caption" style={{ padding: '6px 10px' }}>
@@ -630,9 +672,9 @@ export default function PrototypeOrganizeCommandHost({
           anchorRect={deleteConfirmAt}
           preferAbove
           alignRight
-          title={bulkDestructiveCopy('note', sidebarSelectedIds.length).title}
-          description={bulkDestructiveCopy('note', sidebarSelectedIds.length).description}
-          confirmLabel={bulkDestructiveCopy('note', sidebarSelectedIds.length).confirmLabel}
+          title={bulkDestructiveCopy('note', pendingIds.length).title}
+          description={bulkDestructiveCopy('note', pendingIds.length).description}
+          confirmLabel={bulkDestructiveCopy('note', pendingIds.length).confirmLabel}
           busy={deleteNotesBatch.isPending}
           onConfirm={confirmDelete}
           onCancel={() => {
@@ -662,12 +704,12 @@ export default function PrototypeOrganizeCommandHost({
           anchorRect={collectionConfirm.anchorRect}
           preferAbove
           alignRight
-          title={bulkDestructiveCopy(collectionConfirm.kind, sidebarSelectedIds.length).title}
+          title={bulkDestructiveCopy(collectionConfirm.kind, pendingIds.length).title}
           description={
-            bulkDestructiveCopy(collectionConfirm.kind, sidebarSelectedIds.length).description
+            bulkDestructiveCopy(collectionConfirm.kind, pendingIds.length).description
           }
           confirmLabel={
-            bulkDestructiveCopy(collectionConfirm.kind, sidebarSelectedIds.length).confirmLabel
+            bulkDestructiveCopy(collectionConfirm.kind, pendingIds.length).confirmLabel
           }
           busy={
             removeFolder.isPending || removeThreadCluster.isPending || deleteHighlight.isPending
@@ -686,8 +728,8 @@ export default function PrototypeOrganizeCommandHost({
           anchorRect={removeConfirmAt}
           preferAbove
           alignRight
-          title={`Remove ${sidebarSelectedIds.length} note${
-            sidebarSelectedIds.length === 1 ? '' : 's'
+          title={`Remove ${pendingIds.length} note${
+            pendingIds.length === 1 ? '' : 's'
           } from this space?`}
           description={REMOVE_NOTE_FROM_SPACE_CONFIRMATION.description}
           confirmLabel="Remove"

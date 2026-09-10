@@ -11,9 +11,11 @@
  * re-deriving a second opinion.
  */
 import Icon from '@/components/react/Icon';
+import type { SidebarSelectionKind } from '../../../layouts/proto-shell-context';
 import { usePrototypeShiftHints } from '../../../hooks/usePrototypeShiftHints';
 import {
   availablePrototypeCommands,
+  destructiveVerbForKinds,
   prototypeCommandById,
   type PrototypeCommandId,
 } from '../../../lib/prototype-commands';
@@ -54,6 +56,47 @@ const ORDER: PrototypeCommandId[] = [
   'organize.delete',
 ];
 
+/**
+ * Which verbs the bar puts up, given what is actually selected.
+ *
+ * The kind passed in is the *selection's*, not the tab's, and that distinction is the whole
+ * point of this function. Everything lists all four kinds, so its tab kind is permanently
+ * `'mixed'` — but three notes picked there are still three notes, and reading the tab meant
+ * the bar offered a pile of notes two verbs while the gate one line below had already
+ * approved all six. ⇧M and ⇧T worked from Everything the whole time; only the buttons were
+ * missing.
+ *
+ * Folders, Threads and highlights have two verbs and have never had more: you pin one or you
+ * take it away. The other four are things you do to a *note*, and offering them permanently
+ * greyed would be four dead controls under every folder selection.
+ *
+ * The consequence is a bar that reflows while you select — check a folder alongside your
+ * notes and Folder, Thread and Share go away, because the pile no longer has them in common.
+ * That is the honest answer rather than the greyed union, and it is the same rule the gate
+ * has always applied; the bar just says it out loud now.
+ */
+export function offeredBulkVerbs(
+  actingKind: SidebarSelectionKind | null,
+  isScopedSharedSpace: boolean,
+): PrototypeCommandId[] {
+  return ORDER.filter((id) => {
+    if (actingKind !== 'note') return id === 'organize.pin' || id === 'organize.delete';
+    /* Remove-from-space and share are opposites of one another: you can only take a note out
+       of a space you are in, and only send one from a space you are not. Offering both would
+       leave one permanently dark. */
+    if (id === 'organize.removeFromSpace') return isScopedSharedSpace;
+    if (id === 'organize.share') return !isScopedSharedSpace;
+    return true;
+  });
+}
+
+/** The kinds `bulkDestructiveCopy` writes a sentence for. */
+function namesItsOwnDestructive(
+  kind: SidebarSelectionKind | null,
+): kind is 'note' | 'highlight' | 'folder' | 'thread' {
+  return kind === 'note' || kind === 'highlight' || kind === 'folder' || kind === 'thread';
+}
+
 export default function PrototypeLibraryBulkBar({
   selection,
 }: {
@@ -63,21 +106,21 @@ export default function PrototypeLibraryBulkBar({
   const ctx = selection.context;
   if (!selection.active || selection.selectedIds.length === 0) return null;
 
+  /*
+   * What the bar is speaking about.
+   *
+   * `ctx.kind` is already collapsed to the sole kind when a selection has one — the hook does
+   * it while unpacking composite ids — so this is a single-kind pile's real kind on any tab,
+   * and `'mixed'` only when the pile genuinely is. `selection.kind` is the fallback for the
+   * one case with no context: a selected row past the loaded page, where the tab's shape at
+   * least keeps the bar from jumping while it arrives.
+   */
+  const actingKind = ctx?.kind ?? selection.kind;
+
   /* No context means a selected row is not loaded — see the hook. The bar still shows, so
      the count and the way out stay put, but nothing in it can fire. */
   const enabled = new Set(ctx ? availablePrototypeCommands(ctx).map((c) => c.id) : []);
-  const offered = ORDER.filter((id) => {
-    /* Folders, Threads and highlights have two verbs and have never had more: you pin one or
-       you take it away. The other four are things you do to a *note*, and offering them
-       permanently greyed would be four dead controls under every folder selection. */
-    if (selection.kind !== 'note') return id === 'organize.pin' || id === 'organize.delete';
-    /* Remove-from-space and share are opposites of one another: you can only take a note out
-       of a space you are in, and only send one from a space you are not. Offering both would
-       leave one permanently dark. */
-    if (id === 'organize.removeFromSpace') return ctx?.isScopedSharedSpace ?? false;
-    if (id === 'organize.share') return !(ctx?.isScopedSharedSpace ?? false);
-    return true;
-  });
+  const offered = offeredBulkVerbs(actingKind, ctx?.isScopedSharedSpace ?? false);
 
   return (
     <div className="proto-collection-grid-actions proto-bulk-bar">
@@ -98,10 +141,12 @@ export default function PrototypeLibraryBulkBar({
           >
             <Icon name={chrome.icon as never} size={15} aria-hidden />
             <span className="proto-bulk-bar__label">
-              {id === 'organize.delete' && selection.kind
-                ? selection.kind === 'mixed'
-                  ? 'Delete'
-                  : bulkDestructiveCopy(selection.kind, selection.selectedIds.length).confirmLabel
+              {id === 'organize.delete'
+                ? namesItsOwnDestructive(actingKind)
+                  ? bulkDestructiveCopy(actingKind, selection.selectedIds.length).confirmLabel
+                  : /* A pile of several kinds has no one sentence; the confirm spells out the
+                       difference, and the button says the stronger of the two words. */
+                    destructiveVerbForKinds(ctx?.kinds ?? ['note'])
                 : chrome.label}
             </span>
             {/* Hold Shift and the bar says how to reach it without the mouse — the same

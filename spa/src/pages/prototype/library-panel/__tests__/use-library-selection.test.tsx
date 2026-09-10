@@ -112,6 +112,42 @@ describe('what a verb is pointed at', () => {
     shell.sidebarSelectionKind = 'folder';
     expect(selection('folders', [{ id: 'Sermons', isOwnNote: true }]).context?.kind).toBe('folder');
   });
+
+  it('calls a pile of notes picked on Everything what it is, and hands over bare ids', () => {
+    /*
+     * Both halves of this are load-bearing and they fail differently.
+     *
+     * `kind` is what the bulk bar reads to decide which verbs to put up: the tab says
+     * `'mixed'` forever, so a bar reading that offered three notes two verbs while the gate
+     * had approved six. `ids` is what the organize host acts on, and a composite id reaching
+     * a mutation is the worse failure of the two — `deleteNotesBatch(['note:abc'])` names
+     * nothing.
+     */
+    shell.sidebarSelectionKind = 'mixed';
+    shell.sidebarSelectedIds = [packMixedId('note', 'a'), packMixedId('note', 'b')];
+    const ctx = selection('all', [
+      { id: packMixedId('note', 'a'), isOwnNote: true },
+      { id: packMixedId('note', 'b'), isOwnNote: true },
+    ]).context;
+    expect(ctx?.kind).toBe('note');
+    expect(ctx?.kinds).toEqual(['note']);
+    expect(ctx?.ids).toEqual(['a', 'b']);
+  });
+
+  it('stays mixed when the pile really is, and still unpacks every id', () => {
+    shell.sidebarSelectionKind = 'mixed';
+    shell.sidebarSelectedIds = [packMixedId('note', 'a'), packMixedId('folder', 'Sermons')];
+    const ctx = selection('all', [
+      { id: packMixedId('note', 'a'), isOwnNote: true },
+      { id: packMixedId('folder', 'Sermons'), isOwnNote: true },
+    ]).context;
+    expect(ctx?.kind).toBe('mixed');
+    expect(ctx?.kinds.slice().sort()).toEqual(['folder', 'note']);
+    expect(ctx?.items).toEqual([
+      { kind: 'note', id: 'a' },
+      { kind: 'folder', id: 'Sermons' },
+    ]);
+  });
 });
 
 describe('select all', () => {
