@@ -162,6 +162,16 @@ function RankBarList({
   );
 }
 
+/**
+ * Generic segment tones, darkest first.
+ *
+ * A two-tone bar was enough while every caller passed two segments. The paid split passes
+ * three (Paying / Granted / Free), and under the old `index === 0 ? primary : secondary` rule
+ * the last two shared a background — so the boundary between them was invisible and the bar
+ * read as two blocks. Callers past the third fall back to `secondary`.
+ */
+const SEGMENT_TONES = ['primary', 'secondary', 'tertiary'] as const;
+
 function SegmentBar({
   segments,
   ariaLabel,
@@ -178,7 +188,7 @@ function SegmentBar({
         {segments.map((segment, index) => (
           <div
             key={segment.label}
-            className={`admin-usage__segment-bar-segment admin-usage__segment-bar-segment--${index === 0 ? 'primary' : 'secondary'}`}
+            className={`admin-usage__segment-bar-segment admin-usage__segment-bar-segment--${SEGMENT_TONES[index] ?? 'secondary'}`}
             style={{ flexGrow: segment.value, flexBasis: 0 }}
             title={`${segment.label}: ${formatCount(segment.value)}`}
           />
