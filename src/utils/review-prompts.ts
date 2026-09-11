@@ -336,13 +336,29 @@ export const VERSE_LADDER_MAX_STEP = VERSE_LADDER.length - 1;
  * First-sitting rungs the engine may open on, so a handful of new verses is not five
  * "pick how it begins".
  *
- * Recognize, rebuild (blanks), next/before, then the context step — what the verse is connected
- * to, by the reader or by the index. Never recall or locate on a first asking: those are how a
- * verse is kept, not how it is met.
+ * Recognize, rebuild (blanks), next/before, the context step — what the verse is connected to,
+ * by the reader or by the index — and the locate step, where the reader's own mark can be the
+ * answer.
+ *
+ * **Step 6 is here on purpose, and it argues with the rest of the list.** The rule used to read
+ * "never recall or locate on a first asking: those are how a verse is kept, not how it is met",
+ * and for `verse.recall` (2) and the altered word (7) it still holds — both ask the reader to
+ * produce something they have not yet been given a reason to hold. Step 6 is different because
+ * of who is in its family. `verse.marked` asks the reader to find the words *they* highlighted,
+ * which is not a demand on memory at all, and it was unreachable until an item had been recalled
+ * cleanly twice from step 4 — so the readers most likely to want it, the ones with years of
+ * marked-up Scripture, were the ones least likely ever to reach it.
+ *
+ * The cost is `verse.locate`, the family's default: a verse with nothing marked that opens here
+ * is asked which passage the line is from on a first asking, which is precisely what the old
+ * rule barred. The draw softens it rather than removing it — once the reader's own reference
+ * pool is deep enough to bar `verse.book` (see `LOCATE_MIN_RIVALS`), a verse carrying a marked
+ * span reaches `verse.marked` on two of the three seeds, so the verses that open here with
+ * something to find are usually asked to find it.
  *
  * Notes walk the four rungs so a handful of new notes is not five "pick the note this is from".
  */
-export const VERSE_OPENING_STEPS = [0, 1, 3, 4] as const;
+export const VERSE_OPENING_STEPS = [0, 1, 3, 4, 6] as const;
 export const CHAPTER_OPENING_STEPS = [0, 1] as const;
 export const NOTE_OPENING_STEPS = [0, 1, 2, 3] as const;
 

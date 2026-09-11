@@ -566,13 +566,15 @@ describe('reviewSeed', () => {
 });
 
 describe('openingLadderStep', () => {
-  it('staggers new verses across recognize, rebuild, next and context', () => {
-    expect(VERSE_OPENING_STEPS).toEqual([0, 1, 3, 4]);
-    expect([0, 1, 2, 3].map((n) => openingLadderStep('verse', n))).toEqual([0, 1, 3, 4]);
-    expect(openingLadderStep('verse', 4)).toBe(0);
-    // Never recall (2), locate (6) or altered (7) on a first asking.
+  it('staggers new verses across recognize, rebuild, next, context and locate', () => {
+    expect(VERSE_OPENING_STEPS).toEqual([0, 1, 3, 4, 6]);
+    expect([0, 1, 2, 3, 4].map((n) => openingLadderStep('verse', n))).toEqual([0, 1, 3, 4, 6]);
+    expect(openingLadderStep('verse', 5)).toBe(0);
+    // Still never recall (2) or altered (7) on a first asking: both ask the reader to produce
+    // what they have not been given a reason to hold. Step 6 is in because `verse.marked` asks
+    // them to find their own highlight, which is not a demand on memory.
     expect(VERSE_OPENING_STEPS).not.toContain(2);
-    expect(VERSE_OPENING_STEPS).not.toContain(6);
+    expect(VERSE_OPENING_STEPS).not.toContain(7);
   });
 
   it('walks new notes across recognize, passage, connect, annotation', () => {

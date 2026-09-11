@@ -25,7 +25,9 @@ describe('the opening stagger', () => {
     for (const steps of [VERSE_OPENING_STEPS, CHAPTER_OPENING_STEPS, NOTE_OPENING_STEPS]) {
       expect(steps.length).toBeGreaterThan(1);
     }
-    expect([0, 1, 2, 3].map((n) => openingLadderStep('verse', n))).toEqual([...VERSE_OPENING_STEPS]);
+    expect(
+      VERSE_OPENING_STEPS.map((_, n) => openingLadderStep('verse', n)),
+    ).toEqual([...VERSE_OPENING_STEPS]);
     expect([0, 1].map((n) => openingLadderStep('chapter', n))).toEqual([...CHAPTER_OPENING_STEPS]);
     // And wraps rather than falling off the end.
     expect(openingLadderStep('verse', VERSE_OPENING_STEPS.length)).toBe(VERSE_OPENING_STEPS[0]);
@@ -57,17 +59,32 @@ describe('the opening stagger', () => {
   });
 
   it('spreads a queue across the rotation once the counter persists', () => {
-    // What a reader accumulating verse items one at a time now sees, over twelve refills.
-    const opened = Array.from({ length: 12 }, (_, existing) => openingLadderStep('verse', existing));
+    // What a reader accumulating verse items one at a time now sees, over three full rotations.
+    // Counted in rotations rather than a round number of refills, so adding an opening rung
+    // does not turn an even split into a fractional expectation.
+    const rotations = 3;
+    const refills = VERSE_OPENING_STEPS.length * rotations;
+    const opened = Array.from({ length: refills }, (_, existing) =>
+      openingLadderStep('verse', existing),
+    );
     expect(new Set(opened).size).toBe(VERSE_OPENING_STEPS.length);
     // And no single rung takes more than its share.
     for (const step of VERSE_OPENING_STEPS) {
-      expect(opened.filter((s) => s === step).length).toBe(12 / VERSE_OPENING_STEPS.length);
+      expect(opened.filter((s) => s === step).length).toBe(rotations);
     }
   });
 
   it('never opens on a rung that is how a verse is kept rather than how it is met', () => {
-    // recall (2), locate (6) and the altered word (7) are maintenance, never a first asking.
-    for (const barred of [2, 6, 7]) expect(VERSE_OPENING_STEPS).not.toContain(barred);
+    /*
+     * recall (2) and the altered word (7) are maintenance, never a first asking: both ask the
+     * reader to produce a verse they have not yet been given a reason to hold.
+     *
+     * locate (6) used to be barred with them and no longer is. Its family carries `verse.marked`,
+     * which asks the reader to find the words they highlighted themselves — the one rung where a
+     * first asking is the *best* time to ask, because the mark is what made the verse an item.
+     * See `VERSE_OPENING_STEPS` for the trade that buys, which is `verse.locate` on an unmarked
+     * verse.
+     */
+    for (const barred of [2, 7]) expect(VERSE_OPENING_STEPS).not.toContain(barred);
   });
 });
