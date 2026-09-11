@@ -12,6 +12,7 @@ import {
   isSameLibraryPanelView,
   libraryDrillTitle,
   libraryPanelShowsBack,
+  shouldAutoFocusLibrarySearch,
   LIBRARY_TABS,
   type LibraryPanelView,
 } from '../library-panel-view';
@@ -21,7 +22,14 @@ describe('LIBRARY_CHIP_OPENING_VIEW', () => {
     // The chip says "Search" in every mode, so it opens the same place in every mode.
     // It used to branch — a note opened its folder, the reader its book — and that went
     // when the chip stopped naming them.
-    expect(LIBRARY_CHIP_OPENING_VIEW).toEqual({ tab: 'all', drill: null });
+    expect(LIBRARY_CHIP_OPENING_VIEW.tab).toBe('all');
+    expect(LIBRARY_CHIP_OPENING_VIEW.drill).toBeNull();
+  });
+
+  it('asks for the caret, the same as the chord', () => {
+    // A control labelled Search opens ready to search. Whether the caret is actually taken
+    // is the panel's call, not the opener's — a finger never gets it.
+    expect(LIBRARY_CHIP_OPENING_VIEW.autoFocusSearch).toBe(true);
   });
 });
 
@@ -160,6 +168,49 @@ describe('autoFocusSearch', () => {
         { tab: 'all', drill: null, autoFocusSearch: true },
         { tab: 'notes', drill: null, autoFocusSearch: true },
       ),
+    ).toBe(false);
+  });
+});
+
+/**
+ * The opener asks for the caret; the device decides whether it gets it. Both refusals are
+ * kept because they catch different machines — see `shouldAutoFocusLibrarySearch`.
+ */
+describe('shouldAutoFocusLibrarySearch', () => {
+  const asked = { autoFocusSearch: true };
+
+  it('gives the caret to a mouse at desktop width', () => {
+    expect(
+      shouldAutoFocusLibrarySearch({ view: asked, isMobileSidebar: false, isCoarsePointer: false }),
+    ).toBe(true);
+  });
+
+  it('refuses on a phone', () => {
+    // A bottom sheet with the keyboard up over it shows less of the library than no sheet.
+    expect(
+      shouldAutoFocusLibrarySearch({ view: asked, isMobileSidebar: true, isCoarsePointer: true }),
+    ).toBe(false);
+  });
+
+  it('refuses a finger on a tablet laid out as a desktop', () => {
+    // The case the breakpoint alone gets wrong: wide enough to look like a desktop, with no
+    // keyboard but the one that slides up.
+    expect(
+      shouldAutoFocusLibrarySearch({ view: asked, isMobileSidebar: false, isCoarsePointer: true }),
+    ).toBe(false);
+  });
+
+  it('refuses a mouse in a narrow window', () => {
+    // And the case the pointer alone gets wrong, which is why neither check is dropped.
+    expect(
+      shouldAutoFocusLibrarySearch({ view: asked, isMobileSidebar: true, isCoarsePointer: false }),
+    ).toBe(false);
+  });
+
+  it('takes nothing that was not asked for', () => {
+    // A drill names a destination, not a query.
+    expect(
+      shouldAutoFocusLibrarySearch({ view: {}, isMobileSidebar: false, isCoarsePointer: false }),
     ).toBe(false);
   });
 });

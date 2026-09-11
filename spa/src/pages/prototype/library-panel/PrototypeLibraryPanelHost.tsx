@@ -22,12 +22,14 @@ import { useProtoAnchoredPopoverPosition } from '../useProtoAnchoredPopoverPosit
 import { useDismissOnOutside } from '../../../hooks/usePopoverDismiss';
 import PrototypeSearchInput from '../components/PrototypeSearchInput';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
+import { useCoarsePointer } from '../../../lib/use-coarse-pointer';
 import PrototypeLibraryPanel from './PrototypeLibraryPanel';
 import PrototypeLibraryBody from './PrototypeLibraryBody';
 import PrototypeLibraryTabs from './PrototypeLibraryTabs';
 import PrototypeLibrarySearchResults, {
   type LibraryNavigationItem,
 } from './PrototypeLibrarySearchResults';
+import { shouldAutoFocusLibrarySearch } from './library-panel-view';
 import { useLibraryPanelSearch } from './use-library-panel-search';
 import { useLibraryPanelData } from './library-panel-data';
 import { useLibrarySearchHistory } from './use-library-search-history';
@@ -50,6 +52,15 @@ export default function PrototypeLibraryPanelHost({
     closeLibraryPanel,
     isMobileSidebar,
   } = useProtoShell();
+
+  /*
+   * Whether a caret is welcome, asked of the input device rather than the layout.
+   *
+   * `isMobileSidebar` is a breakpoint, and the two disagree on the case that matters: an
+   * iPad at a desktop width still has no keyboard but the one that slides up over the
+   * results. The device decides.
+   */
+  const isCoarsePointer = useCoarsePointer();
 
   /* During the exit morph the view is still set; this only covers the frame after the
      timer clears it, by which point the host is unmounted anyway. */
@@ -173,17 +184,15 @@ export default function PrototypeLibraryPanelHost({
           id="proto-library-search-input"
           /*
            * The field takes focus as the panel opens, so ⇧K lands ready to type and
-           * the chip — which now says "Search" — does what it advertises. Declarative
+           * the chip — which says "Search" — does what it advertises. Declarative
            * rather than a `querySelector` after a frame: the panel is a lazy chunk, and on
            * the first open of a session that element does not exist yet when the frame
            * fires, so the one-shot focus silently found nothing.
            *
-           * Desktop only. On a phone this is a bottom sheet, and stealing focus there
-           * raises the keyboard over the very list you opened it to browse.
+           * The opener only asks; `shouldAutoFocusLibrarySearch` decides, and refuses on a
+           * finger.
            */
-          /* Only when the opener asked — see `autoFocusSearch`. Mobile never takes it:
-             a caret there raises the on-screen keyboard over the results. */
-          autoFocus={!isMobileSidebar && Boolean(view.autoFocusSearch)}
+          autoFocus={shouldAutoFocusLibrarySearch({ view, isMobileSidebar, isCoarsePointer })}
           value={search.input}
           onChange={search.setInput}
           onClear={search.clear}
