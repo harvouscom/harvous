@@ -87,6 +87,7 @@
     "paid:activation": "tsx server/scripts/paid-feature-activation.ts",
     "paid:conversion": "tsx server/scripts/paid-conversion-lag.ts",
     "recall:kind-rates": "tsx server/scripts/recall-open-rate-by-kind.ts",
+    "review:ladder": "tsx server/scripts/review-ladder-health.ts",
     "review:schema": "tsx server/scripts/add-review-challenges-schema.ts",
     "review:schema:apply": "tsx server/scripts/add-review-challenges-schema.ts --apply",
     "entitlement:grant": "tsx server/scripts/grant-entitlement.ts",

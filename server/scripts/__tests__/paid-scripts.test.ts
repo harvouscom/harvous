@@ -11,17 +11,20 @@ import { describe, expect, it } from 'vitest';
 import { parseArgs as censusArgs } from '../paid-entitlement-census';
 import { parseArgs as activationArgs } from '../paid-feature-activation';
 import { parseArgs as conversionArgs } from '../paid-conversion-lag';
+import { parseArgs as ladderArgs } from '../review-ladder-health';
 
 const SCRIPTS = [
   'paid-entitlement-census',
   'paid-feature-activation',
   'paid-conversion-lag',
+  'review-ladder-health',
 ] as const;
 
 const PARSERS = [
   { name: 'census', parse: censusArgs, fallback: 30 },
   { name: 'activation', parse: activationArgs, fallback: 30 },
   { name: 'conversion', parse: conversionArgs, fallback: 365 },
+  { name: 'ladder', parse: ladderArgs, fallback: 60 },
 ] as const;
 
 describe.each(PARSERS)('$name parseArgs', ({ parse, fallback }) => {

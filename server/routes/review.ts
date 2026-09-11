@@ -250,10 +250,22 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
      * Bookkeeping, so it happens beside the response rather than in front of it. These were
      * awaited one row at a time, which put a write per item between the reader and their
      * question — the same pattern `recordReviewOutcomeNodes` already avoids.
+     *
+     * Driven by `items` rather than `rows`, and carrying the rung, because this log is the only
+     * denominator a per-rung rate can have. `rows` includes candidates that
+     * `buildReviewItemViews` then dropped as unaskable, so writing one `shown` per row counted
+     * questions nobody was ever asked; and a `shown` with a null rung cannot be divided into at
+     * all, which is why "asked" could only ever be counted from outcomes.
      */
-    void Promise.all(rows.map((row) => recordReviewEvent(auth.userId, row, 'shown'))).catch(
-      () => {},
-    );
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+    void Promise.all(
+      items.map((item) => {
+        const row = rowById.get(item.id);
+        return row
+          ? recordReviewEvent(auth.userId, row, 'shown', { rungKey: item.promptKey })
+          : Promise.resolve();
+      }),
+    ).catch(() => {});
 
     /*
      * The first question's exercise, sent with the question.
@@ -466,6 +478,12 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       new Date(),
       // The rung that was asked, resolved the way the list resolved it — not the client's claim.
       askedKey,
+      /*
+       * How it was reached, so the log can tell "wrong twice" from "gave up on the first go".
+       * `graded != null` is the marked/self-judged split: a rung with no answer key produces no
+       * grading result at all, and false would claim it was marked and failed.
+       */
+      { attemptNumber, graded: graded != null },
     );
 
     /*

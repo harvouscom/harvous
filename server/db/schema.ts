@@ -1853,6 +1853,24 @@ export const ReviewEvents = pgTable('ReviewEvents', {
   rungKey: text('rungKey'),
   previousIntervalDays: real('previousIntervalDays'),
   nextIntervalDays: real('nextIntervalDays'),
+  /**
+   * Which go this outcome was, 1-based, on the rungs that allow more than one.
+   *
+   * Null on every event that is not an outcome, and on rows written before this column. The
+   * route has always computed it — `maxAttemptsFor` decides how many goes a rung gets and the
+   * count is what picks `recalled` over `almost` — and then dropped it. Without it `revealed`
+   * cannot be read: "wrong twice" and "gave up on the first go" are the same row.
+   */
+  attemptNumber: integer('attemptNumber'),
+  /**
+   * Whether the rung had an answer key, rather than the reader's own verdict.
+   *
+   * Two verse rungs are marked by the server; every other rung is an open question judged by
+   * the person who wrote the note. Averaging the two into one recall rate compares a test score
+   * with a self-assessment, so the distinction has to survive into the log. Null on rows
+   * written before this column, which is not the same as false.
+   */
+  graded: boolean('graded'),
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   index('ReviewEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
