@@ -136,6 +136,12 @@ export const ADDITIVE_REVIEW_CHALLENGES_DDL = [
   // question. Nullable, so every row already written stands; the index serves the windowed tally.
   `ALTER TABLE "ReviewEvents" ADD COLUMN IF NOT EXISTS "rungKey" text`,
   `CREATE INDEX IF NOT EXISTS "ReviewEvents_userId_action_createdAtIndex" ON "ReviewEvents" ("userId", "action", "createdAt")`,
+  // Part six: how the answer was reached. The route computed both and threw them away, so
+  // `revealed` could not be told apart from "gave up on the first go", and a marked rung's
+  // score was averaged with a self-judged one. Nullable rather than defaulted: a row written
+  // before this existed genuinely does not know, and 1/false would assert that it does.
+  `ALTER TABLE "ReviewEvents" ADD COLUMN IF NOT EXISTS "attemptNumber" integer`,
+  `ALTER TABLE "ReviewEvents" ADD COLUMN IF NOT EXISTS "graded" boolean`,
 ] as const;
 
 export async function runAddReviewChallengesSchema(

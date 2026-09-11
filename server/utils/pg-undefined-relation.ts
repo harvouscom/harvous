@@ -131,6 +131,15 @@ export function isReviewTableMissing(error: unknown): boolean {
   );
 }
 
+/**
+ * Entitlements is the paid source of truth, read by the admin Usage board's paid split.
+ * An unmigrated database is "nobody is paid", not a broken dashboard — the same trade every
+ * guard in this file makes.
+ */
+export function isEntitlementsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'Entitlements');
+}
+
 export function isSupportTicketsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SupportTickets');
 }

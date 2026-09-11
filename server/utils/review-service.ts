@@ -1589,6 +1589,10 @@ export async function recordReviewEvent(
     nextIntervalDays?: number;
     /** The rung this event was about. Derived once by the caller, which already resolved it. */
     rungKey?: string | null;
+    /** Which go this was, on a rung that allows more than one. Outcomes only. */
+    attemptNumber?: number | null;
+    /** Whether the rung was marked against an answer key rather than self-judged. */
+    graded?: boolean | null;
   } = {},
   now: Date = new Date(),
 ): Promise<void> {
@@ -1602,6 +1606,8 @@ export async function recordReviewEvent(
     rungKey: extra.rungKey ?? null,
     previousIntervalDays: extra.previousIntervalDays ?? null,
     nextIntervalDays: extra.nextIntervalDays ?? null,
+    attemptNumber: extra.attemptNumber ?? null,
+    graded: extra.graded ?? null,
     createdAt: now,
   });
 }
@@ -1632,6 +1638,11 @@ export async function applyReviewOutcome(
   now: Date = new Date(),
   /** The rung actually answered. Decides the weight of a recall and whether a miss can lapse. */
   rungKey: string | null = null,
+  /**
+   * How the answer was reached, for the log only — neither value touches the schedule, which
+   * the caller has already folded into `outcome`.
+   */
+  answered: { attemptNumber?: number | null; graded?: boolean | null } = {},
 ): Promise<ReviewOutcomeResult> {
   const next = nextReviewAfter(
     outcome,
@@ -1680,6 +1691,8 @@ export async function applyReviewOutcome(
     nextIntervalDays: next.intervalDays,
     // Already resolved just above for `lastRungKey`; the log keeps every asking, not the last.
     rungKey,
+    attemptNumber: answered.attemptNumber ?? null,
+    graded: answered.graded ?? null,
   }, now);
 
   if (outcome === 'recalled') {
