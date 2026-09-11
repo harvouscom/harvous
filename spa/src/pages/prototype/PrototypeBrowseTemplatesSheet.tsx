@@ -428,21 +428,34 @@ export default function PrototypeBrowseTemplatesSheet({
 
   const discoverRows = useMemo<BrowseTemplateRow[]>(() => {
     const installed = new Set(discoverQuery.data?.installedSlugs ?? []);
-    return (discoverQuery.data?.listings ?? []).map((listing) => ({
-      // The catalog never ships a body, so there is nothing to apply — the row
-      // carries empty content and the install call is what fetches the real one.
-      id: listing.slug,
-      name: listing.title,
-      title: listing.preview?.titleTemplate ?? '',
-      content: '',
-      noteType: 'default',
-      section: 'discover' as const,
-      iconColor: null,
-      description: listing.description ?? undefined,
-      discoverSlug: listing.slug,
-      authorDisplayName: listing.authorDisplayName,
-      installed: installed.has(listing.slug),
-    }));
+    return (discoverQuery.data?.listings ?? [])
+      /*
+       * Not the ones Harvous ships. They are published to the catalog so
+       * harvous.com has something to show a visitor without an account, but in
+       * *this* sheet the reader already has them — the **Included** tab is one
+       * chip to the left, listing the same six from `getBuiltInTemplates()`.
+       *
+       * Offering them here is worse than redundant: the row carries a `+`, and
+       * since `POST /api/discover/install` started refusing an official listing
+       * as `ALREADY_INCLUDED` that button cannot succeed. A duplicate that fails
+       * is a worse answer than no duplicate.
+       */
+      .filter((listing) => !listing.preview?.official)
+      .map((listing) => ({
+        // The catalog never ships a body, so there is nothing to apply — the row
+        // carries empty content and the install call is what fetches the real one.
+        id: listing.slug,
+        name: listing.title,
+        title: listing.preview?.titleTemplate ?? '',
+        content: '',
+        noteType: 'default',
+        section: 'discover' as const,
+        iconColor: null,
+        description: listing.description ?? undefined,
+        discoverSlug: listing.slug,
+        authorDisplayName: listing.authorDisplayName,
+        installed: installed.has(listing.slug),
+      }));
   }, [discoverQuery.data]);
 
   const itemCount =

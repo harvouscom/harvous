@@ -14,6 +14,8 @@
     '/addon',
     '/upgrade',
     '/status',
+    // `/discover/{slug}` only — see the note in src/lib/prototype-path.ts.
+    '/discover/',
     '/api/',
   ];
   var RESERVED_SEGMENTS = {
@@ -79,6 +81,7 @@
     return isNonPrototypeAppPath(logical) &&
       (logical.indexOf('/spaces/join') === 0 ||
         logical.indexOf('/shared/') === 0 ||
+        logical.indexOf('/discover/') === 0 ||
         logical.indexOf('/invitations/') === 0 ||
         logical === '/upgrade' ||
         logical.indexOf('/upgrade/') === 0 ||

@@ -48,6 +48,16 @@ export type DiscoverTemplatePreview = {
   sourceDomain?: string | null;
   sourceSiteName?: string | null;
   excerpt?: string;
+  /**
+   * Harvous published this itself — the reviewer's call, set on approve.
+   *
+   * Changes who gets the credit, not how it is drawn. A built-in template lives
+   * in code and never gets a `NoteTemplates` row, so `sourceId` can never
+   * identify one, and the account that ran the seed is the wrong author to name.
+   * harvous.com has read this since the catalog shipped (`DiscoverCard` draws
+   * "Included"); the app's own listing page was still saying a stranger shared it.
+   */
+  official?: boolean;
 };
 
 export type DiscoverListingsResponse = {
@@ -80,6 +90,13 @@ export type DiscoverSubmissionForReview = MyDiscoverSubmission & {
   payload: { name?: string; title?: string | null; content?: string } | null;
   preview: DiscoverTemplatePreview | null;
   staffReadAt: string | Date | null;
+  /**
+   * Notes for whoever reviews this, written at submit. Reviewer-only — today it
+   * says that the submitted link also sits in the submitter's church or space
+   * library, which the public serializer must never carry because it names a
+   * church. Absent on rows submitted before the column existed.
+   */
+  reviewFlags: string[] | null;
 };
 
 export function discoverListingsQueryKey(kind?: string | null, category?: string | null) {

@@ -81,10 +81,27 @@ export default function PublicDiscoverListingPage() {
     }
   }
 
+  /*
+   * Who to credit, and whether there is anything to take.
+   *
+   * `preview.official` means Harvous published this itself. It changes the kicker
+   * and the footer — the account that ran the seed is not the author, and a
+   * built-in has no `NoteTemplates` row to name one from — and it changes the
+   * action, because an official template ships in `getBuiltInTemplates()` and is
+   * already in every account under the browse sheet's "Included" tab. Wording is
+   * harvous.com's, verbatim, so the two products describe a listing the same way.
+   */
+  const isOfficial = Boolean(listing?.preview?.official);
+
   /* Replay after Clerk returns. Also covers ?install=1 arriving already signed
      in, which is the common case for someone who is logged in on this device. */
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !listing || startedRef.current) return;
+    /* Nothing to replay for an official listing — signing up *is* what hands it
+       over, and the server refuses the install as `ALREADY_INCLUDED`. Without
+       this, a visitor who pressed "Get Harvous free" would come back from sign-up
+       to an error on the template they had just been given. */
+    if (isOfficial) return;
     const params = new URLSearchParams(window.location.search);
     let pending = params.get('install') === '1';
     try {
@@ -103,14 +120,18 @@ export default function PublicDiscoverListingPage() {
   }, [isLoaded, isSignedIn, listing, slug]);
 
   function handlePress() {
-    if (isSignedIn) {
+    if (isSignedIn && !isOfficial) {
       void doInstall();
       return;
     }
-    try {
-      sessionStorage.setItem(PENDING_KEY, JSON.stringify({ slug, timestamp: Date.now() }));
-    } catch {
-      /* ignore */
+    /* An official listing parks nothing: there is no install waiting on the other
+       side of sign-up, only the account that already includes it. */
+    if (!isOfficial) {
+      try {
+        sessionStorage.setItem(PENDING_KEY, JSON.stringify({ slug, timestamp: Date.now() }));
+      } catch {
+        /* ignore */
+      }
     }
     writePendingAuthRedirect(window.location.href);
     // Sign-up, not sign-in: this visitor came from marketing.
@@ -132,6 +153,18 @@ export default function PublicDiscoverListingPage() {
      that over. */
   const outline: string[] = listing?.preview?.headings ?? listing?.preview?.titles ?? [];
 
+  /*
+   * A template and a note are a sheet somebody wrote on, so they get the
+   * paper stack `PublicSharedNotePage` uses — the same object, drawn the same way,
+   * rather than a rounded product card that says "listing" on a page whose whole
+   * job is to show the thing itself.
+   *
+   * A pack and a resource keep the plain card, which is the division harvous.com
+   * already draws: a Thread is a collection and a resource is a pointer somewhere
+   * else. Paper would claim authorship for neither.
+   */
+  const onPaper = listing?.kind === 'template' || listing?.kind === 'note';
+
   return (
     <>
       {listing ? <title>{`${listing.title} | Harvous`}</title> : null}
@@ -150,70 +183,113 @@ export default function PublicDiscoverListingPage() {
             ) : (
               <>
                 <p className="public-creator">
-                  {listing.authorDisplayName
-                    ? `A ${kindNoun} shared by ${listing.authorDisplayName}`
-                    : `A ${kindNoun} shared on Harvous`}
+                  {isOfficial
+                    ? `A ${kindNoun} included with Harvous`
+                    : listing.authorDisplayName
+                      ? `A ${kindNoun} shared by ${listing.authorDisplayName}`
+                      : `A ${kindNoun} shared on Harvous`}
                 </p>
 
-                <div className="public-card">
-                  <div className="public-card__header">
-                    <h1 className="public-card__title">{listing.title}</h1>
-                    {listing.description ? (
-                      <p className="public-card__meta">{listing.description}</p>
-                    ) : null}
-                  </div>
+                <div className={onPaper ? 'public-paper-stack' : undefined}>
+                  {onPaper ? (
+                    <>
+                      <div
+                        className="public-paper-stack__leaf public-paper-stack__leaf--back"
+                        aria-hidden
+                      />
+                      <div
+                        className="public-paper-stack__leaf public-paper-stack__leaf--mid"
+                        aria-hidden
+                      />
+                    </>
+                  ) : null}
+                  <div className={`public-card${onPaper ? ' public-card--paper' : ''}`}>
+                    <div className="public-card__header">
+                      <h1 className="public-card__title">{listing.title}</h1>
+                      {listing.description ? (
+                        <p className="public-card__meta">{listing.description}</p>
+                      ) : null}
+                    </div>
 
-                  <div className="public-card__scroll">
-                    {outline.length === 0 ? (
-                      <div className="public-card__empty">
-                        Take a copy to see what's inside.
-                      </div>
-                    ) : (
-                      <ul className="public-card__list">
-                        {outline.map((line, index) => (
-                          <li
-                            key={`${line}-${index}`}
-                            className="public-card__list-item card-enter"
-                            style={{ animationDelay: `${100 + index * 40}ms` }}
-                          >
-                            {line}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                    <div className="public-card__scroll">
+                      {outline.length === 0 ? (
+                        <div className="public-card__empty">
+                          Take a copy to see what's inside.
+                        </div>
+                      ) : (
+                        <ul className="public-card__list">
+                          {outline.map((line, index) => (
+                            <li
+                              key={`${line}-${index}`}
+                              className="public-card__list-item card-enter"
+                              style={{ animationDelay: `${100 + index * 40}ms` }}
+                            >
+                              {line}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
 
-                  {/* `public-card__cta` is the pinned footer, not the button —
-                      it sets `pointer-events: none` and the button inside takes
-                      them back. `public-cta-btn` is the button. */}
-                  <div className="public-card__cta">
-                    {message ? (
-                      <div className="public-invite-message" role="alert">
-                        {message}
-                      </div>
-                    ) : null}
-                    {status === 'done' || status === 'already' ? (
-                      <div className="public-already-member" role="status">
-                        {status === 'done'
-                          ? 'Saved to your Harvous.'
-                          : 'This is already in your Harvous.'}
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className="public-cta-btn"
-                        disabled={status === 'installing'}
-                        onClick={handlePress}
-                      >
-                        {status === 'installing' ? 'Saving…' : 'Save this to my Harvous'}
-                      </button>
-                    )}
+                    {/* `public-card__cta` is the pinned footer, not the button —
+                        it sets `pointer-events: none` and the button inside takes
+                        them back. `public-cta-btn` is the button. */}
+                    <div className="public-card__cta">
+                      {message ? (
+                        <div className="public-invite-message" role="alert">
+                          {message}
+                        </div>
+                      ) : null}
+                      {/*
+                        An official listing is not something you take — it ships with
+                        the app, under the browse sheet's "Included" tab, from
+                        `getBuiltInTemplates()`. So a member already has it, and there
+                        is nothing to press; for a visitor the honest action is not
+                        "save this" but "get Harvous", because an account is the whole
+                        thing that hands it over. Offering "Save this to my Harvous"
+                        for both was the button promising a copy nobody needs — and
+                        the server would have minted a duplicate to keep the promise.
+                      */}
+                      {isOfficial ? (
+                        isSignedIn ? (
+                          <div className="public-already-member" role="status">
+                            This one is already in your templates.
+                          </div>
+                        ) : (
+                          <button type="button" className="public-cta-btn" onClick={handlePress}>
+                            Get Harvous free
+                          </button>
+                        )
+                      ) : status === 'done' || status === 'already' ? (
+                        <div className="public-already-member" role="status">
+                          {status === 'done'
+                            ? 'Saved to your Harvous.'
+                            : 'This is already in your Harvous.'}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="public-cta-btn"
+                          disabled={status === 'installing'}
+                          onClick={handlePress}
+                        >
+                          {status === 'installing' ? 'Saving…' : 'Save this to my Harvous'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="public-footer public-footer--rich">
                   <span className="public-footer__tag">
-                    Shared by someone using Harvous. Start your own study Bible.{' '}
+                    {/* Only the provenance is conditional. The invitation after it is one
+                        sentence written once, so the two branches cannot drift apart, and
+                        "study&nbsp;Bible" is held together — it is a compound, and the
+                        shorter official line moved the break right into the middle of it. */}
+                    {isOfficial
+                      ? 'Included with Harvous.'
+                      : 'Shared by someone using Harvous.'}{' '}
+                    Start your own study&nbsp;Bible.{' '}
                     <a
                       href="https://harvous.com"
                       target="_blank"

@@ -83,6 +83,28 @@ describe('public app paths', () => {
     expect(isPublicAppPath('/')).toBe(false);
     expect(isPublicAppPath('/settings/addons')).toBe(false);
   });
+
+  /*
+   * `/discover/{slug}` renders `PublicTopBar` and `.public-page` like every other
+   * route above, and was missing from the list for as long as it existed. The
+   * omission was silent in the worst way: on the dedicated host the path fell
+   * through to the prototype shell, so the page loaded with the app's chrome and
+   * none of its own, and nothing in-app linked to it to make that visible.
+   */
+  it('treats a Discover listing as a public route, not a prototype-shell path', () => {
+    expect(isPublicAppPath('/discover/soap')).toBe(true);
+    expect(isPrototypeShellPath('/discover/soap')).toBe(false);
+  });
+
+  /*
+   * The bare segment is deliberately not claimed. It stays in
+   * RESERVED_PROTOTYPE_SEGMENTS so it cannot resolve as a note id, but there is no
+   * `/discover` page — the in-app catalog is an expanded-sidebar tool — so calling
+   * it public would reserve a route nothing serves.
+   */
+  it('does not claim a bare /discover, which no page serves', () => {
+    expect(isPublicAppPath('/discover')).toBe(false);
+  });
 });
 
 describe('public route html class synchronization', () => {

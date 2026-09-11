@@ -14,6 +14,16 @@ const ALLOWED_PENDING_PATHS = [
   /^\/invitations\/[A-Za-z0-9_-]+\/?$/,
   /^\/shared\/note\/[A-Za-z0-9_-]+\/?$/,
   /^\/shared\/thread\/[A-Za-z0-9_-]+\/?$/,
+  /**
+   * A Discover listing → install after sign-up.
+   *
+   * `PublicDiscoverListingPage` has always called `writePendingAuthRedirect`, and
+   * without this pattern the call was a silent no-op — the documented trap in
+   * `guest-signup.ts`. The install still replayed, because `redirect_url` carries the
+   * href and `postAuthRedirectPath` only checks same-origin; this makes the page's
+   * second, deliberate mechanism do what it says. `slugify` emits `[a-z0-9-]` only.
+   */
+  /^\/discover\/[A-Za-z0-9_-]+\/?$/,
   /** Marketing / pricing → Harvous Plus checkout after sign-in or sign-up. */
   /^\/upgrade\/?$/,
   /** Legacy upgrade alias. */

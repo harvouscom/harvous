@@ -201,7 +201,10 @@ export default function PrototypeStudyFeedToday({
         * all render null, which is the mechanism Following relies on. Asking after the fact
         * beats keeping a list in sync.
         */}
-      <PrototypeHomeSection title="Suggested">
+      {/* The one lane with no ceiling of its own. Continue, Review and Following each cap
+          what they offer; Suggested is four independent sources stacked, so a busy account
+          meets nine rows and the sheet below them is pushed off the screen. */}
+      <PrototypeHomeSection title="Suggested" foldAfter={5}>
           {votd ? (
             <PrototypeDailyPassagePill
               homeSpaceId={homeSpaceId ?? ''}

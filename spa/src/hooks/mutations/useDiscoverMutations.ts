@@ -48,8 +48,15 @@ export function useInstallDiscoverListing() {
 }
 
 export interface SubmitToDiscoverBody {
-  /** `resource` is phase 3; the server refuses anything it cannot snapshot. */
-  kind?: 'template' | 'note' | 'pack';
+  /**
+   * `pack` has no UI entry point yet — Threads have no share surface to hang one
+   * on — but the server path is complete and tested, so the type admits it.
+   *
+   * `resource` means a **link** from your own library. `snapshotResource` refuses
+   * a file (`RESOURCE_NOT_A_LINK`): its URL is signed and expires, so sharing one
+   * would hand over something that stops working.
+   */
+  kind?: 'template' | 'note' | 'pack' | 'resource';
   sourceId: string;
   description?: string | null;
 }

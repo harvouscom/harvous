@@ -9,8 +9,9 @@
  * tables on a fresh machine.
  *
  * Every statement is idempotent (IF NOT EXISTS), and the set runs in one
- * transaction. Note there is no ALTER TABLE here at all — Discover adds two
- * tables and touches nothing that already holds data.
+ * transaction. Discover adds two tables of its own and touches nothing that
+ * already holds data; the one ALTER below adds a column to a Discover table
+ * after it had already shipped, which the CREATE alone cannot do.
  *
  *   npm run discover:schema           # print the DDL, touch nothing
  *   npm run discover:schema:apply     # run it
@@ -42,11 +43,15 @@ export const ADDITIVE_DISCOVER_LISTINGS_DDL = [
     "reviewedByUserId" text,
     "reviewedAt" timestamptz,
     "reviewNote" text,
+    "reviewFlags" text,
     "staffReadAt" timestamptz,
     "supersedesListingId" text,
     "createdAt" timestamptz NOT NULL,
     "updatedAt" timestamptz
   )`,
+  // Added after the table shipped, so the CREATE above is not enough on any
+  // database that already has it — production included.
+  `ALTER TABLE "DiscoverListings" ADD COLUMN IF NOT EXISTS "reviewFlags" text`,
   `CREATE INDEX IF NOT EXISTS "DiscoverListings_status_listedAtIndex" ON "DiscoverListings" ("status", "listedAt")`,
   `CREATE INDEX IF NOT EXISTS "DiscoverListings_status_createdAtIndex" ON "DiscoverListings" ("status", "createdAt")`,
   `CREATE INDEX IF NOT EXISTS "DiscoverListings_submittedBy_createdAtIndex" ON "DiscoverListings" ("submittedByUserId", "createdAt")`,

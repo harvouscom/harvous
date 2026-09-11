@@ -15,6 +15,7 @@ const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf
 const routes = () => source('server/routes/discover.ts');
 const snapshot = () => source('server/utils/discover-snapshot.ts');
 const install = () => source('server/utils/discover-install.ts');
+const churchMaterial = () => source('server/utils/discover-church-material.ts');
 
 /** Source of one handler, from its `app.<verb>(` to the next one. */
 function handlerBody(text: string, marker: string): string {
@@ -209,6 +210,120 @@ describe('discover routes', () => {
     const body = handlerBody(routes(), "app.post('/api/discover/install'");
     expect(body).toContain('SELF_INSTALL');
     expect(body).toContain('listing.submittedByUserId === auth.userId');
+  });
+
+  /*
+   * An official listing is already in every account — a built-in template lives in
+   * `getBuiltInTemplates()`, in code, and shows under the browse sheet's "Included"
+   * tab without a `NoteTemplates` row. `prepareTemplateInstall` knows none of that
+   * and mints a fresh `ntpl_`, so installing one put a second copy of SOAP in the
+   * picker: one Included, one Personal. Guarded here because the install path
+   * cannot see it — `official` lives in `preview`, which that path never reads.
+   */
+  it('refuses installing something Harvous already includes', () => {
+    const body = handlerBody(routes(), "app.post('/api/discover/install'");
+    expect(body).toContain('ALREADY_INCLUDED');
+    expect(body).toContain('isOfficialListing(listing.preview)');
+  });
+
+  /*
+   * A church's link is not the member's to publish, even once it sits on their
+   * own shelf. `snapshotResource` settles the direct case by scoping to
+   * `findPersonalLibrary`; it cannot settle the same URL retyped, because
+   * `LibraryItems` records no origin. These hold the second gate.
+   */
+  it('scopes a resource snapshot to the submitter own library', () => {
+    // The structural half, and the reason the URL check is only the second line
+    // of defence rather than the first.
+    const text = snapshot();
+    expect(text).toContain('findPersonalLibrary(userId)');
+    expect(text).toContain('eq(LibraryItems.libraryId, library.id)');
+  });
+
+  it('refuses a link the submitter church keeps to its leaders', () => {
+    const body = handlerBody(routes(), "app.post('/api/discover/submit'");
+    // The call and the branch, not just the identifiers: a dead `if (false)`
+    // around the refusal leaves both strings in the file and changes everything.
+    expect(body).toContain('await classifySubmittedResourceUrl(auth.userId,');
+    expect(body).toContain("verdict.kind === 'restricted'");
+    expect(body).toContain('CHURCH_MATERIAL_RESTRICTED');
+  });
+
+  it('checks only shelves the submitter can actually see', () => {
+    // Not every church everywhere: a popular public article would otherwise
+    // become unshareable by anyone because one unrelated church listed it.
+    const text = churchMaterial();
+    // Called, not merely imported — the import line alone would satisfy a bare
+    // identifier check while the resolver went unused.
+    expect(text).toContain('await resolveChurchLibraryViewer(userId)');
+    expect(text).toContain('.from(Spaces)');
+  });
+
+  /*
+   * The bug a live walk found, and the reason this file does not just say
+   * "consults the spaces helper": `getMemberOfSpaces` answers a different
+   * question — its own comment is "spaces the user belongs to *but does not
+   * own*", enforced with `ne(Spaces.userId, userId)`. Borrowing it here skipped
+   * every room the submitter runs, and a leaders-only link in a space I owned
+   * went straight through the gate.
+   */
+  it('counts rooms the submitter owns, not only ones they joined', () => {
+    const text = churchMaterial();
+    expect(text).toContain('eq(Spaces.userId, userId)');
+    expect(text).toContain('eq(SpaceMemberships.userId, userId)');
+    // The call, not the word — the docblock above names the helper to explain
+    // why it is the wrong one.
+    expect(text, 'getMemberOfSpaces excludes owned spaces — do not reuse it here').not.toContain(
+      'await getMemberOfSpaces(',
+    );
+  });
+
+  it('treats leaders-only as the verdict even when a members shelf also matches', () => {
+    const text = churchMaterial();
+    expect(text).toContain("m.access === 'leaders'");
+  });
+
+  /*
+   * The flag names a church. `serializePublic` feeds harvous.com and the static
+   * export, so this must never travel with it.
+   */
+  it('keeps the reviewer flag out of every public serializer', () => {
+    const text = routes();
+    const publicStart = text.indexOf('function serializePublic');
+    const mineStart = text.indexOf('function serializeMine');
+    const reviewStart = text.indexOf('function serializeForReview');
+    expect(publicStart).toBeGreaterThan(-1);
+    expect(text.slice(publicStart, mineStart)).not.toContain('reviewFlags');
+    expect(text.slice(mineStart, reviewStart)).not.toContain('reviewFlags');
+    expect(text.slice(reviewStart)).toContain('reviewFlags');
+  });
+
+  /*
+   * Found by withdrawing a submission and watching "Waiting" stay on screen:
+   * the row had already changed, and the browser served its own cached body from
+   * underneath React Query, which cannot refetch its way out of an HTTP cache.
+   * The two public reads already carried this; the two status reads did not.
+   */
+  it('lets no read whose body changes on a write be cached', () => {
+    const text = routes();
+    for (const marker of [
+      "app.get('/api/discover/listings',",
+      "app.get('/api/discover/listings/:slug',",
+      "app.get('/api/discover/mine',",
+      "app.get('/api/admin/discover/submissions',",
+    ]) {
+      expect(handlerBody(text, marker), `${marker} may be cached`).toContain(
+        "'Cache-Control', 'private, max-age=0, no-store'",
+      );
+    }
+  });
+
+  it('reads official off the preview, and only when it is exactly true', () => {
+    // A malformed or absent preview must not read as official — that would refuse
+    // installs of ordinary listings.
+    const text = routes();
+    expect(text).toContain('function isOfficialListing');
+    expect(text).toContain('.official === true');
   });
 
   it('reads DiscoverInstalls only as the caller, never about anyone else', () => {
