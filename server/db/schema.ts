@@ -1328,9 +1328,18 @@ export const UserMetadata = pgTable('UserMetadata', {
    */
   lastReminderSentOn: text('lastReminderSentOn'),
   /**
-   * Legacy notes-tier label (`free` | `unlimited`) — retired for gating; kept for
-   * admin support/usage stats until those surfaces move off it. Paid features
-   * live in `Entitlements`.
+   * Legacy notes-tier label (`free` | `unlimited`) — retired. Paid features live in
+   * `Entitlements`, and nothing reads this to decide access.
+   *
+   * The admin surfaces it was kept for have moved off: the Usage board's paid split and the
+   * support ticket's plan chip both read entitlements now. They had to — in production this
+   * column reads 'free' for all 293 accounts, including the nine holding paid access, so every
+   * number derived from it was structurally zero.
+   *
+   * What still reads it: the two `@deprecated` helpers in tier-limits.ts, feeding the inert
+   * `hasUnlimited` field on subscription status, and the one-time
+   * server/scripts/backfill-tier-from-clerk.ts. Dropping the column is a separate decision from
+   * retiring its readers, so it stays, still written, still meaning nothing.
    */
   tier: text('tier').notNull().default('free'),
   /** Polar customer id for portal sessions and subscription sync. */
@@ -1833,17 +1842,51 @@ export const ReviewEvents = pgTable('ReviewEvents', {
   reviewItemId: text('reviewItemId').notNull(),
   /** Denormalized so the note cascade can find these rows without joining ReviewItems. */
   noteId: text('noteId'),
-  /** shown | recalled | almost | revealed | deferred | paused | resumed | archived. */
+  /**
+   * shown | recalled | almost | revealed | deferred | paused | resumed | archived, and the two
+   * that are about the question rather than the recall: liked | disliked. The allowlist is
+   * `REVIEW_EVENT_ACTIONS`; `study-feed.ts` reads this log through the narrower `REVIEW_OUTCOMES`
+   * so a rating can never be printed as an answer.
+   */
   action: text('action').notNull(),
   /** What the reader wrote before revealing, when they wrote anything. */
   attempt: text('attempt'),
+  /**
+   * The rung this event was about — `verse.rebuild`, `note.passage`.
+   *
+   * The exercise *family* is derived from it and never stored: `FAMILY_BY_KEY` calls itself "a
+   * naming, not a taxonomy" and is expected to be re-cut, so a denormalized family would freeze
+   * last year's cut into an append-only log and silently mis-attribute old rows. `ReviewItems`
+   * has `lastRungKey`, but that only ever names the most recent asking; this names each one.
+   */
+  rungKey: text('rungKey'),
   previousIntervalDays: real('previousIntervalDays'),
   nextIntervalDays: real('nextIntervalDays'),
+  /**
+   * Which go this outcome was, 1-based, on the rungs that allow more than one.
+   *
+   * Null on every event that is not an outcome, and on rows written before this column. The
+   * route has always computed it — `maxAttemptsFor` decides how many goes a rung gets and the
+   * count is what picks `recalled` over `almost` — and then dropped it. Without it `revealed`
+   * cannot be read: "wrong twice" and "gave up on the first go" are the same row.
+   */
+  attemptNumber: integer('attemptNumber'),
+  /**
+   * Whether the rung had an answer key, rather than the reader's own verdict.
+   *
+   * Two verse rungs are marked by the server; every other rung is an open question judged by
+   * the person who wrote the note. Averaging the two into one recall rate compares a test score
+   * with a self-assessment, so the distinction has to survive into the log. Null on rows
+   * written before this column, which is not the same as false.
+   */
+  graded: boolean('graded'),
   createdAt: ts('createdAt').notNull(),
 }, (table) => [
   index('ReviewEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('ReviewEvents_reviewItemId_createdAtIndex').on(table.reviewItemId, table.createdAt),
   index('ReviewEvents_noteIdIndex').on(table.noteId),
+  /* Serves the windowed dislike tally, which filters userId + action and orders by createdAt. */
+  index('ReviewEvents_userId_action_createdAtIndex').on(table.userId, table.action, table.createdAt),
 ]);
 
 // ─── UserNodeStates (the reader's own Study Bible layer) ──────────────────────

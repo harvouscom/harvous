@@ -791,6 +791,9 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
               prompt: review.prompt ?? null,
               subject: review.subject ?? null,
               echo: reviewAnswerEcho({ submitted: review.attempt ? { text: review.attempt } : null }),
+              /* Carried so the result card can offer question feedback. Without it the thumbs
+                 are absent for every note answered from the stack edge, which is most of them. */
+              itemId: review.itemId,
               at: Date.now(),
             }),
         },

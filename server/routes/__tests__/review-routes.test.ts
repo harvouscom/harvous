@@ -773,3 +773,64 @@ describe('what a miss is allowed to say', () => {
     expect(outcome()).not.toContain('cloze.blanks');
   });
 });
+
+describe('question feedback is filed against the question that was asked', () => {
+  const handler = () => {
+    const text = review();
+    const start = text.indexOf("'/api/review/items/:id/feedback'");
+    expect(start).toBeGreaterThan(-1);
+    return text.slice(start, text.indexOf('route.post', start + 10));
+  };
+
+  it('takes the rung from the item row rather than resolving it again', () => {
+    /*
+     * `applyReviewOutcome` writes `lastRungKey` moments before the vote is cast, so it names the
+     * question the reader actually saw. `askedRungFor` would name whatever the *current*
+     * preferences resolve to — and a vote filed against the wrong rung would quiet a family the
+     * reader never complained about, which is the one way this feature can do harm.
+     */
+    expect(handler()).toContain('item.lastRungKey');
+    expect(handler()).not.toContain('askedRungFor');
+  });
+
+  it('refuses a vote it does not recognise', () => {
+    expect(handler()).toContain("vote !== 'liked'");
+    expect(handler()).toContain("vote !== 'disliked'");
+    expect(handler()).toContain('REVIEW_FEEDBACK_INVALID');
+  });
+
+  it('reads the tally past the per-request memo, since it just wrote to it', () => {
+    expect(handler()).toContain('reviewDislikeRowsFor');
+  });
+
+  it('invalidates nothing on the client', () => {
+    /*
+     * A sitting is a fixed set of questions on purpose. Quieting takes effect the next time one
+     * is composed; doing it sooner would reshuffle the queue under someone mid-answer.
+     */
+    const hook = withoutComments(source('spa/src/hooks/mutations/useReviewMutations.ts'));
+    const start = hook.indexOf('export function useReviewFeedback');
+    const body = hook.slice(start, hook.indexOf('export function', start + 10));
+    expect(body).not.toContain('invalidateQueries');
+  });
+});
+
+describe('the dislike tally', () => {
+  it('reads only disliked rows, inside the window, with a cap', () => {
+    const text = service();
+    const start = text.indexOf('async function loadRecentDislikes');
+    const body = text.slice(start, text.indexOf('async function', start + 10));
+    expect(body).toContain("eq(ReviewEvents.action, 'disliked')");
+    expect(body).toContain('reviewDislikeWindowStart');
+    expect(body).toContain('DISLIKE_ROW_CAP');
+  });
+
+  it('degrades to no dampening rather than a broken queue', () => {
+    // The same bargain the preference read strikes: a database the migration has not reached
+    // has no `rungKey` column, and Review opening matters more than a lean being honoured.
+    const text = service();
+    const start = text.indexOf('async function loadRecentDislikes');
+    expect(text.slice(start, text.indexOf('async function', start + 10))).toContain('catch');
+  });
+});
+

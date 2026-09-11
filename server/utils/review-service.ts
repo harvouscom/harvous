@@ -29,6 +29,7 @@ import {
   desc,
   eq,
   gt,
+  gte,
   inArray,
   isNotNull,
   lte,
@@ -204,6 +205,11 @@ import {
   parseReviewExerciseSettings,
   skippedKeySet,
 } from '@/utils/review-exercise-settings';
+import {
+  quietedKeySet,
+  reviewDislikeWindowStart,
+  type ReviewDislikeRow,
+} from '@/utils/review-exercise-feedback';
 import { getNotePassages } from './scripture-knowledge';
 import { REVIEWED_SOURCE } from '@/utils/study-bible-source-copy';
 import { READING_DWELL_BUCKETS, readingDwellCountsAsRead } from '@/utils/reading-event-kinds';
@@ -1161,7 +1167,7 @@ export async function buildReviewItemViews(
  */
 const skipCache = new Map<string, Promise<ReadonlySet<ReviewPromptKey>>>();
 
-async function loadSkippedRungs(userId: string): Promise<ReadonlySet<ReviewPromptKey>> {
+async function loadPreferredSkips(userId: string): Promise<ReadonlySet<ReviewPromptKey>> {
   const cached = skipCache.get(userId);
   if (cached) return cached;
   const pending = (async () => {
@@ -1185,6 +1191,76 @@ async function loadSkippedRungs(userId: string): Promise<ReadonlySet<ReviewPromp
   // Cleared on the next tick: within one request the answer is fixed, across requests it is not.
   void pending.finally(() => queueMicrotask(() => skipCache.delete(userId)));
   return pending;
+}
+
+/**
+ * The reader's recent thumbs-down votes, read once per request and memoised the same way.
+ *
+ * Narrow by construction: `disliked` rows are the rarest thing in the log, the window is thirty
+ * days, and the cap is there so a pathological account cannot make a rung resolution unbounded.
+ * The tally is done in JS rather than SQL so the rung-to-family mapping stays derived from
+ * `FAMILY_BY_KEY` — see `review-exercise-feedback.ts`.
+ */
+const dislikeCache = new Map<string, Promise<ReviewDislikeRow[]>>();
+
+const DISLIKE_ROW_CAP = 500;
+
+async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
+  const cached = dislikeCache.get(userId);
+  if (cached) return cached;
+  const pending = (async () => {
+    try {
+      const rows = await db
+        .select({ reviewItemId: ReviewEvents.reviewItemId, rungKey: ReviewEvents.rungKey })
+        .from(ReviewEvents)
+        .where(
+          and(
+            eq(ReviewEvents.userId, userId),
+            eq(ReviewEvents.action, 'disliked'),
+            gte(ReviewEvents.createdAt, reviewDislikeWindowStart(new Date())),
+            isNotNull(ReviewEvents.rungKey),
+          ),
+        )
+        .orderBy(desc(ReviewEvents.createdAt))
+        .limit(DISLIKE_ROW_CAP);
+      return rows as ReviewDislikeRow[];
+    } catch {
+      /*
+       * The same bargain `loadPreferredSkips` strikes: on a database the migration has not
+       * reached, `rungKey` does not exist and this throws. A Review that asks without leaning
+       * away is worth far more than a Review that will not open.
+       */
+      return [];
+    }
+  })();
+  dislikeCache.set(userId, pending);
+  void pending.finally(() => queueMicrotask(() => dislikeCache.delete(userId)));
+  return pending;
+}
+
+/**
+ * Every reason to walk past a rung: what the reader switched off, and what they keep thumbing down.
+ *
+ * One function, because the list, the reveal, the grader and the truth must resolve the same rung
+ * from the same material — if the two halves entered by different doors they could diverge. Both
+ * halves fail soft to empty, and neither can return nothing: quieting joins `material.skip`, which
+ * every walk already treats as a reason to move on rather than a reason to stop.
+ */
+async function loadSkippedRungs(userId: string): Promise<ReadonlySet<ReviewPromptKey>> {
+  const [preferred, dislikes] = await Promise.all([
+    loadPreferredSkips(userId),
+    loadRecentDislikes(userId),
+  ]);
+  if (!dislikes.length) return preferred;
+  const merged = new Set<ReviewPromptKey>(preferred);
+  for (const key of quietedKeySet(dislikes)) merged.add(key);
+  return merged;
+}
+
+/** The tally behind the card's "Noted." — read after a vote lands, so it bypasses the memo. */
+export async function reviewDislikeRowsFor(userId: string): Promise<ReviewDislikeRow[]> {
+  dislikeCache.delete(userId);
+  return loadRecentDislikes(userId);
 }
 
 /** Verse text arrives as formatted HTML with superscript verse numbers. */
@@ -1507,7 +1583,17 @@ export async function recordReviewEvent(
   userId: string,
   item: ReviewItemRow,
   action: ReviewEventAction,
-  extra: { attempt?: string | null; previousIntervalDays?: number; nextIntervalDays?: number } = {},
+  extra: {
+    attempt?: string | null;
+    previousIntervalDays?: number;
+    nextIntervalDays?: number;
+    /** The rung this event was about. Derived once by the caller, which already resolved it. */
+    rungKey?: string | null;
+    /** Which go this was, on a rung that allows more than one. Outcomes only. */
+    attemptNumber?: number | null;
+    /** Whether the rung was marked against an answer key rather than self-judged. */
+    graded?: boolean | null;
+  } = {},
   now: Date = new Date(),
 ): Promise<void> {
   await db.insert(ReviewEvents).values({
@@ -1517,8 +1603,11 @@ export async function recordReviewEvent(
     noteId: item.noteId,
     action,
     attempt: extra.attempt?.trim() || null,
+    rungKey: extra.rungKey ?? null,
     previousIntervalDays: extra.previousIntervalDays ?? null,
     nextIntervalDays: extra.nextIntervalDays ?? null,
+    attemptNumber: extra.attemptNumber ?? null,
+    graded: extra.graded ?? null,
     createdAt: now,
   });
 }
@@ -1549,6 +1638,11 @@ export async function applyReviewOutcome(
   now: Date = new Date(),
   /** The rung actually answered. Decides the weight of a recall and whether a miss can lapse. */
   rungKey: string | null = null,
+  /**
+   * How the answer was reached, for the log only — neither value touches the schedule, which
+   * the caller has already folded into `outcome`.
+   */
+  answered: { attemptNumber?: number | null; graded?: boolean | null } = {},
 ): Promise<ReviewOutcomeResult> {
   const next = nextReviewAfter(
     outcome,
@@ -1595,6 +1689,10 @@ export async function applyReviewOutcome(
     attempt,
     previousIntervalDays: item.intervalDays,
     nextIntervalDays: next.intervalDays,
+    // Already resolved just above for `lastRungKey`; the log keeps every asking, not the last.
+    rungKey,
+    attemptNumber: answered.attemptNumber ?? null,
+    graded: answered.graded ?? null,
   }, now);
 
   if (outcome === 'recalled') {

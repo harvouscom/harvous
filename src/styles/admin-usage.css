@@ -1433,6 +1433,9 @@ button.admin-usage__window-chip--active:active {
   background: color-mix(in srgb, var(--pds-text-tertiary) 38%, var(--pds-border));
 }
 
+.admin-usage__segment-bar-segment--tertiary {
+  background: color-mix(in srgb, var(--pds-text-tertiary) 18%, var(--pds-border));
+}
 .admin-usage__segment-bar-segment--notes {
   background: color-mix(in srgb, var(--usage-notes) 70%, transparent);
 }

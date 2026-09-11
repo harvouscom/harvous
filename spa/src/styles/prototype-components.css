@@ -1677,6 +1677,146 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
   letter-spacing: 0.03em;
 }
 
+/*
+ * An icon block: a glyph over a word, in a pressable block.
+ *
+ * The word is not optional. This feature already removed a bare `+` for being an unexplained
+ * icon, and a glyph meaning "fewer of these" has no settled shape at all.
+ *
+ * Review's question feedback is the one thing wearing it. The Activity row's overflow menu was
+ * built this way too and put back to a list: a menu of actions reads better as rows you scan
+ * down than as a strip of blocks, and the full sentences ("Remove from Review") are the point
+ * there in a way a one-word label cannot carry.
+ */
+
+.proto-icon-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pds-space-1);
+  min-width: 72px;
+  padding: var(--pds-space-2) var(--pds-space-2) 7px;
+  border: 0.5px solid var(--pds-border-control);
+  border-radius: var(--pds-radius-input);
+  background: var(--pds-bg-control);
+  color: var(--pds-text-secondary);
+  font-family: var(--pds-font-body);
+  cursor: pointer;
+  transition:
+    background var(--pds-duration-press) ease,
+    border-color var(--pds-duration-press) ease,
+    color var(--pds-duration-press) ease,
+    transform var(--pds-duration-press) ease;
+}
+
+.proto-icon-block__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+}
+
+.proto-icon-block__label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Room for a thumb, where there is a thumb. */
+@media (pointer: coarse) {
+  .proto-icon-block {
+    min-height: 56px;
+  }
+}
+
+.proto-icon-block:hover:not(:disabled) {
+  border-color: var(--pds-border-control-strong);
+  background: var(--pds-bg-control-hover);
+  color: var(--pds-text-primary);
+}
+
+.proto-icon-block:focus-visible {
+  outline: 2px solid var(--pds-accent);
+  outline-offset: 2px;
+}
+
+/* The block gives under the finger. The bounce belongs to the mark, below. */
+.proto-icon-block:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/*
+ * Chosen: the filled accent button, the same one every other primary action in the app wears.
+ * A tinted outline was tried first and read as merely hovered — the whole point of this state is
+ * that the reader can see at a glance which way they voted, next to a sibling that is spent.
+ *
+ * The `!important` is not defensive clutter. `global.css` ends with
+ * `button * { color: var(--color-deep-grey) !important }`, which beats an inline `color: inherit`
+ * — and `Icon` renders its glyph inside exactly such a span, so the label went white while the
+ * thumb stayed grey. The descendant wildcard is what reaches it. Two other rules in these
+ * stylesheets carry the same fix for the same reason; `global.css:1756` names it outright.
+ */
+.proto-icon-block[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--pds-bg-accent-button, var(--pds-accent));
+  color: var(--pds-on-accent);
+  box-shadow: var(--pds-shadow-accent-button);
+}
+
+.proto-icon-block[aria-pressed='true'] .proto-icon-block__label,
+.proto-icon-block[aria-pressed='true'] .proto-icon-block__glyph,
+.proto-icon-block[aria-pressed='true'] .proto-icon-block__glyph * {
+  color: var(--pds-on-accent) !important;
+}
+
+.proto-icon-block[aria-pressed='true'] .proto-icon-block__glyph svg path {
+  fill: var(--pds-on-accent) !important;
+}
+
+/* Chosen and spent still reads as chosen: the fill stays, it just stops inviting a press. */
+.proto-icon-block[aria-pressed='true']:disabled {
+  opacity: 0.9;
+}
+
+.proto-icon-block:disabled {
+  cursor: default;
+}
+
+/* The way not taken, once the vote is in: legible, plainly spent. */
+.proto-icon-block:disabled:not([aria-pressed='true']) {
+  opacity: 0.5;
+}
+
+/*
+ * The same pop the onboarding check and Review's result mark already share — one gesture for
+ * "that registered", now in three places. See `@keyframes proto-onboarding-check-pop`. No
+ * `proto-motion.ts` constant is needed: nothing is held mounted waiting for this to finish, so
+ * there is no JS duration to keep in lockstep.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .proto-icon-block[aria-pressed='true'] .proto-icon-block__glyph {
+    animation: proto-onboarding-check-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-icon-block {
+    transition: none;
+  }
+
+  .proto-icon-block:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.proto-icon-block-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--pds-space-2);
+}
+
 /* Trailing checkmark on an already-shared space row. */
 
 .proto-menu-item {
@@ -14253,14 +14393,48 @@ html.harvous-prototype-route
   So: the caption's own size and colour, a little space, and nothing else. Not bold, not tinted,
   no glyph. It should be legible when looked at and silent when not.
 */
+/*
+ * How well a passage is held, as three segments rather than three words.
+ *
+ * Sized to sit on a title line without lifting it: 3px tall against an 11px label's cap height,
+ * which is why the segments are set with `vertical-align: middle` and no line box of their own.
+ * Steps are the three the copy makes — see `RECALL_STATE_LABELS`, where `fragile` and `forming`
+ * deliberately share a phrase and therefore share a fill.
+ */
 .proto-recall-mark {
+  display: inline-flex;
+  gap: 2px;
   margin-left: 8px;
-  color: var(--pds-text-tertiary);
-  font-weight: 400;
-  font-size: 11px;
-  line-height: 1.4;
-  white-space: nowrap;
   vertical-align: middle;
+}
+
+.proto-recall-mark__seg {
+  width: 9px;
+  height: 3px;
+  border-radius: 999px;
+  /* The unfilled ground. Faint enough that a learning row reads as one mark, not three. */
+  background: var(--pds-border-on-paper);
+}
+
+/* Learning: the first of three. */
+.proto-recall-mark[data-hold='learning'] .proto-recall-mark__seg:nth-child(1) {
+  background: var(--pds-accent);
+}
+
+/* Held: all three. */
+.proto-recall-mark[data-hold='held'] .proto-recall-mark__seg {
+  background: var(--pds-accent);
+}
+
+/*
+ * Slipped: two of three, in the warning tone.
+ *
+ * Not one — a passage that has slipped was held once, and drawing it level with something just
+ * being learned would be a lie about the reader's own history. Reduced-from-full is what
+ * actually happened, and the tone is what makes it an invitation rather than a demotion.
+ */
+.proto-recall-mark[data-hold='slipped'] .proto-recall-mark__seg:nth-child(-n + 2) {
+  background: var(--pds-warning);
 }
 
 /* Owner / You markers — subtle neutral pill (matches our chip language). */
@@ -22829,6 +23003,39 @@ button.proto-feed-sheet__stat:hover {
   .proto-review-dock__actions {
     animation-delay: 120ms;
   }
+
+  /* Arrives with the way on, never ahead of it. */
+  .proto-review-dock__feedback {
+    animation-delay: 160ms;
+  }
+}
+
+/*
+ * Rating the question, last on the card and deliberately quiet.
+ *
+ * It is not what the reader came for, and a card that asked for a rating before it had finished
+ * giving the answer would have its priorities backwards. Sits after "Next one" so the way on is
+ * never below a poll, and before the slipping offer so the strongest thing stays last.
+ */
+.proto-review-dock__feedback {
+  display: grid;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.proto-review-dock__feedback-caption {
+  margin: 0;
+}
+
+.proto-review-dock__feedback-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--pds-accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 @keyframes proto-review-enter {
@@ -23330,8 +23537,11 @@ button.proto-feed-sheet__stat:hover {
   background: var(--pds-accent-indicator);
 }
 
+/* Full strength, like the current dot beside it. At 40% this washed out to a pink that read as
+   a disabled dot rather than a go already spent — and the two dots are a pair, so they should
+   carry the same weight in their own colours. */
 .proto-review-dock__go[data-spent] {
-  background: color-mix(in oklab, var(--pds-destructive) 40%, transparent);
+  background: var(--pds-destructive);
 }
 
 /* A word of theirs that landed in the verse. Marked, not highlighted: this is a reading, not a

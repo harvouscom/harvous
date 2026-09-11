@@ -23,6 +23,7 @@ import {
   REVIEW_REMOVED_TOAST,
   REVIEW_REMOVE_FAILED_TOAST,
   REVIEW_RESUMED_TOAST,
+  REVIEW_FEEDBACK_FAILED_TOAST,
 } from '../../pages/prototype/proto-review-copy';
 import type { ReviewItemKind, ReviewItemStatus, ReviewOutcome } from '@/utils/review-item-kinds';
 
@@ -126,6 +127,36 @@ export function useDeferReview() {
     },
     onError: (error) => {
       toastError(error, REVIEW_DEFER_FAILED_TOAST, { scope: 'review-defer' });
+    },
+  });
+}
+
+export interface ReviewFeedbackResponse {
+  offerSettings: boolean;
+  family: { id: string; label: string } | null;
+}
+
+/**
+ * What the reader thought of the question.
+ *
+ * **Invalidates nothing.** A sitting is a fixed set of questions on purpose — `useReviewSession`
+ * is `staleTime: Infinity` so the queue cannot reshuffle under someone mid-answer — and quieting
+ * a family is a server-derived fact that takes effect the next time a sitting is composed. Doing
+ * it sooner would mean the page and the server disagreeing about which question is being asked,
+ * which is the drift the rung resolution is careful to avoid.
+ *
+ * On failure the card restores its buttons and says so quietly. A vote is a log line, not a
+ * setting; losing one is not worth interrupting a sitting for.
+ */
+export function useReviewFeedback() {
+  return useMutation({
+    mutationFn: ({ itemId, vote }: { itemId: string; vote: 'liked' | 'disliked' }) =>
+      api.post<ReviewFeedbackResponse>(
+        `/api/review/items/${encodeURIComponent(itemId)}/feedback`,
+        { vote },
+      ),
+    onError: (error) => {
+      toastError(error, REVIEW_FEEDBACK_FAILED_TOAST, { scope: 'review-feedback' });
     },
   });
 }

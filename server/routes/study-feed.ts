@@ -337,7 +337,17 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
               inArray(SpaceNotes.spaceId, [...spaceById.keys()]),
               isNull(SpaceNotes.removedAt),
               eq(Notes.contentEncrypted, false),
-              ne(Notes.userId, auth.userId),
+              /*
+               * Your own notes come out of this half only while the *own* half is running, and
+               * then only to avoid printing them twice: an unscoped feed already has them,
+               * untagged, from the personal sources above.
+               *
+               * Narrowed to a single space there is no own half — `wantsOwn` is false — so the
+               * guard had nothing left to de-duplicate against and was simply deleting you from
+               * your own trail. A space where only you had written came back empty, which is the
+               * one thing the space scope exists to show. Activity is a trail, not an inbox.
+               */
+              ...(wantsOwn ? [ne(Notes.userId, auth.userId)] : []),
               ...windowed(Notes.updatedAt),
             ),
           )
@@ -373,9 +383,13 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
           profileImageUrl: author?.profileImageUrl ?? null,
         },
         space: { id: space.spaceId, title: space.title, color: space.color },
-        isNewSinceVisit: watermark
-          ? new Date(at).getTime() > new Date(watermark).getTime()
-          : false,
+        /* Never your own: nothing you wrote is news to you, however long since you last
+           opened the space. Only reachable under a space scope, which is the one case where
+           this half returns your notes at all. */
+        isNewSinceVisit:
+          watermark && row.authorUserId !== auth.userId
+            ? new Date(at).getTime() > new Date(watermark).getTime()
+            : false,
       });
     }
 

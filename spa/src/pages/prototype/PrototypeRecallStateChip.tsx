@@ -1,22 +1,31 @@
 /**
- * How well the reader holds something: two quiet words beside the title.
+ * How well the reader holds something: three small segments beside the title.
  *
- * **It was a pill, and the pill was doing a job the position now does.** The state used to be
- * the third `·`-separated fragment of the caption — "Cross-referenced 28 times · Needs work" —
- * where it read as another clause of a sentence about the verse when it is really a sentence
- * about the reader. A chip separated the two by shape. Then the state moved to the *title* line,
- * which separates them by position, and the chip's border, fill, weight and glyph were all
- * paying for a problem that had already been solved somewhere else.
+ * **It was two words, and before that a pill.** The pill went when the state moved to the title
+ * line, because border, fill and weight were paying for a separation that position already made.
+ * The words went when the row filled up: an exercise label arrived on the meta line, titles
+ * already marquee at narrow widths, and "You're learning this" beside every title was the same
+ * sentence repeated down the whole list. A mark says it once, in the space of a word.
  *
- * What tipped it was the exercise label arriving on the meta line: two glyphs and two labels on
- * one row, none of them the thing the reader came to read. So the row keeps one icon — the
- * subject's — and the state is words alone.
+ * **Three segments, because the copy makes three distinctions and not five.** `fragile` and
+ * `forming` share a label on purpose, so they share a fill; `new` is never rendered at all. The
+ * mark is deliberately not a scale over `RECALL_STATES` — that would expose a split the words
+ * were written to hide, and turn an observation into a score.
  *
- * No colour, still. A tinted marker at the end of every row would be a scoreboard, and the one
- * thing this feature refuses to do is grade someone's grasp of Scripture at a glance. The words
- * carry it on their own — and they describe the passage's hold rather than the reader's
- * performance, which is why they read as an observation instead of a mark. See
- * `RECALL_STATE_LABELS`.
+ * `slipping` is the one that cannot be a lower rung. It is a fall *from* holding, so it shows
+ * as reduced-from-full in the warning tone rather than as an early step: a row that has slipped
+ * has more history behind it than one being learned, not less, and drawing it as "barely
+ * started" would be a lie about the reader's own past.
+ *
+ * **This does add colour, and that is a reversal.** The note that stood here said a tinted marker
+ * at the end of every row would be a scoreboard, and that the one thing this feature refuses is
+ * to grade someone's grasp of Scripture at a glance. The trade taken instead: the mark carries no
+ * number, no percentage and no ranking between rows, and its three steps say exactly what the
+ * three labels said — nothing finer. What it buys is a row you can read down without meeting the
+ * same sentence at every line.
+ *
+ * The words are still the accessible name, so nothing is lost to a reader who is listening
+ * rather than looking. See `RECALL_STATE_LABELS`.
  */
 import type { ReactNode } from 'react';
 import { RECALL_STATE_LABELS, type RecallState } from '@/utils/review-item-kinds';
@@ -29,11 +38,25 @@ export default function PrototypeRecallStateChip({
   state: RecallState;
   label: string;
 }) {
-  // `data-state` is kept though nothing styles it: it is what a test and a screenshot read to
-  // tell a fragile row from a forming one, since the two share a label.
+  /*
+   * `data-state` carries the raw state for tests and screenshots — fragile and forming are
+   * indistinguishable in both the label and the fill, so this is the only thing that tells them
+   * apart. `data-hold` is what the CSS actually draws, and it is the three-way the copy makes.
+   */
+  const hold = state === 'durable' ? 'held' : state === 'slipping' ? 'slipped' : 'learning';
   return (
-    <span className="proto-recall-mark" data-state={state}>
-      {label}
+    <span
+      className="proto-recall-mark"
+      data-state={state}
+      data-hold={hold}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      {/* Three segments, filled by `data-hold`. Decorative: the label above is the real text. */}
+      <span className="proto-recall-mark__seg" aria-hidden />
+      <span className="proto-recall-mark__seg" aria-hidden />
+      <span className="proto-recall-mark__seg" aria-hidden />
     </span>
   );
 }

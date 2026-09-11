@@ -40,6 +40,7 @@ export const reviewSetAsideCopy = (count: number) =>
 export const reviewComingBackCopy = (count: number) =>
   count === 1 ? '1 coming back later' : `${count} coming back later`;
 export const REVIEW_REMOVE_COPY = 'Remove from Review';
+
 export const REVIEW_MORE_COPY = 'More';
 
 /**
@@ -192,6 +193,57 @@ export const REVIEW_OUTCOME_ACK_COPY: Record<'recalled' | 'almost' | 'revealed',
   almost: 'Got there.',
   revealed: 'Not this time.',
 };
+
+/**
+ * What the reader thought of the QUESTION, which is a third thing.
+ *
+ * The three answers above describe a memory — "I recalled it" — and the outcome line describes
+ * how it went. Neither says anything about the exercise the app chose, so a rung that keeps
+ * landing badly had nowhere to be reported. These two are about that, and about nothing else:
+ * they never grade the reader, and like everything else here they say nothing about wrong, fail
+ * or mistake, because a miss on a verse is none of those.
+ *
+ * Both carry a word beside the glyph. A bare icon was tried once in this very feature and
+ * removed — see REVIEW_ADD_COPY — and a glyph meaning "fewer of these" has no settled shape at
+ * all, so an unlabelled one would be a question the reader has to answer before they can answer
+ * the question.
+ *
+ * "Not helpful" is the reader's own phrase for this, and it deliberately avoids "Show fewer",
+ * which is already the Activity fold's toggle a few lines above.
+ */
+/* Names the subject, so two blocks under a verdict line cannot be read as being about the
+   memory that was just described. Four words, in the caption size. */
+export const REVIEW_FEEDBACK_PROMPT_COPY = 'This kind of question';
+export const REVIEW_FEEDBACK_UP_COPY = 'Good question';
+export const REVIEW_FEEDBACK_DOWN_COPY = 'Not helpful';
+
+/** The full sentence for the accessible name; the family is what is actually being rated. */
+export const reviewFeedbackUpAria = (family: string) => `Good question — more ${family}`;
+export const reviewFeedbackDownAria = (family: string) => `Not helpful — fewer ${family}`;
+
+/**
+ * Said back, and nothing more.
+ *
+ * Never "you will see fewer of these". The engine leans away where the step has somewhere else
+ * to go, and on a note with nothing but a body it must still fall back to the rung just marked
+ * unhelpful. A card that promised otherwise would be the lie `review-exercise-settings.ts`
+ * names, moved from a settings row onto a study card.
+ */
+export const REVIEW_FEEDBACK_ACK_COPY = 'Noted.';
+
+/**
+ * The third time, for a family the reader can actually switch.
+ *
+ * Offered once — a fourth and a fifth say "Noted." like the rest, because an offer repeated is a
+ * nag — and never for an always-on family, where there is no switch and naming one would promise
+ * something the engine is entitled to ignore.
+ */
+export const REVIEW_FEEDBACK_SETTINGS_LINK_COPY = 'Review exercises';
+export const reviewFeedbackOfferCopy = (family: string) =>
+  `Noted. You can turn ${family} off in`;
+
+/** A vote is a log line, not a setting; losing one is not worth interrupting a sitting for. */
+export const REVIEW_FEEDBACK_FAILED_TOAST = "Couldn't note that";
 
 /** The graded rungs: the reader has arranged or chosen, and asks the app to mark it. */
 export const REVIEW_CHECK_COPY = 'Check it';

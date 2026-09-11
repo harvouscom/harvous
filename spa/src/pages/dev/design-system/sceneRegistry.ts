@@ -252,6 +252,7 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     phase: 'Patterns',
     editFiles: [
       'spa/src/pages/prototype/PrototypeReviewDock.tsx',
+      'spa/src/pages/prototype/ProtoIconBlock.tsx',
       'spa/src/styles/prototype-components.css',
     ],
     screenshotSlug: 'ds-21-review-verdicts',
