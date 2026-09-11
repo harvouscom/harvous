@@ -72,6 +72,20 @@ export const REVIEW_PAUSE_FAILED_TOAST = "Couldn't change that — try again";
 export const REVIEW_DEFER_FAILED_TOAST = "Couldn't put that off — try again";
 
 /**
+ * And for the answer itself, which had none.
+ *
+ * The worst of the silent failures: the question stayed on screen exactly as it was, so a lost
+ * answer and an unregistered tap looked the same. The card keeps the question up and says this,
+ * rather than advancing to a result that was never recorded.
+ */
+export const REVIEW_OUTCOME_FAILED_TOAST = "Couldn't save that answer — try once more";
+export const REVIEW_STEP_BACK_FAILED_TOAST = "Couldn't change how this is asked — try again";
+
+/** The reveal is the question on a graded rung, so failing to load it is a question with no body. */
+export const REVIEW_REVEAL_FAILED_COPY = "This one didn't load.";
+export const REVIEW_REVEAL_RETRY_COPY = 'Try again';
+
+/**
  * The section heading on Activity.
  *
  * It was "Study Inbox" for its first week and the word was wrong twice over. An inbox is

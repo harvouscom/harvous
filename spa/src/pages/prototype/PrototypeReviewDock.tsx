@@ -40,7 +40,12 @@ import { prototypeHref } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
-import { canJudgeRecall, resolveReviewDockItem } from '@/utils/review-dock-state';
+import {
+  canJudgeRecall,
+  resolveReviewDockItem,
+  shouldReleaseHeldItem,
+  sittingIsStale,
+} from '@/utils/review-dock-state';
 import { reviewRowSubtitle } from '@/utils/review-row-subtitle';
 import { noteParamSlug } from './proto-route-slugs';
 import { prototypeNoteRouteTo } from '@/lib/prototype-path';
@@ -76,6 +81,8 @@ import {
   REVIEW_ALMOST_COPY,
   REVIEW_ATTEMPT_PLACEHOLDER,
   REVIEW_LOADING_LABEL,
+  REVIEW_REVEAL_FAILED_COPY,
+  REVIEW_REVEAL_RETRY_COPY,
   REVIEW_RECALLED_COPY,
   REVIEW_REVEALED_ACK_COPY,
   REVIEW_CHECK_COPY,
@@ -506,6 +513,56 @@ export default function PrototypeReviewDock() {
     setVerdict(null);
     setAttemptsTotal(null);
   }, [item?.id]);
+
+  /*
+   * Let go of the pinned question once it is no longer the one being looked at.
+   *
+   * The pin was cleared in exactly one place — the "Next one" button — so every other way out
+   * of a result kept it: leaving from the result card and tapping a different row rendered the
+   * question that had just been answered while the pointer named the new one, and answering it
+   * again re-recorded an outcome against an item that was already rescheduled. The rule is
+   * `shouldReleaseHeldItem`, kept pure next door because the interesting cases are timing ones.
+   */
+  useEffect(() => {
+    if (
+      shouldReleaseHeldItem({
+        heldId: heldItem?.id ?? null,
+        requestedId: reviewDock?.itemId,
+        hasResult: Boolean(lastResult),
+        hasVerdict: Boolean(verdict),
+        pending: outcome.isPending,
+        dockOpen: open,
+      })
+    ) {
+      setHeldItem(null);
+    }
+  }, [heldItem?.id, reviewDock?.itemId, lastResult, verdict, outcome.isPending, open]);
+
+  /*
+   * A sitting belongs to the open dock, not to the tab.
+   *
+   * The count is of what the reader did just now; carrying it across a close and a reopen would
+   * make the closing line describe two sittings as one.
+   */
+  useEffect(() => {
+    if (!open) setSitting({ answered: 0, holding: 0 });
+  }, [open]);
+
+  /*
+   * A sitting that has been sitting there is re-composed as the dock opens.
+   *
+   * `useReviewSession` is `staleTime: Infinity` so the queue cannot reshuffle under someone
+   * mid-answer, which is right for the minutes a sitting lasts and wrong for the hours a tab
+   * stays open: the morning's dock was serving yesterday's questions against yesterday's clock.
+   * Checked only on the open edge, never while the dock is in use, so the freeze still holds
+   * exactly where it was written to.
+   */
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    const opening = open && !wasOpen.current;
+    wasOpen.current = open;
+    if (opening && sittingIsStale(sessionQuery.dataUpdatedAt)) void sessionQuery.refetch();
+  }, [open, sessionQuery]);
 
   /*
    * Keep the dock's pointer on an item that still exists.
@@ -1468,6 +1525,28 @@ export default function PrototypeReviewDock() {
                 onClick={() => answer('almost', { text: attempt, promptKey: item.promptKey })}
               >
                 {REVIEW_CHECK_COPY}
+              </button>
+            </div>
+          </>
+        ) : isGradedRung && reveal.isError ? (
+          /*
+           * The reveal *is* the question on a graded rung, so a failed one is a question with no
+           * body. Without this the chain fell past every exercise branch to the free-text
+           * fallback — the same wrong-exercise flash the loading branch below was written to
+           * prevent, except permanent, and with a "check the verse" button that would record an
+           * answer to a question the reader was never shown.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
+            <p className="proto-review-dock__caption">{REVIEW_REVEAL_FAILED_COPY}</p>
+            <div className="proto-review-dock__actions">
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--compact"
+                onClick={() => void reveal.refetch()}
+              >
+                {REVIEW_REVEAL_RETRY_COPY}
               </button>
             </div>
           </>
