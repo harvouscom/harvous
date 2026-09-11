@@ -597,6 +597,10 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   min-height: 0;
   overflow: auto;
   font-family: var(--pds-font-body);
+  /* Room at the end of Home, Activity and everything else for the study dock band, which
+     floats over this pane with no layout height of its own. Zero when no dock is open. */
+  scroll-padding-bottom: var(--proto-study-dock-band-height, 0px);
+  padding-bottom: var(--proto-study-dock-band-height, 0px);
 }
 
 /* ─── Mobile drawer ──────────────────────────────────────────────────────── */
