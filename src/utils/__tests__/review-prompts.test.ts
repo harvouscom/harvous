@@ -268,10 +268,29 @@ describe('the ladder wraps rather than ending', () => {
     const first = VERSE_LADDER.length;
     const cycle = VERSE_MAINTENANCE.map((_, i) => verseRungFor(first + i).key);
     expect(cycle).toEqual([...VERSE_MAINTENANCE]);
-    // Learning rungs do not come back: "what does this verse say?" of something memorised
-    // months ago is a question with no work in it.
+    /*
+     * Recognising does not come back: picking a verse's opening out of four is how it is met,
+     * and it asks nothing of someone who has held it for months.
+     *
+     * Recall does, and used to not. The rung is staged now — at its lower tiers it finishes a
+     * verse that is mostly on screen — and without it the ladder never once asked a reader who
+     * had climbed the whole thing to produce the verse.
+     */
     expect(VERSE_MAINTENANCE).not.toContain('verse.recognize');
-    expect(VERSE_MAINTENANCE).not.toContain('verse.recall');
+    expect(VERSE_MAINTENANCE).toContain('verse.recall');
+  });
+
+  it('leaves every reader below step 14 exactly where they were', () => {
+    /*
+     * `ladderStep` is live data, so the maintenance list's order is its identity. Family 2 was
+     * appended rather than inserted: the first full loop is untouched, and only someone already
+     * past it shifts — once, by one family.
+     */
+    const first = VERSE_LADDER.length;
+    const beforeAppend = [1, 3, 4, 5, 6, 7];
+    for (let i = 0; i < beforeAppend.length; i++) {
+      expect(verseRungFor(first + i).family).toBe(beforeAppend[i]);
+    }
   });
 
   it('raises the pass each time round, and never before', () => {
@@ -378,12 +397,13 @@ describe('rung families', () => {
     }
   });
 
-  it('cycles families on maintenance, and never the two learning rungs', () => {
+  it('cycles families on maintenance, and never the rung a verse is met on', () => {
     const first = VERSE_FAMILIES.length;
     for (let i = 0; i < VERSE_MAINTENANCE_FAMILIES.length * 2; i++) {
       const rung = verseRungFor(first + i, `m:${first + i}`, rich);
       expect(rung.family).toBe(VERSE_MAINTENANCE_FAMILIES[i % VERSE_MAINTENANCE_FAMILIES.length]);
-      expect(['verse.recognize', 'verse.recall']).not.toContain(rung.key);
+      // Recall is back in the cycle; recognising is not, and never should be.
+      expect(rung.key).not.toBe('verse.recognize');
       expect(rung.pass).toBe(1 + Math.floor(i / VERSE_MAINTENANCE_FAMILIES.length));
     }
   });
@@ -518,8 +538,23 @@ describe('a family with two members draws both', () => {
   });
 
   it('alternates rebuild and initials across a verse\'s maintenance passes', () => {
-    // Family 1 comes round every six steps, so every recurrence has the same step parity.
-    const steps = [1, 8, 14, 20, 26, 32];
+    /*
+     * Family 1's recurrences, computed rather than written out: the cycle grew by one when
+     * recall rejoined it, and a hard-coded step list silently stopped describing family 1 at
+     * all — it drew six different rungs from five other families and still passed a `toEqual`
+     * on a set it happened to cover.
+     */
+    const first = VERSE_FAMILIES.length;
+    const family1At = VERSE_MAINTENANCE_FAMILIES.indexOf(1);
+    const steps = [1];
+    for (let loop = 0; loop < 5; loop++) {
+      steps.push(first + loop * VERSE_MAINTENANCE_FAMILIES.length + family1At);
+    }
+    for (const step of steps) {
+      expect(VERSE_FAMILIES[verseRungFor(step, `review_x:${step}`, verseMaterial).family]).toEqual(
+        VERSE_FAMILIES[1],
+      );
+    }
     const drawn = new Set(steps.map((s) => verseRungFor(s, `review_x:${s}`, verseMaterial).key));
     expect(drawn).toEqual(new Set(['verse.rebuild', 'verse.initials']));
   });

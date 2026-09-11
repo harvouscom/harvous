@@ -74,6 +74,15 @@ export interface ReviewOutcomeResponse {
   correctAnswer?: string;
   parts?: boolean[];
   reached?: { matched: number; total: number };
+  /**
+   * One thing to go on for the next try, sent only while there is a go left. Never on a
+   * finalized answer, which carries the answer itself.
+   */
+  hint?:
+    | { kind: 'blank'; index: number; word: string }
+    | { kind: 'lead'; text: string }
+    | { kind: 'word'; word: string }
+    | { kind: 'letter'; letter: string };
   leech?: boolean;
   /** The item has never once been recalled; the offer is worded for that. */
   stalled?: boolean;

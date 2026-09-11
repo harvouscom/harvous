@@ -86,6 +86,21 @@ export const REVIEW_REVEAL_FAILED_COPY = "This one didn't load.";
 export const REVIEW_REVEAL_RETRY_COPY = 'Try again';
 
 /**
+ * What the reader is given after a miss, while the question is still in front of them.
+ *
+ * Offered, not announced: "it goes on", not "the answer is". The rung is still theirs to finish,
+ * and the vocabulary rule at the top of this file applies here more than anywhere — a line that
+ * arrives after a wrong answer is the easiest place in the feature to sound disappointed.
+ *
+ * No counting either. "One of the words" rather than "1 of 3 left": a number about what remains
+ * is the thing this feature does not say.
+ */
+export const reviewHintLeadCopy = (text: string) => `It goes on: “${text}…”`;
+export const reviewHintWordCopy = (word: string) => `One of the words is “${word}”.`;
+export const reviewHintLetterCopy = (letter: string) =>
+  `One of the words starts with ${letter.toUpperCase()}.`;
+
+/**
  * The section heading on Activity.
  *
  * It was "Study Inbox" for its first week and the word was wrong twice over. An inbox is

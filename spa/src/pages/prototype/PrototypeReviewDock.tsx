@@ -69,6 +69,7 @@ import {
   useReviewOutcome,
   useSetReviewStatus,
   useStepBackReview,
+  type ReviewOutcomeResponse,
 } from '../../hooks/mutations/useReviewMutations';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { buildReviewCardStackOrigin } from './paper-stack-origins';
@@ -115,6 +116,9 @@ import {
   REVIEW_ANSWER_LABEL,
   REVIEW_INDEX_ANSWER_LABEL,
   REVIEW_INITIALS_PLACEHOLDER,
+  reviewHintLeadCopy,
+  reviewHintLetterCopy,
+  reviewHintWordCopy,
 } from './proto-review-copy';
 
 /** Kinds whose answer is another surface: the note itself, or the Thread beside you. */
@@ -279,6 +283,73 @@ function ReviewChoiceChips({
   );
 }
 
+/**
+ * A verse with gaps in it, where the gaps are inputs.
+ *
+ * Two rungs render this: the cloze, where a gap is empty, and the lower tiers of the initials
+ * rung, where each gap keeps its word's first letter beside it as the hint the rung is named
+ * for. One component because they are the same act — put the missing words back where they
+ * belong — and because the second one arrived by staging the first.
+ *
+ * A gap the server has given away after a miss is filled and locked: it is no longer a question,
+ * and leaving it editable invites the reader to retype what they were just handed.
+ */
+function GapLine({
+  segments,
+  blankLengths,
+  letters,
+  values,
+  given,
+  partState,
+  disabled,
+  onChange,
+}: {
+  segments: string[];
+  blankLengths: number[];
+  letters?: string[];
+  values: string[];
+  given: Map<number, string>;
+  partState: (index: number) => 'right' | 'wrong' | undefined;
+  disabled: boolean;
+  onChange: (index: number, value: string) => void;
+}) {
+  return (
+    <p className="proto-challenge__cloze">
+      {segments.map((segment, index) => (
+        <Fragment key={index}>
+          {segment}
+          {index < blankLengths.length ? (
+            <span className="proto-review-dock__gap">
+              {letters?.[index] ? (
+                // The letter is the hint, not part of what gets typed — so it sits beside the
+                // input rather than inside it, where it would have to be typed around.
+                <span className="proto-review-dock__gap-letter" aria-hidden>
+                  {letters[index]}
+                </span>
+              ) : null}
+              <input
+                type="text"
+                className="proto-review-dock__blank"
+                data-answer={given.has(index) ? 'given' : partState(index)}
+                style={{ width: `${Math.max(4, blankLengths[index]) + 1}ch` }}
+                value={values[index] ?? ''}
+                onChange={(event) => onChange(index, event.target.value)}
+                aria-label={
+                  letters?.[index] ? `Word ${index + 1}, starts with ${letters[index]}` : `Blank ${index + 1}`
+                }
+                autoComplete="off"
+                spellCheck={false}
+                readOnly={given.has(index)}
+                disabled={disabled}
+              />
+            </span>
+          ) : null}
+        </Fragment>
+      ))}
+    </p>
+  );
+}
+
 export default function PrototypeReviewDock() {
   const {
     reviewDock,
@@ -402,6 +473,23 @@ export default function PrototypeReviewDock() {
   const [attemptsTotal, setAttemptsTotal] = useState<number | null>(null);
   /** Words already tried and wrong on the altered rung, by index. Spent, like a spent chip. */
   const [spentWords, setSpentWords] = useState<number[]>([]);
+  /*
+   * What the server has handed over after a miss, in the order it handed it over.
+   *
+   * A retry that repeats the identical question with no new information is a second chance to
+   * make the same mistake. One piece per go, and only while a go remains — the finalized answer
+   * carries the real answer, so a hint beside it would be a worse version of what is already
+   * there. Keyed to the item like every other attempt state, so a new question starts clean.
+   */
+  const [hints, setHints] = useState<NonNullable<ReviewOutcomeResponse['hint']>[]>([]);
+  /** Gaps the server filled in. Locked, because they are no longer being asked. */
+  const givenBlanks = useMemo(() => {
+    const out = new Map<number, string>();
+    for (const hint of hints) if (hint.kind === 'blank') out.set(hint.index, hint.word);
+    return out;
+  }, [hints]);
+  /** The most recent hint that is a line to read rather than a gap to fill. */
+  const spokenHint = [...hints].reverse().find((hint) => hint.kind !== 'blank') ?? null;
   const [verdict, setVerdict] = useState<{
     state: 'right' | 'wrong';
     option: string | null;
@@ -431,6 +519,23 @@ export default function PrototypeReviewDock() {
           : REVIEW_TRY_AGAIN_COPY}
       </p>
     ) : null;
+
+  /**
+   * The one thing handed over after a miss, where it is a line rather than a filled gap.
+   *
+   * Sits above the retry line, so the order reads as "here is something" then "have another go".
+   * A `blank` hint never reaches here — it goes into the gap it names, which is the point of the
+   * gaps being inputs.
+   */
+  const hintLine = spokenHint ? (
+    <p className="proto-caption proto-review-dock__hint">
+      {spokenHint.kind === 'lead'
+        ? reviewHintLeadCopy(spokenHint.text)
+        : spokenHint.kind === 'word'
+          ? reviewHintWordCopy(spokenHint.word)
+          : reviewHintLetterCopy(spokenHint.letter)}
+    </p>
+  ) : null;
 
   /** What this rung allows: the server's answer once it has spoken, else the rung's own rule. */
   const goesTotal = attemptsTotal ?? (item ? maxAttemptsFor(item.promptKey) : 0);
@@ -512,6 +617,7 @@ export default function PrototypeReviewDock() {
     setSpentWords([]);
     setVerdict(null);
     setAttemptsTotal(null);
+    setHints([]);
   }, [item?.id]);
 
   /*
@@ -635,6 +741,22 @@ export default function PrototypeReviewDock() {
               setHeldItem(item);
               if (data.attempts) setAttemptsTotal(data.attempts.total);
               setVerdict({ state: 'wrong', option: picked, parts: data.parts, reached: data.reached });
+              /*
+               * One thing to go on. A `blank` hint is applied to the gap it names rather than
+               * printed as a line — the reader watches the word appear where it belongs, which
+               * is the whole point of the gaps being inputs.
+               */
+              if (data.hint) {
+                const hint = data.hint;
+                setHints((current) => [...current, hint]);
+                if (hint.kind === 'blank') {
+                  setBlanks((current) => {
+                    const next = [...current];
+                    next[hint.index] = hint.word;
+                    return next;
+                  });
+                }
+              }
               if (graded?.option) setMissed((m) => [...m, graded.option!]);
               // The altered rung answers with an index, not an option, so it never entered
               // `missed` — a word tapped wrongly stayed live and unmarked on the second go.
@@ -780,6 +902,7 @@ export default function PrototypeReviewDock() {
   const alteredExercise = reveal.data?.altered ?? null;
   const contextChoice = reveal.data?.choice ?? null;
   const initialsExercise = reveal.data?.initials ?? null;
+  const recallExercise = reveal.data?.recall ?? null;
   const keywordsExercise = reveal.data?.keywords ?? null;
   const beforeExercise = reveal.data?.before ?? null;
   const clozeExercise = reveal.data?.cloze ?? null;
@@ -1194,35 +1317,26 @@ export default function PrototypeReviewDock() {
            * into a box underneath in an order the reader has to keep track of.
            *
            * Each input is sized by the word it stands for, which is the same hint the underscore
-           * run always gave.
+           * run always gave — until the top tier, where that hint is withdrawn and every gap is
+           * the same width. See `review-difficulty.ts`.
            */
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
-            <p className="proto-challenge__cloze">
-              {clozeExercise.segments.map((segment, index) => (
-                <Fragment key={index}>
-                  {segment}
-                  {index < clozeExercise.blankLengths.length ? (
-                    <input
-                      type="text"
-                      className="proto-review-dock__blank"
-                      data-answer={partState(index)}
-                      style={{ width: `${Math.max(4, clozeExercise.blankLengths[index]) + 1}ch` }}
-                      value={blanks[index] ?? ''}
-                      onChange={(event) => {
-                        const next = [...blanks];
-                        next[index] = event.target.value;
-                        setBlanks(next);
-                      }}
-                      aria-label={`Blank ${index + 1}`}
-                      autoComplete="off"
-                      spellCheck={false}
-                      disabled={outcome.isPending}
-                    />
-                  ) : null}
-                </Fragment>
-              ))}
-            </p>
+            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
+            <GapLine
+              segments={clozeExercise.segments}
+              blankLengths={clozeExercise.blankLengths}
+              values={blanks}
+              given={givenBlanks}
+              partState={partState}
+              disabled={outcome.isPending}
+              onChange={(index, value) => {
+                const next = [...blanks];
+                next[index] = value;
+                setBlanks(next);
+              }}
+            />
+            {hintLine}
             {retryLine}
             <div className="proto-review-dock__actions">
               <button
@@ -1346,14 +1460,63 @@ export default function PrototypeReviewDock() {
               </p>
             </div>
           </>
-        ) : initialsExercise ? (
+        ) : initialsExercise?.segments && initialsExercise.segments.blankLengths.length > 0 ? (
           /*
-           * The classic memory-verse aid: the first letter of every word, and the reader writes
-           * the verse back. Graded on the content words, in order — connectives and case are
-           * forgiven, because "the" for "a" is not forgetting.
+           * The staged form: a share of the words standing on their first letter, the rest of the
+           * verse shown, and each reduced word typed back in place.
+           *
+           * This rung is on step 1, which is an *opening* step — so before it was staged, roughly
+           * half of all new verses met "write the whole thing from its first letters" as the very
+           * first question Review ever asked them, graded on every content word with a single
+           * yes or no at the end. The top tier is still that exercise; this is the way up to it.
            */
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
+            <GapLine
+              segments={initialsExercise.segments.segments}
+              blankLengths={initialsExercise.segments.blankLengths}
+              letters={initialsExercise.segments.letters}
+              values={blanks}
+              given={givenBlanks}
+              partState={partState}
+              disabled={outcome.isPending}
+              onChange={(index, value) => {
+                const next = [...blanks];
+                next[index] = value;
+                setBlanks(next);
+              }}
+            />
+            {hintLine}
+            {retryLine}
+            <div className="proto-review-dock__actions">
+              <button
+                type="button"
+                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+                disabled={
+                  outcome.isPending ||
+                  initialsExercise.segments.blankLengths.some((_, i) => !blanks[i]?.trim())
+                }
+                onClick={() =>
+                  answer('almost', {
+                    words: initialsExercise.segments!.blankLengths.map((_, i) => blanks[i] ?? ''),
+                    promptKey: item.promptKey,
+                  })
+                }
+              >
+                {REVIEW_CHECK_COPY}
+              </button>
+            </div>
+          </>
+        ) : initialsExercise ? (
+          /*
+           * The top tier, and what this rung has always been: the first letter of every word, and
+           * the reader writes the verse back. Graded on the content words, in order — connectives
+           * and case are forgiven, because "the" for "a" is not forgetting.
+           */
+          <>
+            <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
             <p className="proto-challenge__cloze">{initialsExercise.initials}</p>
             <textarea
               className="proto-review-dock__attempt"
@@ -1362,6 +1525,7 @@ export default function PrototypeReviewDock() {
               onChange={(event) => setAttempt(event.target.value)}
               rows={3}
             />
+            {hintLine}
             {retryLine}
             <div className="proto-review-dock__actions">
               <button
@@ -1507,6 +1671,16 @@ export default function PrototypeReviewDock() {
            */
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
+            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
+            {/*
+             * The way in, at the tiers that give one: most of the verse to finish, or its opening
+             * few words to carry on from. Nothing at the top tier, which is the bare reference
+             * this rung always was. The ellipsis is what makes it read as unfinished rather than
+             * as a verse that stops there.
+             */}
+            {recallExercise?.shown ? (
+              <p className="proto-challenge__cloze">{recallExercise.shown} …</p>
+            ) : null}
             <textarea
               className="proto-review-dock__attempt"
               data-answer={verdict?.state ?? undefined}
@@ -1516,6 +1690,7 @@ export default function PrototypeReviewDock() {
               rows={3}
               disabled={outcome.isPending}
             />
+            {hintLine}
             {retryLine}
             <div className="proto-review-dock__actions">
               <button

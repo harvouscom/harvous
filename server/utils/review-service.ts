@@ -111,6 +111,9 @@ import {
   buildVerseBook,
   buildVerseInitials,
   buildVerseKeywords,
+  buildVerseRecall,
+  markVerseInitials,
+  markVerseInitialsParts,
   buildVerseLocate,
   buildVerseMarked,
   buildVerseNext,
@@ -148,6 +151,12 @@ import {
   verseClozeRatio,
   verseCue,
 } from '@/utils/verse-cloze';
+import {
+  verseClozeSpec,
+  verseInitialsShare,
+  verseKeywordsCount,
+  verseRecallMode,
+} from '@/utils/review-difficulty';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
@@ -1034,6 +1043,19 @@ export async function buildReviewItemViews(
      * Dropped the way a note with nothing to ask about is dropped.
      */
     if (kind === 'chapter' && options.dropUnaskable && !chapterMaterial?.verses.length) continue;
+    /*
+     * Which tier this rung is asking at, resolved *before* the prompt so the instruction can
+     * describe the exercise the reveal is about to build. "Write it from memory" printed above
+     * two thirds of the verse is the app misdescribing its own question, and the staged rungs
+     * made that reachable — so the prompt takes the same `pass` the builder will.
+     *
+     * Resolved through `verseRungFor` here and again inside `reviewPromptFor`, which is free
+     * (both are pure over the same inputs) and is the only way to keep one resolver.
+     */
+    const promptSeed = reviewSeed(row);
+    const promptPass =
+      kind === 'verse' ? verseRungFor(row.ladderStep, promptSeed, verseMaterial).pass : 0;
+    const promptRecallState = row.recallState as RecallState;
     const { key, prompt } = reviewPromptFor(
       {
         kind,
@@ -1049,6 +1071,10 @@ export async function buildReviewItemViews(
         secondaryNoteTitle,
         threadTitle,
         cue,
+        recallMode: kind === 'verse' ? verseRecallMode(promptPass, promptRecallState) : null,
+        keywordCount: kind === 'verse' ? verseKeywordsCount(promptPass, promptRecallState) : null,
+        initialsTier:
+          kind === 'verse' ? (verseInitialsShare(promptPass, promptRecallState) >= 1 ? 2 : 0) : null,
       },
     );
 
@@ -1083,10 +1109,10 @@ export async function buildReviewItemViews(
     }
     const framingNodeKey = nodeKeyFor(row);
     const node = framingNodeKey ? nodeByKey.get(framingNodeKey) : undefined;
-    const seed = reviewSeed(row);
+    const seed = promptSeed;
     const pass =
       kind === 'verse'
-        ? verseRungFor(row.ladderStep, seed, verseMaterial).pass
+        ? promptPass
         : kind === 'chapter'
           ? chapterRungFor(row.ladderStep, seed, chapterMaterial).pass
           : 0;
@@ -1939,7 +1965,18 @@ export interface ReviewRevealPayload {
    */
   choice?: { options: string[]; opening: boolean } | null;
   /** First letters of every word, and how many words. The verse itself is never sent. */
-  initials?: { initials: string; wordCount: number } | null;
+  /**
+   * The line with some words on their first letter, and — below the top tier — the pieces either
+   * side of each reduced word so they can be typed in place. Never `reduced`: that is the key.
+   */
+  initials?: {
+    initials: string;
+    wordCount: number;
+    tier: number;
+    segments?: { segments: string[]; blankLengths: number[]; letters: string[] } | null;
+  } | null;
+  /** How much of the verse is given before the reader writes the rest. `null` shown = nothing. */
+  recall?: { shown: string | null; mode: string } | null;
   /** How many words to name. Nothing about which. */
   keywords?: { count: number } | null;
   /** Two openings from the same chapter; which comes first stays here. */
@@ -2874,12 +2911,19 @@ async function buildChapterVerseFor(
   return buildChapterVerse({ verses: material.verses, distractorTexts: own, fallbackTexts: fallback, seed });
 }
 
-function buildChapterFinishFor(material: ChapterKnowledgeMaterial, seed: string, pass: number): ChapterFinishExercise | null {
+function buildChapterFinishFor(
+  material: ChapterKnowledgeMaterial,
+  seed: string,
+  pass: number,
+  recallState?: RecallState | null,
+): ChapterFinishExercise | null {
+  const spec = verseClozeSpec(pass, recallState);
   return buildChapterFinish({
     verses: material.verses,
     highlightedNumbers: material.highlightedNumbers,
     seed,
-    ratio: verseClozeRatio(pass),
+    ratio: spec.ratio,
+    maxBlanks: spec.maxBlanks,
   });
 }
 
@@ -3076,15 +3120,63 @@ export async function gradeVerseAnswer(
     };
   }
   if (FREE_RECALL_KEYS.has(rung.key) && typeof answer.text === 'string') {
-    const marked = markVerseRecall(material.text, answer.text, RECALL_MIN_SHARE);
-    return { correct: marked.correct, correctAnswer: null, parts: marked.parts, reached: marked.reached };
+    /*
+     * Graded against what was *asked for*, not against the whole verse.
+     *
+     * At the lower tiers most of the verse is on screen and the reader writes the rest; marking
+     * the coverage share against the full text would score a perfect finish at two thirds.
+     */
+    const built = buildVerseRecall(material.text, verseRecallMode(rung.pass, item.recallState as RecallState));
+    const marked = markVerseRecall(built.hiddenText, answer.text, RECALL_MIN_SHARE);
+    return {
+      correct: marked.correct,
+      correctAnswer: null,
+      parts: marked.parts,
+      reached: marked.reached,
+      hint: marked.correct ? undefined : recallHint(built.hiddenText, answer.text),
+    };
   }
-  if (rung.key === 'verse.initials' && typeof answer.text === 'string') {
-    return { correct: gradeVerseInitials(material.text, answer.text), correctAnswer: null };
+  if (rung.key === 'verse.initials') {
+    /*
+     * Which shape is graded is decided by the **tier**, never by which field the client sent.
+     *
+     * Reading the field instead would let a page choose its own marking: send `text` on a
+     * tier-0 item and the all-or-nothing subsequence match runs against a verse that was mostly
+     * on screen. The tier is derived from stored state the client cannot set.
+     */
+    const share = verseInitialsShare(rung.pass, item.recallState as RecallState);
+    const exercise = buildVerseInitials(material.text, seedForRung, share);
+    if (!exercise) return null;
+    if (exercise.tier < 2 && Array.isArray(answer.words)) {
+      const marked = markVerseInitialsParts(exercise, answer.words);
+      return {
+        correct: marked.correct,
+        correctAnswer: null,
+        parts: marked.parts,
+        hint: marked.correct ? undefined : blankHint(exercise.reduced, answer.words, marked.parts),
+      };
+    }
+    if (exercise.tier === 2 && typeof answer.text === 'string') {
+      const marked = markVerseInitials(material.text, answer.text);
+      return {
+        correct: marked.correct,
+        correctAnswer: null,
+        parts: marked.parts,
+        reached: marked.reached,
+        hint: marked.correct ? undefined : wordHint(material.text, answer.text),
+      };
+    }
+    return null;
   }
   if (rung.key === 'verse.keywords' && Array.isArray(answer.words)) {
-    const marked = markVerseKeywords(material.text, answer.words);
-    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
+    const count = verseKeywordsCount(rung.pass, item.recallState as RecallState);
+    const marked = markVerseKeywords(material.text, answer.words, count);
+    return {
+      correct: marked.correct,
+      correctAnswer: null,
+      parts: marked.parts,
+      hint: marked.correct ? undefined : keywordHint(material.text, answer.words, seedForRung),
+    };
   }
   if (rung.key === 'verse.before' && typeof answer.option === 'string') {
     const exercise = await buildVerseBeforeFor(item, material.text, seedForRung);
@@ -3125,13 +3217,17 @@ export async function gradeVerseAnswer(
   if (isRebuild) {
     const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
     if (!html) return null;
-    const cloze = buildVerseCloze(
-      stripHtml(html),
-      reviewSeed(item),
-      verseClozeRatio(rung.pass),
-    );
+    const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
+    const cloze = buildVerseCloze(stripHtml(html), reviewSeed(item), spec.ratio, {
+      maxBlanks: spec.maxBlanks,
+    });
     const marked = markVerseRebuild(cloze, answer.words!);
-    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
+    return {
+      correct: marked.correct,
+      correctAnswer: null,
+      parts: marked.parts,
+      hint: marked.correct ? undefined : blankHint(cloze.blanks, answer.words!, marked.parts),
+    };
   }
 
   if (isAltered) {
@@ -3579,6 +3675,94 @@ export interface GradedAnswer {
   parts?: boolean[];
   /** How much of the verse a written answer reached. Names nothing; it is a count. */
   reached?: { matched: number; total: number };
+  /**
+   * One thing to go on for the next try. Only ever computed for a wrong answer, and the route
+   * only ever sends it while there is a go left — see `ReviewHint`.
+   */
+  hint?: ReviewHint;
+}
+
+/**
+ * What the reader is given after a miss, when the question is still in front of them.
+ *
+ * A retry that repeats the identical question with no new information is a second chance to make
+ * the same mistake; a retry that hands over one piece is the repetition this feature is for.
+ *
+ * **Computed, never stored.** The grader rebuilds the exercise from the same seed and tier it was
+ * asked at, looks at what missed, and names one thing. A second identical attempt yields the same
+ * hint, which is correct — nothing about the reader's progress has changed.
+ *
+ * A hinted answer can never earn the long interval: the outcome route already maps every
+ * second-or-later attempt to `almost`, so the most a hint can buy is a few days rather than a
+ * fortnight. That is the price, and it is the right one — help is not the same as recall.
+ */
+export type ReviewHint =
+  /** A gap, filled. The reader sees the word appear in place and locked. */
+  | { kind: 'blank'; index: number; word: string }
+  /** The next few words of what they were asked to produce, from where they got to. */
+  | { kind: 'lead'; text: string }
+  /** One word they have not reached yet, named. */
+  | { kind: 'word'; word: string }
+  /** The first letter of a word that would have counted. */
+  | { kind: 'letter'; letter: string };
+
+/** How many words a `lead` hint hands over. Enough to restart a sentence, not to finish it. */
+const HINT_LEAD_WORDS = 3;
+
+/**
+ * The first gap that is wrong or empty, filled in.
+ *
+ * Deterministic and dull on purpose: the first one they have not got. Walking to a *random*
+ * missing gap would mean a second identical attempt hinting at a different word, which reads as
+ * the exercise changing under them.
+ */
+function blankHint(
+  blanks: readonly { word: string }[],
+  answers: readonly string[],
+  parts: readonly boolean[],
+): ReviewHint | undefined {
+  for (let i = 0; i < blanks.length; i++) {
+    if (parts[i] === true) continue;
+    if (!blanks[i]?.word) continue;
+    return { kind: 'blank', index: i, word: blanks[i].word };
+  }
+  return undefined;
+}
+
+/** Where the reader got to in what they were asked to produce, plus the next few words. */
+function recallHint(hiddenText: string, attempt: string): ReviewHint | undefined {
+  const wanted = hiddenText.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (!wanted.length) return undefined;
+  const marked = markVerseRecall(hiddenText, attempt, RECALL_MIN_SHARE);
+  /*
+   * `reached.matched` counts content words; the lead has to start at a *token*. Walking forward
+   * to the token after the last content word they landed gives a hint that continues their
+   * sentence rather than one that restates it.
+   */
+  const from = Math.min(wanted.length - 1, Math.max(0, marked.reached.matched));
+  const text = wanted.slice(from, from + HINT_LEAD_WORDS).join(' ');
+  return text ? { kind: 'lead', text } : undefined;
+}
+
+/** The first content word of the verse the reader has not reached. */
+function wordHint(text: string, attempt: string): ReviewHint | undefined {
+  const marked = markVerseInitials(text, attempt);
+  const words = contentWords(text);
+  const next = words[Math.min(words.length - 1, Math.max(0, marked.reached.matched))];
+  return next ? { kind: 'word', word: next } : undefined;
+}
+
+/** A letter that would have counted, for the rung where any of several words is right. */
+function keywordHint(
+  text: string,
+  words: readonly string[],
+  seed: string,
+): ReviewHint | undefined {
+  const used = new Set(words.map((word) => word.trim().toLowerCase()).filter(Boolean));
+  const options = contentWords(text).filter((word) => !used.has(word.toLowerCase()));
+  if (!options.length) return undefined;
+  const letter = options[hashSeed(`${seed}:hint`) % options.length].charAt(0);
+  return letter ? { kind: 'letter', letter } : undefined;
 }
 
 export async function gradeNoteAnswer(
@@ -3688,17 +3872,38 @@ export async function buildReviewReveal(
           payload.verseText = null;
         }
         if (FREE_RECALL_KEYS.has(rung.key)) {
-          // Nothing to build: the prompt is the whole question. The verse comes back as truth
-          // once the answer is in, which is why it cannot be sent with the question.
+          /*
+           * At the top tier the prompt is the whole question and nothing is built. Below it the
+           * reader is given a way in — most of the verse to finish, or its opening few words —
+           * and `shown` is that much and no more. The rest is still withheld and still comes
+           * back as truth once the answer is in.
+           */
+          const built = buildVerseRecall(text, verseRecallMode(rung.pass, item.recallState as RecallState));
+          payload.recall = { shown: built.shown, mode: built.mode };
           payload.verseText = null;
         }
         if (rung.key === 'verse.initials') {
-          payload.initials = buildVerseInitials(text);
-          // The letters are the question; the verse would be the answer.
+          const exercise = buildVerseInitials(
+            text,
+            seed,
+            verseInitialsShare(rung.pass, item.recallState as RecallState),
+          );
+          // `reduced` is the answer key and never leaves the server; the letters are the question.
+          payload.initials = exercise
+            ? {
+                initials: exercise.initials,
+                wordCount: exercise.wordCount,
+                tier: exercise.tier,
+                segments: exercise.segments ?? null,
+              }
+            : null;
           if (payload.initials) payload.verseText = null;
         }
         if (rung.key === 'verse.keywords') {
-          payload.keywords = buildVerseKeywords(text);
+          payload.keywords = buildVerseKeywords(
+            text,
+            verseKeywordsCount(rung.pass, item.recallState as RecallState),
+          );
           if (payload.keywords) payload.verseText = null;
         }
         if (rung.key === 'verse.before') {
@@ -3725,10 +3930,15 @@ export async function buildReviewReveal(
         }
         if (rung.key === 'verse.rebuild') {
           // A later pass hides more, and the seed carries the step, so it hides a different set.
-          const cloze = buildVerseCloze(text, seed, verseClozeRatio(rung.pass));
+          const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
+          const cloze = buildVerseCloze(text, seed, spec.ratio, { maxBlanks: spec.maxBlanks });
           // The pieces either side of each gap, so the page can put an input where the gap is
           // rather than a picture of one. `display` is never sent: it is unfillable.
-          payload.cloze = cloze.blanks.length > 0 ? clozeSegments(cloze) : null;
+          // `uniformWidths` withdraws the letter-count hint at the top tier.
+          payload.cloze =
+            cloze.blanks.length > 0
+              ? clozeSegments(cloze, { uniformWidths: spec.uniformWidths })
+              : null;
           /*
            * The gaps, not the verse. This rung shipped both and rendered neither: it was not
            * graded, so the reveal was only fetched after "Check the verse", and the dock had no

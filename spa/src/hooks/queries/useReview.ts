@@ -87,7 +87,15 @@ export interface ReviewRevealResponse {
   next?: { options: string[] } | null;
   altered?: { tokens: string[] } | null;
   choice?: { options: string[]; opening: boolean } | null;
-  initials?: { initials: string; wordCount: number } | null;
+  initials?: {
+    initials: string;
+    wordCount: number;
+    /** 0 and 1 reduce a share of the words and carry `segments`; 2 is the whole-verse skeleton. */
+    tier: number;
+    segments?: { segments: string[]; blankLengths: number[]; letters: string[] } | null;
+  } | null;
+  /** How much of the verse the recall rung gives away before the reader writes the rest. */
+  recall?: { shown: string | null; mode: string } | null;
   keywords?: { count: number } | null;
   before?: { options: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
