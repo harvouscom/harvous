@@ -41,11 +41,16 @@ export type LibraryPanelView = {
   /**
    * Whether the search field takes focus on open.
    *
-   * Set by the chords that mean "search" and left off everywhere else. Reaching for ⇧K is
-   * already the first keystroke of a query, so a caret is what you asked for; clicking the
-   * chip is a pointer gesture that means "show me", and stealing focus there commits you to
-   * typing before you have looked. It also swallows the keyboard: with the caret in the
-   * field, the arrow keys move a text cursor rather than the list.
+   * Set by anything that means "search" — the chords, and the chip, which reads "Search"
+   * and so promises a place to type. Reaching for ⇧K is already the first keystroke of a
+   * query; clicking a control labelled Search is the same intent by another hand, and
+   * making the reader click twice to start typing is a step the label already took.
+   *
+   * Left off everywhere else: a drill names a destination, not a query.
+   *
+   * The ask is not the answer — the panel refuses it on a touch device, where a caret
+   * raises the on-screen keyboard over the results the tap was meant to show. See
+   * `PrototypeLibraryPanelHost`.
    *
    * An opening condition like `querySeed`, so `isSameLibraryPanelView` ignores it — two
    * openings of the same place are the same place however focus was handled.
@@ -61,6 +66,29 @@ export type LibraryPanelView = {
    */
   selectOnOpen?: boolean;
 };
+
+/**
+ * Does the search field actually take the caret on this open?
+ *
+ * The opener only asks (`autoFocusSearch`); this decides. Two refusals rather than one,
+ * because they catch different devices: the breakpoint catches the phone, where the panel
+ * is a bottom sheet and a caret raises the keyboard over the list; the pointer catches the
+ * tablet that is wide enough to be laid out as a desktop and still has no keyboard but
+ * that one. A mouse on a narrow window is the case the breakpoint alone would get wrong in
+ * the other direction, and it is why neither check is dropped for the other.
+ */
+export function shouldAutoFocusLibrarySearch({
+  view,
+  isMobileSidebar,
+  isCoarsePointer,
+}: {
+  view: Pick<LibraryPanelView, 'autoFocusSearch'>;
+  isMobileSidebar: boolean;
+  isCoarsePointer: boolean;
+}): boolean {
+  if (!view.autoFocusSearch) return false;
+  return !isMobileSidebar && !isCoarsePointer;
+}
 
 /** Tab order for the chip row and for ⇧← / ⇧→ cycling. */
 export const LIBRARY_TABS: LibraryTab[] = [
@@ -85,7 +113,13 @@ export const LIBRARY_TABS: LibraryTab[] = [
  * destination — see `useLibraryPanelNav`. The rule was never "never drill", it is that a
  * control opens what it says it opens.
  */
-export const LIBRARY_CHIP_OPENING_VIEW: LibraryPanelView = { tab: 'all', drill: null };
+export const LIBRARY_CHIP_OPENING_VIEW: LibraryPanelView = {
+  tab: 'all',
+  drill: null,
+  /* The chip says Search, so it opens ready to search — the same landing ⇧K gets. Only
+     on a pointer that is not a finger; see `autoFocusSearch`. */
+  autoFocusSearch: true,
+};
 
 /**
  * ⇧← / ⇧→ — walk the tabs.
