@@ -37,6 +37,8 @@ import {
   type ReviewOutcome,
 } from '@/utils/review-item-kinds';
 import { describeNextReturn } from '@/utils/review-scheduling';
+import { describeDislike } from '@/utils/review-exercise-feedback';
+import { REVIEW_EXERCISE_FAMILIES } from '@/utils/review-exercise-families';
 import {
   applyReviewOutcome,
   chapterTruthFor,
@@ -55,6 +57,7 @@ import {
   listReviewItems,
   nextScheduledReviewAt,
   recordReviewEvent,
+  reviewDislikeRowsFor,
   setReviewItemStatus,
   stepBackReviewItem,
   buildReviewSample,
@@ -520,6 +523,53 @@ route.post('/api/review/items/:id/defer', requireAuth, rateLimit('write'), requi
     return c.json({ success: true, dueAt: updated.dueAt.toISOString() });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/defer', action: 'review_defer' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * What the reader thought of the question, as distinct from how the recall went.
+ *
+ * Filed against `ReviewItems.lastRungKey` rather than a fresh resolution. `applyReviewOutcome`
+ * writes that column moments earlier, and the vote is only ever cast from the result card — so
+ * the column names the question the reader actually saw, while re-resolving would name whatever
+ * the *current* preferences produce. That distinction is the whole point of the write: a vote
+ * recorded against the wrong rung would quiet a family the reader never complained about.
+ *
+ * Nothing here invalidates a query. The sitting is a fixed set of questions on purpose, and
+ * quieting takes effect the next time one is composed.
+ */
+route.post('/api/review/items/:id/feedback', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
+    if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
+
+    const body = await c.req.json();
+    const vote = typeof body?.vote === 'string' ? body.vote : '';
+    if (vote !== 'liked' && vote !== 'disliked') {
+      return c.json({ error: 'Unknown vote', code: 'REVIEW_FEEDBACK_INVALID' }, 400);
+    }
+
+    const rungKey = item.lastRungKey ?? null;
+    await recordReviewEvent(auth.userId, item, vote, { rungKey });
+
+    if (vote !== 'disliked') return c.json({ success: true, offerSettings: false, family: null });
+
+    /*
+     * Re-read past the per-request memo, since the row we just wrote is the one that might have
+     * reached the threshold. Repeat votes on one item cannot inflate the count — it is distinct
+     * review items that are counted — so no idempotency guard is needed for correctness.
+     */
+    const rows = await reviewDislikeRowsFor(auth.userId);
+    const { family, offerSettings } = describeDislike(rungKey, rows);
+    return c.json({
+      success: true,
+      offerSettings,
+      family: family ? { id: family, label: REVIEW_EXERCISE_FAMILIES[family].label } : null,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/feedback', action: 'review_feedback' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

@@ -165,6 +165,22 @@ export function studyFeedEmptyDayCopy(isToday: boolean): string {
     : 'A quiet day. Rest counts too.';
 }
 
+/**
+ * The same silence, said about a room rather than about the reader.
+ *
+ * The copy above is in the second person — "whatever you read", "rest counts too" — which is
+ * right on your own day and wrong on a space's. Told over a quiet room it reads as a remark
+ * about how little *you* have done, when the sheet is not about you at all.
+ *
+ * `neverAnything` separates the two silences worth telling apart: a room that has had nothing
+ * in it yet, which is a fact about the room, and a room that simply had a quiet Tuesday.
+ */
+export function studyFeedScopedEmptyCopy(spaceTitle: string, neverAnything: boolean): string {
+  return neverAnything
+    ? `Nothing in ${spaceTitle} yet. What gets shared there stacks up here by day.`
+    : `A quiet day in ${spaceTitle}.`;
+}
+
 /** Clock time on the right edge of a moment — 9:14 PM, in the reader's locale. */
 export function studyFeedClockTime(iso: string): string {
   const date = new Date(iso);

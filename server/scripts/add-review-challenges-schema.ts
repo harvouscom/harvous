@@ -132,6 +132,10 @@ export const ADDITIVE_REVIEW_CHALLENGES_DDL = [
   // Part four: a scheduler that remembers. Both defaulted, so existing rows are untouched.
   `ALTER TABLE "ReviewItems" ADD COLUMN IF NOT EXISTS "lapseCount" integer NOT NULL DEFAULT 0`,
   `ALTER TABLE "ReviewItems" ADD COLUMN IF NOT EXISTS "lastRungKey" text`,
+  // Part five: the reader can say what they thought of a question, so the log has to say which
+  // question. Nullable, so every row already written stands; the index serves the windowed tally.
+  `ALTER TABLE "ReviewEvents" ADD COLUMN IF NOT EXISTS "rungKey" text`,
+  `CREATE INDEX IF NOT EXISTS "ReviewEvents_userId_action_createdAtIndex" ON "ReviewEvents" ("userId", "action", "createdAt")`,
 ] as const;
 
 export async function runAddReviewChallengesSchema(

@@ -6,6 +6,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import DeleteConfirmBar from '@/components/react/DeleteConfirmBar';
 import Icon from '@/components/react/Icon';
 import ProtoRowSelectCheckbox from '../../prototype/ProtoRowSelectCheckbox';
+import ProtoIconBlock from '../../prototype/ProtoIconBlock';
+import PrototypeRecallStateChip from '../../prototype/PrototypeRecallStateChip';
 import {
   PrototypeListEmptyState,
   PrototypeListRow,
@@ -1286,6 +1288,28 @@ function ReviewVerdictsScene() {
   return (
     <div className="pds-stack" style={{ gap: 20, maxWidth: 520 }}>
       <div>
+        {/*
+          * Rating the question, which is a third thing: the verdict says how the recall went,
+          * these say what the reader thought of the exercise. Shown at rest, chosen, and spent,
+          * because the spent state is the one that has to stay legible rather than fading out.
+          */}
+        <p className="pds-caption">Question feedback</p>
+        <p className="pds-caption">This kind of question</p>
+        <div className="proto-icon-block-row">
+          <ProtoIconBlock icon="thumbs-up" label="Good question" onSelect={() => {}} />
+          <ProtoIconBlock icon="thumbs-down" label="Not helpful" onSelect={() => {}} />
+        </div>
+      </div>
+
+      <div>
+        <p className="pds-caption">Once the vote is in</p>
+        <div className="proto-icon-block-row">
+          <ProtoIconBlock icon="thumbs-up" label="Good question" selected disabled onSelect={() => {}} />
+          <ProtoIconBlock icon="thumbs-down" label="Not helpful" disabled onSelect={() => {}} />
+        </div>
+      </div>
+
+      <div>
         <p className="pds-caption">Goes</p>
         <span className="proto-review-dock__goes" aria-label="Attempt 2 of 3">
           <span className="proto-review-dock__go" data-spent aria-hidden />
@@ -1371,21 +1395,22 @@ function ReviewVerdictsScene() {
       </div>
 
       <div>
-        {/* Words beside a title, not a chip. It was a bordered, tinted pill; the position it
-            sits in now does the separating that the chrome used to do. */}
+        {/* Rendered through the component rather than copied: this block held its own hand-written
+            markup, and when the mark stopped being words the copy stayed text and went stale. The
+            three here are the three the copy distinguishes — fragile and forming share a fill. */}
         <p className="pds-caption">How well you hold it</p>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <span className="pds-list-title">
             John 15:5
-            <span className="proto-recall-mark" data-state="fragile">{RECALL_STATE_LABELS.fragile}</span>
+            <PrototypeRecallStateChip state="fragile" label={RECALL_STATE_LABELS.fragile} />
           </span>
           <span className="pds-list-title">
             Romans 8:28
-            <span className="proto-recall-mark" data-state="durable">{RECALL_STATE_LABELS.durable}</span>
+            <PrototypeRecallStateChip state="durable" label={RECALL_STATE_LABELS.durable} />
           </span>
           <span className="pds-list-title">
             Psalms 23:1
-            <span className="proto-recall-mark" data-state="slipping">{RECALL_STATE_LABELS.slipping}</span>
+            <PrototypeRecallStateChip state="slipping" label={RECALL_STATE_LABELS.slipping} />
           </span>
         </div>
       </div>

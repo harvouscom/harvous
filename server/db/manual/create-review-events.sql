@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS "ReviewEvents" (
   "noteId" text,
   "action" text NOT NULL,
   "attempt" text,
+  "rungKey" text,
   "previousIntervalDays" real,
   "nextIntervalDays" real,
   "createdAt" timestamp with time zone NOT NULL
@@ -29,3 +30,4 @@ CREATE TABLE IF NOT EXISTS "ReviewEvents" (
 CREATE INDEX IF NOT EXISTS "ReviewEvents_userId_createdAtIndex" ON "ReviewEvents" ("userId", "createdAt");
 CREATE INDEX IF NOT EXISTS "ReviewEvents_reviewItemId_createdAtIndex" ON "ReviewEvents" ("reviewItemId", "createdAt");
 CREATE INDEX IF NOT EXISTS "ReviewEvents_noteIdIndex" ON "ReviewEvents" ("noteId");
+CREATE INDEX IF NOT EXISTS "ReviewEvents_userId_action_createdAtIndex" ON "ReviewEvents" ("userId", "action", "createdAt");

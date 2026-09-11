@@ -35,6 +35,8 @@ import {
 } from '@/utils/review-answer-echo';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
+import ProtoIconBlock from './ProtoIconBlock';
+import { prototypeHref } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
 import StudyDockCardShell from '@/components/react/StudyDockCardShell';
@@ -57,7 +59,12 @@ import {
   useReviewSession,
   type ReviewItemView,
 } from '../../hooks/queries/useReview';
-import { useReviewOutcome, useSetReviewStatus, useStepBackReview } from '../../hooks/mutations/useReviewMutations';
+import {
+  useReviewFeedback,
+  useReviewOutcome,
+  useSetReviewStatus,
+  useStepBackReview,
+} from '../../hooks/mutations/useReviewMutations';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
 import { buildReviewCardStackOrigin } from './paper-stack-origins';
 import {
@@ -76,6 +83,12 @@ import {
   REVIEW_PAUSE_COPY,
   REVIEW_SLIPPING_COPY,
   REVIEW_STALLED_COPY,
+  REVIEW_FEEDBACK_ACK_COPY,
+  REVIEW_FEEDBACK_DOWN_COPY,
+  REVIEW_FEEDBACK_PROMPT_COPY,
+  REVIEW_FEEDBACK_SETTINGS_LINK_COPY,
+  REVIEW_FEEDBACK_UP_COPY,
+  reviewFeedbackOfferCopy,
   REVIEW_STEP_BACK_COPY,
   REVIEW_STEPPED_BACK_COPY,
   REVIEW_OUTCOME_ACK_COPY,
@@ -357,6 +370,16 @@ export default function PrototypeReviewDock() {
   // What the reader chose for a slipping item, so the offer is made once and answered once.
   const [leechAction, setLeechAction] = useState<'stepped' | 'paused' | null>(null);
   /*
+   * The reader's rating of the question, and the family Settings may be offered for.
+   *
+   * Both keyed to `lastResult.at` — a fresh result gets a fresh control — and both local, because
+   * a vote is a log line rather than state the server hands back on the next fetch. There is no
+   * undo: the log is append-only, and a rating that could be taken back would be a setting.
+   */
+  const feedback = useReviewFeedback();
+  const [feedbackVote, setFeedbackVote] = useState<'liked' | 'disliked' | null>(null);
+  const [feedbackOffer, setFeedbackOffer] = useState<string | null>(null);
+  /*
    * How the last answer went, while the card still has the question on it.
    *
    * The page cannot mark anything, so this is set from the server's reply and nothing else. It
@@ -406,6 +429,40 @@ export default function PrototypeReviewDock() {
   const goesTotal = attemptsTotal ?? (item ? maxAttemptsFor(item.promptKey) : 0);
 
   const lastResult = reviewDock?.lastResult ?? null;
+
+  /*
+   * A new result is a new question, so the rating starts over.
+   *
+   * Keyed on the timestamp rather than reset inside the answer handler, because the paper-stack
+   * path sets `lastResult` from the shell and never runs this component's handler at all.
+   */
+  useEffect(() => {
+    setFeedbackVote(null);
+    setFeedbackOffer(null);
+  }, [lastResult?.at]);
+
+  const castFeedback = useCallback(
+    (vote: 'liked' | 'disliked') => {
+      const itemId = lastResult?.itemId;
+      if (!itemId) return;
+      // Shown as taken straight away: the card should not sit inert while a log line is written.
+      setFeedbackVote(vote);
+      feedback.mutate(
+        { itemId, vote },
+        {
+          onSuccess: (data) => {
+            if (data.offerSettings && data.family) setFeedbackOffer(data.family.label);
+          },
+          // Put the blocks back rather than leaving a rating that was never recorded.
+          onError: () => {
+            setFeedbackVote(null);
+            setFeedbackOffer(null);
+          },
+        },
+      );
+    },
+    [feedback, lastResult?.itemId],
+  );
   /*
    * When the next scheduled thing comes back, for the empty card.
    *
@@ -896,6 +953,57 @@ export default function PrototypeReviewDock() {
                 {REVIEW_ENOUGH_COPY}
               </button>
             </div>
+            {lastResult.itemId ? (
+              /*
+               * A rating of the question, which is a third thing: the verdict above describes
+               * the memory, these describe the exercise the app chose. Last on the card and
+               * quiet, because it is not what the reader came for — and after the way on, so a
+               * card that still has something to say about a slipping item says that last.
+               */
+              <div className="proto-review-dock__feedback">
+                <p className="proto-caption proto-review-dock__feedback-caption">
+                  {feedbackVote ? (
+                    <>
+                      {feedbackOffer
+                        ? reviewFeedbackOfferCopy(feedbackOffer)
+                        : REVIEW_FEEDBACK_ACK_COPY}
+                      {feedbackOffer ? (
+                        <>
+                          {' '}
+                          <button
+                            type="button"
+                            className="proto-review-dock__feedback-link"
+                            onClick={() =>
+                              void navigate({ to: prototypeHref('settings/review-exercises') })
+                            }
+                          >
+                            {REVIEW_FEEDBACK_SETTINGS_LINK_COPY}
+                          </button>
+                        </>
+                      ) : null}
+                    </>
+                  ) : (
+                    REVIEW_FEEDBACK_PROMPT_COPY
+                  )}
+                </p>
+                <div className="proto-icon-block-row">
+                  <ProtoIconBlock
+                    icon="thumbs-up"
+                    label={REVIEW_FEEDBACK_UP_COPY}
+                    selected={feedbackVote === 'liked'}
+                    disabled={Boolean(feedbackVote)}
+                    onSelect={() => castFeedback('liked')}
+                  />
+                  <ProtoIconBlock
+                    icon="thumbs-down"
+                    label={REVIEW_FEEDBACK_DOWN_COPY}
+                    selected={feedbackVote === 'disliked'}
+                    disabled={Boolean(feedbackVote)}
+                    onSelect={() => castFeedback('disliked')}
+                  />
+                </div>
+              </div>
+            ) : null}
             {lastResult.leech && lastResult.itemId ? (
               /* Four misses since it was last held. The one place Review says a thing is not
                  working rather than asking again, and it offers the way down, not a lecture. */

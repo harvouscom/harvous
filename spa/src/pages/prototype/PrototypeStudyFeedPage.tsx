@@ -41,7 +41,12 @@ import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
-import { studyFeedEmptyDayCopy, summarizeStudyFeedDay } from './study-feed-presentation';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
+import {
+  studyFeedEmptyDayCopy,
+  studyFeedScopedEmptyCopy,
+  summarizeStudyFeedDay,
+} from './study-feed-presentation';
 import { canonicalBookOrderMap } from '@/utils/scripture-passage-drill';
 import type { LibraryTab } from './library-panel/library-panel-view';
 import PrototypeHomeGreeting from './PrototypeHomeGreeting';
@@ -269,12 +274,38 @@ export default function PrototypeStudyFeedPage() {
 
   /** Index into `days`, newest first. 0 is today. */
   const [index, setIndex] = useState(0);
+  /** Set when a space scope is picked, so the jump can wait for that scope's days. */
+  const pendingScopeJump = useRef(false);
 
   /* A narrower scope has fewer days in it, so the sheet you were on is not the sheet that
      index now points at. Going back to today is the only answer that is never surprising. */
   useEffect(() => {
     setIndex(0);
+    /*
+     * ...except for a space, where today is usually a rest day and going there says nothing.
+     *
+     * "All" and "My home" always have today's own study on them, so landing on today shows the
+     * change immediately. A room's last note might be a fortnight back — so picking one landed
+     * on an empty sheet, which is indistinguishable from the filter having done nothing at all.
+     * Jump to the newest day the space actually has something on instead. Deferred rather than
+     * done here because the items for the new scope have not arrived yet.
+     */
+    pendingScopeJump.current = scope.kind === 'space';
   }, [scope]);
+
+  /* The deferred half of the jump above, run once this scope's days have arrived. Cleared
+     either way once the fetch settles, so a space with nothing in it simply stays on today
+     rather than leaving the jump armed for the next unrelated change. */
+  useEffect(() => {
+    if (!pendingScopeJump.current) return;
+    const firstWithItems = days.findIndex((day) => !day.isEmpty);
+    if (firstWithItems > 0) {
+      pendingScopeJump.current = false;
+      setIndex(firstWithItems);
+      return;
+    }
+    if (!isPending && !isFetchingNextPage) pendingScopeJump.current = false;
+  }, [days, isPending, isFetchingNextPage]);
   const safeIndex = Math.min(index, Math.max(0, days.length - 1));
   const day = days[safeIndex];
 
@@ -461,7 +492,22 @@ export default function PrototypeStudyFeedPage() {
     partsCount: day.parts.length,
     revisited: reviewSubjectsForDay.get(day.dayKey) ?? null,
   });
-  const showGreeting = safeIndex === 0 && greeting.ready && home.countForLogic > 0;
+  /*
+   * The room this sheet is of, when it is of one.
+   *
+   * Everything below keyed off it is the same idea: under a space scope this sheet belongs to
+   * the space, so the surfaces that are about *you* step aside. The greeting, Home's own
+   * sections and the getting-started dock are all personal — printed under "Family" they read
+   * as the filter having been ignored, which is precisely how this looked before.
+   */
+  const scopedSpace =
+    scope.kind === 'space'
+      ? sharedSpaces.find((space) => space.id === scope.spaceId) ?? null
+      : null;
+  /** Not one day empty but the whole room — a fact about the space, not about a Tuesday. */
+  const scopeNeverHadAnything = Boolean(scopedSpace) && days.every((d) => d.isEmpty);
+  const showGreeting =
+    safeIndex === 0 && greeting.ready && home.countForLogic > 0 && !scopedSpace;
 
 
 
@@ -783,18 +829,35 @@ export default function PrototypeStudyFeedPage() {
 
             {/* Home's own order: what you were doing, then what is coming, then what is
                 offered, and only then the record of the day itself. */}
-            {safeIndex === 0 && greeting.ready ? (
+            {safeIndex === 0 && greeting.ready && !scopedSpace ? (
               <PrototypeStudyFeedToday
                 notes={greeting.notes}
                 home={home}
               />
             ) : null}
 
-            {onboardingLeads ? null : onboardingDock}
+            {onboardingLeads || scopedSpace ? null : onboardingDock}
 
-            {day.isEmpty ? (
+            {day.isEmpty && scopedSpace && scopeNeverHadAnything ? (
+              /*
+               * A room that has never had anything in it is not a quiet Tuesday, and a single
+               * grey line in the middle of an empty sheet reads as a page that failed to load.
+               * The app's own empty state says what the surface is for. No action beside it:
+               * `space/$spaceId` is a legacy route that redirects to Home, so the obvious button
+               * would land the reader somewhere that is not the space it named.
+               */
+              <PrototypeListEmptyState
+                iconName="user-group"
+                title={`Nothing in ${scopedSpace.title} yet`}
+                description="What gets shared there stacks up here, a day at a time."
+              />
+            ) : day.isEmpty ? (
+              /* A quiet day inside a room that does have a trail stays a quiet line: the day
+                 nav is right there, and a block this size on every rest day would be furniture. */
               <p className="proto-feed-sheet__rest">
-                {studyFeedEmptyDayCopy(safeIndex === 0)}
+                {scopedSpace
+                  ? studyFeedScopedEmptyCopy(scopedSpace.title, false)
+                  : studyFeedEmptyDayCopy(safeIndex === 0)}
               </p>
             ) : (
               day.parts.map((group) => (

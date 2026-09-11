@@ -1833,10 +1833,24 @@ export const ReviewEvents = pgTable('ReviewEvents', {
   reviewItemId: text('reviewItemId').notNull(),
   /** Denormalized so the note cascade can find these rows without joining ReviewItems. */
   noteId: text('noteId'),
-  /** shown | recalled | almost | revealed | deferred | paused | resumed | archived. */
+  /**
+   * shown | recalled | almost | revealed | deferred | paused | resumed | archived, and the two
+   * that are about the question rather than the recall: liked | disliked. The allowlist is
+   * `REVIEW_EVENT_ACTIONS`; `study-feed.ts` reads this log through the narrower `REVIEW_OUTCOMES`
+   * so a rating can never be printed as an answer.
+   */
   action: text('action').notNull(),
   /** What the reader wrote before revealing, when they wrote anything. */
   attempt: text('attempt'),
+  /**
+   * The rung this event was about — `verse.rebuild`, `note.passage`.
+   *
+   * The exercise *family* is derived from it and never stored: `FAMILY_BY_KEY` calls itself "a
+   * naming, not a taxonomy" and is expected to be re-cut, so a denormalized family would freeze
+   * last year's cut into an append-only log and silently mis-attribute old rows. `ReviewItems`
+   * has `lastRungKey`, but that only ever names the most recent asking; this names each one.
+   */
+  rungKey: text('rungKey'),
   previousIntervalDays: real('previousIntervalDays'),
   nextIntervalDays: real('nextIntervalDays'),
   createdAt: ts('createdAt').notNull(),
@@ -1844,6 +1858,8 @@ export const ReviewEvents = pgTable('ReviewEvents', {
   index('ReviewEvents_userId_createdAtIndex').on(table.userId, table.createdAt),
   index('ReviewEvents_reviewItemId_createdAtIndex').on(table.reviewItemId, table.createdAt),
   index('ReviewEvents_noteIdIndex').on(table.noteId),
+  /* Serves the windowed dislike tally, which filters userId + action and orders by createdAt. */
+  index('ReviewEvents_userId_action_createdAtIndex').on(table.userId, table.action, table.createdAt),
 ]);
 
 // ─── UserNodeStates (the reader's own Study Bible layer) ──────────────────────
