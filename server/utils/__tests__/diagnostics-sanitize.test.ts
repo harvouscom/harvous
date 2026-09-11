@@ -109,6 +109,72 @@ describe('topStackFrame', () => {
 });
 
 describe('sanitizeDiagnosticPayload', () => {
+  /*
+   * The client has always sent these three; the metadata allowlist dropped them, which is why
+   * an extension's crash and ours looked identical in the admin list. Keeping them is what
+   * makes the panel's script-origin line possible.
+   */
+  it('keeps the script origin of a client error', () => {
+    const result = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: 'Something broke',
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      metadata: {
+        scriptFilename: 'https://app.harvous.com/assets/index-1uUOH_2w.js',
+        scriptLineno: 49,
+        scriptColno: 118,
+      },
+    });
+    expect(result?.metadata?.scriptFilename).toBe('https://app.harvous.com/assets/index-1uUOH_2w.js');
+    expect(result?.metadata?.scriptLineno).toBe(49);
+    expect(result?.metadata?.scriptColno).toBe(118);
+  });
+
+  it('strips a query string off the script filename', () => {
+    const result = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: 'Something broke',
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      metadata: { scriptFilename: 'https://app.harvous.com/assets/index.js?token=abc' },
+    });
+    expect(result?.metadata?.scriptFilename).toBe('https://app.harvous.com/assets/index.js');
+  });
+
+  /* Rejected at ingest too, so a build predating the client-side filter can't keep filing these. */
+  it('rejects an error thrown by a browser extension', () => {
+    const byFilename = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: 'window.ethereum.emit is not a function',
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      metadata: { scriptFilename: 'chrome-extension://abcdefgh/inject.js' },
+    });
+    expect(byFilename).toBeNull();
+
+    const byStack = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: "null is not an object (evaluating 'document.querySelector(...).content')",
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      stack: 'TypeError\n    at chrome-extension://abcdefgh/share.js:12:9',
+    });
+    expect(byStack).toBeNull();
+  });
+
+  it('still accepts our own crash with an extension somewhere in the stack', () => {
+    const result = sanitizeDiagnosticPayload({
+      source: 'client_js',
+      message: "Cannot read properties of undefined (reading 'blankLengths')",
+      anonymousSessionId: 'sess-123',
+      platform: 'web',
+      stack:
+        'TypeError\n    at chrome-extension://abcdefgh/hook.js:3:1\n    at https://app.harvous.com/assets/index.js:20:7',
+    });
+    expect(result).not.toBeNull();
+  });
+
   it('accepts valid client payload', () => {
     const result = sanitizeDiagnosticPayload({
       source: 'client_js',

@@ -4,7 +4,11 @@ import type {
   DiagnosticSource,
   DiagnosticSourceEnv,
 } from '@/utils/diagnostic-sources';
-import { isNoiseDiagnosticMessage, redactDiagnosticRoute } from '@/utils/diagnostics-route';
+import {
+  isExtensionOriginated,
+  isNoiseDiagnosticMessage,
+  redactDiagnosticRoute,
+} from '@/utils/diagnostics-route';
 
 const SESSION_STORAGE_KEY = 'harvous_diag_session';
 const SESSION_ROTATE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -224,6 +228,13 @@ export function reportClientError(
   if (shouldIgnoreError(error)) return;
   const message = typeof error === 'string' ? error : error.message || 'Unknown error';
   const stack = typeof error === 'string' ? null : error.stack ?? null;
+  /*
+   * Extension code throwing inside our document. Returning before `rememberError` matters:
+   * otherwise Settings -> Support would offer someone else's wallet extension as the last
+   * thing that went wrong in Harvous.
+   */
+  const scriptFilename = typeof metadata?.scriptFilename === 'string' ? metadata.scriptFilename : null;
+  if (isExtensionOriginated(scriptFilename, stack)) return;
   // A failed dynamic import can surface as both an unhandledrejection and a window error.
   if (isDuplicateReport(`client|${source}|${message}`)) return;
   rememberError(message, stack);
@@ -271,7 +282,10 @@ export function reportManualDiagnostic(manualNote: string): void {
 const ROUTE_BOUNDARY_DEDUPE_MS = 30_000;
 
 /** Report React route-boundary errors (not caught by window.onerror). Dedupes recent identical messages. */
-export function reportRouteBoundaryError(error: unknown): void {
+export function reportRouteBoundaryError(
+  error: unknown,
+  metadata?: Record<string, unknown> | null,
+): void {
   const err = error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Route error');
   if (shouldIgnoreError(err)) return;
 
@@ -287,7 +301,7 @@ export function reportRouteBoundaryError(error: unknown): void {
     source: 'client_js',
     message,
     stack,
-    metadata: { routeErrorBoundary: true },
+    metadata: { routeErrorBoundary: true, ...(metadata ?? {}) },
   });
 
   void import('@/utils/posthog')
