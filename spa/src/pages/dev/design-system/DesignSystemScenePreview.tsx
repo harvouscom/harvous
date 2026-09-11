@@ -450,6 +450,7 @@ function InputsScene() {
   const [search, setSearch] = useState('James');
   const [name, setName] = useState('Small group');
   const [inspectorTitle, setInspectorTitle] = useState('Romans overview');
+  const [scrolled, setScrolled] = useState('Search the library');
 
   return (
     <div className="pds-gallery-stack pds-gallery-stack--narrow">
@@ -486,6 +487,40 @@ function InputsScene() {
           placeholder="Title"
         />
       </label>
+
+      {/*
+        The case the fields above cannot show: one inside a scroller.
+
+        A field is the one focusable thing that is routinely `width: 100%`
+        inside a column that scrolls, and the rails that hold them — the
+        planner editor, the inspector, the review dock — zero their side
+        padding to buy width on a narrow panel. An outward ring is painted
+        outside the border box, so the scroller crops its left and right edges
+        and it reads as two stray brackets. Focus this one: the ring stays
+        whole because the field's ring is inset.
+
+        Deliberately reproduced rather than described, because every field
+        above sits in open space where the bug cannot appear — which is why it
+        reached three surfaces before anyone caught it.
+      */}
+      <PrototypeSectionHeader>Field inside a scroller</PrototypeSectionHeader>
+      <p className="pds-caption">
+        Focus rings on fields are <strong>inset</strong>, so a scrolling ancestor cannot crop
+        them. Note <code>overflow-y: auto</code> also makes <code>overflow-x</code> compute to{' '}
+        <code>auto</code>, so a column that only meant to scroll down clips sideways too.
+      </p>
+      <div className="pds-gallery-scroller">
+        <label className="proto-settings-field">
+          <span className="proto-settings-field__label">Full-width, zero side padding</span>
+          <input
+            type="text"
+            className="proto-settings-field__input proto-create-folder-sheet__name-input"
+            value={scrolled}
+            onChange={(e) => setScrolled(e.target.value)}
+            placeholder="Focus me"
+          />
+        </label>
+      </div>
     </div>
   );
 }

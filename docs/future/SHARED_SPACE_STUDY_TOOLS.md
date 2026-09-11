@@ -59,7 +59,7 @@ launch audience, "small co-study groups."
 | Start / rename / pin a Thread | ● | ● | ○ | `canManageSpaceStructure`; the create sheet is stricter still — `if (!isOwner) return null` |
 | Read the room's plan | ● | ● | ○ | `resolveSpacePlanAccess` — `canManageSpaceStructure`, **narrowed Sep 2026** (gap 2) |
 | Change the plan | ● | ● | ○ | same, `spaceLaneWrite` |
-| "Coming up": the gathering, a note, **and the passage** | ● | ● | ● | `GET /api/church/spaces/:id/coming-up`, gated on membership alone |
+| "Coming up": the study, a note, **and the passage** | ● | ● | ● | `GET /api/church/spaces/:id/coming-up`, gated on membership alone |
 | Space Library shelf | curate | curate | read | `assertCanManageSpaceLibrary` — the server's verdict, shipped as `canManage` on the payload |
 | Space scripture index, scoped search, space-scoped study feed | ● | ● | ● | `StudyFeedScope.kind === 'space'` |
 | Pin a note | ● | ○ | ○ | `canPinSharedSpaceItem` — *"pinning is moderation"* |
@@ -72,8 +72,9 @@ launch audience, "small co-study groups."
 | Rest the room's passage card | ● | ● | ● | `RecallEvents.spaceId` + the space-keyed cooldown store; suppression never crosses rooms |
 
 The **Tools** popover in the room's header (`proto-tools-registry.tsx`) is where a room's
-tools are reached. It holds two rows today — Library and Planner — against the church hub's
-six. Both appear for a member once there is something to see, and for whoever curates them
+tools are reached. It builds up to four rows — Library, Planner, Note templates and What's
+next — each appearing on its own condition, against the church hub's six. (This doc said "two
+rows" until Sept 2026; templates and What's next had shipped since.) Both appear for a member once there is something to see, and for whoever curates them
 while still empty, *"otherwise the one person who could plan the first gathering is the one
 person who cannot find where."*
 
@@ -173,7 +174,15 @@ Restated because every one of these has been re-proposed at least once:
 
 - **No reminders, notifications, recurrence engine, room booking, or attendance.**
   `meetingDay` / `meetingTime` / `publishCadence` are display and defaults; whoever runs the
-  room still enters every gathering by hand.
+  room still enters every study by hand. `rhythmDates` offers the next few dates and a new
+  study can declare its own run length, which removes the retyping without introducing
+  recurrence, exceptions, cancellations or anything that fires on a clock.
+- **A room plans a study; only the church preaches a sermon.** Since Sept 2026 the room lane's
+  noun is *study* in every user-facing string, and the form asks what it is before when it
+  meets. `ChurchServices.kind` keeps the word `'gathering'` because it discriminates behaviour
+  (one row per date) rather than vocabulary.
+- **A one-off time is the church plan's field alone.** Every space lane writes
+  `serviceTime: null`; a room's hour lives on its meeting rhythm.
 - **One next gathering per context you joined, never a schedule of any context.**
 - **Review is never shared.** `Notes.startedFromServiceId` has a grep-enforced reader
   allowlist. A member seeing their *own* progress is not an exception to this — the rule

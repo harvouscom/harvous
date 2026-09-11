@@ -1,5 +1,20 @@
 # Shared Spaces, the Planner, and Where a Gathering Shows Up
 
+> **Superseding change, September 10, 2026 — a room plans a *study*, not a gathering.**
+> The word "gathering" is gone from every user-facing string on a room's plan; `itemNoun` is
+> `'study'` and the primary action reads `New study`. The planner's form was reordered to match:
+> title and passage first, the series next, then a collapsed **When** section holding the date,
+> the room's rhythm, the calendar and the church's slots. A new study can declare its run length
+> on create ("Just this week" / "4 weeks" / …), which chains the existing repeat route. In the
+> room itself, the Current Thread block now outranks the Coming up card, and that card's eyebrow
+> names the series rather than the day. **This doc's title is therefore stale** — kept so the
+> file's history and inbound links survive, since renaming it would strand both. Everything
+> below about *placement* still holds; the decision log's last row records the change.
+>
+> `ChurchServices.kind` still reads `'gathering' | 'content'`. It is server-derived and baked
+> into `ChurchServices_space_date_unique`, and it discriminates behaviour (one row per date for a
+> room, many for a publishing queue) rather than vocabulary.
+
 **Status:** **Decided** (August 21, 2026) — Option B, with placement and bounds settled; see
 [Option B in detail](#option-b-in-detail). Most of what this item originally asked for was already
 built, **including the placement itself**: Home already draws a row per context, on the four-day
@@ -45,7 +60,7 @@ several of that assessment's findings have since been closed.
 
 | The premise | What is actually true |
 |---|---|
-| "Add a gathering" is a feature to design | It is one of **three labels for one create action**. `planVocabulary()` (`spa/src/lib/church-services.ts:509`) returns "Add a sermon" (church plan), "Add a study" (channel), or "Add a gathering" (a room that meets). `planKind` is server-derived from the space, never chosen by the client. |
+| "Add a gathering" is a feature to design | It is one of **three scopes on one create action**, and as of Sept 10, 2026 they use **two words**: `planVocabulary()` returns `New sermon` (church plan) or `New study` (a channel *and* a room that meets). A room and a channel share the label and differ in `addOpens` — a channel opens the series sheet, a room the one-row editor. `planKind` is server-derived from the space, never chosen by the client. |
 | Rooms retype the date of every gathering | `rhythmDates()` (`church-services.ts:383`) offers the next six dates from the room's declared rhythm, wired into the entry editor (`PrototypeSermonEditorFields.tsx:181`). It offers dates; it does not schedule or recur, and its own comment says so. |
 | Only church rooms can plan | A churchless shared space can hold a plan, and the Planner row appears in its own view for whoever can manage it — with the reasoning recorded inline: "otherwise the one person who could plan the first gathering is the one person who cannot find where" (`PrototypeSpaceHub.tsx:425-440`). |
 | Only staff can see the plan | The read is membership-gated. Members of the room see what it is on, and get the same one tap into notes that the church card gives (`PrototypeSpaceComingUp.tsx`). |
@@ -217,4 +232,5 @@ page, and the rows follow from it.
 | 2026-08-21 | **Bounded by the four-day wall, no cap.** | `SERVICE_GRACE_DAYS = 4` already governs the church card and is tied to the engagement research behind harvous.com/about. A cap would silently hide a gathering someone agreed to attend; the wall means a busy Tuesday is Tuesday's problem and not every day's. |
 | 2026-08-21 | **One "Coming up" group, soonest first** — church service and room gatherings interleaved by date, not separated by kind. | One idea rather than two lists for the same kind of thing. Means "This Sunday" stops being its own furniture and becomes the church's row in a shared group. |
 | 2026-08-21 | **Corrected: the placement is already built; the remaining work is server-side.** No decision above changes. | Checked against `main` before building rather than after. `selectHomeCards` already emits a context row per space on the four-day wall, soonest-first — the recommendation had been implemented for church-org spaces. The gap is a church-scoped data source in three places, one of which (`listViewerPlanSources`) decides which spaces' plans a viewer may read. That the existing rows already behave the way this doc argued for is the best evidence the calls were right. |
+| 2026-09-10 | **A room plans a study, not a gathering** — the noun, the form's field order, run-length on create, and the room's own section order all follow from it. | Derek's call: the planner's primary use is the content, and the times to meet are secondary. The form stated the opposite, opening with five time controls above the title, and the room did too, with the meeting card above the study. Two bugs fell out of the same region: the one-off time input was offered on space plans whose routes discard `serviceTime`, and the note banner called a churchless room's entry "the next sermon". |
 | 2026-08-21 | **One card for everyone; no leader variant.** | A leader reaches the Planner from the room itself. A role-conditional card state is a class of bug this codebase has hit before. The "you lead this and next week is empty" cue is a good idea, deferred rather than rejected — it can be added later without disturbing anything above. |

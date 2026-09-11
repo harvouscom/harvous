@@ -215,6 +215,25 @@
   max-width: 360px;
 }
 
+/*
+  Reproduces the rail a field actually lives in: a scrolling column whose side
+  padding is zero, so a `width: 100%` field has nothing to bleed into. That is
+  the shape of the planner editor, the inspector and the review dock, and it is
+  the only condition under which a focus ring can be cropped — so the Inputs
+  scene demonstrates it rather than describing it.
+
+  `overflow-y: auto` is the whole point and is not a typo: it forces
+  `overflow-x` to compute to `auto` as well, which is what clips sideways.
+*/
+.pds-gallery-scroller {
+  max-height: 96px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--pds-space-2) 0;
+  border: 0.5px dashed var(--pds-border-control);
+  border-radius: var(--pds-radius-row);
+}
+
 .pds-gallery-swatch-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
