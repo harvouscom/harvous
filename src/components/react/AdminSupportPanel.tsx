@@ -124,10 +124,10 @@ function formatWhen(iso: string): string {
   }
 }
 
-function formatTierLabel(tier: string): string {
-  if (tier === 'unlimited') return 'Unlimited';
-  if (tier === 'free') return 'Free';
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
+/** `shared_spaces` -> `Shared spaces`. The keys are stable ids, not display text. */
+function formatFeatureLabel(key: string): string {
+  const spaced = key.replace(/_/g, ' ');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 function formatMemberSince(iso: string): string {
@@ -299,14 +299,20 @@ function TicketDetail({ ticketId, onClose }: { ticketId: string; onClose?: () =>
             <dd>{ticket.appVersion}</dd>
           </>
         ) : null}
-        {ticket.userTier ? (
-          <>
-            <dt>Plan</dt>
-            <dd>
-              <SupportGlassChip>{formatTierLabel(ticket.userTier)}</SupportGlassChip>
-            </dd>
-          </>
-        ) : null}
+        <>
+          <dt>Access</dt>
+          <dd>
+            {/* Rendered even when empty: "this person has no paid access" is the answer a
+                support agent needs, and an absent row reads as "we didn't check". */}
+            {ticket.userFeatures.length > 0 ? (
+              ticket.userFeatures.map((key) => (
+                <SupportGlassChip key={key}>{formatFeatureLabel(key)}</SupportGlassChip>
+              ))
+            ) : (
+              <SupportGlassChip>Free</SupportGlassChip>
+            )}
+          </dd>
+        </>
         {ticket.userAccountCreatedAt ? (
           <>
             <dt>Member since</dt>

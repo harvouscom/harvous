@@ -1328,9 +1328,18 @@ export const UserMetadata = pgTable('UserMetadata', {
    */
   lastReminderSentOn: text('lastReminderSentOn'),
   /**
-   * Legacy notes-tier label (`free` | `unlimited`) — retired for gating; kept for
-   * admin support/usage stats until those surfaces move off it. Paid features
-   * live in `Entitlements`.
+   * Legacy notes-tier label (`free` | `unlimited`) — retired. Paid features live in
+   * `Entitlements`, and nothing reads this to decide access.
+   *
+   * The admin surfaces it was kept for have moved off: the Usage board's paid split and the
+   * support ticket's plan chip both read entitlements now. They had to — in production this
+   * column reads 'free' for all 293 accounts, including the nine holding paid access, so every
+   * number derived from it was structurally zero.
+   *
+   * What still reads it: the two `@deprecated` helpers in tier-limits.ts, feeding the inert
+   * `hasUnlimited` field on subscription status, and the one-time
+   * server/scripts/backfill-tier-from-clerk.ts. Dropping the column is a separate decision from
+   * retiring its readers, so it stays, still written, still meaning nothing.
    */
   tier: text('tier').notNull().default('free'),
   /** Polar customer id for portal sessions and subscription sync. */
