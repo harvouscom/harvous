@@ -17,6 +17,7 @@
  */
 
 import 'dotenv/config';
+import { pathToFileURL } from 'node:url';
 import { db } from '../db/client';
 import { sql } from 'drizzle-orm';
 import { isEntitlementsTableMissing } from '../utils/pg-undefined-relation';
@@ -134,9 +135,15 @@ wrong for anything finer.
 ─────────────────────────────────────────────────────────────────────────────`);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+// Guards against running as a side effect of import. paid-scripts.test.ts imports this file
+// for `parseArgs`, and every test file in this repo runs as a real import under vitest — so an
+// unconditional `main()` call here executed the whole script during collection, including in CI
+// where there is no database connection, and crashed the run outside any `it()` block.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}
