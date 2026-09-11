@@ -307,15 +307,16 @@ export default function AdminUsagePanel() {
               <StatCard label="Users with notes" value={users.withContent} />
               <StatCard label="Signups" value={users.signups} />
               <StatCard label="Active rate" value={formatPercent(users.activeRatePct)} />
-              <StatCard label="Free tier" value={users.freeTier} />
-              <StatCard label="Unlimited tier" value={users.unlimitedTier} />
+              <StatCard label="Paid" value={users.paidAccounts} />
+              <StatCard label="Free" value={users.freeAccounts} />
             </div>
-            {users.freeTier + users.unlimitedTier > 0 ? (
+            {users.paidAccounts + users.freeAccounts > 0 ? (
               <SegmentBar
-                ariaLabel="Billing tier split"
+                ariaLabel="Paid access split"
                 segments={[
-                  { label: 'Free', value: users.freeTier },
-                  { label: 'Unlimited', value: users.unlimitedTier },
+                  { label: 'Paying', value: users.billingAccounts },
+                  { label: 'Granted', value: users.grantedAccounts },
+                  { label: 'Free', value: users.freeAccounts },
                 ]}
               />
             ) : null}
@@ -350,7 +351,8 @@ export default function AdminUsagePanel() {
         </div>
         <p className="admin-usage__muted admin-usage__footnote admin-usage__footnote--section pds-caption">
           Counts in this section use the selected {windowDays}-day window. Welcome pack notes are excluded.
-          Billing tier totals are current snapshots, not window-scoped.
+          Paid counts read Entitlements — active rows for features that are not withheld, the same rule the
+          feature gates apply. Granted covers admin grants, church seats and trials. Snapshots, not window-scoped.
         </p>
       </SectionCard>
 
