@@ -949,10 +949,13 @@ export async function buildReviewItemViews(
       const translation = row.translation ?? 'NET';
       if (row.kind === 'chapter') return [chapterMaterialFor(row.scriptureReference, translation)];
       if (row.kind !== 'verse') return [];
-      const warm: Promise<unknown>[] = [
-        materialFor(row.scriptureReference, translation),
-        fetchVerseText(row.scriptureReference, translation),
-      ];
+      /*
+       * `materialFor` alone: `loadVerseMaterial` already fetches this exact text internally to
+       * fill `.text`, so a second, separate `fetchVerseText` call here paid for a round trip
+       * whose result was thrown away the moment it resolved. The loop below reads `.text` off
+       * the material instead of re-fetching — see there.
+       */
+      const warm: Promise<unknown>[] = [materialFor(row.scriptureReference, translation)];
       return warm;
     }),
   );
@@ -991,18 +994,6 @@ export async function buildReviewItemViews(
       : null;
     const threadTitle =
       kind === 'thread' && row.noteId ? await threadTitleFor(userId, row.noteId) : null;
-
-    // The recognize rung shows a fragment of the verse, so it needs the text. Every other
-    // prompt is built from titles and references alone.
-    let cue: string | null = null;
-    if (kind === 'verse' && row.ladderStep === 0 && row.scriptureReference) {
-      const text = await fetchVerseText(row.scriptureReference, row.translation ?? 'NET');
-      // The words the reader marked while reading, where they marked any; the opening otherwise.
-      const span = text
-        ? readerSpanFragment(readerSpans.get(row.scriptureReference.trim().toLowerCase()), stripHtml(text))
-        : null;
-      cue = text ? verseCue(span ?? stripHtml(text)) : null;
-    }
 
     /*
      * A note is asked the rung it can answer, not the rung it has climbed to. The stored step
@@ -1043,6 +1034,25 @@ export async function buildReviewItemViews(
      * Dropped the way a note with nothing to ask about is dropped.
      */
     if (kind === 'chapter' && options.dropUnaskable && !chapterMaterial?.verses.length) continue;
+
+    /*
+     * The recognize rung shows a fragment of the verse, so it needs the text.
+     *
+     * Read off `verseMaterial.text` rather than fetched again: `loadVerseMaterial` already holds
+     * the stripped text as one of six things it loads in parallel, and issuing a second
+     * `fetchVerseText` here for the same reference and translation was a second, unwarmed round
+     * trip for a value already sitting in hand. Every other prompt is built from titles and
+     * references alone.
+     */
+    let cue: string | null = null;
+    if (kind === 'verse' && row.ladderStep === 0 && verseMaterial?.text) {
+      // The words the reader marked while reading, where they marked any; the opening otherwise.
+      const span = readerSpanFragment(
+        row.scriptureReference ? readerSpans.get(row.scriptureReference.trim().toLowerCase()) : null,
+        verseMaterial.text,
+      );
+      cue = verseCue(span ?? verseMaterial.text);
+    }
     /*
      * Which tier this rung is asking at, resolved *before* the prompt so the instruction can
      * describe the exercise the reveal is about to build. "Write it from memory" printed above
@@ -1100,10 +1110,9 @@ export async function buildReviewItemViews(
       (resolvedKey === 'verse.locate' || resolvedKey === 'verse.book') &&
       row.scriptureReference
     ) {
-      if (!subjectCue) {
-        const text = await fetchVerseText(row.scriptureReference, row.translation ?? 'NET');
-        subjectCue = text ? verseCue(stripHtml(text)) : null;
-      }
+      // `verseMaterial` is always set here — locate/book are verse-only rungs — so this is a
+      // property read, not the third fetch of the same passage it used to be.
+      if (!subjectCue && verseMaterial?.text) subjectCue = verseCue(verseMaterial.text);
     } else if (resolvedKey !== 'verse.recognize') {
       subjectCue = null;
     }
@@ -1977,6 +1986,16 @@ export interface ReviewRevealPayload {
   } | null;
   /** How much of the verse is given before the reader writes the rest. `null` shown = nothing. */
   recall?: { shown: string | null; mode: string } | null;
+  /**
+   * Where in the reader's Harvous this question came from — the line the row shows about its
+   * provenance, and the highlight or thought it was built out of. For the result card, which
+   * had none of it.
+   */
+  context?: {
+    sourceLabel: string | null;
+    sourceAt: string | null;
+    annotation: { quote: string | null; thought: string | null } | null;
+  } | null;
   /** How many words to name. Nothing about which. */
   keywords?: { count: number } | null;
   /** Two openings from the same chapter; which comes first stays here. */
@@ -3009,7 +3028,7 @@ export async function gradeChapterAnswer(
     };
   }
   if (rung.key === 'chapter.finish' && Array.isArray(answer.words)) {
-    const exercise = buildChapterFinishFor(material, seed, rung.pass);
+    const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
     if (!exercise) return null;
     const marked = markVerseRebuild(exercise.cloze, answer.words);
     return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
@@ -3061,7 +3080,7 @@ export async function chapterTruthFor(item: ReviewItemRow, userId: string): Prom
   const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
   const rung = chapterRungFor(item.ladderStep, seed, material);
   if (rung.key === 'chapter.finish') {
-    const exercise = buildChapterFinishFor(material, seed, rung.pass);
+    const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
     return exercise ? verseHtml(exercise.verse) : null;
   }
   if (rung.key === 'chapter.order') {
@@ -4011,8 +4030,11 @@ export async function buildReviewReveal(
       payload.choice = exercise ? { options: exercise.options, opening: true } : null;
     }
     if (rung.key === 'chapter.finish') {
-      const exercise = buildChapterFinishFor(material, seed, rung.pass);
-      payload.cloze = exercise ? clozeSegments(exercise.cloze) : null;
+      const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
+      const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
+      payload.cloze = exercise
+        ? clozeSegments(exercise.cloze, { uniformWidths: spec.uniformWidths })
+        : null;
     }
     if (rung.key === 'chapter.order') {
       const exercise = buildChapterOrderFor(material, seed);
@@ -4089,7 +4111,67 @@ export async function buildReviewReveal(
     };
   }
 
+  /*
+   * Where this came from, for the card that is shown once the answering is over.
+   *
+   * The result card said what was asked, what the reader answered and when it comes back, and
+   * nothing at all about the thing in their Harvous the question was made from. A verse item
+   * exists *because* they marked it while reading, or wrote something on it — and that is the
+   * connection the whole feature is for. The reveal already carried the note's title and body
+   * and the dock threw them away; this adds the one thing it never fetched.
+   *
+   * Only the source label and the annotation. The note itself is already on the payload, and
+   * the framing line belongs to the item view, which the client holds.
+   */
+  payload.context = {
+    sourceLabel: item.sourceLabel ?? null,
+    sourceAt: item.sourceAt ? item.sourceAt.toISOString() : null,
+    annotation: await loadItemAnnotation(userId, item),
+  };
+
   return payload;
+}
+
+/**
+ * The highlight or note the item was made from, in the reader's own words.
+ *
+ * `ReviewItems.studyThreadEntryId` has been on the row since highlights became reviewable and
+ * nothing ever read it back: the reveal touched `StudyThreadEntries` nowhere, so a question
+ * built from a passage someone marked and wrote a paragraph about revealed the parent note's
+ * body and not one word of the marking itself.
+ *
+ * Both halves are optional and either may be missing: a highlight with no note attached is a
+ * quote and nothing else, and a thought written on a passage with the span since detached is a
+ * thought with no quote. The card renders whichever it is given.
+ */
+async function loadItemAnnotation(
+  userId: string,
+  item: ReviewItemRow,
+): Promise<{ quote: string | null; thought: string | null } | null> {
+  if (!item.studyThreadEntryId) return null;
+  try {
+    const [row] = await db
+      .select({
+        excerpt: StudyThreadEntries.scripturePassageExcerpt,
+        miniNoteBody: StudyThreadEntries.miniNoteBody,
+        notesBody: StudyThreadEntries.notesBody,
+      })
+      .from(StudyThreadEntries)
+      .where(
+        and(
+          eq(StudyThreadEntries.id, item.studyThreadEntryId),
+          // Scoped to the reader, because an id alone is not an authorisation.
+          eq(StudyThreadEntries.userId, userId),
+        ),
+      );
+    if (!row) return null;
+    const quote = stripHtml(row.excerpt ?? '').trim() || null;
+    const thought = stripHtml(row.miniNoteBody || row.notesBody || '').trim() || null;
+    return quote || thought ? { quote, thought } : null;
+  } catch {
+    // A missing table or column costs the card one block, never the answer the reader is owed.
+    return null;
+  }
 }
 
 /**

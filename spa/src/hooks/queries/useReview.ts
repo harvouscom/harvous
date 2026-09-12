@@ -96,6 +96,12 @@ export interface ReviewRevealResponse {
   } | null;
   /** How much of the verse the recall rung gives away before the reader writes the rest. */
   recall?: { shown: string | null; mode: string } | null;
+  /** Where in the reader's Harvous this question came from, for the card shown after it. */
+  context?: {
+    sourceLabel: string | null;
+    sourceAt: string | null;
+    annotation: { quote: string | null; thought: string | null } | null;
+  } | null;
   keywords?: { count: number } | null;
   before?: { options: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
