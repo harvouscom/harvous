@@ -293,15 +293,19 @@ export const reviewFeedbackDownAria = (family: string) => `Not helpful — fewer
 export const REVIEW_FEEDBACK_ACK_COPY = 'Noted.';
 
 /**
- * The third time, for a family the reader can actually switch.
+ * The third time, for a family Settings can actually lean away from.
  *
  * Offered once — a fourth and a fifth say "Noted." like the rest, because an offer repeated is a
- * nag — and never for an always-on family, where there is no switch and naming one would promise
- * something the engine is entitled to ignore.
+ * nag — and never for a family with no control, where naming one would promise something the
+ * engine is entitled to ignore.
+ *
+ * "Ask for less", never "turn off". Less is the most the page offers, and it is a lean: the family
+ * still comes round where its step has nothing else to ask. The label is quoted because it is a
+ * name — "Who", "Put in order" — and no article reads right in front of all of them.
  */
 export const REVIEW_FEEDBACK_SETTINGS_LINK_COPY = 'Review exercises';
 export const reviewFeedbackOfferCopy = (family: string) =>
-  `Noted. You can turn ${family} off in`;
+  `Noted. You can ask for less of “${family}” in`;
 
 /** A vote is a log line, not a setting; losing one is not worth interrupting a sitting for. */
 export const REVIEW_FEEDBACK_FAILED_TOAST = "Couldn't note that";

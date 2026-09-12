@@ -213,3 +213,13 @@ export function isPrototypeFolderStatsColumnMissing(error: unknown): boolean {
     isPgUndefinedColumn(error, 'prototypeEmptyFolderLabels')
   );
 }
+
+/**
+ * `UserMetadata.reviewExerciseSettings`, on a database that predates it.
+ *
+ * Named so the route that writes it can say what is missing instead of a bare 500, and so the fix
+ * is a command rather than an investigation: `npm run review-exercises:schema:apply`.
+ */
+export function isReviewExerciseSettingsColumnMissing(error: unknown): boolean {
+  return isPgUndefinedColumn(error, 'reviewExerciseSettings');
+}

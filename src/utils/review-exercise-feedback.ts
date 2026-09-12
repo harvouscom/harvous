@@ -5,10 +5,10 @@
  * says anything about the *question*, so a rung that keeps landing badly had no way to be
  * reported except out loud. This is that channel: a thumbs-down means "fewer questions like
  * this", counted per exercise family, because the family is the unit the reader already has a
- * name for and the unit the settings page already switches.
+ * name for and the unit the settings page already offers.
  *
  * **A dislike is a reason to walk past a member, never a reason to return nothing.** The set
- * this module derives joins the reader's Settings skip-list in `material.skip`, so it enters the
+ * this module derives joins the reader's own "Less" in `material.skip`, so it enters the
  * seeded family walk by the same door and inherits the same fall-forward rule: if every member
  * of a step is quieted, the step still resolves — `verseRungFor` falls to `members[0]`, and
  * `resolveNoteRung` takes its second pass. Nothing here can make a question impossible, and
@@ -16,7 +16,7 @@
  *
  * **Nothing here is stored as a preference.** The tally is derived from the event log inside a
  * rolling window, so the effect is exactly as old as the dislikes that earn it and lapses on its
- * own. A dislike is an observation; only the reader's explicit switch is a preference. Writing
+ * own. A dislike is an observation; only the reader's explicit choice is a preference. Writing
  * this to `reviewExerciseSettings` would be an allow-list by the back door — a setting they
  * never chose and cannot see — which is the thing `review-exercise-settings.ts` forbids.
  *
@@ -30,7 +30,7 @@ import {
   reviewPromptKeysInFamily,
   type ReviewExerciseFamilyId,
 } from '@/utils/review-exercise-families';
-import { familyIsAlwaysOn } from '@/utils/review-exercise-settings';
+import { emphasisIsOfferable, type RungPreferences } from '@/utils/review-exercise-settings';
 
 /**
  * How many times the reader must say it, on how many different items, before the engine leans away.
@@ -87,12 +87,11 @@ export function dislikedItemsByFamily(
 /**
  * Families the reader has told us, on three separate items, they would rather have less of.
  *
- * Always-on families are included on purpose. They cannot be switched off in Settings because
- * they are the last resort on their step, but "cannot be switched off" is not the same as
- * "cannot be leaned away from": a note carrying citations or links can be asked `cited` or
- * `linked` instead of `note`, and the walk will prefer those once `note` is quieted. Where there
- * is genuinely nothing else, the fall-forward hands it back anyway — which is why quieting one
- * is safe to allow and dishonest to *promise*. See `mayOfferExerciseSetting`.
+ * Every family is counted, including the four Settings offers no control for. Those are the only
+ * family in every draw they belong to, so quieting one never makes it asked less often — but it is
+ * still one more reason to walk past, and a reason to walk past is always safe, because where there
+ * is nothing else the fall-forward hands it back. Safe to allow and dishonest to *promise*, which
+ * is why the offer is gated separately. See `mayOfferExerciseSetting`.
  */
 export function quietedFamilies(
   rows: readonly ReviewDislikeRow[],
@@ -114,14 +113,37 @@ export function quietedKeySet(rows: readonly ReviewDislikeRow[]): ReadonlySet<Re
 }
 
 /**
- * Whether the third dislike may point the reader at the Settings toggle.
+ * The reader's own emphasis, with what they keep thumbing down folded in.
  *
- * False for the always-on families, because there is no switch there to offer. Naming one would
- * be the lie `review-exercise-settings.ts` warns about — a row promising something the engine is
- * entitled to ignore. The engine still leans away where it can; it just does not say so.
+ * **A dislike joins `skip` and never `prefer`.** It is an observation, and only the reader's
+ * explicit choice is a preference — so nothing inferred can ever make a family asked more often.
+ *
+ * **An explicit More outranks an inferred less.** Someone who asked for more of a family and then
+ * thumbed three of its questions down has said two things, and the one they chose in Settings is
+ * the one they can see and change. The third dislike still points them there.
+ *
+ * Pure, so the merge the service does can be tested without a database.
+ */
+export function mergeRungPreferences(
+  explicit: RungPreferences,
+  dislikes: readonly ReviewDislikeRow[],
+): RungPreferences {
+  const quieted = quietedKeySet(dislikes);
+  if (!quieted.size) return explicit;
+  const skip = new Set<ReviewPromptKey>(explicit.skip);
+  for (const key of quieted) if (!explicit.prefer.has(key)) skip.add(key);
+  return { skip, prefer: explicit.prefer };
+}
+
+/**
+ * Whether the third dislike may point the reader at Settings.
+ *
+ * Only where Settings has a control to offer. For a family that is the only one in every draw it
+ * belongs to, no "Less" would change anything, and naming one would be the lie
+ * `review-exercise-settings.ts` warns about — a row promising what the engine is entitled to ignore.
  */
 export function mayOfferExerciseSetting(id: ReviewExerciseFamilyId): boolean {
-  return !familyIsAlwaysOn(id);
+  return emphasisIsOfferable(id);
 }
 
 /**

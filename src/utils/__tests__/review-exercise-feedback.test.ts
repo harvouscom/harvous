@@ -3,6 +3,7 @@ import {
   REVIEW_DISLIKE_THRESHOLD,
   REVIEW_DISLIKE_WINDOW_DAYS,
   describeDislike,
+  mergeRungPreferences,
   quietedFamilies,
   quietedKeySet,
   reviewDislikeWindowStart,
@@ -10,11 +11,12 @@ import {
 } from '@/utils/review-exercise-feedback';
 import { ALWAYS_ON_FAMILIES } from '@/utils/review-exercise-settings';
 import { reviewPromptKeysInFamily } from '@/utils/review-exercise-families';
+import type { ReviewPromptKey } from '@/utils/review-prompts';
 
-/** `verse.rebuild` is in the `blanks` family, which the reader can switch off in Settings. */
+/** `verse.rebuild` is in the `blanks` family, which Settings offers More and Less on. */
 const BLANKS = 'verse.rebuild';
-/** `note.recognize` is in `note`, which is always-on and therefore has no switch to offer. */
-const ALWAYS_ON = 'note.recognize';
+/** `verse.altered` is in `changed`, the only exercise on its step, so Settings has no control for it. */
+const ALWAYS_ON = 'verse.altered';
 
 const rows = (rungKey: string, itemIds: string[]): ReviewDislikeRow[] =>
   itemIds.map((reviewItemId) => ({ reviewItemId, rungKey }));
@@ -49,14 +51,14 @@ describe('quieting a family takes three separate items', () => {
   });
 });
 
-describe('an always-on family', () => {
-  it('is still quieted, so the walk can prefer another member where one exists', () => {
-    // Quieting is a reason to walk past, and a note carrying citations can be asked `cited`
-    // instead. What it is never allowed to be is a reason to return nothing.
-    expect([...quietedFamilies(rows(ALWAYS_ON, ['a', 'b', 'c']))]).toEqual(['note']);
+describe('a family with no control in Settings', () => {
+  it('is still quieted, because walking past is always safe', () => {
+    // A reason to walk past is never a reason to return nothing: where the step has nothing
+    // else to ask, the fall-forward hands the family back.
+    expect([...quietedFamilies(rows(ALWAYS_ON, ['a', 'b', 'c']))]).toEqual(['changed']);
   });
 
-  it('is never offered as a setting, because there is no switch to offer', () => {
+  it('is never offered as a setting, because there is no control to offer', () => {
     const { family, offerSettings } = describeDislike(ALWAYS_ON, rows(ALWAYS_ON, ['a', 'b', 'c']));
     expect(ALWAYS_ON_FAMILIES).toContain(family);
     expect(offerSettings).toBe(false);
@@ -118,5 +120,31 @@ describe('the window', () => {
     const start = reviewDislikeWindowStart(now);
     const days = (now.getTime() - start.getTime()) / (24 * 60 * 60 * 1000);
     expect(days).toBe(REVIEW_DISLIKE_WINDOW_DAYS);
+  });
+});
+
+describe("folding dislikes into the reader's emphasis", () => {
+  const none = { skip: new Set<ReviewPromptKey>(), prefer: new Set<ReviewPromptKey>() };
+  const three = rows(BLANKS, ['a', 'b', 'c']);
+
+  it('adds a quieted family to what the walk passes', () => {
+    const merged = mergeRungPreferences(none, three);
+    for (const key of reviewPromptKeysInFamily('blanks')) expect(merged.skip.has(key)).toBe(true);
+  });
+
+  it('never makes anything preferred, because a dislike is not a choice', () => {
+    expect(mergeRungPreferences(none, three).prefer.size).toBe(0);
+  });
+
+  it('lets an explicit More outrank an inferred less', () => {
+    const more = { skip: new Set<ReviewPromptKey>(), prefer: new Set(reviewPromptKeysInFamily('blanks')) };
+    const merged = mergeRungPreferences(more, three);
+    expect(merged.skip.has(BLANKS)).toBe(false);
+    expect(merged.prefer.has(BLANKS)).toBe(true);
+  });
+
+  it("returns the reader's own choice untouched below the threshold", () => {
+    const own = { skip: new Set<ReviewPromptKey>(['verse.theme']), prefer: new Set<ReviewPromptKey>() };
+    expect(mergeRungPreferences(own, rows(BLANKS, ['a', 'b']))).toBe(own);
   });
 });
