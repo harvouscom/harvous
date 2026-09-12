@@ -339,10 +339,30 @@ describe('planVocabulary', () => {
     expect(planVocabulary({ onSpacePlan: false }).addLabel).toBe('New sermon');
   });
 
-  it('calls a shared space a gathering', () => {
+  it('calls a shared space\u2019s entry a study', () => {
+    /*
+      The room used to say "gathering", which put the meeting ahead of the thing
+      being studied. What a room decides is what it will study; when it meets is
+      an attribute of that, and usually already declared as the room's rhythm.
+    */
     const v = planVocabulary({ onSpacePlan: true, planKind: 'gathering' });
-    expect(v.addLabel).toBe('New gathering');
-    expect(v.itemNoun).toBe('gathering');
+    expect(v.addLabel).toBe('New study');
+    expect(v.itemNoun).toBe('study');
+  });
+
+  it('keeps the room on the one-row editor, unlike a channel', () => {
+    /*
+      A room and a channel now share `addLabel` and differ in `addOpens` — which
+      is what that field exists to carry. A channel's unit of work is a run of
+      weeks, so it opens the series sheet; a room commits to one study and then
+      repeats it across the weeks it needs. If the two branches are ever
+      collapsed because their labels match, the channel loses the series sheet.
+    */
+    const room = planVocabulary({ onSpacePlan: true, planKind: 'gathering' });
+    const channel = planVocabulary({ onSpacePlan: true, planKind: 'content' });
+    expect(room.addLabel).toBe(channel.addLabel);
+    expect(room.addOpens).toBe('entry');
+    expect(channel.addOpens).toBe('series');
   });
 
   it('makes the study a channel’s primary action — it publishes, it does not meet', () => {
@@ -384,8 +404,16 @@ describe('planVocabulary', () => {
     );
   });
 
-  it('reads an absent kind as a gathering, for payloads cached before it shipped', () => {
-    expect(planVocabulary({ onSpacePlan: true }).addLabel).toBe('New gathering');
+  it('reads an absent kind as a room, for payloads cached before it shipped', () => {
+    /*
+      A payload cached before `planKind` shipped arrives without it, and must
+      read as a room rather than a channel — the labels match now, so
+      `addOpens` is what actually proves which branch answered.
+    */
+    const v = planVocabulary({ onSpacePlan: true });
+    expect(v.addLabel).toBe('New study');
+    expect(v.addOpens).toBe('entry');
+    expect(v.itemNoun).toBe('study');
   });
 
   it("never offers a channel the church's own wording", () => {
@@ -398,7 +426,7 @@ describe('planVocabulary', () => {
   it('does not call a churchless room a ministry', () => {
     // "Ministry" is a church's word for a room. A Tuesday book club is not one.
     const v = planVocabulary({ onSpacePlan: true, planKind: 'gathering', hasChurch: false });
-    expect(v.addLabel).toBe('New gathering');
+    expect(v.addLabel).toBe('New study');
     expect(v.emptyWritable).not.toContain('ministry');
     expect(v.emptyWritable).not.toContain('church');
   });

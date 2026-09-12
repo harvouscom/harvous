@@ -118,6 +118,17 @@ Harvous should feel **quiet, warm, and content-first** — a study desk, not a d
 - Menus use `role="menu"` / `menuitem*` (or native equivalents) with checked/expanded state.
 - Status banners and empty states expose `role="status"` or `role="alert"` as appropriate. Floating toasts do the same.
 - Focus rings use accent tokens; never remove focus outlines without a visible replacement.
+- **A field's focus ring is inset; a row's or card's is outward.** `outline` is painted outside
+  the border box, so any ancestor with `overflow: hidden` or `auto` crops whatever falls outside
+  its padding box. A field is the one focusable thing that is routinely `width: 100%` inside a
+  scrolling column — and the rails that hold them zero their side padding to buy width — so an
+  outward ring loses its left and right edges and reads as two stray brackets. Inputs, textareas
+  and selects therefore use a negative `outline-offset` (`calc(-1 * var(--focus-ring-width))`
+  globally, `-2px` in `prototype-components.css`); nav rows and cards keep the outward
+  `--focus-ring-offset`, because they sit in open space and want the halo. Watch for the trap
+  underneath it: setting `overflow-y: auto` forces `overflow-x` to compute to `auto` as well, so
+  a column that only meant to scroll down clips sideways too. The Inputs gallery scene
+  (`ds-11-inputs`) reproduces the condition rather than describing it.
 - Support `prefers-reduced-motion` and `prefers-reduced-transparency`.
 - Do not put `user-select: none` on editable note content or scripture pill text.
 

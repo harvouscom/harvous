@@ -1166,22 +1166,6 @@ function PrototypeSpaceHubLive() {
           {/* Fading out over the dashboard arriving underneath, so the two states overlap
               rather than swapping between frames. Out of flow; costs the layout nothing. */}
           {showLoader ? <ProtoSpaceLoading label="Loading space" leaving={loaderLeaving} /> : null}
-          {/*
-            What this room is studying next. Staff-gated server-side, so it is
-            only requested for someone who can already see the church's plans;
-            everyone else, and every space without a plan, renders nothing.
-          */}
-          {/* Members, not just staff: the read is membership-gated now, so the
-              people who actually gather here see what the room is on. Still
-              only asked of a church room — a personal Shared Space has no
-              plan to answer with. */}
-          {/* Any room that can hold a plan can say what is coming up. The org
-              condition predated churchless plans; the endpoint behind it was
-              only ever gated on membership. */}
-          <PrototypeSpaceComingUp
-            spaceId={activeSpaceId ?? null}
-            enabled={ministryMeta.type !== 'personal'}
-          />
           {bannerNewCount > 0 ? (
             <div className="proto-home-section">
               <p className="proto-home-greeting">
@@ -1317,6 +1301,26 @@ function PrototypeSpaceHubLive() {
               )}
             </div>
           ) : null}
+
+          {/*
+            When it next meets — **after** what it is studying, not before.
+
+            This card used to sit above the Current Thread block, so a member
+            opening their room was told the day before the subject. A room's
+            subject is the study; the meeting is the appointment for it. The
+            welcome-back layer above (the catch-up line and the greeting) stays
+            first because it answers "what happened while I was away", which is
+            neither.
+
+            Members, not just staff: the read is membership-gated, so the people
+            who actually gather here see what the room is on. Any room that can
+            hold a plan can answer; a personal space has no plan, and every room
+            without one renders nothing at all.
+          */}
+          <PrototypeSpaceComingUp
+            spaceId={activeSpaceId ?? null}
+            enabled={ministryMeta.type !== 'personal'}
+          />
 
           {totalNoteCount === 0 ? (
             <div className="proto-home-section">

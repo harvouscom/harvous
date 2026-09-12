@@ -4328,7 +4328,9 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   border-color: var(--pds-accent-focus-border);
   background: var(--pds-bg-page);
   outline: 2px solid var(--pds-accent-focus-ring);
-  outline-offset: 0;
+  /* Inset for the same reason as the canonical field above: the inspector is a
+     scrolling column, and an outward ring loses its sides in one. */
+  outline-offset: -2px;
 }
 
 /* ─── Folder + tag editor ────────────────────────────────────────────────── */
@@ -5129,7 +5131,11 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 .proto-settings-field__input:focus {
   border-color: var(--pds-accent-focus-border);
   outline: 2px solid var(--pds-accent-focus-ring);
-  outline-offset: 0;
+  /* Inset, matching the global field ring — see the note there. At `0` the ring
+     sat wholly outside the border box, so any scrolling ancestor cropped its
+     left and right edges; this field is `width: 100%` and the planner rail
+     zeroes its side padding, which left it nothing to bleed into. */
+  outline-offset: -2px;
 }
 
 .proto-create-folder-sheet__notes-label {
@@ -13092,6 +13098,32 @@ p.proto-teaching-plan__divider {
 }
 
 /*
+  The row the chip and "Move to ideas" share.
+
+  Unstyled before this, which is why the two drifted apart visually: with no
+  `display: flex` here, `.proto-sheet-quiet-action`'s own `width: 100%` (built
+  for a sheet footer, stacked under a primary) had nothing to constrain it to
+  but the row's full width, so it dropped to its own line and centered its
+  text — an orphaned link under the chip rather than a second control beside
+  it. `flex-wrap` lets the pair wrap on a narrow rail instead of overflowing.
+*/
+.proto-service-editor__date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Same fix `.proto-suggest-mine .proto-sheet-quiet-action` already made for
+   the library queue's actions: `proto-sheet-quiet-action` carries `width:
+   100%` for its usual stacked-under-a-primary case, which here pushed this
+   button onto its own centered line instead of sitting beside the chip. */
+.proto-service-editor__date-row .proto-sheet-quiet-action {
+  width: auto;
+  flex-shrink: 0;
+}
+
+/*
   The shared field class adds its own `margin-top: 6px`, which lands on top of
   this column's 6px flex gap — so every input sat 12px under its label while the
   date chip (no such margin) sat at 6px. The gap is the one spacing authority
@@ -13204,6 +13236,22 @@ p.proto-teaching-plan__divider {
 .proto-service-editor__repeat-select {
   flex: 1;
   min-width: 0;
+}
+
+/*
+  "How long" on create — a plain field in the form's own column, not a row.
+
+  Deliberately its own class rather than reusing `__repeat-select` above: that
+  one carries `flex: 1` for sitting beside a button inside `.repeat`, a ROW
+  flex container. Here the trigger is a direct child of `.proto-service-editor`
+  itself, which is a COLUMN flex container — `flex: 1` there means "grow to
+  fill remaining height", not width, and the reused class stretched this
+  control to fill the whole scrolling form. `flex: 0 0 auto` says explicitly
+  what a bare rule left implicit: this control sizes to its own content, the
+  way `.proto-select-menu__trigger`'s own `width: 100%` already intends.
+*/
+.proto-service-editor__weeks-select {
+  flex: 0 0 auto;
 }
 
 /* Not an error and not a caption in the field flow: the result of an action
@@ -17147,6 +17195,18 @@ html.harvous-prototype-route
 
 .proto-planner-editor__body > .proto-add-notes-sheet__footer {
   flex: 0 0 auto;
+  /*
+    More air above Save than the 10px the wildcard `[class*='__footer']` rule
+    above gives every footer under this body. Deliberately for both docked
+    rails that share this wrapper — the study editor (a note-search result as
+    its last row) and the library item editor (a checkbox group as its last
+    row) — since both end a form in dense rows right up against the footer,
+    which read as crowding rather than a clear break before Save. Only the
+    top value: right/bottom/left stay the wildcard rule's, since this rule
+    comes later in the cascade at equal specificity and overrides just what
+    it sets.
+  */
+  padding-top: 16px;
 }
 
 /* ─── Select menu (the prototype's choice control) ────────────────────────── */

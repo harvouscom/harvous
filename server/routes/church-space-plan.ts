@@ -126,7 +126,7 @@ function planKindForSpace(space: { type: string | null; orgId: string | null }):
 
 /** "Gathering" is a lie for a channel; "entry" is honest for both. */
 function notFoundError(kind: PlanKind): string {
-  return kind === 'content' ? 'Entry not found' : 'Gathering not found';
+  return kind === 'content' ? 'Entry not found' : 'Study not found';
 }
 
 type SpaceSermonInput = {
@@ -385,10 +385,12 @@ app.post('/api/church/spaces/:spaceId/services/create', requireAuth, rateLimit('
       if (isUniqueViolation(error, 'ChurchServices_space_date_unique')) {
         return c.json(
           {
-            /* Only reachable for gatherings — the unique index no longer
-               covers content, because a channel publishing twice in a day is
-               ordinary rather than a mistake. */
-            error: 'This ministry already has a gathering planned that day.',
+            /* Only reachable for `kind='gathering'` — the unique index no
+               longer covers content, because a channel publishing twice in a
+               day is ordinary rather than a mistake. The column keeps that
+               word; the sentence does not, because a room plans a study and a
+               churchless one is not a ministry. */
+            error: 'This space already has a study planned that day.',
             code: 'SERVICE_DATE_TAKEN',
           },
           409,
@@ -496,10 +498,12 @@ app.post('/api/church/spaces/:spaceId/services/update', requireAuth, rateLimit('
       if (isUniqueViolation(error, 'ChurchServices_space_date_unique')) {
         return c.json(
           {
-            /* Only reachable for gatherings — the unique index no longer
-               covers content, because a channel publishing twice in a day is
-               ordinary rather than a mistake. */
-            error: 'This ministry already has a gathering planned that day.',
+            /* Only reachable for `kind='gathering'` — the unique index no
+               longer covers content, because a channel publishing twice in a
+               day is ordinary rather than a mistake. The column keeps that
+               word; the sentence does not, because a room plans a study and a
+               churchless one is not a ministry. */
+            error: 'This space already has a study planned that day.',
             code: 'SERVICE_DATE_TAKEN',
           },
           409,
@@ -609,7 +613,7 @@ app.post('/api/church/spaces/:spaceId/services/repeat', requireAuth, rateLimit('
           error:
             planKindForSpace(gate.space) === 'content'
               ? 'Give this a date first — repeat counts weeks from one.'
-              : 'Give this gathering a date first — repeat counts weeks from one.',
+              : 'Give this study a date first — repeat counts weeks from one.',
           code: 'BAD_REQUEST',
         },
         400,
