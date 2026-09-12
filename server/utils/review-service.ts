@@ -23,6 +23,7 @@ import {
   type SampleSource,
 } from '@/utils/review-sample';
 import type { VerseClozeSegments } from '@/utils/verse-cloze';
+import { DEFAULT_REVIEW_TRANSLATION, askedTranslation } from '@/utils/review-translation';
 import {
   db,
   and,
@@ -180,6 +181,7 @@ import { reviewFraming, type ReviewFramingSpec } from '@/utils/review-framing';
 import { rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
 import { nodeKey as studyNodeKey } from '@/utils/study-bible-nodes';
 import { fetchVerseText } from './fetch-verse-text';
+import { getUserDefaultTranslation } from './votd-user-translation';
 import { recordNoteRecallEngaged } from './note-recall-state';
 import { countableUserNotesWhere } from './purge-onboarding-content';
 import {
@@ -316,6 +318,19 @@ export interface ReviewItemView {
    * fragment of the verse. Null on every other rung — the title already says which thing it is.
    */
   cue: string | null;
+  /**
+   * The wording this question is asked in — the item's own, or the account's default.
+   *
+   * Resolved here rather than on the client, for the reason `exercise` above gives about the
+   * family: a client deriving it would be right until the day it was not. The profile carries
+   * `defaultTranslation`, so the temptation to re-derive it in the dock is live, and it would be
+   * wrong for every item that carries a wording of its own.
+   *
+   * The chip in the dock read `item.translation ?? 'NET'` on a view that never carried the field,
+   * so it rendered NET for every item including ones stored as something else. Never optional
+   * again: a question always has a wording.
+   */
+  translation: string;
 }
 
 /**
@@ -803,12 +818,23 @@ export async function filterAskableReviewRows(
    * are verses at all, which is one cached read per distinct chapter, where the full material
    * load is five concurrent queries for facts only a built prompt needs.
    */
+  /*
+   * The account's wording, resolved once for the whole filter.
+   *
+   * This matters more here than it looks. The probe below decides whether a chapter is askable by
+   * whether its text can be fetched, and it fetches in a translation. If the filter resolved one
+   * wording and `buildReviewItemViews` resolved another, a chapter present in the first and absent
+   * in the second would be counted askable and then dropped — which is precisely the production
+   * failure `review-askable-rules-parity.test.ts` exists to prevent: the inbox reports three and
+   * returns two. Both go through the same per-request memo, so they agree by construction.
+   */
+  const defaultTranslation = await loadDefaultTranslation(userId);
   const chapterRefs = options.dropUnaskable
     ? [
         ...new Set(
           rows
             .filter((r) => r.kind === 'chapter' && r.scriptureReference)
-            .map((r) => `${r.scriptureReference}|${r.translation ?? 'NET'}`),
+            .map((r) => `${r.scriptureReference}|${askedTranslation(r, defaultTranslation)}`),
         ),
       ]
     : [];
@@ -829,7 +855,7 @@ export async function filterAskableReviewRows(
     if (!isReviewAskableKind(kind)) return false;
     if (kind === 'note' && options.dropUnaskable && !noteRungFor(row, material)) return false;
     if (kind === 'chapter' && options.dropUnaskable) {
-      const key = `${row.scriptureReference}|${row.translation ?? 'NET'}`;
+      const key = `${row.scriptureReference}|${askedTranslation(row, defaultTranslation)}`;
       if (!chapterHasVerses.get(key)) return false;
     }
     return true;
@@ -869,6 +895,12 @@ export async function buildReviewItemViews(
    */
   options: { dropUnaskable?: boolean } = {},
 ): Promise<ReviewItemView[]> {
+  /*
+   * The account's wording, resolved once for the whole build and passed to every material load
+   * below. Memoised per request, so this is the same answer `filterAskableReviewRows` already got
+   * and the same one the reveal and the grader will get — see `loadDefaultTranslation`.
+   */
+  const defaultTranslation = await loadDefaultTranslation(userId);
   const titles = await loadTitles(
     userId,
     rows.flatMap((r) => [r.noteId, r.secondaryNoteId].filter((id): id is string => Boolean(id))),
@@ -969,7 +1001,7 @@ export async function buildReviewItemViews(
   await Promise.all(
     rows.flatMap((row) => {
       if (!row.scriptureReference) return [];
-      const translation = row.translation ?? 'NET';
+      const translation = askedTranslation(row, defaultTranslation);
       if (row.kind === 'chapter') return [chapterMaterialFor(row.scriptureReference, translation)];
       if (row.kind !== 'verse') return [];
       /*
@@ -1045,11 +1077,11 @@ export async function buildReviewItemViews(
 
     const verseMaterial =
       kind === 'verse' && row.scriptureReference
-        ? await materialFor(row.scriptureReference, row.translation ?? 'NET')
+        ? await materialFor(row.scriptureReference, askedTranslation(row, defaultTranslation))
         : undefined;
     const chapterMaterial =
       kind === 'chapter' && row.scriptureReference
-        ? await chapterMaterialFor(row.scriptureReference, row.translation ?? 'NET')
+        ? await chapterMaterialFor(row.scriptureReference, askedTranslation(row, defaultTranslation))
         : undefined;
     /*
      * A chapter whose text could not be fetched has no exercise on any rung — every one of
@@ -1210,6 +1242,7 @@ export async function buildReviewItemViews(
       sourceLabel: row.sourceLabel,
       sourceAt: row.sourceAt?.toISOString() ?? null,
       cue: subjectCue,
+      translation: askedTranslation(row, defaultTranslation),
     });
   }
   return views;
@@ -1250,6 +1283,45 @@ async function loadPreferredSkips(userId: string): Promise<ReadonlySet<ReviewPro
   void pending.finally(() => queueMicrotask(() => skipCache.delete(userId)));
   return pending;
 }
+
+/**
+ * The wording this reader's questions are asked in, read once per request.
+ *
+ * Review had no answer to this at all. Every passage it fetched, graded and handed back was
+ * fetched with a hard-coded `'NET'` at twenty-six sites, so a reader whose default is NLT was
+ * asked NET questions — and, because the gaps in a cloze are *that* translation's words and the
+ * first letters are its letters, marked wrong for correctly knowing the wording they actually
+ * read. `UserMetadata.defaultTranslation` has existed the whole time; nothing in this file read it.
+ *
+ * Memoised beside `loadPreferredSkips` and for the same reason: a sitting resolves a rung for
+ * every item in it and each one needs the same answer. The stronger reason is the one
+ * `loadSkippedRungs` states next door — the list, the reveal, the grader and the truth must
+ * resolve the *same* thing, or the reader is marked against text they were never shown. A read per
+ * item could answer differently mid-request if the row changed underneath it; one read cannot.
+ *
+ * Wraps `getUserDefaultTranslation` rather than repeating its fallback, so there is one definition
+ * of "what this account reads in" and the daily passage and Review cannot drift apart.
+ */
+const translationCache = new Map<string, Promise<string>>();
+
+async function loadDefaultTranslation(userId: string): Promise<string> {
+  const cached = translationCache.get(userId);
+  if (cached) return cached;
+  const pending = (async () => {
+    try {
+      return await getUserDefaultTranslation(userId);
+    } catch {
+      // The same bargain `loadPreferredSkips` makes: a preference that cannot be read is the
+      // default, never a broken queue.
+      return DEFAULT_REVIEW_TRANSLATION;
+    }
+  })();
+  translationCache.set(userId, pending);
+  // Cleared on the next tick: within one request the answer is fixed, across requests it is not.
+  void pending.finally(() => queueMicrotask(() => translationCache.delete(userId)));
+  return pending;
+}
+
 
 /**
  * The reader's recent thumbs-down votes, read once per request and memoised the same way.
@@ -2353,6 +2425,7 @@ async function loadNotesCitingVerse(
 async function buildVerseContextFor(
   userId: string,
   item: ReviewItemRow,
+  translation: string,
   rungKey: ReviewPromptKey,
   material: VerseKnowledgeMaterial,
   seed: string,
@@ -2445,7 +2518,7 @@ async function buildVerseContextFor(
     const distractorTexts: string[] = [];
     for (const ref of otherRefs) {
       if (barred.has(ref.toLowerCase())) continue;
-      const html = await fetchVerseText(ref, item.translation ?? 'NET');
+      const html = await fetchVerseText(ref, translation);
       if (html) distractorTexts.push(stripHtml(html));
     }
     const exercise = buildVerseCrossref({ answerText: answer.text, distractorTexts, seed });
@@ -2521,9 +2594,11 @@ const VERSE_CONTEXT_KEYS = new Set<ReviewPromptKey>([
  * than like a word picked out of a dictionary. Returns null freely: a verse with nothing safe to
  * change is common, and the rung falls through the way `verse.next` does at the end of a book.
  */
-async function buildVerseAlteredFor(item: ReviewItemRow): Promise<VerseAlteredExercise | null> {
+async function buildVerseAlteredFor(
+  item: ReviewItemRow,
+  translation: string,
+): Promise<VerseAlteredExercise | null> {
   if (!item.scriptureReference) return null;
-  const translation = item.translation ?? 'NET';
 
   const html = await fetchVerseText(item.scriptureReference, translation);
   if (!html) return null;
@@ -2543,11 +2618,15 @@ async function buildVerseAlteredFor(item: ReviewItemRow): Promise<VerseAlteredEx
 /** A wide net, because most candidate words are barred by one list or another. */
 const VERSE_ALTERED_NEIGHBOURS = 8;
 
-export async function verseTruthFor(item: ReviewItemRow, userId?: string): Promise<string | null> {
+export async function verseTruthFor(item: ReviewItemRow, userId: string): Promise<string | null> {
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
-  const material = userId
-    ? await loadVerseMaterial(userId, item.scriptureReference, item.translation ?? 'NET')
-    : undefined;
+  /*
+   * `userId` was optional and is not any more. Its one caller always passed it, and the optional
+   * form meant this could resolve a rung with no material at all — a different rung from the one
+   * the reader was asked. The truth owed is the wording of the question that was actually put.
+   */
+  const translation = askedTranslation(item, await loadDefaultTranslation(userId));
+  const material = await loadVerseMaterial(userId, item.scriptureReference, translation);
   const rung = verseRungFor(item.ladderStep, reviewSeed(item), material);
   // `verse.altered` most of all: leaving someone with a falsified line and no correction is the
   // one ending this rung must never have.
@@ -2565,18 +2644,20 @@ export async function verseTruthFor(item: ReviewItemRow, userId?: string): Promi
     'verse.marked',
   ]);
   if (!withheld.has(rung.key)) return null;
-  const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
+  const html = await fetchVerseText(item.scriptureReference, translation);
   return html || null;
 }
 
-async function buildVerseNextFor(item: ReviewItemRow): Promise<VerseNextExercise | null> {
+async function buildVerseNextFor(
+  item: ReviewItemRow,
+  translation: string,
+): Promise<VerseNextExercise | null> {
   if (!item.scriptureReference) return null;
 
   const next = nextVerseAddress(item.scriptureReference);
   // The end of a book, or a reference the canon map does not recognise. Neither is askable.
   if (!next) return null;
 
-  const translation = item.translation ?? 'NET';
   const answerHtml = await fetchVerseText(formatVerseAddress(next), translation);
   if (!answerHtml) return null;
 
@@ -2602,9 +2683,9 @@ async function buildVerseRecognizeFor(
   userId: string,
   item: ReviewItemRow,
   text: string,
+  translation: string,
 ): Promise<VerseNextExercise | null> {
   if (!item.scriptureReference) return null;
-  const translation = item.translation ?? 'NET';
   const others = (await listUserVerseReferences(userId, item.scriptureReference)).slice(0, 5);
   const pool = (
     await Promise.all(others.map((reference) => fetchVerseText(reference, translation)))
@@ -2624,7 +2705,12 @@ async function buildVerseRecognizeFor(
  * Adjacent would make it a question about a digit. The partner is seeded from the non-adjacent
  * neighbours so the reveal and the grader pick the same one.
  */
-async function buildVerseBeforeFor(item: ReviewItemRow, text: string, seed: string) {
+async function buildVerseBeforeFor(
+  item: ReviewItemRow,
+  text: string,
+  seed: string,
+  translation: string,
+) {
   if (!item.scriptureReference) return null;
   const at = lastVerseOf(item.scriptureReference);
   if (!at) return null;
@@ -2633,7 +2719,7 @@ async function buildVerseBeforeFor(item: ReviewItemRow, text: string, seed: stri
   );
   if (!partners.length) return null;
   const partner = partners[seededIndex(seed, partners.length)];
-  const html = await fetchVerseText(formatVerseAddress(partner), item.translation ?? 'NET');
+  const html = await fetchVerseText(formatVerseAddress(partner), translation);
   if (!html) return null;
   return buildVerseBefore({
     verse: { number: at.verse, text },
@@ -2653,9 +2739,9 @@ async function buildVerseMarkedFor(
   item: ReviewItemRow,
   material: VerseKnowledgeMaterial,
   seed: string,
+  translation: string,
 ): Promise<ChoiceExercise | null> {
   if (!item.scriptureReference || !material.markedSpan) return null;
-  const translation = item.translation ?? 'NET';
   const neighbours = neighbourVerseAddresses(item.scriptureReference, VERSE_MARKED_NEIGHBOURS);
   const texts = await Promise.all(
     neighbours.map((address) => fetchVerseText(formatVerseAddress(address), translation)),
@@ -2765,7 +2851,8 @@ const EMPTY_CHAPTER_MATERIAL: ChapterKnowledgeMaterial = {
   reference: '',
   book: '',
   chapter: 0,
-  translation: 'NET',
+  // A sentinel on an empty object, not a resolution — see `askedTranslation`.
+  translation: '',
   verses: [],
   highlightedNumbers: [],
   people: [],
@@ -3061,9 +3148,10 @@ export async function gradeChapterAnswer(
   item: ReviewItemRow,
   answer: { order?: number[]; option?: string; words?: string[] },
 ): Promise<GradedAnswer | null> {
+  const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   if (item.kind !== 'chapter' || !item.scriptureReference) return null;
   const seed = reviewSeed(item);
-  const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+  const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
   const rung = chapterRungFor(item.ladderStep, seed, material);
 
   if (rung.key === 'chapter.verse' && typeof answer.option === 'string') {
@@ -3122,9 +3210,10 @@ export async function gradeChapterAnswer(
  * rung — the name is the answer, and the route already sends that.
  */
 export async function chapterTruthFor(item: ReviewItemRow, userId: string): Promise<string | null> {
+  const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   if (item.kind !== 'chapter' || !item.scriptureReference) return null;
   const seed = reviewSeed(item);
-  const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+  const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
   const rung = chapterRungFor(item.ladderStep, seed, material);
   if (rung.key === 'chapter.finish') {
     const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
@@ -3161,13 +3250,14 @@ export async function gradeVerseAnswer(
   item: ReviewItemRow,
   answer: { order?: number[]; option?: string; wordIndex?: number; words?: string[]; text?: string },
 ): Promise<GradedAnswer | null> {
+  const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   if (item.kind !== 'verse' || !item.scriptureReference) return null;
   const seedForRung = reviewSeed(item);
-  const material = await loadVerseMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+  const material = await loadVerseMaterial(userId, item.scriptureReference, translation);
   const rung = verseRungFor(item.ladderStep, seedForRung, material);
 
   if (VERSE_CONTEXT_KEYS.has(rung.key) && typeof answer.option === 'string') {
-    const built = await buildVerseContextFor(userId, item, rung.key, material, seedForRung);
+    const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seedForRung);
     if (!built) return null;
     return {
       correct: built.opening
@@ -3178,7 +3268,7 @@ export async function gradeVerseAnswer(
   }
 
   if (rung.key === 'verse.recognize' && typeof answer.option === 'string') {
-    const exercise = await buildVerseRecognizeFor(userId, item, material.text);
+    const exercise = await buildVerseRecognizeFor(userId, item, material.text, translation);
     if (!exercise) return null;
     return {
       correct: gradeVerseNext(exercise, answer.option),
@@ -3245,7 +3335,7 @@ export async function gradeVerseAnswer(
     };
   }
   if (rung.key === 'verse.before' && typeof answer.option === 'string') {
-    const exercise = await buildVerseBeforeFor(item, material.text, seedForRung);
+    const exercise = await buildVerseBeforeFor(item, material.text, seedForRung, translation);
     if (!exercise) return null;
     return {
       correct: gradeVerseBefore(exercise, answer.option),
@@ -3253,7 +3343,7 @@ export async function gradeVerseAnswer(
     };
   }
   if (rung.key === 'verse.marked' && typeof answer.option === 'string') {
-    const exercise = await buildVerseMarkedFor(item, material, seedForRung);
+    const exercise = await buildVerseMarkedFor(item, material, seedForRung, translation);
     if (!exercise) return null;
     return {
       correct: gradeVerseMarked(exercise, answer.option, material.markedSpan ?? ''),
@@ -3281,7 +3371,7 @@ export async function gradeVerseAnswer(
   if (!isSequence && !isLocate && !isNext && !isAltered && !isRebuild) return null;
 
   if (isRebuild) {
-    const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
+    const html = await fetchVerseText(item.scriptureReference, translation);
     if (!html) return null;
     const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
     const cloze = buildVerseCloze(stripHtml(html), reviewSeed(item), spec.ratio, {
@@ -3297,13 +3387,13 @@ export async function gradeVerseAnswer(
   }
 
   if (isAltered) {
-    const exercise = await buildVerseAlteredFor(item);
+    const exercise = await buildVerseAlteredFor(item, translation);
     if (!exercise) return null;
     return { correct: gradeVerseAltered(exercise, answer.wordIndex!), correctAnswer: null };
   }
 
   if (isNext) {
-    const exercise = await buildVerseNextFor(item);
+    const exercise = await buildVerseNextFor(item, translation);
     if (!exercise) return null;
     return {
       correct: gradeVerseNext(exercise, answer.option!),
@@ -3311,7 +3401,7 @@ export async function gradeVerseAnswer(
     };
   }
 
-  const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
+  const html = await fetchVerseText(item.scriptureReference, translation);
   if (!html) return null;
   const text = stripHtml(html);
   const seed = reviewSeed(item);
@@ -3870,6 +3960,7 @@ export async function askedRungFor(
   userId: string,
   item: ReviewItemRow,
 ): Promise<ReviewPromptKey | null> {
+  const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   const kind = item.kind as ReviewItemKind;
   if (!isReviewAskableKind(kind)) return null;
 
@@ -3879,7 +3970,6 @@ export async function askedRungFor(
     return material ? resolveNoteRung(item.ladderStep, material, reviewSeed(item)) : null;
   }
 
-  const translation = item.translation ?? 'NET';
   if (kind === 'chapter') {
     const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
     return chapterRungFor(item.ladderStep, reviewSeed(item), material).key;
@@ -3910,11 +4000,12 @@ export async function buildReviewReveal(
   userId: string,
   item: ReviewItemRow,
 ): Promise<ReviewRevealPayload> {
+  const translation = askedTranslation(item, await loadDefaultTranslation(userId));
   const payload: ReviewRevealPayload = {};
 
   if (item.kind === 'verse' || item.kind === 'highlight') {
     if (item.scriptureReference) {
-      const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
+      const html = await fetchVerseText(item.scriptureReference, translation);
       payload.verseText = html || null;
       if (item.kind === 'verse' && html) {
         const text = stripHtml(html);
@@ -3924,15 +4015,15 @@ export async function buildReviewReveal(
          * the ladder the same rungs come round again on a maintenance pass, and every branch
          * below has to recognise them when they do.
          */
-        const material = await loadVerseMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+        const material = await loadVerseMaterial(userId, item.scriptureReference, translation);
         const rung = verseRungFor(item.ladderStep, seed, material);
         if (VERSE_CONTEXT_KEYS.has(rung.key)) {
-          const built = await buildVerseContextFor(userId, item, rung.key, material, seed);
+          const built = await buildVerseContextFor(userId, item, translation, rung.key, material, seed);
           // Options only. The verse stays on screen: it is the question, not the answer.
           payload.choice = built ? { options: built.exercise.options, opening: built.opening } : null;
         }
         if (rung.key === 'verse.recognize') {
-          const exercise = await buildVerseRecognizeFor(userId, item, text);
+          const exercise = await buildVerseRecognizeFor(userId, item, text, translation);
           // Openings, and the verse withheld: it is the answer on this rung now.
           payload.choice = exercise ? { options: exercise.options, opening: true } : null;
           payload.verseText = null;
@@ -3973,7 +4064,7 @@ export async function buildReviewReveal(
           if (payload.keywords) payload.verseText = null;
         }
         if (rung.key === 'verse.before') {
-          const exercise = await buildVerseBeforeFor(item, text, seed);
+          const exercise = await buildVerseBeforeFor(item, text, seed, translation);
           payload.before = exercise ? { options: exercise.options } : null;
           // One of the two openings is this verse; showing it would mark the pair.
           if (exercise) payload.verseText = null;
@@ -4022,19 +4113,19 @@ export async function buildReviewReveal(
           if (exercise) payload.verseText = null;
         }
         if (rung.key === 'verse.next') {
-          const exercise = await buildVerseNextFor(item);
+          const exercise = await buildVerseNextFor(item, translation);
           // The verse asked about stays: it is the question, not the answer.
           payload.next = exercise ? { options: exercise.options } : null;
         }
         if (rung.key === 'verse.altered') {
-          const exercise = await buildVerseAlteredFor(item);
+          const exercise = await buildVerseAlteredFor(item, translation);
           payload.altered = exercise ? { tokens: exercise.tokens } : null;
           // The true verse alongside a falsified one would answer the question, and worse,
           // would print the passage twice with only one of them right.
           if (exercise) payload.verseText = null;
         }
         if (rung.key === 'verse.marked') {
-          const exercise = await buildVerseMarkedFor(item, material, seed);
+          const exercise = await buildVerseMarkedFor(item, material, seed, translation);
           payload.choice = exercise ? { options: exercise.options, opening: false } : null;
           /*
            * The verse itself would print the marked words among the options and again in full,
@@ -4070,7 +4161,7 @@ export async function buildReviewReveal(
    */
   if (item.kind === 'chapter' && item.scriptureReference) {
     const seed = reviewSeed(item);
-    const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
+    const material = await loadChapterMaterial(userId, item.scriptureReference, translation);
     const rung = chapterRungFor(item.ladderStep, seed, material);
     if (rung.key === 'chapter.verse') {
       const exercise = await buildChapterVerseFor(userId, material, seed);
