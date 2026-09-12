@@ -23240,6 +23240,17 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-primary);
 }
 
+/*
+ * The translation the question is in, beside the exercise's name.
+ *
+ * Borrowed wholesale from the scripture pill's chip so it is the same object the reader already
+ * reads everywhere else Scripture is labelled; only the spacing is this card's.
+ */
+.proto-review-dock__header-trans {
+  margin-left: var(--pds-space-2);
+  align-self: center;
+}
+
 /* The collapsed header line's second half — what is waiting, without opening the card. */
 .proto-review-dock__header-prompt {
   margin-left: var(--pds-space-2);

@@ -55,6 +55,13 @@ import { isTypingInInput } from '@/utils/keyboard-shortcuts';
 import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { toast } from '@/utils/toast';
 import { fillFraming } from '@/utils/review-framing';
+/*
+ * For `.scripture-pill-chrome__trans-chip` on the header's translation badge. Imported here the
+ * way `PassageContextStrip` and the reader pane import it — the sheet is only in the bundle
+ * because a component that needs it asked for it, and the dock can be the first thing on screen
+ * with no reader ever mounted.
+ */
+import '@/styles/scripture-pill-chrome.css';
 import { readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget, nextBlankIndex } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -1260,6 +1267,31 @@ export default function PrototypeReviewDock() {
           {item ? (
             <span className="proto-review-dock__header-prompt">
               {reviewDock.expanded ? item.exercise?.label ?? null : item.prompt}
+            </span>
+          ) : null}
+          {/*
+            * Which translation the question is in.
+            *
+            * Every exercise built out of Bible text is built out of *a* wording of it: the gaps
+            * in a cloze are that translation's words, the first letters are its letters, and
+            * "as it actually reads" reads that way in one Bible and differently in another. A
+            * reader filling in blanks from the NIV against text fetched as NET is being marked
+            * wrong for knowing a different true thing, and until now the card never said which
+            * one it meant.
+            *
+            * In the header rather than beside each block, because it is a property of the whole
+            * question — the asking, the retry and the answer are all the same wording — and
+            * because it stays put while the body changes underneath it. The same chip the
+            * reader already knows from scripture pills and the reader's own translation control.
+            *
+            * Verse and chapter only. A note rung's answer is a reference or one of the reader's
+            * own notes; no wording of Scripture is being tested, so the chip would be noise.
+            * `?? 'NET'` is not a guess — it is what every server-side fetch falls back to, so
+            * the label matches the text the reader is actually being shown.
+            */}
+          {item && reviewDock.expanded && (item.kind === 'verse' || item.kind === 'chapter') ? (
+            <span className="scripture-pill-chrome__trans-chip proto-review-dock__header-trans">
+              {item.translation ?? 'NET'}
             </span>
           ) : null}
         </span>
