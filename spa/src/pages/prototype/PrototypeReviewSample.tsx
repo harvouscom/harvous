@@ -79,12 +79,28 @@ export default function PrototypeReviewSample({
   const translation = sample.translation?.trim() || 'NET';
   const translationLabel = TRANSLATIONS[translation]?.abbreviation ?? translation;
   const exercise = sample.exercise;
+
+  /*
+   * Narrowed on the data, not only on the `kind` discriminant.
+   *
+   * The type says a 'blanks' exercise always carries a cloze, and the builder upholds that
+   * (buildSampleExercise returns null rather than a blanks exercise with no blanks). But the
+   * type only describes *this* build's contract, and the card is served to whatever bundle the
+   * reader is running: when the sample payload was re-nested from `sample.cloze` to
+   * `sample.exercise.cloze`, every still-cached bundle read `undefined.blankLengths` and took
+   * the whole Home route down with it. Rendering nothing is the right failure here -- the
+   * section below is an offer, not something the reader asked for.
+   */
+  const cloze = exercise && exercise.kind === 'blanks' ? (exercise.cloze ?? null) : null;
+  const blankLengths = cloze?.blankLengths ?? null;
+  if (!exercise || (exercise.kind === 'blanks' && !blankLengths)) return null;
+
   const available = sample.available ?? [exercise.kind];
 
   /* Every surface has its own "is there anything to check yet", and none may submit empty. */
   const filled =
     exercise.kind === 'blanks'
-      ? exercise.cloze.blankLengths.every((_, i) => (blanks[i] ?? '').trim().length > 0)
+      ? (blankLengths ?? []).every((_, i) => (blanks[i] ?? '').trim().length > 0)
       : exercise.kind === 'letters'
         ? written.trim().length > 0
         : exercise.kind === 'order'
@@ -110,7 +126,7 @@ export default function PrototypeReviewSample({
   const base = { day, translation, exercise: exercise.kind, attemptNumber };
   const submit = () => {
     if (exercise.kind === 'blanks') {
-      send({ ...base, words: exercise.cloze.blankLengths.map((_, i) => (blanks[i] ?? '').trim()) });
+      send({ ...base, words: (blankLengths ?? []).map((_, i) => (blanks[i] ?? '').trim()) });
     } else if (exercise.kind === 'letters') {
       send({ ...base, text: written.trim() });
     } else if (exercise.kind === 'order') {
@@ -221,16 +237,16 @@ export default function PrototypeReviewSample({
 
           <p className="proto-review-dock__prompt">{REVIEW_SAMPLE_PROMPTS[exercise.kind]}</p>
 
-          {exercise.kind === 'blanks' ? (
+          {exercise.kind === 'blanks' && cloze && blankLengths ? (
             <p className="proto-challenge__cloze">
-              {exercise.cloze.segments.map((segment, index) => (
+              {(cloze.segments ?? []).map((segment, index) => (
                 <Fragment key={index}>
                   {segment}
-                  {index < exercise.cloze.blankLengths.length ? (
+                  {index < blankLengths.length ? (
                     <input
                       type="text"
                       className="proto-review-dock__blank"
-                      style={{ width: `${Math.max(4, exercise.cloze.blankLengths[index]) + 1}ch` }}
+                      style={{ width: `${Math.max(4, blankLengths[index]) + 1}ch` }}
                       value={blanks[index] ?? ''}
                       onChange={(event) => {
                         const next = [...blanks];

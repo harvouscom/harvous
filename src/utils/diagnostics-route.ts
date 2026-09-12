@@ -101,3 +101,48 @@ export function isNoiseDiagnosticMessage(message: string): boolean {
   if (lower.includes('is not a valid javascript mime type')) return true;
   return false;
 }
+
+/**
+ * Browser-extension schemes. A script served from one of these is not ours and not
+ * something a deploy can fix.
+ */
+const EXTENSION_SCHEMES = [
+  'chrome-extension://',
+  'moz-extension://',
+  'safari-web-extension://',
+  'safari-extension://',
+  'ms-browser-extension://',
+  'webkit-masked-url://',
+];
+
+/** Path prefixes that only our own bundles and public scripts are served from. */
+const APP_SCRIPT_MARKERS = ['/assets/', '/scripts/'];
+
+function hasExtensionScheme(text: string): boolean {
+  const lower = text.toLowerCase();
+  return EXTENSION_SCHEMES.some((scheme) => lower.includes(scheme));
+}
+
+/**
+ * Is this error the page's problem at all?
+ *
+ * Wallet extensions fighting over `window.ethereum`, SEO/share extensions reading
+ * `meta[property="og:type"]` off a page that has never rendered one — these throw inside our
+ * document, so the global `error` listener reports them and they arrive in the admin list
+ * indistinguishable from our own crashes. They were four of the eight open issues.
+ *
+ * Deliberately conservative, so this can never hide a real bug: a stack that touches our own
+ * bundles is ours no matter what else is in it, and only a stack that is *purely* extension
+ * code counts as foreign. `filename` (from `ErrorEvent`) is the stronger signal and is
+ * trusted on its own, because the browser sets it to the script that actually threw.
+ */
+export function isExtensionOriginated(
+  filename: string | null | undefined,
+  stack: string | null | undefined,
+): boolean {
+  if (filename && hasExtensionScheme(filename)) return true;
+  if (!stack) return false;
+  if (!hasExtensionScheme(stack)) return false;
+  const lower = stack.toLowerCase();
+  return !APP_SCRIPT_MARKERS.some((marker) => lower.includes(marker));
+}

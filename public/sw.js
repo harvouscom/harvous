@@ -238,6 +238,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // The build-id probe (src/utils/build-freshness.ts). Network-only, and deliberately above
+  // every caching branch below: a cached copy would compare a stale build against its own
+  // stale id, always agree, and the check would silently never fire again. No offline
+  // fallback either — an unanswered probe reads as "cannot tell", which is the safe answer.
+  if (url.pathname === '/build-id.json') {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    return;
+  }
+
   // Non-GET requests
   if (event.request.method !== 'GET') {
     event.respondWith(fetch(event.request));

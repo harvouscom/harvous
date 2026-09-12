@@ -42,6 +42,51 @@ describe('diagnostics-client', () => {
     expect(body.metadata).toHaveProperty('navigatorOnLine');
   });
 
+  it('skips an error thrown by a browser extension', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const { initDiagnosticCapture } = await import('../diagnostics-client');
+    initDiagnosticCapture();
+
+    const err = new Error('window.ethereum.emit is not a function');
+    err.stack = 'TypeError\n    at chrome-extension://abcdefgh/inject.js:1:1';
+    window.dispatchEvent(
+      new ErrorEvent('error', {
+        message: err.message,
+        filename: 'chrome-extension://abcdefgh/inject.js',
+        lineno: 1,
+        colno: 1,
+        error: err,
+      }),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('still reports our own crash, and carries where it was thrown', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const { initDiagnosticCapture } = await import('../diagnostics-client');
+    initDiagnosticCapture();
+
+    const err = new Error("Cannot read properties of undefined (reading 'blankLengths')");
+    err.stack = 'TypeError\n    at https://app.harvous.com/assets/index.js:49:118';
+    window.dispatchEvent(
+      new ErrorEvent('error', {
+        message: err.message,
+        filename: 'https://app.harvous.com/assets/index.js',
+        lineno: 49,
+        colno: 118,
+        error: err,
+      }),
+    );
+
+    // Count, not times: initDiagnosticCapture() in the earlier cases left their own listeners
+    // on this file's shared jsdom window, and each reports through its own module instance.
+    expect(fetchMock).toHaveBeenCalled();
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.metadata.scriptFilename).toBe('https://app.harvous.com/assets/index.js');
+    expect(body.metadata.scriptLineno).toBe(49);
+  });
+
   it('skips chunk failures from third-party CDNs', async () => {
     const fetchMock = vi.mocked(fetch);
     const { reportClientError } = await import('../diagnostics-client');
