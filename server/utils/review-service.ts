@@ -477,6 +477,19 @@ function annotationTextOf(row: { miniNoteBody?: string | null; notesBody?: strin
   return stripHtml(raw);
 }
 
+/**
+ * Memoised on the same short TTL the verse and chapter material use, and for the same reason
+ * spelled out there — with one more caller than they have.
+ *
+ * Composing a session loads this twice over the same notes: `filterAskableReviewRows` needs it to
+ * decide which note rows can be asked anything at all, and `buildReviewItemViews` needs it again
+ * to resolve each one's rung. That is nine queries paid twice, back to back, for an answer that
+ * cannot have changed in between — and the two phases run one after the other, so the second set
+ * is dead wall time in front of the reader rather than work spread across a batch.
+ *
+ * Keyed on the exact set, sorted, so a different batch is a different entry. Recording an answer
+ * benefits too: `askedRungFor`, the grader and the reveal each load one note's material.
+ */
 async function loadNoteMaterial(
   userId: string,
   noteIds: readonly string[],
@@ -484,6 +497,16 @@ async function loadNoteMaterial(
   const unique = [...new Set(noteIds.filter(Boolean))];
   const out = new Map<string, NoteMaterial>();
   if (!unique.length) return out;
+  return memoisedMaterial(`note:${userId}:${[...unique].sort().join(',')}`, () =>
+    loadNoteMaterialUncached(userId, unique, out),
+  );
+}
+
+async function loadNoteMaterialUncached(
+  userId: string,
+  unique: string[],
+  out: Map<string, NoteMaterial>,
+): Promise<Map<string, NoteMaterial>> {
 
   const [bodies, viaPill, ownPassage, links, quotes, annotated, pool, labels, skip] = await Promise.all([
     db
@@ -2067,8 +2090,13 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   people: string[];
   /** Places the index names at this verse, normalised, barred labels included. */
   places: string[];
-  /** Cross-reference targets above the vote floor whose text could be fetched. */
-  crossRefs: { reference: string; text: string }[];
+  /**
+   * The cross-reference openings, loaded on demand.
+   *
+   * A function rather than an array: only `verse.crossref` reads them, and fetching them for
+   * every verse in a sitting was three round trips apiece for a rung most of them never ask.
+   */
+  crossRefs: () => Promise<{ reference: string; text: string }[]>;
   /** How many targets clear the vote floor at all, for the framing line. Capped by the query. */
   crossRefTotal: number;
   /** Distinguishing labels of the reader's notes that cite this verse. */
@@ -2090,7 +2118,7 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   allThemeLabels: [],
   people: [],
   places: [],
-  crossRefs: [],
+  crossRefs: () => Promise.resolve([]),
   crossRefTotal: 0,
   citingNoteLabels: [],
   text: '',
@@ -2209,24 +2237,35 @@ async function loadVerseMaterialUncached(
     .filter((c) => c.chapterStart === c.chapterEnd)
     .slice(0, CROSSREF_TEXT_FETCHES);
   /*
-   * The three cross-reference openings, fetched together rather than one after another.
+   * The three cross-reference openings — fetched together, and only if anything asks for them.
    *
    * `fetchVerseText` is a database round trip (a `VerseTextCache` read, then `BibleVerses`, then
-   * a cache write) — not an in-memory lookup — so awaiting them in a loop cost three serial trips
-   * per verse item. A queue of eighteen paid that eighteen times over, and it was the largest
-   * single component of a `/api/review/items` response that Home's first paint waits on.
+   * a cache write), not an in-memory lookup. These were awaited on every material load, which
+   * means every verse in a sitting paid for up to three of them — and exactly one rung ever reads
+   * the result. `verse.crossref` is one member of one five-member family, so the overwhelming
+   * majority of those fetches were made, held, and dropped. Against a real account that is the
+   * largest remaining cost in composing a session.
    *
-   * `Promise.all` preserves order, and the falsy-`html` rows are dropped after rather than never
-   * pushed, so the list this returns is identical to the one the loop built.
+   * Lazy and memoised: the first caller pays, a second gets the same promise, and a material
+   * nobody asks a cross-reference of costs nothing at all. `Promise.all` still preserves order,
+   * and the falsy-`html` rows are still dropped after rather than never pushed, so what comes
+   * back is what the eager version returned.
    */
   const crossRefTargets = targets.map((c) => `${c.book} ${c.chapterStart}:${c.verseStart}`);
-  const crossRefHtml = await Promise.all(
-    crossRefTargets.map((targetRef) => fetchVerseText(targetRef, translation)),
-  );
-  const crossRefs = crossRefTargets
-    .map((reference, i) => ({ reference, html: crossRefHtml[i] }))
-    .filter((entry) => Boolean(entry.html))
-    .map((entry) => ({ reference: entry.reference, text: stripHtml(entry.html) }));
+  let crossRefPending: Promise<{ reference: string; text: string }[]> | null = null;
+  const crossRefs = () => {
+    if (!crossRefPending) {
+      crossRefPending = Promise.all(
+        crossRefTargets.map((targetRef) => fetchVerseText(targetRef, translation)),
+      ).then((html) =>
+        crossRefTargets
+          .map((reference, i) => ({ reference, html: html[i] }))
+          .filter((entry) => Boolean(entry.html))
+          .map((entry) => ({ reference: entry.reference, text: stripHtml(entry.html) })),
+      );
+    }
+    return crossRefPending;
+  };
 
   return {
     reference: ref,
@@ -2236,7 +2275,14 @@ async function loadVerseMaterialUncached(
     // The count is of places that can actually be asked, so a verse naming only "the earth"
     // never resolves to a place rung the builder would then refuse.
     placeCount: askablePlaces((knowledge?.places ?? []).map((place) => place.name)).length,
-    crossRefCount: crossRefs.length,
+    /*
+     * Counted from the targets rather than from fetched text, because the count decides whether
+     * the rung is offered at all and must not depend on a fetch that has not happened. A target
+     * whose text later fails to load is the one case this over-counts by, and the builder already
+     * returns null there — which falls forward to another member of the family, as a missing
+     * material always does.
+     */
+    crossRefCount: crossRefTargets.length,
     themes: themesAbove.map(label),
     allThemeLabels: (knowledge?.themes ?? []).map(label),
     people: (knowledge?.people ?? []).map((p) => p.name),
@@ -2392,9 +2438,10 @@ async function buildVerseContextFor(
   }
 
   if (rungKey === 'verse.crossref') {
-    if (!material.crossRefs.length) return null;
-    const answer = material.crossRefs[seededIndex(seed, material.crossRefs.length)];
-    const barred = new Set(material.crossRefs.map((c) => c.reference.toLowerCase()));
+    const crossRefs = await material.crossRefs();
+    if (!crossRefs.length) return null;
+    const answer = crossRefs[seededIndex(seed, crossRefs.length)];
+    const barred = new Set(crossRefs.map((c) => c.reference.toLowerCase()));
     const distractorTexts: string[] = [];
     for (const ref of otherRefs) {
       if (barred.has(ref.toLowerCase())) continue;
