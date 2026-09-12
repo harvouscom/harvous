@@ -1474,8 +1474,8 @@ export default function PrototypeReviewDock() {
                * What came of the rating. The buttons themselves are in the header now — see
                * `headerActions` — so all that is left in the body is the one thing a tooltip
                * cannot carry: that the vote landed, and, on the third dislike of a family, the
-               * offer to turn it off for good. Absent until there is a vote, which is most of
-               * the time.
+               * offer to ask for less of it in Settings. Absent until there is a vote, which is
+               * most of the time.
                */
               <div className="proto-review-dock__feedback">
                 <p className="proto-caption proto-review-dock__feedback-caption">
