@@ -32,6 +32,21 @@ describe('pending auth redirect validation', () => {
     expect(validatePendingAuthDestination('/addon', origin)).toBe('/addon');
   });
 
+  /*
+   * A Discover listing → install after sign-up. `PublicDiscoverListingPage` has
+   * always called `writePendingAuthRedirect`, and without the pattern the call was
+   * a silent no-op — the trap `guest-signup.ts` documents. The install still
+   * replayed via `redirect_url`, which is why nobody noticed.
+   */
+  it('allows a Discover listing path', () => {
+    expect(validatePendingAuthDestination('/discover/soap', origin)).toBe('/discover/soap');
+    expect(validatePendingAuthDestination(`${origin}/discover/chapter-summary`, origin)).toBe(
+      '/discover/chapter-summary',
+    );
+    // One segment only — a slug never contains a slash.
+    expect(validatePendingAuthDestination('/discover/soap/edit', origin)).toBe(null);
+  });
+
   it.each([
     'https://example.com/spaces/join/AbC123',
     'javascript:alert(1)',

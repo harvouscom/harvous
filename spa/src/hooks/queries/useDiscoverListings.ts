@@ -1,6 +1,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
+import { useHarvousIdentity } from '../useHarvousIdentity';
 import { useHarvousAdminCheck } from '@/hooks/queries/useVotdPreview';
 
 /**
@@ -48,6 +49,16 @@ export type DiscoverTemplatePreview = {
   sourceDomain?: string | null;
   sourceSiteName?: string | null;
   excerpt?: string;
+  /**
+   * Harvous published this itself — the reviewer's call, set on approve.
+   *
+   * Changes who gets the credit, not how it is drawn. A built-in template lives
+   * in code and never gets a `NoteTemplates` row, so `sourceId` can never
+   * identify one, and the account that ran the seed is the wrong author to name.
+   * harvous.com has read this since the catalog shipped (`DiscoverCard` draws
+   * "Included"); the app's own listing page was still saying a stranger shared it.
+   */
+  official?: boolean;
 };
 
 export type DiscoverListingsResponse = {
@@ -80,6 +91,13 @@ export type DiscoverSubmissionForReview = MyDiscoverSubmission & {
   payload: { name?: string; title?: string | null; content?: string } | null;
   preview: DiscoverTemplatePreview | null;
   staffReadAt: string | Date | null;
+  /**
+   * Notes for whoever reviews this, written at submit. Reviewer-only — today it
+   * says that the submitted link also sits in the submitter's church or space
+   * library, which the public serializer must never carry because it names a
+   * church. Absent on rows submitted before the column existed.
+   */
+  reviewFlags: string[] | null;
 };
 
 export function discoverListingsQueryKey(kind?: string | null, category?: string | null) {
@@ -101,15 +119,25 @@ export function invalidateDiscoverQueries(queryClient: QueryClient) {
 /**
  * The public catalog.
  *
- * The endpoint is anonymous, but this is still gated on `useAuthReady()`: the
- * response marks which listings the viewer already has, and an unauthenticated
- * cold-start request would come back with that list empty and cache it — every
- * row would offer to add something the person already took.
+ * The endpoint is anonymous, but a *loading* signed-in session is still gated on
+ * `useAuthReady()`: the response marks which listings the viewer already has,
+ * and a cold-start request racing ahead of Clerk would come back with that list
+ * empty and cache it — every row would offer to add something the person
+ * already took.
+ *
+ * A guest is exempted from that gate rather than blocked by it — `isGuest` is a
+ * settled fact the moment the shell resolves it (a local marker, not something
+ * Clerk has to finish loading), and a guest's `installedSlugs` is truly always
+ * empty, not a caching artifact. Without the exemption the query stayed
+ * disabled for a guest forever, since `useAuthReady()` requires `isSignedIn`,
+ * which a guest by definition never has — the same idiom
+ * `usePrototypeChapterHighlights` already uses for the same reason.
  */
 export function useDiscoverListings(
   options: { kind?: string | null; category?: string | null; enabled?: boolean } = {},
 ) {
   const authReady = useAuthReady();
+  const { isGuest } = useHarvousIdentity();
   const { kind = null, category = null, enabled = true } = options;
   return useQuery({
     queryKey: discoverListingsQueryKey(kind, category),
@@ -122,7 +150,7 @@ export function useDiscoverListings(
         Object.keys(params).length > 0 ? params : undefined,
       );
     },
-    enabled: authReady && enabled,
+    enabled: (isGuest || authReady) && enabled,
     staleTime: 60_000,
   });
 }

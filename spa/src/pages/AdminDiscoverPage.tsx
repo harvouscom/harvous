@@ -62,6 +62,17 @@ function SubmissionCard({ row }: { row: DiscoverSubmissionForReview }) {
         </span>
       </div>
 
+      {/*
+        Above the artifact, not beside the buttons: this changes whether the
+        thing below is the submitter's to give away at all, so it has to be read
+        before anything else about the row.
+      */}
+      {(row.reviewFlags ?? []).map((flag) => (
+        <p key={flag} className="proto-caption proto-admin-discover__flag" role="note">
+          ⚠ {flag}
+        </p>
+      ))}
+
       {row.description ? (
         <p className="proto-caption proto-service-editor__starter-hint">{row.description}</p>
       ) : null}
@@ -72,7 +83,15 @@ function SubmissionCard({ row }: { row: DiscoverSubmissionForReview }) {
           Sections: {headings.join(' · ')}
         </p>
       ) : null}
-      {row.preview?.excerpt ? (
+      {/*
+        The excerpt is a *different* view of the artifact for most kinds — the
+        opening of a note, the first lines of a template. For a resource it is
+        not: `snapshotResource` fills `preview.excerpt` from the item's own
+        description, so the card printed the same sentence twice in a row.
+        Compared rather than special-cased by kind, because any snapshotter that
+        makes the two agree should collapse the same way.
+      */}
+      {row.preview?.excerpt && row.preview.excerpt.trim() !== (row.description ?? '').trim() ? (
         <p className="proto-caption proto-service-editor__starter-hint">{row.preview.excerpt}</p>
       ) : null}
 

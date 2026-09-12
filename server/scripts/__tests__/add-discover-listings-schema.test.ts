@@ -52,9 +52,23 @@ describe('discover listings migration', () => {
     }
   });
 
-  it('adds no column to any existing table', () => {
+  /*
+   * Originally a blanket ban on ADD COLUMN, which held only while this script
+   * created its two tables and never revisited them. `reviewFlags` was added to
+   * `DiscoverListings` after it had shipped, so the CREATE above cannot reach
+   * any database that already had the table — production included.
+   *
+   * The rule the ban was protecting is the one above: never widen a table this
+   * script does not own. That is still asserted, and still by table name. What
+   * is added here is the other half — an ADD COLUMN has to be able to run twice.
+   */
+  it('adds a column only to a table this script owns, and only idempotently', () => {
+    const allowed = new Set(['DiscoverListings', 'DiscoverInstalls']);
     for (const statement of ADDITIVE_DISCOVER_LISTINGS_DDL) {
-      expect(statement).not.toMatch(/\bADD COLUMN\b/i);
+      if (!/\bADD COLUMN\b/i.test(statement)) continue;
+      const target = statement.match(/ALTER TABLE "(\w+)"/)?.[1];
+      expect(allowed.has(target ?? ''), `widens a foreign table: ${target}`).toBe(true);
+      expect(statement, 'ADD COLUMN must be idempotent').toMatch(/ADD COLUMN IF NOT EXISTS/i);
     }
   });
 

@@ -22,7 +22,7 @@ import {
 import PrototypeSuggestResourceSheet from './PrototypeSuggestResourceSheet';
 import { useSuggestLibraryItem } from '../../hooks/queries/useChurchLibrary';
 import { useNavigation } from '../../hooks/queries/useNavigation';
-import { api } from '../../lib/api';
+import { api, APIError } from '../../lib/api';
 import { toastError } from '../../lib/error-copy';
 import {
   useSpaceLibrary,
@@ -33,6 +33,10 @@ import { useProtoOverlayMotion } from '../../hooks/useProtoOverlayMotion';
 import { PROTO_RESOURCE_MORPH_MS } from '../../layouts/proto-motion';
 import PrototypeListEmptyState, { PrototypeListNoMatchEmptyState } from './PrototypeListEmptyState';
 import PrototypeSidebarRowMenuPopover from './PrototypeSidebarRowMenuPopover';
+import PrototypeShareWithOthersSheet, {
+  type ShareWithOthersTarget,
+} from './PrototypeShareWithOthersSheet';
+import { useSubmitToDiscover } from '../../hooks/mutations/useDiscoverMutations';
 import PrototypeLibrarySegmented from './library-panel/PrototypeLibrarySegmented';
 import ProtoChipBar from './components/ProtoChipBar';
 import { PROTO_TOOLBAR_ICON_SIZE } from './proto-toolbar-tokens';
@@ -61,6 +65,7 @@ function ResourceRow({
   selected = false,
   onToggleSelected,
   onSelectRangeTo,
+  onShareWithOthers,
 }: {
   item: LibraryItem;
   onOpen: () => void;
@@ -76,6 +81,14 @@ function ResourceRow({
   selected?: boolean;
   onToggleSelected?: () => void;
   onSelectRangeTo?: () => void;
+  /*
+    Offer this link to Discover. Passed only for rows on the reader's own shelf —
+    the same rule as `selectable` — and the item hides it for a file, because
+    `snapshotResource` refuses one: a file's URL is signed and expires, so
+    sharing it would hand strangers something that stops working. That is the
+    same reasoning the "Suggest to church" bar below already follows.
+  */
+  onShareWithOthers?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -194,6 +207,26 @@ function ResourceRow({
               </span>
               <span className="proto-menu-item__label">{isFile ? 'Open file' : 'Open link'}</span>
             </button>
+            {/* Links only, and only on your own shelf. Above the destructive item
+                and below "Open", which is where the template row puts its own
+                "Share with others". */}
+            {onShareWithOthers && !isFile ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="proto-menu-item"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onShareWithOthers();
+                }}
+              >
+                <span className="proto-menu-item__icon" aria-hidden>
+                  <Icon name="share" size={PROTO_TOOLBAR_ICON_SIZE} />
+                </span>
+                <span className="proto-menu-item__label">Share with others</span>
+              </button>
+            ) : null}
             <button
               type="button"
               role="menuitem"
@@ -959,7 +992,7 @@ export default function PrototypeResourceLibraryList({
   );
   const selectionAnchorRef = useRef<string | null>(null);
   const [bulkRemoving, setBulkRemoving] = useState(false);
-  const [bulkBusy, setBulkBusy] = useState<'suggest' | 'share' | null>(null);
+  const [bulkBusy, setBulkBusy] = useState<'suggest' | 'share' | 'discover' | null>(null);
   const [shareTargetsOpen, setShareTargetsOpen] = useState(false);
   const [spaceRemovingId, setSpaceRemovingId] = useState<string | null>(null);
   const suggestItem = useSuggestLibraryItem();
@@ -977,6 +1010,10 @@ export default function PrototypeResourceLibraryList({
   );
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  /* The Discover submission sheet, opened from a row's ⋮. Held here rather than
+     per-row so only one can be open, the way the template browser does it. */
+  const [shareTarget, setShareTarget] = useState<ShareWithOthersTarget | null>(null);
+  const submitToDiscover = useSubmitToDiscover();
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   /** Nested dragenter/dragleave fire constantly; count them instead of toggling. */
@@ -1132,6 +1169,61 @@ export default function PrototypeResourceLibraryList({
     }
   }, [selectedResourceItems, suggestItem, setSidebarSelection]);
 
+  /*
+   * The widest rung of the ladder above: Suggest proposes to staff who decide,
+   * Share puts it on a room's shelf, and this offers it to everyone — with
+   * Harvous reviewing, which is why it is a proposal rather than a publish.
+   *
+   * A refusal does not abort the batch. The server turns down anything the
+   * submitter's church keeps to its leaders (`CHURCH_MATERIAL_RESTRICTED`) and
+   * anything already offered (`ALREADY_SUBMITTED`), and those are ordinary
+   * outcomes in a multi-select, not errors — so they are counted and named at
+   * the end. Only a failure that is none of those stops the run.
+   *
+   * Counted separately, not into one "held" bucket: they are opposite facts.
+   * A church restriction means the link is not the submitter's to give away;
+   * an already-submitted one already *is* theirs, offered a moment they have
+   * forgotten. Merging them told someone their own church blocked a link that
+   * was, in fact, just a harmless duplicate.
+   */
+  const onBulkShareToDiscover = useCallback(async () => {
+    setBulkBusy('discover');
+    let sent = 0;
+    let restricted = 0;
+    let duplicate = 0;
+    try {
+      for (const item of selectedResourceItems) {
+        if (!item.sourceUrl) continue;
+        try {
+          await submitToDiscover.mutateAsync({ kind: 'resource', sourceId: item.id });
+          sent += 1;
+        } catch (err: unknown) {
+          const code = err instanceof APIError ? err.code : null;
+          if (code === 'CHURCH_MATERIAL_RESTRICTED') {
+            restricted += 1;
+            continue;
+          }
+          if (code === 'ALREADY_SUBMITTED') {
+            duplicate += 1;
+            continue;
+          }
+          throw err;
+        }
+      }
+      const offered = sent === 1 ? 'Offered 1 to Discover' : `Offered ${sent} to Discover`;
+      const notes = [
+        restricted > 0 ? `${restricted} not yours to share` : null,
+        duplicate > 0 ? `${duplicate} already offered` : null,
+      ].filter((note): note is string => note !== null);
+      window.toast?.success(notes.length > 0 ? `${offered} · ${notes.join(' · ')}` : offered);
+    } catch (err) {
+      toastError(err, 'Could not offer every resource');
+    } finally {
+      setBulkBusy(null);
+      setSidebarSelection('resource', []);
+    }
+  }, [selectedResourceItems, submitToDiscover, setSidebarSelection]);
+
   const onBulkShareToSpace = useCallback(
     async (spaceId: string, spaceTitle: string) => {
       setBulkBusy('share');
@@ -1200,6 +1292,25 @@ export default function PrototypeResourceLibraryList({
           </span>
         </button>
       ) : null}
+      <button
+        type="button"
+        className="proto-bulk-bar__btn"
+        disabled={!everySelectedIsLink || bulkBusy !== null}
+        title={
+          everySelectedIsLink
+            ? 'Offer these to everyone on Harvous'
+            : 'Files cannot be offered — their links expire'
+        }
+        onClick={() => void onBulkShareToDiscover()}
+      >
+        {/* `share`, the same mark the ⋮ wears for this exact action on a single
+            row. Discover has no glyph of its own anywhere in the app, so the
+            honest match is the one-row version of itself rather than a new one. */}
+        <Icon name="share" size={15} aria-hidden />
+        <span className="proto-bulk-bar__label">
+          {bulkBusy === 'discover' ? 'Offering…' : 'Discover'}
+        </span>
+      </button>
       <button
         type="button"
         className="proto-bulk-bar__btn proto-bulk-bar__btn--danger"
@@ -1332,6 +1443,16 @@ export default function PrototypeResourceLibraryList({
                   onToggleSelected={() => toggleResourceSelected(row.item.id)}
                   onSelectRangeTo={() => selectResourceRangeTo(row.item.id)}
                   onOpen={() => onOpenResource(row.item)}
+                  onShareWithOthers={() =>
+                    setShareTarget({
+                      kind: 'resource',
+                      id: row.item.id,
+                      name: row.item.title,
+                      description: row.item.description ?? null,
+                      /* The same line this row already shows under its title. */
+                      detail: resourceSourceLabel(row.item.sourceDomain, row.item.sourceSiteName),
+                    })
+                  }
                   isArchiving={archive.isPending && archivingId === row.item.id}
                   onArchive={() => {
                     setArchivingId(row.item.id);
@@ -1446,6 +1567,16 @@ export default function PrototypeResourceLibraryList({
         open={suggestOpen}
         churchName={churchName}
         onOpenChange={setSuggestOpen}
+      />
+      {/* Its public counterpart. The sheet above offers a link to one church;
+          this one offers it to everyone, through the same review queue every
+          other Discover submission goes through. */}
+      <PrototypeShareWithOthersSheet
+        open={shareTarget !== null}
+        target={shareTarget}
+        onOpenChange={(next) => {
+          if (!next) setShareTarget(null);
+        }}
       />
     </div>
   );

@@ -15,6 +15,7 @@
  * Back-button handling come from the host.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import Icon, { type IconName } from '@/components/react/Icon';
 import ProtoSidebarExpandedPanel from './ProtoSidebarExpandedPanel';
 import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
@@ -35,8 +36,15 @@ import {
 import { useDiscoverListings, type DiscoverListing } from '../../hooks/queries/useDiscoverListings';
 import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMutations';
 import { consumePendingDiscoverKind } from '../../lib/pending-discover-kind';
+import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
+import { useProtoShell } from '../../layouts/proto-shell-context';
+import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
+import {
+  discoverInstallDestination,
+  type DiscoverInstallDestination,
+} from '../../lib/discover-install-destination';
 
-type KindTab = 'all' | 'template' | 'note' | 'pack';
+type KindTab = 'all' | 'template' | 'note' | 'pack' | 'resource';
 
 /*
  * The app's own words, not new ones.
@@ -52,6 +60,10 @@ const KIND_TABS: ProtoChipOption<KindTab>[] = [
   { id: 'template', label: 'Templates' },
   { id: 'note', label: 'Notes' },
   { id: 'pack', label: 'Threads' },
+  /* "Resources", the word the library list and its tab already use — not
+     "Links", which names the storage rather than the thing. Without this a
+     shared resource could only ever be found by scrolling Everything. */
+  { id: 'resource', label: 'Resources' },
 ];
 
 /** What taking a copy of each kind actually produces, said before they tap. */
@@ -152,6 +164,9 @@ export default function PrototypeExpandedDiscover({
   const listings = useDiscoverListings({});
   const install = useInstallDiscoverListing();
   const [installingSlug, setInstallingSlug] = useState<string | null>(null);
+  const { isGuest } = useHarvousIdentity();
+  const navigate = useNavigate();
+  const { openLibraryPanel } = useProtoShell();
 
   const installed = useMemo(
     () => new Set(listings.data?.installedSlugs ?? []),
@@ -184,15 +199,46 @@ export default function PrototypeExpandedDiscover({
     if (category && !categoryOptions.some((option) => option.id === category)) setCategory(null);
   }, [categoryOptions, category]);
 
+  /** Turn the resolver's descriptor into the navigation this surface can perform. */
+  const openDestination = (destination: DiscoverInstallDestination) => {
+    if (destination.kind === 'note') {
+      void navigate({ to: noteUrlForCurrentSurface(destination.noteId) as never });
+      return;
+    }
+    /* A Thread and the resource shelf both live inside the Library panel, so these
+       open it rather than navigating anywhere. */
+    if (destination.kind === 'thread') {
+      openLibraryPanel({ tab: 'threads', drill: { kind: 'thread', threadId: destination.threadId } });
+      return;
+    }
+    openLibraryPanel({ tab: 'resources', drill: null });
+  };
+
   const handleInstall = async (listing: DiscoverListing) => {
     if (install.isPending) return;
+    /*
+     * A guest can read the catalog — it is public, and "here is study you can start
+     * from" is the whole reason Discover is reachable without an account. What they
+     * cannot do is install, so the tap goes to the listing's own page instead of a
+     * 401 and a toast that says nothing. That page exists for exactly this: it parks
+     * the slug, sends them to sign-up, and replays the install when they come back.
+     */
+    if (isGuest) {
+      onClose();
+      void navigate({ to: `/discover/${listing.slug}` as never });
+      return;
+    }
     setInstallingSlug(listing.slug);
     try {
       const result = await install.mutateAsync(listing.slug);
+      const destination = discoverInstallDestination(result.createdIds);
       toast.success(
         result.alreadyInstalled
           ? `“${listing.title}” is already yours`
           : `Saved “${listing.title}” to your Harvous`,
+        destination
+          ? { action: { label: 'Open', onAction: () => openDestination(destination) } }
+          : undefined,
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save that');
@@ -257,7 +303,21 @@ export default function PrototypeExpandedDiscover({
           <div className="proto-planner-list">
             <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
               {rows.map((listing) => {
-                const isInstalled = installed.has(listing.slug);
+                /* An official *template* ships with the app — it is already under
+                   the browse sheet's "Included" tab, from `getBuiltInTemplates()` —
+                   so it reads as already-yours here too. Tapping it would have
+                   asked the server for a duplicate, which refuses as
+                   `ALREADY_INCLUDED`; better not to offer the tap at all.
+
+                   Kind-gated: only a template has that pre-installed twin. An
+                   official note or pack has no `getBuiltInTemplates()` equivalent,
+                   so treating it as already-installed here would hide the only way
+                   to actually take it — the server would accept the install fine.
+
+                   Never for a guest, who has no account for anything to be "in" —
+                   their row stays tappable so it can still reach the sign-up page. */
+                const isBuiltIn = listing.kind === 'template' && Boolean(listing.preview?.official);
+                const isInstalled = !isGuest && (installed.has(listing.slug) || isBuiltIn);
                 const busy = installingSlug === listing.slug;
                 return (
                   <button
@@ -266,10 +326,15 @@ export default function PrototypeExpandedDiscover({
                     className="proto-church-tools__row proto-planner-list__row"
                     disabled={busy || isInstalled}
                     onClick={() => void handleInstall(listing)}
+                    /* Said before the tap, not after: a guest's row goes to the
+                       listing rather than into their account, and a label promising
+                       "Save" would be describing someone else's session. */
                     aria-label={
-                      isInstalled
-                        ? `${listing.title} is already yours`
-                        : `Save ${listing.title} to your Harvous`
+                      isGuest
+                        ? `Look at ${listing.title}`
+                        : isInstalled
+                          ? `${listing.title} is already yours`
+                          : `Save ${listing.title} to your Harvous`
                     }
                   >
                     <span className="proto-church-tools__row-icon" aria-hidden>
@@ -294,7 +359,13 @@ export default function PrototypeExpandedDiscover({
                       </span>
                     </span>
                     <span className="proto-church-tools__row-chevron" aria-hidden>
-                      <Icon name={isInstalled ? 'check' : 'plus'} size={11} />
+                      {/* `caret-right` for a guest, because the row goes somewhere —
+                          the glyph this slot already wears for that everywhere else.
+                          `plus` would promise a copy the tap cannot make. */}
+                      <Icon
+                        name={isGuest ? 'caret-right' : isInstalled ? 'check' : 'plus'}
+                        size={11}
+                      />
                     </span>
                   </button>
                 );

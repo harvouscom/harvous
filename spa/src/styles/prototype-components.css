@@ -7212,6 +7212,21 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
   display: none;
 }
 
+/*
+  A row folded away behind the section's "N more" bar.
+
+  `PrototypeHomeSection` puts this class on the rows itself, from a layout effect, because
+  the rows are opaque children it cannot re-render — the same reason the empty-group rule
+  above has to ask `:has()` rather than decide in the parent.
+
+  Written as a child selector rather than with `!important` so it simply out-specifies each
+  row's own `display` (0,2,0 against `.proto-list-panel__row`'s 0,1,0). A bare class would
+  tie on specificity and leave the outcome to whichever stylesheet happened to load last.
+*/
+.proto-home-section__list > .proto-home-section__row--folded {
+  display: none;
+}
+
 /* Children that ship their own section wrapper (This Sunday) must not add a second layer of
    spacing once they are inside a lane. */
 .proto-home-section__list > .proto-home-section {
@@ -15674,6 +15689,58 @@ html.harvous-prototype-route
 
 .proto-service-editor__starter-hint {
   margin: 0;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/*
+  The Discover description field.
+
+  It borrows `.proto-create-folder-sheet__name-input` for its box, which was written
+  for a single-line `<input>` and so says nothing about how a textarea behaves. Three
+  additions, and no more: a readable line height, a floor so two rows stay two rows,
+  and `resize: vertical` — the sheet is a fixed-width popover, so letting someone drag
+  it wider would push it out of its own card.
+*/
+.proto-share-others__desc {
+  line-height: 1.4;
+  min-height: 58px;
+  resize: vertical;
+}
+
+/*
+  The thing being handed over, stated rather than offered for editing.
+
+  No field chrome at all: this replaced a `readOnly` input whose border and fill
+  invited typing into something the sheet does not let you change. Sized like a
+  list title so it reads as the artifact's name, with the label above it doing
+  the work the `<label>` element used to.
+*/
+.proto-share-others__name {
+  margin: 6px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--pds-text-primary);
+  /* A long template name wraps rather than stretching the popover. */
+  overflow-wrap: anywhere;
+}
+
+/*
+  Where a shared link points, under its title — the second line the library row
+  already draws, repeated here because this is the moment someone vouches for it.
+  Sits tight under the read-only field rather than floating between the two labels.
+*/
+.proto-share-others__detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--pds-text-tertiary, var(--pds-text-secondary));
+}
+
+/* Right-aligned under the field, like the template editor's own counter. */
+.proto-share-others__count {
+  display: block;
+  margin-top: 4px;
+  text-align: right;
   color: var(--pds-text-tertiary, var(--pds-text-secondary));
 }
 

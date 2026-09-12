@@ -64,6 +64,7 @@ import {
   type PackPayload,
   type ResourcePayload,
 } from '../utils/discover-snapshot';
+import { classifySubmittedResourceUrl } from '../utils/discover-church-material';
 import {
   prepareTemplateInstall,
   prepareNoteInstall,
@@ -124,6 +125,19 @@ function slugify(title: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
     .replace(/-+$/g, '');
+}
+
+/**
+ * Harvous published this itself, so the reader already has it.
+ *
+ * Reads the same `preview.official` the reviewer sets on approve and harvous.com
+ * draws as "Included". Narrow on purpose — a malformed preview is not official.
+ */
+function isOfficialListing(preview: string | null): boolean {
+  const parsed = parsePreview(preview);
+  return (
+    typeof parsed === 'object' && parsed !== null && (parsed as { official?: unknown }).official === true
+  );
 }
 
 function parsePreview(preview: string | null): unknown {
@@ -205,6 +219,8 @@ function serializeForReview(row: ListingRow) {
     preview: parsePreview(row.preview),
     status: row.status,
     reviewNote: row.reviewNote,
+    /* Admin-only, and it must stay that way — it names a church. */
+    reviewFlags: parsePreview(row.reviewFlags),
     staffReadAt: row.staffReadAt,
     installCount: row.installCount,
     createdAt: row.createdAt,
@@ -515,6 +531,38 @@ app.post('/api/discover/submit', requireAuth, rateLimit('write'), async (c) => {
     }
     const { snapshot } = result;
 
+    /*
+     * A link can be the church's even when the row is the member's.
+     *
+     * `snapshotResource` already refuses a church- or space-owned *item id*. It
+     * cannot refuse the same URL pasted onto a personal shelf, because
+     * `LibraryItems` records no origin — see `discover-church-material.ts`. So
+     * the URL is compared against the shelves this submitter can see.
+     *
+     * Leaders-only is refused outright; a members-visible match rides along as a
+     * note for whoever reviews this, since the submitter may have found the same
+     * public article on their own and a person reads every submission anyway.
+     */
+    let reviewFlags: string[] = [];
+    if (kind === 'resource') {
+      const payload = JSON.parse(snapshot.payload) as { sourceUrl?: string };
+      if (payload.sourceUrl) {
+        const verdict = await classifySubmittedResourceUrl(auth.userId, payload.sourceUrl);
+        if (verdict.kind === 'restricted') {
+          return c.json(
+            {
+              error: `${verdict.sourceName} keeps this one to its leaders, so it is not yours to share.`,
+              code: 'CHURCH_MATERIAL_RESTRICTED',
+            },
+            409,
+          );
+        }
+        if (verdict.kind === 'curated') {
+          reviewFlags = [`This link is also in ${verdict.sourceName}'s library.`];
+        }
+      }
+    }
+
     const title = clean(snapshot.title, TITLE_MAX_LENGTH);
     if (!title) {
       return c.json({ error: 'Give this a name first', code: 'BAD_REQUEST' }, 400);
@@ -544,6 +592,8 @@ app.post('/api/discover/submit', requireAuth, rateLimit('write'), async (c) => {
       reviewedByUserId: null,
       reviewedAt: null,
       reviewNote: null,
+      /* Admin-only. Never reaches `serializePublic` — it names a church. */
+      reviewFlags: reviewFlags.length > 0 ? JSON.stringify(reviewFlags) : null,
       staffReadAt: null,
       supersedesListingId: null,
       createdAt: timestamp,
@@ -574,6 +624,14 @@ app.get('/api/discover/mine', requireAuth, async (c) => {
       .where(eq(DiscoverListings.submittedByUserId, auth.userId))
       .orderBy(desc(DiscoverListings.createdAt))
       .limit(100);
+    /*
+     * `no-store`, for the same reason the two public reads above carry it — and
+     * with more force here, because status is the whole point of this list.
+     * Without it, withdrawing something left "Waiting" on screen next to it: the
+     * row had already changed in the database and the browser served the old
+     * body from its own cache, underneath React Query, which cannot help.
+     */
+    c.header('Cache-Control', 'private, max-age=0, no-store');
     return c.json({ listings: rows.map(serializeMine) });
   } catch (error) {
     return respondDiscoverError(
@@ -670,6 +728,28 @@ app.post('/api/discover/install', requireAuth, rateLimit('write'), async (c) => 
 
     if (listing.submittedByUserId === auth.userId) {
       return c.json({ error: 'Already in your Harvous', code: 'SELF_INSTALL' }, 400);
+    }
+
+    /*
+     * An official listing is already everyone's, so installing one duplicates it.
+     *
+     * `preview.official` means Harvous published this itself, and for a template
+     * that means it lives in `getBuiltInTemplates()` — in code, with no
+     * `NoteTemplates` row — and every account already lists it under the browse
+     * sheet's **Included** tab. `prepareTemplateInstall` knows nothing about any
+     * of that: it mints a fresh `ntpl_` row from the payload, so pressing the
+     * button put a second SOAP in the picker, one Included and one Personal.
+     *
+     * Kind-gated on purpose. Only a template has that pre-installed twin — an
+     * official note, pack, or resource has no `getBuiltInTemplates()` equivalent,
+     * so refusing those the same way would tell someone they already have
+     * something they do not, and block the only way to actually get it.
+     *
+     * Refused rather than made a no-op, so a caller is told why. Same category as
+     * `SELF_INSTALL` directly above and worded the same way: you already have it.
+     */
+    if (listing.kind === 'template' && isOfficialListing(listing.preview)) {
+      return c.json({ error: 'Already in your Harvous', code: 'ALREADY_INCLUDED' }, 400);
     }
     if (!SUPPORTED_KINDS.has(listing.kind)) {
       return c.json({ error: 'That cannot be added yet.', code: 'UNSUPPORTED_KIND' }, 400);
@@ -803,6 +883,8 @@ app.get('/api/admin/discover/submissions', requireAuth, async (c) => {
         and(eq(DiscoverListings.status, 'submitted'), isNull(DiscoverListings.staffReadAt)),
       );
 
+    /* The queue a reviewer works from: every approve and decline changes it. */
+    c.header('Cache-Control', 'private, max-age=0, no-store');
     return c.json({ submissions: rows.map(serializeForReview), unreadCount: unread.length });
   } catch (error) {
     return respondDiscoverError(

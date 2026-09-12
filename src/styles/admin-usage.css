@@ -1554,3 +1554,17 @@ button.admin-usage__window-chip--active:active {
 .admin-action-btn--emphasis {
   font-weight: 600;
 }
+
+/*
+  A reviewer's warning on a Discover submission — today, that the submitted link
+  also sits on the submitter's church or space shelf.
+
+  Coloured, unlike the neutral hints around it, because it is the one line on the
+  card that can change the answer from approve to decline. `--pds-text-warning`
+  falls back to the ink colour so the line is never invisible if that token is
+  absent on a surface.
+*/
+.proto-admin-discover__flag {
+  margin: 0 0 6px;
+  color: var(--pds-text-warning, var(--pds-text-primary));
+}

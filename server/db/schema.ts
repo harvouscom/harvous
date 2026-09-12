@@ -3048,6 +3048,19 @@ export const DiscoverListings = pgTable(
     reviewedAt: ts('reviewedAt'),
     /** Why it was declined — read back to the submitter, so write it for them. */
     reviewNote: text('reviewNote'),
+    /**
+     * JSON array of notes for the reviewer, written at submit. Admin-only.
+     *
+     * Today it carries one thing: that the submitted URL also sits on a shelf
+     * belonging to the submitter's church or one of their rooms. `LibraryItems`
+     * records no origin, so this is the only place that fact survives — and it
+     * is a snapshot of what was true at submit, like everything else on this row.
+     *
+     * **Never serialize this publicly.** It names a church. `serializePublic`
+     * does not spread the row (a contract test holds that); keep it to
+     * `serializeForReview`.
+     */
+    reviewFlags: text('reviewFlags'),
     /** Drives the unread badge, the way SupportTickets.adminReadAt does. */
     staffReadAt: ts('staffReadAt'),
     supersedesListingId: text('supersedesListingId'),

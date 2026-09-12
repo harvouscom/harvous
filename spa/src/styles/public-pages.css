@@ -580,6 +580,11 @@
   letter-spacing: -0.005em;
   max-width: 320px;
   display: inline-block;
+  /* Even the two lines rather than leaving a long one and an orphan. The tag's
+     first sentence varies by listing — an official one is much shorter — so the
+     break lands somewhere different for each, and balance is what makes every
+     variant read as deliberate. */
+  text-wrap: balance;
 }
 
 .public-footer__cta {
@@ -784,6 +789,55 @@
 .public-paper-stack__leaf--mid {
   transform: rotate(-1.9deg);
   z-index: 1;
+}
+
+/*
+ * The same front sheet, for a card that is not a `CardFullEditable`.
+ *
+ * A Discover listing draws its own `.public-card` — a title block and an outline
+ * of section names — so it cannot borrow `.public-note-card`, whose selectors
+ * reach into CardFullEditable's DOM (`.card-full-editable__content-html`, the
+ * title row's `.flex.gap-3.items-center`). This is the paper *look* on its own:
+ * sharp corners, grain, the same tilt and layered shadow, and the folded corner.
+ *
+ * Why paper at all — a template and a note are both a sheet somebody wrote on,
+ * and drawing a shared template as a rounded product card said "listing" where
+ * every other public page in the app says "here is the thing itself". Kinds that
+ * are *not* a sheet keep the plain card: a Thread is a collection and a resource
+ * is a pointer somewhere else, and paper would claim authorship for neither.
+ */
+.public-card--paper {
+  z-index: 2;
+  transform: rotate(-0.6deg);
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(rgba(20, 18, 12, 0.025) 1px, transparent 1px),
+    radial-gradient(rgba(20, 18, 12, 0.018) 1px, transparent 1px);
+  background-size: 28px 28px, 17px 17px;
+  background-position: 0 0, 9px 9px;
+  border-radius: 0;
+  box-shadow:
+    0 2px 6px rgba(20, 18, 12, 0.04),
+    0 20px 50px -20px rgba(20, 18, 12, 0.16);
+}
+
+/* Folded-corner accent, matching `.public-note-card::before`. Above the header's
+   own background but below the CTA, so it never sits over a control. */
+.public-card--paper::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(
+    225deg,
+    rgba(20, 18, 12, 0.07) 0%,
+    rgba(20, 18, 12, 0.02) 40%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* The main letter — the actual card with note content. White front sheet on

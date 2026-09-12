@@ -1,8 +1,10 @@
 /**
- * Share one of your templates with everyone.
+ * Share something of yours with everyone.
  *
- * Deliberately small: the template is already written, so the only thing left
- * to decide is the one line that helps someone else recognise it. Category is
+ * Templates, notes, Threads and links from your own library all arrive here —
+ * the kind only changes the labels. Deliberately small: the thing already
+ * exists, so the only thing left to decide is the one line that helps someone
+ * else recognise it. Category is
  * not asked for — the reviewer files it, and asking a person to pick from a
  * taxonomy they cannot see while they are giving something away is asking them
  * to do a curator's job for the privilege.
@@ -54,13 +56,32 @@ function relativeDay(value: string | Date | null): string {
   return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export type ShareWithOthersKind = 'template' | 'note' | 'pack';
+/**
+ * `resource` is a **link** from your own library, never a file.
+ *
+ * `snapshotResource` refuses anything else with `RESOURCE_NOT_A_LINK`, for the
+ * reason the resource list already states beside its "Suggest to church" bar: a
+ * file's URL is signed and expires, so handing one to strangers hands over
+ * something that stops working. The caller does the gating — this sheet only
+ * names the kinds.
+ */
+export type ShareWithOthersKind = 'template' | 'note' | 'pack' | 'resource';
 
 export interface ShareWithOthersTarget {
   kind: ShareWithOthersKind;
   id: string;
   name: string;
   description?: string | null;
+  /**
+   * Where it points, for a kind whose identity is somewhere else.
+   *
+   * A resource is the only one of the four the sharer did not write, so the name
+   * is not enough to decide by: "How to Read the Bible for Yourself" could be
+   * anywhere. The row in the library already carries its domain on a second line;
+   * this puts the same line in front of the button, so nobody vouches for a
+   * destination they cannot see.
+   */
+  detail?: string | null;
 }
 
 /** What the read-only field above the description is labelled. */
@@ -68,6 +89,7 @@ const KIND_LABEL: Record<ShareWithOthersKind, string> = {
   template: 'Template',
   note: 'Note',
   pack: 'Thread',
+  resource: 'Resource',
 };
 
 const KIND_SENT_COPY: Record<ShareWithOthersKind, string> = {
@@ -75,12 +97,17 @@ const KIND_SENT_COPY: Record<ShareWithOthersKind, string> = {
     'Sent. If it is a good fit, it turns up in Discover for everyone — and your copy stays exactly where it is.',
   note: 'Sent. If it is a good fit, people can take their own copy — yours stays exactly as it is.',
   pack: 'Sent. If it is a good fit, people can take the whole Thread — yours stays exactly as it is.',
+  /* A link is the one kind that is not your writing — nothing is copied, the
+     pointer is just put where others can find it. Said plainly, because
+     "your copy stays where it is" would be answering a worry nobody has. */
+  resource: 'Sent. If it is a good fit, people can add it to their own library — it stays in yours either way.',
 };
 
 const KIND_DESCRIPTION_PLACEHOLDER: Record<ShareWithOthersKind, string> = {
-  template: 'One line, so someone knows if it suits them',
-  note: 'One line, so someone knows what this is about',
-  pack: 'One line, so someone knows what this Thread covers',
+  template: 'A sentence, so someone knows if it suits them',
+  note: 'A sentence, so someone knows what this is about',
+  pack: 'A sentence, so someone knows what this Thread covers',
+  resource: 'A sentence, so someone knows why it is worth opening',
 };
 
 export default function PrototypeShareWithOthersSheet({
@@ -159,7 +186,7 @@ export default function PrototypeShareWithOthersSheet({
               ? err.message
               : err instanceof Error
                 ? err.message
-                : 'Could not share this template.',
+                : `Could not share this ${KIND_LABEL[target.kind].toLowerCase()}.`,
           ),
       },
     );
@@ -191,19 +218,25 @@ export default function PrototypeShareWithOthersSheet({
           </p>
         ) : (
           <>
-            <label
-              className="proto-inspector-section-title proto-create-folder-sheet__field-label"
-              htmlFor="proto-share-others-name"
-            >
+            {/*
+              Not a field, because it is not yours to change here.
+
+              It was a `readOnly` input, which is the wrong instrument twice over:
+              the box, border and background of a text field say "type in me" no
+              matter what the attribute says, and it still took focus and
+              announced as a textbox. Renaming a template happens in the template
+              editor; this sheet only shows you what you are about to hand over.
+
+              The `<label>` went with it — a label needs a control to label, and
+              the heading now sits over a statement rather than an input.
+            */}
+            <span className="proto-inspector-section-title proto-create-folder-sheet__field-label">
               {KIND_LABEL[target?.kind ?? 'template']}
-            </label>
-            <input
-              id="proto-share-others-name"
-              type="text"
-              className="proto-create-folder-sheet__name-input"
-              value={target?.name ?? ''}
-              readOnly
-            />
+            </span>
+            <p className="proto-share-others__name">{target?.name ?? ''}</p>
+            {target?.detail ? (
+              <span className="proto-caption proto-share-others__detail">{target.detail}</span>
+            ) : null}
 
             <label
               className="proto-inspector-section-title proto-create-folder-sheet__field-label"
@@ -212,15 +245,31 @@ export default function PrototypeShareWithOthersSheet({
               <span>What it is for</span>
               <span className="proto-service-editor__optional">optional</span>
             </label>
-            <input
+            {/*
+              A textarea, matching `PrototypeInspectorTemplatesSection` — the editor for
+              the very same `NoteTemplates.description`, which uses `rows={2}` and a
+              counter. 90 characters is not one line: "Side-by-side analysis of
+              translations, parallel passages, authors" already wraps to two wherever
+              the catalog draws it, so a single-line box was showing half of what the
+              writer was allowed and the reader would see.
+
+              Newlines are stripped on the way in rather than allowed and then ignored.
+              The description renders as a one-line subtitle (the panel row joins it into
+              a `nowrap` meta line with `·`), so a typed Enter would vanish at the point
+              it matters; better not to store what nothing will show.
+            */}
+            <textarea
               id="proto-share-others-desc"
-              type="text"
-              className="proto-create-folder-sheet__name-input"
+              className="proto-create-folder-sheet__name-input proto-share-others__desc"
               value={description}
               placeholder={KIND_DESCRIPTION_PLACEHOLDER[target?.kind ?? 'template']}
               maxLength={DESCRIPTION_MAX_LENGTH}
-              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              onChange={(e) => setDescription(e.target.value.replace(/\s*\n+\s*/g, ' '))}
             />
+            <span className="proto-caption proto-share-others__count" aria-live="polite">
+              {description.length}/{DESCRIPTION_MAX_LENGTH}
+            </span>
 
             {/* Said before the button, not after. */}
             <p className="proto-caption proto-service-editor__starter-hint">
