@@ -482,7 +482,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         : 'revealed'
       : null;
 
-    const { item: updated, nextReturnDays, leech, stalled } = await applyReviewOutcome(
+    const { item: applied, nextReturnDays, leech, stalled } = await applyReviewOutcome(
       auth.userId,
       item,
       verdict ?? outcome,
@@ -497,6 +497,21 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
        */
       { attemptNumber, graded: graded != null },
     );
+
+    /*
+     * Difficulty goes down on its own, the way it goes up on its own.
+     *
+     * A miss that made the item a leech — four lapses, or never once recalled — used to hand the
+     * reader a card saying "This way of asking is not landing. Try a different one?" with a
+     * "Make it easier" button. That is the engine asking permission to do its job. The whole
+     * point of a ladder that climbs on clean recalls is that it should also step back on
+     * repeated misses without being told; a reader who has just got something wrong four times
+     * is the last person who should be handed a decision about it.
+     *
+     * So the step back is applied here, silently, and the next asking is simply easier. The
+     * flags still go out so the card can say nothing about it on purpose rather than by accident.
+     */
+    const updated = leech ? (await stepBackReviewItem(auth.userId, applied)) ?? applied : applied;
 
     /*
      * The verse a rung withheld, handed back now that the question is answered. Read from the

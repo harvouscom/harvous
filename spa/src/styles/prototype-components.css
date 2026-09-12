@@ -23706,13 +23706,6 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-primary);
 }
 
-.proto-review-dock__context-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
 /* The line offered after a miss. Sits above the retry line, quieter than it. */
 .proto-review-dock__hint {
   color: var(--pds-text-secondary);
