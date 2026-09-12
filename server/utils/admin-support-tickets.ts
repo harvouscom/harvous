@@ -6,6 +6,8 @@ import { db, SupportTickets, SupportTicketNotes, UserMetadata, eq, desc, count, 
 import { nowISO } from '../db/dates';
 import { generateTimestampId } from '@/utils/ids';
 import { isSupportTicketStatus, type SupportTicketStatus } from './support-ticket';
+import { getActiveEntitlements } from './entitlements';
+import { nonWithheldFeatureKeys } from './admin-paid-stats';
 
 export type SupportTicketListItem = {
   id: string;
@@ -34,7 +36,17 @@ export type SupportTicketDetail = SupportTicketListItem & {
   adminReadAt: string | null;
   repliedAt: string | null;
   closedAt: string | null;
-  userTier: string | null;
+  /**
+   * The features this account can actually use right now.
+   *
+   * Replaced `userTier`, which read `UserMetadata.tier` — a retired notes-quota label that in
+   * production reads 'free' for every account, including the ones holding paid access. A
+   * support agent asking "what can this person do?" was being told the wrong thing every time.
+   *
+   * Withheld features are filtered out, because a row for one grants nothing: the gate
+   * short-circuits on `isFeatureWithheld` before it looks at entitlements at all.
+   */
+  userFeatures: string[];
   userAccountCreatedAt: string | null;
   notes: SupportTicketNote[];
 };
@@ -63,7 +75,7 @@ function mapListRow(row: typeof SupportTickets.$inferSelect): SupportTicketListI
 
 function mapDetailRow(
   row: typeof SupportTickets.$inferSelect,
-  userMeta?: { tier: string | null; createdAt: Date | string | null } | null,
+  userMeta?: { features?: string[]; createdAt: Date | string | null } | null,
   notes: SupportTicketNote[] = [],
 ): SupportTicketDetail {
   return {
@@ -76,7 +88,7 @@ function mapDetailRow(
     adminReadAt: rowToIso(row.adminReadAt),
     repliedAt: rowToIso(row.repliedAt),
     closedAt: rowToIso(row.closedAt),
-    userTier: userMeta?.tier ?? null,
+    userFeatures: userMeta?.features ?? [],
     userAccountCreatedAt: rowToIso(userMeta?.createdAt ?? null),
     notes,
   };
@@ -183,7 +195,6 @@ export async function getSupportTicket(
   const rows = await db
     .select({
       ticket: SupportTickets,
-      userTier: UserMetadata.tier,
       userAccountCreatedAt: UserMetadata.createdAt,
     })
     .from(SupportTickets)
@@ -194,18 +205,25 @@ export async function getSupportTicket(
   if (!row) return null;
 
   const notes = await listSupportTicketNotes(resolvedId);
+  /*
+   * One extra query, and only on the detail read — the ticket list does not carry this and does
+   * not need to. Filtered to the keys that actually grant access, since a withheld feature's row
+   * is invisible to the gate.
+   */
+  const withheldFiltered = new Set(nonWithheldFeatureKeys());
+  const features = (await getActiveEntitlements(row.ticket.userId)).filter((k) => withheldFiltered.has(k));
 
   if (options?.markRead && row.ticket.adminReadAt == null) {
     const readAt = nowISO();
     await db.update(SupportTickets).set({ adminReadAt: readAt }).where(eq(SupportTickets.id, resolvedId));
     return mapDetailRow({ ...row.ticket, adminReadAt: readAt }, {
-      tier: row.userTier,
+      features,
       createdAt: row.userAccountCreatedAt,
     }, notes);
   }
 
   return mapDetailRow(row.ticket, {
-    tier: row.userTier,
+    features,
     createdAt: row.userAccountCreatedAt,
   }, notes);
 }

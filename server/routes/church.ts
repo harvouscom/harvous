@@ -50,6 +50,7 @@ import {
   desc,
   inArray,
   isNull,
+  sql,
 } from '../db';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { rateLimit } from '@/utils/rate-limit';
@@ -344,7 +345,7 @@ app.post('/api/church/channels/:spaceId/unfollow', requireAuth, rateLimit('write
  * Encrypted notes are excluded at the query level, matching how every other
  * shared surface treats them.
  */
-app.get('/api/church/feed', requireAuth, async (c) => {
+app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const limitRaw = Number(c.req.query('limit') ?? FEED_LIMIT_DEFAULT);
@@ -385,7 +386,14 @@ app.get('/api/church/feed', requireAuth, async (c) => {
       .select({
         noteId: Notes.id,
         title: Notes.title,
-        content: Notes.content,
+        /*
+         * A prefix, not the note. Every row here is reduced to a 180-character excerpt
+         * (FEED_EXCERPT_LENGTH) a few lines below, so selecting whole note bodies for up to
+         * 50 rows was this route's largest payload and its largest CPU cost — stripHtmlForCard
+         * regexes each one on a shared vCPU. 4000 chars leaves ample room for HTML tags to
+         * inflate the prefix and still yield 180 visible characters.
+         */
+        content: sql<string | null>`left(${Notes.content}, 4000)`,
         noteType: Notes.noteType,
         authorUserId: Notes.userId,
         createdAt: Notes.createdAt,

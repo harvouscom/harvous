@@ -46,6 +46,18 @@ describe('admin Pulse / Usage on Fly', () => {
     expect(body).not.toMatch(/await Promise\.all\(\[/);
   });
 
+  /*
+   * The paid split reads Entitlements, not the retired `UserMetadata.tier` label.
+   *
+   * `tier` still exists and is still written — a support surface reads it — so nothing stops
+   * someone reaching for it again here, where it is the wrong source. fnBody strips comments,
+   * so the docblock naming the column does not trip this.
+   */
+  it('does not bucket Usage accounts by the retired tier column', () => {
+    const body = fnBody('server/utils/admin-usage-stats.ts', 'getUsageOverview');
+    expect(body).not.toContain('UserMetadata.tier');
+  });
+
   it('does not block Pulse on a cold full-platform graph walk', () => {
     const threads = source('server/utils/admin-pulse-threads-stats.ts');
     expect(threads).toContain('getPlatformThreadSnapshot');

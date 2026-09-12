@@ -38,6 +38,38 @@ beforeEach(() => {
   notNow.mockReset();
 });
 
+/**
+ * A payload this build's types say is impossible, because the reader's build and the server's
+ * are not the same build.
+ *
+ * When the sample payload was re-nested from `sample.cloze` to `sample.exercise.cloze`, every
+ * bundle still cached in a service worker read `undefined.blankLengths` and took the whole Home
+ * route down with it — for free accounts only, since that is who is offered this card.
+ * Rendering nothing beats rendering an error screen over an offer nobody asked for.
+ */
+describe('the sample card, against a payload from another build', () => {
+  it('renders nothing rather than throwing when the cloze is missing', () => {
+    const withoutCloze = {
+      ...sample,
+      exercise: { kind: 'blanks' as const, blankCount: 2 },
+    } as unknown as typeof sample;
+
+    const { container } = render(
+      <PrototypeReviewSample sample={withoutCloze} day="2026-09-03" maxAttempts={2} onSeePlus={seePlus} onNotNow={notNow} />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('renders nothing rather than throwing when the exercise itself is missing', () => {
+    const withoutExercise = { ...sample, exercise: undefined } as unknown as typeof sample;
+
+    const { container } = render(
+      <PrototypeReviewSample sample={withoutExercise} day="2026-09-03" maxAttempts={2} onSeePlus={seePlus} onNotNow={notNow} />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+});
+
 describe('the sample card', () => {
   it('says whose verse it is, and puts an input in each gap', () => {
     render(<PrototypeReviewSample sample={sample} day="2026-09-03" maxAttempts={2} onSeePlus={seePlus} onNotNow={notNow} />);

@@ -13,6 +13,7 @@ import {
   normalizeDiagnosticMessageForSignature,
   redactDiagnosticRoute,
   scrubDiagnosticText,
+  isExtensionOriginated,
   isNoiseDiagnosticMessage,
 } from '@/utils/diagnostics-route';
 
@@ -23,6 +24,7 @@ const MAX_ROUTE = 300;
 const MAX_SESSION_ID = 64;
 const MAX_APP_VERSION = 40;
 const MAX_METADATA_JSON = 2000;
+const MAX_SCRIPT_FILENAME = 200;
 
 export type SanitizedDiagnosticInput = {
   source: DiagnosticSource;
@@ -80,6 +82,27 @@ function sanitizeMetadata(value: unknown): Record<string, unknown> | null {
   if (typeof raw.userAgentFamily === 'string' && raw.userAgentFamily.trim()) {
     out.userAgentFamily = truncate(scrubDiagnosticText(raw.userAgentFamily.trim()), 80);
   }
+  /*
+   * Where the throwing script was served from, plus its position. The client has always sent
+   * these (see the `error` listener in diagnostics-client.ts); the allowlist dropped them, which
+   * is why extension errors and our own were indistinguishable in the admin list. Query string
+   * stripped — a script URL's params are the one place a token could ride along.
+   */
+  if (typeof raw.scriptFilename === 'string' && raw.scriptFilename.trim()) {
+    const withoutQuery = raw.scriptFilename.trim().split('?')[0] ?? '';
+    if (withoutQuery) {
+      out.scriptFilename = truncate(scrubDiagnosticText(withoutQuery), MAX_SCRIPT_FILENAME);
+    }
+  }
+  if (typeof raw.scriptLineno === 'number' && Number.isFinite(raw.scriptLineno)) {
+    out.scriptLineno = Math.round(raw.scriptLineno);
+  }
+  if (typeof raw.scriptColno === 'number' && Number.isFinite(raw.scriptColno)) {
+    out.scriptColno = Math.round(raw.scriptColno);
+  }
+  if (typeof raw.staleBuild === 'boolean') {
+    out.staleBuild = raw.staleBuild;
+  }
   if (Object.keys(out).length === 0) return null;
   const json = JSON.stringify(out);
   if (json.length > MAX_METADATA_JSON) return null;
@@ -107,6 +130,14 @@ export function sanitizeDiagnosticPayload(body: unknown): SanitizedDiagnosticInp
   if (!isDiagnosticPlatform(platform)) return null;
 
   const stackRaw = typeof raw.stack === 'string' ? raw.stack : null;
+  /*
+   * Rejected here as well as at capture, so a build that predates the client-side filter
+   * cannot keep filling the admin list -- the same reasoning as isNoiseDiagnosticMessage above.
+   */
+  const metaRaw = (raw.metadata ?? null) as Record<string, unknown> | null;
+  const scriptFilenameRaw =
+    metaRaw && typeof metaRaw.scriptFilename === 'string' ? metaRaw.scriptFilename : null;
+  if (isExtensionOriginated(scriptFilenameRaw, stackRaw)) return null;
   const routeRaw = typeof raw.route === 'string' ? raw.route : null;
   const appVersionRaw = typeof raw.appVersion === 'string' ? raw.appVersion.trim() : null;
   const manualNoteRaw = typeof raw.manualNote === 'string' ? raw.manualNote.trim() : null;
