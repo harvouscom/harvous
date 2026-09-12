@@ -16,12 +16,14 @@ import {
   PrototypeSectionHeader,
 } from '../../prototype/design-system';
 import ProtoPopoverShell from '../../prototype/ProtoPopoverShell';
+import ProtoSelectMenu from '../../prototype/ProtoSelectMenu';
 import PrototypePaperStack from '../../prototype/PrototypePaperStack';
 import type { PaperStackOrigin } from '../../../layouts/proto-shell-context';
 import ProtoThreadTrailOrb from '../../prototype/ProtoThreadTrailOrb';
 import PrototypeStudyFeedPart from '../../prototype/PrototypeStudyFeedPart';
 import PrototypeWelcome3Sheet from '../../prototype/PrototypeWelcome3Sheet';
 import PrototypeHomeRow from '../../prototype/PrototypeHomeRow';
+import { TRANSLATION_ORDER, getTranslationAbbreviationDisplay } from '@/data/translations';
 import { RECALL_STATE_LABELS } from '@/utils/review-item-kinds';
 import { buildStudyFeedDays, type StudyFeedItem } from '@/utils/study-feed-items';
 import { AppearancePreviewTile } from '../../prototype/settings/AppearancePreviewTile';
@@ -1079,6 +1081,144 @@ function ReaderInspectorScene() {
 }
 
 
+/* John 3 in two versions, enough of it that the stage scrolls. */
+const COMPARE_SCENE_VERSES: { num: number; net: string; esv: string }[] = [
+  {
+    num: 14,
+    net: 'Just as Moses lifted up the serpent in the wilderness, so must the Son of Man be lifted up,',
+    esv: 'And as Moses lifted up the serpent in the wilderness, so must the Son of Man be lifted up,',
+  },
+  {
+    num: 15,
+    net: 'so that everyone who believes in him may have eternal life.',
+    esv: 'that whoever believes in him may have eternal life.',
+  },
+  {
+    num: 16,
+    net: 'For this is the way God loved the world: He gave his one and only Son, so that everyone who believes in him will not perish but have eternal life.',
+    esv: 'For God so loved the world, that he gave his only Son, that whoever believes in him should not perish but have eternal life.',
+  },
+  {
+    num: 17,
+    net: 'For God did not send his Son into the world to condemn the world, but that the world should be saved through him.',
+    esv: 'For God did not send his Son into the world to condemn the world, but in order that the world might be saved through him.',
+  },
+  {
+    num: 18,
+    net: 'The one who believes in him is not condemned. The one who does not believe has been condemned already, because he has not believed in the name of the one and only Son of God.',
+    esv: 'Whoever believes in him is not condemned, but whoever does not believe is condemned already, because he has not believed in the name of the only Son of God.',
+  },
+];
+
+/**
+ * Comparing two versions where only one fits (ds-24-reader-compare-chips).
+ *
+ * The stage is 380px on purpose. This marking exists only inside
+ * `@container pds-reader-scroll (max-width: 900px)` — above that width both versions are on
+ * screen and neither chip is marked — so a scene staged at a comfortable width would render
+ * the *unmarked* state and quietly cover nothing. That is the scope-chip lesson: a scene that
+ * omits the real container is covering a different component that happens to share a class name.
+ *
+ * Real `ProtoSelectMenu` triggers rather than styled spans, for the same reason. The marking has
+ * to win against the trigger's own resting and hover fills, and a fixture built from `<span>`s
+ * would look right while production lost that fight.
+ *
+ * Both directions are shown because the failure mode is not "the marking is faint", it is "the
+ * two chips are indistinguishable" — which only shows up when you look at the pair twice.
+ */
+function ReaderCompareChipsScene() {
+  const [primary, setPrimary] = useState('NET');
+  const [compare, setCompare] = useState('ESV');
+  const options = TRANSLATION_ORDER.map((id) => ({
+    value: id,
+    label: getTranslationAbbreviationDisplay(id),
+    triggerLabel: getTranslationAbbreviationDisplay(id),
+  }));
+
+  const stage = (showing: 'primary' | 'compare') => (
+    <div className="pds-gallery-reader-compare-stage" key={showing}>
+      <p className="pds-caption">
+        {showing === 'primary'
+          ? `Reading ${getTranslationAbbreviationDisplay(primary)}`
+          : `Swiped across to ${getTranslationAbbreviationDisplay(compare)}`}
+      </p>
+      <div className="pds-reader">
+        <div className="pds-reader__scroll pds-reader-stack pds-reader-compare">
+          <div className="pds-reader__column">
+            <div className="pds-reader__chapter-heading">
+              <h2 className="pds-reader-chapter-title">John 3</h2>
+              <div className="pds-reader__chapter-controls">
+                <ProtoSelectMenu
+                  value={primary}
+                  options={options}
+                  onChange={setPrimary}
+                  label="Translation"
+                  className={`pds-reader__trans-trigger scripture-pill-chrome__trans-chip${
+                    showing === 'primary' ? ' pds-reader__trans-trigger--showing' : ''
+                  }`}
+                  menuClassName="pds-reader__trans-menu"
+                  menuWidth={168}
+                />
+                <ProtoSelectMenu
+                  value={compare}
+                  options={options}
+                  onChange={setCompare}
+                  label="Compared translation"
+                  className={`pds-reader__trans-trigger pds-reader__trans-trigger--compare scripture-pill-chrome__trans-chip${
+                    showing === 'compare' ? ' pds-reader__trans-trigger--showing' : ''
+                  }`}
+                  menuClassName="pds-reader__trans-menu"
+                  menuWidth={168}
+                />
+                <button type="button" className="pds-reader__compare-swap" aria-label="Swap versions">
+                  <Icon name="arrow-right-arrow-left" size={11} aria-hidden />
+                </button>
+                <button type="button" className="pds-reader__compare-close" aria-label="Stop comparing">
+                  <Icon name="xmark" size={11} aria-hidden />
+                </button>
+              </div>
+            </div>
+            {/* Enough chapter to scroll. The bar is sticky only while comparing at this width,
+                and a stage with one verse in it would show the bar sitting still and prove
+                nothing — scroll the stage and it should stay, opaque, with verses passing
+                under it rather than through it. */}
+            {COMPARE_SCENE_VERSES.map((v) => (
+              <div className="pds-reader__block" key={v.num}>
+                <p className="pds-reader-text">
+                  <span className="pds-reader__verse">
+                    <sup className="pds-reader-verse-num">{v.num}</sup>
+                    <span className="pds-reader__verse-text">
+                      {showing === 'primary' ? v.net : v.esv}
+                    </span>
+                  </span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="pds-gallery-stack">
+      <PrototypeSectionHeader>Comparing versions on a phone</PrototypeSectionHeader>
+      <p className="pds-caption">
+        Below 900px of <code>.pds-reader__scroll</code> the two columns become one you swipe
+        between, so this row is the only thing saying which version is on screen. The one you are
+        reading carries a surface; the one waiting behind it does not. Present-against-absent
+        rather than a darker fill, because the neutral fills collapse to a single value in dark
+        mode — <code>--pds-bg-chip</code> and <code>--pds-bg-row-selected</code> are both white at
+        10% — which is what this row shipped as, and why it read as unmarked.
+      </p>
+      <div className="pds-gallery-reader-compare-stages">
+        {stage('primary')}
+        {stage('compare')}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Every offline state a translation row can be in, at once.
  *
@@ -1649,6 +1789,8 @@ export default function DesignSystemScenePreview({ scene }: { scene: DesignSyste
       return <ReaderInspectorScene />;
     case 'ds-18-translation-row':
       return <TranslationRowScene />;
+    case 'ds-24-reader-compare-chips':
+      return <ReaderCompareChipsScene />;
     case 'ds-19-note-audience-bar':
       return <NoteAudienceBarScene />;
     case 'ds-20-study-feed':
