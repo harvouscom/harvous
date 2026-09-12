@@ -71,7 +71,6 @@ import {
   useDeferReview,
   useReviewOutcome,
   useSetReviewStatus,
-  useStepBackReview,
   type ReviewOutcomeResponse,
 } from '../../hooks/mutations/useReviewMutations';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
@@ -93,15 +92,11 @@ import {
   REVIEW_CROSSED_TO_HOLDING_COPY,
   REVIEW_DEFER_COPY,
   REVIEW_PAUSE_COPY,
-  REVIEW_SLIPPING_COPY,
-  REVIEW_STALLED_COPY,
   REVIEW_FEEDBACK_ACK_COPY,
   REVIEW_FEEDBACK_DOWN_COPY,
   REVIEW_FEEDBACK_SETTINGS_LINK_COPY,
   REVIEW_FEEDBACK_UP_COPY,
   reviewFeedbackOfferCopy,
-  REVIEW_STEP_BACK_COPY,
-  REVIEW_STEPPED_BACK_COPY,
   REVIEW_OUTCOME_ACK_COPY,
   REVIEW_REVEAL_CONNECTION_COPY,
   REVIEW_REVEAL_COPY,
@@ -474,11 +469,8 @@ export default function PrototypeReviewDock() {
   const nextItem = sessionItems[sessionItems.findIndex((i) => i.id === item?.id) + 1];
   usePrefetchReviewReveal(nextItem && reviewRungIsGraded(nextItem) ? nextItem.id : null);
   const outcome = useReviewOutcome();
-  const stepBack = useStepBackReview();
   const setStatus = useSetReviewStatus();
   const defer = useDeferReview();
-  // What the reader chose for a slipping item, so the offer is made once and answered once.
-  const [leechAction, setLeechAction] = useState<'stepped' | 'paused' | null>(null);
   /*
    * The reader's rating of the question, and the family Settings may be offered for.
    *
@@ -591,16 +583,25 @@ export default function PrototypeReviewDock() {
    * nothing would be worse than no heading, and plenty of items legitimately have no annotation
    * and no framing line.
    */
-  const resultContext = (() => {
+  /*
+   * Where the question came from, under the verdict — and only when there is something to say.
+   *
+   * The first cut rendered a "From your Harvous" heading whenever the item had so much as a
+   * note id, which on most items meant a heading over a single button, stacked above the
+   * Next / Enough row, stacked above whatever else the card had left: three rows of buttons
+   * and an orphaned caption. That is the card losing its shape to a feature.
+   *
+   * So the block is text or nothing — the provenance line, what they marked, what they wrote.
+   * The two ways back are buttons, and the card already has a row for buttons; they go there,
+   * after the way on, in the same size and style as everything beside them.
+   */
+  const resultContextBlock = (() => {
     const context = lastResult?.context;
     if (!context) return null;
     const quote = context.annotation?.quote?.trim() || null;
     const thought = context.annotation?.thought?.trim() || null;
     const source = context.framing?.trim() || context.sourceLabel?.trim() || null;
-    const reader = context.reference ? readerRouteForReference(context.reference, 'NET') : null;
-    const hasAnything = quote || thought || source || context.note || reader;
-    if (!hasAnything) return null;
-
+    if (!quote && !thought && !source) return null;
     return (
       <div className="proto-review-dock__context">
         <p className="proto-caption proto-review-dock__truth-label">{REVIEW_CONTEXT_LABEL}</p>
@@ -621,44 +622,50 @@ export default function PrototypeReviewDock() {
             <p className="proto-review-dock__context-thought">{thought}</p>
           </>
         ) : null}
-        {context.note || reader ? (
-          <div className="proto-review-dock__context-links">
-            {context.note ? (
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                onClick={() => {
-                  /*
-                   * Offered, never taken. The dock collapses rather than closing and the result
-                   * stays on it, so coming back from the note finds the card exactly as it was
-                   * — leaving is a detour, not the end of the sitting.
-                   */
-                  setReviewDockExpanded(false);
-                  void navigate({
-                    to: prototypeNoteRouteTo(),
-                    params: { noteId: noteParamSlug(context.note!.id) },
-                    search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
-                  });
-                }}
-              >
-                {REVIEW_CONTEXT_OPEN_NOTE_COPY}
-              </button>
-            ) : null}
-            {reader ? (
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                onClick={() => {
-                  setReviewDockExpanded(false);
-                  void navigate(reader);
-                }}
-              >
-                {REVIEW_CONTEXT_OPEN_READER_COPY}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
       </div>
+    );
+  })();
+
+  /*
+   * The ways back, as buttons in the actions row. Offered, never taken: the dock collapses
+   * rather than closing and keeps its result, so coming back finds the card as it was.
+   */
+  const resultContextLinks = (() => {
+    const context = lastResult?.context;
+    if (!context) return null;
+    const reader = context.reference ? readerRouteForReference(context.reference, 'NET') : null;
+    if (!context.note && !reader) return null;
+    return (
+      <>
+        {context.note ? (
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+            onClick={() => {
+              setReviewDockExpanded(false);
+              void navigate({
+                to: prototypeNoteRouteTo(),
+                params: { noteId: noteParamSlug(context.note!.id) },
+                search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+              });
+            }}
+          >
+            {REVIEW_CONTEXT_OPEN_NOTE_COPY}
+          </button>
+        ) : null}
+        {reader ? (
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+            onClick={() => {
+              setReviewDockExpanded(false);
+              void navigate(reader);
+            }}
+          >
+            {REVIEW_CONTEXT_OPEN_READER_COPY}
+          </button>
+        ) : null}
+      </>
     );
   })();
 
@@ -979,7 +986,6 @@ export default function PrototypeReviewDock() {
                 itemId: item.id,
                 at: Date.now(),
               });
-              setLeechAction(null);
               setSitting((current) => ({
                 answered: current.answered + 1,
                 holding: current.holding + (data.next.recallState === 'durable' ? 1 : 0),
@@ -1383,10 +1389,11 @@ export default function PrototypeReviewDock() {
                 ) : null}
               </p>
             </div>
-            {resultContext}
+            {resultContextBlock}
             {/*
               * The reader decides when the next one comes. Both ways are offered: stopping
               * after one is a whole act, and a card with only "next" on it would say otherwise.
+              * The ways back sit after them, in the same row.
               */}
             <div className="proto-review-dock__actions">
               <button
@@ -1406,6 +1413,7 @@ export default function PrototypeReviewDock() {
               >
                 {REVIEW_ENOUGH_COPY}
               </button>
+              {resultContextLinks}
             </div>
             {lastResult.itemId && feedbackVote ? (
               /*
@@ -1433,45 +1441,6 @@ export default function PrototypeReviewDock() {
                     </>
                   ) : null}
                 </p>
-              </div>
-            ) : null}
-            {lastResult.leech && lastResult.itemId ? (
-              /* Four misses since it was last held. The one place Review says a thing is not
-                 working rather than asking again, and it offers the way down, not a lecture. */
-              <div className="proto-review-dock__slipping">
-                {leechAction ? (
-                  <p className="proto-caption proto-review-dock__retry">
-                    {leechAction === 'stepped' ? REVIEW_STEPPED_BACK_COPY : REVIEW_PAUSE_COPY}
-                  </p>
-                ) : (
-                  <>
-                    <p className="proto-caption proto-review-dock__retry">
-                      {lastResult.stalled ? REVIEW_STALLED_COPY : REVIEW_SLIPPING_COPY}
-                    </p>
-                    <div className="proto-review-dock__actions">
-                      <button
-                        type="button"
-                        className="proto-settings-btn proto-settings-btn--compact"
-                        onClick={() => {
-                          setLeechAction('stepped');
-                          stepBack.mutate({ itemId: lastResult.itemId! });
-                        }}
-                      >
-                        {REVIEW_STEP_BACK_COPY}
-                      </button>
-                      <button
-                        type="button"
-                        className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                        onClick={() => {
-                          setLeechAction('paused');
-                          setStatus.mutate({ itemId: lastResult.itemId!, status: 'paused' });
-                        }}
-                      >
-                        {REVIEW_PAUSE_COPY}
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
             ) : null}
           </div>
