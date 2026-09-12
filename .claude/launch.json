@@ -152,6 +152,16 @@
       ],
       "port": 4330,
       "autoPort": false
+    },
+    {
+      "name": "text-clipping-worktree-spa",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/text-clipping-bug-3e60ee && npm run dev:spa -- --port 4333 --strictPort"
+      ],
+      "port": 4333,
+      "autoPort": false
     }
   ]
 }

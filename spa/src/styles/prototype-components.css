@@ -13801,6 +13801,14 @@ p.proto-teaching-plan__divider {
   padding: 0 16px 20px;
 }
 
+/* No masthead means no icon to overlap and, for the callers that hide it, no hero to
+   overlap onto — the pull would only tuck the description under the sheet header, where
+   the scroll container clips it. Sit below the header instead. */
+.proto-shared-space-about__letter--flush {
+  margin-top: 0;
+  padding-top: 4px;
+}
+
 .public-join-letter-about {
   display: flex;
   flex-direction: column;
