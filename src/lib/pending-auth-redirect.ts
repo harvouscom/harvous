@@ -14,6 +14,17 @@ const ALLOWED_PENDING_PATHS = [
   /^\/invitations\/[A-Za-z0-9_-]+\/?$/,
   /^\/shared\/note\/[A-Za-z0-9_-]+\/?$/,
   /^\/shared\/thread\/[A-Za-z0-9_-]+\/?$/,
+  /**
+   * Discover → sign-up → back, to finish the install they came for.
+   *
+   * `PublicDiscoverListingPage` has always called `writePendingAuthRedirect`
+   * here, but with no pattern to match it silently stored nothing and returned
+   * false. Resume still worked, riding on `?install=1` surviving inside Clerk's
+   * `redirect_url`, with a 600s sessionStorage record as the backup — so this
+   * was a belt with no braces. Worth having now that every curated reference is
+   * installable and this is the path most new readers arrive by.
+   */
+  /^\/discover\/[A-Za-z0-9_-]+\/?$/,
   /** Marketing / pricing → Harvous Plus checkout after sign-in or sign-up. */
   /^\/upgrade\/?$/,
   /** Legacy upgrade alias. */
