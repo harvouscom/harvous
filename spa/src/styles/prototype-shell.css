@@ -609,6 +609,40 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
     --pds-shell-frame-inset: 8px;
   }
 
+  /*
+   * The frame stops short of the home indicator, instead of running under it.
+   *
+   * Measured in an installed iOS standalone app: the layout viewport is the full screen
+   * (`viewport-fit=cover`), `env(safe-area-inset-bottom)` is 34px, and nothing here was
+   * reading it — so a frame sized `100dvh - 2 * 8px` ended 26px inside that strip. What the
+   * bottom of the paper actually met there was the *display's* corner radius, which is far
+   * larger than the frame's own 18px: the sheet's bottom corners were sliced off by the
+   * physical screen and the frame's rounded bottom never appeared at all, so the page simply
+   * ran off the end rather than finishing.
+   *
+   * Stated as `inset + inset-bottom` rather than `max()` of the two, so the gap below the
+   * sheet mirrors the one above it: the same 8px of shell, just measured from the top of the
+   * indicator strip rather than from the glass. The top gets the same treatment for the same
+   * reason — it is 0 on iOS (`apple-mobile-web-app-status-bar-style: default` insets the web
+   * view itself) but not on an Android PWA, where `cover` does put the toolbar under the
+   * status bar.
+   *
+   * Both `vh` and `dvh`: the second is the one that counts, and a browser without it would
+   * otherwise drop the whole declaration and fall back to the safe-area-blind base rule.
+   */
+  .proto-shell-frame {
+    margin-top: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-top, 0px));
+    margin-bottom: calc(var(--pds-shell-frame-inset) + env(safe-area-inset-bottom, 0px));
+    height: calc(
+      100vh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    );
+    height: calc(
+      100dvh - 2 * var(--pds-shell-frame-inset) - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    );
+  }
+
   .proto-shell {
     grid-template-columns: minmax(0, 1fr);
   }

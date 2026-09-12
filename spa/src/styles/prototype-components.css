@@ -526,7 +526,8 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 0 10px;
+  /* The shell's outer edge for everything below it too — see `--pds-shell-gutter`. */
+  padding: 0 var(--pds-shell-gutter);
   gap: 8px;
 }
 
@@ -1221,8 +1222,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 /* Phones — reclaim horizontal room for the center folder chip so the full folder
    name shows without overlapping the side button groups. */
 @media (max-width: 600px) {
+  /* The padding that used to be here is `--pds-shell-gutter` now, and its phone value is
+     declared with the token in prototype-tokens.css — the paper below the toolbar reads the
+     same number, and an override from this file could not be relied on to win: Vite injects
+     the two stylesheets in an order that does not follow their imports. */
   .proto-toolbar-inner {
-    padding: 0 6px;
     gap: 6px;
   }
 
@@ -21544,6 +21548,25 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /*
+ * Phones: the paper runs out to the toolbar's own edges, and finishes inside the frame's.
+ *
+ * ── Width. On a desktop the 20px here is invisible, because the stack caps at 640px and
+ * centres long before the padding matters. On a 359px shell it is the whole story: the sheet
+ * started 14px inside the first toolbar button and ended 14px inside the avatar, so the two
+ * surfaces that share the window's left edge did not share it. `--pds-shell-gutter` is the
+ * toolbar's own number, so the page now begins where the controls above it begin.
+ *
+ * The sheet's own bottom corners are rounded to match, next to the rule that squares them.
+ */
+@media (max-width: 899px) {
+  .proto-feed,
+  .proto-hub-frame {
+    padding-left: var(--pds-shell-gutter);
+    padding-right: var(--pds-shell-gutter);
+  }
+}
+
+/*
  * The hub's header row, given the width its own layout assumes.
  *
  * On the rail `.proto-shared-space-header` is a block, so the row inside it is full width for
@@ -22022,6 +22045,33 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   background-color: var(--pds-canvas-default);
   background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
   box-shadow: var(--pds-paper-shadow-subtle);
+}
+
+/*
+ * ...except, on a phone, the two corners that sit inside the frame's own.
+ *
+ * The sheet is flush with the shell's floor, and at the phone gutter it reaches to within
+ * 6px of the frame's sides — well inside the frame's 18px radius, which clips with
+ * `overflow: hidden`. Left square, the arc shaves a wedge about 12px wide off each bottom
+ * corner, and the page reads as cut off rather than finished. Radius less gutter puts the
+ * sheet's corners concentric inside the frame's, so the paper ends on the same curve the
+ * shell does.
+ *
+ * Not a retreat to card language: the top corners stay square, which is where the sheet
+ * meets nothing and where the squareness is the point. This is the cut a sheet takes from
+ * the tray it is lying in.
+ *
+ * Phones only, and that is the narrower breakpoint on purpose. Above 600px the gutter goes
+ * back to 10px — where the same wedge is under 2px tall — and past roughly 676px the stack
+ * hits its 640px cap and centres, so the sheet is nowhere near the frame's corners and a
+ * rounded bottom on it would be exactly the card bottom this surface keeps being mistaken
+ * for.
+ */
+@media (max-width: 600px) {
+  .proto-feed-sheet {
+    border-bottom-left-radius: calc(var(--pds-shell-frame-radius) - var(--pds-shell-gutter));
+    border-bottom-right-radius: calc(var(--pds-shell-frame-radius) - var(--pds-shell-gutter));
+  }
 }
 
 .proto-feed-sheet__head {
