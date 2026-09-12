@@ -24,7 +24,7 @@ import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@
 import { hashSeed, mulberry32, seededIndex } from '@/utils/verse-cloze';
 import { noteProseText, pickNoteStem } from '@/utils/note-stem';
 import type { ReviewPromptKey } from '@/utils/review-prompts';
-import { NOTE_LADDER } from '@/utils/review-prompts';
+import { NOTE_LADDER, emphasisDraw } from '@/utils/review-prompts';
 
 /** What a note can be asked, given what it actually has. */
 export interface NoteMaterial {
@@ -40,10 +40,12 @@ export interface NoteMaterial {
    * Rungs the reader has asked not to be given, from Settings.
    *
    * Applied in `resolveNoteRung` alongside the material gates, because the two answer the same
-   * question — can this note be asked this — for different reasons. `note.recognize` is not
-   * switchable, so a note with a body can always be asked something.
+   * question — can this note be asked this — for different reasons. The walk's second pass
+   * ignores it, so a note that can be asked anything is still asked something.
    */
   skip?: ReadonlySet<ReviewPromptKey>;
+  /** Rungs the reader asked for more of. Weighted in the seeded walk; see `emphasisDraw`. */
+  prefer?: ReadonlySet<ReviewPromptKey>;
 }
 
 /**
@@ -83,10 +85,15 @@ export function resolveNoteRung(
    * Without a seed this is the old walk, so callers that only care whether *anything* can
    * be asked (the reviewable-material probe) do not change.
    */
-  const offset = seed ? seededIndex(seed, NOTE_LADDER.length) : 0;
-  const start = (nominal + offset) % NOTE_LADDER.length;
-  for (let i = 0; i < NOTE_LADDER.length; i++) {
-    const key = NOTE_LADDER[(start + i) % NOTE_LADDER.length];
+  /*
+   * Emphasis weights the seeded walk only. The unseeded caller is the probe asking whether a note
+   * can be asked anything at all, and a preference has no bearing on that.
+   */
+  const draw = seed ? emphasisDraw(NOTE_LADDER, material.prefer) : NOTE_LADDER;
+  const offset = seed ? seededIndex(seed, draw.length) : 0;
+  const start = (nominal + offset) % draw.length;
+  for (let i = 0; i < draw.length; i++) {
+    const key = draw[(start + i) % draw.length];
     if (can[key]) return key;
   }
   /*

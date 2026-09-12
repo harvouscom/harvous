@@ -245,7 +245,7 @@ export interface UserProfile {
    */
   timezone?: string | null;
   reminderSettings?: string | null;
-  /** Which Review exercises the reader has turned off. See review-exercise-settings.ts. */
+  /** How much of each Review exercise the reader would like. See review-exercise-settings.ts. */
   reviewExerciseSettings?: string | null;
 }
 

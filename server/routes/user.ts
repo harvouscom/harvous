@@ -96,7 +96,10 @@ import {
   serializeReviewExerciseSettings,
   validateReviewExerciseSettingsInput,
 } from '@/utils/review-exercise-settings';
-import { isPushRemindersSchemaMissing } from '../utils/pg-undefined-relation';
+import {
+  isPushRemindersSchemaMissing,
+  isReviewExerciseSettingsColumnMissing,
+} from '../utils/pg-undefined-relation';
 import { isValidIanaTimeZone } from '../utils/votd-local-date';
 import { handleAPIError } from '@/utils/error-handling';
 import {
@@ -1427,6 +1430,13 @@ app.post('/api/user/review-exercise-settings', requireAuth, rateLimit('write'), 
     }
     return c.json({ success: true, reviewExerciseSettings });
   } catch (error) {
+    if (isReviewExerciseSettingsColumnMissing(error)) {
+      // Not the reader's to fix and not worth a stack trace: the stage has not reached this database.
+      return c.json(
+        { error: 'Exercise preferences are not available yet', code: 'REVIEW_EXERCISES_SCHEMA_MISSING' },
+        503,
+      );
+    }
     const standardError = handleAPIError(error, {
       endpoint: '/api/user/review-exercise-settings',
       action: 'review_exercise_settings',

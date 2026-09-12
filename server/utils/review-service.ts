@@ -214,10 +214,11 @@ import type { ChoiceExercise } from '@/utils/choice-exercise';
 import { reviewExerciseFamily } from '@/utils/review-exercise-families';
 import {
   parseReviewExerciseSettings,
-  skippedKeySet,
+  rungPreferencesFor,
+  type RungPreferences,
 } from '@/utils/review-exercise-settings';
 import {
-  quietedKeySet,
+  mergeRungPreferences,
   reviewDislikeWindowStart,
   type ReviewDislikeRow,
 } from '@/utils/review-exercise-feedback';
@@ -523,7 +524,7 @@ async function loadNoteMaterialUncached(
   out: Map<string, NoteMaterial>,
 ): Promise<Map<string, NoteMaterial>> {
 
-  const [bodies, viaPill, ownPassage, links, quotes, annotated, pool, labels, skip] = await Promise.all([
+  const [bodies, viaPill, ownPassage, links, quotes, annotated, pool, labels, rungPrefs] = await Promise.all([
     db
       .select({
         id: Notes.id,
@@ -600,7 +601,7 @@ async function loadNoteMaterialUncached(
       ),
     loadNoteLabelPool(userId),
     loadNoteSubjectLabels(userId, unique),
-    loadSkippedRungs(userId),
+    loadRungPreferences(userId),
   ]);
 
   const withAnnotation = new Set(
@@ -647,7 +648,8 @@ async function loadNoteMaterialUncached(
       canPassage: withPassage.has(row.id),
       canConnect: withLink.has(row.id),
       canAnnotation: withAnnotation.has(row.id),
-      skip,
+      skip: rungPrefs.skip,
+      prefer: rungPrefs.prefer,
     });
   }
   return out;
@@ -1256,10 +1258,13 @@ export async function buildReviewItemViews(
  * one response. The cache is per-call rather than process-wide: a preference changed in Settings
  * must take effect on the next question, not the next deploy.
  */
-const skipCache = new Map<string, Promise<ReadonlySet<ReviewPromptKey>>>();
+const emphasisCache = new Map<string, Promise<RungPreferences>>();
 
-async function loadPreferredSkips(userId: string): Promise<ReadonlySet<ReviewPromptKey>> {
-  const cached = skipCache.get(userId);
+/** What a reader with no stored preferences, or an unreadable one, resolves with. */
+const NO_RUNG_PREFERENCES: RungPreferences = { skip: new Set(), prefer: new Set() };
+
+async function loadPreferredEmphasis(userId: string): Promise<RungPreferences> {
+  const cached = emphasisCache.get(userId);
   if (cached) return cached;
   const pending = (async () => {
     try {
@@ -1268,19 +1273,19 @@ async function loadPreferredSkips(userId: string): Promise<ReadonlySet<ReviewPro
         .from(UserMetadata)
         .where(eq(UserMetadata.userId, userId))
         .limit(1);
-      return skippedKeySet(parseReviewExerciseSettings(row?.value ?? null));
+      return rungPreferencesFor(parseReviewExerciseSettings(row?.value ?? null));
     } catch {
       /*
        * An unreadable preference is "no preferences", never a broken queue. This runs before the
        * column exists on a database the migration has not reached, and Review working is worth
        * more than a preference being honoured a deploy early.
        */
-      return new Set<ReviewPromptKey>();
+      return NO_RUNG_PREFERENCES;
     }
   })();
-  skipCache.set(userId, pending);
+  emphasisCache.set(userId, pending);
   // Cleared on the next tick: within one request the answer is fixed, across requests it is not.
-  void pending.finally(() => queueMicrotask(() => skipCache.delete(userId)));
+  void pending.finally(() => queueMicrotask(() => emphasisCache.delete(userId)));
   return pending;
 }
 
@@ -1293,9 +1298,9 @@ async function loadPreferredSkips(userId: string): Promise<ReadonlySet<ReviewPro
  * first letters are its letters, marked wrong for correctly knowing the wording they actually
  * read. `UserMetadata.defaultTranslation` has existed the whole time; nothing in this file read it.
  *
- * Memoised beside `loadPreferredSkips` and for the same reason: a sitting resolves a rung for
+ * Memoised beside `loadPreferredEmphasis` and for the same reason: a sitting resolves a rung for
  * every item in it and each one needs the same answer. The stronger reason is the one
- * `loadSkippedRungs` states next door — the list, the reveal, the grader and the truth must
+ * `loadRungPreferences` states next door — the list, the reveal, the grader and the truth must
  * resolve the *same* thing, or the reader is marked against text they were never shown. A read per
  * item could answer differently mid-request if the row changed underneath it; one read cannot.
  *
@@ -1311,7 +1316,7 @@ async function loadDefaultTranslation(userId: string): Promise<string> {
     try {
       return await getUserDefaultTranslation(userId);
     } catch {
-      // The same bargain `loadPreferredSkips` makes: a preference that cannot be read is the
+      // The same bargain `loadPreferredEmphasis` makes: a preference that cannot be read is the
       // default, never a broken queue.
       return DEFAULT_REVIEW_TRANSLATION;
     }
@@ -1356,7 +1361,7 @@ async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
       return rows as ReviewDislikeRow[];
     } catch {
       /*
-       * The same bargain `loadPreferredSkips` strikes: on a database the migration has not
+       * The same bargain `loadPreferredEmphasis` strikes: on a database the migration has not
        * reached, `rungKey` does not exist and this throws. A Review that asks without leaning
        * away is worth far more than a Review that will not open.
        */
@@ -1369,22 +1374,21 @@ async function loadRecentDislikes(userId: string): Promise<ReviewDislikeRow[]> {
 }
 
 /**
- * Every reason to walk past a rung: what the reader switched off, and what they keep thumbing down.
+ * Everything that moves a rung: the reader's emphasis, and what they keep thumbing down.
  *
  * One function, because the list, the reveal, the grader and the truth must resolve the same rung
- * from the same material — if the two halves entered by different doors they could diverge. Both
- * halves fail soft to empty, and neither can return nothing: quieting joins `material.skip`, which
- * every walk already treats as a reason to move on rather than a reason to stop.
+ * from the same material — if the halves entered by different doors they could diverge. Both
+ * halves fail soft to empty, and neither can make a question impossible: Less and quieting join
+ * `material.skip`, which every walk treats as a reason to move on rather than a reason to stop,
+ * and More only weights a draw. Which of the two wins where they disagree is
+ * `mergeRungPreferences`.
  */
-async function loadSkippedRungs(userId: string): Promise<ReadonlySet<ReviewPromptKey>> {
+async function loadRungPreferences(userId: string): Promise<RungPreferences> {
   const [preferred, dislikes] = await Promise.all([
-    loadPreferredSkips(userId),
+    loadPreferredEmphasis(userId),
     loadRecentDislikes(userId),
   ]);
-  if (!dislikes.length) return preferred;
-  const merged = new Set<ReviewPromptKey>(preferred);
-  for (const key of quietedKeySet(dislikes)) merged.add(key);
-  return merged;
+  return mergeRungPreferences(preferred, dislikes);
 }
 
 /** The tally behind the card's "Noted." — read after a vote lands, so it bypasses the memo. */
@@ -2281,7 +2285,7 @@ async function loadVerseMaterialUncached(
   const at = lastVerseOf(ref);
   if (!at) return { ...EMPTY_VERSE_MATERIAL, reference: ref };
 
-  const [knowledge, citing, ownHtml, rivals, readerSpan, skip] = await Promise.all([
+  const [knowledge, citing, ownHtml, rivals, readerSpan, rungPrefs] = await Promise.all([
     getKnowledgeForReference(at.book, at.chapter, at.verse, {
       minRelevance: 0,
       minVotes: CROSSREF_MIN_VOTES,
@@ -2294,7 +2298,7 @@ async function loadVerseMaterialUncached(
     listUserVerseReferences(userId, ref),
     // What the reader marked on this verse, for the rung that asks them to find it again.
     loadReaderSpan(userId, ref).catch(() => null),
-    loadSkippedRungs(userId),
+    loadRungPreferences(userId),
   ]);
   const text = ownHtml ? stripHtml(ownHtml) : '';
   const markedSpan = readerSpanFragment(readerSpan, text);
@@ -2367,7 +2371,8 @@ async function loadVerseMaterialUncached(
     contentWordCount: contentWords(text).length,
     readerSpanWords: markedSpan ? markedSpan.split(' ').filter(Boolean).length : 0,
     markedSpan,
-    skip,
+    skip: rungPrefs.skip,
+    prefer: rungPrefs.prefer,
   };
 }
 
@@ -2972,13 +2977,13 @@ async function loadChapterMaterialUncached(
   const parts = reference ? chapterKeyPartsFromReference(reference) : null;
   if (!parts) return EMPTY_CHAPTER_MATERIAL;
   const label = chapterReferenceLabel(parts);
-  const [html, highlightedNumbers, knowledge, citedInNotes, lastReadAt, skip] = await Promise.all([
+  const [html, highlightedNumbers, knowledge, citedInNotes, lastReadAt, rungPrefs] = await Promise.all([
     fetchVerseText(label, translation).catch(() => ''),
     loadReaderHighlightsInChapter(userId, parts),
     getKnowledgeForChapter(parts.book, parts.chapter).catch(() => null),
     countNotesCitingChapter(userId, parts),
     loadLastReadAt(userId, parts),
-    loadSkippedRungs(userId),
+    loadRungPreferences(userId),
   ]);
   const verses = html ? splitChapterHtmlIntoVerses(html) : [];
   const people = (knowledge?.people ?? []).map((p) => p.name);
@@ -2999,7 +3004,8 @@ async function loadChapterMaterialUncached(
     personCount: askablePeople(people).length,
     placeCount: askablePlaces(places).length,
     highlightCount: highlightedNumbers.length,
-    skip,
+    skip: rungPrefs.skip,
+    prefer: rungPrefs.prefer,
   };
 }
 
