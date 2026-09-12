@@ -584,28 +584,28 @@ export default function PrototypeReviewDock() {
    * and no framing line.
    */
   /*
-   * Where the question came from, under the verdict — and only when there is something to say.
+   * What the reader wrote on this passage, under the verdict.
    *
-   * The first cut rendered a "From your Harvous" heading whenever the item had so much as a
-   * note id, which on most items meant a heading over a single button, stacked above the
-   * Next / Enough row, stacked above whatever else the card had left: three rows of buttons
-   * and an orphaned caption. That is the card losing its shape to a feature.
+   * **Their words only.** This started as a general "where did this come from" block and
+   * rendered whatever it could find — a note id, or a provenance line like "Cross-referenced 27
+   * times." Neither earns the heading: the first is a button, and the second is a fact from the
+   * curated index that is already on the row the reader tapped to get here. A heading reading
+   * "From your Harvous" over an index statistic is a claim the block cannot keep.
    *
-   * So the block is text or nothing — the provenance line, what they marked, what they wrote.
-   * The two ways back are buttons, and the card already has a row for buttons; they go there,
-   * after the way on, in the same size and style as everything beside them.
+   * What was actually missing is the one thing the reveal never fetched: the highlight they
+   * marked and the thought they wrote on it. So that is all this is, and on an item with
+   * neither it renders nothing at all — which is most of them, and correct.
+   *
+   * The two ways back are buttons and live in the card's own actions row; see below.
    */
   const resultContextBlock = (() => {
-    const context = lastResult?.context;
-    if (!context) return null;
-    const quote = context.annotation?.quote?.trim() || null;
-    const thought = context.annotation?.thought?.trim() || null;
-    const source = context.framing?.trim() || context.sourceLabel?.trim() || null;
-    if (!quote && !thought && !source) return null;
+    const annotation = lastResult?.context?.annotation;
+    const quote = annotation?.quote?.trim() || null;
+    const thought = annotation?.thought?.trim() || null;
+    if (!quote && !thought) return null;
     return (
       <div className="proto-review-dock__context">
         <p className="proto-caption proto-review-dock__truth-label">{REVIEW_CONTEXT_LABEL}</p>
-        {source ? <p className="proto-review-dock__context-source">{source}</p> : null}
         {quote ? (
           <>
             <p className="proto-caption proto-review-dock__context-label">
@@ -1277,6 +1277,16 @@ export default function PrototypeReviewDock() {
            */
           <div className="proto-review-dock__result">
             {/*
+              * Everything the reader reads scrolls; the way on does not.
+              *
+              * A result card grows with what it has to say — the question, their answer, the
+              * verse restored, the verdict, what they wrote on the passage — and on a long one
+              * the buttons were simply below the fold, so "Next one" was a scroll away on
+              * exactly the cards that were most work to get through. Same shape as the planner
+              * editor's rail: a scrolling body over a footer that owns the bottom edge.
+              */}
+            <div className="proto-review-dock__result-scroll">
+            {/*
               * The question, first, because a result that does not say what was asked is a
               * sentence with no subject. It is also the one line that makes the index-keyed
               * rungs read as anything at all: "The reference works say / Moses" means nothing
@@ -1390,12 +1400,13 @@ export default function PrototypeReviewDock() {
               </p>
             </div>
             {resultContextBlock}
+            </div>
             {/*
               * The reader decides when the next one comes. Both ways are offered: stopping
               * after one is a whole act, and a card with only "next" on it would say otherwise.
               * The ways back sit after them, in the same row.
               */}
-            <div className="proto-review-dock__actions">
+            <div className="proto-review-dock__actions proto-review-dock__actions--footer">
               <button
                 type="button"
                 className="proto-settings-btn proto-settings-btn--compact"
