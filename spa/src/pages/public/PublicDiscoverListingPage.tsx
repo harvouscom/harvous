@@ -86,22 +86,29 @@ export default function PublicDiscoverListingPage() {
    *
    * `preview.official` means Harvous published this itself. It changes the kicker
    * and the footer — the account that ran the seed is not the author, and a
-   * built-in has no `NoteTemplates` row to name one from — and it changes the
-   * action, because an official template ships in `getBuiltInTemplates()` and is
-   * already in every account under the browse sheet's "Included" tab. Wording is
-   * harvous.com's, verbatim, so the two products describe a listing the same way.
+   * built-in has no `NoteTemplates` row to name one from. That much is true of
+   * any kind Harvous might ever publish, so `isOfficial` alone still drives both.
+   *
+   * It does **not** alone mean the reader already has it. Only a *template*
+   * ships in `getBuiltInTemplates()` and is already in every account under the
+   * browse sheet's "Included" tab — a note, pack, or resource has no such
+   * pre-installed twin, however the admin checkbox happens to be ticked. `isBuiltIn`
+   * is the narrower fact and is what gates every "there is nothing to install"
+   * behavior below; `isOfficial` on its own stays copy-only.
    */
   const isOfficial = Boolean(listing?.preview?.official);
+  const isBuiltIn = isOfficial && listing?.kind === 'template';
 
   /* Replay after Clerk returns. Also covers ?install=1 arriving already signed
      in, which is the common case for someone who is logged in on this device. */
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !listing || startedRef.current) return;
-    /* Nothing to replay for an official listing — signing up *is* what hands it
-       over, and the server refuses the install as `ALREADY_INCLUDED`. Without
-       this, a visitor who pressed "Get Harvous free" would come back from sign-up
-       to an error on the template they had just been given. */
-    if (isOfficial) return;
+    /* Nothing to replay for a built-in — signing up *is* what hands it over,
+       and the server refuses the install as `ALREADY_INCLUDED`. Without this, a
+       visitor who pressed "Get Harvous free" would come back from sign-up to an
+       error on the template they had just been given. Any other official kind
+       still has a real install waiting, so it replays normally. */
+    if (isBuiltIn) return;
     const params = new URLSearchParams(window.location.search);
     let pending = params.get('install') === '1';
     try {
@@ -120,13 +127,13 @@ export default function PublicDiscoverListingPage() {
   }, [isLoaded, isSignedIn, listing, slug]);
 
   function handlePress() {
-    if (isSignedIn && !isOfficial) {
+    if (isSignedIn && !isBuiltIn) {
       void doInstall();
       return;
     }
-    /* An official listing parks nothing: there is no install waiting on the other
-       side of sign-up, only the account that already includes it. */
-    if (!isOfficial) {
+    /* A built-in parks nothing: there is no install waiting on the other side of
+       sign-up, only the account that already includes it. */
+    if (!isBuiltIn) {
       try {
         sessionStorage.setItem(PENDING_KEY, JSON.stringify({ slug, timestamp: Date.now() }));
       } catch {
@@ -241,16 +248,20 @@ export default function PublicDiscoverListingPage() {
                         </div>
                       ) : null}
                       {/*
-                        An official listing is not something you take — it ships with
-                        the app, under the browse sheet's "Included" tab, from
+                        A built-in is not something you take — it ships with the app,
+                        under the browse sheet's "Included" tab, from
                         `getBuiltInTemplates()`. So a member already has it, and there
                         is nothing to press; for a visitor the honest action is not
                         "save this" but "get Harvous", because an account is the whole
                         thing that hands it over. Offering "Save this to my Harvous"
                         for both was the button promising a copy nobody needs — and
                         the server would have minted a duplicate to keep the promise.
+
+                        Gated on `isBuiltIn`, not `isOfficial`: only a template has a
+                        pre-installed twin. An official note or pack still needs a real
+                        install, so it falls through to the ordinary button below.
                       */}
-                      {isOfficial ? (
+                      {isBuiltIn ? (
                         isSignedIn ? (
                           <div className="public-already-member" role="status">
                             This one is already in your templates.

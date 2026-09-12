@@ -52,4 +52,18 @@ describe('discover panel: the guest contract', () => {
     expect(text).toMatch(/isGuest[\s\S]{0,80}caret-right/);
     expect(text).toMatch(/aria-label=\{[\s\S]{0,120}isGuest/);
   });
+
+  /*
+   * Only a template has a pre-installed twin (`getBuiltInTemplates()`). An
+   * official note or pack has no such row, so reading `preview?.official` alone
+   * marked it already-installed and hid the only way to actually take it — the
+   * server would have accepted the install fine. Found by an automated review.
+   */
+  it('reads a built-in as already-installed only for templates', () => {
+    const text = panel();
+    expect(text).toContain(
+      "const isBuiltIn = listing.kind === 'template' && Boolean(listing.preview?.official);",
+    );
+    expect(text).toContain('installed.has(listing.slug) || isBuiltIn');
+  });
 });

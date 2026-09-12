@@ -303,16 +303,21 @@ export default function PrototypeExpandedDiscover({
           <div className="proto-planner-list">
             <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
               {rows.map((listing) => {
-                /* An official listing ships with the app — it is already under the
-                   browse sheet's "Included" tab, from `getBuiltInTemplates()` — so
-                   it reads as already-yours here too. Tapping it would have asked
-                   the server for a duplicate, which now refuses as
+                /* An official *template* ships with the app — it is already under
+                   the browse sheet's "Included" tab, from `getBuiltInTemplates()` —
+                   so it reads as already-yours here too. Tapping it would have
+                   asked the server for a duplicate, which refuses as
                    `ALREADY_INCLUDED`; better not to offer the tap at all.
+
+                   Kind-gated: only a template has that pre-installed twin. An
+                   official note or pack has no `getBuiltInTemplates()` equivalent,
+                   so treating it as already-installed here would hide the only way
+                   to actually take it — the server would accept the install fine.
 
                    Never for a guest, who has no account for anything to be "in" —
                    their row stays tappable so it can still reach the sign-up page. */
-                const isInstalled =
-                  !isGuest && (installed.has(listing.slug) || Boolean(listing.preview?.official));
+                const isBuiltIn = listing.kind === 'template' && Boolean(listing.preview?.official);
+                const isInstalled = !isGuest && (installed.has(listing.slug) || isBuiltIn);
                 const busy = installingSlug === listing.slug;
                 return (
                   <button

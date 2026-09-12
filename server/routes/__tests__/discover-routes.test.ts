@@ -227,6 +227,18 @@ describe('discover routes', () => {
   });
 
   /*
+   * Only a template has a pre-installed twin. An official note, pack, or
+   * resource has no `getBuiltInTemplates()` equivalent — refusing those the
+   * same way told someone they already had something they did not, and
+   * blocked the only way to actually get it. Found by an automated review,
+   * confirmed against the code, and fixed in the same pass.
+   */
+  it('reserves the already-included refusal for templates', () => {
+    const body = handlerBody(routes(), "app.post('/api/discover/install'");
+    expect(body).toContain("listing.kind === 'template' && isOfficialListing(listing.preview)");
+  });
+
+  /*
    * A church's link is not the member's to publish, even once it sits on their
    * own shelf. `snapshotResource` settles the direct case by scoping to
    * `findPersonalLibrary`; it cannot settle the same URL retyped, because

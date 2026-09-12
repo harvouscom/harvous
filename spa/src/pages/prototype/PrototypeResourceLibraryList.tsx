@@ -1176,14 +1176,21 @@ export default function PrototypeResourceLibraryList({
    *
    * A refusal does not abort the batch. The server turns down anything the
    * submitter's church keeps to its leaders (`CHURCH_MATERIAL_RESTRICTED`) and
-   * anything already offered, and those are ordinary outcomes in a multi-select,
-   * not errors — so they are counted and named at the end. Only a failure that
-   * is none of those stops the run.
+   * anything already offered (`ALREADY_SUBMITTED`), and those are ordinary
+   * outcomes in a multi-select, not errors — so they are counted and named at
+   * the end. Only a failure that is none of those stops the run.
+   *
+   * Counted separately, not into one "held" bucket: they are opposite facts.
+   * A church restriction means the link is not the submitter's to give away;
+   * an already-submitted one already *is* theirs, offered a moment they have
+   * forgotten. Merging them told someone their own church blocked a link that
+   * was, in fact, just a harmless duplicate.
    */
   const onBulkShareToDiscover = useCallback(async () => {
     setBulkBusy('discover');
     let sent = 0;
-    let held = 0;
+    let restricted = 0;
+    let duplicate = 0;
     try {
       for (const item of selectedResourceItems) {
         if (!item.sourceUrl) continue;
@@ -1192,15 +1199,23 @@ export default function PrototypeResourceLibraryList({
           sent += 1;
         } catch (err: unknown) {
           const code = err instanceof APIError ? err.code : null;
-          if (code === 'CHURCH_MATERIAL_RESTRICTED' || code === 'ALREADY_SUBMITTED') {
-            held += 1;
+          if (code === 'CHURCH_MATERIAL_RESTRICTED') {
+            restricted += 1;
+            continue;
+          }
+          if (code === 'ALREADY_SUBMITTED') {
+            duplicate += 1;
             continue;
           }
           throw err;
         }
       }
       const offered = sent === 1 ? 'Offered 1 to Discover' : `Offered ${sent} to Discover`;
-      window.toast?.success(held > 0 ? `${offered} · ${held} not yours to share` : offered);
+      const notes = [
+        restricted > 0 ? `${restricted} not yours to share` : null,
+        duplicate > 0 ? `${duplicate} already offered` : null,
+      ].filter((note): note is string => note !== null);
+      window.toast?.success(notes.length > 0 ? `${offered} · ${notes.join(' · ')}` : offered);
     } catch (err) {
       toastError(err, 'Could not offer every resource');
     } finally {

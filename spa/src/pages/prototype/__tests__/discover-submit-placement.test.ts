@@ -65,6 +65,23 @@ describe('discover submit placement', () => {
     expect(text).toContain("kind: 'resource'");
   });
 
+  /*
+   * `CHURCH_MATERIAL_RESTRICTED` and `ALREADY_SUBMITTED` are opposite facts —
+   * "not yours to share" and "already yours, already sent" — and were once
+   * merged into one "held" bucket that told a person their church blocked a
+   * link that was really just a harmless duplicate. An automated review caught
+   * the wording; this pins the two counts staying apart.
+   */
+  it('counts a church restriction and an already-submitted duplicate separately', () => {
+    const text = resourceList();
+    expect(text).toContain('let restricted = 0;');
+    expect(text).toContain('let duplicate = 0;');
+    expect(text).not.toContain('let held = 0;');
+    expect(text).toContain("code === 'CHURCH_MATERIAL_RESTRICTED'");
+    expect(text).toContain("code === 'ALREADY_SUBMITTED'");
+    expect(text).toContain('already offered');
+  });
+
   it('offers it only on rows from the reader own shelf', () => {
     // `ResourceRow` is the personal branch of the merged list; a church's or a
     // room's shelf renders `ChurchResourceRow`, which is not yours to give away.

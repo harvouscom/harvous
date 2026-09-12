@@ -740,10 +740,15 @@ app.post('/api/discover/install', requireAuth, rateLimit('write'), async (c) => 
      * of that: it mints a fresh `ntpl_` row from the payload, so pressing the
      * button put a second SOAP in the picker, one Included and one Personal.
      *
+     * Kind-gated on purpose. Only a template has that pre-installed twin — an
+     * official note, pack, or resource has no `getBuiltInTemplates()` equivalent,
+     * so refusing those the same way would tell someone they already have
+     * something they do not, and block the only way to actually get it.
+     *
      * Refused rather than made a no-op, so a caller is told why. Same category as
      * `SELF_INSTALL` directly above and worded the same way: you already have it.
      */
-    if (isOfficialListing(listing.preview)) {
+    if (listing.kind === 'template' && isOfficialListing(listing.preview)) {
       return c.json({ error: 'Already in your Harvous', code: 'ALREADY_INCLUDED' }, 400);
     }
     if (!SUPPORTED_KINDS.has(listing.kind)) {

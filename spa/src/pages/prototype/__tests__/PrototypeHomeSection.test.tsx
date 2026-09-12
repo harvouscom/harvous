@@ -12,7 +12,7 @@
  * Asserted on the fold *class* rather than computed display: the rule that acts
  * on it lives in `prototype-components.css`, which jsdom never loads.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import PrototypeHomeSection from '../PrototypeHomeSection';
@@ -117,5 +117,49 @@ describe('PrototypeHomeSection folding', () => {
     );
     expect(foldedCount(container)).toBe(0);
     expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  /*
+   * `children` is a fresh `ReactNode` reference every render — the real caller
+   * builds it inline — so it must not be a dependency of the effect that owns
+   * the MutationObserver, or every unrelated parent render tears one down and
+   * builds another just to duplicate what the still-attached observer already
+   * reports via its own `childList` watch.
+   */
+  it('does not rebuild its MutationObserver on a re-render that leaves the rows alone', () => {
+    const disconnect = vi.fn();
+    // A plain function, not an arrow: `mockImplementation` is invoked with `new`,
+    // and an arrow function cannot be a constructor.
+    const observeSpy = vi.spyOn(globalThis, 'MutationObserver').mockImplementation(function (
+      this: MutationObserver,
+    ) {
+      this.observe = vi.fn();
+      this.disconnect = disconnect;
+      this.takeRecords = () => [];
+      return this;
+    } as unknown as typeof MutationObserver);
+
+    const rows = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((k) => <Row key={k} label={k} />);
+    const { rerender } = render(
+      <PrototypeHomeSection title="Suggested" foldAfter={5}>
+        {rows}
+      </PrototypeHomeSection>,
+    );
+    expect(observeSpy).toHaveBeenCalledTimes(1);
+
+    // A different `children` reference, same rows — exactly what an unrelated
+    // parent re-render produces.
+    rerender(
+      <PrototypeHomeSection title="Suggested" foldAfter={5}>
+        {['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((k) => (
+          <Row key={k} label={k} />
+        ))}
+      </PrototypeHomeSection>,
+    );
+
+    expect(observeSpy).toHaveBeenCalledTimes(1);
+    expect(disconnect).not.toHaveBeenCalled();
+
+    observeSpy.mockRestore();
   });
 });

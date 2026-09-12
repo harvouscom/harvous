@@ -84,7 +84,13 @@ export default function PrototypeHomeSection({
     const observer = new MutationObserver(applyFold);
     observer.observe(panel, { childList: true });
     return () => observer.disconnect();
-  }, [applyFold, foldAfter, children]);
+    // `children` deliberately left out: it is a fresh reference on every parent
+    // render (the sole caller builds it inline), so listing it here rebuilt the
+    // observer on every render regardless of whether a row was actually added or
+    // removed. The already-attached observer's own `childList` watch is what
+    // catches a real change — that is the whole reason it exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyFold, foldAfter]);
 
   const folded = foldAfter === undefined ? 0 : Math.max(0, rowCount - foldAfter);
   /* Once open, the bar has to stay to close it again — `folded` is 0 while expanded. */
