@@ -14425,14 +14425,22 @@ html.harvous-prototype-route
   background: var(--pds-border-on-paper);
 }
 
-/* Learning: the first of three. */
+/*
+ * Learning: the first of three.
+ *
+ * `--pds-accent-indicator`, not `--pds-accent`. The dock's goes-dots next to the same question
+ * use the indicator blue, and these two marks sit a tap apart on the same journey — the row you
+ * press and the card it opens — so two blues a shade off each other read as a mistake rather
+ * than as a distinction. The indicator token is the one for a small filled state like this;
+ * `--pds-accent` is the button blue.
+ */
 .proto-recall-mark[data-hold='learning'] .proto-recall-mark__seg:nth-child(1) {
-  background: var(--pds-accent);
+  background: var(--pds-accent-indicator);
 }
 
 /* Held: all three. */
 .proto-recall-mark[data-hold='held'] .proto-recall-mark__seg {
-  background: var(--pds-accent);
+  background: var(--pds-accent-indicator);
 }
 
 /*

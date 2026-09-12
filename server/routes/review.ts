@@ -226,7 +226,17 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
   try {
     const auth = getAuthenticatedAuth(c);
     const now = new Date();
-    await refillReviewQueue(auth.userId, now);
+    /*
+     * The engine tops up beside this read, not in front of it.
+     *
+     * Refill was awaited first, which put half a second of engine work between the reader and a
+     * sitting that, nine times in ten, it changed nothing about — it is capped at a handful a day
+     * and most opens find the cap already spent. What it *does* add is not lost: the inbox read
+     * still awaits it, Home loads before the dock opens, and anything it creates during this
+     * read is in the next sitting. A sitting is a fixed set on purpose; one composed a beat before
+     * the engine finished is the same thing it always was.
+     */
+    void refillReviewQueue(auth.userId, now).catch(() => {});
     const [due, upcoming] = await Promise.all([
       listDueReviewItems(auth.userId, REVIEW_SESSION_CAP + REVIEW_INBOX_UNASKABLE_SLACK, now),
       listUpcomingReviewItems(auth.userId, REVIEW_SESSION_CAP, now),
@@ -245,7 +255,26 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
       REVIEW_SESSION_CAP,
       now,
     );
-    const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
+    /*
+     * The first question's exercise, built *beside* the views rather than after them.
+     *
+     * The reveal stays its own request for the rungs where fetching it *is* the signal "I need
+     * to see it" — but on a marked rung the payload is the exercise, without which there is
+     * nothing to answer, and the page asks for it the instant it renders. It used to be built
+     * once the views were done, which was the two longest phases of this route run end to end:
+     * ~750ms of views, then ~700ms of reveal, for a reader looking at loading dots.
+     *
+     * Both load the same material, and the material is memoised for a few seconds, so running
+     * them together costs one flight rather than two — the reveal's loads join the views' rather
+     * than repeating them. Built speculatively for the head of the sitting: the views can drop
+     * an unaskable row, so if the first *view* turns out not to be the first *row* the reveal is
+     * simply discarded and the page fetches its own, as it always could.
+     */
+    const headRow = rows[0] ?? null;
+    const [items, speculativeReveal] = await Promise.all([
+      buildReviewItemViews(auth.userId, rows, { dropUnaskable: true }),
+      headRow ? buildReviewReveal(auth.userId, headRow).catch(() => null) : Promise.resolve(null),
+    ]);
     /*
      * Bookkeeping, so it happens beside the response rather than in front of it. These were
      * awaited one row at a time, which put a write per item between the reader and their
@@ -267,20 +296,10 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
       }),
     ).catch(() => {});
 
-    /*
-     * The first question's exercise, sent with the question.
-     *
-     * The reveal stays its own request for the rungs where fetching it *is* the signal "I need
-     * to see it" — but on a marked rung the payload is the exercise, without which there is
-     * nothing to answer, and the page asks for it the instant it renders. Two sequential trips
-     * meant the prompt appeared and its options arrived a second later. Only the first: the
-     * rest are prefetched as the sitting moves.
-     */
     const first = items[0];
-    const firstRow = first ? rows.find((row) => row.id === first.id) : null;
     const firstReveal =
-      firstRow && reviewRungIsGraded(first!)
-        ? await buildReviewReveal(auth.userId, firstRow).catch(() => null)
+      first && headRow && first.id === headRow.id && reviewRungIsGraded(first)
+        ? speculativeReveal
         : null;
 
     /*

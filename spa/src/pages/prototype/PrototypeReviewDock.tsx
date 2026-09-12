@@ -62,7 +62,7 @@ import { useHasFeature } from '../../hooks/useHasFeature';
 import {
   useReviewItems,
   useReviewReveal,
-  usePrefetchReviewReveal,
+  usePrefetchReviewReveals,
   useReviewSession,
   type ReviewItemView,
 } from '../../hooks/queries/useReview';
@@ -465,9 +465,8 @@ export default function PrototypeReviewDock() {
    */
   const isGradedRung = item ? reviewRungIsGraded(item) : false;
   const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed || isGradedRung });
-  // The one after this one, fetched while the reader is still on this one.
-  const nextItem = sessionItems[sessionItems.findIndex((i) => i.id === item?.id) + 1];
-  usePrefetchReviewReveal(nextItem && reviewRungIsGraded(nextItem) ? nextItem.id : null);
+  // Every marked question in the sitting, warmed once the session lands — see the hook.
+  usePrefetchReviewReveals(sessionItems);
   const outcome = useReviewOutcome();
   const setStatus = useSetReviewStatus();
   const defer = useDeferReview();
