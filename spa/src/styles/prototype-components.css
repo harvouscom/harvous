@@ -23206,14 +23206,30 @@ button.proto-feed-sheet__stat:hover {
   letter-spacing: 0.04em;
 }
 
-/* Which note the question is about, when the question itself does not name it. Quiet, and
-   directly under the prompt so the two read as one thing. */
+/*
+ * Which note the question is about, when the question itself does not name it.
+ *
+ * Subordinate to the prompt and attached to it — smaller, lighter, and close enough that the two
+ * read as one thing. That pairing is the point: the instruction says what to do, this says what
+ * to do it about.
+ *
+ * It was `--pds-text-tertiary` at 13px — 32% alpha, around 2:1 against the card, under any
+ * contrast floor there is. That was wrong twice over. It failed contrast outright, and it made a
+ * hierarchy decision that does not survive reading the card: on most rungs this line is the only
+ * thing naming *what the question is about*, so "Pick the passage you wrote this on" above a
+ * near-invisible grey line is an instruction with its subject whispered.
+ *
+ * So it sits at the prompt's own level — same size, same colour, same weight. The two are a pair,
+ * not a heading and a footnote: one says what to do, the other says what to do it about, and
+ * neither is worth more than the other. They stay tightly grouped so they read as one block, and
+ * the difference between them is what they say rather than how loudly they say it.
+ */
 .proto-review-dock__subject {
-  margin: calc(var(--pds-space-2) * -1) 0 0;
+  margin: calc(var(--pds-space-1) * -1) 0 0;
   font-family: var(--pds-font-body);
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--pds-text-tertiary);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
 }
 
 /* The collapsed header line's second half — what is waiting, without opening the card. */
@@ -23651,6 +23667,50 @@ button.proto-feed-sheet__stat:hover {
 .proto-review-dock__gap-letter {
   color: var(--pds-text-secondary);
   font-variant-caps: normal;
+}
+
+/*
+ * "From your Harvous" — where the question came from, under the verdict.
+ *
+ * Set off by a rule rather than a panel: it is the same card still, saying one more thing about
+ * the same question. A boxed block would read as a second card stacked inside the first.
+ */
+.proto-review-dock__context {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--pds-separator);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-review-dock__context-source {
+  color: var(--pds-text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.proto-review-dock__context-label {
+  margin: 4px 0 0;
+}
+
+/* The reader's own marking, quoted the way the app quotes Scripture back to them. */
+.proto-review-dock__context-quote {
+  font-style: italic;
+}
+
+.proto-review-dock__context-thought {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+.proto-review-dock__context-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 /* The line offered after a miss. Sits above the retry line, quieter than it. */

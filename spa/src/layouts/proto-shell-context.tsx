@@ -511,6 +511,27 @@ export type ReviewDockResult = {
   correctAnswer?: string | null;
   /** True when that answer is the curated index's reading rather than the text's or the reader's. */
   fromIndex?: boolean;
+  /**
+   * Where this question came from, in the reader's own study.
+   *
+   * The result card is the one surface in Review that had nothing of this: it said what was
+   * asked, what they answered and when it returns, and never that the verse was one they marked
+   * while reading, or quoted the paragraph they wrote on it. All of it is already known — the
+   * source line rides on the item, the annotation on the reveal — and none of it was shown.
+   */
+  context?: {
+    /** "Highlighted while reading Romans 8:15", "You wrote this". From the item's own row. */
+    sourceLabel?: string | null;
+    sourceAt?: string | null;
+    /** The provenance sentence the Home row leads with, already filled. */
+    framing?: string | null;
+    /** What they marked, and what they wrote on it. Either half may be missing. */
+    annotation?: { quote: string | null; thought: string | null } | null;
+    /** The note this is about, for the way back to it. */
+    note?: { id: string; title: string | null } | null;
+    /** The passage, for the way back into the reader. */
+    reference?: string | null;
+  } | null;
   /** Set fresh on each answer so the dock's dwell timer restarts. */
   at: number;
 };
