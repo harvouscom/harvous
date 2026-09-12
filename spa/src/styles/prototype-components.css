@@ -23250,10 +23250,102 @@ button.proto-feed-sheet__stat:hover {
  * question was rather than beside it, because two things in the card at once would make the
  * reader choose which one to read.
  */
+/*
+ * The result card: what the reader reads scrolls, the way on does not.
+ *
+ * The body below is the dock's own scroller and bounds itself to 46vh, which was right while
+ * everything on the card was reading matter. A result is not — it ends in the two buttons that
+ * carry the sitting forward, and on a long card (the question, their answer, the verse restored,
+ * the verdict, what they wrote on the passage) those were below the fold. "Next one" was a
+ * scroll away on exactly the cards that took the most getting through.
+ *
+ * So the result takes the height over: the body stops scrolling while one is up, the reading
+ * scrolls inside it, and the actions sit on the bottom edge with a rule above them. Same shape
+ * as the planner editor's rail, and the same rule as the verdict's, so the card reads as one
+ * thing with a footer rather than two stacked panels.
+ */
+.proto-review-dock__body:has(> .proto-review-dock__result) {
+  overflow: hidden;
+}
+
 .proto-review-dock__result {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  animation: proto-review-result-in 0.24s ease both;
+}
+
+.proto-review-dock__result-scroll {
   display: grid;
   gap: 10px;
-  animation: proto-review-result-in 0.24s ease both;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room under the last line so it clears the footer's rule rather than touching it. */
+  padding-bottom: 10px;
+}
+
+/*
+ * The result's footer, built to match the Library panel's create footer exactly — a filled bar
+ * on the card's bottom edge rather than a row of buttons floating above it.
+ *
+ * Same fill, same rule, same 10/12/12 padding as `.proto-collection-grid-actions`, and for the
+ * same reason: a bar that reaches both edges reads as the floor of the card, so the reading above
+ * it can scroll under something rather than stopping in mid-air.
+ *
+ * Reaching the edges takes the card's own sides and bottom away from it, which is the change to
+ * the dock card this asks for. Done by moving the inset rather than by bleeding out through it:
+ * `.study-dock-card__body` clips its overflow, so a footer pulled out on negative margins would
+ * simply be cut off at the padding box. The card drops its sides and bottom, and the header and
+ * the scrolling body re-apply them — only on a Review card that actually has this footer, so
+ * every other dock in the band is untouched.
+ */
+/*
+ * Only while the card is open. The footer stays in the DOM when the card collapses — the body
+ * is hidden by the wrapper's grid row, not unmounted — so a plain `:has(footer)` went on holding
+ * the card's padding off and the collapsed bar sat with its title against its own bottom edge.
+ * The wrapper says whether any of this is on screen; ask it.
+ */
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  ) {
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  )
+  .study-dock-card__header,
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  )
+  .proto-review-dock__result-scroll {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.proto-review-dock__actions--footer {
+  flex: 0 0 auto;
+  padding: 10px 12px 12px;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-ghost);
+  /* The card's inner radius: its 18px outer, less the 2px border it draws. */
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+/*
+ * The footer's rule is the card's bottom edge. The verdict draws rules on both of its sides, and
+ * it is usually the last thing in the scroller — so without this the card ends on two hairlines
+ * ten pixels apart, which reads as a seam rather than an edge.
+ */
+.proto-review-dock__result-scroll > :last-child {
+  border-bottom: none;
 }
 
 /* A label and the text it names, kept together as one block. */
@@ -23676,18 +23768,9 @@ button.proto-feed-sheet__stat:hover {
  * the same question. A boxed block would read as a second card stacked inside the first.
  */
 .proto-review-dock__context {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--pds-separator);
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.proto-review-dock__context-source {
-  color: var(--pds-text-secondary);
-  font-size: 13px;
-  margin: 0;
 }
 
 .proto-review-dock__context-label {
@@ -23805,9 +23888,22 @@ button.proto-feed-sheet__stat:hover {
  * to two lines so a long question cannot push "Next one" below the fold of a card that already
  * scrolls.
  */
+/*
+ * The question, recapped at the top of the result.
+ *
+ * It was secondary at 14px — the same grey as a caption — so the one line that makes the rest of
+ * the card mean anything read as the least important thing on it. "The answer / Moses" says
+ * nothing until "Pick who appears in John 3." is legible above it.
+ *
+ * Full colour, and a rule under it: it is the heading of the card, and the footer's rule gives
+ * the same shape at the other end. Kept at 14px rather than the asking prompt's 15 because it is
+ * a recap of a question already answered, not the question itself.
+ */
 .proto-review-dock__prompt--asked {
   font-size: 14px;
-  color: var(--pds-text-secondary);
+  color: var(--pds-text-primary);
+  padding-bottom: var(--pds-space-2);
+  border-bottom: 0.5px solid var(--pds-border-on-paper);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
