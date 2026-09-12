@@ -471,7 +471,15 @@ export default function PrototypeReviewDock() {
    * deliberately withholds the verse text as well.
    */
   const isGradedRung = item ? reviewRungIsGraded(item) : false;
-  const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed || isGradedRung });
+  /*
+   * Keyed by the wording too. The key has carried a translation slot since it was written and
+   * nothing ever filled it, so a reader who changed their default mid-session would have been
+   * served a cached reveal in the old words.
+   */
+  const reveal = useReviewReveal(item?.id ?? null, {
+    enabled: revealed || isGradedRung,
+    translation: item?.translation,
+  });
   // Every marked question in the sitting, warmed once the session lands — see the hook.
   usePrefetchReviewReveals(sessionItems);
   const outcome = useReviewOutcome();
@@ -1286,12 +1294,16 @@ export default function PrototypeReviewDock() {
             *
             * Verse and chapter only. A note rung's answer is a reference or one of the reader's
             * own notes; no wording of Scripture is being tested, so the chip would be noise.
-            * `?? 'NET'` is not a guess — it is what every server-side fetch falls back to, so
-            * the label matches the text the reader is actually being shown.
+            *
+            * Printed, never derived. The value is resolved server-side — the item's own wording
+            * where it has one, the account's default otherwise — and the profile carries
+            * `defaultTranslation`, so re-deriving it here would be wrong for every item that
+            * carries a wording of its own. This read `item.translation ?? 'NET'` when the view
+            * did not carry the field at all, so it said NET for everything.
             */}
           {item && reviewDock.expanded && (item.kind === 'verse' || item.kind === 'chapter') ? (
             <span className="scripture-pill-chrome__trans-chip proto-review-dock__header-trans">
-              {item.translation ?? 'NET'}
+              {item.translation}
             </span>
           ) : null}
         </span>
