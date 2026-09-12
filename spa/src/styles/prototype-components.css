@@ -19050,13 +19050,117 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   /*
    * Which chip is the text you are looking at.
    *
-   * The same treatment the chapter menu gives its checked row, because it is the same
-   * statement — this one, of the ones offered. Only at this width: above it both versions are
-   * on screen and marking one would claim a precedence the layout does not have.
+   * One chip carries a surface and the other does not. That is the whole marking, and it is
+   * blunter than the fill-against-fill this shipped with for a reason the dark palette makes
+   * unarguable: the marking was `--pds-bg-row-selected` against the chip's resting
+   * `--pds-bg-chip`, which in light is 6.5% black against 6% — half a percent, on a 10px chip,
+   * beside an identical one — and in dark is `100% 0 0 / 0.1` against `100% 0 0 / 0.1`, the
+   * same value twice. There was no marking in dark mode at all. On a phone, where this width
+   * lives and where the marking matters most because only one version is on screen, that is
+   * the whole question the row exists to answer going unanswered.
+   *
+   * Fill-against-fill is not fixable by reaching for a stronger token, which was the obvious
+   * next move. The neutral ladder is compressed in dark — `--pds-bg-chip`,
+   * `--pds-bg-control-strong` and `--pds-bg-row-selected` are all white at 10% — so every
+   * "one step up" lands back on the resting fill. Present-against-absent is the one difference
+   * that survives both palettes, and it says the same thing in each: the version you are
+   * reading is printed on something, the one waiting behind it is not.
+   *
+   * The other chip keeps its border and its weight, so it still reads as a control you can
+   * press rather than a disabled one — the distinction `.proto-appearance-segmented` draws by
+   * keeping both halves at full colour. It is not dimmed; it is just not the one on screen.
+   *
+   * Colour is not an available arm: `prototype-route-overrides.css` pins every prototype button
+   * and its descendants to `--pds-text-primary !important`, so both chips compute one text
+   * colour whatever this file asks for. Background, weight and a lift are the whole vocabulary
+   * here — the same constraint every segmented control in this file works under.
+   *
+   * The `:hover` arm beats the trigger's own hover fill further down this file. Without it,
+   * pointing at either chip on a narrow desktop window paints both the same and the marking
+   * disappears under the pointer. Moot on a touchscreen, which is most of this width.
+   *
+   * Only at this width: above it both versions are on screen and marking one would claim a
+   * precedence the layout does not have.
    */
-  .pds-reader__trans-trigger--showing {
-    background: var(--pds-bg-row-selected);
+  .pds-reader__trans-trigger.proto-select-menu__trigger,
+  .pds-reader__trans-trigger.proto-select-menu__trigger:hover {
+    background: none;
+    box-shadow: none;
+  }
+
+  .pds-reader__trans-trigger--showing.proto-select-menu__trigger,
+  .pds-reader__trans-trigger--showing.proto-select-menu__trigger:hover {
+    background: var(--pds-bg-control-strong);
+    border-color: var(--pds-border-control-strong);
+    box-shadow: var(--pds-shadow-chip-selected);
     font-weight: 600;
+  }
+
+  /*
+   * While comparing, the heading stays.
+   *
+   * The marking above answers "which version is this" only while the row is on screen, and the
+   * row scrolls away with the chapter — so three verses in, a swipe changed the words and the
+   * only thing that named the new version was off the top of the pane. That is the same
+   * complaint the invisible marking was, arriving one scroll later.
+   *
+   * The whole heading, not just the chips: `.pds-reader__chapter-controls` sits inside the
+   * heading, and a sticky child is confined to its parent's box, so pinning the chips alone
+   * would release them the moment the heading passed. Lifting them out is a worse trade — the
+   * heading's one-row-then-stacked arrangement is built around holding both — and "John 3,
+   * NET against ESV" is the right thing to pin anyway: it is the context for the act, not
+   * decoration on top of it.
+   *
+   * Only while comparing, and only here. A chapter you are simply reading keeps the bare canvas
+   * the reader is for; this bar is the mode's own chrome and leaves when the mode does, which is
+   * why it hangs off `.pds-reader-compare` rather than off the reader.
+   *
+   * The background spans the paper rather than the text column — negative margins out to
+   * `--pds-reader-paper-padding-x` and the same number added back as padding — or verses would
+   * slide through the gap either side of the heading while passing under it. Both variables are
+   * re-declared on `.pds-reader__column` at the narrow widths below, and inherit here, so this
+   * tracks the paper instead of restating its numbers.
+   */
+  .pds-reader-compare .pds-reader__chapter-heading {
+    position: sticky;
+    top: 0;
+    /* `top` is measured from the scrollport's *padding* edge, and the clip region is the padding
+       box — so where `.pds-reader-stack` puts `padding-block` on this scroller, `top: 0` pins the
+       bar one `--pds-space-5` down and leaves a band above it where verses are still painted.
+       They scroll through it in full view, over the top of a bar whose whole job is to be the
+       thing in front. The offset is taken back below, on the class that adds the padding. */
+    /* Above the text (`z-index: 2`) and the margin lane, both of which pass underneath. */
+    z-index: var(--pds-z-sticky);
+    /*
+     * Paper colour, but opaque.
+     *
+     * `--pds-paper-sheet` is translucent — it resolves through `--pds-bg-sidebar` to the
+     * toolbar's glass, and measured 78% white. That is right for the sheet, which lies on the
+     * canvas, and wrong for a bar that verses pass underneath: at 78% the text you scrolled
+     * past reads straight through the chips.
+     *
+     * So the canvas goes down first and the paper is painted over it, which is the same
+     * compositing the sheet already gets from lying on the canvas — the bar matches the paper
+     * exactly rather than approximating it with a solid. `.pds-reader-stack__edge` does this
+     * already and for the same reason.
+     *
+     * This is the one shape the "never pair a gradient with a background-color" note does not
+     * cover: that warns against a colour compositing under a gradient that is meant to *fade*,
+     * where it makes the foot more opaque than the token claims. Here both stops are one flat
+     * colour and the compositing is the whole point.
+     */
+    background-color: var(--pds-canvas-default);
+    background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+    margin-inline: calc(-1 * var(--pds-reader-paper-padding-x));
+    padding-inline: calc(var(--pds-reader-text-inset) + var(--pds-reader-paper-padding-x));
+    padding-block: var(--pds-space-3);
+    /* Without a line, text passing under the bar reads as clipped rather than as going behind
+       something. Soft, because this sits on a reading surface all day. */
+    border-bottom: 0.5px solid var(--pds-border-soft);
+  }
+
+  .pds-reader-stack.pds-reader-compare .pds-reader__chapter-heading {
+    top: calc(-1 * var(--pds-space-5));
   }
 
   .pds-reader__compare-row {
