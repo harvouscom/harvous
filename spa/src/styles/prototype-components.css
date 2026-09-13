@@ -22062,6 +22062,16 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   letter-spacing: 0.01em;
 }
 
+/*
+  The same bottom slot, when what stops the pile is the reader's plan rather than the
+  calendar — occupies the origin edge's exact place so the stack's shape never tips off in
+  advance which one is coming. Unlike origin, this is an invitation, so its label stays full
+  color rather than muted; no separate accent treatment, matching the Plus badge elsewhere.
+*/
+.proto-feed-stack__edge--locked .proto-feed-stack__edge-label {
+  letter-spacing: 0.01em;
+}
+
 .proto-feed-stack__edge {
   position: absolute;
   left: 0;

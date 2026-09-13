@@ -154,6 +154,12 @@ export interface StudyFeedResponse {
   reviewAnswers?: StudyFeedReviewAnswer[];
   /** ISO timestamp to pass back as `before`, or null at the end of the trail. */
   nextCursor: string | null;
+  /**
+   * Set once the trail is exhausted for a free account and older personal study exists.
+   * The ISO date personal history is hidden before; Harvous Plus removes it. Always null for
+   * `full_history` accounts and for a request with nothing more to show either way.
+   */
+  lockedBefore: string | null;
 }
 
 /** One answered review: when, and whether it was held. Nothing about what was asked. */
@@ -172,6 +178,21 @@ export function mergeStudyFeedReviewAnswers(
   pages: (StudyFeedReviewAnswer[] | undefined)[],
 ): StudyFeedReviewAnswer[] {
   return pages.flatMap((page) => page ?? []);
+}
+
+/**
+ * Whether older personal history is hidden, from however many pages have loaded so far.
+ *
+ * Only the last-fetched page — the oldest, where the trail actually ran out — ever carries a
+ * value; every earlier page reads `null` because the server only probes once nothing more is
+ * left to page to. Reading the *last* page rather than the first non-null one matters: a
+ * locked flag belongs to the page that found the end, and fetching further superseded it.
+ */
+export function resolveStudyFeedLockedBefore(
+  pages: (string | null | undefined)[] | undefined,
+): string | null {
+  if (!pages || pages.length === 0) return null;
+  return pages[pages.length - 1] ?? null;
 }
 
 /** All / just my own study / one space. Serialized as `all`, `home`, `space:<id>`. */
