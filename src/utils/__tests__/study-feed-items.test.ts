@@ -3,6 +3,7 @@ import {
   buildStudyFeedDays,
   mergeStudyFeedPages,
   parseStudyFeedScope,
+  resolveStudyFeedLockedBefore,
   serializeStudyFeedScope,
   studyFeedDayLabel,
   studyFeedItemWeight,
@@ -165,6 +166,26 @@ describe('mergeStudyFeedPages', () => {
       [noteItem('newer', at(27, 9))],
     ]);
     expect(merged.map((i) => i.id)).toEqual(['newer', 'older']);
+  });
+});
+
+describe('resolveStudyFeedLockedBefore', () => {
+  it('is null with nothing fetched yet, or when nothing is locked', () => {
+    expect(resolveStudyFeedLockedBefore(undefined)).toBeNull();
+    expect(resolveStudyFeedLockedBefore([])).toBeNull();
+    expect(resolveStudyFeedLockedBefore([null])).toBeNull();
+    expect(resolveStudyFeedLockedBefore([null, null])).toBeNull();
+  });
+
+  it('reads the last page, not the first non-null one', () => {
+    // A stale lock from a page the reader has since paged past must not stick around.
+    expect(resolveStudyFeedLockedBefore(['2026-01-01T00:00:00.000Z', null])).toBeNull();
+  });
+
+  it('surfaces the lock once the last-fetched page carries one', () => {
+    expect(resolveStudyFeedLockedBefore([null, '2026-06-01T00:00:00.000Z'])).toBe(
+      '2026-06-01T00:00:00.000Z',
+    );
   });
 });
 
