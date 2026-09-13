@@ -162,6 +162,16 @@
       ],
       "port": 4333,
       "autoPort": false
+    },
+    {
+      "name": "discover-feature-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/harvous-discover-feature-c92518 && API_PORT=3010 DB_POOL_MAX=6 VITE_API_PROXY_TARGET=http://localhost:3010 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4340 --strictPort'"
+      ],
+      "port": 4340,
+      "autoPort": false
     }
   ]
 }
