@@ -531,6 +531,8 @@ export type ReviewDockResult = {
     note?: { id: string; title: string | null } | null;
     /** The passage, for the way back into the reader. */
     reference?: string | null;
+    /** The wording this question was asked in — the reader's link back must land in the same one. */
+    translation?: string | null;
   } | null;
   /** Set fresh on each answer so the dock's dwell timer restarts. */
   at: number;

@@ -62,7 +62,7 @@ import { fillFraming } from '@/utils/review-framing';
  * with no reader ever mounted.
  */
 import '@/styles/scripture-pill-chrome.css';
-import { readerRouteForReference } from '../../utils/reader-nav';
+import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget, nextBlankIndex } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
@@ -647,7 +647,9 @@ export default function PrototypeReviewDock() {
   const resultContextLinks = (() => {
     const context = lastResult?.context;
     if (!context) return null;
-    const reader = context.reference ? readerRouteForReference(context.reference, 'NET') : null;
+    const reader = context.reference
+      ? readerRouteForReference(context.reference, context.translation || 'NET')
+      : null;
     if (!context.note && !reader) return null;
     return (
       <>
@@ -673,7 +675,7 @@ export default function PrototypeReviewDock() {
             className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
             onClick={() => {
               setReviewDockExpanded(false);
-              void navigate(reader);
+              void navigate(landAgain(reader));
             }}
           >
             {REVIEW_CONTEXT_OPEN_READER_COPY}
@@ -978,6 +980,7 @@ export default function PrototypeReviewDock() {
                   annotation: revealRef.current?.context?.annotation ?? null,
                   note: item.noteId ? { id: item.noteId, title: item.noteTitle } : null,
                   reference: item.scriptureReference ?? null,
+                  translation: item.translation ?? null,
                 },
                 /*
                  * The question and what was said about it, so the result is a recap rather than
