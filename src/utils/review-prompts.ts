@@ -23,6 +23,7 @@
 
 import type { ReviewAskableKind, ReviewItemKind } from './review-item-kinds';
 import { seededIndex } from './verse-cloze';
+import { VERSE_KEYWORDS_MIN_COUNT } from './review-difficulty';
 
 export const REVIEW_PROMPT_KEYS = [
   'note.recognize',
@@ -65,6 +66,16 @@ export interface ReviewPromptContext {
   threadTitle?: string | null;
   /** A distinctive fragment of the verse, for the recognize rung. */
   cue?: string | null;
+  /**
+   * How much of the verse the recall rung is giving away, so the instruction can match the
+   * exercise. Absent on every caller that does not know — which then gets the bare form, the
+   * same one this rung always had.
+   */
+  recallMode?: 'finish' | 'leadIn' | 'reference' | null;
+  /** How many words the keyword rung is asking for, for the same reason. */
+  keywordCount?: number | null;
+  /** Which tier the initials rung is at: below the top it is gaps in place, not a blank page. */
+  initialsTier?: number | null;
 
 }
 
@@ -145,18 +156,42 @@ export const REVIEW_PROMPTS: Record<ReviewPromptKey, (ctx: ReviewPromptContext) 
    */
   'verse.rebuild': (ctx) =>
     named(ctx, (s) => `Fill in the blanks in ${s}.`, 'Fill in the blanks.'),
+  /*
+   * Three ways of asking, because the rung is staged — see `verseRecallMode`. The instruction has
+   * to match the exercise: "write it from memory" printed above two thirds of the verse is the
+   * app misdescribing its own question.
+   */
   'verse.recall': (ctx) =>
-    named(ctx, (s) => `Write ${s} from memory.`, 'Write this verse from memory.'),
+    ctx.recallMode === 'finish'
+      ? named(ctx, (s) => `Finish ${s}.`, 'Finish this verse.')
+      : ctx.recallMode === 'leadIn'
+        ? named(ctx, (s) => `Carry on from the opening of ${s}.`, 'Carry on from the opening.')
+        : named(ctx, (s) => `Write ${s} from memory.`, 'Write this verse from memory.'),
   // The classic memory-verse aid: the first letter of every word, and nothing else.
+  /*
+   * Two ways of asking, for the same reason recall has three: below the top tier only a few
+   * words stand on their initial and they are typed back in place, so "write it from its first
+   * letters" describes an exercise the reader is not being given.
+   */
   'verse.initials': (ctx) =>
-    named(
-      ctx,
-      (s) => `Write ${s} from its first letters.`,
-      'Write the verse from its first letters.',
-    ),
+    (ctx.initialsTier ?? 2) < 2
+      ? named(
+          ctx,
+          (s) => `Finish each word from its first letter in ${s}.`,
+          'Finish each word from its first letter.',
+        )
+      : named(
+          ctx,
+          (s) => `Write ${s} from its first letters.`,
+          'Write the verse from its first letters.',
+        ),
   // Free recall, the lightest rung: any three words that are actually in it.
-  'verse.keywords': (ctx) =>
-    named(ctx, (s) => `Name three words from ${s}.`, 'Name three words from this verse.'),
+  // The count is staged too, so the instruction cannot promise three and show two boxes.
+  'verse.keywords': (ctx) => {
+    const count = ctx.keywordCount ?? 3;
+    const word = count === 2 ? 'two' : count === 4 ? 'four' : 'three';
+    return named(ctx, (s) => `Name ${word} words from ${s}.`, `Name ${word} words from this verse.`);
+  },
   'verse.next': (ctx) =>
     named(ctx, (s) => `Pick the verse that follows ${s}.`, 'Pick the verse that follows.'),
   // Names the chapter, never the verse: "in John 15", because the verse number is the answer.
@@ -266,9 +301,9 @@ export const REVIEW_TASKS: Record<ReviewPromptKey, string> = {
   'note.annotation': 'Pick the passage you wrote this on',
   'verse.recognize': 'Pick how it begins',
   'verse.rebuild': 'Fill in the blanks',
-  'verse.initials': 'Write it from first letters',
-  'verse.recall': 'Write it from memory',
-  'verse.keywords': 'Name three of its words',
+  'verse.initials': 'Fill it in from first letters',
+  'verse.recall': 'Write it out',
+  'verse.keywords': 'Name some of its words',
   'verse.next': 'Pick what comes next',
   'verse.before': 'Pick which comes first',
   'verse.altered': 'Find the changed word',
@@ -456,10 +491,22 @@ export const VERSE_FAMILIES: readonly (readonly ReviewPromptKey[])[] = [
 /**
  * The families that come round again once the ladder is climbed.
  *
- * Recognising and recalling are how a verse is learned, not how it is kept, so families 0 and 2
- * do not repeat. Everything else gets harder each pass, and draws a fresh member each time.
+ * Recognising is how a verse is met, not how it is kept, so family 0 does not repeat.
+ *
+ * **Family 2 — recall and keywords — now does.** It was excluded on the same reasoning, and the
+ * reasoning was right about the *old* rung: a bare reference and a blank box is how a verse is
+ * learned, and asking that of something memorised months ago is a question with no work in it.
+ * But those rungs are staged now (`review-difficulty.ts`), and their lower tiers are not that
+ * question — "finish this verse" is a maintenance question in a way "write it from memory" never
+ * was. Without this the ladder had no rung that ever asks for the whole verse, so a reader who
+ * climbed the whole thing was never once asked to produce it.
+ *
+ * **Appended, never inserted.** `ladderStep` is live data and this list's order is its identity:
+ * offsets 0-5 — steps 8 to 13 — resolve to exactly the families they did before, and only a
+ * reader already past step 13 shifts, once, by one family. Inserting at position 1 would have
+ * moved everyone past step 9.
  */
-export const VERSE_MAINTENANCE_FAMILIES: readonly number[] = [1, 3, 4, 5, 6, 7];
+export const VERSE_MAINTENANCE_FAMILIES: readonly number[] = [1, 3, 4, 5, 6, 7, 2];
 
 /** The maintenance cycle by its default members — what a caller with no seed sees. */
 export const VERSE_MAINTENANCE: readonly ReviewPromptKey[] = VERSE_MAINTENANCE_FAMILIES.map(
@@ -488,7 +535,15 @@ export function verseFamilyMemberAvailable(
     case 'verse.book':
       return (material.locateRivals ?? LOCATE_MIN_RIVALS) < LOCATE_MIN_RIVALS;
     case 'verse.keywords':
-      return (material.contentWordCount ?? 3) >= 3;
+      /*
+       * Judged at the *easiest* tier's count, plus headroom — asking whether a verse can spare
+       * four content words would bar the rung from short verses it reads fine on at two.
+       *
+       * Strictly more than the count, because a verse with exactly as many content words as it
+       * is asked for is not this rung at all: naming all of them is `verse.recall` wearing three
+       * input boxes. The old literal 3 was this rule with the old count baked into it.
+       */
+      return (material.contentWordCount ?? 0) > VERSE_KEYWORDS_MIN_COUNT;
     case 'verse.initials':
       return (material.contentWordCount ?? 4) >= 4;
     case 'verse.marked':

@@ -9,6 +9,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReviewFramingSpec } from '@/utils/review-framing';
+import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useHasFeature } from '../useHasFeature';
@@ -87,7 +88,21 @@ export interface ReviewRevealResponse {
   next?: { options: string[] } | null;
   altered?: { tokens: string[] } | null;
   choice?: { options: string[]; opening: boolean } | null;
-  initials?: { initials: string; wordCount: number } | null;
+  initials?: {
+    initials: string;
+    wordCount: number;
+    /** 0 and 1 reduce a share of the words and carry `segments`; 2 is the whole-verse skeleton. */
+    tier: number;
+    segments?: { segments: string[]; blankLengths: number[]; letters: string[] } | null;
+  } | null;
+  /** How much of the verse the recall rung gives away before the reader writes the rest. */
+  recall?: { shown: string | null; mode: string } | null;
+  /** Where in the reader's Harvous this question came from, for the card shown after it. */
+  context?: {
+    sourceLabel: string | null;
+    sourceAt: string | null;
+    annotation: { quote: string | null; thought: string | null } | null;
+  } | null;
   keywords?: { count: number } | null;
   before?: { options: string[] } | null;
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
@@ -215,19 +230,62 @@ export function useReviewSession(options?: { enabled?: boolean }) {
   });
 }
 
-export function usePrefetchReviewReveal(itemId: string | null | undefined) {
+const REVEAL_STALE_MS = 5 * 60_000;
+/** How many reveals to have in flight at once while warming a sitting. Gentle on the pool. */
+const REVEAL_PREFETCH_CONCURRENCY = 2;
+
+/**
+ * Warm every reveal in the sitting, so "Next one" never waits.
+ *
+ * This replaced a one-ahead prefetch that never hit the cache anyway (see `reviewRevealQueryKey`).
+ * One ahead was also the wrong shape: the reader moves through a sitting at their own pace, and
+ * a prefetch that only starts when they reach the previous question is a prefetch that is still
+ * in flight when they press the button. A sitting is at most eight questions; warming all of them
+ * once the session lands is a few seconds of background work for a card that then opens each one
+ * instantly.
+ *
+ * Only the marked rungs, whose reveal *is* the exercise. On a self-judged rung the fetch is the
+ * signal "I need to see it", and warming it would record a look that never happened.
+ *
+ * Two at a time, in order, skipping anything already warm — the head is usually seeded by the
+ * session itself. A long queue does not become a burst against the database, and the reader's
+ * next question is still the first thing in line.
+ */
+export function usePrefetchReviewReveals(
+  items: readonly { id: string; kind: string; ladderStep?: number | null; promptKey?: string | null }[],
+) {
   const queryClient = useQueryClient();
   const authReady = useAuthReady();
   const access = useReviewAccess();
+  const ids = items
+    .filter((item) => reviewRungIsGraded(item))
+    .map((item) => item.id)
+    .join('|');
   useEffect(() => {
-    if (!itemId || !authReady || !access) return;
-    void queryClient.prefetchQuery({
-      queryKey: reviewRevealQueryKey(itemId),
-      queryFn: () =>
-        api.get<ReviewRevealResponse>(`/api/review/items/${encodeURIComponent(itemId)}/reveal`),
-      staleTime: 5 * 60_000,
-    });
-  }, [itemId, authReady, access, queryClient]);
+    if (!ids || !authReady || !access) return;
+    let cancelled = false;
+    const queue = ids.split('|');
+    const next = async (): Promise<void> => {
+      while (!cancelled && queue.length) {
+        const itemId = queue.shift()!;
+        const key = reviewRevealQueryKey(itemId);
+        const state = queryClient.getQueryState(key);
+        if (state?.data && Date.now() - state.dataUpdatedAt < REVEAL_STALE_MS) continue;
+        await queryClient
+          .prefetchQuery({
+            queryKey: key,
+            queryFn: () =>
+              api.get<ReviewRevealResponse>(`/api/review/items/${encodeURIComponent(itemId)}/reveal`),
+            staleTime: REVEAL_STALE_MS,
+          })
+          .catch(() => {});
+      }
+    };
+    void Promise.all(Array.from({ length: REVEAL_PREFETCH_CONCURRENCY }, next));
+    return () => {
+      cancelled = true;
+    };
+  }, [ids, authReady, access, queryClient]);
 }
 
 export function useReviewReveal(itemId: string | null, options?: { enabled?: boolean; translation?: string }) {

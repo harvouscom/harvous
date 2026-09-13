@@ -8,9 +8,16 @@
  * for. And a reader who wanted more or less of something had no name to ask for it by.
  *
  * So this is a naming, not a taxonomy. The label is the word a reader would use — "Blanks",
- * "Order", "Where" — and several prompt keys share one where they are the same *act* wearing
+ * "Where", "Who" — and several prompt keys share one where they are the same *act* wearing
  * different material: `verse.person` and `chapter.person` are both "Who", because being asked who
  * is in John 3 and who Romans 8:28 is about is the same thing to do.
+ *
+ * **It has to name the act, not the provenance.** Four of these were written as descriptions of
+ * where the material came from rather than of what the reader is about to do — "Cited", "Linked",
+ * "Opening", "Order". Sat in the dock's header beside the word Review, "Review · Cited" told
+ * nobody anything: it is a past participle about the app's own bookkeeping. The test is whether
+ * the label finishes the sentence "you are about to…" — "how it begins", "which passage", "put in
+ * order" all do; "cited" does not.
  *
  * **The label must never be the answer.** Two keys prove the rule: `note.recognize` is "Which
  * note" and not the note's name, and `verse.locate` is "Where" and not the reference. A family
@@ -78,7 +85,7 @@ export const REVIEW_EXERCISE_FAMILIES = {
   },
   order: {
     id: 'order',
-    label: 'Order',
+    label: 'Put in order',
     icon: 'list-ol',
     description: 'Put a verse, or three verses of a chapter, back in order.',
     typed: false,
@@ -92,7 +99,7 @@ export const REVIEW_EXERCISE_FAMILIES = {
   },
   opening: {
     id: 'opening',
-    label: 'Opening',
+    label: 'How it begins',
     icon: 'quote-left',
     description: 'Pick how a verse begins, or which verse is in a chapter.',
     typed: false,
@@ -155,14 +162,14 @@ export const REVIEW_EXERCISE_FAMILIES = {
   },
   cited: {
     id: 'cited',
-    label: 'Cited',
+    label: 'Which passage',
     icon: 'scroll',
     description: 'Pick a passage you cited in a note, or the one you wrote a highlight on.',
     typed: false,
   },
   linked: {
     id: 'linked',
-    label: 'Linked',
+    label: 'What you linked',
     icon: 'arrow-right-arrow-left',
     description: 'Pick a note you linked to this one, or the note you cited a verse in.',
     typed: false,

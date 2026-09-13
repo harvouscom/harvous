@@ -318,6 +318,25 @@
   outline-offset: 1px;
 }
 
+/*
+ * A header control whose act has been done and cannot be undone — the Review card's thumbs,
+ * where a vote is an append-only log line rather than a setting. It stays on screen so the
+ * reader can see which way they voted, and stops being a button.
+ */
+.study-dock-card__header-btn[data-selected] {
+  background: var(--pds-bg-control, rgba(0, 0, 0, 0.055));
+  color: var(--pds-accent, rgb(56, 105, 230));
+}
+
+.study-dock-card__header-btn:disabled {
+  cursor: default;
+}
+
+/* Unvoted, once the other one has been chosen: present but plainly spent. */
+.study-dock-card__header-btn:disabled:not([data-selected]) {
+  opacity: 0.4;
+}
+
 .study-dock-card__header-btn--active {
   background: var(--pds-bg-control, rgba(0, 0, 0, 0.055));
   color: var(--pds-text-primary, #1d1d1f);

@@ -13,7 +13,26 @@
  * Pure. `verse-cloze.ts` next door does the same job for the rebuild rung.
  */
 
-import { MIN_BLANK_LENGTH, STOPWORDS, bareWord, hashSeed, mulberry32, verseCue } from '@/utils/verse-cloze';
+import {
+  MIN_BLANK_LENGTH,
+  STOPWORDS,
+  bareWord,
+  clozeSegments,
+  hashSeed,
+  markVerseRebuild,
+  mulberry32,
+  verseCue,
+  type VerseClozeBlank,
+  type VerseClozeSegments,
+} from '@/utils/verse-cloze';
+import {
+  RECALL_LEAD_IN_WORDS,
+  RECALL_SHOWN_SHARE,
+  VERSE_KEYWORDS_MIN_COUNT,
+  type ReviewTier,
+  type VerseRecallMode,
+} from '@/utils/review-difficulty';
+import type { RecallState } from '@/utils/review-item-kinds';
 import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
 
 // ─── Sequence: put the phrases back in order ─────────────────────────────────
@@ -419,47 +438,170 @@ export function contentWords(text: string): string[] {
 
 const normaliseWord = (value: string) => value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 
-/** "I a t v; y a t b." — the classic memory-verse aid, punctuation kept where it was. */
+/**
+ * "I a t v; y a t b." — the classic memory-verse aid, punctuation kept where it was.
+ *
+ * Staged, because the full skeleton is a hard question and this is an *opening* rung: step 1 of
+ * the verse ladder draws between this and the cloze, so roughly half of all new verses met
+ * "write the whole thing from its first letters" as the very first thing Review ever asked
+ * them. Graded on every content word, all-or-nothing, with no per-part feedback — a reader who
+ * missed one word of eighteen saw a bare "not this one" three times running.
+ *
+ * At tier 0 and 1 a *share* of the content words is reduced and the rest of the verse is shown
+ * in full, so the line still reads as a sentence and the reduced words can be typed in place.
+ * Only tier 2 is the whole-verse skeleton this rung started as.
+ */
 export interface VerseInitialsExercise {
+  /** The line as displayed, with the chosen words standing on their first letter. */
   initials: string;
   wordCount: number;
+  tier: ReviewTier;
+  /**
+   * Which words were reduced, in order. **Server-only** — this is the answer key, and it never
+   * goes in a payload. The client gets `segments` and the letters, which is the question.
+   */
+  reduced: VerseClozeBlank[];
+  /**
+   * Tier 0 and 1: the line split at each reduced word, so they are inputs in place rather than
+   * a whole verse retyped into a box. Absent at tier 2, where the exercise is the free-text
+   * skeleton and there is nothing to split.
+   */
+  segments?: VerseClozeSegments & { letters: string[] };
 }
 
-export function buildVerseInitials(text: string): VerseInitialsExercise | null {
+/** Below this there is not enough verse for the rung to be worth asking. */
+const INITIALS_MIN_WORDS = 4;
+
+export function buildVerseInitials(
+  text: string,
+  seed = '',
+  share = 1,
+  recallState?: RecallState | null,
+): VerseInitialsExercise | null {
   const tokens = text.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length < 4) return null;
-  let wordCount = 0;
+  if (tokens.length < INITIALS_MIN_WORDS) return null;
+
+  const wordCount = tokens.filter((token) => bareWord(token)).length;
+  if (wordCount < INITIALS_MIN_WORDS) return null;
+
+  const tier = share >= 1 ? 2 : share >= 0.5 ? 1 : 0;
+  void recallState;
+
+  /*
+   * Tier 2 is the original: every word on its initial, nothing to split, free text.
+   *
+   * Kept byte-identical to what this function used to return, so a reader who has climbed to
+   * the top of the rung meets exactly the exercise they were meeting before.
+   */
+  if (tier === 2) {
+    const initials = tokens
+      .map((token) => {
+        const word = bareWord(token);
+        if (!word) return token;
+        const at = token.indexOf(word);
+        return `${at > 0 ? token.slice(0, at) : ''}${word.charAt(0)}${token.slice(at + word.length)}`;
+      })
+      .join(' ');
+    return { initials, wordCount, tier, reduced: [] };
+  }
+
+  /*
+   * Below that, choose a share of the *content* words — the same eligibility the cloze uses, so
+   * "the" and "and" are never the thing being asked for — and leave every other word whole.
+   */
+  const eligible: number[] = [];
+  tokens.forEach((token, index) => {
+    const word = bareWord(token);
+    if (!word || word.length < MIN_BLANK_LENGTH) return;
+    if (STOPWORDS.has(word.toLowerCase())) return;
+    if (!token.includes(word)) return;
+    eligible.push(index);
+  });
+  if (!eligible.length) return null;
+
+  const target = Math.max(1, Math.min(eligible.length, Math.round(eligible.length * share)));
+  const random = mulberry32(hashSeed(`${seed}:initials`));
+  const pool = [...eligible];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const chosen = pool.slice(0, target).sort((a, b) => a - b);
+  const reduced: VerseClozeBlank[] = chosen.map((index) => ({ index, word: bareWord(tokens[index]) }));
+
+  const chosenSet = new Set(chosen);
   const initials = tokens
-    .map((token) => {
+    .map((token, index) => {
+      if (!chosenSet.has(index)) return token;
       const word = bareWord(token);
-      if (!word) return token;
-      wordCount += 1;
       const at = token.indexOf(word);
-      const leading = at > 0 ? token.slice(0, at) : '';
-      const trailing = token.slice(at + word.length);
-      return `${leading}${word.charAt(0)}${trailing}`;
+      return `${token.slice(0, at)}${word.charAt(0)}${token.slice(at + word.length)}`;
     })
     .join(' ');
-  return wordCount >= 4 ? { initials, wordCount } : null;
+
+  /*
+   * The gaps, via the cloze splitter, so the spacing and the punctuation rules are the ones
+   * already proved rather than a second implementation of them. The first letter is handed over
+   * beside each gap instead of inside it — it is the hint, not part of the answer.
+   */
+  const base = clozeSegments({ tokens, blanks: reduced, display: '' });
+  const letters = reduced.map((blank) => blank.word.charAt(0));
+
+  return { initials, wordCount, tier, reduced, segments: { ...base, letters } };
 }
 
 /**
- * Did the reader write the verse back from its first letters?
+ * Tier 0 and 1: did each reduced word come back?
+ *
+ * The same per-slot marking the cloze uses, and for the same reason — the reader has been given
+ * the first letter and the word's place in the sentence, so the exact word is a fair ask, and
+ * telling them *which* one missed is what makes the retry worth having.
+ */
+export function markVerseInitialsParts(
+  exercise: VerseInitialsExercise,
+  answers: readonly string[],
+): { correct: boolean; parts: boolean[] } {
+  return markVerseRebuild({ tokens: [], blanks: exercise.reduced, display: '' }, answers);
+}
+
+/**
+ * Tier 2: did the reader write the verse back from its first letters?
  *
  * Every content word must appear, in order, in what they wrote — a subsequence match, so
  * "the/a/and" slips and a paraphrased connective are not marked as forgetting. Case and
  * punctuation are forgiven for the same reason the cloze forgives them.
+ *
+ * Now returns `parts` and `reached` like `markVerseRecall`, which it never did: this was the one
+ * produced rung in the feature that answered a miss with nothing but "no". `parts` indexes the
+ * reader's own words, so showing it back marks their sentence rather than handing over the
+ * verse's vocabulary.
  */
-export function gradeVerseInitials(text: string, attempt: string): boolean {
+export function markVerseInitials(
+  text: string,
+  attempt: string,
+): { correct: boolean; parts: boolean[]; reached: { matched: number; total: number } } {
   const wanted = contentWords(text).map(normaliseWord);
-  if (!wanted.length) return false;
-  const written = attempt.trim().split(/\s+/).map(normaliseWord).filter(Boolean);
+  const written = attempt.trim().split(/\s+/).filter(Boolean);
+  const parts: boolean[] = [];
+  let matched = 0;
   let i = 0;
   for (const word of written) {
-    if (word === wanted[i]) i += 1;
-    if (i === wanted.length) return true;
+    const normalised = normaliseWord(word);
+    if (i < wanted.length && normalised === wanted[i]) {
+      parts.push(true);
+      matched += 1;
+      i += 1;
+      continue;
+    }
+    parts.push(false);
   }
-  return false;
+  const total = wanted.length;
+  return { correct: total > 0 && matched === total, parts, reached: { matched, total } };
+}
+
+/** The whole-verse form, for callers with nothing but a verdict to give (the free sample). */
+export function gradeVerseInitials(text: string, attempt: string): boolean {
+  return markVerseInitials(text, attempt).correct;
 }
 
 /**
@@ -481,6 +623,60 @@ export function gradeVerseInitials(text: string, attempt: string): boolean {
  * now, which is what its name always meant.)
  */
 export const RECALL_MIN_SHARE = 0.45;
+
+/**
+ * How much of the verse is on screen before the reader writes the rest.
+ *
+ * This rung used to hand over the reference and nothing else, on a first meeting and on the
+ * twentieth alike — the single hardest question in the feature, asked at full strength from the
+ * first day. Staged now: finish the sentence, then carry on from its opening, then the bare
+ * reference it always was.
+ *
+ * `shown` is what the card prints above the box; `hiddenText` is the only thing graded. Marking
+ * against the whole verse while showing two thirds of it would mean a reader who finished it
+ * perfectly still scored two thirds — the coverage floor is a share of *what was asked for*.
+ */
+export interface VerseRecallExercise {
+  shown: string | null;
+  hiddenText: string;
+  mode: VerseRecallMode;
+}
+
+export function buildVerseRecall(text: string, mode: VerseRecallMode): VerseRecallExercise {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (!clean || mode === 'reference') return { shown: null, hiddenText: clean, mode };
+
+  const tokens = clean.split(' ').filter(Boolean);
+
+  if (mode === 'leadIn') {
+    if (tokens.length <= RECALL_LEAD_IN_WORDS + 1) return { shown: null, hiddenText: clean, mode };
+    return {
+      shown: tokens.slice(0, RECALL_LEAD_IN_WORDS).join(' '),
+      hiddenText: tokens.slice(RECALL_LEAD_IN_WORDS).join(' '),
+      mode,
+    };
+  }
+
+  /*
+   * "Finish it" cuts at a clause boundary rather than at a word count, so the reader is picking
+   * up a sentence rather than resuming mid-phrase. The phrase splitter is the one the sequence
+   * rung already uses; a verse it cannot split falls back to the word count, which is worse and
+   * still answerable.
+   */
+  const phrases = splitVersePhrases(clean);
+  if (phrases.length >= 2) {
+    const target = Math.max(1, Math.round(phrases.length * RECALL_SHOWN_SHARE));
+    const keep = Math.min(phrases.length - 1, target);
+    return {
+      shown: phrases.slice(0, keep).join(' '),
+      hiddenText: phrases.slice(keep).join(' '),
+      mode,
+    };
+  }
+
+  const cut = Math.max(1, Math.min(tokens.length - 1, Math.round(tokens.length * RECALL_SHOWN_SHARE)));
+  return { shown: tokens.slice(0, cut).join(' '), hiddenText: tokens.slice(cut).join(' '), mode };
+}
 
 export function verseRecallCoverage(text: string, attempt: string): number {
   const wanted = contentWords(text).map(normaliseWord);
@@ -542,16 +738,34 @@ export interface VerseKeywordsExercise {
   count: number;
 }
 
+/** The middle tier's count, and the value every caller used before the rung was staged. */
 export const VERSE_KEYWORDS_COUNT = 3;
 
-export function buildVerseKeywords(text: string): VerseKeywordsExercise | null {
+/**
+ * `count` comes from the tier table. A verse without enough distinct content words to fill the
+ * asked-for count falls back to what it can manage rather than refusing the rung — being asked
+ * for two words of a short verse is a fine question, and the alternative is the step resolving
+ * to something else entirely on exactly the verses where this rung reads best.
+ */
+export function buildVerseKeywords(text: string, count = VERSE_KEYWORDS_COUNT): VerseKeywordsExercise | null {
   const distinct = new Set(contentWords(text).map(normaliseWord));
-  return distinct.size >= VERSE_KEYWORDS_COUNT ? { count: VERSE_KEYWORDS_COUNT } : null;
+  /*
+   * Strictly more words than the smallest count asked for — the same rule the availability
+   * probe applies, and it has to be the same or the step resolves to a rung the builder then
+   * refuses. A verse with exactly as many content words as it is asked for is `verse.recall`
+   * wearing input boxes.
+   */
+  if (distinct.size <= VERSE_KEYWORDS_MIN_COUNT) return null;
+  return { count: Math.max(VERSE_KEYWORDS_MIN_COUNT, Math.min(count, distinct.size)) };
 }
 
 /** Each typed word is a distinct content word of the verse, in any order. */
-export function gradeVerseKeywords(text: string, words: readonly string[]): boolean {
-  return markVerseKeywords(text, words).correct;
+export function gradeVerseKeywords(
+  text: string,
+  words: readonly string[],
+  count = VERSE_KEYWORDS_COUNT,
+): boolean {
+  return markVerseKeywords(text, words, count).correct;
 }
 
 /**
@@ -565,6 +779,7 @@ export function gradeVerseKeywords(text: string, words: readonly string[]): bool
 export function markVerseKeywords(
   text: string,
   words: readonly string[],
+  count = VERSE_KEYWORDS_COUNT,
 ): { correct: boolean; parts: boolean[] } {
   const wanted = new Set(contentWords(text).map(normaliseWord));
   const seen = new Set<string>();
@@ -574,7 +789,7 @@ export function markVerseKeywords(
     seen.add(normalised);
     return true;
   });
-  return { correct: parts.length >= VERSE_KEYWORDS_COUNT && parts.every(Boolean), parts };
+  return { correct: parts.length >= count && parts.every(Boolean), parts };
 }
 
 /**

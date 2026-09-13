@@ -14425,14 +14425,22 @@ html.harvous-prototype-route
   background: var(--pds-border-on-paper);
 }
 
-/* Learning: the first of three. */
+/*
+ * Learning: the first of three.
+ *
+ * `--pds-accent-indicator`, not `--pds-accent`. The dock's goes-dots next to the same question
+ * use the indicator blue, and these two marks sit a tap apart on the same journey — the row you
+ * press and the card it opens — so two blues a shade off each other read as a mistake rather
+ * than as a distinction. The indicator token is the one for a small filled state like this;
+ * `--pds-accent` is the button blue.
+ */
 .proto-recall-mark[data-hold='learning'] .proto-recall-mark__seg:nth-child(1) {
-  background: var(--pds-accent);
+  background: var(--pds-accent-indicator);
 }
 
 /* Held: all three. */
 .proto-recall-mark[data-hold='held'] .proto-recall-mark__seg {
-  background: var(--pds-accent);
+  background: var(--pds-accent-indicator);
 }
 
 /*
@@ -23206,14 +23214,41 @@ button.proto-feed-sheet__stat:hover {
   letter-spacing: 0.04em;
 }
 
-/* Which note the question is about, when the question itself does not name it. Quiet, and
-   directly under the prompt so the two read as one thing. */
+/*
+ * Which note the question is about, when the question itself does not name it.
+ *
+ * Subordinate to the prompt and attached to it — smaller, lighter, and close enough that the two
+ * read as one thing. That pairing is the point: the instruction says what to do, this says what
+ * to do it about.
+ *
+ * It was `--pds-text-tertiary` at 13px — 32% alpha, around 2:1 against the card, under any
+ * contrast floor there is. That was wrong twice over. It failed contrast outright, and it made a
+ * hierarchy decision that does not survive reading the card: on most rungs this line is the only
+ * thing naming *what the question is about*, so "Pick the passage you wrote this on" above a
+ * near-invisible grey line is an instruction with its subject whispered.
+ *
+ * So it sits at the prompt's own level — same size, same colour, same weight. The two are a pair,
+ * not a heading and a footnote: one says what to do, the other says what to do it about, and
+ * neither is worth more than the other. They stay tightly grouped so they read as one block, and
+ * the difference between them is what they say rather than how loudly they say it.
+ */
 .proto-review-dock__subject {
-  margin: calc(var(--pds-space-2) * -1) 0 0;
+  margin: calc(var(--pds-space-1) * -1) 0 0;
   font-family: var(--pds-font-body);
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--pds-text-tertiary);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+/*
+ * The translation the question is in, beside the exercise's name.
+ *
+ * Borrowed wholesale from the scripture pill's chip so it is the same object the reader already
+ * reads everywhere else Scripture is labelled; only the spacing is this card's.
+ */
+.proto-review-dock__header-trans {
+  margin-left: var(--pds-space-2);
+  align-self: center;
 }
 
 /* The collapsed header line's second half — what is waiting, without opening the card. */
@@ -23234,10 +23269,112 @@ button.proto-feed-sheet__stat:hover {
  * question was rather than beside it, because two things in the card at once would make the
  * reader choose which one to read.
  */
+/*
+ * The result card: what the reader reads scrolls, the way on does not.
+ *
+ * The body below is the dock's own scroller and bounds itself to 46vh, which was right while
+ * everything on the card was reading matter. A result is not — it ends in the two buttons that
+ * carry the sitting forward, and on a long card (the question, their answer, the verse restored,
+ * the verdict, what they wrote on the passage) those were below the fold. "Next one" was a
+ * scroll away on exactly the cards that took the most getting through.
+ *
+ * So the result takes the height over: the body stops scrolling while one is up, the reading
+ * scrolls inside it, and the actions sit on the bottom edge with a rule above them. Same shape
+ * as the planner editor's rail, and the same rule as the verdict's, so the card reads as one
+ * thing with a footer rather than two stacked panels.
+ */
+.proto-review-dock__body:has(> .proto-review-dock__result) {
+  overflow: hidden;
+}
+
 .proto-review-dock__result {
+  display: flex;
+  flex-direction: column;
+  /*
+   * Both of these have to say `1 1 auto` out loud. The app reset sets `* { flex-shrink: 0 }`
+   * (src/styles/global.css, and see the note at the top of this file), so a flex child here does
+   * not shrink unless told to — the result stood 6px taller than the 360px body it lives in, the
+   * scroller never scrolled because it always got its content height, and the footer was pushed
+   * past the card's edge and clipped in half by it. `min-height: 0` alone does nothing when the
+   * item refuses to shrink in the first place.
+   */
+  flex: 1 1 auto;
+  min-height: 0;
+  animation: proto-review-result-in 0.24s ease both;
+}
+
+.proto-review-dock__result-scroll {
   display: grid;
   gap: 10px;
-  animation: proto-review-result-in 0.24s ease both;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room under the last line so it clears the footer's rule rather than touching it. */
+  padding-bottom: 10px;
+}
+
+/*
+ * The result's footer, built to match the Library panel's create footer exactly — a filled bar
+ * on the card's bottom edge rather than a row of buttons floating above it.
+ *
+ * Same fill, same rule, same 10/12/12 padding as `.proto-collection-grid-actions`, and for the
+ * same reason: a bar that reaches both edges reads as the floor of the card, so the reading above
+ * it can scroll under something rather than stopping in mid-air.
+ *
+ * Reaching the edges takes the card's own sides and bottom away from it, which is the change to
+ * the dock card this asks for. Done by moving the inset rather than by bleeding out through it:
+ * `.study-dock-card__body` clips its overflow, so a footer pulled out on negative margins would
+ * simply be cut off at the padding box. The card drops its sides and bottom, and the header and
+ * the scrolling body re-apply them — only on a Review card that actually has this footer, so
+ * every other dock in the band is untouched.
+ */
+/*
+ * Only while the card is open. The footer stays in the DOM when the card collapses — the body
+ * is hidden by the wrapper's grid row, not unmounted — so a plain `:has(footer)` went on holding
+ * the card's padding off and the collapsed bar sat with its title against its own bottom edge.
+ * The wrapper says whether any of this is on screen; ask it.
+ */
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  ) {
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  )
+  .study-dock-card__header,
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  )
+  .proto-review-dock__result-scroll {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.proto-review-dock__actions--footer {
+  flex: 0 0 auto;
+  padding: 10px 12px 12px;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-ghost);
+  /* The card's inner radius: its 18px outer, less the 2px border it draws. */
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+/*
+ * The footer's rule is the card's bottom edge. The verdict draws rules on both of its sides, and
+ * it is usually the last thing in the scroller — so without this the card ends on two hairlines
+ * ten pixels apart, which reads as a seam rather than an edge.
+ */
+.proto-review-dock__result-scroll > :last-child {
+  border-bottom: none;
 }
 
 /* A label and the text it names, kept together as one block. */
@@ -23622,6 +23759,71 @@ button.proto-feed-sheet__stat:hover {
   background-size: 100% 1.5px;
 }
 
+/*
+ * A gap the app filled in after a miss.
+ *
+ * Deliberately neither of the two above: it is not the reader's answer, right or wrong, it is
+ * the one thing they were handed so the next go has somewhere to start. Muted and locked, so it
+ * reads as settled rather than as something still being asked.
+ */
+.proto-review-dock__blank[data-answer='given'] {
+  color: var(--pds-text-secondary);
+  background-image: none;
+  cursor: default;
+}
+
+/*
+ * The initials rung's letter, beside its gap rather than inside it.
+ *
+ * Inside, the reader would have to type around it — the letter is the hint, not part of what the
+ * answer is. `baseline` keeps it sitting on the same line as the words either side, which is what
+ * makes the whole thing still read as a verse.
+ */
+.proto-review-dock__gap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+}
+
+.proto-review-dock__gap-letter {
+  color: var(--pds-text-secondary);
+  font-variant-caps: normal;
+}
+
+/*
+ * "From your Harvous" — where the question came from, under the verdict.
+ *
+ * Set off by a rule rather than a panel: it is the same card still, saying one more thing about
+ * the same question. A boxed block would read as a second card stacked inside the first.
+ */
+.proto-review-dock__context {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-review-dock__context-label {
+  margin: 4px 0 0;
+}
+
+/* The reader's own marking, quoted the way the app quotes Scripture back to them. */
+.proto-review-dock__context-quote {
+  font-style: italic;
+}
+
+.proto-review-dock__context-thought {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+/* The line offered after a miss. Sits above the retry line, quieter than it. */
+.proto-review-dock__hint {
+  color: var(--pds-text-secondary);
+  margin-top: 6px;
+}
+
 /* The word you tapped on the altered rung, once the server has marked the tap. */
 .proto-review-dock__altered-word[data-answer='wrong'] {
   background: var(--pds-destructive-bg-strong);
@@ -23715,9 +23917,22 @@ button.proto-feed-sheet__stat:hover {
  * to two lines so a long question cannot push "Next one" below the fold of a card that already
  * scrolls.
  */
+/*
+ * The question, recapped at the top of the result.
+ *
+ * It was secondary at 14px — the same grey as a caption — so the one line that makes the rest of
+ * the card mean anything read as the least important thing on it. "The answer / Moses" says
+ * nothing until "Pick who appears in John 3." is legible above it.
+ *
+ * Full colour, and a rule under it: it is the heading of the card, and the footer's rule gives
+ * the same shape at the other end. Kept at 14px rather than the asking prompt's 15 because it is
+ * a recap of a question already answered, not the question itself.
+ */
 .proto-review-dock__prompt--asked {
   font-size: 14px;
-  color: var(--pds-text-secondary);
+  color: var(--pds-text-primary);
+  padding-bottom: var(--pds-space-2);
+  border-bottom: 0.5px solid var(--pds-border-on-paper);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

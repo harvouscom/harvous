@@ -285,13 +285,15 @@ export function buildChapterFinish(input: {
   verses: readonly ChapterVerse[];
   highlightedNumbers: readonly number[];
   seed: string;
-  /** Share of content words hidden — `verseClozeRatio(pass)`, so later passes hide more. */
+  /** Share of content words hidden — from the tier table, so later passes hide more. */
   ratio: number;
+  /** And at most this many gaps, which is what keeps a first meeting answerable. */
+  maxBlanks?: number;
 }): ChapterFinishExercise | null {
   const seed = `${input.seed}:finish`;
   const verse = pickSeeded(chapterFinishCandidates(input.verses, input.highlightedNumbers), seed);
   if (!verse) return null;
-  const cloze = buildVerseCloze(verse.text, seed, input.ratio);
+  const cloze = buildVerseCloze(verse.text, seed, input.ratio, { maxBlanks: input.maxBlanks });
   return cloze.blanks.length ? { verse, cloze } : null;
 }
 

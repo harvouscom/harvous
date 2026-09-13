@@ -17,6 +17,9 @@
  * "the" removed tests typing, not memory — and blanking them makes the verse unreadable as a
  * cue, which defeats the rung.
  */
+import type { RecallState } from './review-item-kinds';
+import { verseClozeSpec } from './review-difficulty';
+
 /** Words too common to be a fair thing to recall. Shared by every text-keyed rung. */
 export const STOPWORDS = new Set([
   'the', 'and', 'for', 'but', 'not', 'you', 'your', 'his', 'her', 'him', 'she', 'they',
@@ -101,20 +104,23 @@ export function bareWord(token: string): string {
 const MAX_BLANK_SHARE = 0.6;
 
 /**
- * How much of a verse to hide on a given maintenance pass.
+ * How much of a verse to hide at a given tier.
  *
  * A verse that has been round the ladder does not need the same gaps back; it needs bigger
  * ones. Three steps and then a ceiling, because `verse.recall` — write it from memory — is
  * already the 100% rung, and a cloze that hides more than three content words in five stops
  * being a prompt and becomes that rung with extra steps.
  *
+ * The steps themselves live in `review-difficulty.ts`, with every other rung's, so the tiers
+ * can be read side by side and a first meeting can be checked to be easy on all of them at
+ * once. The share opens at 0.2 rather than the 0.3 it used to, and is capped in count as well
+ * as in share — see `VerseClozeSpec`.
+ *
  * Driven by the pass, never by `reviewCount`: the count rises on every answer, so ten near
  * misses would hand someone a mostly-blank verse they have never once recalled.
  */
-export function verseClozeRatio(pass: number): number {
-  const steps = [0.3, 0.45, 0.6];
-  const index = Math.min(steps.length - 1, Math.max(0, Math.trunc(Number.isFinite(pass) ? pass : 0)));
-  return Math.min(MAX_BLANK_SHARE, steps[index]);
+export function verseClozeRatio(pass: number, recallState?: RecallState | null): number {
+  return Math.min(MAX_BLANK_SHARE, verseClozeSpec(pass, recallState).ratio);
 }
 
 /**
@@ -129,7 +135,12 @@ export function verseClozeRatio(pass: number): number {
  * At least one blank whenever anything is eligible, because a "rebuild" with nothing missing
  * is just the verse.
  */
-export function buildVerseCloze(text: string, seed: string, ratio = 0.3): VerseCloze {
+export function buildVerseCloze(
+  text: string,
+  seed: string,
+  ratio = 0.3,
+  options?: { maxBlanks?: number },
+): VerseCloze {
   const tokens = text.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) {
     return { tokens: [], blanks: [], display: '' };
@@ -157,7 +168,15 @@ export function buildVerseCloze(text: string, seed: string, ratio = 0.3): VerseC
   }
 
   const ceiling = Math.max(1, Math.floor(eligible.length * MAX_BLANK_SHARE));
-  const target = Math.max(1, Math.min(ceiling, Math.round(eligible.length * ratio)));
+  /*
+   * A count cap as well as a share, because a share alone does not make an easy question.
+   *
+   * Twenty per cent of a long verse's content words is still six or seven gaps — a paragraph of
+   * typing on what is meant to be the gentlest form of the rung. The cap is what makes a first
+   * meeting answerable; at the top tier it is infinite and the share governs alone.
+   */
+  const cap = Math.max(1, Math.trunc(options?.maxBlanks ?? Number.POSITIVE_INFINITY));
+  const target = Math.max(1, Math.min(ceiling, cap, Math.round(eligible.length * ratio)));
 
   // Fisher-Yates over the eligible indices with the seeded PRNG, then take the first `target`
   // and re-sort. Shuffling beats sampling-with-retries: no duplicate draws, no unbounded loop.
@@ -252,6 +271,9 @@ function normaliseWord(value: string): string {
   return value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 }
 
+/** One width for every gap once the letter-count hint is withdrawn. Wide enough for most words. */
+const UNIFORM_BLANK_WIDTH = 8;
+
 /** The verse split at its gaps, so the gaps can be inputs rather than a picture of inputs. */
 export interface VerseClozeSegments {
   /** `blanks.length + 1` pieces of visible text; a piece may be empty at either end. */
@@ -271,7 +293,10 @@ export interface VerseClozeSegments {
  * Punctuation stays outside the gap, exactly as `display` puts it: a blank standing for
  * `branches` in `branches.` leaves the full stop at the head of the next segment.
  */
-export function clozeSegments(cloze: VerseCloze): VerseClozeSegments {
+export function clozeSegments(
+  cloze: VerseCloze,
+  options?: { uniformWidths?: boolean },
+): VerseClozeSegments {
   const blankAt = new Map(cloze.blanks.map((b) => [b.index, b.word]));
   const blankLengths: number[] = [];
 
@@ -289,7 +314,15 @@ export function clozeSegments(cloze: VerseCloze): VerseClozeSegments {
       const word = blankAt.get(index);
       if (word === undefined) return token;
       const at = token.indexOf(word);
-      blankLengths.push(Math.max(3, word.length));
+      /*
+       * The width of each gap is the last helper standing, and the top tier takes it away.
+       *
+       * Sizing an input to the character count of the word it stands for is a real help while a
+       * verse is being learned and a giveaway once it is meant to be produced from memory — a
+       * four-letter box after "I am the" narrows the field to almost nothing. Every other helper
+       * in the feature is added; this is the only one withdrawn, and it goes last.
+       */
+      blankLengths.push(options?.uniformWidths ? UNIFORM_BLANK_WIDTH : Math.max(3, word.length));
       if (at < 0) return MARK;
       return `${token.slice(0, at)}${MARK}${token.slice(at + word.length)}`;
     })

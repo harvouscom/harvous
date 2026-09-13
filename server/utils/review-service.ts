@@ -111,6 +111,9 @@ import {
   buildVerseBook,
   buildVerseInitials,
   buildVerseKeywords,
+  buildVerseRecall,
+  markVerseInitials,
+  markVerseInitialsParts,
   buildVerseLocate,
   buildVerseMarked,
   buildVerseNext,
@@ -148,6 +151,12 @@ import {
   verseClozeRatio,
   verseCue,
 } from '@/utils/verse-cloze';
+import {
+  verseClozeSpec,
+  verseInitialsShare,
+  verseKeywordsCount,
+  verseRecallMode,
+} from '@/utils/review-difficulty';
 import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-untitled-note-display';
 import { stripHtmlForListPreview } from '@/utils/html-stripper';
 import { collectStudyThreadGraph } from './study-thread-graph';
@@ -468,6 +477,19 @@ function annotationTextOf(row: { miniNoteBody?: string | null; notesBody?: strin
   return stripHtml(raw);
 }
 
+/**
+ * Memoised on the same short TTL the verse and chapter material use, and for the same reason
+ * spelled out there — with one more caller than they have.
+ *
+ * Composing a session loads this twice over the same notes: `filterAskableReviewRows` needs it to
+ * decide which note rows can be asked anything at all, and `buildReviewItemViews` needs it again
+ * to resolve each one's rung. That is nine queries paid twice, back to back, for an answer that
+ * cannot have changed in between — and the two phases run one after the other, so the second set
+ * is dead wall time in front of the reader rather than work spread across a batch.
+ *
+ * Keyed on the exact set, sorted, so a different batch is a different entry. Recording an answer
+ * benefits too: `askedRungFor`, the grader and the reveal each load one note's material.
+ */
 async function loadNoteMaterial(
   userId: string,
   noteIds: readonly string[],
@@ -475,6 +497,16 @@ async function loadNoteMaterial(
   const unique = [...new Set(noteIds.filter(Boolean))];
   const out = new Map<string, NoteMaterial>();
   if (!unique.length) return out;
+  return memoisedMaterial(`note:${userId}:${[...unique].sort().join(',')}`, () =>
+    loadNoteMaterialUncached(userId, unique, out),
+  );
+}
+
+async function loadNoteMaterialUncached(
+  userId: string,
+  unique: string[],
+  out: Map<string, NoteMaterial>,
+): Promise<Map<string, NoteMaterial>> {
 
   const [bodies, viaPill, ownPassage, links, quotes, annotated, pool, labels, skip] = await Promise.all([
     db
@@ -940,10 +972,13 @@ export async function buildReviewItemViews(
       const translation = row.translation ?? 'NET';
       if (row.kind === 'chapter') return [chapterMaterialFor(row.scriptureReference, translation)];
       if (row.kind !== 'verse') return [];
-      const warm: Promise<unknown>[] = [
-        materialFor(row.scriptureReference, translation),
-        fetchVerseText(row.scriptureReference, translation),
-      ];
+      /*
+       * `materialFor` alone: `loadVerseMaterial` already fetches this exact text internally to
+       * fill `.text`, so a second, separate `fetchVerseText` call here paid for a round trip
+       * whose result was thrown away the moment it resolved. The loop below reads `.text` off
+       * the material instead of re-fetching — see there.
+       */
+      const warm: Promise<unknown>[] = [materialFor(row.scriptureReference, translation)];
       return warm;
     }),
   );
@@ -982,18 +1017,6 @@ export async function buildReviewItemViews(
       : null;
     const threadTitle =
       kind === 'thread' && row.noteId ? await threadTitleFor(userId, row.noteId) : null;
-
-    // The recognize rung shows a fragment of the verse, so it needs the text. Every other
-    // prompt is built from titles and references alone.
-    let cue: string | null = null;
-    if (kind === 'verse' && row.ladderStep === 0 && row.scriptureReference) {
-      const text = await fetchVerseText(row.scriptureReference, row.translation ?? 'NET');
-      // The words the reader marked while reading, where they marked any; the opening otherwise.
-      const span = text
-        ? readerSpanFragment(readerSpans.get(row.scriptureReference.trim().toLowerCase()), stripHtml(text))
-        : null;
-      cue = text ? verseCue(span ?? stripHtml(text)) : null;
-    }
 
     /*
      * A note is asked the rung it can answer, not the rung it has climbed to. The stored step
@@ -1034,6 +1057,38 @@ export async function buildReviewItemViews(
      * Dropped the way a note with nothing to ask about is dropped.
      */
     if (kind === 'chapter' && options.dropUnaskable && !chapterMaterial?.verses.length) continue;
+
+    /*
+     * The recognize rung shows a fragment of the verse, so it needs the text.
+     *
+     * Read off `verseMaterial.text` rather than fetched again: `loadVerseMaterial` already holds
+     * the stripped text as one of six things it loads in parallel, and issuing a second
+     * `fetchVerseText` here for the same reference and translation was a second, unwarmed round
+     * trip for a value already sitting in hand. Every other prompt is built from titles and
+     * references alone.
+     */
+    let cue: string | null = null;
+    if (kind === 'verse' && row.ladderStep === 0 && verseMaterial?.text) {
+      // The words the reader marked while reading, where they marked any; the opening otherwise.
+      const span = readerSpanFragment(
+        row.scriptureReference ? readerSpans.get(row.scriptureReference.trim().toLowerCase()) : null,
+        verseMaterial.text,
+      );
+      cue = verseCue(span ?? verseMaterial.text);
+    }
+    /*
+     * Which tier this rung is asking at, resolved *before* the prompt so the instruction can
+     * describe the exercise the reveal is about to build. "Write it from memory" printed above
+     * two thirds of the verse is the app misdescribing its own question, and the staged rungs
+     * made that reachable — so the prompt takes the same `pass` the builder will.
+     *
+     * Resolved through `verseRungFor` here and again inside `reviewPromptFor`, which is free
+     * (both are pure over the same inputs) and is the only way to keep one resolver.
+     */
+    const promptSeed = reviewSeed(row);
+    const promptPass =
+      kind === 'verse' ? verseRungFor(row.ladderStep, promptSeed, verseMaterial).pass : 0;
+    const promptRecallState = row.recallState as RecallState;
     const { key, prompt } = reviewPromptFor(
       {
         kind,
@@ -1049,6 +1104,10 @@ export async function buildReviewItemViews(
         secondaryNoteTitle,
         threadTitle,
         cue,
+        recallMode: kind === 'verse' ? verseRecallMode(promptPass, promptRecallState) : null,
+        keywordCount: kind === 'verse' ? verseKeywordsCount(promptPass, promptRecallState) : null,
+        initialsTier:
+          kind === 'verse' ? (verseInitialsShare(promptPass, promptRecallState) >= 1 ? 2 : 0) : null,
       },
     );
 
@@ -1074,19 +1133,18 @@ export async function buildReviewItemViews(
       (resolvedKey === 'verse.locate' || resolvedKey === 'verse.book') &&
       row.scriptureReference
     ) {
-      if (!subjectCue) {
-        const text = await fetchVerseText(row.scriptureReference, row.translation ?? 'NET');
-        subjectCue = text ? verseCue(stripHtml(text)) : null;
-      }
+      // `verseMaterial` is always set here — locate/book are verse-only rungs — so this is a
+      // property read, not the third fetch of the same passage it used to be.
+      if (!subjectCue && verseMaterial?.text) subjectCue = verseCue(verseMaterial.text);
     } else if (resolvedKey !== 'verse.recognize') {
       subjectCue = null;
     }
     const framingNodeKey = nodeKeyFor(row);
     const node = framingNodeKey ? nodeByKey.get(framingNodeKey) : undefined;
-    const seed = reviewSeed(row);
+    const seed = promptSeed;
     const pass =
       kind === 'verse'
-        ? verseRungFor(row.ladderStep, seed, verseMaterial).pass
+        ? promptPass
         : kind === 'chapter'
           ? chapterRungFor(row.ladderStep, seed, chapterMaterial).pass
           : 0;
@@ -1939,7 +1997,28 @@ export interface ReviewRevealPayload {
    */
   choice?: { options: string[]; opening: boolean } | null;
   /** First letters of every word, and how many words. The verse itself is never sent. */
-  initials?: { initials: string; wordCount: number } | null;
+  /**
+   * The line with some words on their first letter, and — below the top tier — the pieces either
+   * side of each reduced word so they can be typed in place. Never `reduced`: that is the key.
+   */
+  initials?: {
+    initials: string;
+    wordCount: number;
+    tier: number;
+    segments?: { segments: string[]; blankLengths: number[]; letters: string[] } | null;
+  } | null;
+  /** How much of the verse is given before the reader writes the rest. `null` shown = nothing. */
+  recall?: { shown: string | null; mode: string } | null;
+  /**
+   * Where in the reader's Harvous this question came from — the line the row shows about its
+   * provenance, and the highlight or thought it was built out of. For the result card, which
+   * had none of it.
+   */
+  context?: {
+    sourceLabel: string | null;
+    sourceAt: string | null;
+    annotation: { quote: string | null; thought: string | null } | null;
+  } | null;
   /** How many words to name. Nothing about which. */
   keywords?: { count: number } | null;
   /** Two openings from the same chapter; which comes first stays here. */
@@ -2011,8 +2090,13 @@ interface VerseKnowledgeMaterial extends VerseMaterial {
   people: string[];
   /** Places the index names at this verse, normalised, barred labels included. */
   places: string[];
-  /** Cross-reference targets above the vote floor whose text could be fetched. */
-  crossRefs: { reference: string; text: string }[];
+  /**
+   * The cross-reference openings, loaded on demand.
+   *
+   * A function rather than an array: only `verse.crossref` reads them, and fetching them for
+   * every verse in a sitting was three round trips apiece for a rung most of them never ask.
+   */
+  crossRefs: () => Promise<{ reference: string; text: string }[]>;
   /** How many targets clear the vote floor at all, for the framing line. Capped by the query. */
   crossRefTotal: number;
   /** Distinguishing labels of the reader's notes that cite this verse. */
@@ -2034,7 +2118,7 @@ const EMPTY_VERSE_MATERIAL: VerseKnowledgeMaterial = {
   allThemeLabels: [],
   people: [],
   places: [],
-  crossRefs: [],
+  crossRefs: () => Promise.resolve([]),
   crossRefTotal: 0,
   citingNoteLabels: [],
   text: '',
@@ -2153,24 +2237,35 @@ async function loadVerseMaterialUncached(
     .filter((c) => c.chapterStart === c.chapterEnd)
     .slice(0, CROSSREF_TEXT_FETCHES);
   /*
-   * The three cross-reference openings, fetched together rather than one after another.
+   * The three cross-reference openings — fetched together, and only if anything asks for them.
    *
    * `fetchVerseText` is a database round trip (a `VerseTextCache` read, then `BibleVerses`, then
-   * a cache write) — not an in-memory lookup — so awaiting them in a loop cost three serial trips
-   * per verse item. A queue of eighteen paid that eighteen times over, and it was the largest
-   * single component of a `/api/review/items` response that Home's first paint waits on.
+   * a cache write), not an in-memory lookup. These were awaited on every material load, which
+   * means every verse in a sitting paid for up to three of them — and exactly one rung ever reads
+   * the result. `verse.crossref` is one member of one five-member family, so the overwhelming
+   * majority of those fetches were made, held, and dropped. Against a real account that is the
+   * largest remaining cost in composing a session.
    *
-   * `Promise.all` preserves order, and the falsy-`html` rows are dropped after rather than never
-   * pushed, so the list this returns is identical to the one the loop built.
+   * Lazy and memoised: the first caller pays, a second gets the same promise, and a material
+   * nobody asks a cross-reference of costs nothing at all. `Promise.all` still preserves order,
+   * and the falsy-`html` rows are still dropped after rather than never pushed, so what comes
+   * back is what the eager version returned.
    */
   const crossRefTargets = targets.map((c) => `${c.book} ${c.chapterStart}:${c.verseStart}`);
-  const crossRefHtml = await Promise.all(
-    crossRefTargets.map((targetRef) => fetchVerseText(targetRef, translation)),
-  );
-  const crossRefs = crossRefTargets
-    .map((reference, i) => ({ reference, html: crossRefHtml[i] }))
-    .filter((entry) => Boolean(entry.html))
-    .map((entry) => ({ reference: entry.reference, text: stripHtml(entry.html) }));
+  let crossRefPending: Promise<{ reference: string; text: string }[]> | null = null;
+  const crossRefs = () => {
+    if (!crossRefPending) {
+      crossRefPending = Promise.all(
+        crossRefTargets.map((targetRef) => fetchVerseText(targetRef, translation)),
+      ).then((html) =>
+        crossRefTargets
+          .map((reference, i) => ({ reference, html: html[i] }))
+          .filter((entry) => Boolean(entry.html))
+          .map((entry) => ({ reference: entry.reference, text: stripHtml(entry.html) })),
+      );
+    }
+    return crossRefPending;
+  };
 
   return {
     reference: ref,
@@ -2180,7 +2275,14 @@ async function loadVerseMaterialUncached(
     // The count is of places that can actually be asked, so a verse naming only "the earth"
     // never resolves to a place rung the builder would then refuse.
     placeCount: askablePlaces((knowledge?.places ?? []).map((place) => place.name)).length,
-    crossRefCount: crossRefs.length,
+    /*
+     * Counted from the targets rather than from fetched text, because the count decides whether
+     * the rung is offered at all and must not depend on a fetch that has not happened. A target
+     * whose text later fails to load is the one case this over-counts by, and the builder already
+     * returns null there — which falls forward to another member of the family, as a missing
+     * material always does.
+     */
+    crossRefCount: crossRefTargets.length,
     themes: themesAbove.map(label),
     allThemeLabels: (knowledge?.themes ?? []).map(label),
     people: (knowledge?.people ?? []).map((p) => p.name),
@@ -2336,9 +2438,10 @@ async function buildVerseContextFor(
   }
 
   if (rungKey === 'verse.crossref') {
-    if (!material.crossRefs.length) return null;
-    const answer = material.crossRefs[seededIndex(seed, material.crossRefs.length)];
-    const barred = new Set(material.crossRefs.map((c) => c.reference.toLowerCase()));
+    const crossRefs = await material.crossRefs();
+    if (!crossRefs.length) return null;
+    const answer = crossRefs[seededIndex(seed, crossRefs.length)];
+    const barred = new Set(crossRefs.map((c) => c.reference.toLowerCase()));
     const distractorTexts: string[] = [];
     for (const ref of otherRefs) {
       if (barred.has(ref.toLowerCase())) continue;
@@ -2874,12 +2977,19 @@ async function buildChapterVerseFor(
   return buildChapterVerse({ verses: material.verses, distractorTexts: own, fallbackTexts: fallback, seed });
 }
 
-function buildChapterFinishFor(material: ChapterKnowledgeMaterial, seed: string, pass: number): ChapterFinishExercise | null {
+function buildChapterFinishFor(
+  material: ChapterKnowledgeMaterial,
+  seed: string,
+  pass: number,
+  recallState?: RecallState | null,
+): ChapterFinishExercise | null {
+  const spec = verseClozeSpec(pass, recallState);
   return buildChapterFinish({
     verses: material.verses,
     highlightedNumbers: material.highlightedNumbers,
     seed,
-    ratio: verseClozeRatio(pass),
+    ratio: spec.ratio,
+    maxBlanks: spec.maxBlanks,
   });
 }
 
@@ -2965,7 +3075,7 @@ export async function gradeChapterAnswer(
     };
   }
   if (rung.key === 'chapter.finish' && Array.isArray(answer.words)) {
-    const exercise = buildChapterFinishFor(material, seed, rung.pass);
+    const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
     if (!exercise) return null;
     const marked = markVerseRebuild(exercise.cloze, answer.words);
     return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
@@ -3017,7 +3127,7 @@ export async function chapterTruthFor(item: ReviewItemRow, userId: string): Prom
   const material = await loadChapterMaterial(userId, item.scriptureReference, item.translation ?? 'NET');
   const rung = chapterRungFor(item.ladderStep, seed, material);
   if (rung.key === 'chapter.finish') {
-    const exercise = buildChapterFinishFor(material, seed, rung.pass);
+    const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
     return exercise ? verseHtml(exercise.verse) : null;
   }
   if (rung.key === 'chapter.order') {
@@ -3076,15 +3186,63 @@ export async function gradeVerseAnswer(
     };
   }
   if (FREE_RECALL_KEYS.has(rung.key) && typeof answer.text === 'string') {
-    const marked = markVerseRecall(material.text, answer.text, RECALL_MIN_SHARE);
-    return { correct: marked.correct, correctAnswer: null, parts: marked.parts, reached: marked.reached };
+    /*
+     * Graded against what was *asked for*, not against the whole verse.
+     *
+     * At the lower tiers most of the verse is on screen and the reader writes the rest; marking
+     * the coverage share against the full text would score a perfect finish at two thirds.
+     */
+    const built = buildVerseRecall(material.text, verseRecallMode(rung.pass, item.recallState as RecallState));
+    const marked = markVerseRecall(built.hiddenText, answer.text, RECALL_MIN_SHARE);
+    return {
+      correct: marked.correct,
+      correctAnswer: null,
+      parts: marked.parts,
+      reached: marked.reached,
+      hint: marked.correct ? undefined : recallHint(built.hiddenText, answer.text),
+    };
   }
-  if (rung.key === 'verse.initials' && typeof answer.text === 'string') {
-    return { correct: gradeVerseInitials(material.text, answer.text), correctAnswer: null };
+  if (rung.key === 'verse.initials') {
+    /*
+     * Which shape is graded is decided by the **tier**, never by which field the client sent.
+     *
+     * Reading the field instead would let a page choose its own marking: send `text` on a
+     * tier-0 item and the all-or-nothing subsequence match runs against a verse that was mostly
+     * on screen. The tier is derived from stored state the client cannot set.
+     */
+    const share = verseInitialsShare(rung.pass, item.recallState as RecallState);
+    const exercise = buildVerseInitials(material.text, seedForRung, share);
+    if (!exercise) return null;
+    if (exercise.tier < 2 && Array.isArray(answer.words)) {
+      const marked = markVerseInitialsParts(exercise, answer.words);
+      return {
+        correct: marked.correct,
+        correctAnswer: null,
+        parts: marked.parts,
+        hint: marked.correct ? undefined : blankHint(exercise.reduced, answer.words, marked.parts),
+      };
+    }
+    if (exercise.tier === 2 && typeof answer.text === 'string') {
+      const marked = markVerseInitials(material.text, answer.text);
+      return {
+        correct: marked.correct,
+        correctAnswer: null,
+        parts: marked.parts,
+        reached: marked.reached,
+        hint: marked.correct ? undefined : wordHint(material.text, answer.text),
+      };
+    }
+    return null;
   }
   if (rung.key === 'verse.keywords' && Array.isArray(answer.words)) {
-    const marked = markVerseKeywords(material.text, answer.words);
-    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
+    const count = verseKeywordsCount(rung.pass, item.recallState as RecallState);
+    const marked = markVerseKeywords(material.text, answer.words, count);
+    return {
+      correct: marked.correct,
+      correctAnswer: null,
+      parts: marked.parts,
+      hint: marked.correct ? undefined : keywordHint(material.text, answer.words, seedForRung),
+    };
   }
   if (rung.key === 'verse.before' && typeof answer.option === 'string') {
     const exercise = await buildVerseBeforeFor(item, material.text, seedForRung);
@@ -3125,13 +3283,17 @@ export async function gradeVerseAnswer(
   if (isRebuild) {
     const html = await fetchVerseText(item.scriptureReference, item.translation ?? 'NET');
     if (!html) return null;
-    const cloze = buildVerseCloze(
-      stripHtml(html),
-      reviewSeed(item),
-      verseClozeRatio(rung.pass),
-    );
+    const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
+    const cloze = buildVerseCloze(stripHtml(html), reviewSeed(item), spec.ratio, {
+      maxBlanks: spec.maxBlanks,
+    });
     const marked = markVerseRebuild(cloze, answer.words!);
-    return { correct: marked.correct, correctAnswer: null, parts: marked.parts };
+    return {
+      correct: marked.correct,
+      correctAnswer: null,
+      parts: marked.parts,
+      hint: marked.correct ? undefined : blankHint(cloze.blanks, answer.words!, marked.parts),
+    };
   }
 
   if (isAltered) {
@@ -3579,6 +3741,94 @@ export interface GradedAnswer {
   parts?: boolean[];
   /** How much of the verse a written answer reached. Names nothing; it is a count. */
   reached?: { matched: number; total: number };
+  /**
+   * One thing to go on for the next try. Only ever computed for a wrong answer, and the route
+   * only ever sends it while there is a go left — see `ReviewHint`.
+   */
+  hint?: ReviewHint;
+}
+
+/**
+ * What the reader is given after a miss, when the question is still in front of them.
+ *
+ * A retry that repeats the identical question with no new information is a second chance to make
+ * the same mistake; a retry that hands over one piece is the repetition this feature is for.
+ *
+ * **Computed, never stored.** The grader rebuilds the exercise from the same seed and tier it was
+ * asked at, looks at what missed, and names one thing. A second identical attempt yields the same
+ * hint, which is correct — nothing about the reader's progress has changed.
+ *
+ * A hinted answer can never earn the long interval: the outcome route already maps every
+ * second-or-later attempt to `almost`, so the most a hint can buy is a few days rather than a
+ * fortnight. That is the price, and it is the right one — help is not the same as recall.
+ */
+export type ReviewHint =
+  /** A gap, filled. The reader sees the word appear in place and locked. */
+  | { kind: 'blank'; index: number; word: string }
+  /** The next few words of what they were asked to produce, from where they got to. */
+  | { kind: 'lead'; text: string }
+  /** One word they have not reached yet, named. */
+  | { kind: 'word'; word: string }
+  /** The first letter of a word that would have counted. */
+  | { kind: 'letter'; letter: string };
+
+/** How many words a `lead` hint hands over. Enough to restart a sentence, not to finish it. */
+const HINT_LEAD_WORDS = 3;
+
+/**
+ * The first gap that is wrong or empty, filled in.
+ *
+ * Deterministic and dull on purpose: the first one they have not got. Walking to a *random*
+ * missing gap would mean a second identical attempt hinting at a different word, which reads as
+ * the exercise changing under them.
+ */
+function blankHint(
+  blanks: readonly { word: string }[],
+  answers: readonly string[],
+  parts: readonly boolean[],
+): ReviewHint | undefined {
+  for (let i = 0; i < blanks.length; i++) {
+    if (parts[i] === true) continue;
+    if (!blanks[i]?.word) continue;
+    return { kind: 'blank', index: i, word: blanks[i].word };
+  }
+  return undefined;
+}
+
+/** Where the reader got to in what they were asked to produce, plus the next few words. */
+function recallHint(hiddenText: string, attempt: string): ReviewHint | undefined {
+  const wanted = hiddenText.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (!wanted.length) return undefined;
+  const marked = markVerseRecall(hiddenText, attempt, RECALL_MIN_SHARE);
+  /*
+   * `reached.matched` counts content words; the lead has to start at a *token*. Walking forward
+   * to the token after the last content word they landed gives a hint that continues their
+   * sentence rather than one that restates it.
+   */
+  const from = Math.min(wanted.length - 1, Math.max(0, marked.reached.matched));
+  const text = wanted.slice(from, from + HINT_LEAD_WORDS).join(' ');
+  return text ? { kind: 'lead', text } : undefined;
+}
+
+/** The first content word of the verse the reader has not reached. */
+function wordHint(text: string, attempt: string): ReviewHint | undefined {
+  const marked = markVerseInitials(text, attempt);
+  const words = contentWords(text);
+  const next = words[Math.min(words.length - 1, Math.max(0, marked.reached.matched))];
+  return next ? { kind: 'word', word: next } : undefined;
+}
+
+/** A letter that would have counted, for the rung where any of several words is right. */
+function keywordHint(
+  text: string,
+  words: readonly string[],
+  seed: string,
+): ReviewHint | undefined {
+  const used = new Set(words.map((word) => word.trim().toLowerCase()).filter(Boolean));
+  const options = contentWords(text).filter((word) => !used.has(word.toLowerCase()));
+  if (!options.length) return undefined;
+  const letter = options[hashSeed(`${seed}:hint`) % options.length].charAt(0);
+  return letter ? { kind: 'letter', letter } : undefined;
 }
 
 export async function gradeNoteAnswer(
@@ -3688,17 +3938,38 @@ export async function buildReviewReveal(
           payload.verseText = null;
         }
         if (FREE_RECALL_KEYS.has(rung.key)) {
-          // Nothing to build: the prompt is the whole question. The verse comes back as truth
-          // once the answer is in, which is why it cannot be sent with the question.
+          /*
+           * At the top tier the prompt is the whole question and nothing is built. Below it the
+           * reader is given a way in — most of the verse to finish, or its opening few words —
+           * and `shown` is that much and no more. The rest is still withheld and still comes
+           * back as truth once the answer is in.
+           */
+          const built = buildVerseRecall(text, verseRecallMode(rung.pass, item.recallState as RecallState));
+          payload.recall = { shown: built.shown, mode: built.mode };
           payload.verseText = null;
         }
         if (rung.key === 'verse.initials') {
-          payload.initials = buildVerseInitials(text);
-          // The letters are the question; the verse would be the answer.
+          const exercise = buildVerseInitials(
+            text,
+            seed,
+            verseInitialsShare(rung.pass, item.recallState as RecallState),
+          );
+          // `reduced` is the answer key and never leaves the server; the letters are the question.
+          payload.initials = exercise
+            ? {
+                initials: exercise.initials,
+                wordCount: exercise.wordCount,
+                tier: exercise.tier,
+                segments: exercise.segments ?? null,
+              }
+            : null;
           if (payload.initials) payload.verseText = null;
         }
         if (rung.key === 'verse.keywords') {
-          payload.keywords = buildVerseKeywords(text);
+          payload.keywords = buildVerseKeywords(
+            text,
+            verseKeywordsCount(rung.pass, item.recallState as RecallState),
+          );
           if (payload.keywords) payload.verseText = null;
         }
         if (rung.key === 'verse.before') {
@@ -3725,10 +3996,15 @@ export async function buildReviewReveal(
         }
         if (rung.key === 'verse.rebuild') {
           // A later pass hides more, and the seed carries the step, so it hides a different set.
-          const cloze = buildVerseCloze(text, seed, verseClozeRatio(rung.pass));
+          const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
+          const cloze = buildVerseCloze(text, seed, spec.ratio, { maxBlanks: spec.maxBlanks });
           // The pieces either side of each gap, so the page can put an input where the gap is
           // rather than a picture of one. `display` is never sent: it is unfillable.
-          payload.cloze = cloze.blanks.length > 0 ? clozeSegments(cloze) : null;
+          // `uniformWidths` withdraws the letter-count hint at the top tier.
+          payload.cloze =
+            cloze.blanks.length > 0
+              ? clozeSegments(cloze, { uniformWidths: spec.uniformWidths })
+              : null;
           /*
            * The gaps, not the verse. This rung shipped both and rendered neither: it was not
            * graded, so the reveal was only fetched after "Check the verse", and the dock had no
@@ -3801,8 +4077,11 @@ export async function buildReviewReveal(
       payload.choice = exercise ? { options: exercise.options, opening: true } : null;
     }
     if (rung.key === 'chapter.finish') {
-      const exercise = buildChapterFinishFor(material, seed, rung.pass);
-      payload.cloze = exercise ? clozeSegments(exercise.cloze) : null;
+      const spec = verseClozeSpec(rung.pass, item.recallState as RecallState);
+      const exercise = buildChapterFinishFor(material, seed, rung.pass, item.recallState as RecallState);
+      payload.cloze = exercise
+        ? clozeSegments(exercise.cloze, { uniformWidths: spec.uniformWidths })
+        : null;
     }
     if (rung.key === 'chapter.order') {
       const exercise = buildChapterOrderFor(material, seed);
@@ -3879,7 +4158,67 @@ export async function buildReviewReveal(
     };
   }
 
+  /*
+   * Where this came from, for the card that is shown once the answering is over.
+   *
+   * The result card said what was asked, what the reader answered and when it comes back, and
+   * nothing at all about the thing in their Harvous the question was made from. A verse item
+   * exists *because* they marked it while reading, or wrote something on it — and that is the
+   * connection the whole feature is for. The reveal already carried the note's title and body
+   * and the dock threw them away; this adds the one thing it never fetched.
+   *
+   * Only the source label and the annotation. The note itself is already on the payload, and
+   * the framing line belongs to the item view, which the client holds.
+   */
+  payload.context = {
+    sourceLabel: item.sourceLabel ?? null,
+    sourceAt: item.sourceAt ? item.sourceAt.toISOString() : null,
+    annotation: await loadItemAnnotation(userId, item),
+  };
+
   return payload;
+}
+
+/**
+ * The highlight or note the item was made from, in the reader's own words.
+ *
+ * `ReviewItems.studyThreadEntryId` has been on the row since highlights became reviewable and
+ * nothing ever read it back: the reveal touched `StudyThreadEntries` nowhere, so a question
+ * built from a passage someone marked and wrote a paragraph about revealed the parent note's
+ * body and not one word of the marking itself.
+ *
+ * Both halves are optional and either may be missing: a highlight with no note attached is a
+ * quote and nothing else, and a thought written on a passage with the span since detached is a
+ * thought with no quote. The card renders whichever it is given.
+ */
+async function loadItemAnnotation(
+  userId: string,
+  item: ReviewItemRow,
+): Promise<{ quote: string | null; thought: string | null } | null> {
+  if (!item.studyThreadEntryId) return null;
+  try {
+    const [row] = await db
+      .select({
+        excerpt: StudyThreadEntries.scripturePassageExcerpt,
+        miniNoteBody: StudyThreadEntries.miniNoteBody,
+        notesBody: StudyThreadEntries.notesBody,
+      })
+      .from(StudyThreadEntries)
+      .where(
+        and(
+          eq(StudyThreadEntries.id, item.studyThreadEntryId),
+          // Scoped to the reader, because an id alone is not an authorisation.
+          eq(StudyThreadEntries.userId, userId),
+        ),
+      );
+    if (!row) return null;
+    const quote = stripHtml(row.excerpt ?? '').trim() || null;
+    const thought = stripHtml(row.miniNoteBody || row.notesBody || '').trim() || null;
+    return quote || thought ? { quote, thought } : null;
+  } catch {
+    // A missing table or column costs the card one block, never the answer the reader is owed.
+    return null;
+  }
 }
 
 /**

@@ -86,6 +86,21 @@ export const REVIEW_REVEAL_FAILED_COPY = "This one didn't load.";
 export const REVIEW_REVEAL_RETRY_COPY = 'Try again';
 
 /**
+ * What the reader is given after a miss, while the question is still in front of them.
+ *
+ * Offered, not announced: "it goes on", not "the answer is". The rung is still theirs to finish,
+ * and the vocabulary rule at the top of this file applies here more than anywhere — a line that
+ * arrives after a wrong answer is the easiest place in the feature to sound disappointed.
+ *
+ * No counting either. "One of the words" rather than "1 of 3 left": a number about what remains
+ * is the thing this feature does not say.
+ */
+export const reviewHintLeadCopy = (text: string) => `It goes on: “${text}…”`;
+export const reviewHintWordCopy = (word: string) => `One of the words is “${word}”.`;
+export const reviewHintLetterCopy = (letter: string) =>
+  `One of the words starts with ${letter.toUpperCase()}.`;
+
+/**
  * The section heading on Activity.
  *
  * It was "Study Inbox" for its first week and the word was wrong twice over. An inbox is
@@ -168,6 +183,38 @@ export const REVIEW_ALTERED_CAPTION = 'One word here is not what it says';
 
 /** Said plainly above the restored verse, so the correction is unmistakable. */
 export const REVIEW_TRUTH_LABEL = 'As it actually reads';
+
+/**
+ * The block on the result card that says where the question came from.
+ *
+ * The point of the whole feature is that these questions are about the reader's own study, and
+ * the card that closes a question was the one surface that never said so. "From your Harvous"
+ * rather than "Source" or "Context": it names whose study it is, which is the claim being made.
+ *
+ * The two ways back are offered, never taken — the reader has just finished answering and may
+ * well want to sit with the result. A card that navigated on its own would be the queue
+ * advancing itself, which this feature does not do.
+ */
+export const REVIEW_CONTEXT_LABEL = 'From your Harvous';
+
+/**
+ * Right and wrong, for the reader who cannot see the colour.
+ *
+ * The echo marks each part with a colour and an underline and nothing else, which fails the
+ * "not by colour alone" rule outright — and the reader it fails is the one with the least other
+ * way to tell how their answer went. Read out beside each part, never shown.
+ *
+ * Still no "wrong": the vocabulary rule at the top of this file holds for text a screen reader
+ * speaks exactly as it holds for text on the card.
+ */
+export const REVIEW_PART_STATE_LABEL: Record<'right' | 'wrong', string> = {
+  right: 'correct',
+  wrong: 'not this one',
+};
+export const REVIEW_CONTEXT_MARKED_LABEL = 'What you marked';
+export const REVIEW_CONTEXT_WROTE_LABEL = 'What you wrote';
+export const REVIEW_CONTEXT_OPEN_NOTE_COPY = 'Open the note';
+export const REVIEW_CONTEXT_OPEN_READER_COPY = 'Read it in context';
 export const REVIEW_SEE_LESS_COPY = 'Show fewer';
 
 /* The note's ⋯ menu is the one place this is offered. The Review card briefly carried a `+`
