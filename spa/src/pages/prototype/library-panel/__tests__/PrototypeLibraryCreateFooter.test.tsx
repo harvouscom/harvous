@@ -18,12 +18,13 @@ const organize = {
   openCreateThread: vi.fn(),
 };
 const closeLibraryPanel = vi.fn();
+const setActiveSpaceId = vi.fn();
 
 vi.mock('../../../../lib/prototype-organize-runner-store', () => ({
   useOrganizeApi: () => organize,
 }));
 vi.mock('../../../../layouts/proto-shell-context', () => ({
-  useProtoShell: () => ({ closeLibraryPanel }),
+  useProtoShell: () => ({ closeLibraryPanel, setActiveSpaceId }),
 }));
 
 const { default: PrototypeLibraryCreateFooter } = await import('../PrototypeLibraryCreateFooter');
@@ -89,5 +90,40 @@ describe('what pressing it does', () => {
     render(<PrototypeLibraryCreateFooter tab={'notes' as never} searching={false} />);
     screen.getByText('New note').click();
     expect(closeLibraryPanel).toHaveBeenCalledWith({ preserveHistory: true });
+  });
+});
+
+describe('New note from My Home, inside a shared space', () => {
+  function pressNewNote(homeSpaceId: string | null) {
+    const seen: Event[] = [];
+    const listen = (event: Event) => seen.push(event);
+    window.addEventListener('prototypeShortcutNewNote', listen);
+    render(
+      <PrototypeLibraryCreateFooter
+        tab={'notes' as never}
+        searching={false}
+        homeSpaceId={homeSpaceId}
+      />,
+    );
+    screen.getByText('New note').click();
+    window.removeEventListener('prototypeShortcutNewNote', listen);
+    return seen;
+  }
+
+  it('moves the shell home and names Home as where the note goes', () => {
+    // A note started from your own library is a Home note. Moving first keeps it from
+    // landing in the room the toolbar still names; the target on the event survives the
+    // layout's handler reading the shell before that move has re-rendered it.
+    const seen = pressNewNote('space_home');
+    expect(setActiveSpaceId).toHaveBeenCalledWith(null);
+    expect(seen).toHaveLength(1);
+    expect((seen[0] as CustomEvent).detail).toEqual({ targetSpaceId: 'space_home' });
+  });
+
+  it('leaves the shell and the target alone on the room side', () => {
+    const seen = pressNewNote(null);
+    expect(setActiveSpaceId).not.toHaveBeenCalled();
+    expect(seen).toHaveLength(1);
+    expect((seen[0] as CustomEvent).detail ?? null).toBeNull();
   });
 });

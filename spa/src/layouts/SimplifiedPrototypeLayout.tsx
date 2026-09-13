@@ -102,7 +102,13 @@ import { normalizePrototypeApiSpaceId } from '../utils/prototype-space-api-id';
 import { useNote } from '../hooks/queries/useNote';
 import { PROTO_LAST_SPACE_KEY } from './proto-session-keys';
 import { ProtoMigrationProvider } from './proto-migration-context';
-import { ProtoShellProvider, resolveVisibleComposeTarget, useProtoShell } from './proto-shell-context';
+import {
+  normalizeComposeSpaceId,
+  ProtoShellProvider,
+  resolveVisibleComposeTarget,
+  useProtoShell,
+} from './proto-shell-context';
+import { resolveLibraryListScope } from '../lib/shared-space-capabilities';
 import { applyReadingPrefs, readReadingPrefs } from '../lib/proto-reading-prefs';
 import { applyFontPrefs, readFontPrefs } from '../lib/proto-font-prefs';
 import { consumePendingComposeSession } from '../lib/pending-compose-session';
@@ -846,10 +852,14 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
    * Shell id is null on My Home / My Church hub; useActiveSpace remaps null → personal home.
    */
   const inScopedSharedSpace = isSharedSpace && Boolean(location.spaceId);
-  const listScopeSpaceId =
-    inScopedSharedSpace && sidebarListSpaceScope === 'my-home' && homeSpaceId
-      ? homeSpaceId
-      : resolvedActiveSpaceId;
+  /* The same rule the Library panel reads, so the organize host acts on whichever space the
+     panel's "<space> | My Home" switch is showing — never on a different one. */
+  const listScopeSpaceId = resolveLibraryListScope({
+    activeSpaceId: resolvedActiveSpaceId,
+    homeSpaceId,
+    isSharedSpace: inScopedSharedSpace,
+    listScope: sidebarListSpaceScope,
+  }).spaceId;
   // inspector is rendered inline in PrototypeNotePage (flex-row), no extra grid column needed
   void inspectorOpen;
 
@@ -1487,13 +1497,18 @@ function PrototypeShortcutBridge() {
       isDraftNoteRoute,
     });
 
-  const createPrototypeNote = useCallback((purpose?: ComposePurpose) => {
-    const targetSpaceId = resolveVisibleComposeTarget({
-      homeSpaceId,
-      activeSpaceId,
-      sidebarLayer,
-      sidebarListSpaceScope,
-    });
+  const createPrototypeNote = useCallback((purpose?: ComposePurpose, explicitTargetSpaceId?: string) => {
+    /* An explicit target wins. The Library panel's "New note" from My Home names Home while the
+       shell's move out of the shared space has not re-rendered this closure yet, so reading the
+       visible target here would still find the room. */
+    const targetSpaceId = explicitTargetSpaceId
+      ? normalizeComposeSpaceId(explicitTargetSpaceId)
+      : resolveVisibleComposeTarget({
+          homeSpaceId,
+          activeSpaceId,
+          sidebarLayer,
+          sidebarListSpaceScope,
+        });
     /* A guest composes into no space at all — the note is saved to this device. Without
        this exemption N was dead for them while the toolbar's own button worked. */
     if (!targetSpaceId && !isGuest) return;
@@ -1656,8 +1671,12 @@ function PrototypeShortcutBridge() {
 
   useEffect(() => {
     const onNewNote = (event: Event) => {
-      const purpose = (event as CustomEvent<{ purpose?: ComposePurpose }>).detail?.purpose;
-      createPrototypeNote(purpose === 'template' ? 'template' : undefined);
+      const detail = (event as CustomEvent<{ purpose?: ComposePurpose; targetSpaceId?: string }>)
+        .detail;
+      createPrototypeNote(
+        detail?.purpose === 'template' ? 'template' : undefined,
+        detail?.targetSpaceId,
+      );
     };
     const onToggleSidebar = () => togglePrototypeSidebar();
     const onToggleInspector = () => {

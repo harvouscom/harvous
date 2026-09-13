@@ -59,6 +59,38 @@ export function canManageStudyThreadsInSharedSpace(options: {
   return options.isOwner || options.membershipRole === 'leader';
 }
 
+/**
+ * Which space a list is showing inside the shared-space shell.
+ *
+ * The Library panel's "<space> | My Home" switch, and the organize host that acts on what the
+ * panel shows, both ask this — one rule, so a bulk delete cannot land in a different space from
+ * the rows it was chosen from. The scope only means something inside a shared space: on My Home
+ * there is nothing else to look at, and with no Home id there is nowhere for the switch to go, so
+ * both fall back to the space you are in.
+ */
+export function resolveLibraryListScope(input: {
+  activeSpaceId: string | null | undefined;
+  homeSpaceId: string | null | undefined;
+  isSharedSpace: boolean;
+  isOwner?: boolean;
+  listScope: SidebarListSpaceScope;
+}): {
+  viewingHome: boolean;
+  spaceId: string | null;
+  isScopedSharedSpace: boolean;
+  viewerIsSpaceOwner: boolean;
+} {
+  const viewingHome =
+    input.isSharedSpace && input.listScope === 'my-home' && Boolean(input.homeSpaceId);
+  return {
+    viewingHome,
+    spaceId: (viewingHome ? input.homeSpaceId : input.activeSpaceId) ?? null,
+    isScopedSharedSpace: input.isSharedSpace && !viewingHome,
+    /* My Home is yours, whoever owns the room it was opened from. */
+    viewerIsSpaceOwner: viewingHome || Boolean(input.isOwner),
+  };
+}
+
 /** Sidebar folder/thread create actions in the shared-space shell. */
 export function canCreateSidebarCollections(options: {
   inSharedSpaceShell: boolean;
@@ -70,7 +102,9 @@ export function canCreateSidebarCollections(options: {
   orgId?: string | null;
 }): boolean {
   if (!options.inSharedSpaceShell) return true;
-  if (options.listScope === 'my-home') return false;
+  /* My Home, shown from inside a room: the organize host scopes its sheets to Home, and a
+     folder or Thread made there is yours to make whatever the room's own rules are. */
+  if (options.listScope === 'my-home') return true;
   if (!options.isScopedSharedSpaceList) return true;
   return canManageStudyThreadsInSharedSpace({
     isOwner: options.isOwner,

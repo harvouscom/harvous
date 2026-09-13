@@ -12435,6 +12435,28 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   outline-offset: -2px;
 }
 
+/*
+ * Discover's kind chip — "Tool", "Guide", "Template" — right after the title, on its line.
+ *
+ * The word harvous.com prints on the same card, in the same small caps. Inline, inside the
+ * title's marquee span, so it follows the words; `inline-block` so its padding holds, and
+ * middle-aligned because that span sits on `vertical-align: bottom`.
+ */
+.proto-discover-kind {
+  display: inline-block;
+  vertical-align: middle;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-muted);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 /* ─── Team invite row ───────────────────────────────────────────────────────
    Field and action on one line. The `proto-church-staff__*` classes this
    replaces had no CSS at all, so the form rendered as stacked full-width

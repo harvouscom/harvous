@@ -1869,6 +1869,27 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
   gap: 6px;
 }
 
+/*
+ * The "<space> | My Home" switch, inside a shared space: a second row across all three
+ * columns. Inside the header grid rather than a band below it, so it arrives with the header's
+ * fade and takes the sheet's header treatment without rules of its own.
+ */
+.proto-library-panel__scope {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+/*
+ * Full width, like the switch everywhere else it heads a list. A capped track read as a
+ * control that had stopped short of the edge, and it is the panel's whole library it scopes.
+ *
+ * Its bottom margin is for sitting above a list; here the grid's gap and the header's padding
+ * already space it.
+ */
+.proto-library-panel__scope .proto-library-kinds {
+  margin-bottom: 0;
+}
+
 .proto-library-panel__body {
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1883,6 +1904,20 @@ html.harvous-proto-wallpaper-image .proto-editor-bottom-bar {
      stacked read as a band of dead space between the field and the first row. Only the top:
      the footer above cancels the other three by that variable, and this is not one of them. */
   padding-top: 2px;
+}
+
+/*
+ * An empty list gets room to be read as a state, not a row.
+ *
+ * The shared empty state is sized for the sidebar's narrow column, where 12px is all the height
+ * a list can spare. In the panel it is the only thing in a body 640px wide — sitting 12px under
+ * the header, "Nothing here yet" read as a line that had failed to load rather than as the
+ * answer. Scoped here, the way the templates sheet and the invite list scope theirs, so the
+ * sidebar keeps its tighter spacing. Covers search's "Nothing found here" too, which renders the
+ * same component inside this body.
+ */
+.proto-library-panel__body .proto-list-empty-state {
+  padding: 36px 24px;
 }
 
 /*

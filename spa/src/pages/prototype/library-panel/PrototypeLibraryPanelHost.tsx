@@ -10,7 +10,7 @@
  * rather than inside the panel is what lets the field live in the header and the results
  * in the body without those two components knowing about each other.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import PrototypeLibraryRecentSearches, {
@@ -38,6 +38,9 @@ import { useLibraryTabRows } from './use-library-tab-rows';
 import PrototypeLibraryBulkBar from './PrototypeLibraryBulkBar';
 import PrototypeLibraryCreateFooter from './PrototypeLibraryCreateFooter';
 import PrototypeLibrarySelectToggle from './PrototypeLibrarySelectToggle';
+import PrototypeLibrarySegmented, { type LibrarySegmentedOption } from './PrototypeLibrarySegmented';
+import { useWarmLibraryHome } from './use-warm-library-home';
+import type { SidebarListSpaceScope } from '../../../lib/shared-space-capabilities';
 
 export default function PrototypeLibraryPanelHost({
   /** "Go to" destinations for the results. Optional: the panel is useful without them. */
@@ -82,6 +85,32 @@ export default function PrototypeLibraryPanelHost({
    * and a second instance of the hook would publish a second command context.
    */
   const data = useLibraryPanelData();
+
+  /*
+   * Whose shelf, inside a shared space: the room's, or your own.
+   *
+   * The panel opens on the room, because that is where you are standing. My Home is the other
+   * segment rather than a section under the room's list: every tab and drill then shows one
+   * space, whole, instead of each list splitting into two with rows that act on different
+   * spaces. The warm-up below is what keeps the other segment one tap and not one wait away.
+   */
+  const scopeOptions = useMemo<LibrarySegmentedOption<SidebarListSpaceScope>[]>(
+    () => [
+      { id: 'space', label: data.sharedSpaceTitle ?? 'This space' },
+      /* No glyph: the house is a component, not an `Icon` name the switch can draw, and two
+         plain labels read as the pair they are. */
+      { id: 'my-home', label: 'My Home' },
+    ],
+    [data.sharedSpaceTitle],
+  );
+  useWarmLibraryHome(
+    data.shellIsSharedSpace &&
+      !data.viewingHome &&
+      data.homeSpaceId &&
+      data.homeSpaceId !== data.spaceId
+      ? data.homeSpaceId
+      : undefined,
+  );
 
   /*
    * Remembering what was searched for.
@@ -242,6 +271,21 @@ export default function PrototypeLibraryPanelHost({
           />
         </>
       }
+      /* Shown while searching and while drilled too: the scope applies to results, and a
+         switch clears the drill, which belongs to one space. */
+      scopeSwitch={
+        data.shellIsSharedSpace && data.homeSpaceId ? (
+          <PrototypeLibrarySegmented
+            label="Library scope"
+            options={scopeOptions}
+            value={data.listScope}
+            onChange={(next) => {
+              setRecentsOpen(false);
+              data.setListScope(next);
+            }}
+          />
+        ) : null
+      }
       selectBar={<PrototypeLibrarySelectToggle selection={selection} />}
       /* One corner, two jobs, never both: while a selection stands it says what can be done
          with it, and otherwise it offers to start another one of whatever the tab lists. */
@@ -249,7 +293,11 @@ export default function PrototypeLibraryPanelHost({
         selection.active && selection.selectedIds.length > 0 ? (
           <PrototypeLibraryBulkBar selection={selection} />
         ) : view.drill ? null : (
-          <PrototypeLibraryCreateFooter tab={view.tab} searching={Boolean(query.trim())} />
+          <PrototypeLibraryCreateFooter
+            tab={view.tab}
+            searching={Boolean(query.trim())}
+            homeSpaceId={data.viewingHome ? data.homeSpaceId : null}
+          />
         )
       }
     >
