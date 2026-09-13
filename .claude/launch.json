@@ -172,6 +172,16 @@
       ],
       "port": 4340,
       "autoPort": false
+    },
+    {
+      "name": "harvous-com",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous.com && npm run dev -- --port 4321 --strictPort"
+      ],
+      "port": 4321,
+      "autoPort": false
     }
   ]
 }
