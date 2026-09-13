@@ -35,8 +35,8 @@ export const MEMBERS_PER_SPACE_CAP = 12;
  */
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
-  'Unlimited history — any day you wrote',
-  'Review — helps you remember what you studied',
+  'Unlimited history',
+  'Review exercises',
   'Unlimited shared spaces',
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
   'Turn a thread into a shared study plan',
