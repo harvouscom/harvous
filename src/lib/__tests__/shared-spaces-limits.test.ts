@@ -51,10 +51,10 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
   it('returns purchase copy when the add-on is inactive', () => {
     const bullets = getSharedSpacesAddonFeatureBullets({ hasAddOn: false });
     expect(bullets[0]).toBe('Everything in free');
-    // Review leads: since 3.0 it is what someone is buying, and it works for one
-    // person on the day they pay. Hosting follows.
-    expect(bullets[1]).toBe('Review — time-based quizzes that help you remember what you have studied');
-    expect(bullets[2]).toBe('Unlimited history — go back to any day you worked on a note');
+    // History leads Review: it needs no explanation of a mechanic to land on
+    // sight. Hosting (shared spaces onward) follows both personal features.
+    expect(bullets[1]).toBe('Unlimited history — any day you wrote');
+    expect(bullets[2]).toBe('Review — helps you remember what you studied');
     expect(bullets[3]).toBe('Unlimited shared spaces');
     expect(bullets).toHaveLength(7);
   });
@@ -78,6 +78,7 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
       // The active copy rewrites exactly one bullet and passes the rest through,
       // so neither copy can gain or lose these on its own.
       expect(bullets.some((b) => /^Review —/.test(b))).toBe(true);
+      expect(bullets.some((b) => /^Unlimited history —/.test(b))).toBe(true);
       for (const key of WITHHELD_FEATURES) {
         expect(bullets.some((b) => b.toLowerCase().includes(key))).toBe(false);
       }
@@ -91,8 +92,8 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
       ownedLimit: 10,
     });
     expect(bullets[0]).toBe('Everything in free');
-    expect(bullets[1]).toBe('Review — time-based quizzes that help you remember what you have studied');
-    expect(bullets[2]).toBe('Unlimited history — go back to any day you worked on a note');
+    expect(bullets[1]).toBe('Unlimited history — any day you wrote');
+    expect(bullets[2]).toBe('Review — helps you remember what you studied');
     expect(bullets[3]).toBe('2 out of 10 shared spaces');
     // Only the owned-spaces line is rewritten; everything else passes through.
     expect(bullets).toHaveLength(7);
