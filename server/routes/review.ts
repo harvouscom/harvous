@@ -459,6 +459,18 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         // reader's own submission; nothing here names anything they did not write.
         ...(graded.parts ? { parts: graded.parts } : {}),
         ...(graded.reached ? { reached: graded.reached } : {}),
+        /*
+         * And one thing to go on, **only while there is a go left**.
+         *
+         * A retry that repeats the identical question with no new information is a second chance
+         * to make the same mistake. This is the only branch a hint may appear in: the finalized
+         * response below carries the answer itself, so a hint there would be a worse version of
+         * something the reader is about to be shown anyway.
+         *
+         * It cannot buy the long interval — every second-or-later attempt already maps to
+         * `almost` a few lines down, so the most a hinted answer earns is a few days.
+         */
+        ...(graded.hint ? { hint: graded.hint } : {}),
       });
     }
 

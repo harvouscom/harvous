@@ -23622,6 +23622,43 @@ button.proto-feed-sheet__stat:hover {
   background-size: 100% 1.5px;
 }
 
+/*
+ * A gap the app filled in after a miss.
+ *
+ * Deliberately neither of the two above: it is not the reader's answer, right or wrong, it is
+ * the one thing they were handed so the next go has somewhere to start. Muted and locked, so it
+ * reads as settled rather than as something still being asked.
+ */
+.proto-review-dock__blank[data-answer='given'] {
+  color: var(--pds-text-secondary);
+  background-image: none;
+  cursor: default;
+}
+
+/*
+ * The initials rung's letter, beside its gap rather than inside it.
+ *
+ * Inside, the reader would have to type around it — the letter is the hint, not part of what the
+ * answer is. `baseline` keeps it sitting on the same line as the words either side, which is what
+ * makes the whole thing still read as a verse.
+ */
+.proto-review-dock__gap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+}
+
+.proto-review-dock__gap-letter {
+  color: var(--pds-text-secondary);
+  font-variant-caps: normal;
+}
+
+/* The line offered after a miss. Sits above the retry line, quieter than it. */
+.proto-review-dock__hint {
+  color: var(--pds-text-secondary);
+  margin-top: 6px;
+}
+
 /* The word you tapped on the altered rung, once the server has marked the tap. */
 .proto-review-dock__altered-word[data-answer='wrong'] {
   background: var(--pds-destructive-bg-strong);
