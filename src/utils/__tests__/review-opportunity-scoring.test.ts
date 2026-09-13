@@ -152,6 +152,26 @@ describe('selectReviewBatch', () => {
     expect(picked.some((p) => p.nodeKind === 'note')).toBe(true);
   });
 
+  it('lets more than the cap of one kind through when over-fetching, which is why creation caps again', () => {
+    // Five books, so neither the chapter nor the book cap is what stops anything here.
+    const candidates = [
+      verse(nodeKey.verse({ book: 'John', chapter: 15, verse: 1 })),
+      verse(nodeKey.verse({ book: 'Romans', chapter: 8, verse: 1 })),
+      verse(nodeKey.verse({ book: 'Psalms', chapter: 23, verse: 1 })),
+      verse(nodeKey.verse({ book: 'Genesis', chapter: 1, verse: 1 })),
+      verse(nodeKey.verse({ book: 'Isaiah', chapter: 40, verse: 31 })),
+    ];
+    const capped = selectReviewBatch(candidates, { now: NOW, existingSourceKeys: emptyKeys, limit: 15 });
+    const overfetched = selectReviewBatch(candidates, {
+      now: NOW,
+      existingSourceKeys: emptyKeys,
+      limit: 15,
+      perKindCap: ENGINE_PER_KIND_CAP * 3,
+    });
+    expect(capped).toHaveLength(ENGINE_PER_KIND_CAP);
+    expect(overfetched.length).toBeGreaterThan(ENGINE_PER_KIND_CAP);
+  });
+
   it('never re-adds something already in the queue, whatever its status', () => {
     const key = nodeKey.verse({ book: 'John', chapter: 15, verse: 5 });
     const picked = selectReviewBatch([verse(key)], {

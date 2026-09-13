@@ -88,3 +88,41 @@ describe('the opening stagger', () => {
     for (const barred of [2, 7]) expect(VERSE_OPENING_STEPS).not.toContain(barred);
   });
 });
+
+describe('the per-kind cap where items are made', () => {
+  /*
+   * `ENGINE_PER_KIND_CAP` said "at most three of one kind in a handful" and was enforced only in
+   * candidate selection, which is over-fetched to nine of a kind so a skipped note costs no slot.
+   * The loop that makes the items counted nothing per kind, so five notes in a row was reachable.
+   */
+  const loop = () => refill.slice(refill.indexOf('const createdOfKindThisRun'));
+
+  it('caps again at creation, because selection is deliberately looser', () => {
+    expect(refill).toContain('perKindCap: ENGINE_PER_KIND_CAP * OVERFETCH');
+    expect(loop()).toContain('>= ENGINE_PER_KIND_CAP');
+    expect(loop()).toContain('heldForMix.push(pick)');
+  });
+
+  it('counts this run from zero, never from what the reader already has', () => {
+    /*
+     * The stagger's `addedOfKind` is seeded from existing rows. As the cap it would sit at three
+     * for any kind the reader already has three of, and hold that kind back on every run after.
+     */
+    expect(loop().slice(0, loop().indexOf(';'))).toContain('{ verse: 0, note: 0, chapter: 0 }');
+    expect(loop()).not.toContain('for (const row of existing)');
+    expect(loop()).toContain('createdOfKindThisRun[kind] = (createdOfKindThisRun[kind] ?? 0) + 1');
+    // And the stagger still advances beside it.
+    expect(loop()).toContain('addedOfKind[kind] = (addedOfKind[kind] ?? 0) + 1');
+  });
+
+  it('fills a short sitting from held picks rather than leaving it short', () => {
+    // A library that is all notes should still get a handful. Mixing is a preference, not a ration.
+    const firstPass = loop().indexOf('for (const pick of picks)');
+    const secondPass = loop().indexOf('for (const pick of heldForMix)');
+    expect(firstPass).toBeGreaterThan(0);
+    expect(secondPass).toBeGreaterThan(firstPass);
+    const tail = loop().slice(secondPass);
+    expect(tail).toContain('if (created.length >= room) break;');
+    expect(tail).toContain('await addPick(pick)');
+  });
+});
