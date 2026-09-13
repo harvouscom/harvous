@@ -10,6 +10,7 @@ import {
   isNoteFingerprintsTableMissing,
   isStudyThreadNamingColumnMissing,
 } from './pg-undefined-relation';
+import { noteConnectionEndpointsLive } from './live-note-connections';
 import type { DiscoveryRankItem } from './admin-usage-stats';
 import { recallSnoozeRatePct } from './admin-usage-stats';
 import { filterPulseDiscoveryThemes } from '@/utils/universal-bible-entities';
@@ -72,7 +73,8 @@ async function fetchPlatformThreadSnapshot(): Promise<PlatformThreadSnapshot> {
           fromNoteId: NoteConnections.fromNoteId,
           toNoteId: NoteConnections.toNoteId,
         })
-        .from(NoteConnections),
+        .from(NoteConnections)
+        .where(noteConnectionEndpointsLive()),
       db
         .select({ userId: Notes.userId, id: Notes.id })
         .from(Notes)

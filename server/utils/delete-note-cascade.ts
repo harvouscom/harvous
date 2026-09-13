@@ -220,6 +220,14 @@ export async function deleteNotesCascadeForUser(userId: string, noteIds: string[
       await tx
         .delete(ChurchSeriesPublishedNotes)
         .where(inArray(ChurchSeriesPublishedNotes.noteId, chunk));
+      // The pointer a create-from-highlight note keeps to its source. The edge it produced goes
+      // with NoteConnections above, but the pointer outlived it, and the linkedFrom migration
+      // rebuilt the edge from it a month later: a listed Thread whose note was gone. No
+      // updatedAt bump — nothing the reader wrote changed, and updatedAt is the sort key.
+      await tx
+        .update(Notes)
+        .set({ linkedFromNoteId: null })
+        .where(and(eq(Notes.userId, userId), inArray(Notes.linkedFromNoteId, chunk)));
       await tx
         .delete(Notes)
         .where(and(eq(Notes.userId, userId), inArray(Notes.id, chunk)));

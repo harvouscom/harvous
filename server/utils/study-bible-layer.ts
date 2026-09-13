@@ -23,6 +23,7 @@
 import { db, UserNodeStates, Notes, NoteConnections, sql, eq, and } from '../db';
 import { generateTimestampId } from '@/utils/ids';
 import { isUserNodeStatesTableMissing } from './pg-undefined-relation';
+import { noteConnectionEndpointsLive } from './live-note-connections';
 import {
   chapterKeyForVerse,
   nodeKey,
@@ -570,9 +571,9 @@ export async function threadTouchForNote(
     const edges = await db
       .select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId })
       .from(NoteConnections)
-      .where(eq(NoteConnections.userId, userId));
+      .where(and(eq(NoteConnections.userId, userId), noteConnectionEndpointsLive()));
 
-    const connected = edges.some((e) => e.fromNoteId === noteId || e.toNoteId === noteId);
+    const connected =edges.some((e) => e.fromNoteId === noteId || e.toNoteId === noteId);
     if (!connected) return [];
 
     const repNoteId = pickRepNoteIdFromGraph(noteId, edges);
