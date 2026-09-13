@@ -117,12 +117,17 @@ describe('Generation 2B route hardening', () => {
       resolve(process.cwd(), 'server', 'utils', 'note-version-service.ts'),
       'utf8',
     );
-    const retentionCalls = versionService.match(
-      /await pruneCanonicalNoteVersionsInTransaction\(/g,
+    const thinning = readFileSync(
+      resolve(process.cwd(), 'server', 'utils', 'note-version-thinning.ts'),
+      'utf8',
     );
-    expect(retentionCalls?.length).toBeGreaterThanOrEqual(3);
-    expect(versionService).toContain('.offset(NOTE_VERSION_RETENTION_LATEST_COUNT)');
-    expect(versionService).toContain('referencedVersionIds.has(input.id)');
-    expect(versionService).toContain("input.source === 'restore'");
+    const retentionCalls = versionService.match(
+      /await thinCanonicalNoteVersionsInTransaction\(/g,
+    );
+    expect(retentionCalls?.length).toBeGreaterThanOrEqual(2);
+    expect(versionService).toContain('.offset(NOTE_VERSION_RETENTION_LATEST_COUNT - 1)');
+    expect(versionService).toContain('.limit(NOTE_VERSION_THIN_SCAN_LIMIT)');
+    expect(thinning).toContain('input.referencedVersionIds.has(input.id)');
+    expect(thinning).toContain("input.source === 'restore'");
   });
 });

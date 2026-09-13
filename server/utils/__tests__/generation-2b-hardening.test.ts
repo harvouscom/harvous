@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  isProtectedNoteVersion,
-  shouldAdvanceCanonicalVersion,
-} from '../note-version-service';
+import { shouldAdvanceCanonicalVersion } from '../note-version-service';
+import { isProtectedNoteVersion } from '../note-version-thinning';
 import {
   canExposeCanonicalTagInContext,
   collectForbiddenSharedPayloadPaths,

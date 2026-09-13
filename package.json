@@ -91,6 +91,7 @@
     "review:schema": "tsx server/scripts/add-review-challenges-schema.ts",
     "review:schema:apply": "tsx server/scripts/add-review-challenges-schema.ts --apply",
     "entitlement:grant": "tsx server/scripts/grant-entitlement.ts",
+    "entitlement:backfill": "tsx server/scripts/backfill-feature-key.ts",
     "library:schema": "tsx server/scripts/add-resource-library-schema.ts",
     "library:schema:apply": "tsx server/scripts/add-resource-library-schema.ts --apply",
     "channel-links:schema": "tsx server/scripts/add-space-channel-links-schema.ts",

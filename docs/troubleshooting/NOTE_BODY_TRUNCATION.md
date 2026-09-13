@@ -92,8 +92,11 @@ body. Interpreting the columns:
 
 ## Recovering a clobbered note
 
-`NoteVersions` checkpoints every content change. Retention is latest-100 **and** 90 days
-(both must be exceeded before pruning), so recent history is safe.
+`NoteVersions` checkpoints every content change. The newest 100 checkpoints, and every checkpoint
+replaced in the last 90 days, are always kept, so recent history is safe. Older than that, each
+editing session (checkpoints under five minutes apart by one editor) keeps its last checkpoint, and
+non-save checkpoints such as `restore` and `import` are never thinned
+(`server/utils/note-version-thinning.ts`).
 
 1. **Close the note on every other device and tab first.** An open editor will flush its
    stale body over the restore on unmount.
