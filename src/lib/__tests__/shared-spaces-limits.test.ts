@@ -54,8 +54,9 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     // Review leads: since 3.0 it is what someone is buying, and it works for one
     // person on the day they pay. Hosting follows.
     expect(bullets[1]).toBe('Review — time-based quizzes that help you remember what you have studied');
-    expect(bullets[2]).toBe('Unlimited shared spaces');
-    expect(bullets).toHaveLength(6);
+    expect(bullets[2]).toBe('Unlimited history — go back to any day you worked on a note');
+    expect(bullets[3]).toBe('Unlimited shared spaces');
+    expect(bullets).toHaveLength(7);
   });
 
   /**
@@ -91,9 +92,10 @@ describe('getSharedSpacesAddonFeatureBullets', () => {
     });
     expect(bullets[0]).toBe('Everything in free');
     expect(bullets[1]).toBe('Review — time-based quizzes that help you remember what you have studied');
-    expect(bullets[2]).toBe('2 out of 10 shared spaces');
+    expect(bullets[2]).toBe('Unlimited history — go back to any day you worked on a note');
+    expect(bullets[3]).toBe('2 out of 10 shared spaces');
     // Only the owned-spaces line is rewritten; everything else passes through.
-    expect(bullets).toHaveLength(6);
+    expect(bullets).toHaveLength(7);
   });
 });
 

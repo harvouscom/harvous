@@ -34,6 +34,7 @@ export const MEMBERS_PER_SPACE_CAP = 12;
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
   'Review — time-based quizzes that help you remember what you have studied',
+  'Unlimited history — go back to any day you worked on a note',
   'Unlimited shared spaces',
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
   'Turn a thread into a study plan your group reads together',
@@ -47,9 +48,9 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
  *
  * Was 3 while Challenges sat above this line; dropping that bullet moved the
  * owned-spaces line up one, and leaving this at 3 would have rewritten the
- * member cap with a space count instead.
+ * member cap with a space count instead. Back to 3 once the history bullet joined Review above it.
  */
-const OWNED_SPACES_BULLET_INDEX = 2;
+const OWNED_SPACES_BULLET_INDEX = 3;
 
 /** Purchase-copy line for owned spaces. */
 const OWNED_SPACES_PURCHASE_BULLET =

@@ -1,5 +1,5 @@
 import { generateTimestampId } from '@/utils/ids';
-import { db, Notes, NoteVersions, SpaceNotes, StudyThreadEntries, and, desc, eq, first, inArray, isNull, lt, or } from '../db';
+import { db, Notes, NoteVersions, SpaceNotes, StudyThreadEntries, and, asc, desc, eq, first, gt, inArray, isNull, lt, or } from '../db';
 import {
   NoteVersionAccessError,
   assertCanAccessNoteVersions,
@@ -25,6 +25,7 @@ import {
   planNoteVersionThinning,
   startsNewEditingSession,
 } from './note-version-thinning';
+import { isReplacedBeforeWindow } from './note-history-visibility';
 
 type Transaction = any;
 
@@ -213,6 +214,32 @@ export class NoteVersionNotFoundError extends Error {
     super('Note version not found');
     this.name = 'NoteVersionNotFoundError';
   }
+}
+
+export class NoteHistoryLockedError extends Error {
+  readonly code = 'NOTE_HISTORY_LOCKED';
+
+  constructor() {
+    super('This version is outside your history window');
+    this.name = 'NoteHistoryLockedError';
+  }
+}
+
+/** When the version after this one was written; null for the newest version. */
+export async function loadNoteVersionReplacedAt(
+  executor: Transaction,
+  noteId: string,
+  version: number,
+): Promise<Date | null> {
+  const successor = first(
+    await executor
+      .select({ createdAt: NoteVersions.createdAt })
+      .from(NoteVersions)
+      .where(and(eq(NoteVersions.noteId, noteId), gt(NoteVersions.version, version)))
+      .orderBy(asc(NoteVersions.version))
+      .limit(1),
+  ) as { createdAt: Date } | undefined;
+  return successor?.createdAt ?? null;
 }
 
 export class ActiveSharedAssociationEncryptionError extends Error {
@@ -634,6 +661,8 @@ export async function restoreCanonicalNoteVersionInTransaction(
     actorId: string;
     expectedVersion?: number;
     now: Date;
+    /** From `resolveHistoryVisibleSince`; null or absent means no window. */
+    visibleSince?: Date | null;
   },
 ): Promise<CanonicalNoteMutationResult> {
   const historical = first(
@@ -645,6 +674,15 @@ export async function restoreCanonicalNoteVersionInTransaction(
   ) as typeof NoteVersions.$inferSelect | undefined;
   if (!historical) throw new NoteVersionNotFoundError();
   assertCanAccessNoteVersions(historical.authorId, input.actorId);
+  if (
+    input.visibleSince &&
+    isReplacedBeforeWindow(
+      await loadNoteVersionReplacedAt(tx, input.noteId, historical.version),
+      input.visibleSince,
+    )
+  ) {
+    throw new NoteHistoryLockedError();
+  }
 
   return updateCanonicalNoteInTransaction(tx, {
     noteId: input.noteId,

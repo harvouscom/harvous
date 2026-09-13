@@ -141,8 +141,20 @@ import {
   resolveCanonicalCreateScope,
   resolveLockedEncryptionState,
   restoreCanonicalNoteVersionInTransaction,
+  loadNoteVersionReplacedAt,
+  NoteHistoryLockedError,
   updateCanonicalNoteInTransaction,
 } from '../utils/note-version-service';
+import { featureRequiredBody } from '../middleware/require-feature';
+import { FREE_HISTORY_WINDOW_DAYS } from '@/lib/billing-plans';
+import { loadNoteHistoryRows, resolveHistoryVisibleSince } from '../utils/note-history-window';
+import {
+  NOTE_HISTORY_SCAN_LIMIT,
+  buildNoteHistoryRawPage,
+  buildNoteHistorySessionsPage,
+  isReplacedBeforeWindow,
+  parseNoteHistoryQuery,
+} from '../utils/note-history-visibility';
 import {
   SpaceNoteAssociationError,
   assertCanAssociateCanonicalNote,
@@ -3370,24 +3382,47 @@ route.get('/api/notes/:noteId/versions', requireAuth, async (c) => {
         403,
       );
     }
-    const versions = await db
-      .select({
-        id: NoteVersions.id,
-        noteId: NoteVersions.noteId,
-        version: NoteVersions.version,
-        title: NoteVersions.title,
-        contentEncrypted: NoteVersions.contentEncrypted,
-        source: NoteVersions.source,
-        createdAt: NoteVersions.createdAt,
-      })
-      .from(NoteVersions)
-      .where(and(eq(NoteVersions.noteId, noteId), eq(NoteVersions.authorId, auth.userId)))
-      .orderBy(desc(NoteVersions.version));
+    const query = parseNoteHistoryQuery({
+      before: c.req.query('before'),
+      limit: c.req.query('limit'),
+      raw: c.req.query('raw'),
+    });
+    const loaded = await loadNoteHistoryRows({
+      noteId,
+      authorId: auth.userId,
+      before: query.before,
+      take: query.raw ? query.limit + 1 : NOTE_HISTORY_SCAN_LIMIT,
+    });
+    const buildPage = (since: Date | null) =>
+      query.raw
+        ? buildNoteHistoryRawPage({
+            rowsNewestFirst: loaded.rows,
+            successorCreatedAt: loaded.successorCreatedAt,
+            currentVersionId: note.currentVersionId,
+            since,
+            limit: query.limit,
+          })
+        : buildNoteHistorySessionsPage({
+            rowsNewestFirst: loaded.rows,
+            scanLimitReached: loaded.rows.length >= NOTE_HISTORY_SCAN_LIMIT,
+            successorCreatedAt: loaded.successorCreatedAt,
+            currentVersionId: note.currentVersionId,
+            since,
+            limit: query.limit,
+          });
+    const now = new Date();
+    let since = await resolveHistoryVisibleSince(auth, now, { reconcile: false });
+    let page = buildPage(since);
+    if (page.locked) {
+      since = await resolveHistoryVisibleSince(auth, now, { reconcile: true, throttle: true });
+      if (!since) page = buildPage(null);
+    }
     return c.json({
       success: true,
       currentVersionId: note.currentVersionId,
-      currentVersion: versions.find((row) => row.id === note.currentVersionId)?.version ?? null,
-      versions,
+      currentVersion: loaded.rows.find((row) => row.id === note.currentVersionId)?.version ?? null,
+      windowDays: since ? FREE_HISTORY_WINDOW_DAYS : null,
+      ...page,
     });
   } catch (error: any) {
     return c.json({ error: error.message || 'Failed to load note versions' }, 500);
@@ -3400,7 +3435,11 @@ route.get('/api/notes/:noteId/versions/:versionId', requireAuth, async (c) => {
     const noteId = requireParam(c, 'noteId');
     const versionId = requireParam(c, 'versionId');
     const note = first(
-      await db.select({ userId: Notes.userId }).from(Notes).where(eq(Notes.id, noteId)).limit(1),
+      await db
+        .select({ userId: Notes.userId, currentVersionId: Notes.currentVersionId })
+        .from(Notes)
+        .where(eq(Notes.id, noteId))
+        .limit(1),
     );
     if (!note) return c.json({ error: 'Note not found', code: 'NOTE_VERSION_NOT_FOUND' }, 404);
     if (note.userId !== auth.userId) {
@@ -3423,6 +3462,16 @@ route.get('/api/notes/:noteId/versions/:versionId', requireAuth, async (c) => {
         .limit(1),
     );
     if (!version) return c.json({ error: 'Note version not found', code: 'NOTE_VERSION_NOT_FOUND' }, 404);
+    if (version.id !== note.currentVersionId) {
+      const replacedAt = await loadNoteVersionReplacedAt(db, noteId, version.version);
+      const now = new Date();
+      if (
+        isReplacedBeforeWindow(replacedAt, await resolveHistoryVisibleSince(auth, now, { reconcile: false })) &&
+        isReplacedBeforeWindow(replacedAt, await resolveHistoryVisibleSince(auth, now, { reconcile: true }))
+      ) {
+        return c.json(featureRequiredBody('full_history'), 403);
+      }
+    }
     return c.json({ success: true, version });
   } catch (error: any) {
     return c.json({ error: error.message || 'Failed to load note version' }, 500);
@@ -3435,6 +3484,23 @@ route.post('/api/notes/:noteId/versions/:versionId/restore', requireAuth, rateLi
     const noteId = requireParam(c, 'noteId');
     const versionId = requireParam(c, 'versionId');
     const body = (await c.req.json().catch(() => ({}))) as { expectedVersion?: number };
+    const checkedAt = new Date();
+    let visibleSince = await resolveHistoryVisibleSince(auth, checkedAt, { reconcile: false });
+    if (visibleSince) {
+      const target = first(
+        await db
+          .select({ version: NoteVersions.version })
+          .from(NoteVersions)
+          .where(and(eq(NoteVersions.id, versionId), eq(NoteVersions.noteId, noteId)))
+          .limit(1),
+      );
+      if (
+        target &&
+        isReplacedBeforeWindow(await loadNoteVersionReplacedAt(db, noteId, target.version), visibleSince)
+      ) {
+        visibleSince = await resolveHistoryVisibleSince(auth, checkedAt, { reconcile: true });
+      }
+    }
     const restored = await db.transaction((tx) =>
       restoreCanonicalNoteVersionInTransaction(tx, {
         noteId,
@@ -3443,6 +3509,7 @@ route.post('/api/notes/:noteId/versions/:versionId/restore', requireAuth, rateLi
         expectedVersion:
           body.expectedVersion === undefined ? undefined : Number(body.expectedVersion),
         now: nowISO(),
+        visibleSince,
       }),
     );
     await broadcastCanonicalNoteInvalidation(auth.userId, noteId, {
@@ -3456,6 +3523,7 @@ route.post('/api/notes/:noteId/versions/:versionId/restore', requireAuth, rateLi
       currentVersionId: restored.currentVersion.id,
     });
   } catch (error) {
+    if (error instanceof NoteHistoryLockedError) return c.json(featureRequiredBody('full_history'), 403);
     const mapped = noteVersionErrorResponse(error);
     if (mapped) return c.json({ error: mapped.message, code: mapped.code, ...(mapped.details ?? {}) }, mapped.status);
     throw error;
