@@ -341,6 +341,24 @@ describe('discover routes', () => {
     expect(body).not.toContain('body.content');
   });
 
+  it('shares a personal Thread by walking the notes connected to it, the way the app shows it', () => {
+    // A Thread on My Home is a cluster of connected notes addressed by its main note, not a
+    // `Threads` row — so a pack sent from the Library panel or the Thread popover carries a note
+    // id, and has to be walked the way GET /api/notes/:id/thread walks it.
+    const text = snapshot();
+    expect(text).toContain('snapshotThreadClusterPack');
+    expect(text).toContain('collectStudyThreadGraphForScope');
+    expect(text).toContain("sourceId.startsWith('note_')");
+    expect(text).toContain('Connect at least one more note before sharing this Thread.');
+  });
+
+  it('counts a note and its Thread as different things to have already shared', () => {
+    // They share an id — a Thread is addressed by its main note — so the duplicate check has to
+    // ask about the kind too, or sharing a note blocks sharing the Thread it anchors.
+    const body = handlerBody(routes(), "app.post('/api/discover/submit'");
+    expect(body).toContain('eq(DiscoverListings.kind, kind)');
+  });
+
   it('passes the frozen byline into copy attribution — the first caller that does', () => {
     // Both shared.ts callers pass null, because a share link resolves the author
     // live. A listing cannot: its byline was snapshotted at submit.

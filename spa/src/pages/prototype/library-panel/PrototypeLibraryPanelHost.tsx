@@ -40,6 +40,7 @@ import PrototypeLibraryCreateFooter from './PrototypeLibraryCreateFooter';
 import PrototypeLibrarySelectToggle from './PrototypeLibrarySelectToggle';
 import PrototypeLibrarySegmented, { type LibrarySegmentedOption } from './PrototypeLibrarySegmented';
 import { useWarmLibraryHome } from './use-warm-library-home';
+import { useLibraryDrillSubject } from './use-library-drill-subject';
 import type { SidebarListSpaceScope } from '../../../lib/shared-space-capabilities';
 
 export default function PrototypeLibraryPanelHost({
@@ -171,6 +172,9 @@ export default function PrototypeLibraryPanelHost({
     return () => cancelAnimationFrame(raf);
   }, [recentsOpen, syncRecentsPosition]);
 
+  /* The drilled Thread's name for the back row — a Thread drill carries only its id. */
+  const subject = useLibraryDrillSubject(view, data.spaceId);
+
   const tabRows = useLibraryTabRows(view.tab);
   const selection = useLibrarySelection({
     tab: view.tab,
@@ -202,6 +206,7 @@ export default function PrototypeLibraryPanelHost({
   return (
     <PrototypeLibraryPanel
       view={view}
+      subject={subject}
       exiting={libraryPanelExiting}
       isMobile={isMobileSidebar}
       onClose={() => closeLibraryPanel()}

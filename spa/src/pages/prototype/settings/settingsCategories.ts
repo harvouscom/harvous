@@ -91,7 +91,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     title: 'Sharing',
     route: prototypeHref('settings/sharing'),
     icon: 'share',
-    footnote: 'See what you have shared and stop sharing.',
+    footnote: 'Public links, shared spaces, and what you have offered to Discover.',
   },
   {
     key: 'addons',
