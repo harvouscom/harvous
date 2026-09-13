@@ -403,8 +403,16 @@ export async function refillReviewQueue(
           // Only a connection ever had a second note, and the engine no longer makes those.
           secondaryNoteId: null,
           scriptureReference: reference,
-          // The translation it was read in, off the node's own meta — so a chapter question is
-          // asked in the words the reader met it in.
+          /*
+           * The translation it was read in, off the node's own meta — so a chapter question is
+           * asked in the words the reader met it in.
+           *
+           * Null where there was none to record, and null is left as null on purpose: it means
+           * "no particular wording", which resolves at question time to whatever the reader reads
+           * in now (`askedTranslation` in `src/utils/review-translation.ts`). Writing the account's default here
+           * instead would freeze it on the day the item was made, so a reader who later changed
+           * their translation would keep being asked in the old one.
+           */
           translation: reference ? parseTranslation(pick.meta ?? null) : null,
           origin: 'engine',
           // Copied, not read live, so a row's stated reason never changes mid-sitting.
