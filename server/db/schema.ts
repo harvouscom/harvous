@@ -1309,9 +1309,10 @@ export const UserMetadata = pgTable('UserMetadata', {
    */
   reminderSettings: text('reminderSettings'),
   /**
-   * Which kinds of Review exercise the reader has asked not to be given. JSON string — see
-   * src/utils/review-exercise-settings.ts. `null` = never set, which the engine reads as "all of
-   * them", so silence is consent and a newly added exercise reaches everybody.
+   * How much of each Review exercise family the reader would like, as JSON — see
+   * src/utils/review-exercise-settings.ts. `null` = never set, which the engine reads as every
+   * family at its ordinary rate, so silence is consent and a newly added exercise reaches everybody.
+   * On a database that predates it: `npm run review-exercises:schema:apply`.
    */
   reviewExerciseSettings: text('reviewExerciseSettings'),
   /**

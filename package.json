@@ -106,6 +106,8 @@
     "space-suggestions:schema:apply": "tsx server/scripts/add-space-study-suggestions-schema.ts --apply",
     "thread-copy:schema": "tsx server/scripts/add-thread-copy-attribution-schema.ts",
     "thread-copy:schema:apply": "tsx server/scripts/add-thread-copy-attribution-schema.ts --apply",
+    "review-exercises:schema": "tsx server/scripts/add-review-exercise-settings-schema.ts",
+    "review-exercises:schema:apply": "tsx server/scripts/add-review-exercise-settings-schema.ts --apply",
     "series:schema": "tsx server/scripts/add-series-presentation-schema.ts",
     "series:schema:apply": "tsx server/scripts/add-series-presentation-schema.ts --apply",
     "shared-spaces:schema:additive": "tsx server/scripts/add-shared-spaces-schema.ts",
