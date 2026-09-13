@@ -109,17 +109,23 @@ export function useShellModeNav(): ShellModeNav {
     void navigate({ to: prototypeHomeRouteTo() });
   }, [clearComposeDraftActive, closeDrawer, composeDraftActive, isMobileSidebar, navigate]);
 
+  /* Resolved, not read off the current value: early in a session the reading position has not
+     loaded yet, and jumping then opened today's passage and overwrote where reading stopped.
+     See `useSmartJumpDestination`. */
+  const resolveSmartJump = smartJump.resolve;
   const openReader = useCallback(() => {
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    void navigate({
-      to: prototypeReadRouteTo(),
-      params: { book: bookSlug(smartJump.book), chapter: String(smartJump.chapter) },
-      search: {
-        v: smartJump.verse ? String(smartJump.verse) : undefined,
-        t: smartJump.translation || undefined,
-      },
-    });
-  }, [closeDrawer, isMobileSidebar, navigate, smartJump]);
+    void resolveSmartJump().then((destination) =>
+      navigate({
+        to: prototypeReadRouteTo(),
+        params: { book: bookSlug(destination.book), chapter: String(destination.chapter) },
+        search: {
+          v: destination.verse ? String(destination.verse) : undefined,
+          t: destination.translation || undefined,
+        },
+      }),
+    );
+  }, [closeDrawer, isMobileSidebar, navigate, resolveSmartJump]);
 
   /*
    * Resume beats compose. Somebody who was writing and went to look something up wants

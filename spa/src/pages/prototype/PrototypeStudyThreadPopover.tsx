@@ -25,6 +25,8 @@ import { stripServerAutoUntitledNoteTitleForDisplay } from '@/utils/server-auto-
 import { studyThreadDisplayTitle } from '../../utils/study-thread-display-title';
 import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPosition';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
+import PrototypeShareWithOthersSheet from './PrototypeShareWithOthersSheet';
+import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 
 // ─── Main popover ─────────────────────────────────────────────────────────────
 
@@ -51,6 +53,7 @@ export default function PrototypeStudyThreadPopover({
   const cardRef = useRef<HTMLDivElement | null>(null);
 
   const [connectOpen, setConnectOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Pin thread fetch to the note where the popover was opened — route noteId only drives trail focus.
   const sessionQueryNoteIdRef = useRef<string | null>(null);
@@ -112,6 +115,13 @@ export default function PrototypeStudyThreadPopover({
     updateTitle.mutate({ repNoteId, spaceId: effectiveSpaceId, pinned: !isLocked });
   };
 
+  /* A Thread of your own on My Home, with at least two notes — the same rule the Library panel's
+     Thread view applies. One in a shared space is the room's to give away, not yours. */
+  const canShareThread =
+    nodeCount >= 2 &&
+    Boolean(homeSpaceId) &&
+    normalizePrototypeApiSpaceId(effectiveSpaceId) === normalizePrototypeApiSpaceId(homeSpaceId);
+
   const openNote = (id: string) => {
     navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(id) } });
   };
@@ -127,7 +137,9 @@ export default function PrototypeStudyThreadPopover({
     [nodeCount, isLoading, isError, connectOpen, titleDraft, editingTitle],
   );
 
-  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover, {
+  /* Off while the share sheet is up: it portals outside this card, so every click inside it
+     would otherwise read as "outside" and close the popover it was opened from. */
+  useDismissOnOutside(cardRef, () => onOpenChange(false), shouldUsePopover && !shareOpen, {
     ignoreSelector: '.proto-sidebar-root, .proto-inspector, .proto-inspector-mobile-panel, .proto-inspector-desktop',
   });
 
@@ -233,6 +245,18 @@ export default function PrototypeStudyThreadPopover({
                 memberOrder={thread.memberOrder ?? null}
                 onOpen={openNote}
               />
+              {canShareThread ? (
+                <div className="proto-library-thread-share proto-library-thread-share--popover">
+                  <button
+                    type="button"
+                    className="proto-sheet-quiet-action"
+                    onClick={() => setShareOpen(true)}
+                  >
+                    <Icon name="share" size={12} aria-hidden />
+                    Share with others
+                  </button>
+                </div>
+              ) : null}
             </section>
           </>
         )}
@@ -248,6 +272,17 @@ export default function PrototypeStudyThreadPopover({
           connectedNoteIds={effectiveConnectedNoteIds}
         />
       ) : null}
+
+      {/* The id is the Thread's main note, which is how the server finds a personal Thread. */}
+      <PrototypeShareWithOthersSheet
+        open={shareOpen}
+        target={
+          shareOpen && thread?.repNoteId
+            ? { kind: 'pack', id: thread.repNoteId, name: serverDisplay || 'Untitled Thread' }
+            : null
+        }
+        onOpenChange={setShareOpen}
+      />
     </div>
   );
 

@@ -17,11 +17,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { discoverActionFor } from '../settings/sharing-items';
 
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 const popover = () => source('spa/src/pages/prototype/PrototypeSharePopover.tsx');
 const browseSheet = () => source('spa/src/pages/prototype/PrototypeBrowseTemplatesSheet.tsx');
 const sheet = () => source('spa/src/pages/prototype/PrototypeShareWithOthersSheet.tsx');
+const sharingPage = () => source('spa/src/pages/prototype/settings/PrototypeSharingPage.tsx');
+const threadView = () => source('spa/src/pages/prototype/library-panel/PrototypeLibraryThreadView.tsx');
 
 describe('discover submit placement', () => {
   it('offers a note to Discover only after it is already public', () => {
@@ -58,10 +61,30 @@ describe('discover submit placement', () => {
     expect(attribution, 'the attribution line moved below the button').toBeLessThan(button);
   });
 
-  it('lets someone take back what they shared, listed or not', () => {
-    // Sharing should be as reversible as it was voluntary.
+  it('keeps the history out of the sheet — it lives in Settings › Sharing', () => {
+    // The sheet is for sending one thing. What you have already sent is a list, and a list
+    // belongs on the page that lists every kind of sharing, not tucked under a form.
     const text = sheet();
-    expect(text).toContain("row.status === 'submitted' || row.status === 'listed'");
-    expect(text).toContain('Stop sharing');
+    expect(text).not.toContain('useMyDiscoverSubmissions');
+    expect(text).toContain('Settings › Sharing');
+  });
+
+  it('lets someone take back what they shared, listed or not — from Settings', () => {
+    // Sharing should be as reversible as it was voluntary.
+    expect(discoverActionFor('submitted')).toBe('withdraw');
+    expect(discoverActionFor('listed')).toBe('stop');
+    expect(sharingPage()).toContain('useWithdrawDiscoverSubmission');
+    expect(sharingPage()).toContain('Stop sharing');
+  });
+
+  it('offers a Thread to Discover only from a Thread of your own, in the Library panel', () => {
+    // A shared-space Thread is the room's, so the offer lives in the personal branch alone.
+    const text = threadView();
+    const personal = text.indexOf('function PersonalThreadMembers');
+    const shared = text.indexOf('function SharedThreadMembers');
+    const offer = text.indexOf("kind: 'pack'");
+    expect(offer, 'the Thread offer is missing').toBeGreaterThan(-1);
+    expect(offer, 'the Thread offer escaped the personal branch').toBeGreaterThan(personal);
+    expect(offer, 'the Thread offer escaped the personal branch').toBeLessThan(shared);
   });
 });

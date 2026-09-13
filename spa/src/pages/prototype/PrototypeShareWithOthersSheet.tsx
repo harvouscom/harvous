@@ -1,29 +1,28 @@
 /**
- * Share one of your templates with everyone.
+ * Share a template, a note or a Thread of yours with everyone.
  *
- * Deliberately small: the template is already written, so the only thing left
- * to decide is the one line that helps someone else recognise it. Category is
- * not asked for — the reviewer files it, and asking a person to pick from a
- * taxonomy they cannot see while they are giving something away is asking them
- * to do a curator's job for the privilege.
+ * Deliberately small: the thing is already made, so the only thing left to decide
+ * is the one line that helps someone else recognise it. Category is not asked for
+ * — the reviewer files it, and asking a person to pick from a taxonomy they cannot
+ * see while they are giving something away is asking them to do a curator's job
+ * for the privilege.
  *
  * The listing is attributed. The copy says so before the button rather than
  * leaving it to be discovered: someone should know their name goes with it
  * before they press it, not after.
+ *
+ * What you have already shared is not listed here. The sheet is for sending one
+ * thing; the history is a list of every kind of sharing, and it lives in
+ * Settings › Sharing, which the sent state points to.
  */
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from '@tanstack/react-router';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import Icon from '@/components/react/Icon';
+import { prototypeHref } from '@/lib/prototype-path';
 import { APIError } from '../../lib/api';
-import {
-  useMyDiscoverSubmissions,
-  type MyDiscoverSubmission,
-} from '../../hooks/queries/useDiscoverListings';
-import {
-  useSubmitToDiscover,
-  useWithdrawDiscoverSubmission,
-} from '../../hooks/mutations/useDiscoverMutations';
+import { useSubmitToDiscover } from '../../hooks/mutations/useDiscoverMutations';
 import ProtoPopoverShell from './ProtoPopoverShell';
 import ProtoDialogBackdrop, { portaledDialogShellClassName } from './ProtoDialogBackdrop';
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
@@ -33,26 +32,6 @@ import { useProtoAnchoredPopoverPosition } from './useProtoAnchoredPopoverPositi
 
 /** Same cap the create endpoint enforces, so the field cannot write a rejection. */
 const DESCRIPTION_MAX_LENGTH = 90;
-
-const MINE_STATUS_LABEL: Record<MyDiscoverSubmission['status'], string> = {
-  submitted: 'Waiting',
-  listed: 'Shared with everyone',
-  declined: 'Not added',
-  withdrawn: 'Taken back',
-  delisted: 'Removed',
-  superseded: 'Replaced',
-};
-
-function relativeDay(value: string | Date | null): string {
-  if (!value) return '';
-  const then = new Date(value);
-  if (Number.isNaN(then.getTime())) return '';
-  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
-  if (days <= 0) return 'today';
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days} days ago`;
-  return then.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
 
 export type ShareWithOthersKind = 'template' | 'note' | 'pack';
 
@@ -95,8 +74,7 @@ export default function PrototypeShareWithOthersSheet({
   const { mounted, exiting } = useProtoOverlayMotion(open);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const submitToDiscover = useSubmitToDiscover();
-  const mine = useMyDiscoverSubmissions(open);
-  const withdraw = useWithdrawDiscoverSubmission();
+  const navigate = useNavigate();
 
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -111,10 +89,6 @@ export default function PrototypeShareWithOthersSheet({
       setSent(false);
     }
   }, [open, target]);
-
-  /* Five is enough to answer "what happened to mine" without the sheet becoming
-     a history page. */
-  const mineRows = (mine.data?.listings ?? []).slice(0, 5);
 
   const { asSheet: shouldUseSheetPresentation } = useSheetPresentation();
   const usePopoverPresentation = !shouldUseSheetPresentation;
@@ -146,6 +120,13 @@ export default function PrototypeShareWithOthersSheet({
     }, 250);
   };
 
+  /* Out to the page that lists every kind of sharing, closing this sheet on the way. Same route
+     cast the Settings layout uses — the generated route union does not know the prototype base. */
+  const openSharingSettings = () => {
+    close();
+    void navigate({ to: prototypeHref('settings/sharing') as '/' });
+  };
+
   const submit = () => {
     if (!target || submitToDiscover.isPending) return;
     setError(null);
@@ -159,7 +140,7 @@ export default function PrototypeShareWithOthersSheet({
               ? err.message
               : err instanceof Error
                 ? err.message
-                : 'Could not share this template.',
+                : `Could not share this ${KIND_LABEL[target.kind].toLowerCase()}.`,
           ),
       },
     );
@@ -186,9 +167,22 @@ export default function PrototypeShareWithOthersSheet({
 
       <div className="proto-service-editor">
         {sent ? (
-          <p className="proto-caption proto-service-editor__starter-hint">
-            {KIND_SENT_COPY[target?.kind ?? 'template']}
-          </p>
+          <>
+            <p className="proto-caption proto-service-editor__starter-hint">
+              {KIND_SENT_COPY[target?.kind ?? 'template']}
+            </p>
+            <p className="proto-caption proto-service-editor__starter-hint">
+              Everything you have shared is in{' '}
+              <button
+                type="button"
+                className="proto-share-others__settings-link"
+                onClick={openSharingSettings}
+              >
+                Settings › Sharing
+              </button>
+              , where you can take it back.
+            </p>
+          </>
         ) : (
           <>
             <label
@@ -235,62 +229,6 @@ export default function PrototypeShareWithOthersSheet({
         <p className="proto-connect-note-sheet__error" role="alert">
           {error}
         </p>
-      ) : null}
-
-      {mineRows.length > 0 ? (
-        <div className="proto-suggest-mine">
-          <p className="proto-inspector-section-title proto-create-folder-sheet__field-label">
-            What you have shared
-          </p>
-          <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools">
-            {mineRows.map((row) => (
-              <div
-                key={row.id}
-                className="proto-church-tools__row proto-church-tools__row--status"
-              >
-                <span className="proto-church-tools__row-icon" aria-hidden>
-                  <Icon name={row.status === 'listed' ? 'check' : 'inbox'} size={13} />
-                </span>
-                <span className="proto-church-tools__row-text">
-                  <span
-                    className="pds-list-title proto-church-tools__row-title proto-marquee"
-                    title={row.title}
-                  >
-                    <span>{row.title}</span>
-                  </span>
-                  <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
-                    {MINE_STATUS_LABEL[row.status]}
-                    {row.status === 'listed' && row.installCount > 0
-                      ? ` · saved by ${row.installCount}`
-                      : ''}
-                    {relativeDay(row.reviewedAt ?? row.createdAt)
-                      ? ` · ${relativeDay(row.reviewedAt ?? row.createdAt)}`
-                      : ''}
-                  </span>
-                  {/* Declines carry a reason, and the person who asked is the
-                      one who needs to read it. */}
-                  {row.status === 'declined' && row.reviewNote ? (
-                    <span className="proto-caption proto-church-tools__row-meta">
-                      {row.reviewNote}
-                    </span>
-                  ) : null}
-                </span>
-                {/* Withdrawable while it waits *and* once it is listed — sharing
-                    something should be as reversible as it was voluntary. */}
-                {row.status === 'submitted' || row.status === 'listed' ? (
-                  <button
-                    type="button"
-                    className="proto-sheet-quiet-action"
-                    disabled={withdraw.isPending}
-                    onClick={() => withdraw.mutate(row.id)}
-                  >
-                    {row.status === 'listed' ? 'Stop sharing' : 'Withdraw'}
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </div>
       ) : null}
 
       <div className="proto-add-notes-sheet__footer proto-sheet-footer--stacked">

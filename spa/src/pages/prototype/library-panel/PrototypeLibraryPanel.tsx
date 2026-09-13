@@ -137,7 +137,10 @@ export default function PrototypeLibraryPanel({
       if (
         event.target instanceof Element &&
         event.target.closest(
-          '[role="menu"], [role="dialog"], .proto-menu__popover, .proto-popover-shell',
+          /* A dialog's scrim too. It is a bare button with no dialog role, so pressing it to
+             close a sheet opened from inside the panel — "Share with others" on a Thread —
+             closed the panel underneath in the same gesture. */
+          '[role="menu"], [role="dialog"], .proto-menu__popover, .proto-popover-shell, .proto-dialog-backdrop, .proto-connect-note-sheet-overlay',
         )
       ) {
         return;

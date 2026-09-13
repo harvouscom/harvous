@@ -37,7 +37,7 @@ import { deleteSearchEventsForUser } from '../utils/record-search-event';
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
-  db, first, Notes, Threads, Spaces, Tags, NoteThreads, UserMetadata,
+  db, first, Notes, Threads, Spaces, SpaceNotes, Tags, NoteThreads, UserMetadata,
   UserXP, Comments, Members, SpaceMemberships, SpaceInvites, NoteScriptureReferences, ResourceMetadata,
   NoteConnections, ImportSessionItems,
   eq, and, ne, or, desc, asc, isNotNull, isNull, sql, inArray,
@@ -2489,6 +2489,7 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
         title: Notes.title,
         content: Notes.content,
         shareToken: Notes.shareToken,
+        shareTokenCreatedAt: Notes.shareTokenCreatedAt,
         updatedAt: Notes.updatedAt,
         createdAt: Notes.createdAt,
       })
@@ -2514,6 +2515,9 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
           preview: preview || undefined,
           updatedAt: n.updatedAt ?? undefined,
           createdAt: n.createdAt,
+          /* When the link was made, which is what Settings › Sharing sorts by — editing a note
+             later should not make an old link look new. */
+          sharedAt: n.shareTokenCreatedAt ?? null,
           shareToken: n.shareToken,
           shareUrl: `${origin}/shared/note/${n.shareToken}`,
         };
@@ -2535,14 +2539,14 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
     const origin = new URL(c.req.url).origin;
 
     const ownedSpacesRows = await db.select({
-      id: Spaces.id, title: Spaces.title, color: Spaces.color,
+      id: Spaces.id, title: Spaces.title, color: Spaces.color, createdAt: Spaces.createdAt,
     }).from(Spaces).where(and(eq(Spaces.userId, auth.userId), eq(Spaces.type, 'shared')))
       .orderBy(
         asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Spaces.lastVisited)
       );
 
-    const owned: Array<{ id: string; title: string; color?: string | null; memberCount: number; shareUrl?: string }> = [];
+    const owned: Array<{ id: string; title: string; color?: string | null; memberCount: number; shareUrl?: string; createdAt: Date }> = [];
     for (const space of ownedSpacesRows) {
       const memberCount = await getSpaceMemberCount(space.id);
       const activeInvite = first(await db.select({ token: SpaceInvites.token })
@@ -2554,13 +2558,16 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
         id: space.id, title: space.title || 'Untitled space', color: space.color ?? undefined,
         memberCount,
         shareUrl: activeInvite ? `${origin}/spaces/join/${activeInvite.token}` : undefined,
+        createdAt: space.createdAt,
       });
     }
 
-    const memberRows = await db.select({ spaceId: SpaceMemberships.spaceId })
+    const memberRows = await db.select({ spaceId: SpaceMemberships.spaceId, joinedAt: SpaceMemberships.joinedAt })
       .from(SpaceMemberships).where(eq(SpaceMemberships.userId, auth.userId));
     const ownedSpaceIds = new Set(ownedSpacesRows.map(s => s.id));
-    const memberOf: Array<{ id: string; title: string; color?: string | null; memberCount: number }> = [];
+    /* `createdAt` is when you joined, not when the space was made — for a room you are a member
+       of, joining is the thing you did, and it is what Settings › Sharing sorts by. */
+    const memberOf: Array<{ id: string; title: string; color?: string | null; memberCount: number; createdAt: Date }> = [];
 
     for (const m of memberRows) {
       if (ownedSpaceIds.has(m.spaceId)) continue;
@@ -2568,13 +2575,72 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
         .from(Spaces).where(and(eq(Spaces.id, m.spaceId), ne(Spaces.type, 'personal'))).limit(1));
       if (spaceRow) {
         const memberCount = await getSpaceMemberCount(spaceRow.id);
-        memberOf.push({ id: spaceRow.id, title: spaceRow.title || 'Untitled space', color: spaceRow.color ?? undefined, memberCount });
+        memberOf.push({ id: spaceRow.id, title: spaceRow.title || 'Untitled space', color: spaceRow.color ?? undefined, memberCount, createdAt: m.joinedAt });
       }
     }
 
     return c.json({ owned, memberOf }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
   } catch (error: unknown) {
     const e = handleAPIError(error, { endpoint: '/api/profile/my-shared-spaces', action: 'get_my_shared_spaces' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── GET /api/profile/my-shared-space-notes ──────────────────────────────────
+//
+// Notes of yours that you put into a shared space. The note itself stays in My Home — a space holds
+// an association to it — and this lists the associations still standing, which Settings › Sharing
+// lets you take back one at a time. Only your own notes, only spaces that are shared and not
+// deleted. The space's title is the one thing here about anyone else, and a member already sees it.
+
+app.get('/api/profile/my-shared-space-notes', requireAuth, rateLimit('read'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const rows = await db
+      .select({
+        noteId: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        contentEncrypted: Notes.contentEncrypted,
+        spaceId: Spaces.id,
+        spaceTitle: Spaces.title,
+        spaceColor: Spaces.color,
+        addedAt: SpaceNotes.addedAt,
+      })
+      .from(SpaceNotes)
+      .innerJoin(Notes, eq(Notes.id, SpaceNotes.noteId))
+      .innerJoin(Spaces, eq(Spaces.id, SpaceNotes.spaceId))
+      .where(
+        and(
+          eq(Notes.userId, auth.userId),
+          isNull(SpaceNotes.removedAt),
+          ne(Spaces.type, 'personal'),
+          isNull(Spaces.deletedAt),
+        ),
+      )
+      .orderBy(desc(SpaceNotes.addedAt))
+      .limit(200);
+
+    const notes = rows.map((row) => {
+      /* A locked note's body is ciphertext; its title is still the author's own to read. */
+      const readable = row.contentEncrypted ? '' : row.content ?? '';
+      const title = row.title?.trim() || (readable.split('\n')[0]?.trim().slice(0, 80) || 'Untitled note');
+      const preview = readable ? stripHtmlForListPreview(readable, 80) : undefined;
+      return {
+        noteId: row.noteId,
+        title: title.length > 80 ? title.slice(0, 77) + '...' : title,
+        preview: preview || undefined,
+        spaceId: row.spaceId,
+        spaceTitle: row.spaceTitle || 'Untitled space',
+        spaceColor: row.spaceColor ?? undefined,
+        addedAt: row.addedAt,
+      };
+    });
+
+    return c.json({ notes }, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
+  } catch (error: unknown) {
+    const e = handleAPIError(error, { endpoint: '/api/profile/my-shared-space-notes', action: 'get_my_shared_space_notes' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

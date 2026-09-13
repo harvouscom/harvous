@@ -12436,6 +12436,42 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 /*
+ * "Share with others" on a Thread — above the trail in the Library panel, under it in the note
+ * page's Thread popover. Right-aligned and quiet: sharing is a thing you can do with a Thread, not
+ * what the list is for.
+ */
+.proto-library-thread-share {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+
+.proto-library-thread-share--popover {
+  margin: 10px 0 0;
+}
+
+.proto-library-thread-share .proto-sheet-quiet-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The Share with others sheet's way out to Settings › Sharing: a link in a sentence. */
+.proto-share-others__settings-link {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--pds-accent);
+  cursor: pointer;
+}
+
+.proto-share-others__settings-link:hover {
+  text-decoration: underline;
+}
+
+/*
  * Discover's kind chip — "Tool", "Guide", "Template" — right after the title, on its line.
  *
  * The word harvous.com prints on the same card, in the same small caps. Inline, inside the
@@ -18519,10 +18555,10 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      the reader's paper has nothing to clear and its own 48px of top padding inside, so the
      lip only added a band of dead space above the chapter — most visible stacked, where it
      opened a gap between the peeking edge and the paper right under it. */
-  /* No top lip (see above); the bottom is room for the study dock band, which floats over the
-     chapter with no layout height of its own — so the last verses sat behind an expanded card
-     and could not be scrolled to. Zero when nothing is open. */
-  padding: 0 0 var(--proto-study-dock-band-height, 0px);
+  /* No bottom lip either. The room for the study dock band is inside the sheet
+     (`.pds-reader__column::after`), so the paper runs on under the card rather than stopping
+     at its top edge. */
+  padding: 0;
   scroll-padding-bottom: var(--proto-study-dock-band-height, 0px);
   /* Named query container for the narrow overrides below. Safe: this element's width comes
      from its flex parent, never from its own contents, so containment changes no layout. */
@@ -18564,6 +18600,28 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   --pds-reader-paper-padding-x: var(--pds-editor-paper-padding-x);
   padding: var(--pds-editor-paper-padding-top) var(--pds-reader-paper-padding-x)
     var(--pds-editor-paper-padding-bottom);
+}
+
+/*
+ * Room at the end of the chapter for the study dock band — inside the sheet, the same as
+ * `.proto-editor-paper::after` and for the same reason: the dock is a card on the page, so the
+ * paper has to run on under it. Padding outside the sheet ended the paper at the card's top
+ * edge. A spacer, because the narrow overrides below restate the padding.
+ */
+.pds-reader__column::after {
+  content: '';
+  display: block;
+  height: var(--proto-study-dock-band-height, 0px);
+}
+
+/*
+ * Except under a pile. The translations below the sheet come after it, so a reserve inside the
+ * paper would leave them behind the card at the end of the chapter. There the room goes after
+ * the pile instead (`.pds-reader-stack`'s bottom padding) — a chapter is long enough that the
+ * paper still fills the pane until you reach its end.
+ */
+.pds-reader-stack .pds-reader__column::after {
+  content: none;
 }
 
 /*

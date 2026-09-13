@@ -597,10 +597,15 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
   min-height: 0;
   overflow: auto;
   font-family: var(--pds-font-body);
-  /* Room at the end of Home, Activity and everything else for the study dock band, which
-     floats over this pane with no layout height of its own. Zero when no dock is open. */
-  scroll-padding-bottom: var(--proto-study-dock-band-height, 0px);
-  padding-bottom: var(--proto-study-dock-band-height, 0px);
+  /*
+   * No study dock reserve here, deliberately.
+   *
+   * This pane never scrolls itself: every page mounts one `height: 100%` child with its own
+   * scroller (the note, the reader, the paper stack, Home's feed body). Bottom padding here
+   * added no room at the end — it shrank that child by the band's height and clipped the paper
+   * at the dock's top edge, so the dock read as a split pane instead of a card on the page.
+   * Each scroller reserves the band inside itself.
+   */
 }
 
 /* ─── Mobile drawer ──────────────────────────────────────────────────────── */
