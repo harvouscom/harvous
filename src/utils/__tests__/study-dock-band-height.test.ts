@@ -161,7 +161,7 @@ describe('observeStudyDockBandHeight', () => {
 });
 
 describe('the surfaces underneath reserve it', () => {
-  it('is read by every scroller and by the two chips outside the band', async () => {
+  it('is reserved inside the paper, never by shrinking it', async () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const css = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -170,10 +170,15 @@ describe('the surfaces underneath reserve it', () => {
     const shell = css('spa/src/styles/prototype-shell.css');
     const components = css('spa/src/styles/prototype-components.css');
 
-    // The note, the reader, Home and everything else, the study feed.
-    expect(editor).toContain('--proto-study-dock-band-height');
-    expect(shell).toContain('--proto-study-dock-band-height');
-    expect(components).toContain('--proto-study-dock-band-height');
+    /*
+     * The dock is a card on the page, so the room it needs is more page. Padding placed
+     * outside the sheet took the room out of the sheet instead: on the main pane it cut the
+     * note and the reader short and clipped the paper at the dock's top edge, and on the
+     * editor's scroller it stopped a short note's paper there too. Both read as a split pane.
+     */
+    expect(editor).toMatch(/\.proto-editor-paper::after\s*\{[^}]*--proto-study-dock-band-height/);
+    expect(components).toMatch(/\.pds-reader__column::after\s*\{[^}]*--proto-study-dock-band-height/);
+    expect(shell).not.toContain('--proto-study-dock-band-height');
     // Both fixed-to-body chips, which the scrollers' reserve cannot move.
     expect(components.match(/--proto-study-dock-band-height/g)?.length).toBeGreaterThanOrEqual(4);
   });
