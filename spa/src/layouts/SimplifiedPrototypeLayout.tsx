@@ -794,8 +794,26 @@ function PrototypeAuthenticatedChrome({ userId, isGuest = false }: { userId?: st
               /* Carried so the result card can offer question feedback. Without it the thumbs
                  are absent for every note answered from the stack edge, which is most of them. */
               itemId: review.itemId,
+              /*
+               * And the slipping offer, which this path dropped.
+               *
+               * A note missed four times running is exactly the case "Make it easier" exists
+               * for, and notes are what the stack edge answers — so the one rung that most
+               * needed the offer was the one rung that could never receive it.
+               */
+              leech: data.leech === true,
+              stalled: data.stalled === true,
               at: Date.now(),
             }),
+          /*
+           * The stack is gone and the answer did not land, so put the dock back on the item.
+           *
+           * `clearPaperStack` runs unconditionally below — it is what advances the queue — and
+           * without this a failed answer left the reader with no stack, no result and no
+           * question: the one place in Review where a lost request could lose the item too.
+           * The toast comes from the mutation.
+           */
+          onError: () => setReviewDockItem(review.itemId),
         },
       );
       // The dock goes back to "whatever is next"; an answered item is rescheduled rather than

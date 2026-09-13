@@ -211,7 +211,13 @@ describe('the inbox stays calm', () => {
   });
 
   it('uses no guilt language anywhere in the feature', () => {
-    for (const text of [review(), service()]) {
+    /*
+     * The copy file is in here too. The vocabulary rule it opens with is the reason it exists,
+     * and it is the one file in the feature where a careless string is shipped verbatim to a
+     * reader rather than being shaped by a route first.
+     */
+    const copy = withoutComments(source('spa/src/pages/prototype/proto-review-copy.ts'));
+    for (const text of [review(), service(), copy]) {
       expect(text).not.toMatch(/overdue|behind schedule|you missed|streak broken/i);
     }
   });

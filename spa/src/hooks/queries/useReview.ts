@@ -99,6 +99,18 @@ export const reviewSessionQueryKey = ['review', 'session'] as const;
 export const reviewItemsQueryKey = (status?: ReviewItemStatus, view: 'full' | 'summary' = 'full') =>
   ['review', 'items', status ?? 'all', view] as const;
 
+/**
+ * One key for a reveal, built in one place.
+ *
+ * It was written out by hand at three sites and two of them were a different key: the prefetch
+ * and the session's `firstReveal` seeding wrote three elements, while `useReviewReveal` read four
+ * — the translation the rung was asked in, defaulting to `'default'`. So neither warm path ever
+ * hit the cache the card reads, and every graded question paid a full round trip and showed its
+ * loading dots with the answer already sitting in the query client under a neighbouring key.
+ */
+export const reviewRevealQueryKey = (itemId: string | null | undefined, translation?: string) =>
+  ['review', 'reveal', itemId ?? 'none', translation ?? 'default'] as const;
+
 function useReviewAccess(): boolean {
   const { has } = useHasFeature('review');
   const { isGuest } = useHarvousIdentity();
@@ -194,7 +206,7 @@ export function useReviewSession(options?: { enabled?: boolean }) {
         nextDueAt?: string | null;
       }>('/api/review/session');
       if (data.firstReveal && data.items[0]) {
-        queryClient.setQueryData(['review', 'reveal', data.items[0].id], data.firstReveal);
+        queryClient.setQueryData(reviewRevealQueryKey(data.items[0].id), data.firstReveal);
       }
       return data;
     },
@@ -210,7 +222,7 @@ export function usePrefetchReviewReveal(itemId: string | null | undefined) {
   useEffect(() => {
     if (!itemId || !authReady || !access) return;
     void queryClient.prefetchQuery({
-      queryKey: ['review', 'reveal', itemId] as const,
+      queryKey: reviewRevealQueryKey(itemId),
       queryFn: () =>
         api.get<ReviewRevealResponse>(`/api/review/items/${encodeURIComponent(itemId)}/reveal`),
       staleTime: 5 * 60_000,
@@ -224,7 +236,7 @@ export function useReviewReveal(itemId: string | null, options?: { enabled?: boo
   const featureEnabled = authReady && access;
   const translation = options?.translation;
   return useQuery({
-    queryKey: ['review', 'reveal', itemId ?? 'none', translation ?? 'default'] as const,
+    queryKey: reviewRevealQueryKey(itemId, translation),
     enabled: featureEnabled && Boolean(itemId) && options?.enabled === true,
     queryFn: () =>
       api.get<ReviewRevealResponse>(
