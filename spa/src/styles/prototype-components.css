@@ -12436,6 +12436,42 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
 }
 
 /*
+ * "Share with others" on a Thread — above the trail in the Library panel, under it in the note
+ * page's Thread popover. Right-aligned and quiet: sharing is a thing you can do with a Thread, not
+ * what the list is for.
+ */
+.proto-library-thread-share {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+
+.proto-library-thread-share--popover {
+  margin: 10px 0 0;
+}
+
+.proto-library-thread-share .proto-sheet-quiet-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The Share with others sheet's way out to Settings › Sharing: a link in a sentence. */
+.proto-share-others__settings-link {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--pds-accent);
+  cursor: pointer;
+}
+
+.proto-share-others__settings-link:hover {
+  text-decoration: underline;
+}
+
+/*
  * Discover's kind chip — "Tool", "Guide", "Template" — right after the title, on its line.
  *
  * The word harvous.com prints on the same card, in the same small caps. Inline, inside the

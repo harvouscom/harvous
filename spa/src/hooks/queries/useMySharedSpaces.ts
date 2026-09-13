@@ -9,6 +9,8 @@ export interface OwnedSharedSpaceItem {
   memberCount: number;
   shareToken?: string | null;
   shareUrl?: string;
+  /** When you made the space, or joined it — what Settings › Sharing sorts by. */
+  createdAt?: string | null;
 }
 
 export interface MySharedSpacesResponse {

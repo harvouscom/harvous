@@ -484,6 +484,10 @@ app.post('/api/discover/submit', requireAuth, rateLimit('write'), async (c) => {
         .where(
           and(
             eq(DiscoverListings.sourceId, sourceId),
+            /* The kind too, not just the id. A personal Thread is addressed by its main note,
+               so a note and the Thread it anchors carry the same `sourceId` — without this,
+               sharing the note first would refuse the Thread as "already shared". */
+            eq(DiscoverListings.kind, kind),
             eq(DiscoverListings.submittedByUserId, auth.userId),
             or(eq(DiscoverListings.status, 'submitted'), eq(DiscoverListings.status, 'listed')),
           ),

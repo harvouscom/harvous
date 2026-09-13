@@ -17,6 +17,10 @@ describe('resolveSharedItemLeadingMeta', () => {
     expect(resolveSharedItemLeadingMeta('thread').icon).toBe('layer-group');
     expect(resolveSharedItemLeadingMeta('space').icon).toBe('user-group');
   });
+
+  it('gives a Discover submission of no known kind the Discover glyph', () => {
+    expect(resolveSharedItemLeadingMeta('discover')).toEqual({ icon: 'globe', label: 'Discover' });
+  });
 });
 
 describe('recently deleted sharing settings state', () => {

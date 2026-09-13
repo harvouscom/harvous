@@ -166,6 +166,20 @@ describe('dismissal', () => {
     }
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('stays open when a dialog’s scrim is pressed — that closes the dialog, not the panel', () => {
+    // The scrim is a bare button with no dialog role, so it read as "outside" and closing a
+    // sheet opened from inside the panel closed the panel with it.
+    const { onClose } = renderPanel();
+    for (const selector of ['proto-dialog-backdrop', 'proto-connect-note-sheet-overlay']) {
+      const scrim = document.createElement('button');
+      scrim.className = selector;
+      document.body.appendChild(scrim);
+      fireEvent.mouseDown(scrim);
+      scrim.remove();
+    }
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
 
 describe('the kind picker', () => {
