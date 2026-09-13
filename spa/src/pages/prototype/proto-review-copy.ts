@@ -183,6 +183,38 @@ export const REVIEW_ALTERED_CAPTION = 'One word here is not what it says';
 
 /** Said plainly above the restored verse, so the correction is unmistakable. */
 export const REVIEW_TRUTH_LABEL = 'As it actually reads';
+
+/**
+ * The block on the result card that says where the question came from.
+ *
+ * The point of the whole feature is that these questions are about the reader's own study, and
+ * the card that closes a question was the one surface that never said so. "From your Harvous"
+ * rather than "Source" or "Context": it names whose study it is, which is the claim being made.
+ *
+ * The two ways back are offered, never taken — the reader has just finished answering and may
+ * well want to sit with the result. A card that navigated on its own would be the queue
+ * advancing itself, which this feature does not do.
+ */
+export const REVIEW_CONTEXT_LABEL = 'From your Harvous';
+
+/**
+ * Right and wrong, for the reader who cannot see the colour.
+ *
+ * The echo marks each part with a colour and an underline and nothing else, which fails the
+ * "not by colour alone" rule outright — and the reader it fails is the one with the least other
+ * way to tell how their answer went. Read out beside each part, never shown.
+ *
+ * Still no "wrong": the vocabulary rule at the top of this file holds for text a screen reader
+ * speaks exactly as it holds for text on the card.
+ */
+export const REVIEW_PART_STATE_LABEL: Record<'right' | 'wrong', string> = {
+  right: 'correct',
+  wrong: 'not this one',
+};
+export const REVIEW_CONTEXT_MARKED_LABEL = 'What you marked';
+export const REVIEW_CONTEXT_WROTE_LABEL = 'What you wrote';
+export const REVIEW_CONTEXT_OPEN_NOTE_COPY = 'Open the note';
+export const REVIEW_CONTEXT_OPEN_READER_COPY = 'Read it in context';
 export const REVIEW_SEE_LESS_COPY = 'Show fewer';
 
 /* The note's ⋯ menu is the one place this is offered. The Review card briefly carried a `+`

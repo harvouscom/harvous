@@ -74,6 +74,7 @@ function OverflowMenu({ children }: { children: React.ReactNode }) {
         type="button"
         className="study-dock-card__header-btn study-dock-card__overflow-trigger"
         aria-label="More actions"
+        title="More actions"
         aria-expanded={open}
         aria-haspopup="menu"
         onMouseDown={(e) => e.preventDefault()}
@@ -331,7 +332,8 @@ export default function StudyDockCardShell({
                     if (e.detail === 0) onToggleExpanded();
                   }}
                   aria-expanded={expanded}
-                  aria-label="Collapse"
+                  aria-label={expanded ? 'Collapse' : 'Expand'}
+                  title={expanded ? 'Collapse' : 'Expand'}
                 >
                   <Icon name="caret-down" size={12} />
                 </button>
@@ -345,6 +347,7 @@ export default function StudyDockCardShell({
                   if (e.detail === 0) handleDismiss();
                 }}
                 aria-label="Dismiss"
+                title="Dismiss"
               >
                 <Icon name="xmark" size={12} />
               </button>

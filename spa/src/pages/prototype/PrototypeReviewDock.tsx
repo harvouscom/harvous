@@ -35,7 +35,6 @@ import {
 } from '@/utils/review-answer-echo';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import ProtoIconBlock from './ProtoIconBlock';
 import { prototypeHref } from '@/lib/prototype-path';
 import Icon from '@/components/react/Icon';
 import ProtoLoadingDots from './ProtoLoadingDots';
@@ -54,21 +53,31 @@ import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import { isTypingInInput } from '@/utils/keyboard-shortcuts';
 import { reviewRungIsGraded } from '@/utils/review-prompts';
+import { toast } from '@/utils/toast';
 import { fillFraming } from '@/utils/review-framing';
+/*
+ * For `.scripture-pill-chrome__trans-chip` on the header's translation badge. Imported here the
+ * way `PassageContextStrip` and the reader pane import it — the sheet is only in the bundle
+ * because a component that needs it asked for it, and the dock can be the first thing on screen
+ * with no reader ever mounted.
+ */
+import '@/styles/scripture-pill-chrome.css';
+import { readerRouteForReference } from '../../utils/reader-nav';
+import { isSubmitKey, isTypingTarget, nextBlankIndex } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
 import { useHasFeature } from '../../hooks/useHasFeature';
 import {
   useReviewItems,
   useReviewReveal,
-  usePrefetchReviewReveal,
+  usePrefetchReviewReveals,
   useReviewSession,
   type ReviewItemView,
 } from '../../hooks/queries/useReview';
 import {
   useReviewFeedback,
+  useDeferReview,
   useReviewOutcome,
   useSetReviewStatus,
-  useStepBackReview,
   type ReviewOutcomeResponse,
 } from '../../hooks/mutations/useReviewMutations';
 import { useLibraryPanelNav } from './library-panel/use-library-panel-nav';
@@ -88,17 +97,13 @@ import {
   REVIEW_REVEALED_ACK_COPY,
   REVIEW_CHECK_COPY,
   REVIEW_CROSSED_TO_HOLDING_COPY,
+  REVIEW_DEFER_COPY,
   REVIEW_PAUSE_COPY,
-  REVIEW_SLIPPING_COPY,
-  REVIEW_STALLED_COPY,
   REVIEW_FEEDBACK_ACK_COPY,
   REVIEW_FEEDBACK_DOWN_COPY,
-  REVIEW_FEEDBACK_PROMPT_COPY,
   REVIEW_FEEDBACK_SETTINGS_LINK_COPY,
   REVIEW_FEEDBACK_UP_COPY,
   reviewFeedbackOfferCopy,
-  REVIEW_STEP_BACK_COPY,
-  REVIEW_STEPPED_BACK_COPY,
   REVIEW_OUTCOME_ACK_COPY,
   REVIEW_REVEAL_CONNECTION_COPY,
   REVIEW_REVEAL_COPY,
@@ -115,6 +120,12 @@ import {
   reviewReachedCopy,
   REVIEW_ANSWER_LABEL,
   REVIEW_INDEX_ANSWER_LABEL,
+  REVIEW_CONTEXT_LABEL,
+  REVIEW_PART_STATE_LABEL,
+  REVIEW_CONTEXT_MARKED_LABEL,
+  REVIEW_CONTEXT_OPEN_NOTE_COPY,
+  REVIEW_CONTEXT_OPEN_READER_COPY,
+  REVIEW_CONTEXT_WROTE_LABEL,
   REVIEW_INITIALS_PLACEHOLDER,
   reviewHintLeadCopy,
   reviewHintLetterCopy,
@@ -303,6 +314,7 @@ function GapLine({
   partState,
   disabled,
   onChange,
+  onSubmit,
 }: {
   segments: string[];
   blankLengths: number[];
@@ -312,6 +324,8 @@ function GapLine({
   partState: (index: number) => 'right' | 'wrong' | undefined;
   disabled: boolean;
   onChange: (index: number, value: string) => void;
+  /** Called when Enter lands on the last gap still to fill. */
+  onSubmit: () => void;
 }) {
   return (
     <p className="proto-challenge__cloze">
@@ -334,9 +348,28 @@ function GapLine({
                 style={{ width: `${Math.max(4, blankLengths[index]) + 1}ch` }}
                 value={values[index] ?? ''}
                 onChange={(event) => onChange(index, event.target.value)}
+                /*
+                 * Enter moves to the next gap still empty, and submits from the last one — the
+                 * tap rungs have had A-F bound since they shipped and the typed ones had
+                 * nothing, so filling in a verse ended with a reach for the mouse.
+                 */
+                onKeyDown={(event) => {
+                  if (!isSubmitKey(event)) return;
+                  event.preventDefault();
+                  const next = nextBlankIndex(values, index, blankLengths.length);
+                  if (next === null) {
+                    onSubmit();
+                    return;
+                  }
+                  const inputs = event.currentTarget
+                    .closest('.proto-challenge__cloze')
+                    ?.querySelectorAll<HTMLInputElement>('.proto-review-dock__blank');
+                  inputs?.[next]?.focus();
+                }}
                 aria-label={
                   letters?.[index] ? `Word ${index + 1}, starts with ${letters[index]}` : `Blank ${index + 1}`
                 }
+                aria-invalid={partState(index) === 'wrong' ? true : undefined}
                 autoComplete="off"
                 spellCheck={false}
                 readOnly={given.has(index)}
@@ -439,14 +472,11 @@ export default function PrototypeReviewDock() {
    */
   const isGradedRung = item ? reviewRungIsGraded(item) : false;
   const reveal = useReviewReveal(item?.id ?? null, { enabled: revealed || isGradedRung });
-  // The one after this one, fetched while the reader is still on this one.
-  const nextItem = sessionItems[sessionItems.findIndex((i) => i.id === item?.id) + 1];
-  usePrefetchReviewReveal(nextItem && reviewRungIsGraded(nextItem) ? nextItem.id : null);
+  // Every marked question in the sitting, warmed once the session lands — see the hook.
+  usePrefetchReviewReveals(sessionItems);
   const outcome = useReviewOutcome();
-  const stepBack = useStepBackReview();
   const setStatus = useSetReviewStatus();
-  // What the reader chose for a slipping item, so the offer is made once and answered once.
-  const [leechAction, setLeechAction] = useState<'stepped' | 'paused' | null>(null);
+  const defer = useDeferReview();
   /*
    * The reader's rating of the question, and the family Settings may be offered for.
    *
@@ -513,7 +543,12 @@ export default function PrototypeReviewDock() {
    */
   const retryLine =
     verdict?.state === 'wrong' ? (
-      <p className="proto-caption proto-review-dock__retry">
+      /*
+       * Announced. The card changes under a screen reader with nothing said about it — the
+       * marking is colour and an underline, both invisible to the one reader who most needs to
+       * be told they have another go.
+       */
+      <p className="proto-caption proto-review-dock__retry" role="status" aria-live="polite">
         {verdict.parts && verdict.parts.length > 1
           ? reviewPartsAgainCopy(verdict.parts.filter(Boolean).length, verdict.parts.length)
           : REVIEW_TRY_AGAIN_COPY}
@@ -528,7 +563,7 @@ export default function PrototypeReviewDock() {
    * gaps being inputs.
    */
   const hintLine = spokenHint ? (
-    <p className="proto-caption proto-review-dock__hint">
+    <p className="proto-caption proto-review-dock__hint" role="status" aria-live="polite">
       {spokenHint.kind === 'lead'
         ? reviewHintLeadCopy(spokenHint.text)
         : spokenHint.kind === 'word'
@@ -541,6 +576,104 @@ export default function PrototypeReviewDock() {
   const goesTotal = attemptsTotal ?? (item ? maxAttemptsFor(item.promptKey) : 0);
 
   const lastResult = reviewDock?.lastResult ?? null;
+
+  /*
+   * Where the question came from, under the verdict.
+   *
+   * This is the gap the feature had: the card said what was asked, what the reader answered and
+   * when it comes back, and nothing about the thing in their Harvous it was made from. A verse
+   * is in Review *because* they marked it while reading or wrote on it, and that connection —
+   * the one the whole feature exists to make — was the part never shown.
+   *
+   * Rendered only where something is actually known. An empty "From your Harvous" heading over
+   * nothing would be worse than no heading, and plenty of items legitimately have no annotation
+   * and no framing line.
+   */
+  /*
+   * What the reader wrote on this passage, under the verdict.
+   *
+   * **Their words only.** This started as a general "where did this come from" block and
+   * rendered whatever it could find — a note id, or a provenance line like "Cross-referenced 27
+   * times." Neither earns the heading: the first is a button, and the second is a fact from the
+   * curated index that is already on the row the reader tapped to get here. A heading reading
+   * "From your Harvous" over an index statistic is a claim the block cannot keep.
+   *
+   * What was actually missing is the one thing the reveal never fetched: the highlight they
+   * marked and the thought they wrote on it. So that is all this is, and on an item with
+   * neither it renders nothing at all — which is most of them, and correct.
+   *
+   * The two ways back are buttons and live in the card's own actions row; see below.
+   */
+  const resultContextBlock = (() => {
+    const annotation = lastResult?.context?.annotation;
+    const quote = annotation?.quote?.trim() || null;
+    const thought = annotation?.thought?.trim() || null;
+    if (!quote && !thought) return null;
+    return (
+      <div className="proto-review-dock__context">
+        <p className="proto-caption proto-review-dock__truth-label">{REVIEW_CONTEXT_LABEL}</p>
+        {quote ? (
+          <>
+            <p className="proto-caption proto-review-dock__context-label">
+              {REVIEW_CONTEXT_MARKED_LABEL}
+            </p>
+            <p className="proto-review-dock__verse proto-review-dock__context-quote">{quote}</p>
+          </>
+        ) : null}
+        {thought ? (
+          <>
+            <p className="proto-caption proto-review-dock__context-label">
+              {REVIEW_CONTEXT_WROTE_LABEL}
+            </p>
+            <p className="proto-review-dock__context-thought">{thought}</p>
+          </>
+        ) : null}
+      </div>
+    );
+  })();
+
+  /*
+   * The ways back, as buttons in the actions row. Offered, never taken: the dock collapses
+   * rather than closing and keeps its result, so coming back finds the card as it was.
+   */
+  const resultContextLinks = (() => {
+    const context = lastResult?.context;
+    if (!context) return null;
+    const reader = context.reference ? readerRouteForReference(context.reference, 'NET') : null;
+    if (!context.note && !reader) return null;
+    return (
+      <>
+        {context.note ? (
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+            onClick={() => {
+              setReviewDockExpanded(false);
+              void navigate({
+                to: prototypeNoteRouteTo(),
+                params: { noteId: noteParamSlug(context.note!.id) },
+                search: PROTOTYPE_NOTE_LIST_NAV_SEARCH,
+              });
+            }}
+          >
+            {REVIEW_CONTEXT_OPEN_NOTE_COPY}
+          </button>
+        ) : null}
+        {reader ? (
+          <button
+            type="button"
+            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
+            onClick={() => {
+              setReviewDockExpanded(false);
+              void navigate(reader);
+            }}
+          >
+            {REVIEW_CONTEXT_OPEN_READER_COPY}
+          </button>
+        ) : null}
+      </>
+    );
+  })();
 
   /*
    * A new result is a new question, so the rating starts over.
@@ -671,6 +804,37 @@ export default function PrototypeReviewDock() {
   }, [open, sessionQuery]);
 
   /*
+   * Closing a sitting says what it came to.
+   *
+   * `sittingCloseLine` existed and was rendered in exactly one place: the empty state, which is
+   * reached only by answering every last thing in the queue. Stop after three — which is the
+   * normal, encouraged way to stop, and what "one sitting, not a queue to clear" asks for — and
+   * the line was never said at all. The one number this feature counts is what was *done*, and
+   * it was reserved for the readers who least needed telling.
+   */
+  const closeSitting = useCallback(() => {
+    if (sitting.answered > 0) toast.success(sittingCloseLine(sitting));
+    closeReviewDock();
+  }, [closeReviewDock, sitting]);
+
+  /*
+   * Escape puts the card away without answering it.
+   *
+   * Never out from under someone mid-word: a gap, a textarea and anything contenteditable are
+   * all places the key already belongs to whatever they are typing. It collapses rather than
+   * closes, because closing would read as the question having been dealt with.
+   */
+  useEffect(() => {
+    if (!open || !reviewDock?.expanded) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isTypingTarget(event.target)) return;
+      setReviewDockExpanded(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, reviewDock?.expanded, setReviewDockExpanded]);
+
+  /*
    * Keep the dock's pointer on an item that still exists.
    *
    * Answering drops the item from the session optimistically. Without this the dock would keep
@@ -793,6 +957,21 @@ export default function PrototypeReviewDock() {
                 verseText: data.truth?.verseText ?? null,
                 correctAnswer: data.correctAnswer ?? null,
                 /*
+                 * And where the question came from, which the card never said.
+                 *
+                 * Assembled from the two places that already know: the item carries its own
+                 * provenance line and reference, and the reveal carries the highlight and the
+                 * thought written on it. Read through the ref — see above.
+                 */
+                context: {
+                  sourceLabel: item.sourceLabel ?? null,
+                  sourceAt: item.sourceAt ?? null,
+                  framing: item.framing ? fillFraming(item.framing) : null,
+                  annotation: revealRef.current?.context?.annotation ?? null,
+                  note: item.noteId ? { id: item.noteId, title: item.noteTitle } : null,
+                  reference: item.scriptureReference ?? null,
+                },
+                /*
                  * The question and what was said about it, so the result is a recap rather than
                  * a loose answer. Every rung's submission shape is handled in one place — see
                  * `buildReviewAnswerEcho` — and the two rungs whose answer is a set of indices
@@ -813,7 +992,6 @@ export default function PrototypeReviewDock() {
                 itemId: item.id,
                 at: Date.now(),
               });
-              setLeechAction(null);
               setSitting((current) => ({
                 answered: current.answered + 1,
                 holding: current.holding + (data.next.recallState === 'durable' ? 1 : 0),
@@ -891,6 +1069,17 @@ export default function PrototypeReviewDock() {
   );
 
   /*
+   * The reveal, readable at handover.
+   *
+   * `answer` is memoised on the item and the typed attempt, and the reveal is deliberately not
+   * in its dependency list — adding it would rebuild the callback, and the keyboard handler
+   * bound to it, every time a payload landed. A ref is how the handover reads the annotation
+   * without the callback having to depend on it.
+   */
+  const revealRef = useRef(reveal.data);
+  revealRef.current = reveal.data;
+
+  /*
    * The rungs the app can mark. They arrive with the reveal because the puzzle *is* the question
    * here — there is nothing to write first, so the reader taps rather than judging themselves
    * afterwards. No payload carries its answer; the server marks the tap.
@@ -959,6 +1148,84 @@ export default function PrototypeReviewDock() {
       onToggleExpanded={() => setReviewDockExpanded(!reviewDock.expanded)}
       onDismiss={closeReviewDock}
       headerIcon={<Icon name="arrows-rotate" size={13} aria-hidden />}
+      headerActions={
+        /*
+         * A way to put the question down.
+         *
+         * These lived only on the Home rows, so once the dock had asked, the only exits were
+         * answering it, "Enough for now", or the ×. A question you cannot answer and cannot set
+         * aside is the one dead end the strategy doc's "meaningful controls" list exists to
+         * prevent — and the reader who most needs the option is the one stuck on the question.
+         *
+         * Not while a result is up: nothing is being asked then, and the slipping offer on the
+         * card below is the better-worded version of the same thing.
+         */
+        lastResult?.itemId ? (
+          /*
+           * Rating the question, where the other header controls are.
+           *
+           * It was a labelled block at the foot of the result card — a caption, then two icon
+           * blocks with words under them — which gave the quietest thing on the card the most
+           * room on it. The verdict, the answer and where the question came from are what the
+           * reader is there for; how they felt about the exercise is an aside, and an aside
+           * belongs in the chrome. Two glyphs, titled, in the row that already holds every other
+           * "do something to this card" control.
+           */
+          <>
+            <button
+              type="button"
+              className="study-dock-card__header-btn"
+              aria-label={REVIEW_FEEDBACK_UP_COPY}
+              title={REVIEW_FEEDBACK_UP_COPY}
+              data-selected={feedbackVote === 'liked' ? '' : undefined}
+              disabled={Boolean(feedbackVote)}
+              onClick={() => castFeedback('liked')}
+            >
+              <Icon name="thumbs-up" size={13} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="study-dock-card__header-btn"
+              aria-label={REVIEW_FEEDBACK_DOWN_COPY}
+              title={REVIEW_FEEDBACK_DOWN_COPY}
+              data-selected={feedbackVote === 'disliked' ? '' : undefined}
+              disabled={Boolean(feedbackVote)}
+              onClick={() => castFeedback('disliked')}
+            >
+              <Icon name="thumbs-down" size={13} aria-hidden />
+            </button>
+          </>
+        ) : item ? (
+          <>
+            <button
+              type="button"
+              className="study-dock-card__header-btn"
+              aria-label={REVIEW_DEFER_COPY}
+              title={REVIEW_DEFER_COPY}
+              onClick={() => {
+                defer.mutate(item.id);
+                setReviewDockItem(null);
+                setHeldItem(null);
+              }}
+            >
+              <Icon name="clock-rotate-left" size={13} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="study-dock-card__header-btn"
+              aria-label={REVIEW_PAUSE_COPY}
+              title={REVIEW_PAUSE_COPY}
+              onClick={() => {
+                setStatus.mutate({ itemId: item.id, status: 'paused' });
+                setReviewDockItem(null);
+                setHeldItem(null);
+              }}
+            >
+              <Icon name="circle-minus" size={13} aria-hidden />
+            </button>
+          </>
+        ) : null
+      }
       headerTrailing={
         /*
          * The goes this question has, one dot each, spent ones dimmed. No numerals and no
@@ -966,10 +1233,13 @@ export default function PrototypeReviewDock() {
          * says "that one is used" without saying it. Only while a marked question is up.
          */
         item && isGradedRung && goesTotal > 1 && !lastResult ? (
-          <span
-            className="proto-review-dock__goes"
-            aria-label={`Attempt ${Math.min(attemptNumber, goesTotal)} of ${goesTotal}`}
-          >
+          /*
+           * No label. The dots say "that one is used" without saying a number, and the
+           * `aria-label` here said "Attempt 2 of 3" — the one place in the whole feature that
+           * counts work owed, audible only to the readers who cannot see how gentle the dots
+           * are. The retry line below already says there is another go, in words.
+           */
+          <span className="proto-review-dock__goes" aria-hidden>
             {Array.from({ length: goesTotal }, (_, index) => (
               <span
                 key={index}
@@ -999,6 +1269,31 @@ export default function PrototypeReviewDock() {
               {reviewDock.expanded ? item.exercise?.label ?? null : item.prompt}
             </span>
           ) : null}
+          {/*
+            * Which translation the question is in.
+            *
+            * Every exercise built out of Bible text is built out of *a* wording of it: the gaps
+            * in a cloze are that translation's words, the first letters are its letters, and
+            * "as it actually reads" reads that way in one Bible and differently in another. A
+            * reader filling in blanks from the NIV against text fetched as NET is being marked
+            * wrong for knowing a different true thing, and until now the card never said which
+            * one it meant.
+            *
+            * In the header rather than beside each block, because it is a property of the whole
+            * question — the asking, the retry and the answer are all the same wording — and
+            * because it stays put while the body changes underneath it. The same chip the
+            * reader already knows from scripture pills and the reader's own translation control.
+            *
+            * Verse and chapter only. A note rung's answer is a reference or one of the reader's
+            * own notes; no wording of Scripture is being tested, so the chip would be noise.
+            * `?? 'NET'` is not a guess — it is what every server-side fetch falls back to, so
+            * the label matches the text the reader is actually being shown.
+            */}
+          {item && reviewDock.expanded && (item.kind === 'verse' || item.kind === 'chapter') ? (
+            <span className="scripture-pill-chrome__trans-chip proto-review-dock__header-trans">
+              {item.translation ?? 'NET'}
+            </span>
+          ) : null}
         </span>
       }
     >
@@ -1012,6 +1307,16 @@ export default function PrototypeReviewDock() {
            * on the answer that earns it — that it is holding now.
            */
           <div className="proto-review-dock__result">
+            {/*
+              * Everything the reader reads scrolls; the way on does not.
+              *
+              * A result card grows with what it has to say — the question, their answer, the
+              * verse restored, the verdict, what they wrote on the passage — and on a long one
+              * the buttons were simply below the fold, so "Next one" was a scroll away on
+              * exactly the cards that were most work to get through. Same shape as the planner
+              * editor's rail: a scrolling body over a footer that owns the bottom edge.
+              */}
+            <div className="proto-review-dock__result-scroll">
             {/*
               * The question, first, because a result that does not say what was asked is a
               * sentence with no subject. It is also the one line that makes the index-keyed
@@ -1042,6 +1347,11 @@ export default function PrototypeReviewDock() {
                     {lastResult.echo.parts.map((part, index) => (
                       <li key={`${index}-${part.text}`} data-answer={part.state}>
                         {part.text}
+                        {/* Right and wrong were colour and an underline and nothing else, which
+                            is the one reader who cannot see either being told nothing at all. */}
+                        {part.state ? (
+                          <span className="proto-visually-hidden">{` ${REVIEW_PART_STATE_LABEL[part.state]}`}</span>
+                        ) : null}
                       </li>
                     ))}
                   </ol>
@@ -1055,7 +1365,12 @@ export default function PrototypeReviewDock() {
                     {lastResult.echo.parts.map((part, index) => (
                       <Fragment key={`${index}-${part.text}`}>
                         {index > 0 ? ' ' : null}
-                        <span data-answer={part.state}>{part.text}</span>
+                        <span data-answer={part.state}>
+                          {part.text}
+                          {part.state ? (
+                            <span className="proto-visually-hidden">{` ${REVIEW_PART_STATE_LABEL[part.state]}`}</span>
+                          ) : null}
+                        </span>
                       </Fragment>
                     ))}
                   </p>
@@ -1089,7 +1404,12 @@ export default function PrototypeReviewDock() {
                 />
               </div>
             ) : null}
-            <div className="proto-review-dock__verdict" data-outcome={lastResult.outcome}>
+            <div
+              className="proto-review-dock__verdict"
+              data-outcome={lastResult.outcome}
+              role="status"
+              aria-live="polite"
+            >
               {/*
                 * The icon says which way it went. A check on "Read again." was the app
                 * congratulating someone for getting it wrong — and inside a filled orb it read
@@ -1110,11 +1430,14 @@ export default function PrototypeReviewDock() {
                 ) : null}
               </p>
             </div>
+            {resultContextBlock}
+            </div>
             {/*
               * The reader decides when the next one comes. Both ways are offered: stopping
               * after one is a whole act, and a card with only "next" on it would say otherwise.
+              * The ways back sit after them, in the same row.
               */}
-            <div className="proto-review-dock__actions">
+            <div className="proto-review-dock__actions proto-review-dock__actions--footer">
               <button
                 type="button"
                 className="proto-settings-btn proto-settings-btn--compact"
@@ -1128,99 +1451,38 @@ export default function PrototypeReviewDock() {
               <button
                 type="button"
                 className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                onClick={closeReviewDock}
+                onClick={closeSitting}
               >
                 {REVIEW_ENOUGH_COPY}
               </button>
+              {resultContextLinks}
             </div>
-            {lastResult.itemId ? (
+            {lastResult.itemId && feedbackVote ? (
               /*
-               * A rating of the question, which is a third thing: the verdict above describes
-               * the memory, these describe the exercise the app chose. Last on the card and
-               * quiet, because it is not what the reader came for — and after the way on, so a
-               * card that still has something to say about a slipping item says that last.
+               * What came of the rating. The buttons themselves are in the header now — see
+               * `headerActions` — so all that is left in the body is the one thing a tooltip
+               * cannot carry: that the vote landed, and, on the third dislike of a family, the
+               * offer to turn it off for good. Absent until there is a vote, which is most of
+               * the time.
                */
               <div className="proto-review-dock__feedback">
                 <p className="proto-caption proto-review-dock__feedback-caption">
-                  {feedbackVote ? (
+                  {feedbackOffer ? reviewFeedbackOfferCopy(feedbackOffer) : REVIEW_FEEDBACK_ACK_COPY}
+                  {feedbackOffer ? (
                     <>
-                      {feedbackOffer
-                        ? reviewFeedbackOfferCopy(feedbackOffer)
-                        : REVIEW_FEEDBACK_ACK_COPY}
-                      {feedbackOffer ? (
-                        <>
-                          {' '}
-                          <button
-                            type="button"
-                            className="proto-review-dock__feedback-link"
-                            onClick={() =>
-                              void navigate({ to: prototypeHref('settings/review-exercises') })
-                            }
-                          >
-                            {REVIEW_FEEDBACK_SETTINGS_LINK_COPY}
-                          </button>
-                        </>
-                      ) : null}
+                      {' '}
+                      <button
+                        type="button"
+                        className="proto-review-dock__feedback-link"
+                        onClick={() =>
+                          void navigate({ to: prototypeHref('settings/review-exercises') })
+                        }
+                      >
+                        {REVIEW_FEEDBACK_SETTINGS_LINK_COPY}
+                      </button>
                     </>
-                  ) : (
-                    REVIEW_FEEDBACK_PROMPT_COPY
-                  )}
+                  ) : null}
                 </p>
-                <div className="proto-icon-block-row">
-                  <ProtoIconBlock
-                    icon="thumbs-up"
-                    label={REVIEW_FEEDBACK_UP_COPY}
-                    selected={feedbackVote === 'liked'}
-                    disabled={Boolean(feedbackVote)}
-                    onSelect={() => castFeedback('liked')}
-                  />
-                  <ProtoIconBlock
-                    icon="thumbs-down"
-                    label={REVIEW_FEEDBACK_DOWN_COPY}
-                    selected={feedbackVote === 'disliked'}
-                    disabled={Boolean(feedbackVote)}
-                    onSelect={() => castFeedback('disliked')}
-                  />
-                </div>
-              </div>
-            ) : null}
-            {lastResult.leech && lastResult.itemId ? (
-              /* Four misses since it was last held. The one place Review says a thing is not
-                 working rather than asking again, and it offers the way down, not a lecture. */
-              <div className="proto-review-dock__slipping">
-                {leechAction ? (
-                  <p className="proto-caption proto-review-dock__retry">
-                    {leechAction === 'stepped' ? REVIEW_STEPPED_BACK_COPY : REVIEW_PAUSE_COPY}
-                  </p>
-                ) : (
-                  <>
-                    <p className="proto-caption proto-review-dock__retry">
-                      {lastResult.stalled ? REVIEW_STALLED_COPY : REVIEW_SLIPPING_COPY}
-                    </p>
-                    <div className="proto-review-dock__actions">
-                      <button
-                        type="button"
-                        className="proto-settings-btn proto-settings-btn--compact"
-                        onClick={() => {
-                          setLeechAction('stepped');
-                          stepBack.mutate({ itemId: lastResult.itemId! });
-                        }}
-                      >
-                        {REVIEW_STEP_BACK_COPY}
-                      </button>
-                      <button
-                        type="button"
-                        className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                        onClick={() => {
-                          setLeechAction('paused');
-                          setStatus.mutate({ itemId: lastResult.itemId!, status: 'paused' });
-                        }}
-                      >
-                        {REVIEW_PAUSE_COPY}
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
             ) : null}
           </div>
@@ -1334,6 +1596,14 @@ export default function PrototypeReviewDock() {
                 const next = [...blanks];
                 next[index] = value;
                 setBlanks(next);
+              }}
+              onSubmit={() => {
+                if (outcome.isPending) return;
+                if (clozeExercise.blankLengths.some((_, i) => !blanks[i]?.trim())) return;
+                answer('almost', {
+                  words: clozeExercise.blankLengths.map((_, i) => blanks[i] ?? ''),
+                  promptKey: item.promptKey,
+                });
               }}
             />
             {hintLine}
@@ -1486,6 +1756,14 @@ export default function PrototypeReviewDock() {
                 next[index] = value;
                 setBlanks(next);
               }}
+              onSubmit={() => {
+                if (outcome.isPending) return;
+                if (initialsExercise.segments!.blankLengths.some((_, i) => !blanks[i]?.trim())) return;
+                answer('almost', {
+                  words: initialsExercise.segments!.blankLengths.map((_, i) => blanks[i] ?? ''),
+                  promptKey: item.promptKey,
+                });
+              }}
             />
             {hintLine}
             {retryLine}
@@ -1523,6 +1801,11 @@ export default function PrototypeReviewDock() {
               placeholder={REVIEW_INITIALS_PLACEHOLDER}
               value={attempt}
               onChange={(event) => setAttempt(event.target.value)}
+              onKeyDown={(event) => {
+                if (!isSubmitKey(event) || outcome.isPending || !attempt.trim()) return;
+                event.preventDefault();
+                answer('almost', { text: attempt, promptKey: item.promptKey });
+              }}
               rows={3}
             />
             {hintLine}
@@ -1684,9 +1967,15 @@ export default function PrototypeReviewDock() {
             <textarea
               className="proto-review-dock__attempt"
               data-answer={verdict?.state ?? undefined}
+              aria-invalid={verdict?.state === 'wrong' ? true : undefined}
               placeholder={REVIEW_ATTEMPT_PLACEHOLDER}
               value={attempt}
               onChange={(event) => setAttempt(event.target.value)}
+              onKeyDown={(event) => {
+                if (!isSubmitKey(event) || outcome.isPending || !attempt.trim()) return;
+                event.preventDefault();
+                answer('almost', { text: attempt, promptKey: item.promptKey });
+              }}
               rows={3}
               disabled={outcome.isPending}
             />

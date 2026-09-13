@@ -27,7 +27,44 @@ interface DbVerse {
  * Returns formatted HTML with superscript verse numbers, or empty string on parse/lookup error.
  * If a verse in the requested range is missing from the translation, returns a notice.
  */
+/**
+ * The same passage, asked for many times in one request.
+ *
+ * `VerseTextCache` makes a repeat fetch *cheap* — it is one indexed read instead of a re-render —
+ * but it does not make it free: every call is still a round trip to Postgres, and composing one
+ * Review session asks for the same handful of references over and over. The askable probe reads a
+ * chapter's text, then the material load reads it again; a verse's material reads its own text,
+ * then the reveal and the grader each ask for it once more.
+ *
+ * Scripture does not change inside a request, so a couple of seconds of in-process memory is
+ * safe in a way almost no other cache in this codebase is. Mirrors `MATERIAL_TTL_MS` next door,
+ * bounded the same way, and holds the *promise* so concurrent callers share one flight rather
+ * than racing to fill the same entry.
+ */
+const TEXT_TTL_MS = 3000;
+const TEXT_CACHE_MAX = 400;
+const textMemo = new Map<string, { at: number; value: Promise<string> }>();
+
 export async function fetchVerseText(reference: string, translation: string = 'NET'): Promise<string> {
+  const memoKey = `${reference}|${translation}`;
+  const now = Date.now();
+  const hit = textMemo.get(memoKey);
+  if (hit && now - hit.at < TEXT_TTL_MS) return hit.value;
+
+  const pending = fetchVerseTextUncached(reference, translation);
+  textMemo.set(memoKey, { at: now, value: pending });
+  // A failed fetch must not be remembered as the answer for the next three seconds.
+  void pending.catch(() => textMemo.delete(memoKey));
+  if (textMemo.size > TEXT_CACHE_MAX) {
+    for (const [key, entry] of textMemo) {
+      if (now - entry.at >= TEXT_TTL_MS) textMemo.delete(key);
+      if (textMemo.size <= TEXT_CACHE_MAX) break;
+    }
+  }
+  return pending;
+}
+
+async function fetchVerseTextUncached(reference: string, translation: string): Promise<string> {
   await warmPostgresConnection();
 
   const cleanReference = reference.replace(/,\s+/g, ',');
