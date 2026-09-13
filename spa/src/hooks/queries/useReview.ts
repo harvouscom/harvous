@@ -48,7 +48,12 @@ export interface ReviewItemView {
   sourceLabel: string | null;
   sourceAt: string | null;
   cue: string | null;
-  translation?: string | null;
+  /**
+   * The wording this question is asked in — the item's own, or the account's default, resolved
+   * server-side. Never optional: a question always has a wording, and the dock must not re-derive
+   * one from the profile.
+   */
+  translation: string;
 }
 
 export interface ReviewItemSummary {

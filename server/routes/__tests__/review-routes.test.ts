@@ -808,6 +808,37 @@ describe('the sample, for an account without Review', () => {
   });
 });
 
+describe('every resolver is handed the reader', () => {
+  /*
+   * What the reader is asked in is theirs, not the file's — `UserMetadata.defaultTranslation`,
+   * resolved per request in `review-service.ts`. A resolver called without the userId cannot read
+   * it and silently falls back, which is how the feature spent its whole life asking NET.
+   *
+   * This is the route's share of that: the four resolvers it calls after an answer — the rung that
+   * was asked, the verse truth, the chapter truth, and the reveal — must each be given the reader.
+   * The wording has to be the same on all four or someone is marked against text they were never
+   * shown, and here that failure is one missing argument.
+   */
+  const text = () => review();
+
+  it('resolves the asked rung and the reveal as this reader', () => {
+    expect(text()).toContain('askedRungFor(auth.userId, item)');
+    expect(text()).toContain('buildReviewReveal(auth.userId, item)');
+  });
+
+  it('restores the truth as this reader', () => {
+    expect(text()).toContain('verseTruthFor(item, auth.userId)');
+    expect(text()).toContain('chapterTruthFor(item, auth.userId)');
+  });
+
+  it('does not resolve a wording of its own', () => {
+    // The route's only permitted mention is the unauthenticated sample, which has no reader.
+    const body = text();
+    expect(body.match(/'NET'/g) ?? []).toHaveLength(1);
+    expect(body.slice(body.indexOf('sampleTranslationFrom'))).toContain("'NET'");
+  });
+});
+
 describe('what a miss is allowed to say', () => {
   const route = () => source('server/routes/review.ts');
   const outcome = () => route().slice(route().indexOf("'/api/review/items/:id/outcome'"));
