@@ -9,13 +9,20 @@ auth/orgs: [`docs/CLERK_ARCHITECTURE.md`](../CLERK_ARCHITECTURE.md).
 
 | Product | Price | What's in it |
 |---|---|---|
-| **Free** | $0 | Private study, forever. Unlimited notes, Remember surfaces, Compete free track. **Join** shared spaces — hosting is paid. |
-| **Harvous Plus** | **$6/mo · $36/yr** | **Review** and Shared Spaces hosting; themed seasons fold in later. Both intervals listed. Challenges is built but withheld — see `WITHHELD_FEATURES`. |
+| **Free** | $0 | Private study, forever. Unlimited notes, 90 days of history (older history kept, not shown), Remember surfaces, Compete free track. **Join** shared spaces — hosting is paid. |
+| **Harvous Plus** | **$6/mo · $36/yr** | **Review**, unlimited history, and Shared Spaces hosting; themed seasons fold in later. Both intervals listed. Challenges is built but withheld — see `WITHHELD_FEATURES`. |
 | **Connector** | **$5/mo · $60/yr** | Separate add-on — CLI/MCP read access. **No annual discount.** Hard paywall, no trial. |
 | **Church** | See §7 | Separate org track — where caps lift and spaces transfer from individuals. |
 
 Plus a **30-day money-back guarantee** on Plus (cancel anytime). There is deliberately **no free
 trial** and **no metered free tier** — but see the caveat under *What changed at 3.0*.
+
+**The one time-windowed exception (September 2026).** Free sees the last 90 days of history —
+earlier versions of notes and the activity feed — and Plus sees all of it (`FREE_HISTORY_WINDOW_DAYS`,
+`full_history`). It is a visibility window, not a quota on anything a person writes: nothing is
+deleted on either plan, upgrading reveals older history, and canceling hides it again. Chosen
+deliberately against the free-tier guardrail in `HARVOUS_4.md`. Do not extend the pattern to notes,
+highlights, or anything else a person wrote.
 
 ### What changed at 3.0, and why
 
@@ -118,9 +125,10 @@ separate pillar — communal program, not personal memory.
 ### Free tier — strictly private
 
 Free is **private study**, forever. The paid line is *hosting*, not a quota — nothing to count, nothing
-to explain.
+to explain. The one exception is the 90-day history window above.
 
 - Unlimited notes
+- 90 days of history — earlier note versions and the activity feed; older history is kept, just not shown
 - Remember surfaces (themes, cross-refs, passages on Home, etc.)
 - **Join** shared spaces — no cap on memberships, always free
 - **0 owned shared spaces** — `FREE_OWNED_SHARED_SPACES_LIMIT = 0`

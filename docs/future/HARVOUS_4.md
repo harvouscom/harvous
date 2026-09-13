@@ -19,7 +19,7 @@ The four plans are **Personal** (free), **Plus**, **Church**, and **Challenges**
 | Plan | Who it is for | What they get | What they do not lose |
 |---|---|---|---|
 | **Personal** | Anyone studying the Bible. No card. | Unlimited notes, pills, highlights, threads, @ mentions, reminders, Daily Passage, joining spaces. | The whole core app. Challenges they can join. A recap study guide after a season. |
-| **Plus** | The student who wants Review and rooms of their own. | Review. Host Shared Spaces (cover, threads, up to 12). Deeper recall history. | Everything in Personal. Can run a small group challenge inside a space they host. Pre-challenge study guide when they already have a Harvous home. |
+| **Plus** | The student who wants Review and rooms of their own. | Review. Unlimited history (every earlier version of a note, and the whole activity trail). Host Shared Spaces (cover, threads, up to 12). Deeper recall history. | Everything in Personal. Can run a small group challenge inside a space they host. Pre-challenge study guide when they already have a Harvous home. |
 | **Church** | A congregation, campus, or ministry that wants to host study at scale. | Church Space(s), member roles, seasonal Challenge hosting, branded cover, staff Review packs, reporting that stays pastoral — not surveillance. | Members keep Personal (or Plus) homes. Church never swallows private notes. |
 | **Challenges** | The public. Existing users. Churches that want a season with a finish line. | Open, time-boxed seasons. Challenge mode from a persistent dock. Curated timed tests. Practice sittings. Study guides before (existing users) and after (everyone). | Joining is free. Hosting a public season may sit on Plus or Church. Your private notes stay yours. |
 
@@ -30,6 +30,7 @@ Personal is the promise that must not move. Unlimited notes. Scripture pills in 
 In Harvous 4, Personal also means: you can enter a public Challenge from the dock, sit the timed test in Challenge mode (guest or signed in), and keep a recap study guide when the window closes. Existing signed-in users also get a **pre-challenge study guide** while the season is still open, so they can practice before they sit. You should not need Plus to join a public sitting or to keep either guide. Plus is for hosting and for Review that is not bound to a public season.
 
 - **Guardrail:** no artificial cap that makes the free home feel like a trial of the paid one.
+  - **The one deliberate exception (September 2026):** Personal sees the last 90 days of history — earlier note versions and the activity feed — and Plus sees all of it. It hides, never deletes, and never limits what a person wrote, only how far back they can look at earlier versions. See `MONETIZATION_AND_PRICING.md`.
 - **Guardrail:** private notes never leak into a Challenge space unless the writer places them there.
 - **Guardrail:** both study guides — the pre-challenge pack and the post-challenge recap — live in the person’s own library, not only in the season room.
 
@@ -42,6 +43,7 @@ Harvous 4 should deepen Plus without turning it into Church-lite:
 - **Own-note Review packs.** Review packs you build from your own threads — a set of prompts that follow a book, a topic, or a sermon series you already wrote through.
 - **Host a private season.** A Plus user can host a closed Challenge inside a space they own: same Review engine, smaller room, not listed in the public season catalog.
 - **Recall history that is yours.** How a note, highlight, or verse came back; what you marked easy or hard. Useful later when a public Challenge builds a test from similar material.
+- **Unlimited history.** Every day you worked on a note, readable and restorable, and the whole activity trail — not just the last 90 days.
 
 Pricing can stay in the neighborhood of today’s Plus ($6/mo or $36/yr founding). Church should not be a Plus multiplier sold to one person. It is a different customer.
 

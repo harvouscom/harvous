@@ -8,7 +8,7 @@
  * It now holds the Library chip, which renders on every mode and opens the browse panel —
  * the surface that took over from the sidebar. See `PrototypeLibraryChip`.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToolbarAnchoredPopover } from '../../hooks/useToolbarAnchoredPopover';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
@@ -170,6 +170,8 @@ export function resolveNativeToolbarContextCapabilities(options: {
   };
 }
 
+const PrototypeNoteHistorySheet = lazy(() => import('./PrototypeNoteHistorySheet'));
+
 export default function NativeToolbar({ variant = 'detail' }: { variant?: NativeToolbarVariant }) {
   const navigate = useNavigate();
   // Select primitives only — object literals from `select` cause max-update-depth loops.
@@ -192,7 +194,9 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const onboardingPopover = useToolbarAnchoredPopover();
   /* Declared up here because the toolbar's capabilities are computed below and one of them
      (sharing) depends on it. */
-  const { isGuest } = useHarvousIdentity();
+  const { isGuest, userId: identityUserId } = useHarvousIdentity();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
   const onboarding = useOnboardingState();
   const onboardingButtonRef = useRef<HTMLButtonElement | null>(null);
   const sharePopover = useToolbarAnchoredPopover();
@@ -268,6 +272,18 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const isContextSpaceOwner = contextualSpaceAccess?.isOwner === true;
   const isSharedContext = currentSharedSpaceId !== null;
   const noteSpaceId = currentSharedSpaceId ?? homeSpaceId;
+  // History is author-only on the server; a PIN-locked note has nothing the web can preview.
+  const canShowHistory =
+    !isGuest &&
+    !isDraftNoteRoute &&
+    Boolean(toolbarNoteId) &&
+    Boolean(identityUserId) &&
+    toolbarNote?.userId === identityUserId &&
+    !toolbarNote?.contentEncrypted;
+
+  useEffect(() => {
+    setHistoryOpen(false);
+  }, [toolbarNoteId]);
   const sharedSpaceNames = toolbarNote?.spaces?.map((space) => space.title).filter(Boolean) ?? [];
   const canComposeInContext = canComposeInSpace({
     type: contextualSpaceAccess?.space.type,
@@ -655,6 +671,14 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                 isPublic={!!toolbarNote?.isPublic}
                 readOnlyForeign={readOnlyForeignNote}
                 menuButtonRef={overflowMenuButtonRef}
+                onHistory={
+                  canShowHistory && toolbarNoteId
+                    ? () => {
+                        setHistoryNoteId(toolbarNoteId);
+                        setHistoryOpen(true);
+                      }
+                    : undefined
+                }
                 onFind={isMobileSidebar && !readOnlyForeignNote ? openFindPopover : undefined}
                 onShare={
                   isMobileSidebar && toolbarNote && !readOnlyForeignNote && contextualCapabilities.canShare
@@ -662,6 +686,15 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
                     : undefined
                 }
               />
+            ) : null}
+            {historyNoteId ? (
+              <Suspense fallback={null}>
+                <PrototypeNoteHistorySheet
+                  open={historyOpen}
+                  noteId={historyNoteId}
+                  onOpenChange={setHistoryOpen}
+                />
+              </Suspense>
             ) : null}
           </div>
         ) : null}

@@ -132,7 +132,7 @@ export default function PrototypeAddonsPage() {
     if (!hasSharedSpaces) {
       // No Challenges here either: it is in WITHHELD_FEATURES, so no purchase
       // surface may name it. See SHARED_SPACES_ADDON_FEATURE_BULLETS.
-      return PRICE_SUMMARY || 'Unlock Review and hosting';
+      return PRICE_SUMMARY || 'Unlock Review, unlimited history, and hosting';
     }
     if (billing) {
       const status = formatBillingStatusLine(billing);
@@ -431,7 +431,7 @@ export default function PrototypeAddonsPage() {
             description={
               isConnector
                 ? `You’ll keep Connector access until ${until}. Your ${PLAN_NAME} plan is not affected.`
-                : `You’ll keep access until ${until}. Shared Spaces you own stay until then.`
+                : `You’ll keep access until ${until}. Shared Spaces you own stay until then, and history older than 90 days is kept, just hidden.`
             }
             confirmLabel={isConnector ? 'Cancel add-on' : 'Cancel plan'}
             cancelLabel="Keep"
