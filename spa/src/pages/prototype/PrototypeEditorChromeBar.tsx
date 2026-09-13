@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { useProtoShell } from '../../layouts/proto-shell-context';
+import { observeStudyDockBandHeight } from '@/utils/study-dock-layout';
 import PrototypeReviewDock from './PrototypeReviewDock';
 
 /**
@@ -39,9 +41,20 @@ export default function PrototypeEditorChromeBar({
   const mode = bottomBarActive ? editorChromeMode : 'hidden';
   const collapsed = mode === 'hidden' || mode === 'noteActions';
 
+  /*
+   * Publish how much of the screen the band is covering, so the page beneath can reserve it.
+   *
+   * Bound here because this is the one place the band is mounted, and it is mounted on every
+   * route. The comparable effects in `SimplifiedPrototypeLayout` sit behind an `isNoteRoute`
+   * check, which is why an expanded dock in the Bible reader hid the end of the chapter: on
+   * that route nothing was measuring anything.
+   */
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => observeStudyDockBandHeight(layerRef.current), []);
+
   return (
     <div className="proto-shell__editor-chrome-row" data-mode={mode}>
-      <div className="proto-shell__study-dock-layer" aria-live="polite">
+      <div className="proto-shell__study-dock-layer" ref={layerRef} aria-live="polite">
         {/* Before the carousel, so on a note the question sits above the note's own docks
             rather than being pushed off the end of a row it does not belong to. */}
         <div className="proto-shell__study-dock-layer__slot proto-shell__study-dock-layer__slot--review">

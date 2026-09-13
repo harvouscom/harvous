@@ -49,7 +49,16 @@
   overflow-y: auto;
   overflow-x: hidden;
   /* Keep the caret clear of the format toolbar when typing near the bottom. */
-  scroll-padding-bottom: 24px;
+  scroll-padding-bottom: calc(24px + var(--proto-study-dock-band-height, 0px));
+  /*
+   * And room at the end for whatever the study dock band is covering.
+   *
+   * On the scroller rather than on the paper: the paper's bottom padding is restated by three
+   * narrow-viewport overrides, and a reserve added to one of them is a reserve missing from the
+   * others. Here it is one declaration, and it is scrollable room after the sheet — which is
+   * what was actually missing, since the band is absolutely positioned and takes no height.
+   */
+  padding-bottom: var(--proto-study-dock-band-height, 0px);
   display: flex;
   flex-direction: column;
   container-type: inline-size;
@@ -59,7 +68,7 @@
 /* When the format bar floats over the paper (overlay, not in-flow), give the caret extra
    bottom clearance so typing near the end isn't hidden behind the bar. */
 .proto-shell:has(.proto-editor-bottom-bar[data-mode='format']) .proto-editor-scroll {
-  scroll-padding-bottom: 64px;
+  scroll-padding-bottom: calc(64px + var(--proto-study-dock-band-height, 0px));
 }
 
 /* SubtleContentMount (variant="fade") wraps the card — make its inner div a flex

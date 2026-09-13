@@ -9913,7 +9913,13 @@ button.proto-appearance-hero__card {
 .proto-sync-chip {
   position: fixed;
   left: calc(var(--pds-shell-frame-inset, 14px) + max(16px, env(safe-area-inset-left)));
-  bottom: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom));
+  /* Lifted clear of the study dock band. These two are the only bottom-anchored things
+     outside the band — fixed to the body rather than living in it — so the reserve the
+     scrollers take does not move them, and an open dock would sit on top of them. */
+  bottom: calc(
+    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
+      var(--proto-study-dock-band-height, 0px)
+  );
   z-index: 1000020;
   display: inline-flex;
   align-items: center;
@@ -11514,7 +11520,13 @@ html.harvous-prototype-route
      centre otherwise, which is what the auth and public shells get. */
   left: var(--proto-toast-center, 50%);
   transform: translateX(-50%);
-  bottom: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom));
+  /* Lifted clear of the study dock band. These two are the only bottom-anchored things
+     outside the band — fixed to the body rather than living in it — so the reserve the
+     scrollers take does not move them, and an open dock would sit on top of them. */
+  bottom: calc(
+    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
+      var(--proto-study-dock-band-height, 0px)
+  );
   z-index: 1000021;
   display: inline-flex;
   align-items: center;
@@ -18477,7 +18489,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      the reader's paper has nothing to clear and its own 48px of top padding inside, so the
      lip only added a band of dead space above the chapter — most visible stacked, where it
      opened a gap between the peeking edge and the paper right under it. */
-  padding: 0;
+  /* No top lip (see above); the bottom is room for the study dock band, which floats over the
+     chapter with no layout height of its own — so the last verses sat behind an expanded card
+     and could not be scrolled to. Zero when nothing is open. */
+  padding: 0 0 var(--proto-study-dock-band-height, 0px);
+  scroll-padding-bottom: var(--proto-study-dock-band-height, 0px);
   /* Named query container for the narrow overrides below. Safe: this element's width comes
      from its flex parent, never from its own contents, so containment changes no layout. */
   container-type: inline-size;
@@ -18556,7 +18572,14 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * base, every gallery fixture — keeps the flush top the comment argued for.
  */
 .pds-reader-stack {
-  padding-block: var(--pds-space-5);
+  padding-top: var(--pds-space-5);
+  /*
+   * Written out rather than left as `padding-block`, because the shorthand also set the bottom
+   * and this class lands on the same element as `.pds-reader__scroll` — so the stack's air
+   * silently replaced the room reserved there for the study dock band, and only on chapters
+   * that happen to have a pile. Both states now end with the band cleared.
+   */
+  padding-bottom: calc(var(--pds-space-5) + var(--proto-study-dock-band-height, 0px));
 }
 
 .pds-reader-stack__edges {
@@ -22187,12 +22210,14 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  scroll-padding-bottom: var(--proto-study-dock-band-height, 0px);
   display: flex;
   flex-direction: column;
   gap: var(--pds-space-5);
   /* Padding inside the scroller, so the last row travels through the fade rather than ending
-     inside it. */
-  padding-bottom: var(--pds-space-5);
+     inside it — plus room for the study dock band, which floats over this with no layout
+     height of its own. One declaration: a second would simply overwrite the first. */
+  padding-bottom: calc(var(--pds-space-5) + var(--proto-study-dock-band-height, 0px));
   --proto-feed-fade: 14px;
   /*
    * Bottom always; top only once there is something under it.

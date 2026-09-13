@@ -221,6 +221,104 @@ export function syncFormatToolbarReservedHeight(): number {
   return height;
 }
 
+/**
+ * How much of the screen the dock band is covering, published for the page beneath it.
+ *
+ * The band is `position: absolute; bottom: 100%` inside a grid row that collapses to nothing,
+ * so it takes **zero layout height** and floats over the main cell. That is what lets one card
+ * span the sidebar and the main pane and follow the reader between routes, and it is also why
+ * the last part of every scrollable surface was unreachable while a dock was expanded: nothing
+ * under it knew it was there. The only height this module measured was
+ * `--proto-dock-expanded-max-height`, which is a *ceiling on the card* — the opposite quantity.
+ *
+ * So: measure the band, write it on the root, and let each scroller reserve it in its own
+ * padding. Returned as well as written, for the tests and for callers that want the number.
+ *
+ * Zero removes the property rather than writing `0px`, so every consumer's `var(..., 0px)`
+ * fallback is the single definition of "no dock". That matters on mobile, where the band is
+ * `display: none` while the keyboard is up: it reports 0, the reserve collapses, and the page
+ * is not left padding for a card nobody can see.
+ */
+export const STUDY_DOCK_BAND_HEIGHT_VAR = '--proto-study-dock-band-height';
+
+export function syncStudyDockBandHeight(): number {
+  if (typeof document === 'undefined') return 0;
+  const root = document.documentElement;
+  const layer = document.querySelector('.proto-shell__study-dock-layer');
+  if (!(layer instanceof HTMLElement)) {
+    root.style.removeProperty(STUDY_DOCK_BAND_HEIGHT_VAR);
+    return 0;
+  }
+
+  /*
+   * Summed from the slots rather than read off the layer.
+   *
+   * The layer is `justify-content: flex-end` over a fixed area and carries 16px of top padding
+   * for the card's shadow, so its own rect is the space it *may* use, not the space it is
+   * using. An empty band would have reserved that padding on every route.
+   */
+  let height = 0;
+  for (const slot of layer.children) {
+    if (!(slot instanceof HTMLElement)) continue;
+    const rect = slot.getBoundingClientRect();
+    if (rect.height > 0) height += rect.height;
+  }
+  if (height > 0) {
+    const gap = parseFloat(getComputedStyle(layer).rowGap) || 0;
+    const filled = [...layer.children].filter(
+      (slot) => slot instanceof HTMLElement && slot.getBoundingClientRect().height > 0,
+    ).length;
+    height += gap * Math.max(0, filled - 1);
+    height += parseFloat(getComputedStyle(layer).paddingTop) || 0;
+  }
+
+  const rounded = Math.round(height);
+  if (rounded <= 0) {
+    root.style.removeProperty(STUDY_DOCK_BAND_HEIGHT_VAR);
+    return 0;
+  }
+  // Written only on a change: this runs from a ResizeObserver, and setting a custom property
+  // on the root invalidates style for the whole document.
+  if (root.style.getPropertyValue(STUDY_DOCK_BAND_HEIGHT_VAR) !== `${rounded}px`) {
+    root.style.setProperty(STUDY_DOCK_BAND_HEIGHT_VAR, `${rounded}px`);
+  }
+  return rounded;
+}
+
+/**
+ * Keep {@link syncStudyDockBandHeight} current for as long as the band is mounted.
+ *
+ * Observes the layer and each slot, because a dock growing inside a slot does not change the
+ * layer's own box. Bound once in `PrototypeEditorChromeBar`, which is the single mount point on
+ * every route — the existing max-height effects live in `SimplifiedPrototypeLayout` behind an
+ * `isNoteRoute` check, which is exactly why the Bible reader never recomputed anything.
+ */
+export function observeStudyDockBandHeight(layer: HTMLElement | null): () => void {
+  if (!layer || typeof ResizeObserver === 'undefined') return () => {};
+  const observer = new ResizeObserver(() => syncStudyDockBandHeight());
+  observer.observe(layer);
+  for (const slot of layer.children) {
+    if (slot instanceof HTMLElement) observer.observe(slot);
+  }
+  /*
+   * Slots gain and lose their cards as docks open, and a card is a new element rather than a
+   * resize of an old one. Without this the observer would watch two empty slots forever.
+   */
+  const mutations = new MutationObserver(() => {
+    for (const slot of layer.children) {
+      if (slot instanceof HTMLElement) observer.observe(slot);
+    }
+    syncStudyDockBandHeight();
+  });
+  mutations.observe(layer, { childList: true, subtree: true });
+  syncStudyDockBandHeight();
+  return () => {
+    observer.disconnect();
+    mutations.disconnect();
+    document.documentElement.style.removeProperty(STUDY_DOCK_BAND_HEIGHT_VAR);
+  };
+}
+
 /** Recompute expanded study dock max-height and dock center offset (track required for offset). */
 export function updateStudyDockExpandedMaxHeight(track?: HTMLElement | null): void {
   if (typeof document === 'undefined') return;
@@ -229,6 +327,8 @@ export function updateStudyDockExpandedMaxHeight(track?: HTMLElement | null): vo
   }
   syncFormatToolbarPaperInset();
   syncFormatToolbarReservedHeight();
+  // The ceiling on the card and the room reserved beneath it are the same event.
+  syncStudyDockBandHeight();
   const chromeRow = document.querySelector('.proto-shell__editor-chrome-row');
   if (!chromeRow) return;
   const rect = chromeRow.getBoundingClientRect();
