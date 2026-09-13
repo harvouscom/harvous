@@ -10,9 +10,12 @@
  * Everything here reads through React Query's cache under the same keys
  * `PrototypeSidebar` uses, so mounting the panel over a warm sidebar costs no fetches.
  *
- * Deliberately holds no sidebar state. `sidebarListMode`, the folder/thread drilldowns
- * and `scriptureDrill` all stay untouched — the panel's own view lives in shell context
- * (see `library-panel-view.ts`), and the two surfaces must not move each other.
+ * Reads one piece of sidebar state, and only one: `sidebarListSpaceScope`, which is the
+ * panel's "<space> | My Home" switch now. It lives in the shell because the organize host acts
+ * on what the panel shows and has to agree with it (`resolveLibraryListScope`). The rest of the
+ * sidebar's — `sidebarListMode`, the folder/thread drilldowns, `scriptureDrill` — stays
+ * untouched: the panel's own view lives in shell context (see `library-panel-view.ts`), and the
+ * two surfaces must not move each other.
  */
 import { recordRecentOpen } from './proto-recent-opens';
 import { useCallback, useMemo } from 'react';
@@ -42,6 +45,10 @@ import type { PrototypeHighlightStudyThreadRow } from '../../../hooks/queries/us
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { useActiveSpace } from '../../../hooks/useActiveSpace';
 import {
+  resolveLibraryListScope,
+  type SidebarListSpaceScope,
+} from '../../../lib/shared-space-capabilities';
+import {
   useSpaceMembers,
   useSpaceNotes,
   type SpaceMemberRow,
@@ -67,10 +74,23 @@ export type LibraryNoteBrief = {
 };
 
 export type LibraryPanelData = {
-  /** The shell's active space — every query below is scoped to it. */
+  /**
+   * The space the panel is showing — every query below is scoped to it. The shell's active
+   * space, or My Home when the switch has been flipped to it from inside a shared space.
+   */
   spaceId: string | null;
-  /** True when the active space is a shared/public one, not personal My Home. */
+  /** True when the panel is showing a shared/public space's own library, not My Home. */
   isScopedSharedSpace: boolean;
+  /** The viewer's own My Home, whichever space is open. */
+  homeSpaceId: string | null;
+  /** The shell itself is in a shared space, whichever side of the switch the panel is on. */
+  shellIsSharedSpace: boolean;
+  /** The switch is on My Home while the shell stays in a shared space. */
+  viewingHome: boolean;
+  listScope: SidebarListSpaceScope;
+  setListScope: (scope: SidebarListSpaceScope) => void;
+  /** The shared space's name, for the switch. Null on My Home or before it resolves. */
+  sharedSpaceTitle: string | null;
   viewerIsSpaceOwner: boolean;
   sharedSpaceMemberByUserId: Map<string, SpaceMemberRow>;
   authReady: boolean;
@@ -86,6 +106,8 @@ export type LibraryPanelData = {
   prefetchNote: (row: SpaceNoteRow, opts?: { seedFromList?: boolean }) => void;
   /** Opens a note and dismisses the panel — browsing ended when you picked something. */
   openNote: (row: SpaceNoteRow) => void;
+  /** Opens a My Home note found from inside another space. */
+  openHomeNote: (row: SpaceNoteRow) => void;
   /** Opens a highlight on whichever surface can actually show it. */
   openHighlight: (row: PrototypeHighlightStudyThreadRow) => void;
   /** Docks a resource onto the open note, or follows it when there is no note. */
@@ -97,17 +119,36 @@ export type LibraryPanelData = {
 export function useLibraryPanelData(): LibraryPanelData {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { closeLibraryPanel, composePersistedNoteId } = useProtoShell();
+  const {
+    closeLibraryPanel,
+    composePersistedNoteId,
+    sidebarListSpaceScope,
+    setSidebarListSpaceScope,
+  } = useProtoShell();
   const {
     activeSpaceId,
+    homeSpaceId,
     isSharedSpace,
-    isOwner: viewerIsSpaceOwner,
+    isOwner,
     authReady,
+    spaceTitle,
   } = useActiveSpace();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const spaceId = activeSpaceId;
-  const isScopedSharedSpace = isSharedSpace;
+  /*
+   * Everything downstream reads these two rather than the active space, which is what lets
+   * the switch re-scope every tab, drill, row action and opener without any of them knowing
+   * there is a switch. Opening a note while showing Home carries no `?space=`, and the note
+   * page then moves the shell home by itself.
+   */
+  const { spaceId, isScopedSharedSpace, viewingHome, viewerIsSpaceOwner } =
+    resolveLibraryListScope({
+      activeSpaceId,
+      homeSpaceId,
+      isSharedSpace,
+      isOwner,
+      listScope: sidebarListSpaceScope,
+    });
 
   const {
     data: pages,
@@ -248,6 +289,30 @@ export function useLibraryPanelData(): LibraryPanelData {
   );
 
   /**
+   * `openNote` for a note that lives in My Home rather than in the open space.
+   *
+   * Not `openNote` with a different id: that one records the open against the active space
+   * and seeds the note cache with the active space's id, both of which would file a Home note
+   * under a shared space. The navigation carries no `?space=`, which is what a Home read is —
+   * the note page then moves the switcher back to My Home once it sees the note has no
+   * association with the space that was open.
+   */
+  const openHomeNote = useCallback(
+    (row: SpaceNoteRow) => {
+      if (!homeSpaceId) return;
+      recordRecentOpen(homeSpaceId, 'note', row.id);
+      void queryClient.prefetchQuery(getNoteQueryOptions(row.id)).catch(() => {});
+      navigate({
+        to: prototypeNoteRouteTo(),
+        params: { noteId: noteParamSlug(row.id) },
+        search: prototypeNoteListNavigationSearch({ isScopedSharedSpace: false }),
+      });
+      closeLibraryPanel({ preserveHistory: true });
+    },
+    [homeSpaceId, queryClient, navigate, closeLibraryPanel],
+  );
+
+  /**
    * Where a highlight opens.
    *
    * Mirrors `PrototypeSidebar`'s `onHighlightRow` branch for branch, because the kinds
@@ -351,7 +416,14 @@ export function useLibraryPanelData(): LibraryPanelData {
           to: prototypeNoteRouteTo(),
           params: { noteId: noteParamSlug(activeNoteFullId) },
           search: {
-            ...prototypeNoteListNavigationSearch({ isScopedSharedSpace, spaceId: spaceId ?? '' }),
+            /* The shell's context, not the panel's: this re-navigates the note already open,
+               and that note's `?space=` is a fact about it. Taking the panel's Home scope here
+               would drop it — 404ing a note reachable only through the room, or moving the
+               shell home just for docking a chip. */
+            ...prototypeNoteListNavigationSearch({
+              isScopedSharedSpace: isSharedSpace,
+              spaceId: activeSpaceId ?? '',
+            }),
             libItem: item.id,
             dockReq: String(Date.now()),
           },
@@ -365,7 +437,7 @@ export function useLibraryPanelData(): LibraryPanelData {
       }
       if (item.sourceUrl) window.open(item.sourceUrl, '_blank', 'noopener,noreferrer');
     },
-    [pathname, activeNoteFullId, isScopedSharedSpace, spaceId, navigate, closeLibraryPanel],
+    [pathname, activeNoteFullId, isSharedSpace, activeSpaceId, spaceId, navigate, closeLibraryPanel],
   );
 
   const resolveDrillNoteRow = useCallback(
@@ -398,6 +470,12 @@ export function useLibraryPanelData(): LibraryPanelData {
   return {
     spaceId,
     isScopedSharedSpace,
+    homeSpaceId,
+    shellIsSharedSpace: isSharedSpace,
+    viewingHome,
+    listScope: sidebarListSpaceScope,
+    setListScope: setSidebarListSpaceScope,
+    sharedSpaceTitle: isSharedSpace ? spaceTitle : null,
     viewerIsSpaceOwner,
     sharedSpaceMemberByUserId,
     authReady,
@@ -410,6 +488,7 @@ export function useLibraryPanelData(): LibraryPanelData {
     activeNoteFullId,
     prefetchNote,
     openNote,
+    openHomeNote,
     openHighlight,
     openResource,
     resolveDrillNoteRow,

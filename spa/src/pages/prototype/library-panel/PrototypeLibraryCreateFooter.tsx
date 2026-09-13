@@ -28,12 +28,16 @@ export default function PrototypeLibraryCreateFooter({
   /** Hidden while searching: results are a different list, and its footer would offer to
       make a folder in a place you are only passing through. */
   searching,
+  /** My Home's id while the panel's switch is on it from inside a shared space; else null. */
+  homeSpaceId = null,
 }: {
   tab: LibraryTab;
   searching: boolean;
+  homeSpaceId?: string | null;
 }) {
   const organize = useOrganizeApi();
-  const { closeLibraryPanel, ensureSidebarExpanded, openExpandedSidebar } = useProtoShell();
+  const { closeLibraryPanel, ensureSidebarExpanded, openExpandedSidebar, setActiveSpaceId } =
+    useProtoShell();
   if (searching || !organize) return null;
 
   /*
@@ -47,6 +51,21 @@ export default function PrototypeLibraryCreateFooter({
         label="New note"
         onClick={() => {
           closeLibraryPanel({ preserveHistory: true });
+          /*
+           * From My Home, a new note is a Home note — so the shell goes home first, visibly,
+           * rather than the note landing in the room the toolbar still names. The target rides
+           * the event because the layout's handler runs in this same tick, before the move has
+           * re-rendered it, and would otherwise still read the shared space.
+           */
+          if (homeSpaceId) {
+            setActiveSpaceId(null);
+            window.dispatchEvent(
+              new CustomEvent('prototypeShortcutNewNote', {
+                detail: { targetSpaceId: homeSpaceId },
+              }),
+            );
+            return;
+          }
           window.dispatchEvent(new Event('prototypeShortcutNewNote'));
         }}
         secondary={{ label: 'Discover', onClick: () => openDiscover('note') }}

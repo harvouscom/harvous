@@ -66,6 +66,14 @@ describe('discover routes', () => {
     expect(body).not.toContain('serializeMine');
   });
 
+  it('hands the listings cursor to the query as a string, not a Date', () => {
+    // A value inside a raw `sql` fragment goes to the driver untouched, and the driver only takes
+    // strings there. Passing the parsed Date 500'd every page after the first — so the app,
+    // reading page by page, never saw the templates listed before the newest 24.
+    const body = handlerBody(routes(), "app.get('/api/discover/listings',");
+    expect(body).toContain('cursorListedAt.toISOString()');
+  });
+
   it('treats a missing catalog table as empty, not a 500', () => {
     // Same seam as Review: the tables land in db:push after the code, and the
     // window between them must not surface as "A database error occurred" on Home.

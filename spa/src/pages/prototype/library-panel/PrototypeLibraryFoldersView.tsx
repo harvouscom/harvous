@@ -12,6 +12,7 @@ import { buildFoldersFromNotes, mergeFoldersWithRegistry } from '../sidebar-univ
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import { usePrototypeFolderRegistry } from '../../../hooks/mutations/usePrototypeFolderRegistry';
 import { useLibraryPanelData } from './library-panel-data';
+import { libraryBrowseMyHomeAction } from './library-browse-my-home-action';
 import type { LibrarySelection } from './use-library-selection';
 
 export default function PrototypeLibraryFoldersView({
@@ -39,6 +40,7 @@ export default function PrototypeLibraryFoldersView({
         iconName="folder"
         title="No folders"
         description="Put a note in a folder and it will show up here."
+        action={libraryBrowseMyHomeAction(data)}
       />
     );
   }

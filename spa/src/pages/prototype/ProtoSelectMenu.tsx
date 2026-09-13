@@ -15,6 +15,11 @@
  *
  * Portaled and fixed-positioned like its siblings, so an ancestor with
  * `overflow: hidden` — every sheet and rail in this app — cannot clip it.
+ *
+ * `multiple` turns it into a filter: checkbox rows that stay open while you tick them, and a
+ * first row that clears. For choosing several of a list from the same row as other controls,
+ * where a band of chips would take a line of its own — Discover's topics were ten chips under
+ * the header before this.
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -57,22 +62,36 @@ export type ProtoSelectOption<T extends string | number> = {
  */
 export const PROTO_SELECT_FILTER_THRESHOLD = 5;
 
-export default function ProtoSelectMenu<T extends string | number>({
-  value,
-  options,
-  onChange,
-  label,
-  disabled,
-  className,
-  menuWidth,
-  menuClassName,
-  footer,
-  groupsAsTabs = false,
-  filterPlaceholder,
-}: {
+/** One of the list: the menu closes on the pick, and the trigger reads what was picked. */
+type ProtoSelectMenuSingleProps<T extends string | number> = {
+  multiple?: false;
   value: T;
-  options: ProtoSelectOption<T>[];
   onChange: (value: T) => void;
+};
+
+/**
+ * Any number of the list, including none — a filter rather than a setting.
+ *
+ * The menu stays open while you tick: closing after each would make choosing three topics three
+ * trips to the same menu. Its first row is the empty choice, named by `emptyLabel`, because
+ * "nothing ticked" has to mean "all of them", and a filter that cannot be cleared in one tap
+ * turns into a chore to undo.
+ */
+type ProtoSelectMenuMultiProps<T extends string | number> = {
+  multiple: true;
+  value: readonly T[];
+  onChange: (value: T[]) => void;
+  /** The trigger with nothing chosen, and the menu's clearing row — "All topics". */
+  emptyLabel: string;
+  /** The trigger once more than one is chosen — "3 topics". */
+  countLabel: (count: number) => string;
+};
+
+export type ProtoSelectMenuProps<T extends string | number> = ProtoSelectMenuCommonProps<T> &
+  (ProtoSelectMenuSingleProps<T> | ProtoSelectMenuMultiProps<T>);
+
+type ProtoSelectMenuCommonProps<T extends string | number> = {
+  options: ProtoSelectOption<T>[];
   /** Accessible name for the trigger — what is being chosen. */
   label: string;
   disabled?: boolean;
@@ -108,7 +127,22 @@ export default function ProtoSelectMenu<T extends string | number>({
    * and a menu of twenty spaces is unusable without one.
    */
   filterPlaceholder?: string;
-}) {
+};
+
+export default function ProtoSelectMenu<T extends string | number>(
+  props: ProtoSelectMenuProps<T>,
+) {
+  const {
+    options,
+    label,
+    disabled,
+    className,
+    menuWidth,
+    menuClassName,
+    footer,
+    groupsAsTabs = false,
+    filterPlaceholder,
+  } = props;
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const filterInputRef = useRef<HTMLInputElement | null>(null);
@@ -118,7 +152,18 @@ export default function ProtoSelectMenu<T extends string | number>({
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const menuId = useId();
 
-  const selected = options.find((option) => option.value === value) ?? options[0];
+  /* Every chosen value, in either mode — a single pick is a list of one. */
+  const chosen: readonly T[] = props.multiple ? props.value : [props.value];
+  const selected = props.multiple
+    ? options.find((option) => chosen.includes(option.value))
+    : (options.find((option) => option.value === props.value) ?? options[0]);
+  const triggerText = props.multiple
+    ? chosen.length === 0
+      ? props.emptyLabel
+      : chosen.length === 1
+        ? (selected?.triggerLabel ?? selected?.label ?? props.emptyLabel)
+        : props.countLabel(chosen.length)
+    : (selected?.triggerLabel ?? selected?.label ?? '');
   const width = menuWidth ?? FALLBACK_WIDTH;
 
   /*
@@ -271,9 +316,7 @@ export default function ProtoSelectMenu<T extends string | number>({
         disabled={disabled}
         onClick={() => setOpen((x) => !x)}
       >
-        <span className="proto-select-menu__value">
-          {selected?.triggerLabel ?? selected?.label ?? ''}
-        </span>
+        <span className="proto-select-menu__value">{triggerText}</span>
         <Icon name={open ? 'caret-up' : 'caret-down'} size={9} aria-hidden />
       </button>
 
@@ -348,6 +391,30 @@ export default function ProtoSelectMenu<T extends string | number>({
                   ))}
                 </div>
               ) : null}
+              {props.multiple ? (
+                <div className="proto-menu-section" role="group">
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={chosen.length === 0}
+                    className="proto-menu-item"
+                    onClick={() => {
+                      /* Clearing is a whole choice rather than one tick among several, so it
+                         closes the menu the way a single pick does. */
+                      props.onChange([]);
+                      setOpen(false);
+                      triggerRef.current?.focus();
+                    }}
+                  >
+                    <span className="proto-menu-item__label">{props.emptyLabel}</span>
+                    <span className="proto-menu-item__check" aria-hidden>
+                      {chosen.length === 0 ? (
+                        <Icon name="check" size={PROTO_MENU_CHECK_ICON_SIZE} />
+                      ) : null}
+                    </span>
+                  </button>
+                </div>
+              ) : null}
               {visibleSections.map((section) => (
                 <div
                   key={section.label ?? '__ungrouped__'}
@@ -361,17 +428,29 @@ export default function ProtoSelectMenu<T extends string | number>({
                     </div>
                   ) : null}
                   {section.options.map((option) => {
-                    const checked = option.value === value;
+                    const checked = chosen.includes(option.value);
                     return (
                       <button
                         key={String(option.value)}
-                        ref={checked ? selectedRef : undefined}
+                        /* The first chosen row is the one the menu scrolls to on open. */
+                        ref={option.value === chosen[0] ? selectedRef : undefined}
                         type="button"
-                        role="menuitemradio"
+                        role={props.multiple ? 'menuitemcheckbox' : 'menuitemradio'}
                         aria-checked={checked}
                         className="proto-menu-item"
                         onClick={() => {
-                          onChange(option.value);
+                          if (props.multiple) {
+                            const next = checked
+                              ? chosen.filter((v) => v !== option.value)
+                              : [...chosen, option.value];
+                            /* In the menu's order rather than the order they were ticked, so the
+                               same choice always reads — and compares — the same way. */
+                            props.onChange(
+                              options.map((o) => o.value).filter((v) => next.includes(v)),
+                            );
+                            return;
+                          }
+                          props.onChange(option.value);
                           setOpen(false);
                           triggerRef.current?.focus();
                         }}

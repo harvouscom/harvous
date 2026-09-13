@@ -5,6 +5,7 @@ import {
   canManageStudyThreadsInSharedSpace,
   canModerateMinistryChannel,
   isMinistryBroadcastSpace,
+  resolveLibraryListScope,
 } from '../shared-space-capabilities';
 
 describe('isMinistryBroadcastSpace', () => {
@@ -124,16 +125,19 @@ describe('canCreateSidebarCollections', () => {
     ).toBe(true);
   });
 
-  it('denies collection create on My Home within a shared space', () => {
+  it('allows collection create on My Home within a shared space, whatever the room allows', () => {
+    // The Library panel's switch shows My Home from inside a room, and the organize host
+    // scopes its sheets to Home when it does. A folder made there is a Home folder — a member
+    // who could not make one in the room can still make one of their own.
     expect(
       canCreateSidebarCollections({
         inSharedSpaceShell: true,
         listScope: 'my-home',
         isScopedSharedSpaceList: false,
-        isOwner: true,
-        membershipRole: 'owner',
+        isOwner: false,
+        membershipRole: 'member',
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('allows owners on This space', () => {
@@ -158,5 +162,61 @@ describe('canCreateSidebarCollections', () => {
         membershipRole: 'member',
       }),
     ).toBe(false);
+  });
+});
+
+describe('resolveLibraryListScope', () => {
+  const room = { activeSpaceId: 'space_room', homeSpaceId: 'space_home' };
+
+  it('ignores the scope outside a shared space — My Home has nothing else to show', () => {
+    expect(
+      resolveLibraryListScope({
+        activeSpaceId: 'space_home',
+        homeSpaceId: 'space_home',
+        isSharedSpace: false,
+        isOwner: true,
+        listScope: 'my-home',
+      }),
+    ).toEqual({
+      viewingHome: false,
+      spaceId: 'space_home',
+      isScopedSharedSpace: false,
+      viewerIsSpaceOwner: true,
+    });
+  });
+
+  it('shows the room on the space side of the switch', () => {
+    expect(
+      resolveLibraryListScope({ ...room, isSharedSpace: true, isOwner: false, listScope: 'space' }),
+    ).toEqual({
+      viewingHome: false,
+      spaceId: 'space_room',
+      isScopedSharedSpace: true,
+      viewerIsSpaceOwner: false,
+    });
+  });
+
+  it('shows My Home as your own on the My Home side, even to a member of the room', () => {
+    // Ownership is what unlocks the row actions on your own notes. A member of the room is
+    // still the owner of their Home, and the lists must not treat them as a guest in it.
+    expect(
+      resolveLibraryListScope({ ...room, isSharedSpace: true, isOwner: false, listScope: 'my-home' }),
+    ).toEqual({
+      viewingHome: true,
+      spaceId: 'space_home',
+      isScopedSharedSpace: false,
+      viewerIsSpaceOwner: true,
+    });
+  });
+
+  it('stays in the room when there is no Home id to switch to', () => {
+    expect(
+      resolveLibraryListScope({
+        activeSpaceId: 'space_room',
+        homeSpaceId: null,
+        isSharedSpace: true,
+        listScope: 'my-home',
+      }),
+    ).toMatchObject({ viewingHome: false, spaceId: 'space_room', isScopedSharedSpace: true });
   });
 });

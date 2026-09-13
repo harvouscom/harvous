@@ -213,7 +213,11 @@ function PersonalThreadMembers({
 
 function SharedThreadMembers({ threadId, data }: { threadId: string; data: LibraryPanelData }) {
   const notesQuery = useThreadNotes(threadId, data.spaceId ?? undefined);
-  const { space } = useActiveSpace();
+  /* The room's membership only while the panel is showing the room. A personal reading plan
+     is a `thread_` record too, so this branch also renders from My Home — where the room's
+     role has nothing to say about who arranges your own plan. */
+  const { space: shellSpace } = useActiveSpace();
+  const space = data.isScopedSharedSpace ? shellSpace : null;
   const updateSequence = useUpdateThreadSequence();
 
   /*

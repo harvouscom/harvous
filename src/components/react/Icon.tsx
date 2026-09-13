@@ -145,6 +145,9 @@ import minusSvg from '@fortawesome/fontawesome-free/svgs/solid/minus.svg?raw';
 import wandMagicSparklesSvg from '@fortawesome/fontawesome-free/svgs/solid/wand-magic-sparkles.svg?raw';
 import wrenchSvg from '@fortawesome/fontawesome-free/svgs/solid/wrench.svg?raw';
 import rotateLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/rotate-left.svg?raw';
+import tagsSvg from '@fortawesome/fontawesome-free/svgs/solid/tags.svg?raw';
+import glassesSvg from '@fortawesome/fontawesome-free/svgs/solid/glasses.svg?raw';
+import playSvg from '@fortawesome/fontawesome-free/svgs/solid/play.svg?raw';
 
 function withCurrentColor(svg: string): string {
   return svg.includes('fill="currentColor"') ? svg : svg.replace(/<path /, '<path fill="currentColor" ');
@@ -196,6 +199,11 @@ const icons = {
   'person': withCurrentColor(personSvg),
   'book-open': svgRootCurrentColor(bookOpenSvg),
   'book-open-reader': svgRootCurrentColor(bookOpenReaderSvg),
+  /* Discover's topic and resource glyphs that nothing else drew yet — harvous.com's, so the
+     catalog wears the same marks on both surfaces (see `discover-display`). */
+  tags: svgRootCurrentColor(tagsSvg),
+  glasses: svgRootCurrentColor(glassesSvg),
+  play: svgRootCurrentColor(playSvg),
   'id-card-clip': svgRootCurrentColor(idCardClipSvg),
   'lines-leaning': withCurrentColor(linesLeaningSvg),
   'location-dot': svgRootCurrentColor(locationDotSvg),
