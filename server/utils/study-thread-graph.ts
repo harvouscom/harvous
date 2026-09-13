@@ -1,4 +1,5 @@
 import { db, NoteConnections, eq, and, or, inArray } from '../db';
+import { noteConnectionEndpointsLive } from './live-note-connections';
 
 export type StudyThreadGraphEdge = { fromId: string; toId: string; createdAt: string };
 
@@ -35,6 +36,9 @@ export async function collectStudyThreadGraph(
   while (frontier.length > 0 && visited.size < maxNodes) {
     const edgeConditions = [
       eq(NoteConnections.userId, userId),
+      // An edge to a deleted note would put that note in degreeMap and let it win the
+      // representative tie-break — the thread would answer with a repNoteId that 404s.
+      noteConnectionEndpointsLive(),
       or(
         inArray(NoteConnections.fromNoteId, frontier),
         inArray(NoteConnections.toNoteId, frontier),

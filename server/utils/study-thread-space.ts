@@ -1,4 +1,5 @@
 import { db, Notes, NoteConnections, eq, and, or, first } from '../db';
+import { noteConnectionEndpointsLive } from './live-note-connections';
 import {
   collectStudyThreadGraph,
   studyThreadGraphHasEdgeOnNote,
@@ -46,6 +47,7 @@ async function fetchDirectConnectionsOnNote(
     .where(
       and(
         eq(NoteConnections.userId, userId),
+        noteConnectionEndpointsLive(),
         or(
           eq(NoteConnections.fromNoteId, focusNoteId),
           eq(NoteConnections.toNoteId, focusNoteId),

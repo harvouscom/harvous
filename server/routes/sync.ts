@@ -58,6 +58,7 @@ import {
 import { fetchVerseText } from '../utils/fetch-verse-text';
 import { isStudyThreadEntriesTableMissing, isNoteConnectionsTableMissing } from '../utils/pg-undefined-relation';
 import { deleteSingleNoteCascadeForUser } from '../utils/delete-note-cascade';
+import { noteConnectionEndpointsLive } from '../utils/live-note-connections';
 import { loadDeletedEntitiesSince, recordDeletedEntities } from '../utils/sync-deletion-log';
 import { broadcastInvalidationForSyncPush } from '../utils/realtime';
 import {
@@ -1521,7 +1522,8 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
               createdAt: NoteConnections.createdAt,
             })
             .from(NoteConnections)
-            .where(eq(NoteConnections.userId, auth.userId));
+            // Native builds Threads from these rows too; an edge to a deleted note is not one.
+            .where(and(eq(NoteConnections.userId, auth.userId), noteConnectionEndpointsLive()));
         } catch (e) {
           if (isNoteConnectionsTableMissing(e)) {
             console.warn(
@@ -1727,7 +1729,13 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
               createdAt: NoteConnections.createdAt,
             })
             .from(NoteConnections)
-            .where(and(eq(NoteConnections.userId, auth.userId), gt(NoteConnections.createdAt, sinceDate)));
+            .where(
+              and(
+                eq(NoteConnections.userId, auth.userId),
+                gt(NoteConnections.createdAt, sinceDate),
+                noteConnectionEndpointsLive(),
+              ),
+            );
         } catch (e) {
           if (isNoteConnectionsTableMissing(e)) {
             console.warn('[sync/changes] NoteConnections table missing; returning empty connection delta.');
