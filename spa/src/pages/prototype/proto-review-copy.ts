@@ -108,7 +108,7 @@ export const reviewHintLetterCopy = (letter: string) =>
  * back. And the file directly above forbids exactly this vocabulary — nothing here says
  * "due" or "remaining" for the same reason nothing should say "inbox".
  */
-export const REVIEW_SECTION_TITLE = 'Review';
+export const REVIEW_SECTION_TITLE = 'Review exercises';
 
 /**
  * Shown when a Plus reader has an empty queue.
