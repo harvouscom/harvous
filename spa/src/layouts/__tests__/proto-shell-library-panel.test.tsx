@@ -8,7 +8,7 @@
  *
  * The one rule here that has no precedent elsewhere in the shell is the re-scope: every
  * other main-pane overlay closes when the location moves, and this one does not. That
- * asymmetry is load-bearing (the space switcher lives in the panel's own header), so it
+ * asymmetry is load-bearing (a move made with the panel up is the reader steering it), so it
  * gets tests from both directions.
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
@@ -21,6 +21,7 @@ vi.mock('@clerk/clerk-react', () => ({
 const { ProtoShellProvider, useProtoShell } = await import('../proto-shell-context');
 const { PROTO_LIBRARY_PANEL_MS } = await import('../proto-motion');
 const { HOME_LOCATION, churchParent } = await import('../proto-location');
+const { PROTO_SIDEBAR_NAV_STORAGE_KEY } = await import('../../pages/prototype/proto-sidebar-nav-store');
 
 type Shell = ReturnType<typeof useProtoShell>;
 
@@ -158,9 +159,9 @@ describe('library panel', () => {
 
   describe('a space switch re-scopes it instead of closing it', () => {
     it('survives the move and returns to root', () => {
-      // The switcher lives in the panel's own header, so a move is the reader steering
-      // this surface — closing it would dismiss the thing they are using. Root, not the
-      // current view, because a folder from the space you just left is not in this one.
+      // A move made with the panel up is the reader steering this surface — closing it
+      // would dismiss the thing they are using. Root, not the current view, because a
+      // folder from the space you just left is not in this one.
       const shell = renderShell();
       act(() => shell.current.openLibraryPanel({ tab: 'folders', drill: { kind: 'folder', folderKey: 'Sermons' } }));
 
@@ -228,5 +229,136 @@ describe('library panel', () => {
 
     const second = renderShell();
     expect(second.current.libraryPanelView).toBeNull();
+  });
+
+  describe('the My Home switch', () => {
+    /*
+     * The panel's "<space> | My Home" switch rides `sidebarListSpaceScope`. Shell state,
+     * because the organize host acts on what the panel shows and has to agree with it;
+     * short-lived, because the panel opens on the space every time.
+     */
+    const room = { ...HOME_LOCATION, spaceId: 'space_room' };
+
+    function openOnHome() {
+      const shell = renderShell();
+      act(() => shell.current.setLocation(room));
+      act(() => shell.current.openLibraryPanel({ tab: 'all', drill: null }));
+      act(() => shell.current.setSidebarListSpaceScope('my-home'));
+      return shell;
+    }
+
+    it('holds My Home through the exit morph, then goes back to the space', () => {
+      // Not on the first frame of the close: flipping then would swap the rows under a
+      // panel still morphing back into the chip.
+      const shell = openOnHome();
+      act(() => shell.current.closeLibraryPanel());
+      expect(shell.current.sidebarListSpaceScope).toBe('my-home');
+
+      flushExit();
+      expect(shell.current.sidebarListSpaceScope).toBe('space');
+    });
+
+    it('goes back to the space when Back closes the panel', () => {
+      const shell = openOnHome();
+      act(() => {
+        window.history.replaceState({}, '');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+      flushExit();
+      expect(shell.current.sidebarListSpaceScope).toBe('space');
+    });
+
+    it('opens on the space even if something left it on My Home while closed', () => {
+      // Otherwise the organize host would already be pointed at Home from a room showing
+      // its own notes.
+      const shell = renderShell();
+      act(() => shell.current.setLocation(room));
+      act(() => shell.current.setSidebarListSpaceScope('my-home'));
+      act(() => shell.current.openLibraryPanel({ tab: 'all', drill: null }));
+      expect(shell.current.sidebarListSpaceScope).toBe('space');
+    });
+
+    it('opens on the space when reopened mid-exit, before the old reset has fired', () => {
+      const shell = openOnHome();
+      act(() => shell.current.closeLibraryPanel());
+      act(() => shell.current.openLibraryPanel({ tab: 'all', drill: null }));
+      expect(shell.current.sidebarListSpaceScope).toBe('space');
+
+      flushExit();
+      expect(shell.current.libraryPanelView).toEqual({ tab: 'all', drill: null });
+    });
+
+    it('keeps My Home when an open lands on a panel already up', () => {
+      // Creating a folder from My Home reopens the panel onto that folder — and the
+      // folder is in Home.
+      const shell = openOnHome();
+      act(() =>
+        shell.current.openLibraryPanel({ tab: 'folders', drill: { kind: 'folder', folderKey: 'New' } }),
+      );
+      expect(shell.current.sidebarListSpaceScope).toBe('my-home');
+    });
+
+    it('clears the drill on a switch, but keeps the tab and the query', () => {
+      // A folder in the room is not a folder at Home. The query is the same question asked
+      // of a different shelf, and a switch is not an arrival that asked to select.
+      const shell = renderShell();
+      act(() => shell.current.setLocation(room));
+      act(() =>
+        shell.current.openLibraryPanel({
+          tab: 'folders',
+          drill: { kind: 'folder', folderKey: 'Sermons' },
+          querySeed: 'grace',
+          selectOnOpen: true,
+        }),
+      );
+      act(() => shell.current.setSidebarListSpaceScope('my-home'));
+      expect(shell.current.libraryPanelView).toEqual({
+        tab: 'folders',
+        drill: null,
+        querySeed: 'grace',
+      });
+    });
+
+    it('drops a standing selection on a switch', () => {
+      // Those ids were chosen from the other space's list.
+      const shell = renderShell();
+      act(() => shell.current.setLocation(room));
+      act(() => shell.current.openLibraryPanel({ tab: 'notes', drill: null }));
+      act(() => shell.current.setSidebarSelectMode(true));
+      act(() => shell.current.setSidebarSelection('note', ['note_1']));
+
+      act(() => shell.current.setSidebarListSpaceScope('my-home'));
+      expect(shell.current.sidebarSelectMode).toBe(false);
+      expect(shell.current.sidebarSelectedIds).toEqual([]);
+    });
+
+    it('leaves the sidebar’s own list state alone on a switch', () => {
+      // This used to clear the sidebar's drilldowns, when it was a sidebar control.
+      const shell = renderShell();
+      act(() => shell.current.setSidebarListMode('highlights'));
+      act(() => shell.current.setSidebarFolderDrilldown('Sermons'));
+      act(() => shell.current.openLibraryPanel({ tab: 'all', drill: null }));
+
+      act(() => shell.current.setSidebarListSpaceScope('my-home'));
+      expect(shell.current.sidebarListMode).toBe('highlights');
+      expect(shell.current.sidebarFolderDrilldown).toBe('Sermons');
+    });
+
+    it('goes back to the space on a move to another space', () => {
+      const shell = openOnHome();
+      act(() => shell.current.setLocation({ parent: churchParent('org_1'), spaceId: null }));
+      expect(shell.current.sidebarListSpaceScope).toBe('space');
+    });
+
+    it('boots on the space even with My Home left in storage by an older build', () => {
+      // The sidebar used to persist this. Restoring it would aim the organize host at Home
+      // before the panel was ever opened.
+      localStorage.setItem(
+        PROTO_SIDEBAR_NAV_STORAGE_KEY,
+        JSON.stringify({ sidebarListSpaceScope: 'my-home' }),
+      );
+      const shell = renderShell();
+      expect(shell.current.sidebarListSpaceScope).toBe('space');
+    });
   });
 });

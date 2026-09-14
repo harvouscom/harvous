@@ -176,7 +176,7 @@ export type VisibleComposeTargetInput = {
   sidebarListSpaceScope?: SidebarListSpaceScope;
 };
 
-function normalizeComposeSpaceId(spaceId: string | null | undefined): string | null {
+export function normalizeComposeSpaceId(spaceId: string | null | undefined): string | null {
   const trimmed = spaceId?.trim();
   if (!trimmed) return null;
   return trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;
@@ -511,6 +511,29 @@ export type ReviewDockResult = {
   correctAnswer?: string | null;
   /** True when that answer is the curated index's reading rather than the text's or the reader's. */
   fromIndex?: boolean;
+  /**
+   * Where this question came from, in the reader's own study.
+   *
+   * The result card is the one surface in Review that had nothing of this: it said what was
+   * asked, what they answered and when it returns, and never that the verse was one they marked
+   * while reading, or quoted the paragraph they wrote on it. All of it is already known — the
+   * source line rides on the item, the annotation on the reveal — and none of it was shown.
+   */
+  context?: {
+    /** "Highlighted while reading Romans 8:15", "You wrote this". From the item's own row. */
+    sourceLabel?: string | null;
+    sourceAt?: string | null;
+    /** The provenance sentence the Home row leads with, already filled. */
+    framing?: string | null;
+    /** What they marked, and what they wrote on it. Either half may be missing. */
+    annotation?: { quote: string | null; thought: string | null } | null;
+    /** The note this is about, for the way back to it. */
+    note?: { id: string; title: string | null } | null;
+    /** The passage, for the way back into the reader. */
+    reference?: string | null;
+    /** The wording this question was asked in — the reader's link back must land in the same one. */
+    translation?: string | null;
+  } | null;
   /** Set fresh on each answer so the dock's dwell timer restarts. */
   at: number;
 };
@@ -876,9 +899,17 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
   /** Lets the space-id shim read the current parent without a stale closure. */
   const locationRef = useRef(location);
   locationRef.current = location;
-  const [sidebarListSpaceScope, setSidebarListSpaceScopeState] = useState<SidebarListSpaceScope>(
-    persistedNav.sidebarListSpaceScope,
-  );
+  /*
+   * Not seeded from storage. The scope is the Library panel's "<space> | My Home" switch now,
+   * and the panel opens on the space every time — a `'my-home'` restored at boot would point the
+   * organize host at Home before the panel was even open, so a bulk action on the room's own
+   * rows would land somewhere the reader never chose.
+   */
+  const [sidebarListSpaceScope, setSidebarListSpaceScopeState] =
+    useState<SidebarListSpaceScope>('space');
+  /* Read by the panel's open/close paths, which are stable callbacks and cannot see state. */
+  const sidebarListSpaceScopeRef = useRef<SidebarListSpaceScope>('space');
+  sidebarListSpaceScopeRef.current = sidebarListSpaceScope;
   const [sidebarFolderDrilldown, setSidebarFolderDrilldownState] = useState<SidebarFolderDrilldown>(
     persistedNav.folderDrill,
   );
@@ -965,6 +996,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       libraryPanelExitTimerRef.current = null;
       setLibraryPanelViewState(null);
       setLibraryPanelExiting(false);
+      /* Dropped outright rather than morphed out, so the exit timer's reset never runs —
+         this is the other place the panel's switch goes back to the space. */
+      resetLibraryListScope();
     };
     const mq = window.matchMedia(MOBILE_MQ);
     const sync = () => {
@@ -1093,6 +1127,25 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     window.history.back();
   }, []);
 
+  /**
+   * The panel's "<space> | My Home" switch goes back to the space.
+   *
+   * Once the panel is gone, not as it starts to go: flipping on the first frame of the exit
+   * would swap the rows under a panel still morphing back into the chip. And it has to happen
+   * at all — the organize host follows this value, so a My Home left standing after the panel
+   * closed would aim the next bulk action at Home from a room showing its own notes.
+   *
+   * The selection goes with it for the reason `setLocation` drops one: its ids were chosen from
+   * a list that is no longer the one being shown.
+   */
+  const resetLibraryListScope = useCallback(() => {
+    if (sidebarListSpaceScopeRef.current === 'space') return;
+    sidebarListSpaceScopeRef.current = 'space';
+    setSidebarListSpaceScopeState('space');
+    setSidebarSelectModeState(false);
+    setSidebarSelectedIdsState([]);
+  }, []);
+
   const beginLibraryPanelClose = useCallback(() => {
     if (!libraryPanelViewRef.current) return;
     if (libraryPanelExitTimerRef.current) clearTimeout(libraryPanelExitTimerRef.current);
@@ -1105,11 +1158,21 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       setLibraryPanelViewState(null);
       setLibraryPanelExiting(false);
       libraryPanelExitTimerRef.current = null;
+      resetLibraryListScope();
     }, exitMs);
-  }, []);
+  }, [resetLibraryListScope]);
 
   const openLibraryPanel = useCallback(
     (view: LibraryPanelView) => {
+      /*
+       * A fresh open starts on the space you are in — including a reopen while the last one is
+       * still morphing out, whose own reset has not fired yet. An open that lands on a panel
+       * already up keeps the switch where it is: creating a folder from My Home reopens the
+       * panel onto that folder, and the folder is in Home.
+       */
+      if (!libraryPanelViewRef.current || libraryPanelExitTimerRef.current) {
+        resetLibraryListScope();
+      }
       /*
        * Take focus off the note before the panel goes up. A selection's floating bar in the
        * note underneath otherwise stays put, on top of the panel, still offering to act on
@@ -1132,7 +1195,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
       closeExpandedSidebar();
       pushLibraryPanelHistory();
     },
-    [closeExpandedSidebar, pushLibraryPanelHistory],
+    [closeExpandedSidebar, pushLibraryPanelHistory, resetLibraryListScope],
   );
 
   /** In-panel drill. Opens the panel if it is somehow closed, but never adds history. */
@@ -1272,10 +1335,9 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     if (movedContext) closeExpandedSidebar();
     /*
       The Library panel re-scopes where the expanded tool closes, and the difference is
-      deliberate: the panel's own header holds the space switcher, so a move is usually
-      the reader saying "show me this space's library", not "I am done browsing". Closing
-      would dismiss the surface they are steering. Root, rather than the current view,
-      because a folder or thread from the space you just left does not exist in this one.
+      deliberate: a move made while the panel is up is usually the reader saying "show me
+      this space's library", not "I am done browsing". Closing would dismiss the surface
+      they are steering.
     */
     /* Keep the tab, clear the drill. A folder or thread from the space you just left does
        not exist in this one — but a tab exists in every space, and resetting it discarded
@@ -1294,6 +1356,7 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     });
 
     exitSidebarSelectMode();
+    sidebarListSpaceScopeRef.current = 'space';
     setSidebarListSpaceScopeState('space');
     clearPersistedDrilldowns();
     setSidebarFolderDrilldownState(undefined);
@@ -1324,22 +1387,30 @@ export function ProtoShellProvider({ children }: { children: ReactNode }) {
     },
     [setLocation],
   );
+  /**
+   * The Library panel's "<space> | My Home" switch.
+   *
+   * Shell state rather than panel state because the organize host acts on what the panel
+   * shows, and the two must agree — see `resolveLibraryListScope`. Not persisted: the panel
+   * opens on the space each time, and the reset rides its own open and close.
+   *
+   * This used to clear the sidebar's drilldowns too, back when it was a sidebar control. The
+   * panel's drill is what does not survive the move now — a folder in the room is not a folder
+   * at Home — while the sidebar behind ⇧S stays where it was. The panel's query survives,
+   * because the question is the same one, asked of a different shelf.
+   */
   const setSidebarListSpaceScope = useCallback((scope: SidebarListSpaceScope) => {
-    setSidebarListSpaceScopeState((prev) => {
-      if (prev === scope) return prev;
-      exitSidebarSelectMode();
-      clearPersistedDrilldowns();
-      setSidebarFolderDrilldownState(undefined);
-      setSidebarThreadDrilldownIdState(undefined);
-      setScriptureDrillState({ level: 'books' });
-      writePersistedSidebarNav({ clearFolderDrill: true, clearThreadDrill: true, clearScriptureDrill: true });
-      if (scope === 'space') {
-        writePersistedSidebarNav({ clearSidebarListSpaceScope: true });
-      } else {
-        writePersistedSidebarNav({ sidebarListSpaceScope: scope });
-      }
-      return scope;
-    });
+    if (sidebarListSpaceScopeRef.current === scope) return;
+    sidebarListSpaceScopeRef.current = scope;
+    setSidebarListSpaceScopeState(scope);
+    exitSidebarSelectMode();
+    if (libraryPanelViewRef.current) {
+      /* `selectOnOpen` goes too: the host re-arms selecting whenever the drill changes, and a
+         switch is not an arrival that asked to select. */
+      setLibraryPanelViewState((prev) =>
+        prev ? { ...prev, drill: null, selectOnOpen: undefined } : prev,
+      );
+    }
   }, [exitSidebarSelectMode]);
   const setSidebarFolderDrilldown = useCallback((value: SidebarFolderDrilldown) => {
     exitSidebarSelectMode();

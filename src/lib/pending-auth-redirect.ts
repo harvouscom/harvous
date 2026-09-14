@@ -15,13 +15,14 @@ const ALLOWED_PENDING_PATHS = [
   /^\/shared\/note\/[A-Za-z0-9_-]+\/?$/,
   /^\/shared\/thread\/[A-Za-z0-9_-]+\/?$/,
   /**
-   * A Discover listing → install after sign-up.
+   * Discover → sign-up → back, to finish the install they came for.
    *
-   * `PublicDiscoverListingPage` has always called `writePendingAuthRedirect`, and
-   * without this pattern the call was a silent no-op — the documented trap in
-   * `guest-signup.ts`. The install still replayed, because `redirect_url` carries the
-   * href and `postAuthRedirectPath` only checks same-origin; this makes the page's
-   * second, deliberate mechanism do what it says. `slugify` emits `[a-z0-9-]` only.
+   * `PublicDiscoverListingPage` has always called `writePendingAuthRedirect`
+   * here, but with no pattern to match it silently stored nothing and returned
+   * false. Resume still worked, riding on `?install=1` surviving inside Clerk's
+   * `redirect_url`, with a 600s sessionStorage record as the backup — so this
+   * was a belt with no braces. Worth having now that every curated reference is
+   * installable and this is the path most new readers arrive by.
    */
   /^\/discover\/[A-Za-z0-9_-]+\/?$/,
   /** Marketing / pricing → Harvous Plus checkout after sign-in or sign-up. */

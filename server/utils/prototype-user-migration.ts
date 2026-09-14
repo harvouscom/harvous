@@ -24,6 +24,7 @@ import {
   type SQL,
 } from '../db';
 import { nowISO } from '../db/dates';
+import { linkedFromNoteIsLiveOwned } from './live-note-connections';
 import { generateNoteId } from '@/utils/ids';
 import {
   normalizeSecondaryLabels,
@@ -360,10 +361,13 @@ export async function migrateLinkedFromNoteConnectionsForUser(userId: string): P
   migrated: number;
   skipped: number;
 }> {
+  // Only pointers whose source note still exists. This runs on every prototype migration, and
+  // rebuilding from a pointer to a deleted note recreated an edge the delete cascade had removed
+  // — a Thread in the list that could not be opened.
   const linkedNotes = await db
     .select({ id: Notes.id, linkedFromNoteId: Notes.linkedFromNoteId, spaceId: Notes.spaceId })
     .from(Notes)
-    .where(and(eq(Notes.userId, userId), isNotNull(Notes.linkedFromNoteId)));
+    .where(and(eq(Notes.userId, userId), isNotNull(Notes.linkedFromNoteId), linkedFromNoteIsLiveOwned()));
 
   let migrated = 0;
   let skipped = 0;

@@ -306,6 +306,42 @@ function ftsNoteToResult(result: SearchResult): SidebarSearchResult {
   };
 }
 
+function spaceKey(id: string): string {
+  return id.startsWith('space_') ? id : `space_${id}`;
+}
+
+/**
+ * Notes from My Home, for a search made while another space is open.
+ *
+ * A shared space's own search only ever looks inside that space, so from there the notes
+ * you wrote yourself were unfindable — the one corpus most worth reaching for. This takes
+ * the viewer's unscoped note hits and keeps only the ones that live in My Home: the server
+ * returns everything the viewer authored, which includes notes written *into* shared spaces,
+ * and those belong to their own space rather than to Home.
+ *
+ * Server order is kept. It is already relevance order, and there is no local corpus here to
+ * re-rank against.
+ */
+export function buildHomeNoteResults(
+  ftsResults: SearchResult[] | undefined,
+  homeSpaceId: string | null | undefined,
+  excludeIds: Set<string>,
+): SidebarSearchResult[] {
+  const home = homeSpaceId?.trim();
+  if (!home || !ftsResults) return [];
+  const homeKey = spaceKey(home);
+
+  const results: SidebarSearchResult[] = [];
+  for (const hit of ftsResults) {
+    if (hit.type !== 'note' || !hit.spaceId) continue;
+    if (spaceKey(hit.spaceId) !== homeKey) continue;
+    const result = ftsNoteToResult(hit);
+    if (excludeIds.has(result.id)) continue;
+    results.push(result);
+  }
+  return results.slice(0, SIDEBAR_ELSEWHERE_RESULTS_CAP);
+}
+
 /**
  * The passage the query itself names — "John 15", "psalm 23", "1 cor 13", "Jn 3:16".
  *

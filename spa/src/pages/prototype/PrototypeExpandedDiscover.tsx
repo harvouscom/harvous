@@ -26,6 +26,12 @@ import {
 import type { ExpandedSidebarToolProps } from './PrototypeExpandedSidebarHost';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import ProtoChipBar, { type ProtoChipOption } from './components/ProtoChipBar';
+import ProtoSelectMenu, { type ProtoSelectOption } from './ProtoSelectMenu';
+import {
+  DISCOVER_RESOURCE_TYPE_ICON,
+  DISCOVER_RESOURCE_TYPE_NOUN,
+  discoverTopicIcon,
+} from './discover-display';
 import { PrototypeListEmptyState } from './design-system';
 import { toast } from '@/utils/toast';
 import {
@@ -44,7 +50,7 @@ import {
   type DiscoverInstallDestination,
 } from '../../lib/discover-install-destination';
 
-type KindTab = 'all' | 'template' | 'note' | 'pack' | 'resource';
+type KindTab = 'all' | 'template' | 'resource' | 'note' | 'pack';
 
 /*
  * The app's own words, not new ones.
@@ -55,9 +61,15 @@ type KindTab = 'all' | 'template' | 'note' | 'pack' | 'resource';
  * translate. "Series" is worse than merely new — it is taken, by the church
  * planner's teaching series, so it would have named two different things.
  */
+/*
+ * Resources sit second, after Templates, in the order harvous.com/discover puts them — most of
+ * the catalog is references, and a switch with no way to ask for only those made the one kind
+ * the site leads with the one you could not pick out here.
+ */
 const KIND_TABS: ProtoChipOption<KindTab>[] = [
   { id: 'all', label: 'Everything' },
   { id: 'template', label: 'Templates' },
+  { id: 'resource', label: 'Resources' },
   { id: 'note', label: 'Notes' },
   { id: 'pack', label: 'Threads' },
   /* "Resources", the word the library list and its tab already use — not
@@ -90,7 +102,12 @@ function listingIcon(listing: DiscoverListing): IconName {
     case 'pack':
       return 'arrow-right-arrow-left';
     case 'resource':
-      return 'newspaper';
+      /* The type's own glyph where harvous.com gives one — a play button, a lexicon's lens —
+         and the newspaper every other link wears. */
+      return (
+        (listing.preview?.resourceType && DISCOVER_RESOURCE_TYPE_ICON[listing.preview.resourceType]) ||
+        'newspaper'
+      );
     case 'note':
       if (listing.preview?.noteType === 'scripture') return 'book';
       if (listing.preview?.noteType === 'resource') return 'link';
@@ -132,8 +149,23 @@ function listingIconColor(listing: DiscoverListing): string {
   return resolveNoteTemplateIconColor(listing.slug, listing.preview?.iconColor ?? category);
 }
 
+/**
+ * What a row *is*, on a chip of its own — "Tool", "Guide", "Template".
+ *
+ * A resource says its type rather than "Resource": Blue Letter Bible's lexicons and a
+ * five-minute how-to are both links, and only the type tells someone which one they are about to
+ * save. The words are harvous.com's (see `discover-display`).
+ */
+function listingKindLabel(listing: DiscoverListing): string {
+  if (listing.kind === 'resource' && listing.preview?.resourceType) {
+    return DISCOVER_RESOURCE_TYPE_NOUN[listing.preview.resourceType] ?? KIND_NOUN.resource;
+  }
+  return KIND_NOUN[listing.kind] ?? 'Item';
+}
+
 function listingMeta(listing: DiscoverListing): string[] {
-  const meta = [KIND_NOUN[listing.kind] ?? 'Item'];
+  /* The kind is on the chip now, so the line starts with who made it. */
+  const meta: string[] = [];
   if (listing.authorDisplayName) meta.push(`by ${listing.authorDisplayName}`);
   if (listing.category) meta.push(discoverCategoryLabel(listing.category));
   if (listing.kind === 'pack') {
@@ -152,14 +184,15 @@ export default function PrototypeExpandedDiscover({
   /* Seeded from whichever list handed off, so arriving from Threads lands on
      series rather than on everything and a scroll. Read once, at mount. */
   const [kind, setKind] = useState<KindTab>(() => consumePendingDiscoverKind() ?? 'all');
-  const [category, setCategory] = useState<string | null>(null);
+  /* Any number of topics; none means all of them. */
+  const [categories, setCategories] = useState<string[]>([]);
   /*
     One unfiltered fetch, filtered in memory.
-    Asking the server per chip looked equivalent and was not: the topic chips are
-    built from whatever came back, so selecting one narrowed the response and the
+    Asking the server per topic looked equivalent and was not: the topic list is
+    built from whatever came back, so choosing one narrowed the response and the
     other topics vanished with it — you could only ever go between "All topics"
-    and the one you were already in. Filtering here keeps every topic on screen
-    while showing the rows for one of them.
+    and the one you were already in. Filtering here keeps every topic on offer
+    while showing the rows for the ones chosen.
   */
   const listings = useDiscoverListings({});
   const install = useInstallDiscoverListing();
@@ -173,31 +206,34 @@ export default function PrototypeExpandedDiscover({
     [listings.data],
   );
 
-  /** Everything of the selected kind — what the topic chips are drawn from. */
+  /** Everything of the selected kind — what the topic menu is drawn from. */
   const kindRows = useMemo(() => {
     const all = listings.data?.listings ?? [];
     return kind === 'all' ? all : all.filter((l) => l.kind === kind);
   }, [listings.data, kind]);
 
   /* Only the topics that actually have something in them, within the kind on
-     screen. A row of nine labels where seven lead to an empty list teaches
-     people not to use it. */
-  const categoryOptions = useMemo<ProtoChipOption<string>[]>(() => {
+     screen. A list of nine labels where seven lead to an empty list teaches
+     people not to use it. "All topics" is the menu's own clearing row. */
+  const categoryOptions = useMemo<ProtoSelectOption<string>[]>(() => {
     const present = new Set(kindRows.map((l) => l.category).filter(Boolean) as string[]);
-    return [
-      { id: '', label: 'All topics' },
-      ...DISCOVER_CATEGORIES.filter((c) => present.has(c.id)).map((c) => ({
-        id: c.id,
-        label: c.label,
-      })),
-    ];
+    return DISCOVER_CATEGORIES.filter((c) => present.has(c.id)).map((c) => ({
+      value: c.id,
+      label: c.label,
+      /* The glyph each topic wears on harvous.com/discover, so the same topic is recognisable
+         on both before its name is read. */
+      icon: <Icon name={discoverTopicIcon(c.id)} size={13} aria-hidden />,
+    }));
   }, [kindRows]);
 
-  /* Changing kind can strip the topic you were in — leaving it selected would
-     show an empty list under a chip that is no longer there to un-press. */
+  /* Changing kind can strip topics you had chosen — keeping them would filter
+     by a topic the menu no longer offers, with no row left to untick it. */
   useEffect(() => {
-    if (category && !categoryOptions.some((option) => option.id === category)) setCategory(null);
-  }, [categoryOptions, category]);
+    const offered = new Set(categoryOptions.map((option) => option.value));
+    if (categories.some((c) => !offered.has(c))) {
+      setCategories((prev) => prev.filter((c) => offered.has(c)));
+    }
+  }, [categoryOptions, categories]);
 
   /** Turn the resolver's descriptor into the navigation this surface can perform. */
   const openDestination = (destination: DiscoverInstallDestination) => {
@@ -247,7 +283,9 @@ export default function PrototypeExpandedDiscover({
     }
   };
 
-  const rows = category ? kindRows.filter((l) => l.category === category) : kindRows;
+  const rows = categories.length
+    ? kindRows.filter((l) => Boolean(l.category) && categories.includes(l.category as string))
+    : kindRows;
 
   return (
     <ProtoSidebarExpandedPanel
@@ -261,18 +299,31 @@ export default function PrototypeExpandedDiscover({
           onSelect={setKind}
         />
       }
-      toolbar={
+      /*
+        Topics are a menu at the end of the kind row, not a second band of chips under it.
+        Ten chips took a full line of the header before any content and still ran off the
+        edge, and a topic is a filter you set once rather than a place you keep switching
+        between. Several at once, because "sermon prep and teaching prep" is a real question.
+      */
+      actions={
         categoryOptions.length > 1 ? (
-          <ProtoChipBar
-            ariaLabel="Which topic to show"
+          <ProtoSelectMenu<string>
+            multiple
+            value={categories}
+            onChange={setCategories}
             options={categoryOptions}
-            selectedId={category ?? ''}
-            onSelect={(next) => setCategory(next || null)}
+            label="Which topics to show"
+            emptyLabel="All topics"
+            countLabel={(count) => `${count} topics`}
           />
         ) : undefined
       }
       exiting={exiting}
       origin={origin}
+      // Reached from the centered library panel, not from inside the sidebar itself — landing
+      // left-anchored after that read as a jump sideways. See ProtoSidebarExpandedPanel's own
+      // `centered` doc.
+      centered
       onClose={onClose}
     >
       {/* The panel body is `display: flex` in row direction, so a bare child is
@@ -351,11 +402,18 @@ export default function PrototypeExpandedDiscover({
                         className="pds-list-title proto-church-tools__row-title proto-marquee"
                         title={listing.title}
                       >
-                        <span>{listing.title}</span>
+                        {/* The kind rides the title's own line, right after the words — the
+                            mark-on-the-title pattern `PrototypeHomeRow` uses for a status. It is
+                            about the thing, not one more clause of the meta sentence under it. */}
+                        <span>
+                          {listing.title}
+                          <span className="proto-list-panel__row-title-mark">
+                            <span className="proto-discover-kind">{listingKindLabel(listing)}</span>
+                          </span>
+                        </span>
                       </span>
                       <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
-                        {listing.description ? `${listing.description} · ` : ''}
-                        {listingMeta(listing).join(' · ')}
+                        {[listing.description, ...listingMeta(listing)].filter(Boolean).join(' · ')}
                       </span>
                     </span>
                     <span className="proto-church-tools__row-chevron" aria-hidden>

@@ -43,12 +43,12 @@ Polar product  ──(registry)──▶  feature keys  ──(Entitlements rows
 | Key | Grants | Sold as |
 |---|---|---|
 | `shared_spaces` | Host/own shared spaces (limits below) | **Harvous Plus** |
-| `review` | AI practice from your notes (future) | folds into Plus |
-| `challenges` | Full season guide (future) | folds into Plus |
+| `review` | Review practice from your own notes | **Harvous Plus** |
+| `challenges` | Challenges — withheld for everyone (`WITHHELD_FEATURES`) | **Harvous Plus** |
+| `full_history` | History older than `FREE_HISTORY_WINDOW_DAYS` (90): note versions and the activity feed. Hidden without it, never deleted | **Harvous Plus** |
 | `connector` | Outbound MCP/API access (future) | **Connector** add-on |
-| `season_pass` | One season's guide/archive (future) | **Season Pass** one-time add-on |
 
-(Add a key here to introduce a new gate. `season_pass`/`connector` are declared but not yet sold.)
+(Add a key here to introduce a new gate. `connector` is declared but not yet sold. There is no `season_pass` key; seasons ride `challenges`.)
 
 ---
 
@@ -159,7 +159,9 @@ camel/snake-tolerantly.
 This is the whole point of the architecture — a new product is fill-in-the-blanks, not a re-derivation.
 
 1. **Feature key** — add it to `FEATURE_KEYS` (`billing-plans.ts`) and gate the capability with
-   `hasEntitlement(auth, 'your_key')`.
+   `hasEntitlement(auth, 'your_key')`. A key added to a plan people already pay for reaches them
+   only on their next provider sync, and comped `admin_grant` rows never sync — run
+   `npm run entitlement:backfill -- <new_key> --from <existing_key> --apply` before the gate turns on.
 2. **Registry entry** — add the product to `PLANS` with its `productId` (from env), `features`, `limits`,
    `listed`. Extend `PlanKey` and, for a one-time add-on, add a `'one_time'` interval.
 3. **Create it in Polar** — `npm run billing:setup -- --apply` (idempotent; `polar.products.create` +

@@ -43,8 +43,11 @@ import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import {
+  STUDY_FEED_LOCKED_EDGE_ARIA_LABEL,
+  STUDY_FEED_LOCKED_EDGE_LABEL,
   studyFeedEmptyDayCopy,
   studyFeedScopedEmptyCopy,
+  studyFeedTrailEndEdge,
   summarizeStudyFeedDay,
 } from './study-feed-presentation';
 import { canonicalBookOrderMap } from '@/utils/scripture-passage-drill';
@@ -115,8 +118,15 @@ export default function PrototypeStudyFeedPage() {
     [navigate],
   );
   const [scope, setScope] = useState<StudyFeedScope>(STUDY_FEED_SCOPE_ALL);
-  const { items, reviewAnswers, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useStudyFeed(scope);
+  const {
+    items,
+    reviewAnswers,
+    isPending,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    lockedBefore,
+  } = useStudyFeed(scope);
 
   const libraryNav = useLibraryPanelNav();
   const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
@@ -618,24 +628,20 @@ export default function PrototypeStudyFeedPage() {
 
   const edges = days.slice(safeIndex + 1, safeIndex + 1 + MAX_EDGES);
   /*
-   * The edges are the way back now, so they carry what the "Earlier" button used to: at the
-   * oldest loaded day there is nothing to slice, and without a page of its own the stack
-   * would end in a wall with older study visibly behind it. One more edge, which fetches.
-   */
-  const showFetchEdge = edges.length === 0 && hasNextPage;
-  /*
-   * The bottom of the pile, once there is nothing left to fetch.
+   * The edges are the way back now, so the bottom of the pile carries what the "Earlier"
+   * button used to, plus two ways a pile can genuinely end — see `studyFeedTrailEndEdge`.
    *
-   * The stack used to simply stop here: the oldest sheet with blank paper above it and no
-   * indication that you had reached anything, which reads as a page that failed to load more
-   * rather than as a beginning. A study has a first day, and after a year of use it is the one
-   * day in the stack you cannot get to any other way.
-   *
-   * Not a button. Every other edge is somewhere to go; this one is the fact that there is
-   * nowhere further, and a control that does nothing when pressed is a worse answer than a
-   * label that never invited the press.
+   * The origin edge is a real beginning: not a button, since there is nowhere further to go
+   * and a control that does nothing when pressed is a worse answer than a label that never
+   * invited the press. The locked edge is not a beginning at all — study happened before it,
+   * kept, just not shown — so it gets a door rather than a fact, in the origin edge's exact
+   * slot, so the stack's shape never tells the reader in advance which one they are about to
+   * meet.
    */
-  const showOriginEdge = edges.length === 0 && !hasNextPage;
+  const trailEndEdge = studyFeedTrailEndEdge({ hasEdgesAhead: edges.length > 0, hasNextPage, lockedBefore });
+  const showFetchEdge = trailEndEdge === 'fetch';
+  const showOriginEdge = trailEndEdge === 'origin';
+  const showLockedEdge = trailEndEdge === 'locked';
 
 
   return (
@@ -681,6 +687,19 @@ export default function PrototypeStudyFeedPage() {
                 Your study begins here · {day.dateLabel}
               </span>
             </div>
+          ) : null}
+          {showLockedEdge ? (
+            <button
+              type="button"
+              className="proto-feed-stack__edge proto-feed-stack__edge--locked"
+              style={{ '--edge-depth': 1 } as CSSProperties}
+              onClick={() => navigate({ to: '/upgrade' })}
+              aria-label={STUDY_FEED_LOCKED_EDGE_ARIA_LABEL}
+            >
+              <span className="pds-caption proto-feed-stack__edge-label">
+                {STUDY_FEED_LOCKED_EDGE_LABEL}
+              </span>
+            </button>
           ) : null}
         </div>
 

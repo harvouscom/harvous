@@ -526,7 +526,8 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 0 10px;
+  /* The shell's outer edge for everything below it too — see `--pds-shell-gutter`. */
+  padding: 0 var(--pds-shell-gutter);
   gap: 8px;
 }
 
@@ -1221,8 +1222,11 @@ html[data-shift-hints='1'] .proto-toolbar-orb-group {
 /* Phones — reclaim horizontal room for the center folder chip so the full folder
    name shows without overlapping the side button groups. */
 @media (max-width: 600px) {
+  /* The padding that used to be here is `--pds-shell-gutter` now, and its phone value is
+     declared with the token in prototype-tokens.css — the paper below the toolbar reads the
+     same number, and an override from this file could not be relied on to win: Vite injects
+     the two stylesheets in an order that does not follow their imports. */
   .proto-toolbar-inner {
-    padding: 0 6px;
     gap: 6px;
   }
 
@@ -4328,7 +4332,9 @@ html.harvous-prototype-route button[class*='proto-'].proto-resource-add__open sp
   border-color: var(--pds-accent-focus-border);
   background: var(--pds-bg-page);
   outline: 2px solid var(--pds-accent-focus-ring);
-  outline-offset: 0;
+  /* Inset for the same reason as the canonical field above: the inspector is a
+     scrolling column, and an outward ring loses its sides in one. */
+  outline-offset: -2px;
 }
 
 /* ─── Folder + tag editor ────────────────────────────────────────────────── */
@@ -5129,7 +5135,11 @@ html.harvous-proto-wallpaper-color .proto-fte-field:focus-within {
 .proto-settings-field__input:focus {
   border-color: var(--pds-accent-focus-border);
   outline: 2px solid var(--pds-accent-focus-ring);
-  outline-offset: 0;
+  /* Inset, matching the global field ring — see the note there. At `0` the ring
+     sat wholly outside the border box, so any scrolling ancestor cropped its
+     left and right edges; this field is `width: 100%` and the planner rail
+     zeroes its side padding, which left it nothing to bleed into. */
+  outline-offset: -2px;
 }
 
 .proto-create-folder-sheet__notes-label {
@@ -9924,7 +9934,13 @@ button.proto-appearance-hero__card {
 .proto-sync-chip {
   position: fixed;
   left: calc(var(--pds-shell-frame-inset, 14px) + max(16px, env(safe-area-inset-left)));
-  bottom: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom));
+  /* Lifted clear of the study dock band. These two are the only bottom-anchored things
+     outside the band — fixed to the body rather than living in it — so the reserve the
+     scrollers take does not move them, and an open dock would sit on top of them. */
+  bottom: calc(
+    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
+      var(--proto-study-dock-band-height, 0px)
+  );
   z-index: 1000020;
   display: inline-flex;
   align-items: center;
@@ -11525,7 +11541,13 @@ html.harvous-prototype-route
      centre otherwise, which is what the auth and public shells get. */
   left: var(--proto-toast-center, 50%);
   transform: translateX(-50%);
-  bottom: calc(var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom));
+  /* Lifted clear of the study dock band. These two are the only bottom-anchored things
+     outside the band — fixed to the body rather than living in it — so the reserve the
+     scrollers take does not move them, and an open dock would sit on top of them. */
+  bottom: calc(
+    var(--pds-shell-frame-inset, 14px) + 16px + env(safe-area-inset-bottom) +
+      var(--proto-study-dock-band-height, 0px)
+  );
   z-index: 1000021;
   display: inline-flex;
   align-items: center;
@@ -12434,6 +12456,64 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
   outline-offset: -2px;
 }
 
+/*
+ * "Share with others" on a Thread — above the trail in the Library panel, under it in the note
+ * page's Thread popover. Right-aligned and quiet: sharing is a thing you can do with a Thread, not
+ * what the list is for.
+ */
+.proto-library-thread-share {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+
+.proto-library-thread-share--popover {
+  margin: 10px 0 0;
+}
+
+.proto-library-thread-share .proto-sheet-quiet-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The Share with others sheet's way out to Settings › Sharing: a link in a sentence. */
+.proto-share-others__settings-link {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--pds-accent);
+  cursor: pointer;
+}
+
+.proto-share-others__settings-link:hover {
+  text-decoration: underline;
+}
+
+/*
+ * Discover's kind chip — "Tool", "Guide", "Template" — right after the title, on its line.
+ *
+ * The word harvous.com prints on the same card, in the same small caps. Inline, inside the
+ * title's marquee span, so it follows the words; `inline-block` so its padding holds, and
+ * middle-aligned because that span sits on `vertical-align: bottom`.
+ */
+.proto-discover-kind {
+  display: inline-block;
+  vertical-align: middle;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--pds-bg-control);
+  color: var(--pds-text-muted);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 /* ─── Team invite row ───────────────────────────────────────────────────────
    Field and action on one line. The `proto-church-staff__*` classes this
    replaces had no CSS at all, so the form rendered as stacked full-width
@@ -13107,6 +13187,32 @@ p.proto-teaching-plan__divider {
 }
 
 /*
+  The row the chip and "Move to ideas" share.
+
+  Unstyled before this, which is why the two drifted apart visually: with no
+  `display: flex` here, `.proto-sheet-quiet-action`'s own `width: 100%` (built
+  for a sheet footer, stacked under a primary) had nothing to constrain it to
+  but the row's full width, so it dropped to its own line and centered its
+  text — an orphaned link under the chip rather than a second control beside
+  it. `flex-wrap` lets the pair wrap on a narrow rail instead of overflowing.
+*/
+.proto-service-editor__date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Same fix `.proto-suggest-mine .proto-sheet-quiet-action` already made for
+   the library queue's actions: `proto-sheet-quiet-action` carries `width:
+   100%` for its usual stacked-under-a-primary case, which here pushed this
+   button onto its own centered line instead of sitting beside the chip. */
+.proto-service-editor__date-row .proto-sheet-quiet-action {
+  width: auto;
+  flex-shrink: 0;
+}
+
+/*
   The shared field class adds its own `margin-top: 6px`, which lands on top of
   this column's 6px flex gap — so every input sat 12px under its label while the
   date chip (no such margin) sat at 6px. The gap is the one spacing authority
@@ -13219,6 +13325,22 @@ p.proto-teaching-plan__divider {
 .proto-service-editor__repeat-select {
   flex: 1;
   min-width: 0;
+}
+
+/*
+  "How long" on create — a plain field in the form's own column, not a row.
+
+  Deliberately its own class rather than reusing `__repeat-select` above: that
+  one carries `flex: 1` for sitting beside a button inside `.repeat`, a ROW
+  flex container. Here the trigger is a direct child of `.proto-service-editor`
+  itself, which is a COLUMN flex container — `flex: 1` there means "grow to
+  fill remaining height", not width, and the reused class stretched this
+  control to fill the whole scrolling form. `flex: 0 0 auto` says explicitly
+  what a bare rule left implicit: this control sizes to its own content, the
+  way `.proto-select-menu__trigger`'s own `width: 100%` already intends.
+*/
+.proto-service-editor__weeks-select {
+  flex: 0 0 auto;
 }
 
 /* Not an error and not a caption in the field flow: the result of an action
@@ -13814,6 +13936,14 @@ p.proto-teaching-plan__divider {
   /* Pull icon up so it sits halfway on the hero (icon is 3.25rem tall). */
   margin-top: calc(3.25rem / -2);
   padding: 0 16px 20px;
+}
+
+/* No masthead means no icon to overlap and, for the callers that hide it, no hero to
+   overlap onto — the pull would only tuck the description under the sheet header, where
+   the scroll container clips it. Sit below the header instead. */
+.proto-shared-space-about__letter--flush {
+  margin-top: 0;
+  padding-top: 4px;
 }
 
 .public-join-letter-about {
@@ -14416,14 +14546,22 @@ html.harvous-prototype-route
   background: var(--pds-border-on-paper);
 }
 
-/* Learning: the first of three. */
+/*
+ * Learning: the first of three.
+ *
+ * `--pds-accent-indicator`, not `--pds-accent`. The dock's goes-dots next to the same question
+ * use the indicator blue, and these two marks sit a tap apart on the same journey — the row you
+ * press and the card it opens — so two blues a shade off each other read as a mistake rather
+ * than as a distinction. The indicator token is the one for a small filled state like this;
+ * `--pds-accent` is the button blue.
+ */
 .proto-recall-mark[data-hold='learning'] .proto-recall-mark__seg:nth-child(1) {
-  background: var(--pds-accent);
+  background: var(--pds-accent-indicator);
 }
 
 /* Held: all three. */
 .proto-recall-mark[data-hold='held'] .proto-recall-mark__seg {
-  background: var(--pds-accent);
+  background: var(--pds-accent-indicator);
 }
 
 /*
@@ -17206,6 +17344,18 @@ html.harvous-prototype-route
 
 .proto-planner-editor__body > .proto-add-notes-sheet__footer {
   flex: 0 0 auto;
+  /*
+    More air above Save than the 10px the wildcard `[class*='__footer']` rule
+    above gives every footer under this body. Deliberately for both docked
+    rails that share this wrapper — the study editor (a note-search result as
+    its last row) and the library item editor (a checkbox group as its last
+    row) — since both end a form in dense rows right up against the footer,
+    which read as crowding rather than a clear break before Save. Only the
+    top value: right/bottom/left stay the wildcard rule's, since this rule
+    comes later in the cascade at equal specificity and overrides just what
+    it sets.
+  */
+  padding-top: 16px;
 }
 
 /* ─── Select menu (the prototype's choice control) ────────────────────────── */
@@ -18532,7 +18682,11 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
      the reader's paper has nothing to clear and its own 48px of top padding inside, so the
      lip only added a band of dead space above the chapter — most visible stacked, where it
      opened a gap between the peeking edge and the paper right under it. */
+  /* No bottom lip either. The room for the study dock band is inside the sheet
+     (`.pds-reader__column::after`), so the paper runs on under the card rather than stopping
+     at its top edge. */
   padding: 0;
+  scroll-padding-bottom: var(--proto-study-dock-band-height, 0px);
   /* Named query container for the narrow overrides below. Safe: this element's width comes
      from its flex parent, never from its own contents, so containment changes no layout. */
   container-type: inline-size;
@@ -18576,6 +18730,28 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
 }
 
 /*
+ * Room at the end of the chapter for the study dock band — inside the sheet, the same as
+ * `.proto-editor-paper::after` and for the same reason: the dock is a card on the page, so the
+ * paper has to run on under it. Padding outside the sheet ended the paper at the card's top
+ * edge. A spacer, because the narrow overrides below restate the padding.
+ */
+.pds-reader__column::after {
+  content: '';
+  display: block;
+  height: var(--proto-study-dock-band-height, 0px);
+}
+
+/*
+ * Except under a pile. The translations below the sheet come after it, so a reserve inside the
+ * paper would leave them behind the card at the end of the chapter. There the room goes after
+ * the pile instead (`.pds-reader-stack`'s bottom padding) — a chapter is long enough that the
+ * paper still fills the pane until you reach its end.
+ */
+.pds-reader-stack .pds-reader__column::after {
+  content: none;
+}
+
+/*
  * ─── The translations behind the page ───────────────────────────────────────────────────
  *
  * Activity's day stack cannot be reused here, and the reason is worth stating because the
@@ -18611,7 +18787,14 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
  * base, every gallery fixture — keeps the flush top the comment argued for.
  */
 .pds-reader-stack {
-  padding-block: var(--pds-space-5);
+  padding-top: var(--pds-space-5);
+  /*
+   * Written out rather than left as `padding-block`, because the shorthand also set the bottom
+   * and this class lands on the same element as `.pds-reader__scroll` — so the stack's air
+   * silently replaced the room reserved there for the study dock band, and only on chapters
+   * that happen to have a pile. Both states now end with the band cleared.
+   */
+  padding-bottom: calc(var(--pds-space-5) + var(--proto-study-dock-band-height, 0px));
 }
 
 .pds-reader-stack__edges {
@@ -19109,13 +19292,117 @@ html.harvous-prototype-route button[class*="proto-"].proto-settings-danger__btn:
   /*
    * Which chip is the text you are looking at.
    *
-   * The same treatment the chapter menu gives its checked row, because it is the same
-   * statement — this one, of the ones offered. Only at this width: above it both versions are
-   * on screen and marking one would claim a precedence the layout does not have.
+   * One chip carries a surface and the other does not. That is the whole marking, and it is
+   * blunter than the fill-against-fill this shipped with for a reason the dark palette makes
+   * unarguable: the marking was `--pds-bg-row-selected` against the chip's resting
+   * `--pds-bg-chip`, which in light is 6.5% black against 6% — half a percent, on a 10px chip,
+   * beside an identical one — and in dark is `100% 0 0 / 0.1` against `100% 0 0 / 0.1`, the
+   * same value twice. There was no marking in dark mode at all. On a phone, where this width
+   * lives and where the marking matters most because only one version is on screen, that is
+   * the whole question the row exists to answer going unanswered.
+   *
+   * Fill-against-fill is not fixable by reaching for a stronger token, which was the obvious
+   * next move. The neutral ladder is compressed in dark — `--pds-bg-chip`,
+   * `--pds-bg-control-strong` and `--pds-bg-row-selected` are all white at 10% — so every
+   * "one step up" lands back on the resting fill. Present-against-absent is the one difference
+   * that survives both palettes, and it says the same thing in each: the version you are
+   * reading is printed on something, the one waiting behind it is not.
+   *
+   * The other chip keeps its border and its weight, so it still reads as a control you can
+   * press rather than a disabled one — the distinction `.proto-appearance-segmented` draws by
+   * keeping both halves at full colour. It is not dimmed; it is just not the one on screen.
+   *
+   * Colour is not an available arm: `prototype-route-overrides.css` pins every prototype button
+   * and its descendants to `--pds-text-primary !important`, so both chips compute one text
+   * colour whatever this file asks for. Background, weight and a lift are the whole vocabulary
+   * here — the same constraint every segmented control in this file works under.
+   *
+   * The `:hover` arm beats the trigger's own hover fill further down this file. Without it,
+   * pointing at either chip on a narrow desktop window paints both the same and the marking
+   * disappears under the pointer. Moot on a touchscreen, which is most of this width.
+   *
+   * Only at this width: above it both versions are on screen and marking one would claim a
+   * precedence the layout does not have.
    */
-  .pds-reader__trans-trigger--showing {
-    background: var(--pds-bg-row-selected);
+  .pds-reader__trans-trigger.proto-select-menu__trigger,
+  .pds-reader__trans-trigger.proto-select-menu__trigger:hover {
+    background: none;
+    box-shadow: none;
+  }
+
+  .pds-reader__trans-trigger--showing.proto-select-menu__trigger,
+  .pds-reader__trans-trigger--showing.proto-select-menu__trigger:hover {
+    background: var(--pds-bg-control-strong);
+    border-color: var(--pds-border-control-strong);
+    box-shadow: var(--pds-shadow-chip-selected);
     font-weight: 600;
+  }
+
+  /*
+   * While comparing, the heading stays.
+   *
+   * The marking above answers "which version is this" only while the row is on screen, and the
+   * row scrolls away with the chapter — so three verses in, a swipe changed the words and the
+   * only thing that named the new version was off the top of the pane. That is the same
+   * complaint the invisible marking was, arriving one scroll later.
+   *
+   * The whole heading, not just the chips: `.pds-reader__chapter-controls` sits inside the
+   * heading, and a sticky child is confined to its parent's box, so pinning the chips alone
+   * would release them the moment the heading passed. Lifting them out is a worse trade — the
+   * heading's one-row-then-stacked arrangement is built around holding both — and "John 3,
+   * NET against ESV" is the right thing to pin anyway: it is the context for the act, not
+   * decoration on top of it.
+   *
+   * Only while comparing, and only here. A chapter you are simply reading keeps the bare canvas
+   * the reader is for; this bar is the mode's own chrome and leaves when the mode does, which is
+   * why it hangs off `.pds-reader-compare` rather than off the reader.
+   *
+   * The background spans the paper rather than the text column — negative margins out to
+   * `--pds-reader-paper-padding-x` and the same number added back as padding — or verses would
+   * slide through the gap either side of the heading while passing under it. Both variables are
+   * re-declared on `.pds-reader__column` at the narrow widths below, and inherit here, so this
+   * tracks the paper instead of restating its numbers.
+   */
+  .pds-reader-compare .pds-reader__chapter-heading {
+    position: sticky;
+    top: 0;
+    /* `top` is measured from the scrollport's *padding* edge, and the clip region is the padding
+       box — so where `.pds-reader-stack` puts `padding-block` on this scroller, `top: 0` pins the
+       bar one `--pds-space-5` down and leaves a band above it where verses are still painted.
+       They scroll through it in full view, over the top of a bar whose whole job is to be the
+       thing in front. The offset is taken back below, on the class that adds the padding. */
+    /* Above the text (`z-index: 2`) and the margin lane, both of which pass underneath. */
+    z-index: var(--pds-z-sticky);
+    /*
+     * Paper colour, but opaque.
+     *
+     * `--pds-paper-sheet` is translucent — it resolves through `--pds-bg-sidebar` to the
+     * toolbar's glass, and measured 78% white. That is right for the sheet, which lies on the
+     * canvas, and wrong for a bar that verses pass underneath: at 78% the text you scrolled
+     * past reads straight through the chips.
+     *
+     * So the canvas goes down first and the paper is painted over it, which is the same
+     * compositing the sheet already gets from lying on the canvas — the bar matches the paper
+     * exactly rather than approximating it with a solid. `.pds-reader-stack__edge` does this
+     * already and for the same reason.
+     *
+     * This is the one shape the "never pair a gradient with a background-color" note does not
+     * cover: that warns against a colour compositing under a gradient that is meant to *fade*,
+     * where it makes the foot more opaque than the token claims. Here both stops are one flat
+     * colour and the compositing is the whole point.
+     */
+    background-color: var(--pds-canvas-default);
+    background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
+    margin-inline: calc(-1 * var(--pds-reader-paper-padding-x));
+    padding-inline: calc(var(--pds-reader-text-inset) + var(--pds-reader-paper-padding-x));
+    padding-block: var(--pds-space-3);
+    /* Without a line, text passing under the bar reads as clipped rather than as going behind
+       something. Soft, because this sits on a reading surface all day. */
+    border-bottom: 0.5px solid var(--pds-border-soft);
+  }
+
+  .pds-reader-stack.pds-reader-compare .pds-reader__chapter-heading {
+    top: calc(-1 * var(--pds-space-5));
   }
 
   .pds-reader__compare-row {
@@ -21499,6 +21786,25 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
 }
 
 /*
+ * Phones: the paper runs out to the toolbar's own edges, and finishes inside the frame's.
+ *
+ * ── Width. On a desktop the 20px here is invisible, because the stack caps at 640px and
+ * centres long before the padding matters. On a 359px shell it is the whole story: the sheet
+ * started 14px inside the first toolbar button and ended 14px inside the avatar, so the two
+ * surfaces that share the window's left edge did not share it. `--pds-shell-gutter` is the
+ * toolbar's own number, so the page now begins where the controls above it begin.
+ *
+ * The sheet's own bottom corners are rounded to match, next to the rule that squares them.
+ */
+@media (max-width: 899px) {
+  .proto-feed,
+  .proto-hub-frame {
+    padding-left: var(--pds-shell-gutter);
+    padding-right: var(--pds-shell-gutter);
+  }
+}
+
+/*
  * The hub's header row, given the width its own layout assumes.
  *
  * On the rail `.proto-shared-space-header` is a block, so the row inside it is full width for
@@ -21883,6 +22189,16 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   letter-spacing: 0.01em;
 }
 
+/*
+  The same bottom slot, when what stops the pile is the reader's plan rather than the
+  calendar — occupies the origin edge's exact place so the stack's shape never tips off in
+  advance which one is coming. Unlike origin, this is an invitation, so its label stays full
+  color rather than muted; no separate accent treatment, matching the Plus badge elsewhere.
+*/
+.proto-feed-stack__edge--locked .proto-feed-stack__edge-label {
+  letter-spacing: 0.01em;
+}
+
 .proto-feed-stack__edge {
   position: absolute;
   left: 0;
@@ -21977,6 +22293,33 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   background-color: var(--pds-canvas-default);
   background-image: linear-gradient(var(--pds-paper-sheet), var(--pds-paper-sheet));
   box-shadow: var(--pds-paper-shadow-subtle);
+}
+
+/*
+ * ...except, on a phone, the two corners that sit inside the frame's own.
+ *
+ * The sheet is flush with the shell's floor, and at the phone gutter it reaches to within
+ * 6px of the frame's sides — well inside the frame's 18px radius, which clips with
+ * `overflow: hidden`. Left square, the arc shaves a wedge about 12px wide off each bottom
+ * corner, and the page reads as cut off rather than finished. Radius less gutter puts the
+ * sheet's corners concentric inside the frame's, so the paper ends on the same curve the
+ * shell does.
+ *
+ * Not a retreat to card language: the top corners stay square, which is where the sheet
+ * meets nothing and where the squareness is the point. This is the cut a sheet takes from
+ * the tray it is lying in.
+ *
+ * Phones only, and that is the narrower breakpoint on purpose. Above 600px the gutter goes
+ * back to 10px — where the same wedge is under 2px tall — and past roughly 676px the stack
+ * hits its 640px cap and centres, so the sheet is nowhere near the frame's corners and a
+ * rounded bottom on it would be exactly the card bottom this surface keeps being mistaken
+ * for.
+ */
+@media (max-width: 600px) {
+  .proto-feed-sheet {
+    border-bottom-left-radius: calc(var(--pds-shell-frame-radius) - var(--pds-shell-gutter));
+    border-bottom-right-radius: calc(var(--pds-shell-frame-radius) - var(--pds-shell-gutter));
+  }
 }
 
 .proto-feed-sheet__head {
@@ -22092,12 +22435,14 @@ html.harvous-prototype-route .proto-appearance-hero__specimen[data-font='dyslexi
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  scroll-padding-bottom: var(--proto-study-dock-band-height, 0px);
   display: flex;
   flex-direction: column;
   gap: var(--pds-space-5);
   /* Padding inside the scroller, so the last row travels through the fade rather than ending
-     inside it. */
-  padding-bottom: var(--pds-space-5);
+     inside it — plus room for the study dock band, which floats over this with no layout
+     height of its own. One declaration: a second would simply overwrite the first. */
+  padding-bottom: calc(var(--pds-space-5) + var(--proto-study-dock-band-height, 0px));
   --proto-feed-fade: 14px;
   /*
    * Bottom always; top only once there is something under it.
@@ -23086,14 +23431,41 @@ button.proto-feed-sheet__stat:hover {
   letter-spacing: 0.04em;
 }
 
-/* Which note the question is about, when the question itself does not name it. Quiet, and
-   directly under the prompt so the two read as one thing. */
+/*
+ * Which note the question is about, when the question itself does not name it.
+ *
+ * Subordinate to the prompt and attached to it — smaller, lighter, and close enough that the two
+ * read as one thing. That pairing is the point: the instruction says what to do, this says what
+ * to do it about.
+ *
+ * It was `--pds-text-tertiary` at 13px — 32% alpha, around 2:1 against the card, under any
+ * contrast floor there is. That was wrong twice over. It failed contrast outright, and it made a
+ * hierarchy decision that does not survive reading the card: on most rungs this line is the only
+ * thing naming *what the question is about*, so "Pick the passage you wrote this on" above a
+ * near-invisible grey line is an instruction with its subject whispered.
+ *
+ * So it sits at the prompt's own level — same size, same colour, same weight. The two are a pair,
+ * not a heading and a footnote: one says what to do, the other says what to do it about, and
+ * neither is worth more than the other. They stay tightly grouped so they read as one block, and
+ * the difference between them is what they say rather than how loudly they say it.
+ */
 .proto-review-dock__subject {
-  margin: calc(var(--pds-space-2) * -1) 0 0;
+  margin: calc(var(--pds-space-1) * -1) 0 0;
   font-family: var(--pds-font-body);
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--pds-text-tertiary);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+/*
+ * The translation the question is in, beside the exercise's name.
+ *
+ * Borrowed wholesale from the scripture pill's chip so it is the same object the reader already
+ * reads everywhere else Scripture is labelled; only the spacing is this card's.
+ */
+.proto-review-dock__header-trans {
+  margin-left: var(--pds-space-2);
+  align-self: center;
 }
 
 /* The collapsed header line's second half — what is waiting, without opening the card. */
@@ -23114,10 +23486,112 @@ button.proto-feed-sheet__stat:hover {
  * question was rather than beside it, because two things in the card at once would make the
  * reader choose which one to read.
  */
+/*
+ * The result card: what the reader reads scrolls, the way on does not.
+ *
+ * The body below is the dock's own scroller and bounds itself to 46vh, which was right while
+ * everything on the card was reading matter. A result is not — it ends in the two buttons that
+ * carry the sitting forward, and on a long card (the question, their answer, the verse restored,
+ * the verdict, what they wrote on the passage) those were below the fold. "Next one" was a
+ * scroll away on exactly the cards that took the most getting through.
+ *
+ * So the result takes the height over: the body stops scrolling while one is up, the reading
+ * scrolls inside it, and the actions sit on the bottom edge with a rule above them. Same shape
+ * as the planner editor's rail, and the same rule as the verdict's, so the card reads as one
+ * thing with a footer rather than two stacked panels.
+ */
+.proto-review-dock__body:has(> .proto-review-dock__result) {
+  overflow: hidden;
+}
+
 .proto-review-dock__result {
+  display: flex;
+  flex-direction: column;
+  /*
+   * Both of these have to say `1 1 auto` out loud. The app reset sets `* { flex-shrink: 0 }`
+   * (src/styles/global.css, and see the note at the top of this file), so a flex child here does
+   * not shrink unless told to — the result stood 6px taller than the 360px body it lives in, the
+   * scroller never scrolled because it always got its content height, and the footer was pushed
+   * past the card's edge and clipped in half by it. `min-height: 0` alone does nothing when the
+   * item refuses to shrink in the first place.
+   */
+  flex: 1 1 auto;
+  min-height: 0;
+  animation: proto-review-result-in 0.24s ease both;
+}
+
+.proto-review-dock__result-scroll {
   display: grid;
   gap: 10px;
-  animation: proto-review-result-in 0.24s ease both;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room under the last line so it clears the footer's rule rather than touching it. */
+  padding-bottom: 10px;
+}
+
+/*
+ * The result's footer, built to match the Library panel's create footer exactly — a filled bar
+ * on the card's bottom edge rather than a row of buttons floating above it.
+ *
+ * Same fill, same rule, same 10/12/12 padding as `.proto-collection-grid-actions`, and for the
+ * same reason: a bar that reaches both edges reads as the floor of the card, so the reading above
+ * it can scroll under something rather than stopping in mid-air.
+ *
+ * Reaching the edges takes the card's own sides and bottom away from it, which is the change to
+ * the dock card this asks for. Done by moving the inset rather than by bleeding out through it:
+ * `.study-dock-card__body` clips its overflow, so a footer pulled out on negative margins would
+ * simply be cut off at the padding box. The card drops its sides and bottom, and the header and
+ * the scrolling body re-apply them — only on a Review card that actually has this footer, so
+ * every other dock in the band is untouched.
+ */
+/*
+ * Only while the card is open. The footer stays in the DOM when the card collapses — the body
+ * is hidden by the wrapper's grid row, not unmounted — so a plain `:has(footer)` went on holding
+ * the card's padding off and the collapsed bar sat with its title against its own bottom edge.
+ * The wrapper says whether any of this is on screen; ask it.
+ */
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  ) {
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  )
+  .study-dock-card__header,
+.proto-review-dock
+  .study-dock-card__card:has(
+    .study-dock-card__body-wrap[data-expanded='true'] .proto-review-dock__actions--footer
+  )
+  .proto-review-dock__result-scroll {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.proto-review-dock__actions--footer {
+  flex: 0 0 auto;
+  padding: 10px 12px 12px;
+  border-top: 0.5px solid var(--pds-border-control);
+  background: var(--pds-bg-ghost);
+  /* The card's inner radius: its 18px outer, less the 2px border it draws. */
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+/*
+ * The footer's rule is the card's bottom edge. The verdict draws rules on both of its sides, and
+ * it is usually the last thing in the scroller — so without this the card ends on two hairlines
+ * ten pixels apart, which reads as a seam rather than an edge.
+ */
+.proto-review-dock__result-scroll > :last-child {
+  border-bottom: none;
 }
 
 /* A label and the text it names, kept together as one block. */
@@ -23502,6 +23976,71 @@ button.proto-feed-sheet__stat:hover {
   background-size: 100% 1.5px;
 }
 
+/*
+ * A gap the app filled in after a miss.
+ *
+ * Deliberately neither of the two above: it is not the reader's answer, right or wrong, it is
+ * the one thing they were handed so the next go has somewhere to start. Muted and locked, so it
+ * reads as settled rather than as something still being asked.
+ */
+.proto-review-dock__blank[data-answer='given'] {
+  color: var(--pds-text-secondary);
+  background-image: none;
+  cursor: default;
+}
+
+/*
+ * The initials rung's letter, beside its gap rather than inside it.
+ *
+ * Inside, the reader would have to type around it — the letter is the hint, not part of what the
+ * answer is. `baseline` keeps it sitting on the same line as the words either side, which is what
+ * makes the whole thing still read as a verse.
+ */
+.proto-review-dock__gap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+}
+
+.proto-review-dock__gap-letter {
+  color: var(--pds-text-secondary);
+  font-variant-caps: normal;
+}
+
+/*
+ * "From your Harvous" — where the question came from, under the verdict.
+ *
+ * Set off by a rule rather than a panel: it is the same card still, saying one more thing about
+ * the same question. A boxed block would read as a second card stacked inside the first.
+ */
+.proto-review-dock__context {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proto-review-dock__context-label {
+  margin: 4px 0 0;
+}
+
+/* The reader's own marking, quoted the way the app quotes Scripture back to them. */
+.proto-review-dock__context-quote {
+  font-style: italic;
+}
+
+.proto-review-dock__context-thought {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--pds-text-primary);
+}
+
+/* The line offered after a miss. Sits above the retry line, quieter than it. */
+.proto-review-dock__hint {
+  color: var(--pds-text-secondary);
+  margin-top: 6px;
+}
+
 /* The word you tapped on the altered rung, once the server has marked the tap. */
 .proto-review-dock__altered-word[data-answer='wrong'] {
   background: var(--pds-destructive-bg-strong);
@@ -23595,9 +24134,22 @@ button.proto-feed-sheet__stat:hover {
  * to two lines so a long question cannot push "Next one" below the fold of a card that already
  * scrolls.
  */
+/*
+ * The question, recapped at the top of the result.
+ *
+ * It was secondary at 14px — the same grey as a caption — so the one line that makes the rest of
+ * the card mean anything read as the least important thing on it. "The answer / Moses" says
+ * nothing until "Pick who appears in John 3." is legible above it.
+ *
+ * Full colour, and a rule under it: it is the heading of the card, and the footer's rule gives
+ * the same shape at the other end. Kept at 14px rather than the asking prompt's 15 because it is
+ * a recap of a question already answered, not the question itself.
+ */
 .proto-review-dock__prompt--asked {
   font-size: 14px;
-  color: var(--pds-text-secondary);
+  color: var(--pds-text-primary);
+  padding-bottom: var(--pds-space-2);
+  border-bottom: 0.5px solid var(--pds-border-on-paper);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

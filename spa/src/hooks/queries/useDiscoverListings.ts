@@ -3,6 +3,7 @@ import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useHarvousIdentity } from '../useHarvousIdentity';
 import { useHarvousAdminCheck } from '@/hooks/queries/useVotdPreview';
+import type { CuratedResourceType, CuratedVideo } from '@/data/curated-resources';
 
 /**
  * What a listing looks like to anyone browsing.
@@ -59,6 +60,14 @@ export type DiscoverTemplatePreview = {
    * "Included"); the app's own listing page was still saying a stranger shared it.
    */
   official?: boolean;
+  /**
+   * What a curated reference *is* — a tool, a guide, a video. Written by
+   * `discover-seed-curated-resources` into `preview`, which `serializePublic` emits whole;
+   * absent on everything that is not a curated resource.
+   */
+  resourceType?: CuratedResourceType | null;
+  /** Curated videos only — the id is what a thumbnail and an embed are both built from. */
+  video?: CuratedVideo | null;
 };
 
 export type DiscoverListingsResponse = {
@@ -116,8 +125,46 @@ export function invalidateDiscoverQueries(queryClient: QueryClient) {
   ]);
 }
 
+/** The server's largest page — fewer round trips for a catalog read whole. */
+const DISCOVER_PAGE_LIMIT = 60;
+
+/** How many pages one read will follow before it stops and says there is more. */
+export const DISCOVER_MAX_PAGES = 20;
+
 /**
- * The public catalog.
+ * Every listed row, not the first page of them.
+ *
+ * The app's catalog surfaces filter in memory — by kind, by topic — so they need all of it. This
+ * used to read one page, and the server pages newest-first, 24 at a time: once 29 curated
+ * resources were listed after the six built-in templates, page one was all resources and the
+ * Templates tab came up empty, while harvous.com — built from the unpaged export — showed every
+ * template. So it follows `nextCursor` to the end, merging each page's `installedSlugs`, which
+ * only ever describe that page's own rows.
+ *
+ * Capped, so a cursor that never ends cannot loop forever; `nextCursor` comes back non-null if
+ * the cap is what stopped it.
+ */
+export async function fetchAllDiscoverListings(
+  get: (params: Record<string, string>) => Promise<DiscoverListingsResponse>,
+  base: Record<string, string> = {},
+): Promise<DiscoverListingsResponse> {
+  const listings: DiscoverListing[] = [];
+  const installed = new Set<string>();
+  let cursor: string | null = null;
+  for (let page = 0; page < DISCOVER_MAX_PAGES; page += 1) {
+    const params: Record<string, string> = { ...base, limit: String(DISCOVER_PAGE_LIMIT) };
+    if (cursor) params.cursor = cursor;
+    const response = await get(params);
+    listings.push(...response.listings);
+    for (const slug of response.installedSlugs) installed.add(slug);
+    cursor = response.nextCursor;
+    if (!cursor) break;
+  }
+  return { listings, installedSlugs: [...installed], nextCursor: cursor };
+}
+
+/**
+ * The public catalog, whole — see `fetchAllDiscoverListings`.
  *
  * The endpoint is anonymous, but a *loading* signed-in session is still gated on
  * `useAuthReady()`: the response marks which listings the viewer already has,
@@ -145,9 +192,9 @@ export function useDiscoverListings(
       const params: Record<string, string> = {};
       if (kind) params.kind = kind;
       if (category) params.category = category;
-      return api.get<DiscoverListingsResponse>(
-        '/api/discover/listings',
-        Object.keys(params).length > 0 ? params : undefined,
+      return fetchAllDiscoverListings(
+        (pageParams) => api.get<DiscoverListingsResponse>('/api/discover/listings', pageParams),
+        params,
       );
     },
     enabled: (isGuest || authReady) && enabled,

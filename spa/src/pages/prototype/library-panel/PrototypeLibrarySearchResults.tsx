@@ -7,9 +7,11 @@
  * this reuses the *pure builders* from `sidebar-universal-search` — which is where the
  * search actually lives — and lets the tab supply the filter that used to be a chip.
  *
- * The sidebar's "My Home" scope is deliberately not ported. It is a scope, not a type: it
- * asks "which space", where every tab here asks "which kind". Putting it in this row would
- * make one of the seven mean something different from the other six.
+ * The sidebar's "My Home" scope is not a tab. It is a scope, not a type: it asks "which
+ * space", where every tab here asks "which kind", and putting it in this row would make one
+ * of the seven mean something different from the other six. It comes back instead as a group
+ * of its own under every tab, shown only while a shared space is open — leaving it out
+ * entirely meant that from inside a shared space your own notes could not be found at all.
  *
  * ── Order, and the one place two rules collide ────────────────────────────────────────
  *
@@ -42,9 +44,11 @@ import PrototypeSidebarSearchResultItem from '../PrototypeSidebarSearchResultIte
 import { PrototypeListNoMatchEmptyState } from '../PrototypeListEmptyState';
 import { SIDEBAR_NO_MATCH_COPY } from '../sidebar-no-match-copy';
 import { fuzzyFilter, fuzzyMatches } from '../fuzzy-search';
+import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
 import {
   buildElsewhereResults,
   buildFoldersFromNotes,
+  buildHomeNoteResults,
   buildScriptureReferenceResult,
   mergeFoldersWithRegistry,
   type UniversalSearchData,
@@ -277,6 +281,15 @@ export default function PrototypeLibrarySearchResults({
     'notes',
   );
 
+  /*
+   * My Home, searched alongside a shared space. Unscoped rather than scoped to the Home id:
+   * the server returns everything the viewer authored and `buildHomeNoteResults` keeps the
+   * Home ones. In My Home itself — or with the panel's switch on My Home — the query stays
+   * empty: `isScopedSharedSpace` is false there, and the search above already is Home.
+   */
+  const homeFtsQuery = data.isScopedSharedSpace && data.homeSpaceId ? ftsQuery : '';
+  const homeFtsSearch = useSearch(homeFtsQuery, { excludeLegacyScriptureNotes: true }, 'notes');
+
   const searchData: UniversalSearchData = useMemo(
     () => ({
       notes: data.notes,
@@ -415,17 +428,41 @@ export default function PrototypeLibrarySearchResults({
     return [...rest, ...restResources];
   }, [trimmed, tab, searchData, visibleResults, resources]);
 
-  const ftsLoading = ftsSearch.isLoading && Boolean(ftsQuery);
+  /* Everything already painted above, so a Home note that is also in this space shows once. */
+  const homeResults = useMemo(() => {
+    if (!trimmed || !homeFtsQuery) return [];
+    const shown = new Set([...visibleResults, ...elsewhereRest].map((r) => r.id));
+    return buildHomeNoteResults(homeFtsSearch.data?.results, data.homeSpaceId, shown);
+  }, [trimmed, homeFtsQuery, visibleResults, elsewhereRest, homeFtsSearch.data?.results, data.homeSpaceId]);
+
+  /* Home notes are not in the open space's loaded list, so their rows read the search hit
+     for the timestamp and preview a loaded note would have supplied. */
+  const homeNotesById = useMemo(() => {
+    const map = new Map<string, SpaceNoteRow>();
+    for (const hit of homeFtsSearch.data?.results ?? []) {
+      if (hit.type !== 'note') continue;
+      map.set(hit.id, {
+        id: hit.id,
+        title: hit.title,
+        content: hit.content ?? '',
+        updatedAt: hit.lastUpdated ?? null,
+      } as SpaceNoteRow);
+    }
+    return map;
+  }, [homeFtsSearch.data?.results]);
+
+  const ftsLoading =
+    (ftsSearch.isLoading && Boolean(ftsQuery)) || (homeFtsSearch.isLoading && Boolean(homeFtsQuery));
 
   /*
    * Report what this query found, once it has actually finished finding it.
    *
    * Gated on `ftsLoading` because the count is the point: firing while the request is in
    * flight would report the local matches alone and stamp a term with a number it never
-   * showed. Both lists are counted — a query whose only hits are in the "everywhere else"
-   * group still found something.
+   * showed. Every list is counted — a query whose only hits are in the "everywhere else" or
+   * My Home group still found something.
    */
-  const settledCount = visibleResults.length + elsewhereRest.length;
+  const settledCount = visibleResults.length + elsewhereRest.length + homeResults.length;
   useEffect(() => {
     if (!trimmed || ftsLoading) return;
     onResultsSettled?.({ query: trimmed, count: settledCount });
@@ -621,6 +658,31 @@ export default function PrototypeLibrarySearchResults({
                   active={result.kind === 'note' && result.noteId === data.activeNoteFullId}
                   onActivate={() => activate(result)}
                   notesById={data.notesById}
+                  highlightsById={highlightsById}
+                />
+              ))}
+            </ul>
+          </ResultGroup>
+        ) : null}
+
+        {/* Last, because it answers a different question — not "what else is in this space"
+            but "what did I write at home" — and the open space's own answer comes first. */}
+        {homeResults.length > 0 ? (
+          <ResultGroup heading="My Home">
+            <ul className="proto-note-list">
+              {homeResults.map((result) => (
+                <PrototypeSidebarSearchResultItem
+                  key={result.id}
+                  result={result}
+                  active={result.noteId === data.activeNoteFullId}
+                  onActivate={() => {
+                    if (!result.noteId) return;
+                    data.openHomeNote(
+                      homeNotesById.get(result.noteId) ??
+                        ({ id: result.noteId, title: result.title } as SpaceNoteRow),
+                    );
+                  }}
+                  notesById={homeNotesById}
                   highlightsById={highlightsById}
                 />
               ))}

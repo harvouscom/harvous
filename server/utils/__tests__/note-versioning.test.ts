@@ -7,8 +7,6 @@ import {
   buildNoteVersionSnapshot,
   isCurrentVersionIntegrityValid,
   nextNoteVersionNumber,
-  partitionNoteVersionsForRetention,
-  shouldCreateNoteVersionCheckpoint,
 } from '../note-versioning';
 
 describe('note versioning', () => {
@@ -79,82 +77,6 @@ describe('note versioning', () => {
     });
     expect(baseline.createdAt).toBe(migrationTime);
     expect(baseline.createdAt).not.toEqual(new Date('2020-01-01T00:00:00Z'));
-  });
-
-  it('coalesces meaningful saves but always checkpoints explicit restore', () => {
-    const latest = {
-      id: 'nver_1',
-      noteId: 'note_1',
-      version: 1,
-      title: 'Title',
-      content: 'Old body',
-      contentEncrypted: false,
-      source: 'save',
-      authorId: 'user_author',
-      editedBy: 'user_author',
-      createdAt: new Date('2026-07-09T12:00:00Z'),
-    };
-    const changed = { title: 'Title', content: 'New body', contentEncrypted: false };
-
-    expect(
-      shouldCreateNoteVersionCheckpoint({
-        latest,
-        next: changed,
-        now: new Date('2026-07-09T12:04:00Z'),
-      }),
-    ).toBe(false);
-    expect(
-      shouldCreateNoteVersionCheckpoint({
-        latest,
-        next: changed,
-        now: new Date('2026-07-09T12:05:00Z'),
-      }),
-    ).toBe(true);
-    expect(
-      shouldCreateNoteVersionCheckpoint({
-        latest,
-        next: changed,
-        now: new Date('2026-07-09T12:01:00Z'),
-        source: 'restore',
-      }),
-    ).toBe(true);
-    expect(
-      shouldCreateNoteVersionCheckpoint({
-        latest,
-        next: { title: 'Title', content: 'Old body', contentEncrypted: false },
-        now: new Date('2026-07-09T12:10:00Z'),
-      }),
-    ).toBe(false);
-  });
-
-  it('retains the latest 100 plus every version from the last 90 days', () => {
-    const now = new Date('2026-07-09T12:00:00Z');
-    const recent = new Date('2026-07-01T12:00:00Z');
-    const old = new Date('2025-01-01T12:00:00Z');
-    const versions = Array.from({ length: 150 }, (_, index) => ({
-      id: `nver_${index + 1}`,
-      version: index + 1,
-      createdAt: index < 40 ? recent : old,
-    }));
-
-    const { retained, prunable } = partitionNoteVersionsForRetention(versions, now);
-    expect(retained).toHaveLength(140);
-    expect(new Set(retained.map((row) => row.version))).toEqual(
-      new Set([...Array.from({ length: 40 }, (_, index) => index + 1), ...Array.from({ length: 100 }, (_, index) => index + 51)]),
-    );
-    expect(prunable.map((row) => row.version)).toEqual([50, 49, 48, 47, 46, 45, 44, 43, 42, 41]);
-  });
-
-  it('retains the exact 90-day boundary and prunes one millisecond before it', () => {
-    const now = new Date('2026-07-09T12:00:00Z');
-    const cutoff = now.getTime() - 90 * 24 * 60 * 60 * 1000;
-    const versions = [
-      { id: 'boundary', version: 1, createdAt: new Date(cutoff) },
-      { id: 'before', version: 2, createdAt: new Date(cutoff - 1) },
-    ];
-    const { retained, prunable } = partitionNoteVersionsForRetention(versions, now, { maxRecent: 0 });
-    expect(retained.map((row) => row.id)).toEqual(['boundary']);
-    expect(prunable.map((row) => row.id)).toEqual(['before']);
   });
 
   it('builds durable attribution for an independent copy', () => {

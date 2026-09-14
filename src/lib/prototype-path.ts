@@ -83,6 +83,12 @@ const NON_PROTOTYPE_PREFIXES = [
   // route nothing serves.
   '/discover/',
   '/api/',
+  // The public listing page, `/discover/{slug}` — the install action only; the
+  // in-app catalog is an expanded-sidebar tool with no route of its own. Without
+  // this a dedicated-host visit (app.harvous.com, localhost) reads as prototype
+  // shell, which wrongly suppresses the global toast (`shouldSuppressAppToasts`)
+  // on the one public page that needs it to celebrate a signed-in install.
+  '/discover/',
 ];
 
 function isNonPrototypeAppPath(logical: string): boolean {
@@ -108,6 +114,7 @@ export function isPublicAppPath(pathname: string): boolean {
       logical.startsWith('/shared/') ||
       logical.startsWith('/discover/') ||
       logical.startsWith('/invitations/') ||
+      logical.startsWith('/discover/') ||
       logical === '/upgrade' ||
       logical.startsWith('/upgrade/') ||
       logical === '/addon' ||

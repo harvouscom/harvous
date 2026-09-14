@@ -7,7 +7,7 @@
  * own files; the remaining four are small enough to stay here beside the switch that picks
  * them.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import PrototypeListEmptyState from '../PrototypeListEmptyState';
 import PrototypeLibrarySegmented from './PrototypeLibrarySegmented';
 import { SIDEBAR_NO_MATCH_COPY } from '../sidebar-no-match-copy';
@@ -33,6 +33,7 @@ import {
   LibraryThreadCards,
 } from './library-panel-lists';
 import { useLibraryPanelData } from './library-panel-data';
+import { libraryBrowseMyHomeAction } from './library-browse-my-home-action';
 
 export default function PrototypeLibraryTabView({
   tab,
@@ -80,6 +81,7 @@ function NotesSection({ selection }: { selection: LibrarySelection }) {
         iconName="note-sticky"
         title="No Notes"
         description="Create your first note to get started."
+        action={libraryBrowseMyHomeAction(data)}
       />
     );
   }
@@ -122,7 +124,7 @@ function ThreadsSection({ selection }: { selection: LibrarySelection }) {
 
   if (data.isScopedSharedSpace) {
     const threads = groupQuery.data ?? [];
-    if (threads.length === 0) return <NoThreads />;
+    if (threads.length === 0) return <NoThreads action={libraryBrowseMyHomeAction(data)} />;
     return <LibrarySharedThreadCards threads={threads} onOpen={open} />;
   }
   const clusters = clustersQuery.data ?? [];
@@ -130,12 +132,13 @@ function ThreadsSection({ selection }: { selection: LibrarySelection }) {
   return <LibraryThreadCards clusters={clusters} onOpen={open} selection={selection} />;
 }
 
-function NoThreads() {
+function NoThreads({ action }: { action?: ReactNode }) {
   return (
     <PrototypeListEmptyState
       iconName="arrow-right-arrow-left"
       title="No Threads"
       description="Connect notes to each other and the Threads they form gather here."
+      action={action}
     />
   );
 }
@@ -170,6 +173,7 @@ function HighlightsSection({ selection }: { selection: LibrarySelection }) {
             ? 'Selections and passage highlights from notes in this space appear here.'
             : 'Selections and passage highlights from your notes appear here.'
         }
+        action={libraryBrowseMyHomeAction(data)}
       />
     );
   }

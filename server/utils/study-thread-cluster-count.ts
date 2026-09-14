@@ -13,6 +13,7 @@ import {
 } from '../db';
 import { countableUserNotesWhere } from './purge-onboarding-content';
 import { isNoteConnectionsTableMissing, isStudyThreadNamingColumnMissing } from './pg-undefined-relation';
+import { noteConnectionEndpointsLive } from './live-note-connections';
 import {
   countStudyThreadClustersFromGraph,
   pickRepNoteIdFromGraph,
@@ -30,7 +31,7 @@ async function fetchUserClusterInputs(userId: string): Promise<{
     db
       .select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId })
       .from(NoteConnections)
-      .where(eq(NoteConnections.userId, userId)),
+      .where(and(eq(NoteConnections.userId, userId), noteConnectionEndpointsLive())),
     db
       .select({ id: Notes.id })
       .from(Notes)
@@ -85,7 +86,8 @@ export async function countStudyThreadClustersPlatform(): Promise<number> {
           fromNoteId: NoteConnections.fromNoteId,
           toNoteId: NoteConnections.toNoteId,
         })
-        .from(NoteConnections),
+        .from(NoteConnections)
+        .where(noteConnectionEndpointsLive()),
       db
         .select({ userId: Notes.userId, id: Notes.id })
         .from(Notes)

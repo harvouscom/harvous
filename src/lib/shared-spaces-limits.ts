@@ -14,12 +14,14 @@ export const OWNED_SHARED_SPACES_ADDON_LIMIT = UNLIMITED;
 export const MEMBERS_PER_SPACE_CAP = 12;
 
 /**
- * Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short.
+ * Feature bullets on /upgrade and Settings › Plan — purchase / inactive copy. Keep short and
+ * to one line — matches the cards on harvous.com/pricing, where the same width constraint
+ * made the wording explicit; keep the two in sync when either changes.
  *
- * Review leads, because since 3.0 it is what someone is buying: hosting is
- * social and needs a group, while returning to your own study works for one
- * person on the day they pay. It was appended at the end when it shipped; that
- * was a plumbing decision, and this is the ordering one.
+ * History leads the two personal-return features, ahead of Review: it needs no explanation
+ * of a mechanic to land on sight, where Review does. Hosting (Unlimited shared spaces
+ * onward) is social and needs a group, so it comes after both — study you return to alone,
+ * then study you return to together.
  *
  * Challenges is absent because it is in `WITHHELD_FEATURES` — switched off for
  * everyone at both enforcement points (`hasEntitlementForUserId` and
@@ -33,10 +35,11 @@ export const MEMBERS_PER_SPACE_CAP = 12;
  */
 export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
   'Everything in free',
-  'Review — time-based quizzes that help you remember what you have studied',
+  'Unlimited history',
+  'Review exercises',
   'Unlimited shared spaces',
   `Up to ${MEMBERS_PER_SPACE_CAP} people per space`,
-  'Turn a thread into a study plan your group reads together',
+  'Turn a thread into a shared study plan',
   'Joining is always free',
 ] as const;
 
@@ -47,9 +50,10 @@ export const SHARED_SPACES_ADDON_FEATURE_BULLETS = [
  *
  * Was 3 while Challenges sat above this line; dropping that bullet moved the
  * owned-spaces line up one, and leaving this at 3 would have rewritten the
- * member cap with a space count instead.
+ * member cap with a space count instead. Still 3: History and Review later
+ * swapped places above it, which moves nothing at or below this index.
  */
-const OWNED_SPACES_BULLET_INDEX = 2;
+const OWNED_SPACES_BULLET_INDEX = 3;
 
 /** Purchase-copy line for owned spaces. */
 const OWNED_SPACES_PURCHASE_BULLET =

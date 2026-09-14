@@ -24,6 +24,8 @@ import {
   REVIEW_REMOVE_FAILED_TOAST,
   REVIEW_RESUMED_TOAST,
   REVIEW_FEEDBACK_FAILED_TOAST,
+  REVIEW_OUTCOME_FAILED_TOAST,
+  REVIEW_STEP_BACK_FAILED_TOAST,
 } from '../../pages/prototype/proto-review-copy';
 import type { ReviewItemKind, ReviewItemStatus, ReviewOutcome } from '@/utils/review-item-kinds';
 
@@ -72,6 +74,15 @@ export interface ReviewOutcomeResponse {
   correctAnswer?: string;
   parts?: boolean[];
   reached?: { matched: number; total: number };
+  /**
+   * One thing to go on for the next try, sent only while there is a go left. Never on a
+   * finalized answer, which carries the answer itself.
+   */
+  hint?:
+    | { kind: 'blank'; index: number; word: string }
+    | { kind: 'lead'; text: string }
+    | { kind: 'word'; word: string }
+    | { kind: 'letter'; letter: string };
   leech?: boolean;
   /** The item has never once been recalled; the offer is worded for that. */
   stalled?: boolean;
@@ -100,8 +111,17 @@ export function useReviewOutcome() {
       }
       return { previous };
     },
-    onError: (_err, _input, context) => {
+    /*
+     * Put the queue back, and say so.
+     *
+     * The rollback was here from the start and the telling was not, which made this the quietest
+     * failure in the feature: the question stays on screen either way, so a lost answer looked
+     * exactly like a tap that had not registered. The card holds its question (see the dock) so
+     * the reader can simply answer again.
+     */
+    onError: (error, _input, context) => {
       if (context?.previous) queryClient.setQueryData(reviewSessionQueryKey, context.previous);
+      toastError(error, REVIEW_OUTCOME_FAILED_TOAST, { scope: 'review-outcome' });
     },
     onSuccess: (data, _input, context) => {
       if (data.finalized === false && context?.previous) {
@@ -168,6 +188,9 @@ export function useStepBackReview() {
       api.post<{ item: ReviewItemView }>(`/api/review/items/${encodeURIComponent(itemId)}/step-back`, {}),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: reviewQueryKey });
+    },
+    onError: (error) => {
+      toastError(error, REVIEW_STEP_BACK_FAILED_TOAST, { scope: 'review-step-back' });
     },
   });
 }

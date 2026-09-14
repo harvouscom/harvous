@@ -111,7 +111,20 @@ export interface PrototypeSermonEditorFieldsProps {
    * every entry deliberately. Absent, or with a null interval, the field behaves
    * exactly as it did before: one seeded default and a picker.
    */
-  rhythm?: { meetingDay: number | null; intervalDays: number | null };
+  rhythm?: {
+    meetingDay: number | null;
+    intervalDays: number | null;
+    /**
+     * The room's own hour, for the collapsed **When** summary only.
+     *
+     * Never written to the row: every space lane stores `serviceTime: null`,
+     * because the hour belongs to the room's rhythm rather than to one study.
+     * It is here so the summary can answer "when" completely while closed —
+     * the room's card already says "This Tuesday · 7:00 PM", and a chip that
+     * dropped the hour made the two surfaces disagree.
+     */
+    meetingTime?: string | null;
+  };
   /**
    * Extra fields rendered at the end of the scrolling region, above the footer.
    * The compact sheet puts the resources picker here; the docked pane scrolls
@@ -228,10 +241,35 @@ export default function PrototypeSermonEditorFields({
   const [seriesId, setSeriesId] = useState<string | null>(null);
   const [reference, setReference] = useState('');
   const [starterTemplateId, setStarterTemplateId] = useState('');
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  /*
+    Whether the When section is expanded.
+
+    **Open on the church's plan, closed on a room's.** On the church's own plan
+    a sermon genuinely *is* a slot on a Sunday, and the slots to tick live in
+    this section — collapsing it would hide the control that decides which of
+    two Sunday services hears the sermon. A room's date is already implied by
+    its rhythm, so there the section opens only when asked.
+
+    An undated idea opens it regardless: giving the thing a date is the whole
+    reason to open an idea, and `createDefaultDate: null` is what the board's
+    Ideas column passes.
+  */
+  const [whenOpen, setWhenOpen] = useState(
+    () => planSpaceId == null || createDefaultDate === null,
+  );
   /** "Repeat weekly" is closed until asked for — most sermons are one week. */
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [repeatWeeks, setRepeatWeeks] = useState(7);
+  /**
+   * How many weeks a *new* study runs, counted inclusively — 1 is a one-off.
+   *
+   * A study that runs eight weeks is one decision, and it was previously two
+   * sittings: create the first week, reopen it, then find "Repeat weekly". The
+   * run length is a property of the study, so it is asked while the study is
+   * being described. Defaults to 1 because most entries are one week and the
+   * common path must stay a single click.
+   */
+  const [createWeeks, setCreateWeeks] = useState(1);
   /** Not an error: the run may have been cut short and still be a success. */
   const [notice, setNotice] = useState<string | null>(null);
   const [seriesListOpen, setSeriesListOpen] = useState(false);
@@ -262,8 +300,14 @@ export default function PrototypeSermonEditorFields({
     const row = serviceRef.current;
     setError(null);
     setNotice(null);
-    setDatePickerOpen(false);
+    /*
+      Back to the lane's default rather than flatly closed. Retargeting the
+      docked pane at another row re-runs this, and forcing it shut would collapse
+      the church lane's slot pickers — the one section that lane needs open.
+    */
+    setWhenOpen(planSpaceId == null || (row ? !row.serviceDate : createDefaultDate === null));
     setRepeatOpen(false);
+    setCreateWeeks(1);
     setSeriesListOpen(false);
     setServiceDate(
       row
@@ -281,7 +325,7 @@ export default function PrototypeSermonEditorFields({
     setStarterTemplateId(row?.starterTemplateId ?? '');
     setPickedNoteId(row?.viewerDraftNoteId ?? null);
     setPickedNoteTitle(row?.viewerDraftNoteTitle ?? null);
-  }, [active, serviceKey, createDefaultDate]);
+  }, [active, serviceKey, createDefaultDate, planSpaceId]);
 
   /*
     Drop any service that no longer falls on the chosen day.
@@ -306,12 +350,12 @@ export default function PrototypeSermonEditorFields({
   // The calendar is taller than the body it opens into, so opening it would
   // otherwise leave most of it below the fold.
   useEffect(() => {
-    if (!datePickerOpen) return;
+    if (!whenOpen) return;
     const raf = requestAnimationFrame(() => {
       datePickerRef.current?.scrollIntoView({ block: 'nearest' });
     });
     return () => cancelAnimationFrame(raf);
-  }, [datePickerOpen]);
+  }, [whenOpen]);
 
   /*
     Passage history is prep, never a gate on saving. Debounced so a half-typed
@@ -364,7 +408,7 @@ export default function PrototypeSermonEditorFields({
   */
   useEffect(() => {
     onLayoutChange?.();
-  }, [onLayoutChange, serviceDate, title, datePickerOpen, showSeriesList, historyNotes.length]);
+  }, [onLayoutChange, serviceDate, title, whenOpen, showSeriesList, historyNotes.length]);
 
   /*
     The church's templates belong to a plan the church is behind — its own, or a
@@ -437,6 +481,53 @@ export default function PrototypeSermonEditorFields({
   const sameDaySlots = serviceDate ? serviceTimes.filter((slot) => slot.dayOfWeek === chosenDay) : [];
   const isEditing = Boolean(service);
   const isUnscheduled = !serviceDate;
+  /**
+   * The church's own plan, as opposed to any room's.
+   *
+   * `planKind` separates a channel from a room; this separates both from the
+   * church. Only `spaceId IS NULL` rows can carry a `serviceTime` or claim a
+   * recurring slot — every space lane writes `serviceTime: null` server-side.
+   */
+  const isChurchLane = planSpaceId == null;
+
+  /*
+    What the collapsed When section says.
+
+    Reuses the same two formatters the card and the list already render dates
+    and times with, so the summary cannot drift from what the plan shows
+    elsewhere. The slot labels win over a one-off time for the same reason the
+    card prefers them: a sermon at the usual 10:45 is at the usual service, and
+    the one-off column only speaks when no usual service applies.
+  */
+  const whenSummary = useMemo(() => {
+    if (isUnscheduled) return 'No date yet';
+    const day = formatServiceDate(serviceDate);
+    const claimed = serviceTimes.filter((slot) => serviceTimeIds.includes(slot.id));
+    if (claimed.length > 0) {
+      return `${day} · ${claimed.map((slot) => formatServiceTime(slot.startTime)).join(', ')}`;
+    }
+    if (serviceTime) return `${day} · ${formatServiceTime(serviceTime)}`;
+    /* A room's standing hour. Display only — see `rhythm.meetingTime`. */
+    if (rhythm?.meetingTime) return `${day} · ${formatServiceTime(rhythm.meetingTime)}`;
+    return day;
+  }, [isUnscheduled, serviceDate, serviceTimes, serviceTimeIds, serviceTime, rhythm?.meetingTime]);
+
+  /*
+    Fold the section back up once the date is settled — but only when the date
+    is all it holds.
+
+    On a room's plan it is: there are no slots and no one-off time, so picking a
+    date has answered the whole question. On the church's plan the slots sit
+    underneath and are the next thing to tick, so collapsing there would hide
+    the control the pastor came for. `chosenDay` cannot be reused here because
+    it is derived from the *current* `serviceDate`, and this runs while that
+    state update is still pending.
+  */
+  const collapseWhenSettled = (iso: string) => {
+    const day = parseLocalDateInput(iso)?.getDay() ?? null;
+    const slotsForDay = serviceTimes.filter((slot) => slot.dayOfWeek === day);
+    if (slotsForDay.length === 0 && !isChurchLane) setWhenOpen(false);
+  };
   const canSubmit =
     title.trim().length > 0 && (Boolean(serviceDate) || allowNullDate) && !actions.isPending;
 
@@ -518,6 +609,47 @@ export default function PrototypeSermonEditorFields({
         );
         return;
       }
+
+      /*
+        The rest of the run, through the same route "Repeat weekly" uses.
+
+        **Deliberately a second write rather than a `weeks` field on create.**
+        The repeat route already owns the weekly arithmetic, the 12-week cap,
+        and the rule that it stops at the first date already spoken for — and
+        that route is contract-tested. A `weeks` parameter on create would
+        restate all of it and force a fresh decision about whether a mid-run
+        collision should abort a study whose first week is perfectly good.
+
+        The cost is that this is **not atomic**, and the handling below is the
+        whole point: a four-week study whose third week is taken leaves three
+        real rows, which is a short plan rather than a failed one. It reports
+        what it managed and leaves the editor open so the gap is visible. Only
+        a run that completed closes the editor.
+      */
+      if (!isEditing && serviceId && createWeeks > 1) {
+        try {
+          const res = await actions.mutateAsync({
+            kind: 'repeat',
+            serviceId,
+            weeks: createWeeks - 1,
+          });
+          const result = res as { services?: unknown[]; stoppedAt?: string | null };
+          if (result?.stoppedAt) {
+            const added = (result?.services?.length ?? 0) + 1;
+            setNotice(
+              `Planned ${added} of ${createWeeks} weeks. Stopped at ${formatServiceDate(result.stoppedAt)} — something is already planned then.`,
+            );
+            return;
+          }
+        } catch {
+          /* The study itself saved; only the run fell short. Naming the first
+             week keeps this a partial success rather than an error. */
+          setNotice(
+            `Saved the first week, but the rest of the run didn't plan. Open it again to repeat.`,
+          );
+          return;
+        }
+      }
       onDone();
     })();
   };
@@ -572,167 +704,6 @@ export default function PrototypeSermonEditorFields({
   return (
     <>
       <div className="proto-service-editor">
-        {/*
-          The calendar used to be open permanently: 394px of a 520px modal for
-          the one field that already has a sensible default (the coming Sunday),
-          which pushed the title, the passage and the save button off screen. It
-          opens on demand now, and closes as soon as a date is chosen.
-        */}
-        <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
-          Date
-        </label>
-        <div className="proto-service-editor__date-row">
-          <button
-            type="button"
-            className="proto-service-editor__date-chip"
-            aria-expanded={datePickerOpen}
-            onClick={() => setDatePickerOpen((open) => !open)}
-          >
-            <Icon name="calendar" size={12} aria-hidden />
-            <span className="proto-service-editor__date-value">{formatServiceDate(serviceDate)}</span>
-            <Icon name={datePickerOpen ? 'caret-up' : 'caret-down'} size={10} aria-hidden />
-          </button>
-          {/*
-            Unscheduling from inside the form, for the keyboard path the board's
-            drag covers with a mouse. Hidden when there is no date to clear.
-          */}
-          {allowNullDate && !isUnscheduled ? (
-            <button
-              type="button"
-              className="proto-sheet-quiet-action"
-              onClick={() => {
-                setServiceDate('');
-                setDatePickerOpen(false);
-              }}
-            >
-              Move to ideas
-            </button>
-          ) : null}
-        </div>
-        {/*
-          The room's own rhythm, offered as dates.
-
-          `schema.ts` says of `meetingDay`/`publishCadence`: "Nothing here
-          schedules, reminds, or recurs; whoever runs the room still enters every
-          gathering by hand." That stays true — this only stops them retyping a
-          date the room already declares. Nothing recurs and nothing fires.
-
-          Only while creating: an existing entry has a date, and offering to move
-          it onto the rhythm is a different question nobody asked.
-        */}
-        {!service && rhythmSuggestions.length > 0 ? (
-          <div className="proto-rhythm-dates">
-            {rhythmSuggestions.map((iso) => (
-              <button
-                key={iso}
-                type="button"
-                className={`proto-chip${iso === serviceDate ? ' proto-chip--selected' : ''}`}
-                aria-pressed={iso === serviceDate}
-                onClick={() => {
-                  setServiceDate(iso);
-                  setDatePickerOpen(false);
-                }}
-              >
-                {formatServiceDate(iso)}
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {datePickerOpen ? (
-          <div ref={datePickerRef}>
-            <ProtoDatePicker
-              value={serviceDate}
-              min={earliestSelectableDate()}
-              onChange={(iso) => {
-                setServiceDate(iso);
-                // Picking a date is the whole reason it was open.
-                setDatePickerOpen(false);
-              }}
-              aria-label={`${noun.charAt(0).toUpperCase()}${noun.slice(1)} date`}
-            />
-          </div>
-        ) : null}
-
-        {/*
-          Checkboxes, not a single select: one sermon is preached at both Sunday
-          morning services, while the evening service hears a different one.
-          Only the chosen day's services are offered — a Sunday sermon has no
-          business claiming the Wednesday slot, and an undated idea has no day
-          to claim one on at all.
-        */}
-        {sameDaySlots.length > 0 ? (
-          <>
-            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
-              <span>Preached at</span>
-              <span className="proto-service-editor__optional">optional</span>
-            </label>
-            <div className="proto-service-editor__slots" role="group" aria-label="Services">
-              {sameDaySlots.map((slot) => {
-                const checked = serviceTimeIds.includes(slot.id);
-                return (
-                  <label key={slot.id} className="proto-service-editor__slot">
-                    {/*
-                      The input stays and stays real — it carries the checked
-                      state, the keyboard, and the label association. It is
-                      visually replaced, not removed, so the orb the rest of
-                      the app selects with is what you see here too.
-                    */}
-                    <input
-                      type="checkbox"
-                      className="proto-service-editor__slot-input"
-                      checked={checked}
-                      onChange={() =>
-                        setServiceTimeIds((ids) =>
-                          checked ? ids.filter((id) => id !== slot.id) : [...ids, slot.id],
-                        )
-                      }
-                    />
-                    <span className="proto-service-editor__slot-orb" aria-hidden>
-                      {checked ? (
-                        <span className="proto-accent-check-orb proto-accent-check-orb--selected">
-                          <Icon name="check" size={9} />
-                        </span>
-                      ) : (
-                        <span className="proto-select-orb-idle" />
-                      )}
-                    </span>
-                    <span>
-                      {formatServiceTime(slot.startTime)}
-                      {slot.label ? ` · ${slot.label}` : ''}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </>
-        ) : null}
-
-        {/*
-          The escape hatch, shown only when no usual service applies: a
-          Christmas Eve at 17:00 should not become a permanent Thursday slot on
-          the church's week. `<input type="time">` ignores placeholder, so the
-          hint has to be a sibling caption.
-        */}
-        {!isUnscheduled && planKind !== 'content' && serviceTimeIds.length === 0 ? (
-          <>
-            <label
-              className="proto-inspector-section-title proto-create-folder-sheet__field-label"
-              htmlFor="proto-service-time"
-            >
-              <span>{sameDaySlots.length > 0 ? 'Or a one-off time' : 'Time'}</span>
-              <span className="proto-service-editor__optional">optional</span>
-            </label>
-            <input
-              id="proto-service-time"
-              type="time"
-              className="proto-create-folder-sheet__name-input"
-              value={serviceTime}
-              onChange={(e) => setServiceTime(e.target.value)}
-            />
-          </>
-        ) : null}
-
         <label
           className="proto-inspector-section-title proto-create-folder-sheet__field-label"
           htmlFor="proto-service-title"
@@ -889,6 +860,236 @@ export default function PrototypeSermonEditorFields({
             </p>
           ) : null}
         </div>
+
+        {/*
+          How long this study runs, asked while the study is being described.
+
+          A run is a property of the study rather than of a date: "we're doing
+          eight weeks in Romans" is one decision, and it used to take two
+          sittings — save week one, reopen it, find "Repeat weekly" under the
+          footer. That control stays for a run decided later, which is a real
+          case; this one is for a run decided up front.
+
+          Only on create, and only with a date to count from. An undated idea
+          has no first week, and the repeat route refuses one outright ("Give
+          this study a date first"), so offering the choice there would promise
+          something the server declines.
+        */}
+        {!isEditing && !isUnscheduled ? (
+          <>
+            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              <span>How long</span>
+              <span className="proto-service-editor__optional">optional</span>
+            </label>
+            <ProtoSelectMenu
+              label="How long this study runs"
+              className="proto-service-editor__weeks-select"
+              value={createWeeks}
+              disabled={actions.isPending}
+              onChange={setCreateWeeks}
+              /* Totals, not "more weeks" — on create the first week does not
+                 exist yet, so "4 weeks" is the whole study rather than five.
+                 The edit-side control counts the other way for the same reason,
+                 and each says which in its own label. */
+              options={[1, 4, 6, 8, 12].map((weeks) => ({
+                value: weeks,
+                label: weeks === 1 ? 'Just this week' : `${weeks} weeks`,
+              }))}
+            />
+            {createWeeks > 1 ? (
+              <p className="proto-caption proto-service-editor__series-hint">
+                {`Plans ${createWeeks} weekly entries from ${formatServiceDate(serviceDate)}.`}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+
+        {/*
+          When, and everything that sets it — the date, the room's rhythm, the
+          calendar, the church's service slots, a one-off time.
+
+          **Last, and collapsed on a room's plan.** What a room decides is what
+          it is going to *study*; when it meets is an attribute of that, and one
+          the room has usually already declared as its rhythm — so the date
+          arrives correct and the section only has to say so. It led the form
+          for one historical reason: on the church's plan a sermon really is a
+          slot on a Sunday, and that lane still opens expanded (see `whenOpen`).
+
+          The calendar itself stays on demand for the reason it always was:
+          394px of a 520px modal for a field that already has a sensible
+          default pushed the title, the passage and the save button off screen.
+        */}
+        <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+          When
+        </label>
+        <div className="proto-service-editor__date-row">
+          {/*
+            The chip is the whole section's control, not just the calendar's.
+            It already read as "the current selection first, a control second",
+            which is exactly what a collapsed When needs to be — so there is no
+            second disclosure header above it duplicating the value it shows.
+          */}
+          <button
+            type="button"
+            className="proto-service-editor__date-chip"
+            aria-expanded={whenOpen}
+            onClick={() => setWhenOpen((open) => !open)}
+          >
+            <Icon name="calendar" size={12} aria-hidden />
+            <span className="proto-service-editor__date-value">{whenSummary}</span>
+            <Icon name={whenOpen ? 'caret-up' : 'caret-down'} size={10} aria-hidden />
+          </button>
+          {/*
+            Unscheduling from inside the form, for the keyboard path the board's
+            drag covers with a mouse. Hidden when there is no date to clear.
+          */}
+          {allowNullDate && !isUnscheduled ? (
+            <button
+              type="button"
+              className="proto-sheet-quiet-action"
+              onClick={() => {
+                setServiceDate('');
+                setWhenOpen(true);
+              }}
+            >
+              Move to ideas
+            </button>
+          ) : null}
+        </div>
+        {/*
+          The room's own rhythm, offered as dates.
+
+          `schema.ts` says of `meetingDay`/`publishCadence`: "Nothing here
+          schedules, reminds, or recurs; whoever runs the room still enters every
+          gathering by hand." That stays true — this only stops them retyping a
+          date the room already declares. Nothing recurs and nothing fires.
+
+          Only while creating: an existing entry has a date, and offering to move
+          it onto the rhythm is a different question nobody asked.
+        */}
+        {whenOpen && !service && rhythmSuggestions.length > 0 ? (
+          <div className="proto-rhythm-dates">
+            {rhythmSuggestions.map((iso) => (
+              <button
+                key={iso}
+                type="button"
+                className={`proto-chip${iso === serviceDate ? ' proto-chip--selected' : ''}`}
+                aria-pressed={iso === serviceDate}
+                onClick={() => {
+                  setServiceDate(iso);
+                  collapseWhenSettled(iso);
+                }}
+              >
+                {formatServiceDate(iso)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {whenOpen ? (
+          <div ref={datePickerRef}>
+            <ProtoDatePicker
+              value={serviceDate}
+              min={earliestSelectableDate()}
+              onChange={(iso) => {
+                setServiceDate(iso);
+                /* Picking a date is the whole reason it was open — but only on
+                   a plan where the date is all this section holds. The church's
+                   lane still has slots to tick underneath. */
+                collapseWhenSettled(iso);
+              }}
+              aria-label={`${noun.charAt(0).toUpperCase()}${noun.slice(1)} date`}
+            />
+          </div>
+        ) : null}
+
+        {/*
+          Checkboxes, not a single select: one sermon is preached at both Sunday
+          morning services, while the evening service hears a different one.
+          Only the chosen day's services are offered — a Sunday sermon has no
+          business claiming the Wednesday slot, and an undated idea has no day
+          to claim one on at all.
+        */}
+        {whenOpen && sameDaySlots.length > 0 ? (
+          <>
+            <label className="proto-inspector-section-title proto-create-folder-sheet__field-label">
+              <span>Preached at</span>
+              <span className="proto-service-editor__optional">optional</span>
+            </label>
+            <div className="proto-service-editor__slots" role="group" aria-label="Services">
+              {sameDaySlots.map((slot) => {
+                const checked = serviceTimeIds.includes(slot.id);
+                return (
+                  <label key={slot.id} className="proto-service-editor__slot">
+                    {/*
+                      The input stays and stays real — it carries the checked
+                      state, the keyboard, and the label association. It is
+                      visually replaced, not removed, so the orb the rest of
+                      the app selects with is what you see here too.
+                    */}
+                    <input
+                      type="checkbox"
+                      className="proto-service-editor__slot-input"
+                      checked={checked}
+                      onChange={() =>
+                        setServiceTimeIds((ids) =>
+                          checked ? ids.filter((id) => id !== slot.id) : [...ids, slot.id],
+                        )
+                      }
+                    />
+                    <span className="proto-service-editor__slot-orb" aria-hidden>
+                      {checked ? (
+                        <span className="proto-accent-check-orb proto-accent-check-orb--selected">
+                          <Icon name="check" size={9} />
+                        </span>
+                      ) : (
+                        <span className="proto-select-orb-idle" />
+                      )}
+                    </span>
+                    <span>
+                      {formatServiceTime(slot.startTime)}
+                      {slot.label ? ` · ${slot.label}` : ''}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+
+        {/*
+          The escape hatch, shown only when no usual service applies: a
+          Christmas Eve at 17:00 should not become a permanent Thursday slot on
+          the church's week. `<input type="time">` ignores placeholder, so the
+          hint has to be a sibling caption.
+
+          **The church's own plan only.** Every space lane — a room that gathers
+          as much as a channel that publishes — writes `serviceTime: null` in
+          the route (`church-space-plan.ts` create, repeat and series all
+          hardcode it), so on a room this input accepted a time and the server
+          discarded it silently. The condition used to be `planKind !==
+          'content'`, which caught the channel and missed the room. A room's
+          hour belongs to its meeting rhythm, which is a fact about the room
+          rather than a field on one study.
+        */}
+        {whenOpen && !isUnscheduled && isChurchLane && serviceTimeIds.length === 0 ? (
+          <>
+            <label
+              className="proto-inspector-section-title proto-create-folder-sheet__field-label"
+              htmlFor="proto-service-time"
+            >
+              <span>{sameDaySlots.length > 0 ? 'Or a one-off time' : 'Time'}</span>
+              <span className="proto-service-editor__optional">optional</span>
+            </label>
+            <input
+              id="proto-service-time"
+              type="time"
+              className="proto-create-folder-sheet__name-input"
+              value={serviceTime}
+              onChange={(e) => setServiceTime(e.target.value)}
+            />
+          </>
+        ) : null}
 
         {/*
           Which of my notes this sermon is.

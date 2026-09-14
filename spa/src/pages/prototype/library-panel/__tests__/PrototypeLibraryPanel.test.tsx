@@ -77,6 +77,16 @@ describe('chrome', () => {
     expect(onBackToRoot).toHaveBeenCalled();
   });
 
+  it('sends a folder opened from Everything back to Everything, not to Folders', () => {
+    // The other half of the Everything folder card: it drills without changing tab, so the
+    // tile names Everything — the list the reader actually pressed the card in.
+    const { onBackToRoot } = renderPanel({
+      view: { tab: 'all', drill: { kind: 'folder', folderKey: 'Sermons' } },
+    });
+    fireEvent.click(screen.getByLabelText('Back to Everything'));
+    expect(onBackToRoot).toHaveBeenCalled();
+  });
+
   it('states the drill as a heading with its kind, not as a second control', () => {
     const { container } = renderPanel({
       view: { tab: 'folders', drill: { kind: 'folder', folderKey: 'Sermons' } },
@@ -156,6 +166,20 @@ describe('dismissal', () => {
     }
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('stays open when a dialog’s scrim is pressed — that closes the dialog, not the panel', () => {
+    // The scrim is a bare button with no dialog role, so it read as "outside" and closing a
+    // sheet opened from inside the panel closed the panel with it.
+    const { onClose } = renderPanel();
+    for (const selector of ['proto-dialog-backdrop', 'proto-connect-note-sheet-overlay']) {
+      const scrim = document.createElement('button');
+      scrim.className = selector;
+      document.body.appendChild(scrim);
+      fireEvent.mouseDown(scrim);
+      scrim.remove();
+    }
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
 
 describe('the kind picker', () => {
@@ -169,14 +193,28 @@ describe('the kind picker', () => {
     ).toBeTruthy();
   });
 
-  it('shares its cell with the space switcher rather than taking a band of its own', () => {
+});
+
+describe('the My Home switch', () => {
+  it('takes a row of its own inside the header, outside the picker’s cell and the body', () => {
+    // Inside the header so it cannot scroll away from the list it scopes; not in the picker's
+    // cell, because "which kind" and "whose shelf" are two questions and one cell would read
+    // them as one control.
     const { container } = renderPanel({
       tabs: <div data-testid="kind" />,
-      spaceSwitcher: <div data-testid="space" />,
+      scopeSwitch: <div data-testid="scope" />,
     });
-    const actions = container.querySelector('.proto-library-panel__actions');
-    expect(actions?.querySelector('[data-testid="kind"]')).toBeTruthy();
-    expect(actions?.querySelector('[data-testid="space"]')).toBeTruthy();
+    const header = container.querySelector('.proto-library-panel__header');
+    expect(header?.querySelector('.proto-library-panel__scope [data-testid="scope"]')).toBeTruthy();
+    expect(container.querySelector('.proto-library-panel__actions [data-testid="scope"]')).toBeNull();
+    expect(container.querySelector('.proto-library-panel__body [data-testid="scope"]')).toBeNull();
+  });
+
+  it('leaves no empty row behind when there is no switch to show', () => {
+    // On My Home there is nothing to switch to, and an empty grid row would still take the
+    // header's gap.
+    const { container } = renderPanel({ tabs: <div data-testid="kind" /> });
+    expect(container.querySelector('.proto-library-panel__scope')).toBeNull();
   });
 });
 

@@ -59,7 +59,7 @@
  * moved too. Reprice it when it actually ships.
  */
 
-export const FEATURE_KEYS = ['shared_spaces', 'review', 'challenges', 'connector'] as const;
+export const FEATURE_KEYS = ['shared_spaces', 'review', 'challenges', 'connector', 'full_history'] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
 /**
@@ -99,6 +99,9 @@ export function isUnlimited(limit: number | null | undefined): boolean {
   return typeof limit === 'number' && limit < 0;
 }
 
+/** Days of history a free account can see; anything older is hidden, never deleted. */
+export const FREE_HISTORY_WINDOW_DAYS = 90;
+
 /**
  * How many people can ever claim the founding offer.
  *
@@ -113,6 +116,8 @@ export interface PlanLimits {
   /** `UNLIMITED` for Plus — the member cap is the fence, not the space count. */
   ownedSpaces: number;
   membersPerSpace: number;
+  /** `UNLIMITED` with `full_history`. */
+  historyWindowDays: number;
 }
 
 export interface PlanDefinition {
@@ -137,7 +142,7 @@ export interface PlanDefinition {
  * the row regardless is what means nobody needs a backfill on the day it is turned back on.
  * Seasons ride `challenges`; there is deliberately no `season_pass` key.
  */
-const PLUS_FEATURES = ['shared_spaces', 'review', 'challenges'] as const satisfies readonly FeatureKey[];
+const PLUS_FEATURES = ['shared_spaces', 'review', 'challenges', 'full_history'] as const satisfies readonly FeatureKey[];
 
 const CONNECTOR_FEATURES = ['connector'] as const satisfies readonly FeatureKey[];
 
@@ -173,12 +178,14 @@ const CHURCH_FEATURES = [] as const satisfies readonly FeatureKey[];
 const PLUS_LIMITS: PlanLimits = {
   ownedSpaces: UNLIMITED,
   membersPerSpace: 12,
+  historyWindowDays: UNLIMITED,
 };
 
 /** Free tier is strictly private: no hosting. Joining someone else's space is always free. */
 export const FREE_LIMITS: PlanLimits = {
   ownedSpaces: 0,
   membersPerSpace: PLUS_LIMITS.membersPerSpace,
+  historyWindowDays: FREE_HISTORY_WINDOW_DAYS,
 };
 
 function envProduct(name: string, viteName: string): string {
@@ -356,11 +363,14 @@ export function planForProductId(productId: string | null | undefined): PlanDefi
 }
 
 export function limitsForFeatures(features: readonly FeatureKey[]): PlanLimits {
-  // Only shared_spaces elevates hosting limits — Connector grants neither.
-  if (features.includes('shared_spaces')) {
-    return { ...PLUS_LIMITS };
-  }
-  return { ...FREE_LIMITS };
+  // Each key lifts only its own limits, so Connector alone grants neither hosting nor history.
+  const hosting = features.includes('shared_spaces') ? PLUS_LIMITS : FREE_LIMITS;
+  const history = features.includes('full_history') ? PLUS_LIMITS : FREE_LIMITS;
+  return {
+    ownedSpaces: hosting.ownedSpaces,
+    membersPerSpace: hosting.membersPerSpace,
+    historyWindowDays: history.historyWindowDays,
+  };
 }
 
 /** Plans shown on the upgrade page (those with a configured product id). */

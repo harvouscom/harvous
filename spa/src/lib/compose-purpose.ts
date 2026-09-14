@@ -113,15 +113,24 @@ export function notePurposeModel(input: {
     the same words. And "Writing notes for", because writing notes is what this whole
     surface is; a register above the paper does not need to announce it.
 
-    "Sermon" is the product's own word for both of these — `sermonEyebrow`,
-    `ChurchSermon`, `starterFolderForSermon`. "Gathering" only ever appeared in a code
-    docblock.
+    **The two surfaces name two different things, and only one is a sermon.**
+    "This Sunday" on Home names the *church's* sermon, and says so. "Coming up"
+    names a room's own plan entry — and a room plans a **study**, which is the
+    word its planner uses and the only one true of a churchless room. A Tuesday
+    book club reading Habakkuk was being handed a banner reading "The next
+    sermon"; `startedInChurchSpace` is true for any space that is not My Home,
+    church or not, so that was every room.
+
+    An earlier note here claimed "Sermon" was the product's word for both of
+    these and that "Gathering" only ever appeared in a code docblock. Both halves
+    were wrong: the room's noun was user-facing in the planner header, the title
+    placeholder, the date-picker label and a 409 message, and it is now "study".
   */
   const service = input.startedFromServiceTitle?.trim();
   if (service && input.readingInStartedContext !== false) {
     return {
       kind: 'service',
-      label: input.startedInChurchSpace ? 'The next sermon' : "This week's sermon",
+      label: input.startedInChurchSpace ? 'The next study' : "This week's sermon",
       actionLabel: null,
     };
   }

@@ -34,7 +34,6 @@ import {
   sermonEyebrow,
   starterFolderForSermon,
   starterNoteTitle,
-  weekdayLabel,
   type ChurchSermon,
 } from '../../lib/church-services';
 import { useProtoShell } from '../../layouts/proto-shell-context';
@@ -155,13 +154,16 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
   if (!gathering) return null;
 
   /*
-    The space's own rhythm, not the church's clock list: a space gathers once,
-    so its `meetingTime` labels every row rather than each row carrying a time.
+    When it meets, as one subordinate phrase.
+
+    `sermonEyebrow` already names the day in the reader's own terms ("This
+    Tuesday", "Today", "Last Wednesday"), so the room's declared weekday would
+    only repeat it — "This Tuesday · Tuesdays · 7:00pm" says Tuesday twice. The
+    hour is the part the day cannot carry, so that is the part that joins it.
   */
-  const rhythm =
-    data?.space?.meetingTime && data.space.meetingDay !== null
-      ? `${weekdayLabel(data.space.meetingDay)}s · ${formatServiceTime(data.space.meetingTime)}`
-      : null;
+  const whenLabel = data?.space?.meetingTime
+    ? `${sermonEyebrow(gathering)} · ${formatServiceTime(data.space.meetingTime)}`
+    : sermonEyebrow(gathering);
   const hasNote = Boolean(gathering.viewerNoteId);
   /*
     Only when the reference actually resolves to a chapter. A gathering can be
@@ -177,16 +179,25 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
 
   return (
     <div className="proto-home-section">
+      {/*
+        The run, not the date.
+
+        This eyebrow used to be "This Tuesday · Tuesdays · 7:00pm" — the room's
+        appointment, with what it was studying underneath. A room's subject is
+        what it is studying; when it meets is an attribute of that, so the study
+        leads and the day follows it into the row's own meta line. The series is
+        the truest name for the run when there is one; without one there is
+        nothing to name but the section.
+      */}
       <p className="proto-caption proto-home-section__eyebrow">
-        {sermonEyebrow(gathering)}
-        {rhythm ? ` · ${rhythm}` : ''}
+        {gathering.seriesTitle || 'Coming up'}
       </p>
       <div className="proto-glass-surface proto-glass-surface--panel proto-church-tools proto-home-cascade">
         <button
           type="button"
           className="proto-church-tools__row"
           aria-label={
-            hasNote ? 'Open my note on this gathering' : 'New note on this gathering'
+            hasNote ? 'Open my note on this study' : 'New note on this study'
           }
           onClick={() => takeNotes(gathering)}
         >
@@ -200,9 +211,11 @@ export default function PrototypeSpaceComingUp({ spaceId, enabled }: PrototypeSp
             >
               <span>{gathering.title}</span>
             </span>
+            {/* Passage, then day. The series has moved up to the eyebrow, so
+                repeating it here would say the same thing twice in one card. */}
             <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
               {gathering.reference || 'No passage yet'}
-              {gathering.seriesTitle ? ` · ${gathering.seriesTitle}` : ''}
+              {` · ${whenLabel}`}
             </span>
           </span>
           <span className="proto-church-tools__row-chevron" aria-hidden>

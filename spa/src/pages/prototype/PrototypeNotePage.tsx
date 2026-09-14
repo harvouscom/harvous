@@ -654,6 +654,7 @@ export default function PrototypeNotePage() {
     noteType: string;
   } | null>(null);
   const [templateApplyEpoch, setTemplateApplyEpoch] = useState(0);
+  const [historyRestoreEpoch, setHistoryRestoreEpoch] = useState(0);
   const [templateProvenance, setTemplateProvenance] = useState<{
     id: string;
     name: string;
@@ -1739,6 +1740,17 @@ export default function PrototypeNotePage() {
     };
   }, [isDraft, noteId, queryClient]);
 
+  useEffect(() => {
+    if (isDraft) return;
+    // Sent after the restored note has refetched; an open editor would otherwise keep its old body.
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ noteId?: string }>).detail;
+      if (String(detail?.noteId) === String(noteId)) setHistoryRestoreEpoch((n) => n + 1);
+    };
+    window.addEventListener('noteHistoryRestored', handler);
+    return () => window.removeEventListener('noteHistoryRestored', handler);
+  }, [isDraft, noteId]);
+
   const parentThread = useMemo(() => note?.threads?.[0], [note?.threads]);
   const parentThreadId = parentThread?.id ?? 'thread_unorganized';
 
@@ -2667,7 +2679,8 @@ export default function PrototypeNotePage() {
   const composeSessionActive = isAdoptedComposeSessionActive(isDraft, noteId, adoptedComposeId);
   const editorSessionKey =
     (isDraft || composeSessionActive ? composeEditorKey : noteId) +
-    (templateApplyEpoch > 0 ? `:tpl-${templateApplyEpoch}` : '');
+    (templateApplyEpoch > 0 ? `:tpl-${templateApplyEpoch}` : '') +
+    (historyRestoreEpoch > 0 ? `:restore-${historyRestoreEpoch}` : '');
 
   const noteIsEffectivelyEmpty = isEffectivelyEmptyPrototypeNote(
     liveNoteSnapshot.title || prototypeDisplayTitle,

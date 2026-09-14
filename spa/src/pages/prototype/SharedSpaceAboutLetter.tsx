@@ -66,8 +66,14 @@ export default function SharedSpaceAboutLetter({
     .join('  ·  ');
   const linkHost = meetingKindHasUrl(meetingKind) ? meetingUrlHost(meetingUrl) : null;
 
+  /*
+    The letter's standing -26px pull exists to lift the masthead icon halfway onto the cover
+    hero above it. With the masthead hidden there is no icon to lift, and the callers that hide
+    it (the space sheet) have no hero either — the pull just yanks the description up under the
+    sheet header, where the scroll container clips its top half.
+  */
   return (
-    <div className="proto-shared-space-about__letter">
+    <div className={`proto-shared-space-about__letter${hideMasthead ? ' proto-shared-space-about__letter--flush' : ''}`}>
       <PublicJoinSpaceLetter space={space} variant="about" hideMasthead={hideMasthead} />
       {rhythmLabel ? (
         <p className="proto-caption proto-shared-space-about__rhythm">{rhythmLabel}</p>

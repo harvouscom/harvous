@@ -45,6 +45,7 @@ import { useSpaceGroupThreads } from '../../../hooks/queries/useSpaceGroupThread
 import { useLibrary } from '../../../hooks/queries/useLibrary';
 import { buildLibraryAllItems, type LibraryAllItem, type LibraryAllItemKind } from './library-all-items';
 import { useLibraryPanelData } from './library-panel-data';
+import { libraryBrowseMyHomeAction } from './library-browse-my-home-action';
 
 /** How many merged rows the tab shows before "Load more", and how far each press widens it. */
 const ALL_WINDOW_STEP = 40;
@@ -294,6 +295,15 @@ export default function PrototypeLibraryAllView({ selection }: { selection?: Lib
        * explicitly was meant to remove. The tab row keeps reading "All" while you look at
        * one book, which is honest: All is still the list you are drilled into.
        */
+      /* A folder item's `sourceId` is its name — which is also what the folder drill keys on.
+         Unsorted never reaches this list (`buildLibraryAllItems` skips it), so the key is never
+         null here the way it can be on the Folders tab. */
+      case 'folder':
+        setLibraryPanelView({
+          tab: 'all',
+          drill: { kind: 'folder', folderKey: item.sourceId },
+        });
+        return;
       case 'thread':
         setLibraryPanelView({
           tab: 'all',
@@ -355,6 +365,8 @@ export default function PrototypeLibraryAllView({ selection }: { selection?: Lib
               ? 'Notes shared into this space will show up here as you go.'
               : 'Write a note and your folders, Threads and Scripture index build themselves from it.'
           }
+          /* The room is empty; your library may not be. */
+          action={libraryBrowseMyHomeAction(data)}
         />
         {/* A first page that was all empty scratch notes merges to nothing while more
             pages still exist, so the pager stays reachable rather than the tab claiming

@@ -164,6 +164,7 @@ import {
   type StudyThreadSuggestNode,
 } from '@/utils/suggest-study-thread-title';
 import { fetchStudyThreadNoteRows } from '../utils/study-thread-note-rows';
+import { noteConnectionEndpointsLive } from '../utils/live-note-connections';
 import { resolveStudyThreadClusterNaming } from '../utils/study-thread-cluster-naming';
 import { studyThreadEligibleForHighlightList } from '@/utils/study-thread-highlight-eligibility';
 import { sortStudyThreadClustersByTitle } from '@/utils/sorting';
@@ -1993,11 +1994,19 @@ route.get('/api/spaces/:spaceId/study-threads', requireAuth, async (c) => {
       throw err;
     }
 
-    // Load all NoteConnections for this user in this space.
+    // Load this user's NoteConnections in this space, keeping only rows whose notes both still
+    // exist. A row pointing at a deleted note used to become a listed Thread — its id was the
+    // deleted note whenever the tie-break picked it — that 404'd on GET /api/notes/:id/thread.
     const edges = await db
       .select({ fromNoteId: NoteConnections.fromNoteId, toNoteId: NoteConnections.toNoteId })
       .from(NoteConnections)
-      .where(and(eq(NoteConnections.userId, auth.userId), eq(NoteConnections.spaceId, spaceIdNorm)));
+      .where(
+        and(
+          eq(NoteConnections.userId, auth.userId),
+          eq(NoteConnections.spaceId, spaceIdNorm),
+          noteConnectionEndpointsLive(),
+        ),
+      );
 
     // Build adjacency list and degree count.
     const adj = new Map<string, Set<string>>();

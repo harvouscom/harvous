@@ -379,6 +379,55 @@ function PendingAuthRedirectBridge() {
   return null;
 }
 
+/** Read by PublicDiscoverListingPage.doInstall (own sibling PENDING_KEY constant there). */
+const PENDING_DISCOVER_TOAST_KEY = 'pendingDiscoverToast';
+
+/**
+ * Fires the Discover-install toast from wherever the visitor actually lands, not from the
+ * public page they installed it on.
+ *
+ * `windowToast.success` picks Sonner or the main-pane-centred `PrototypeFeedbackToast` by
+ * checking the *current* path — right once we've landed inside the shell, wrong on the bare
+ * public page a moment earlier, which has no sidebar for either toast to be centred against.
+ * Worse, Sonner's own placement is viewport-relative: called before the navigate, it looks fine
+ * on the empty public page and then reads as stuck off to the side once the sidebar it never
+ * knew about appears underneath it. Same shape as `PendingAuthRedirectBridge` above — stash
+ * intent, replay on the next resolved route — because a client-side navigation doesn't remount
+ * this component to give it a natural place to run once.
+ */
+function PendingDiscoverToastBridge() {
+  useEffect(() => {
+    const applyPendingToast = () => {
+      let raw: string | null = null;
+      try {
+        raw = sessionStorage.getItem(PENDING_DISCOVER_TOAST_KEY);
+      } catch {
+        return;
+      }
+      if (!raw) return;
+      try {
+        sessionStorage.removeItem(PENDING_DISCOVER_TOAST_KEY);
+      } catch {
+        /* ignore */
+      }
+      let message: string | undefined;
+      try {
+        message = (JSON.parse(raw) as { message?: string }).message;
+      } catch {
+        return;
+      }
+      if (!message) return;
+      /* One frame so the newly resolved route's own toast host (PrototypeFeedbackToast, mounted
+         inside the shell layout) has attached its event listener before this dispatches to it. */
+      requestAnimationFrame(() => windowToast.success(message));
+    };
+    applyPendingToast();
+    return router.subscribe('onResolved', applyPendingToast);
+  }, []);
+
+  return null;
+}
+
 function QueryClient401Redirect() {
   const { isLoaded, isSignedIn } = useAuth();
   const isLoadedRef = useRef(isLoaded);
@@ -485,8 +534,10 @@ function SpaToaster() {
       return;
     }
     const update = () => {
-      const px = getMobileChipBottomInsetPx();
-      document.documentElement.style.setProperty(HARVOUS_TOASTER_MOBILE_BOTTOM_VAR, `${px}px`);
+      document.documentElement.style.setProperty(
+        HARVOUS_TOASTER_MOBILE_BOTTOM_VAR,
+        getMobileChipBottomInsetPx(),
+      );
     };
     update();
     const ro = new ResizeObserver(() => update());
@@ -502,11 +553,23 @@ function SpaToaster() {
       update();
       requestAnimationFrame(update);
     });
+    /* `pickAddNoteAnchor()` is a fresh DOM query every call, but nothing here re-ran it on its
+       own: a client-side route change doesn't resize or scroll anything, and this effect is keyed
+       only on `isMobile`. A toast fired right after navigating (e.g. the Discover install bridge)
+       inherited whatever the *previous* page's anchor produced — 100px, the "no anchor found"
+       fallback, on a public page with no compose button — and kept it, because nothing told this
+       effect the page underneath had changed. Same settle delay as the initial mount: the new
+       route's anchor isn't necessarily laid out synchronously at `onResolved`. */
+    const unsubscribeResolved = router.subscribe('onResolved', () => {
+      update();
+      requestAnimationFrame(update);
+    });
     return () => {
       ro.disconnect();
       scrollRoots.forEach((el) => el.removeEventListener('scroll', onScroll));
       window.removeEventListener('resize', update);
       cancelAnimationFrame(raf1);
+      unsubscribeResolved();
       document.documentElement.style.removeProperty(HARVOUS_TOASTER_MOBILE_BOTTOM_VAR);
     };
   }, [isMobile]);
@@ -840,6 +903,7 @@ export default function App() {
         <SupabaseRealtimeAuthBridge />
         <PublicRouteClassBridge />
         <PendingAuthRedirectBridge />
+        <PendingDiscoverToastBridge />
         <QueryClient401Redirect />
         <PostHogBridge />
         <IosPwaSheetOverlayInset />

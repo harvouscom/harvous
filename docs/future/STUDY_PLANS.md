@@ -9,6 +9,15 @@ A **study plan** is a sequence of steps a room walks together: week one, week tw
 three. It is the thing a church hands its congregation when a series is more than one
 sermon.
 
+**Not the same object as a room's plan, and the words now nearly collide.** Since Sept 2026 a
+room's planner calls each of its entries a *study* (see
+[SPACES_PLANNER_AND_GATHERINGS.md](./SPACES_PLANNER_AND_GATHERINGS.md)), and a new one can
+declare a run length on create. That produces `ChurchServices` rows — the plan of what the room
+will study, week by week. A **study plan** in this document is the `Threads` row with
+`mode='sequence'` that a *series* is published into, which is what members actually walk. The
+bridge between them is unchanged: group a run of plan rows under a `ChurchSeries`, then publish
+the series.
+
 ---
 
 ## What it is made of

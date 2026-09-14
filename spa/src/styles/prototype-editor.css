@@ -49,7 +49,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   /* Keep the caret clear of the format toolbar when typing near the bottom. */
-  scroll-padding-bottom: 24px;
+  scroll-padding-bottom: calc(24px + var(--proto-study-dock-band-height, 0px));
+  /* No bottom padding: the room for the study dock band is inside the sheet. See
+     `.proto-editor-paper::after`. */
   display: flex;
   flex-direction: column;
   container-type: inline-size;
@@ -59,7 +61,7 @@
 /* When the format bar floats over the paper (overlay, not in-flow), give the caret extra
    bottom clearance so typing near the end isn't hidden behind the bar. */
 .proto-shell:has(.proto-editor-bottom-bar[data-mode='format']) .proto-editor-scroll {
-  scroll-padding-bottom: 64px;
+  scroll-padding-bottom: calc(64px + var(--proto-study-dock-band-height, 0px));
 }
 
 /* SubtleContentMount (variant="fade") wraps the card — make its inner div a flex
@@ -136,6 +138,25 @@
   padding: var(--pds-editor-paper-padding-top)
     var(--pds-editor-paper-padding-x)
     var(--pds-editor-paper-padding-bottom);
+}
+
+/*
+ * Room at the end of the page for whatever the study dock band is covering.
+ *
+ * The band floats over the paper with no layout height of its own, and that is the design:
+ * the dock is a card sitting on the page. So the room it needs has to be more page. On the
+ * scroller it was room *outside* the sheet, taken out of the sheet's `flex: 1` fill — a short
+ * note's paper stopped at the dock's top edge, with glass between them, and the card read as
+ * a split pane rather than something on top.
+ *
+ * A spacer rather than the paper's bottom padding, because that padding is restated by the
+ * narrow overrides below and a reserve added to one would be missing from the others.
+ * Zero height when no dock is open.
+ */
+.proto-editor-paper::after {
+  content: '';
+  display: block;
+  height: var(--proto-study-dock-band-height, 0px);
 }
 
 @container proto-editor-scroll (max-width: 640px) {

@@ -40,6 +40,11 @@ import { canManageStudyThreadsInSharedSpace } from '../../../lib/shared-space-ca
 import { toastError } from '../../../lib/error-copy';
 import type { SpaceNoteRow } from '../../../hooks/queries/useSpace';
 import { useLibraryPanelData, type LibraryPanelData } from './library-panel-data';
+import Icon from '@/components/react/Icon';
+import PrototypeShareWithOthersSheet, {
+  type ShareWithOthersTarget,
+} from '../PrototypeShareWithOthersSheet';
+import { resolveThreadDrillSubject } from './use-library-drill-subject';
 
 export default function PrototypeLibraryThreadView({ threadId }: { threadId: string }) {
   const data = useLibraryPanelData();
@@ -105,6 +110,7 @@ function PersonalThreadMembers({
   data: LibraryPanelData;
 }) {
   const threadQuery = usePrototypeStudyThread(threadId, data.spaceId);
+  const [shareTarget, setShareTarget] = useState<ShareWithOthersTarget | null>(null);
 
   /* Same order the note page's trail reads in: the author's manual order when they
      set one, otherwise the graph walk from the representative note. */
@@ -169,8 +175,46 @@ function PersonalThreadMembers({
      cannot have loaded without one, so this is a type guard more than a state. */
   if (!spaceId) return null;
 
+  /*
+   * "Share with others" — a whole Thread offered to Discover, the way a note is from its share
+   * popover.
+   *
+   * Only for a Thread of your own on My Home: one in a shared space is the room's, and the server
+   * refuses it anyway. Not before the Thread has two notes — one note is a note, and has its own
+   * way to be shared — and not while the previous Thread is still the placeholder, or its name
+   * would go out on this one's notes. The id is the Thread's main note, which is how the server
+   * finds a personal Thread.
+   */
+  const canShareThread =
+    !data.isScopedSharedSpace && !threadQuery.isPlaceholderData && nodesSorted.length >= 2;
+
   return (
-    <LibraryThreadTrail dragging={Boolean(drag.draggingId)}>
+    <>
+    <LibraryThreadTrail
+      dragging={Boolean(drag.draggingId)}
+      header={
+        canShareThread ? (
+          <div className="proto-library-thread-share">
+            <button
+              type="button"
+              className="proto-sheet-quiet-action"
+              onClick={() =>
+                setShareTarget({
+                  kind: 'pack',
+                  id: repNoteId,
+                  name:
+                    resolveThreadDrillSubject({ personal: threadQuery.data ?? null }) ??
+                    'Untitled Thread',
+                })
+              }
+            >
+              <Icon name="share" size={12} aria-hidden />
+              Share with others
+            </button>
+          </div>
+        ) : undefined
+      }
+    >
       <ProtoThreadTrailSortableList
         items={drag.displayOrderedIds}
         onDragStart={drag.handleDragStart}
@@ -208,12 +252,24 @@ function PersonalThreadMembers({
         })}
       </ProtoThreadTrailSortableList>
     </LibraryThreadTrail>
+    <PrototypeShareWithOthersSheet
+      open={Boolean(shareTarget)}
+      target={shareTarget}
+      onOpenChange={(open) => {
+        if (!open) setShareTarget(null);
+      }}
+    />
+    </>
   );
 }
 
 function SharedThreadMembers({ threadId, data }: { threadId: string; data: LibraryPanelData }) {
   const notesQuery = useThreadNotes(threadId, data.spaceId ?? undefined);
-  const { space } = useActiveSpace();
+  /* The room's membership only while the panel is showing the room. A personal reading plan
+     is a `thread_` record too, so this branch also renders from My Home — where the room's
+     role has nothing to say about who arranges your own plan. */
+  const { space: shellSpace } = useActiveSpace();
+  const space = data.isScopedSharedSpace ? shellSpace : null;
   const updateSequence = useUpdateThreadSequence();
 
   /*

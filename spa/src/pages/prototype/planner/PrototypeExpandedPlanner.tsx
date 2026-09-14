@@ -290,8 +290,15 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
               parsePublishCadence(spacePlan.data?.space.publishCadence),
             ),
           }
-        : { meetingDay: defaultDay, intervalDays: 7 },
-    [planKind, defaultDay, spacePlan.data?.space.publishCadence],
+        : {
+            meetingDay: defaultDay,
+            intervalDays: 7,
+            /* Display only, for the collapsed When summary — never written to
+               a row. A channel has no hour, which is why this sits on the
+               gathering arm alone. */
+            meetingTime: spacePlan.data?.space.meetingTime ?? null,
+          },
+    [planKind, defaultDay, spacePlan.data?.space.publishCadence, spacePlan.data?.space.meetingTime],
   );
 
   /*

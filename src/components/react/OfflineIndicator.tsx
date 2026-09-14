@@ -5,7 +5,7 @@ import { getSyncState, retryStuckQueue } from '@/utils/sync-manager';
 import { usePersistedUserId } from '@/utils/user-id';
 import { formatBadgeCount } from '@/utils/badge-count';
 import {
-  CHIP_FALLBACK_BOTTOM_PX,
+  CHIP_FALLBACK_BOTTOM_CSS,
   CHIP_GAP_PX,
   DEFAULT_OFFLINE_CHIP_HEIGHT_PX,
   pickAddNoteAnchor,
@@ -369,7 +369,7 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         }
       : {
           position: 'fixed',
-          bottom: CHIP_FALLBACK_BOTTOM_PX,
+          bottom: CHIP_FALLBACK_BOTTOM_CSS,
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: OFFLINE_CHIP_Z,

@@ -367,10 +367,30 @@ export async function refillReviewQueue(
       const kind = row.sourceKey.split(':')[0];
       if (kind in addedOfKind) addedOfKind[kind] += 1;
     }
-    for (const pick of picks) {
-      if (created.length >= room) break;
+    /*
+     * At most `ENGINE_PER_KIND_CAP` of one kind in a run — and only then the rest.
+     *
+     * The cap was stated on the constant ("so a sitting can mix without being five of the same")
+     * and enforced nowhere that items are made. `selectReviewBatch` is handed
+     * `ENGINE_PER_KIND_CAP * OVERFETCH` so a skipped note costs no slot, which lets nine of a kind
+     * through, and this loop took them in score order with no count at all. Five notes in a row
+     * was reachable on any account whose notes outscored its passages.
+     *
+     * **A preference for mixing, not a ration.** Picks over the cap are held rather than dropped
+     * and fill whatever room is left once every kind has had its turn. `room` is the sitting's
+     * shortfall as well as the daily allowance, and a library that is all notes should still get
+     * a handful; holding it to three would be the short sitting the comment above rules out.
+     *
+     * **Not `addedOfKind`.** That counter is seeded from every row the reader already has, so the
+     * stagger continues across runs. Used as this cap it would be at three for any kind the reader
+     * has three of, and would hold back every pick of it on every run from then on.
+     */
+    const createdOfKindThisRun: Record<string, number> = { verse: 0, note: 0, chapter: 0 };
+    const heldForMix: typeof picks = [];
+
+    const addPick = async (pick: (typeof picks)[number]): Promise<void> => {
       const kind = REVIEW_KIND_FOR_NODE[pick.nodeKind];
-      if (!kind) continue;
+      if (!kind) return;
 
       /*
        * A note with nothing to ask about is not a review item.
@@ -380,14 +400,14 @@ export async function refillReviewQueue(
        * kind. The batch is over-fetched above so a skip costs no slot.
        */
       if (kind === 'note' && pick.noteId && !(await noteHasReviewableMaterial(userId, pick.noteId))) {
-        continue;
+        return;
       }
 
       const verseParts = kind === 'verse' ? verseKeyPartsFromNodeKey(pick.nodeKey) : null;
-      if (kind === 'verse' && !verseParts) continue;
+      if (kind === 'verse' && !verseParts) return;
 
       const chapterParts = kind === 'chapter' ? chapterKeyPartsFromNodeKey(pick.nodeKey) : null;
-      if (kind === 'chapter' && !chapterParts) continue;
+      if (kind === 'chapter' && !chapterParts) return;
 
       const reference = verseParts
         ? verseReferenceLabel(verseParts)
@@ -403,8 +423,16 @@ export async function refillReviewQueue(
           // Only a connection ever had a second note, and the engine no longer makes those.
           secondaryNoteId: null,
           scriptureReference: reference,
-          // The translation it was read in, off the node's own meta — so a chapter question is
-          // asked in the words the reader met it in.
+          /*
+           * The translation it was read in, off the node's own meta — so a chapter question is
+           * asked in the words the reader met it in.
+           *
+           * Null where there was none to record, and null is left as null on purpose: it means
+           * "no particular wording", which resolves at question time to whatever the reader reads
+           * in now (`askedTranslation` in `src/utils/review-translation.ts`). Writing the account's default here
+           * instead would freeze it on the day the item was made, so a reader who later changed
+           * their translation would keep being asked in the old one.
+           */
           translation: reference ? parseTranslation(pick.meta ?? null) : null,
           origin: 'engine',
           // Copied, not read live, so a row's stated reason never changes mid-sitting.
@@ -418,7 +446,24 @@ export async function refillReviewQueue(
       if ('item' in result && result.created) {
         created.push(result.item);
         addedOfKind[kind] = (addedOfKind[kind] ?? 0) + 1;
+        createdOfKindThisRun[kind] = (createdOfKindThisRun[kind] ?? 0) + 1;
       }
+    };
+
+    for (const pick of picks) {
+      if (created.length >= room) break;
+      const kind = REVIEW_KIND_FOR_NODE[pick.nodeKind];
+      if (!kind) continue;
+      if ((createdOfKindThisRun[kind] ?? 0) >= ENGINE_PER_KIND_CAP) {
+        heldForMix.push(pick);
+        continue;
+      }
+      await addPick(pick);
+    }
+    // Still in score order, so a held pick is the next best of its kind rather than any of them.
+    for (const pick of heldForMix) {
+      if (created.length >= room) break;
+      await addPick(pick);
     }
 
     return created;

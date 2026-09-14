@@ -211,7 +211,13 @@ describe('the inbox stays calm', () => {
   });
 
   it('uses no guilt language anywhere in the feature', () => {
-    for (const text of [review(), service()]) {
+    /*
+     * The copy file is in here too. The vocabulary rule it opens with is the reason it exists,
+     * and it is the one file in the feature where a careless string is shipped verbatim to a
+     * reader rather than being shaped by a route first.
+     */
+    const copy = withoutComments(source('spa/src/pages/prototype/proto-review-copy.ts'));
+    for (const text of [review(), service(), copy]) {
       expect(text).not.toMatch(/overdue|behind schedule|you missed|streak broken/i);
     }
   });
@@ -371,11 +377,47 @@ describe('the ladder wrap and the truth restore', () => {
   });
 
   it('erodes the cloze by the pass, never by how many times it was answered', () => {
-    // `reviewCount` rises on every answer, so ten near misses would hand someone a
-    // mostly-blank verse they have never once recalled.
+    /*
+     * `reviewCount` rises on every answer, so ten near misses would hand someone a mostly-blank
+     * verse they have never once recalled. The spec is read from the rung's own pass — and from
+     * the item's recall state, which is the scheduler's verdict rather than a tally of attempts.
+     */
     const text = service();
-    expect(text).toContain('verseClozeRatio(rung.pass)');
-    expect(text).not.toContain('verseClozeRatio(item.reviewCount');
+    expect(text).toMatch(/verseClozeSpec\(rung\.pass/);
+    expect(text).not.toMatch(/verseClozeSpec\(item\.reviewCount/);
+    expect(text).not.toMatch(/verseClozeRatio\(item\.reviewCount/);
+  });
+
+  it('asks every staged rung at the tier the pass says, never at a tier the page claims', () => {
+    /*
+     * The tier decides which shape is graded, so reading it from the submission instead would
+     * let a page pick its own marking — send free text on a tier-0 initials item and the
+     * all-or-nothing subsequence match runs against a verse that was mostly on screen.
+     */
+    const text = service();
+    for (const call of [
+      /verseInitialsShare\(rung\.pass/,
+      /verseKeywordsCount\(rung\.pass/,
+      /verseRecallMode\(rung\.pass/,
+    ]) {
+      expect(text).toMatch(call);
+    }
+    const grader = text.slice(text.indexOf('async function gradeVerseAnswer'));
+    const initials = grader.slice(grader.indexOf("rung.key === 'verse.initials'"));
+    expect(initials.slice(0, 1200)).toMatch(/exercise\.tier < 2/);
+    expect(initials.slice(0, 1200)).toMatch(/exercise\.tier === 2/);
+  });
+
+  it('only offers a hint while there is a go left', () => {
+    /*
+     * The finalized response carries the answer itself, so a hint beside it would be a worse
+     * version of what the reader is about to be shown. One branch, and only one.
+     */
+    const text = review();
+    const nonFinal = text.slice(text.indexOf('attemptNumber < maxAttempts'));
+    const upToFinal = nonFinal.slice(0, nonFinal.indexOf('const verdict'));
+    expect(upToFinal).toContain('graded.hint');
+    expect(text.slice(text.indexOf('const verdict'))).not.toContain('graded.hint');
   });
 
   it('hands back the verse a rung withheld, once it has been answered', () => {
@@ -495,7 +537,7 @@ describe('the cloze payload', () => {
     const branch = reveal.slice(reveal.indexOf("rung.key === 'verse.rebuild'"));
     const block = branch.slice(0, branch.indexOf("rung.key === 'verse.sequence'"));
     // Segments and gap widths — the pieces either side of each blank, never the tokens.
-    expect(block).toContain('clozeSegments(cloze)');
+    expect(block).toMatch(/clozeSegments\(cloze/);
     expect(block).not.toMatch(/payload\.cloze = buildVerseCloze/);
 
     // And the payload type says so, so a later edit cannot widen it by accident.
@@ -619,13 +661,35 @@ describe('the text-keyed rungs withhold the verse', () => {
 
   it('sends first letters and a count, never the words', () => {
     const block = revealBlock('verse.initials', "rung.key === 'verse.keywords'");
-    expect(block).toContain('buildVerseInitials(text)');
+    expect(block).toMatch(/buildVerseInitials\(/);
     expect(block).toContain('payload.verseText = null');
+    /*
+     * `reduced` is the answer key — which words were taken out, and what they were. The staged
+     * tiers build it so they can grade, and the payload is assembled field by field precisely so
+     * a later edit cannot ship it by spreading the exercise.
+     */
+    expect(block).not.toContain('reduced');
+    expect(block).not.toMatch(/\.\.\.exercise/);
+    for (const field of ['initials:', 'wordCount:', 'tier:', 'segments:']) {
+      expect(block).toContain(field);
+    }
   });
 
   it('sends only how many words to name', () => {
     const block = revealBlock('verse.keywords', "rung.key === 'verse.before'");
-    expect(block).toContain('buildVerseKeywords(text)');
+    expect(block).toMatch(/buildVerseKeywords\(/);
+    expect(block).toContain('payload.verseText = null');
+  });
+
+  it('gives the recall rung a way in without giving it the answer', () => {
+    const reveal = service().slice(service().indexOf('export async function buildReviewReveal'));
+    const block = reveal.slice(
+      reveal.indexOf('FREE_RECALL_KEYS.has(rung.key)'),
+      reveal.indexOf("rung.key === 'verse.initials'"),
+    );
+    // What is shown, and nothing about what is not: `hiddenText` is the thing being asked for.
+    expect(block).toContain('shown: built.shown');
+    expect(block).not.toContain('hiddenText');
     expect(block).toContain('payload.verseText = null');
   });
 
@@ -741,6 +805,37 @@ describe('the sample, for an account without Review', () => {
 
   it('accepts only a calendar day from the page, and falls back rather than trusting it', () => {
     expect(sampleRoutes()).toMatch(/\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(raw\)/);
+  });
+});
+
+describe('every resolver is handed the reader', () => {
+  /*
+   * What the reader is asked in is theirs, not the file's — `UserMetadata.defaultTranslation`,
+   * resolved per request in `review-service.ts`. A resolver called without the userId cannot read
+   * it and silently falls back, which is how the feature spent its whole life asking NET.
+   *
+   * This is the route's share of that: the four resolvers it calls after an answer — the rung that
+   * was asked, the verse truth, the chapter truth, and the reveal — must each be given the reader.
+   * The wording has to be the same on all four or someone is marked against text they were never
+   * shown, and here that failure is one missing argument.
+   */
+  const text = () => review();
+
+  it('resolves the asked rung and the reveal as this reader', () => {
+    expect(text()).toContain('askedRungFor(auth.userId, item)');
+    expect(text()).toContain('buildReviewReveal(auth.userId, item)');
+  });
+
+  it('restores the truth as this reader', () => {
+    expect(text()).toContain('verseTruthFor(item, auth.userId)');
+    expect(text()).toContain('chapterTruthFor(item, auth.userId)');
+  });
+
+  it('does not resolve a wording of its own', () => {
+    // The route's only permitted mention is the unauthenticated sample, which has no reader.
+    const body = text();
+    expect(body.match(/'NET'/g) ?? []).toHaveLength(1);
+    expect(body.slice(body.indexOf('sampleTranslationFrom'))).toContain("'NET'");
   });
 });
 

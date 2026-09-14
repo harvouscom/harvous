@@ -47,6 +47,15 @@ type ProtoSidebarExpandedPanelProps = {
    * sidebar's width, which was the truth while the sidebar was the only way in.
    */
   origin?: ProtoExpandRect | null;
+  /**
+   * Centered on the main pane instead of anchored to the sidebar's left edge.
+   *
+   * The default reads as "the sidebar took the room it needed", which is right for a tool
+   * reached from inside the sidebar itself. Discover is reached from the centered library
+   * panel, so landing left-anchored after that read as a sideways jump rather than a
+   * continuation — this opts a tool out of the sidebar's identity when it isn't one.
+   */
+  centered?: boolean;
   onClose: () => void;
   children: ReactNode;
 };
@@ -59,6 +68,7 @@ export default function ProtoSidebarExpandedPanel({
   actions,
   exiting,
   origin,
+  centered,
   onClose,
   children,
 }: ProtoSidebarExpandedPanelProps) {
@@ -171,7 +181,7 @@ export default function ProtoSidebarExpandedPanel({
   return (
     <div
       ref={panelRef}
-      className={`proto-sidebar-expanded-panel${exiting ? ' proto-sidebar-expanded-panel--exiting' : ''}`}
+      className={`proto-sidebar-expanded-panel${centered ? ' proto-sidebar-expanded-panel--centered' : ''}${exiting ? ' proto-sidebar-expanded-panel--exiting' : ''}`}
       role="region"
       aria-label={label}
       tabIndex={-1}

@@ -24,6 +24,7 @@ import {
   Notes,
   Threads,
   NoteThreads,
+  NoteConnections,
   NoteTemplates,
   LibraryItems,
   UserMetadata,
@@ -101,6 +102,7 @@ interface PreparedNotes extends PreparedBase {
   scriptureRows: (typeof ScriptureMetadata.$inferInsert)[];
   resourceRows: (typeof ResourceMetadata.$inferInsert)[];
   referenceRows: (typeof NoteScriptureReferences.$inferInsert)[];
+  connectionRows: (typeof NoteConnections.$inferInsert)[];
   effectiveHighest: number;
   threadIdForScripture: string;
   threadTitle: string | null;
@@ -354,11 +356,43 @@ export async function prepareNoteInstall(
     scriptureRows: sidecars.scripture,
     resourceRows: sidecars.resource,
     referenceRows: [],
+    connectionRows: [],
     effectiveHighest,
     threadIdForScripture: 'thread_unorganized',
     threadTitle: null,
     threadSubtitle: null,
   };
+}
+
+/**
+ * The edges that make an installed pack a Thread.
+ *
+ * A Thread in the app is a cluster of notes joined by NoteConnections, walked by
+ * collectStudyThreadGraphForScope — a `Threads` row and its NoteThreads alone are
+ * invisible to the Library panel and the note page's Thread popover. So every note
+ * is connected to the first one, stored the way the app stores its own links
+ * (from = the note it grew out of, to = the new one). A star rather than a chain:
+ * the first note ends up with the highest degree, so it is the Thread's main note,
+ * and removing any other note later never splits the Thread in two.
+ *
+ * `spaceId` has to be the notes' own space: the Threads list filters edges on it.
+ */
+export function buildPackConnectionRows(input: {
+  noteIds: string[];
+  userId: string;
+  spaceId: string;
+  createdAt: Date;
+}): (typeof NoteConnections.$inferInsert)[] {
+  const [hub, ...rest] = [...new Set(input.noteIds)];
+  if (!hub) return [];
+  return rest.map((toNoteId) => ({
+    id: generateNoteId(),
+    fromNoteId: hub,
+    toNoteId,
+    userId: input.userId,
+    spaceId: input.spaceId,
+    createdAt: input.createdAt,
+  }));
 }
 
 /** A whole pack: one new thread, N notes, and the edges between them. */
@@ -447,6 +481,7 @@ export async function preparePackInstall(
     scriptureRows,
     resourceRows,
     referenceRows,
+    connectionRows: buildPackConnectionRows({ noteIds: createdNoteIds, userId, spaceId, createdAt: ts }),
     effectiveHighest,
     threadIdForScripture: newThreadId,
     threadTitle: payload.thread.title,
@@ -509,6 +544,10 @@ export async function writeInstall(tx: Tx, prepared: PreparedInstall, userId: st
   }
   for (let i = 0; i < prepared.referenceRows.length; i += BULK_INSERT_CHUNK) {
     await tx.insert(NoteScriptureReferences).values(prepared.referenceRows.slice(i, i + BULK_INSERT_CHUNK));
+  }
+  // Inside the transaction like everything else: a duplicate install rolls these back with the notes.
+  for (let i = 0; i < prepared.connectionRows.length; i += BULK_INSERT_CHUNK) {
+    await tx.insert(NoteConnections).values(prepared.connectionRows.slice(i, i + BULK_INSERT_CHUNK));
   }
   if (prepared.noteRows.length > 0) {
     await tx
