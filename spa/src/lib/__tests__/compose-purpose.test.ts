@@ -31,14 +31,36 @@ describe('notePurposeModel', () => {
   });
 
   it('does not claim "this week" for a note started in a room', () => {
-    // "Coming up" is the room's *next* sermon, which can be weeks out — the one place
+    // "Coming up" is the room's *next* entry, which can be weeks out — the one place
     // the Home wording would have been a small lie.
     const purpose = notePurposeModel({
       composePurpose: null,
       startedFromServiceTitle: 'The Weight of Grace',
       startedInChurchSpace: true,
     });
-    expect(purpose?.label).toBe('The next sermon');
+    expect(purpose?.label).toBe('The next study');
+  });
+
+  it('never calls a room\u2019s entry a sermon — only the church preaches one', () => {
+    /*
+      `startedInChurchSpace` is true for any space that is not My Home, so this
+      label reaches a churchless book club too. A room plans a study; the word
+      "sermon" belongs to the church-wide plan and to Home's "This Sunday".
+    */
+    const room = notePurposeModel({
+      composePurpose: null,
+      startedFromServiceTitle: 'The Weight of Grace',
+      startedInChurchSpace: true,
+    });
+    expect(room?.label).not.toContain('sermon');
+
+    // And the Home surface keeps it, because there it is true.
+    const home = notePurposeModel({
+      composePurpose: null,
+      startedFromServiceTitle: 'The Weight of Grace',
+      startedInChurchSpace: false,
+    });
+    expect(home?.label).toBe("This week's sermon");
   });
 
   it('still says nothing when there was no service to start from', () => {

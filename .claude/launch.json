@@ -154,6 +154,16 @@
       "autoPort": false
     },
     {
+      "name": "planner-study-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "API_PORT=3006 DB_POOL_MAX=4 VITE_API_PROXY_TARGET=http://localhost:3006 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4336 --strictPort'"
+      ],
+      "port": 4336,
+      "autoPort": false
+    },
+    {
       "name": "text-clipping-worktree-spa",
       "runtimeExecutable": "sh",
       "runtimeArgs": [

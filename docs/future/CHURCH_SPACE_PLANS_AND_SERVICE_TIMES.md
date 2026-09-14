@@ -1,5 +1,15 @@
 # Church space plans, service times, and the Home card stack
 
+> **Amended September 10, 2026 — the room lane's noun is now *study*.**
+> This doc's §1 doctrine is unchanged ("one next gathering per context you joined, never a
+> schedule of any context") and so is the plan/service-time split. What changed is the word and
+> the order in which the form asks for things: a room plans a **study**, and the date is a
+> collapsed section under the title and passage rather than the first field. **The church lane
+> keeps "sermon"** and keeps its date expanded, because there a sermon really is a slot on a
+> Sunday and the slot checkboxes live in that section. `ChurchServices.kind` still reads
+> `'gathering'`; it is a behavioural discriminator, not vocabulary. See
+> [SPACES_PLANNER_AND_GATHERINGS.md](./SPACES_PLANNER_AND_GATHERINGS.md).
+
 **Status:** P1, **P2 and P5 built**, plus **series-as-a-row (§9)** and **aggregate
 engagement (§10)** (Aug 2026); P3–P4 design only. Decided August 2026. Companion to
 [CHURCH_STUDY_MATERIAL_LINKING.md](./CHURCH_STUDY_MATERIAL_LINKING.md),

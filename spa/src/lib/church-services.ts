@@ -475,10 +475,22 @@ export function sermonTimeLabel(
 /**
  * What a plan calls the things in it.
  *
- * Three answers, not two: the church preaches sermons, a Shared Space gathers,
- * and a ministry channel publishes. A channel was being asked to "Add a
- * gathering" for something nobody attends — the word promised a room and a
- * time that a published study does not have.
+ * Three scopes, two words. The church preaches **sermons**; a room that meets
+ * and a channel that publishes both plan a **study**.
+ *
+ * The room used to say "gathering", and the word put the meeting ahead of the
+ * thing being studied — which is backwards. What a room decides is what it is
+ * going to study; when it meets is an attribute of that, and one the room has
+ * usually already declared as its rhythm. A study can run one week or eight,
+ * and calling it a gathering made an eight-week run sound like eight unrelated
+ * evenings.
+ *
+ * **A room and a channel share `addLabel` and differ in `addOpens`**, which is
+ * exactly the distinction that field exists to carry: a channel's usual unit of
+ * work is a run of weeks, so its primary opens the series sheet, while a room
+ * makes one study that may then repeat. Sharing the label is deliberate; if the
+ * two branches are ever collapsed because their labels match, the channel loses
+ * the series sheet. A test asserts the pair.
  */
 export type PlanVocabulary = {
   /**
@@ -491,6 +503,9 @@ export type PlanVocabulary = {
    * so it says New — and the Planner header stopped using both verbs at once
    * for the same kind of act, which is what it did while this read
    * "Add a gathering" beside "New series".
+   *
+   * Not unique across scopes: a room and a channel both read "New study". See
+   * the type docblock for why, and `addOpens` for what still separates them.
    */
   addLabel: string;
   /**
@@ -570,15 +585,22 @@ export function planVocabulary(
       readOnlyRole: 'A pastor or admin changes what this channel publishes.',
     };
   }
+  /*
+    A room that meets. The study is the object here for the same reason it is on
+    a channel — it is what the room decided — but the primary opens the one-row
+    editor rather than the series sheet: a room commits to a study and then
+    repeats it across the weeks it needs, which is the shape "how many weeks" on
+    the create form produces.
+  */
   return {
-    addLabel: 'New gathering',
+    addLabel: 'New study',
     addOpens: 'entry',
     secondaryAddLabel: null,
     emptyWritable:
       scope.hasChurch === false
         ? 'Plan what this group studies. Everyone in the space sees what is coming up.'
         : 'Plan what this ministry studies. Its members see it inside the space.',
-    itemNoun: 'gathering',
+    itemNoun: 'study',
     readOnlyRole: 'Whoever leads this space arranges its plan.',
   };
 }

@@ -670,7 +670,25 @@ select:focus-visible {
   /* Prototype surfaces carry a theme-aware ring that flips in dark mode; the
      legacy token is the fallback for pages that don't load prototype-tokens.css. */
   outline: var(--focus-ring-width) solid var(--pds-accent-focus-ring, var(--focus-ring-color));
-  outline-offset: var(--focus-ring-offset);
+  /*
+    Inset, not the shared `--focus-ring-offset`, because a field is the one
+    focusable thing that is routinely full-width inside a scroller.
+
+    An outward ring is painted outside the border box, so an ancestor with
+    `overflow: hidden` or `auto` clips whatever falls outside its padding box —
+    and a `width: 100%` field has nothing to spare on the left and right. The
+    ring then lost both of its vertical edges and read as two stray brackets.
+    Setting `overflow-y: auto` forces `overflow-x` to compute to `auto` too, so
+    a column that only meant to scroll vertically clips horizontally as well;
+    that is why this showed up in the planner rail and the review dock, both of
+    which scroll a form.
+
+    `-1 * width` puts the ring just inside the edge instead, where nothing can
+    crop it and it still reads as one band against the field's own border. Same
+    construction as the OTP fields below. The shared token stays at `+2px` for
+    nav rows and cards, which sit in open space and want the halo.
+  */
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
 .color-selection button[style*="background-color"] {
