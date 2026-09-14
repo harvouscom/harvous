@@ -78,13 +78,19 @@ const NON_PROTOTYPE_PREFIXES = [
   '/upgrade',
   '/status',
   '/api/',
+  // The public listing page, `/discover/{slug}` — the install action only; the
+  // in-app catalog is an expanded-sidebar tool with no route of its own. Without
+  // this a dedicated-host visit (app.harvous.com, localhost) reads as prototype
+  // shell, which wrongly suppresses the global toast (`shouldSuppressAppToasts`)
+  // on the one public page that needs it to celebrate a signed-in install.
+  '/discover/',
 ];
 
 function isNonPrototypeAppPath(logical: string): boolean {
   return NON_PROTOTYPE_PREFIXES.some((p) => logical === p || logical.startsWith(p));
 }
 
-/** Join, shared note/thread, invitation, add-on, and status pages (public marketing-style shell). */
+/** Join, shared note/thread, invitation, add-on, discover, and status pages (public marketing-style shell). */
 export function isPublicAppPath(pathname: string): boolean {
   const logical = prototypeLogicalPath(pathname);
   // status.harvous.com serves the status UI at `/` (and `/status`).
@@ -93,6 +99,7 @@ export function isPublicAppPath(pathname: string): boolean {
     (logical.startsWith('/spaces/join') ||
       logical.startsWith('/shared/') ||
       logical.startsWith('/invitations/') ||
+      logical.startsWith('/discover/') ||
       logical === '/upgrade' ||
       logical.startsWith('/upgrade/') ||
       logical === '/addon' ||

@@ -531,6 +531,141 @@
   color: var(--pds-accent);
 }
 
+/* ─── Resource card (a link's "inside" is where it points, not a preview) ── */
+
+/* Same house card as a template or note — flex: 1, fills the column like they
+   do — the panel below is what fills that height instead of a scroll list. */
+
+.public-card__panel {
+  flex: 1;
+  min-height: 220px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The generated art (set inline, per slug) covers this — neutral gray, not
+     the cream `--site-warm`, is only what shows through before it loads or if
+     the hotlink ever fails. */
+  background: var(--pds-bg-section);
+  background-size: cover;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+
+/* No photo of its own (every curated video's poster is harvous.com's to draw,
+   not this repo's to fetch — see the `panelImageUrl` comment) — the kind's own
+   glyph, large, standing in for one rather than an empty warm rectangle. */
+.public-card__panel-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  background: var(--site-card);
+  color: var(--site-ink-soft);
+  box-shadow: 0 1px 2px rgba(20, 18, 12, 0.06), 0 6px 16px -6px rgba(20, 18, 12, 0.12);
+}
+
+.public-card__panel-duration {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(20, 18, 12, 0.72);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* A resource's header sits below its own panel rather than under the card's
+   top rule, so the divider — right, and too close to the button below it once
+   this page's tighter spacing was measured against the site's — is dropped
+   for a wider gap instead, gained back at the CTA end. */
+.public-card--resource .public-card__header {
+  border-bottom: none;
+  padding: 20px 24px 4px;
+  flex-shrink: 0;
+}
+
+/* Bigger than the shared card title — this one leads a page with a hero panel
+   above it, closer to the site's own listing-page headline than to a dense
+   note/template card's heading. */
+.public-card--resource .public-card__title {
+  font-size: 2rem;
+}
+
+.public-card--resource .public-card__meta {
+  margin-top: 8px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.public-card__source {
+  font-size: 0.8125rem;
+  color: var(--site-ink-faint);
+  margin-top: 8px;
+}
+
+/* The floating/pinned CTA is a trick for anchoring over scrollable content;
+   the panel above is fixed-height, not a scroll list, so the resource card's
+   CTA returns to normal flow, with the room the site's own gives it. */
+.public-card--resource .public-card__cta {
+  position: static;
+  background: none;
+  padding: 18px 24px 24px;
+}
+
+.public-card__cta-row {
+  display: flex;
+  gap: 10px;
+}
+
+.public-card__cta-row .public-cta-btn {
+  flex: 1;
+}
+
+/* Two 50%-wide pills on a phone-width card crushes both labels; stack them
+   full-width instead, primary on top. */
+@media (max-width: 460px) {
+  .public-card__cta-row {
+    flex-direction: column;
+  }
+
+  /* `flex: 1`'s `flex-basis: 0%` is what splits the row evenly at the default
+     `row` direction; carried into `column` it overrides the pill's own 44px
+     `height` instead of its width, stretching both buttons tall. `stretch`
+     (flexbox's own default `align-items`) already gives each one the full
+     cross-axis width here, so height only needs to be handed back. */
+  .public-card__cta-row .public-cta-btn {
+    flex: none;
+  }
+}
+
+/* The site's own secondary pill beside a listing's primary action (there, the
+   publisher's own link) — same outline, this page's blue swapped for a plain
+   border since there is no second brand to hand off to here. */
+.public-cta-btn--secondary {
+  background: var(--site-card);
+  color: var(--site-ink);
+  /* The base pill hardcodes white for Safari's benefit (`color` alone does not
+     win there); left alone here the secondary button's own text would render
+     white-on-white. */
+  -webkit-text-fill-color: var(--site-ink);
+  /* Neutral gray, matching the panel and the site's own outline — not
+     `--site-rule`, which is this page's warm (cream) border everywhere else. */
+  border: 1px solid var(--pds-border);
+  box-shadow: none;
+}
+
+.public-cta-btn--secondary:hover {
+  background: var(--pds-bg-section);
+  filter: none;
+}
+
 /* ─── Page footer ───────────────────────────────────────────────────────── */
 
 /* Matches the `/site/` footer micro-copy: small, faint, padded — sits below

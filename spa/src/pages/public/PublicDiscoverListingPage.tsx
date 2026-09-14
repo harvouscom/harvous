@@ -22,6 +22,16 @@ import { useInstallDiscoverListing } from '../../hooks/mutations/useDiscoverMuta
 import type { DiscoverListing } from '../../hooks/queries/useDiscoverListings';
 import { PublicTopBar, PublicErrorState } from './public-shared';
 import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
+import { prototypeHomeRouteTo } from '@/lib/prototype-path';
+import { resourceSourceLabel } from '@/utils/resource-source-label';
+import { toast } from '@/utils/toast';
+import Icon from '@/components/react/Icon';
+import {
+  DISCOVER_RESOURCE_TYPE_ICON,
+  DISCOVER_RESOURCE_TYPE_NOUN,
+  discoverArtPosition,
+  discoverDocumentArt,
+} from '../prototype/discover-display';
 
 const PENDING_KEY = 'pendingDiscoverInstall';
 const PENDING_TTL_MS = 600_000;
@@ -56,24 +66,32 @@ export default function PublicDiscoverListingPage() {
     setStatus('installing');
     try {
       const result = await install.mutateAsync(slug);
-      setStatus(result.alreadyInstalled ? 'already' : 'done');
+      const already = result.alreadyInstalled;
+      setStatus(already ? 'already' : 'done');
       clearPendingAuthRedirect();
       try {
         sessionStorage.removeItem(PENDING_KEY);
       } catch {
         /* ignore */
       }
-      /* Land on the thing they just took when there is one to open. A template
-         or a link has no page of its own — it is now in their picker or their
-         library — so the confirmation above is the whole answer and this page
-         stays put rather than dumping them somewhere unrelated. */
+      /* The real app toast, not a page-local one — it survives the navigation
+         below because `<Toaster>` is mounted once at the app root (App.tsx),
+         a sibling of the router, not per-page. Same call and copy shape as
+         the in-app Discover install (PrototypeBrowseTemplatesSheet's
+         handleInstall), so a link from harvous.com resolves in the same
+         voice as picking Discover from inside the app. */
+      const title = listing?.title ?? 'that';
+      toast.success(already ? `"${title}" is already in your Harvous` : `Saved "${title}" to your Harvous`);
+      /* Always lands somewhere — the note itself when there is one, otherwise
+         Home, same as the toolbar's "Open app". A brief delay, not a page-local
+         hold: the toast is already on screen and keeps playing through the
+         transition, so this is a beat to register the click landed, not a wait
+         to finish reading anything. */
       const noteId = result.createdIds?.noteId;
-      if (noteId) {
-        const destination = noteUrlForCurrentSurface(noteId);
-        window.setTimeout(() => {
-          void navigate({ to: destination as never });
-        }, 900);
-      }
+      const destination = noteId ? noteUrlForCurrentSurface(noteId) : prototypeHomeRouteTo();
+      window.setTimeout(() => {
+        void navigate({ to: destination as never });
+      }, 350);
     } catch (error) {
       startedRef.current = false;
       setStatus('error');
@@ -119,18 +137,41 @@ export default function PublicDiscoverListingPage() {
     });
   }
 
+  /* The structure is the honest preview of a starter and the note titles are the
+     honest preview of a series. Neither is the body — taking a copy is what hands
+     that over. */
+  const outline: string[] = listing?.preview?.headings ?? listing?.preview?.titles ?? [];
+  /* A link has no "inside" to promise — it is a pointer, not authored content —
+     so it skips the outline card entirely and shows where it points instead. */
+  const isResource = listing?.kind === 'resource';
+  const resourceType = listing?.preview?.resourceType ?? null;
+  /* Same table PrototypeExpandedDiscover's in-app browsing row reads — a link looks like the
+     same thing whether it was found browsing or arrived from a share, not a second vocabulary
+     invented for this one page. */
+  const resourceIcon = (resourceType && DISCOVER_RESOURCE_TYPE_ICON[resourceType]) || 'newspaper';
+  const resourceTypeNoun = resourceType ? DISCOVER_RESOURCE_TYPE_NOUN[resourceType] : null;
+  const video = isResource ? (listing?.preview?.video ?? null) : null;
+  const durationLabel = video?.durationLabel;
+  const sourceLabel = isResource
+    ? resourceSourceLabel(listing?.preview?.sourceDomain, listing?.preview?.sourceSiteName)
+    : '';
+  /* The panel never draws the resource's own photo — every kind wears the same icon-tile
+     treatment — so the background behind that tile is the same generated art the site itself
+     falls back to for a picture-less card, deterministic per slug (`discoverDocumentArt` /
+     `discoverArtPosition`), not derived from the resource's own thumbnail. A listing looks like
+     the same thing on both products, including a video's: the real frame is harvous.com's own
+     poster to draw, never this repo's to fetch. */
+  const panelArt = isResource ? discoverDocumentArt(listing?.slug) : null;
+  const panelArtPosition = isResource ? discoverArtPosition(listing?.slug) : null;
+
   const kindNoun =
     listing?.kind === 'pack'
       ? 'Thread'
       : listing?.kind === 'note'
         ? 'note'
         : listing?.kind === 'resource'
-          ? 'link'
+          ? (resourceTypeNoun?.toLowerCase() ?? 'link')
           : 'template';
-  /* The structure is the honest preview of a starter and the note titles are the
-     honest preview of a series. Neither is the body — taking a copy is what hands
-     that over. */
-  const outline: string[] = listing?.preview?.headings ?? listing?.preview?.titles ?? [];
 
   return (
     <>
@@ -155,65 +196,108 @@ export default function PublicDiscoverListingPage() {
                     : `A ${kindNoun} shared on Harvous`}
                 </p>
 
-                <div className="public-card">
+                <div className={`public-card${isResource ? ' public-card--resource' : ''}`}>
+                  {isResource ? (
+                    <div
+                      className="public-card__panel"
+                      style={
+                        panelArt
+                          ? { backgroundImage: `url(${panelArt})`, backgroundPosition: panelArtPosition ?? undefined }
+                          : undefined
+                      }
+                    >
+                      <span className="public-card__panel-icon" aria-hidden>
+                        <Icon name={resourceIcon} size={40} />
+                      </span>
+                      {durationLabel ? (
+                        <span className="public-card__panel-duration">{durationLabel}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="public-card__header">
                     <h1 className="public-card__title">{listing.title}</h1>
                     {listing.description ? (
                       <p className="public-card__meta">{listing.description}</p>
                     ) : null}
+                    {sourceLabel ? (
+                      <p className="public-card__source">{sourceLabel}</p>
+                    ) : null}
                   </div>
 
-                  <div className="public-card__scroll">
-                    {outline.length === 0 ? (
-                      <div className="public-card__empty">
-                        Take a copy to see what's inside.
-                      </div>
-                    ) : (
-                      <ul className="public-card__list">
-                        {outline.map((line, index) => (
-                          <li
-                            key={`${line}-${index}`}
-                            className="public-card__list-item card-enter"
-                            style={{ animationDelay: `${100 + index * 40}ms` }}
-                          >
-                            {line}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+                  {isResource ? null : (
+                    <div className="public-card__scroll">
+                      {outline.length === 0 ? (
+                        <div className="public-card__empty">
+                          Take a copy to see what's inside.
+                        </div>
+                      ) : (
+                        <ul className="public-card__list">
+                          {outline.map((line, index) => (
+                            <li
+                              key={`${line}-${index}`}
+                              className="public-card__list-item card-enter"
+                              style={{ animationDelay: `${100 + index * 40}ms` }}
+                            >
+                              {line}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
 
                   {/* `public-card__cta` is the pinned footer, not the button —
                       it sets `pointer-events: none` and the button inside takes
-                      them back. `public-cta-btn` is the button. */}
+                      them back. `public-cta-btn` is the button. A resource card
+                      (no scroll area to float over) drops the pin — see
+                      `.public-card--resource .public-card__cta` in public-pages.css.
+                      One button carries every state through to "Saved" rather than
+                      swapping in a separate confirmation block — the celebration
+                      itself is the toast fired from `doInstall`, not anything here. */}
                   <div className="public-card__cta">
                     {message ? (
                       <div className="public-invite-message" role="alert">
                         {message}
                       </div>
                     ) : null}
-                    {status === 'done' || status === 'already' ? (
-                      <div className="public-already-member" role="status">
-                        {status === 'done'
-                          ? 'Saved to your Harvous.'
-                          : 'This is already in your Harvous.'}
-                      </div>
-                    ) : (
+                    <div className="public-card__cta-row">
                       <button
                         type="button"
                         className="public-cta-btn"
-                        disabled={status === 'installing'}
+                        disabled={status === 'installing' || status === 'done' || status === 'already'}
                         onClick={handlePress}
                       >
-                        {status === 'installing' ? 'Saving…' : 'Save this to my Harvous'}
+                        {status === 'installing'
+                          ? 'Saving…'
+                          : status === 'done' || status === 'already'
+                            ? 'Saved'
+                            : 'Save this to my Harvous'}
                       </button>
-                    )}
+                      {/* The site's own listing page pairs the primary action with a secondary
+                          one in this same outline style (there, the publisher's own link) — the
+                          equivalent escape hatch here, since this page has no browsing of its
+                          own to fall back into, is the hub the visitor actually came from. Held
+                          off once the primary has already fired: about to navigate away, a
+                          second destination is a decision nobody asked to make in that instant. */}
+                      {isResource && status !== 'done' && status !== 'already' ? (
+                        <a
+                          href="https://harvous.com/discover/"
+                          className="public-cta-btn public-cta-btn--secondary"
+                        >
+                          Back to Discover
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
                 <div className="public-footer public-footer--rich">
                   <span className="public-footer__tag">
-                    Shared by someone using Harvous. Start your own study Bible.{' '}
+                    {/* Not "shared by someone using Harvous" — a catalog listing wasn't, even
+                        when the byline above names a person, since the whole point of Discover
+                        is that anyone can take it, not just whoever it was shared with. */}
+                    Discovered on Harvous. Start your own study Bible.{' '}
                     <a
                       href="https://harvous.com"
                       target="_blank"
