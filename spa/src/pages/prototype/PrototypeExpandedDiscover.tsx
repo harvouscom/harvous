@@ -274,6 +274,10 @@ export default function PrototypeExpandedDiscover({
       }
       exiting={exiting}
       origin={origin}
+      // Reached from the centered library panel, not from inside the sidebar itself — landing
+      // left-anchored after that read as a jump sideways. See ProtoSidebarExpandedPanel's own
+      // `centered` doc.
+      centered
       onClose={onClose}
     >
       {/* The panel body is `display: flex` in row direction, so a bare child is

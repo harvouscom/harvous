@@ -24,7 +24,6 @@ import { PublicTopBar, PublicErrorState } from './public-shared';
 import { noteUrlForCurrentSurface } from '@/utils/url-helpers';
 import { prototypeHomeRouteTo } from '@/lib/prototype-path';
 import { resourceSourceLabel } from '@/utils/resource-source-label';
-import { toast } from '@/utils/toast';
 import Icon from '@/components/react/Icon';
 import {
   DISCOVER_RESOURCE_TYPE_ICON,
@@ -35,6 +34,8 @@ import {
 
 const PENDING_KEY = 'pendingDiscoverInstall';
 const PENDING_TTL_MS = 600_000;
+/** Read by App.tsx's PendingDiscoverToastBridge — own sibling constant there. */
+const PENDING_DISCOVER_TOAST_KEY = 'pendingDiscoverToast';
 
 type Status = 'loading' | 'ready' | 'installing' | 'done' | 'already' | 'error';
 
@@ -74,19 +75,27 @@ export default function PublicDiscoverListingPage() {
       } catch {
         /* ignore */
       }
-      /* The real app toast, not a page-local one — it survives the navigation
-         below because `<Toaster>` is mounted once at the app root (App.tsx),
-         a sibling of the router, not per-page. Same call and copy shape as
-         the in-app Discover install (PrototypeBrowseTemplatesSheet's
-         handleInstall), so a link from harvous.com resolves in the same
-         voice as picking Discover from inside the app. */
+      /* The real app toast, not a page-local one — same call and copy shape as the in-app
+         Discover install (PrototypeBrowseTemplatesSheet's handleInstall), so a link from
+         harvous.com resolves in the same voice as picking Discover from inside the app.
+         Stashed for App.tsx's PendingDiscoverToastBridge to fire, rather than called here:
+         this page has no sidebar for either toast renderer to centre against, and Sonner's
+         own placement is viewport-relative, so firing it here looked fine on this empty page
+         and then read as stuck off to the side once the sidebar it never knew about appeared
+         underneath it after the navigate below. */
       const title = listing?.title ?? 'that';
-      toast.success(already ? `"${title}" is already in your Harvous` : `Saved "${title}" to your Harvous`);
+      const toastMessage = already
+        ? `"${title}" is already in your Harvous`
+        : `Saved "${title}" to your Harvous`;
+      try {
+        sessionStorage.setItem(PENDING_DISCOVER_TOAST_KEY, JSON.stringify({ message: toastMessage }));
+      } catch {
+        /* ignore */
+      }
       /* Always lands somewhere — the note itself when there is one, otherwise
          Home, same as the toolbar's "Open app". A brief delay, not a page-local
-         hold: the toast is already on screen and keeps playing through the
-         transition, so this is a beat to register the click landed, not a wait
-         to finish reading anything. */
+         hold: it is a beat to register the click landed, not a wait to finish
+         reading anything — the toast itself only appears once we get there. */
       const noteId = result.createdIds?.noteId;
       const destination = noteId ? noteUrlForCurrentSurface(noteId) : prototypeHomeRouteTo();
       window.setTimeout(() => {
