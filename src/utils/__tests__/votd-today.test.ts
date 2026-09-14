@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   findPersistedDailyPassageNote,
   getVotdDismissedDay,
-  hasDailyPassageNote,
   isPersistedNoteId,
   isVotdPassageCardDismissedToday,
   noteMatchesDailyPassage,
@@ -11,17 +10,17 @@ import {
   VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY,
 } from '../../../spa/src/lib/votd-today';
 import type { SpaceNoteRow } from '../../../spa/src/hooks/queries/useSpace';
-import type { ScriptureIndexBookLike } from '@/utils/scripture-passage-drill';
 
 function note(
   id: string,
-  overrides: Partial<Pick<SpaceNoteRow, 'title' | 'content'>> = {},
+  overrides: Partial<Pick<SpaceNoteRow, 'title' | 'content' | 'createdAt' | 'updatedAt'>> = {},
 ): SpaceNoteRow {
   return {
     id,
     title: overrides.title ?? '',
     content: overrides.content ?? '<p></p>',
-    createdAt: new Date().toISOString(),
+    createdAt: overrides.createdAt ?? new Date().toISOString(),
+    updatedAt: overrides.updatedAt,
   };
 }
 
@@ -75,6 +74,15 @@ describe('noteMatchesDailyPassage', () => {
 });
 
 describe('findPersistedDailyPassageNote', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-26T15:00:00-05:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('ignores optimistic local notes', () => {
     const notes = [
       note('local_1', { content: pillContent('Romans 8:28') }),
@@ -82,51 +90,42 @@ describe('findPersistedDailyPassageNote', () => {
     ];
     expect(findPersistedDailyPassageNote(notes, 'Romans 8:28')?.id).toBe('note_real');
   });
-});
 
-describe('hasDailyPassageNote', () => {
-  const indexWithNotes: ScriptureIndexBookLike[] = [
-    {
-      bookOrder: 44,
-      passages: [
-        {
-          passageKey: '44:8:28:28',
-          displayRef: 'Romans 8:28',
-          bookOrder: 44,
-          noteCount: 1,
-        },
-      ],
-    },
-  ];
-
-  it('returns true when scripture index has notes for passage', () => {
-    expect(hasDailyPassageNote([], indexWithNotes, 'Romans 8:28')).toBe(true);
-  });
-
-  it('returns false when only optimistic note matches', () => {
-    const notes = [note('local_1', { content: pillContent('Romans 8:28') })];
-    expect(hasDailyPassageNote(notes, [], 'Romans 8:28')).toBe(false);
-  });
-
-  it('returns true from persisted note when index is stale', () => {
-    const notes = [note('note_1', { content: pillContent('Romans 8:28') })];
-    expect(hasDailyPassageNote(notes, [], 'Romans 8:28')).toBe(true);
-  });
-
-  it('returns false when index passage has zero notes and no persisted match', () => {
-    const emptyIndex: ScriptureIndexBookLike[] = [
-      {
-        bookOrder: 44,
-        passages: [
-          {
-            passageKey: '44:8:28:28',
-            displayRef: 'Romans 8:28',
-            bookOrder: 44,
-            noteCount: 0,
-          },
-        ],
-      },
+  /*
+   * The daily passage rotates through a finite pool, so the same reference recurs months
+   * later. Without a same-day scope, a note from that earlier occurrence would resurface as
+   * "today's" note — the wrong content opening under today's invitation to write, instead of
+   * a brand-new one.
+   */
+  it('ignores a note that cites the same reference from a different day', () => {
+    const notes = [
+      note('note_old', {
+        content: pillContent('Romans 8:28'),
+        createdAt: '2026-01-05T12:00:00.000Z',
+        updatedAt: '2026-01-05T12:00:00.000Z',
+      }),
     ];
-    expect(hasDailyPassageNote([], emptyIndex, 'Romans 8:28')).toBe(false);
+    expect(findPersistedDailyPassageNote(notes, 'Romans 8:28')).toBeUndefined();
+  });
+
+  it('resumes a note started earlier today, even if not the most recent edit', () => {
+    const notes = [
+      note('note_today', {
+        content: pillContent('Romans 8:28'),
+        createdAt: '2026-06-26T09:00:00-05:00',
+      }),
+    ];
+    expect(findPersistedDailyPassageNote(notes, 'Romans 8:28')?.id).toBe('note_today');
+  });
+
+  it('resumes a note only touched today via updatedAt, created on an earlier day', () => {
+    const notes = [
+      note('note_edited_today', {
+        content: pillContent('Romans 8:28'),
+        createdAt: '2026-06-20T09:00:00-05:00',
+        updatedAt: '2026-06-26T09:00:00-05:00',
+      }),
+    ];
+    expect(findPersistedDailyPassageNote(notes, 'Romans 8:28')?.id).toBe('note_edited_today');
   });
 });

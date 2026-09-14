@@ -334,7 +334,6 @@ export default function PrototypeSidebarHomeView({
             homeSpaceId={homeSpaceId}
             notes={notes}
             votd={votd}
-            scriptureBooks={scriptureBooks}
           />
         ) : null}
 
