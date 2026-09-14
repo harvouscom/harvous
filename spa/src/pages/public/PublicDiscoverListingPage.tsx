@@ -404,10 +404,14 @@ export default function PublicDiscoverListingPage() {
 
                 <div className="public-footer public-footer--rich">
                   <span className="public-footer__tag">
-                    {/* Not "shared by someone using Harvous" — a catalog listing wasn't, even
-                        when the byline above names a person, since the whole point of Discover
-                        is that anyone can take it, not just whoever it was shared with. */}
-                    Discovered on Harvous. Start your own study Bible.{' '}
+                    {/* Only the provenance is conditional. The invitation after it is one
+                        sentence written once, so the two branches cannot drift apart, and
+                        "study&nbsp;Bible" is held together — it is a compound, and the
+                        shorter official line moved the break right into the middle of it. */}
+                    {isOfficial
+                      ? 'Included with Harvous.'
+                      : 'Discovered on Harvous.'}{' '}
+                    Start your own study&nbsp;Bible.{' '}
                     <a
                       href="https://harvous.com"
                       target="_blank"
