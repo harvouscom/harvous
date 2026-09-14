@@ -610,13 +610,24 @@
   margin-top: 8px;
 }
 
-/* The floating/pinned CTA is a trick for anchoring over scrollable content;
-   the panel above is fixed-height, not a scroll list, so the resource card's
-   CTA returns to normal flow, with the room the site's own gives it. */
+/* The panel's own 220px floor plus a title and description can outgrow a
+   short viewport, and the CTA must never be part of what scrolls out of
+   reach — so the resource card keeps the same pinned/gradient `.public-card
+   .public-card__cta` as template and note, just with the room this page's
+   wider side padding needs. The panel + header scroll underneath it instead
+   (see `.public-card__scroll` in the JSX and the flex column below, so the
+   panel's own `flex: 1` still fills spare room when everything fits). */
 .public-card--resource .public-card__cta {
-  position: static;
-  background: none;
   padding: 18px 24px 24px;
+}
+
+.public-card--resource .public-card__scroll {
+  display: flex;
+  flex-direction: column;
+  /* Clears the pinned CTA at its tallest — two full-width buttons stacked on
+     a narrow viewport, not the single-row desktop height the base 88px
+     assumes. */
+  padding-bottom: 160px;
 }
 
 .public-card__cta-row {

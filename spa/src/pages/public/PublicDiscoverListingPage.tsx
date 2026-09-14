@@ -198,63 +198,80 @@ export default function PublicDiscoverListingPage() {
 
                 <div className={`public-card${isResource ? ' public-card--resource' : ''}`}>
                   {isResource ? (
-                    <div
-                      className="public-card__panel"
-                      style={
-                        panelArt
-                          ? { backgroundImage: `url(${panelArt})`, backgroundPosition: panelArtPosition ?? undefined }
-                          : undefined
-                      }
-                    >
-                      <span className="public-card__panel-icon" aria-hidden>
-                        <Icon name={resourceIcon} size={40} />
-                      </span>
-                      {durationLabel ? (
-                        <span className="public-card__panel-duration">{durationLabel}</span>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  <div className="public-card__header">
-                    <h1 className="public-card__title">{listing.title}</h1>
-                    {listing.description ? (
-                      <p className="public-card__meta">{listing.description}</p>
-                    ) : null}
-                    {sourceLabel ? (
-                      <p className="public-card__source">{sourceLabel}</p>
-                    ) : null}
-                  </div>
-
-                  {isResource ? null : (
+                    // The pinned CTA below needs the panel + header to be what scrolls, not the
+                    // whole card, so a short viewport (a panel's own 220px floor plus a title and
+                    // description can outgrow it) never pushes the buttons out of reach — same
+                    // `.public-card__scroll` the outline list below scrolls under for template
+                    // and note, reused for different children.
                     <div className="public-card__scroll">
-                      {outline.length === 0 ? (
-                        <div className="public-card__empty">
-                          Take a copy to see what's inside.
-                        </div>
-                      ) : (
-                        <ul className="public-card__list">
-                          {outline.map((line, index) => (
-                            <li
-                              key={`${line}-${index}`}
-                              className="public-card__list-item card-enter"
-                              style={{ animationDelay: `${100 + index * 40}ms` }}
-                            >
-                              {line}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      <div
+                        className="public-card__panel"
+                        style={
+                          panelArt
+                            ? {
+                                backgroundImage: `url(${panelArt})`,
+                                backgroundPosition: panelArtPosition ?? undefined,
+                              }
+                            : undefined
+                        }
+                      >
+                        <span className="public-card__panel-icon" aria-hidden>
+                          <Icon name={resourceIcon} size={40} />
+                        </span>
+                        {durationLabel ? (
+                          <span className="public-card__panel-duration">{durationLabel}</span>
+                        ) : null}
+                      </div>
+
+                      <div className="public-card__header">
+                        <h1 className="public-card__title">{listing.title}</h1>
+                        {listing.description ? (
+                          <p className="public-card__meta">{listing.description}</p>
+                        ) : null}
+                        {sourceLabel ? (
+                          <p className="public-card__source">{sourceLabel}</p>
+                        ) : null}
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      <div className="public-card__header">
+                        <h1 className="public-card__title">{listing.title}</h1>
+                        {listing.description ? (
+                          <p className="public-card__meta">{listing.description}</p>
+                        ) : null}
+                      </div>
+
+                      <div className="public-card__scroll">
+                        {outline.length === 0 ? (
+                          <div className="public-card__empty">
+                            Take a copy to see what's inside.
+                          </div>
+                        ) : (
+                          <ul className="public-card__list">
+                            {outline.map((line, index) => (
+                              <li
+                                key={`${line}-${index}`}
+                                className="public-card__list-item card-enter"
+                                style={{ animationDelay: `${100 + index * 40}ms` }}
+                              >
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </>
                   )}
 
                   {/* `public-card__cta` is the pinned footer, not the button —
                       it sets `pointer-events: none` and the button inside takes
-                      them back. `public-cta-btn` is the button. A resource card
-                      (no scroll area to float over) drops the pin — see
-                      `.public-card--resource .public-card__cta` in public-pages.css.
-                      One button carries every state through to "Saved" rather than
-                      swapping in a separate confirmation block — the celebration
-                      itself is the toast fired from `doInstall`, not anything here. */}
+                      them back. `public-cta-btn` is the button, pinned over the
+                      `.public-card__scroll` above (resource or outline) so it is
+                      never pushed out of a short viewport. One button carries
+                      every state through to "Saved" rather than swapping in a
+                      separate confirmation block — the celebration itself is the
+                      toast fired from `doInstall`, not anything here. */}
                   <div className="public-card__cta">
                     {message ? (
                       <div className="public-invite-message" role="alert">
