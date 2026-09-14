@@ -459,6 +459,11 @@ export interface VerseMaterial {
    * which is why the always-on families cannot be switched off at all.
    */
   skip?: ReadonlySet<ReviewPromptKey>;
+  /**
+   * Rungs the reader asked for more of, from Settings. Weighted in the seeded draw by
+   * `emphasisDraw`, and never a reason to skip anything else.
+   */
+  prefer?: ReadonlySet<ReviewPromptKey>;
 }
 
 /** Below this many rivals of the reader's own, "where is this from?" is a coin toss. */
@@ -553,6 +558,30 @@ export function verseFamilyMemberAvailable(
   }
 }
 
+/**
+ * The members a seeded draw runs over, with the reader's "More" counted twice.
+ *
+ * Emphasis is a weight, not an order. Putting preferred members first would make "More theme"
+ * mean "theme on every verse that has one" — the other context rungs gone from all of them — which
+ * is an allow-list by another name, the thing `review-exercise-settings.ts` exists to refuse.
+ * Counted twice, a preferred member wins the draw about twice as often and every sibling keeps
+ * its own slot.
+ *
+ * Returns `members` itself when nothing in it is preferred, so a reader with no preferences draws
+ * exactly what they drew before and the list, the reveal and the grader resolve the rung they
+ * always did. When *every* member is preferred the weights cancel and it returns `members` then
+ * too: more of everything is normal.
+ */
+export function emphasisDraw(
+  members: readonly ReviewPromptKey[],
+  prefer?: ReadonlySet<ReviewPromptKey>,
+): readonly ReviewPromptKey[] {
+  if (!prefer?.size) return members;
+  const extra = members.filter((key) => prefer.has(key));
+  if (!extra.length || extra.length === members.length) return members;
+  return [...members, ...extra];
+}
+
 /** The rung a verse is on, and how many times it has been round the maintenance cycle. */
 export interface VerseRung {
   key: ReviewPromptKey;
@@ -593,9 +622,10 @@ export function verseRungFor(step: number, seed?: string, material?: VerseMateri
   const members = VERSE_FAMILIES[family];
   if (!seed || members.length === 1) return { key: members[0], pass, family };
 
-  const start = seededIndex(seed, members.length);
-  for (let i = 0; i < members.length; i++) {
-    const key = members[(start + i) % members.length];
+  const draw = emphasisDraw(members, material?.prefer);
+  const start = seededIndex(seed, draw.length);
+  for (let i = 0; i < draw.length; i++) {
+    const key = draw[(start + i) % draw.length];
     if (verseFamilyMemberAvailable(key, material)) return { key, pass, family };
   }
   return { key: members[0], pass, family };
@@ -618,6 +648,8 @@ export interface ChapterMaterial {
   highlightCount?: number;
   /** Rungs the reader has asked not to be given. See `VerseMaterial.skip`. */
   skip?: ReadonlySet<ReviewPromptKey>;
+  /** Rungs the reader asked for more of. See `VerseMaterial.prefer`. */
+  prefer?: ReadonlySet<ReviewPromptKey>;
 }
 
 /**
@@ -684,7 +716,8 @@ export function chapterRungFor(step: number, seed?: string, material?: ChapterMa
     pass = 1 + Math.floor(offset / CHAPTER_MAINTENANCE_FAMILIES.length);
   }
   const members = CHAPTER_FAMILIES[family];
-  const real = members.slice(0, -1);
+  // Weighted over the peers only: the closing fallback is never something a reader can ask for.
+  const real = emphasisDraw(members.slice(0, -1), material?.prefer);
   const start = real.length && seed ? seededIndex(seed, real.length) : 0;
   for (let i = 0; i < real.length; i++) {
     const key = real[(start + i) % real.length];
