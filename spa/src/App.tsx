@@ -379,6 +379,55 @@ function PendingAuthRedirectBridge() {
   return null;
 }
 
+/** Read by PublicDiscoverListingPage.doInstall (own sibling PENDING_KEY constant there). */
+const PENDING_DISCOVER_TOAST_KEY = 'pendingDiscoverToast';
+
+/**
+ * Fires the Discover-install toast from wherever the visitor actually lands, not from the
+ * public page they installed it on.
+ *
+ * `windowToast.success` picks Sonner or the main-pane-centred `PrototypeFeedbackToast` by
+ * checking the *current* path — right once we've landed inside the shell, wrong on the bare
+ * public page a moment earlier, which has no sidebar for either toast to be centred against.
+ * Worse, Sonner's own placement is viewport-relative: called before the navigate, it looks fine
+ * on the empty public page and then reads as stuck off to the side once the sidebar it never
+ * knew about appears underneath it. Same shape as `PendingAuthRedirectBridge` above — stash
+ * intent, replay on the next resolved route — because a client-side navigation doesn't remount
+ * this component to give it a natural place to run once.
+ */
+function PendingDiscoverToastBridge() {
+  useEffect(() => {
+    const applyPendingToast = () => {
+      let raw: string | null = null;
+      try {
+        raw = sessionStorage.getItem(PENDING_DISCOVER_TOAST_KEY);
+      } catch {
+        return;
+      }
+      if (!raw) return;
+      try {
+        sessionStorage.removeItem(PENDING_DISCOVER_TOAST_KEY);
+      } catch {
+        /* ignore */
+      }
+      let message: string | undefined;
+      try {
+        message = (JSON.parse(raw) as { message?: string }).message;
+      } catch {
+        return;
+      }
+      if (!message) return;
+      /* One frame so the newly resolved route's own toast host (PrototypeFeedbackToast, mounted
+         inside the shell layout) has attached its event listener before this dispatches to it. */
+      requestAnimationFrame(() => windowToast.success(message));
+    };
+    applyPendingToast();
+    return router.subscribe('onResolved', applyPendingToast);
+  }, []);
+
+  return null;
+}
+
 function QueryClient401Redirect() {
   const { isLoaded, isSignedIn } = useAuth();
   const isLoadedRef = useRef(isLoaded);
@@ -854,6 +903,7 @@ export default function App() {
         <SupabaseRealtimeAuthBridge />
         <PublicRouteClassBridge />
         <PendingAuthRedirectBridge />
+        <PendingDiscoverToastBridge />
         <QueryClient401Redirect />
         <PostHogBridge />
         <IosPwaSheetOverlayInset />
