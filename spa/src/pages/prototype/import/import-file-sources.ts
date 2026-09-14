@@ -5,7 +5,17 @@
  * a zip. Both are done here so the engine only ever sees a plain list of sources
  * with a name, a size, a folder path, and a way to get the bytes.
  */
-import JSZip from 'jszip';
+/*
+ * Type-only, and it must stay that way.
+ *
+ * JSZip is ~95 KB and this module also exports `formatFileSize`,
+ * `IMPORT_ACCEPT_ATTRIBUTE` and `extensionOf` — a byte formatter, a string and a
+ * four-line helper — which eager surfaces import (the library item editor, the
+ * library manager, the import file row). A value import here put the whole zip
+ * library on the critical path for every route, sign-in included, to spell "2.1 MB".
+ * `expandZip` loads it when someone actually drops a zip.
+ */
+import type JSZipType from 'jszip';
 
 /** Extensions the server will parse. Kept in step with import-session.ts. */
 export const IMPORT_ACCEPT_EXTENSIONS = [
@@ -139,8 +149,9 @@ export async function expandZip(file: File): Promise<{
     return { sources: [], manifestConnections: [], skipped: [`${file.name} is too large to open here.`] };
   }
 
-  let zip: JSZip;
+  let zip: JSZipType;
   try {
+    const { default: JSZip } = await import('jszip');
     zip = await JSZip.loadAsync(await file.arrayBuffer());
   } catch {
     return { sources: [], manifestConnections: [], skipped: [`${file.name} could not be opened.`] };

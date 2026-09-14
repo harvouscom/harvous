@@ -2,6 +2,10 @@ import { Suspense, lazy, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import Icon from '@/components/react/Icon';
 import PrototypeHomeSection from './PrototypeHomeSection';
+import {
+  enclosingHomeSection,
+  scrollCollapsedSectionIntoView,
+} from '../../lib/proto-collapse-scroll';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import PrototypeReviewRow, { reviewRowActions } from './PrototypeReviewRow';
 import {
@@ -265,7 +269,14 @@ export default function PrototypeReviewSection() {
         <button
           type="button"
           className="proto-feed-part__more"
-          onClick={() => setExpanded((open) => !open)}
+          /* Same as every other fold on Home: collapsing brings the lane's top
+             back, because this bar is below the rows it just removed. Found from
+             the button rather than a ref — this toggle lives inside a
+             `PrototypeHomeSection` it does not own. */
+          onClick={(e) => {
+            if (expanded) scrollCollapsedSectionIntoView(enclosingHomeSection(e.currentTarget));
+            setExpanded((open) => !open);
+          }}
         >
           <span>{expanded ? REVIEW_SEE_LESS_COPY : foldedLabel(folded)}</span>
           <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />

@@ -9,14 +9,45 @@
  * Note: PostHog is initialized client-side only
  */
 
-import posthog from 'posthog-js';
+/*
+ * Type-only, and it must stay that way.
+ *
+ * posthog-js is ~173 KB raw and this module was the eager chunk's single largest
+ * dependency: a dozen modules import `captureException` / `captureEvent` from here
+ * statically, so the whole analytics library sat on the critical path for every
+ * route, sign-in included.
+ *
+ * Nothing below needs the import. Every function except `initPostHog` already
+ * reaches the SDK through `window.posthog` and no-ops when it is absent, which is
+ * exactly the shape a lazily-loaded library wants — so `initPostHog` fetches it,
+ * and the rest keep working unchanged.
+ */
+import type { PostHog, PostHogInterface } from 'posthog-js';
 
 // Type definitions for window.posthog
 declare global {
   interface Window {
-    posthog?: typeof posthog;
+    posthog?: PostHogInterface;
   }
 }
+
+/**
+ * In flight, so two mounts do not both start the fetch.
+ *
+ * The `window.posthog` guard alone stopped being enough the moment loading became
+ * asynchronous: both callers would pass it before either had finished.
+ */
+let initStarted = false;
+
+/**
+ * An identify that arrived before the SDK did.
+ *
+ * `PostHogBridge` identifies from a separate effect and marks the user done either
+ * way, so an identify that lands during the load window was previously dropped for
+ * the whole session. That race existed before this became a dynamic import; it is
+ * just wide enough now to be worth closing.
+ */
+let pendingIdentify: { userId: string; userData?: Parameters<typeof identifyUser>[1] } | null = null;
 
 function getPostHogKey(): string | undefined {
   const env = import.meta.env as Record<string, string | undefined>;
@@ -32,14 +63,14 @@ function getPostHogHost(): string {
  * Initialize PostHog (client-side only)
  * Should be called after page load to avoid blocking initial render
  */
-export function initPostHog() {
+export async function initPostHog(): Promise<void> {
   // Only run on client-side
   if (typeof window === 'undefined') {
     return;
   }
 
-  // Check if already initialized
-  if (window.posthog) {
+  // Check if already initialized, or already on its way
+  if (window.posthog || initStarted) {
     return;
   }
 
@@ -64,6 +95,16 @@ export function initPostHog() {
     return;
   }
 
+  initStarted = true;
+  let posthog: PostHog;
+  try {
+    ({ default: posthog } = await import('posthog-js'));
+  } catch (error) {
+    initStarted = false;
+    console.error('[PostHog] Failed to load analytics:', error);
+    return;
+  }
+
   try {
     posthog.init(posthogKey, {
       api_host: posthogHost,
@@ -85,7 +126,14 @@ export function initPostHog() {
     });
     // Available immediately for identify / capture (loaded may race)
     window.posthog = posthog;
+    // Anything that asked to be identified while the library was loading.
+    if (pendingIdentify) {
+      const { userId, userData } = pendingIdentify;
+      pendingIdentify = null;
+      identifyUser(userId, userData);
+    }
   } catch (error) {
+    initStarted = false;
     console.error('[PostHog] Initialization error:', error);
   }
 }
@@ -102,7 +150,12 @@ export function identifyUser(userId: string, userData?: {
   signedUpAt?: string;
   plan?: string;
 }) {
-  if (typeof window === 'undefined' || !window.posthog) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  if (!window.posthog) {
+    // Held until `initPostHog` finishes, rather than dropped for the session.
+    pendingIdentify = { userId, userData };
     return;
   }
 

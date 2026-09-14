@@ -77,6 +77,11 @@ const NON_PROTOTYPE_PREFIXES = [
   '/addon',
   '/upgrade',
   '/status',
+  // `/discover/{slug}` only. The bare segment stays out: it is reserved above so
+  // it cannot resolve as a note id, but there is no `/discover` page — the in-app
+  // catalog is an expanded-sidebar tool — and claiming the prefix would reserve a
+  // route nothing serves.
+  '/discover/',
   '/api/',
   // The public listing page, `/discover/{slug}` — the install action only; the
   // in-app catalog is an expanded-sidebar tool with no route of its own. Without
@@ -90,7 +95,16 @@ function isNonPrototypeAppPath(logical: string): boolean {
   return NON_PROTOTYPE_PREFIXES.some((p) => logical === p || logical.startsWith(p));
 }
 
-/** Join, shared note/thread, invitation, add-on, discover, and status pages (public marketing-style shell). */
+/**
+ * Join, shared note/thread, invitation, add-on, Discover listing, and status pages
+ * (public marketing-style shell).
+ *
+ * `/discover/{slug}` was missing here for as long as the route existed, and the
+ * omission was invisible because nothing linked to it in-app: on the dedicated host
+ * `isNonPrototypeAppPath` did not claim the path, so `isPrototypeShellPath` returned
+ * **true** and `PublicDiscoverListingPage` — which renders `PublicTopBar` and
+ * `.public-page` — loaded with the prototype shell's chrome and none of its own.
+ */
 export function isPublicAppPath(pathname: string): boolean {
   const logical = prototypeLogicalPath(pathname);
   // status.harvous.com serves the status UI at `/` (and `/status`).
@@ -98,6 +112,7 @@ export function isPublicAppPath(pathname: string): boolean {
   return (
     (logical.startsWith('/spaces/join') ||
       logical.startsWith('/shared/') ||
+      logical.startsWith('/discover/') ||
       logical.startsWith('/invitations/') ||
       logical.startsWith('/discover/') ||
       logical === '/upgrade' ||
