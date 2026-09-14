@@ -927,14 +927,22 @@ export function useHomeSurfaceData({
       ? deriveStudyArcsFromNodes(themeNodes, { nowMs, limit: 1 })[0]
       : undefined;
     if (fromLayer) {
-      // The layer knows the theme was studied; the notes on screen are what the arc can open.
-      const noteIds = notes
-        .filter((n) =>
-          (fingerprintsById.get(n.id)?.themes ?? []).some(
-            (theme) => theme.trim().toLowerCase() === fromLayer.theme.toLowerCase(),
-          ),
-        )
-        .map((n) => n.id);
+      /*
+       * The layer knows the theme was studied; `fingerprintsById` is what says which notes.
+       *
+       * This used to filter `notes` — the paginated page Home has loaded — rather than scan
+       * `fingerprintsById` itself, even though the fingerprints query is already unpaginated
+       * (`/api/notes/fingerprints` returns every fingerprinted note, full history, in one
+       * request; see `useNoteFingerprints`). A study arc is by definition a theme returned to
+       * across weeks or months, so its notes are routinely outside the recent page: `noteIds`
+       * would resolve too few — often zero — and `openStudyArc` below would fall back to a
+       * keyword search instead of proposing the Thread, even though the theme's notes were
+       * sitting in memory the whole time.
+       */
+      const themeLower = fromLayer.theme.toLowerCase();
+      const noteIds = Array.from(fingerprintsById.entries())
+        .filter(([, fp]) => fp.themes.some((theme) => theme.trim().toLowerCase() === themeLower))
+        .map(([noteId]) => noteId);
       return { ...fromLayer, noteIds };
     }
 
@@ -996,10 +1004,19 @@ export function useHomeSurfaceData({
         : studyArc
           ? studyArc.theme
           : '';
-    const proposalNotes = noteIds
-      .map((id) => notes.find((n) => n.id === id))
-      .filter((n): n is SpaceNoteRow => Boolean(n))
-      .map((n) => ({ id: n.id, title: n.title ?? null }));
+    /*
+     * A title when the note is on the loaded page, `null` otherwise — not dropped. `noteIds`
+     * now routinely names notes outside that page (see `studyArc` above), and
+     * `PrototypeThreadProposalReview`'s `resolveNoteRow` already tolerates a title-less brief
+     * for exactly this reason ("a proposal carries only ids and titles, and each surface
+     * already knows how to turn one into a full row from what it has loaded"). Dropping these
+     * notes here instead would silently shrink the arc back down to whatever's on screen —
+     * the same bug moved one line down.
+     */
+    const proposalNotes = noteIds.map((id) => ({
+      id,
+      title: notes.find((n) => n.id === id)?.title ?? null,
+    }));
     if (proposalNotes.length === 0 || !proposeThread) {
       if (subject) searchLibraryFor(subject);
       return;
