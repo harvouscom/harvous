@@ -2,7 +2,7 @@ import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
 import { useHarvousAdminCheck } from '@/hooks/queries/useVotdPreview';
-import type { CuratedResourceType } from '@/data/curated-resources';
+import type { CuratedResourceType, CuratedVideo } from '@/data/curated-resources';
 
 /**
  * What a listing looks like to anyone browsing.
@@ -55,6 +55,8 @@ export type DiscoverTemplatePreview = {
    * absent on everything that is not a curated resource.
    */
   resourceType?: CuratedResourceType | null;
+  /** Curated videos only — the id is what a thumbnail and an embed are both built from. */
+  video?: CuratedVideo | null;
 };
 
 export type DiscoverListingsResponse = {

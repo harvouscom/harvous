@@ -11,6 +11,8 @@ import {
   DISCOVER_RESOURCE_TYPE_ICON,
   DISCOVER_RESOURCE_TYPE_NOUN,
   DISCOVER_TOPIC_ICON,
+  discoverArtPosition,
+  discoverDocumentArt,
   discoverTopicIcon,
 } from '../discover-display';
 
@@ -40,5 +42,26 @@ describe('resource types', () => {
     expect(DISCOVER_RESOURCE_TYPE_ICON.article).toBeUndefined();
     expect(DISCOVER_RESOURCE_TYPE_ICON.guide).toBeUndefined();
     expect(DISCOVER_RESOURCE_TYPE_ICON.video).toBe('play');
+  });
+});
+
+describe('generated document art', () => {
+  // Pinned against a hand run of the site's own hash — a drifted formula here would still pick
+  // *an* image and *a* position, silently, so nothing else would fail.
+  it('picks the same image and crop the site does for a given slug', () => {
+    expect(discoverDocumentArt('bibleproject-the-story-of-the-bible')).toBe(
+      'https://harvous.com/images/auth-hero/ai_bg_072.webp',
+    );
+    expect(discoverArtPosition('bibleproject-the-story-of-the-bible')).toBe('50% 78%');
+    expect(discoverDocumentArt('guide-the-lesson-prep-stack')).toBe(
+      'https://harvous.com/images/auth-hero/ai_bg_046.webp',
+    );
+    expect(discoverArtPosition('guide-the-lesson-prep-stack')).toBe('50% 58%');
+  });
+
+  it('is stable for the same slug across calls', () => {
+    const slug = 'some-listing-slug';
+    expect(discoverDocumentArt(slug)).toBe(discoverDocumentArt(slug));
+    expect(discoverArtPosition(slug)).toBe(discoverArtPosition(slug));
   });
 });
