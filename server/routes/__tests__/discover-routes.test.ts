@@ -375,6 +375,18 @@ describe('discover routes', () => {
     expect(text).toMatch(/spaceId: null,\s*\n\s*userId,/);
   });
 
+  it('connects an installed pack so it shows up as a Thread', () => {
+    // A Threads row and NoteThreads alone never appear in the Library panel or the Thread
+    // popover — both walk NoteConnections. The edges are written inside writeInstall, so the
+    // install-row-first guard rolls them back with everything else on a second tap.
+    const text = install();
+    const prepare = text.slice(text.indexOf('export async function preparePackInstall'), text.indexOf('export async function writeInstall'));
+    expect(prepare).toContain('connectionRows: buildPackConnectionRows(');
+    const write = text.slice(text.indexOf('export async function writeInstall'), text.indexOf('export async function runInstallPostCommit'));
+    expect(write).toContain('tx.insert(NoteConnections)');
+    expect(write.indexOf('tx.insert(NoteConnections)')).toBeGreaterThan(write.indexOf('tx.insert(Notes)'));
+  });
+
   it('lets the reviewer file it, not the submitter', () => {
     const submit = handlerBody(routes(), "app.post('/api/discover/submit'");
     expect(submit).toContain('category: null');
