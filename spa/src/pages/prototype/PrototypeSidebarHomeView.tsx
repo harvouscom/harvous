@@ -335,7 +335,6 @@ export default function PrototypeSidebarHomeView({
             notes={notes}
             votd={votd}
             scriptureBooks={scriptureBooks}
-            onOpenScripturePassage={onOpenScripturePassage}
           />
         ) : null}
 
