@@ -17,7 +17,7 @@ import {
 } from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
-import { findScripturePassageWithNotes } from '@/utils/scripture-passage-drill';
+import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug } from './proto-route-slugs';
@@ -27,7 +27,6 @@ type Props = {
   notes: SpaceNoteRow[];
   votd: VotdToday;
   scriptureBooks: ScriptureIndexBook[];
-  onOpenScripturePassage: (bookOrder: number, passageKey: string) => void;
 };
 
 export default function PrototypeDailyPassagePill({
@@ -35,7 +34,6 @@ export default function PrototypeDailyPassagePill({
   notes,
   votd,
   scriptureBooks,
-  onOpenScripturePassage,
 }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -73,18 +71,6 @@ export default function PrototypeDailyPassagePill({
       void queryClient.invalidateQueries({ queryKey: ['prototype', 'space', id, 'scripture-index'] });
     }
   }, [homeSpaceId, queryClient]);
-
-  const openScripturePassageNotes = useCallback(() => {
-    const drill = findScripturePassageWithNotes(scriptureBooks, votd.reference);
-    if (drill) {
-      onOpenScripturePassage(drill.bookOrder, drill.passageKey);
-      afterNav();
-      return;
-    }
-    if (matchingNote) {
-      openNote(matchingNote.id);
-    }
-  }, [afterNav, matchingNote, onOpenScripturePassage, openNote, scriptureBooks, votd.reference]);
 
   /**
    * Opens the editor on the passage immediately.
@@ -126,6 +112,35 @@ export default function PrototypeDailyPassagePill({
       openNote,
     ],
   );
+
+  /**
+   * "View notes on this passage" opens the note that already has it — not a search or
+   * library view of where it lives.
+   *
+   * This used to call `onOpenScripturePassage`, drilling the sidebar's Scripture browse view
+   * to this passage's row: a tap meant to view a note instead surfaced a list, the exact
+   * anti-pattern `openPassageConnection` in `use-home-surface-data.ts` already documents for
+   * a sibling card. `findMostRecentNoteForScriptureReference` reads the same scripture index
+   * that made `dailyPassageNoteExists` true in the first place, so it can name the specific
+   * note to land on. Falls through to `studyNow` on the rare case the index says a note
+   * exists but neither lookup can name it (a stale/mid-refresh index entry) — same "do the
+   * thing, don't dead-end" instinct as `openCrossRefGap`'s identical fallback.
+   */
+  const openScripturePassageNotes = useCallback(() => {
+    const recentNoteId = findMostRecentNoteForScriptureReference(
+      scriptureBooks,
+      votd.reference,
+    )?.id;
+    if (recentNoteId) {
+      openNote(recentNoteId);
+      return;
+    }
+    if (matchingNote) {
+      openNote(matchingNote.id);
+      return;
+    }
+    studyNow(votd);
+  }, [matchingNote, openNote, scriptureBooks, studyNow, votd]);
 
   /**
    * Today's passage opens in the reader, at the verse, in the account's default translation.

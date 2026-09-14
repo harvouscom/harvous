@@ -215,9 +215,6 @@ export default function PrototypeStudyFeedToday({
               notes={notes}
               votd={votd}
               scriptureBooks={scriptureQuery.data ?? []}
-              /* The panel's Scripture tab. This used to summon the sidebar, which is the
-                 last of that coupling on this surface — see `useLibraryPanelNav`. */
-              onOpenScripturePassage={() => libraryNav.openList('scripture')}
             />
           ) : null}
           {/* Filing is a suggestion like any other, and it was the sidebar's alone. It opens
