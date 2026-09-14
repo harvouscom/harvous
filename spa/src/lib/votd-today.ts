@@ -1,8 +1,4 @@
 import type { SpaceNoteRow } from '../hooks/queries/useSpace';
-import {
-  findScripturePassageWithNotes,
-  type ScriptureIndexBookLike,
-} from '@/utils/scripture-passage-drill';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 
 export const VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY = 'votd_passage_card_dismissed_day';
@@ -118,19 +114,29 @@ export function noteMatchesDailyPassage(
   return false;
 }
 
+/**
+ * Created or last touched on today's local calendar day.
+ *
+ * Scopes "resume, don't duplicate" to a note actually started on today's reading — not to
+ * any note, from any day, that happens to cite the same verse. The daily passage rotates
+ * through a finite pool, so a reference recurring months later is common; without this a
+ * note from that earlier occurrence would resurface as "today's" note, which reads as the
+ * wrong content opening under today's invitation to write.
+ */
+function wasTouchedToday(
+  row: Pick<SpaceNoteRow, 'createdAt' | 'updatedAt'>,
+  now: Date = new Date(),
+): boolean {
+  const today = todayCalendarDayKey(now);
+  if (row.createdAt && todayCalendarDayKey(new Date(row.createdAt)) === today) return true;
+  return Boolean(row.updatedAt && todayCalendarDayKey(new Date(row.updatedAt)) === today);
+}
+
 export function findPersistedDailyPassageNote(
   notes: SpaceNoteRow[],
   reference: string,
 ): SpaceNoteRow | undefined {
-  return notes.find((n) => isPersistedNoteId(n.id) && noteMatchesDailyPassage(n, reference));
-}
-
-/** True when a server-backed note (or scripture index) confirms today's passage exists in the space. */
-export function hasDailyPassageNote(
-  notes: SpaceNoteRow[],
-  scriptureBooks: ScriptureIndexBookLike[],
-  reference: string,
-): boolean {
-  if (findScripturePassageWithNotes(scriptureBooks, reference)) return true;
-  return findPersistedDailyPassageNote(notes, reference) != null;
+  return notes.find(
+    (n) => isPersistedNoteId(n.id) && wasTouchedToday(n) && noteMatchesDailyPassage(n, reference),
+  );
 }

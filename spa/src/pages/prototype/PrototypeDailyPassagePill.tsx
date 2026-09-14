@@ -1,15 +1,13 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import PrototypeHomeRow from './PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
-import type { ScriptureIndexBook } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import { useProtoShell } from '../../layouts/proto-shell-context';
 import {
   findPersistedDailyPassageNote,
-  hasDailyPassageNote,
   isVotdPassageCardDismissedToday,
   recordVotdEngagement,
   setVotdDismissedToday,
@@ -17,7 +15,6 @@ import {
 } from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
 import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
-import { findMostRecentNoteForScriptureReference } from '@/utils/scripture-passage-drill';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { noteParamSlug } from './proto-route-slugs';
@@ -26,29 +23,17 @@ type Props = {
   homeSpaceId: string | null;
   notes: SpaceNoteRow[];
   votd: VotdToday;
-  scriptureBooks: ScriptureIndexBook[];
 };
 
 export default function PrototypeDailyPassagePill({
   homeSpaceId,
   notes,
   votd,
-  scriptureBooks,
 }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
   const [dismissedToday, setDismissedToday] = useState(isVotdPassageCardDismissedToday);
-
-  const matchingNote = useMemo(
-    () => findPersistedDailyPassageNote(notes, votd.reference),
-    [notes, votd.reference],
-  );
-
-  // No `&& !createNote.isPending` term any more. There is no in-flight create to hide behind:
-  // compose opens the editor synchronously, so the affordance no longer flickers between
-  // "add" and "view notes" while a round trip lands.
-  const dailyPassageNoteExists = hasDailyPassageNote(notes, scriptureBooks, votd.reference);
 
   const afterNav = useCallback(() => {
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
@@ -114,35 +99,6 @@ export default function PrototypeDailyPassagePill({
   );
 
   /**
-   * "View notes on this passage" opens the note that already has it — not a search or
-   * library view of where it lives.
-   *
-   * This used to call `onOpenScripturePassage`, drilling the sidebar's Scripture browse view
-   * to this passage's row: a tap meant to view a note instead surfaced a list, the exact
-   * anti-pattern `openPassageConnection` in `use-home-surface-data.ts` already documents for
-   * a sibling card. `findMostRecentNoteForScriptureReference` reads the same scripture index
-   * that made `dailyPassageNoteExists` true in the first place, so it can name the specific
-   * note to land on. Falls through to `studyNow` on the rare case the index says a note
-   * exists but neither lookup can name it (a stale/mid-refresh index entry) — same "do the
-   * thing, don't dead-end" instinct as `openCrossRefGap`'s identical fallback.
-   */
-  const openScripturePassageNotes = useCallback(() => {
-    const recentNoteId = findMostRecentNoteForScriptureReference(
-      scriptureBooks,
-      votd.reference,
-    )?.id;
-    if (recentNoteId) {
-      openNote(recentNoteId);
-      return;
-    }
-    if (matchingNote) {
-      openNote(matchingNote.id);
-      return;
-    }
-    studyNow(votd);
-  }, [matchingNote, openNote, scriptureBooks, studyNow, votd]);
-
-  /**
    * Today's passage opens in the reader, at the verse, in the account's default translation.
    *
    * It used to open a sheet holding the verse text — which was the right answer when a
@@ -190,14 +146,21 @@ export default function PrototypeDailyPassagePill({
   return (
     <>
       {/* A row of the Suggested group. Tapping the row opens the passage; the trailing
-          controls are the one action worth a button — add it to notes, or open the notes
-          it already has — and the dismiss. Same shape as every other row on Home.
+          controls are the one action worth a button — write about it — and the dismiss.
+          Same shape as every other row on Home.
 
           Buttons rather than the overflow the suggestion rows use. The write action is why
           you would come to this row at all, and putting the day's one invitation to study
           behind a menu is a tap charged for the thing the row exists to offer. The
           suggestion rows earn their menu because their answers differ by forever and need
-          words; these two are the new-note glyph and a cross, and mean what they look like. */}
+          words; these two are the new-note glyph and a cross, and mean what they look like.
+
+          Always the compose action, never a second "view notes on this passage" branch
+          that used to show once any note referencing this verse existed: it opened
+          whatever note the scripture index turned up — a past, possibly unrelated one if
+          today's passage happened to recur — instead of today's invitation. `studyNow`
+          already resumes a note started earlier today rather than duplicating it; an old
+          note on the same verse from a different day is not that note. */}
       <PrototypeHomeRow
         icon="scroll"
         title={votd.reference}
@@ -206,32 +169,15 @@ export default function PrototypeDailyPassagePill({
         onClick={openInReader}
         trailing={
           <>
-            {dailyPassageNoteExists ? (
-              <button
-                type="button"
-                className="proto-side-panel__action-btn"
-                aria-label="View notes on this passage"
-                title="View notes on this passage"
-                onClick={openScripturePassageNotes}
-              >
-                {/* An eye for looking at what is there; the `pen-to-square` in the other
-                    branch is a create — the same glyph the toolbar's New note button wears,
-                    so "write a note" reads as one action wherever it appears. Not a plus:
-                    that is how this app draws "add an item to a list", and composing is not
-                    that. */}
-                <Icon name="eye" size={12} aria-hidden />
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="proto-side-panel__action-btn"
-                aria-label="Add passage to notes"
-                title="Add passage to notes"
-                onClick={() => studyNow(votd)}
-              >
-                <Icon name="pen-to-square" size={12} aria-hidden />
-              </button>
-            )}
+            <button
+              type="button"
+              className="proto-side-panel__action-btn"
+              aria-label="Add passage to notes"
+              title="Add passage to notes"
+              onClick={() => studyNow(votd)}
+            >
+              <Icon name="pen-to-square" size={12} aria-hidden />
+            </button>
             <button
               type="button"
               className="proto-side-panel__action-btn"

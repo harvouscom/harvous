@@ -214,7 +214,6 @@ export default function PrototypeStudyFeedToday({
               homeSpaceId={homeSpaceId ?? ''}
               notes={notes}
               votd={votd}
-              scriptureBooks={scriptureQuery.data ?? []}
             />
           ) : null}
           {/* Filing is a suggestion like any other, and it was the sidebar's alone. It opens
