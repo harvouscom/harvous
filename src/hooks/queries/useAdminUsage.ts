@@ -39,8 +39,12 @@ export type UsageOverview = {
     total: number;
     clerkAccounts: number | null;
     withContent: number;
-    freeTier: number;
-    unlimitedTier: number;
+    /** Active, non-withheld entitlements — the rule the feature gates apply. */
+    paidAccounts: number;
+    /** Of those, source='billing'. Kept separate so a comp never reads as revenue. */
+    billingAccounts: number;
+    grantedAccounts: number;
+    freeAccounts: number;
     activationRate: number;
     signups: number;
     activeRatePct: number;

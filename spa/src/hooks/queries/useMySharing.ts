@@ -8,6 +8,8 @@ export interface SharedNoteItem {
   preview?: string;
   updatedAt?: string | null;
   createdAt?: string;
+  /** When the link was made — what Settings › Sharing sorts by. Absent on older responses. */
+  sharedAt?: string | null;
   shareToken: string;
   shareUrl: string;
 }

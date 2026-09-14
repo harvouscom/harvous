@@ -17,10 +17,20 @@
  *
  * Collapsing lives in server/utils/study-feed-collapse.ts; day and session grouping happens
  * on the client, where the timezone is known.
+ *
+ * **The personal trail is plan-gated; shared-space activity is not.** Free sees the last
+ * `FREE_HISTORY_WINDOW_DAYS` of their own notes, versions, highlights, reading and reviews;
+ * `full_history` (Harvous Plus) removes that floor. A room's activity is someone else's data
+ * as much as the viewer's — locking it to the *viewer's* plan would let a free member of a
+ * Plus host's space lose history the host is paying to keep — so `spaceNoteRows` keeps the
+ * flat `FEED_WINDOW_DAYS` floor unconditionally, the same for every plan. See
+ * `docs/future/MONETIZATION_AND_PRICING.md` for why this is the one windowed exception.
  */
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
+import { hasFeatureWithReconcile } from '../middleware/require-feature';
+import { FREE_HISTORY_WINDOW_DAYS } from '@/lib/billing-plans';
 import { rateLimit } from '@/utils/rate-limit';
 import { handleAPIError } from '@/utils/error-handling';
 import {
@@ -44,6 +54,7 @@ import {
   isNull,
   lt,
   ne,
+  type SQL,
 } from '../db';
 import {
   isNoteVisitEventsTableMissing,
@@ -74,13 +85,16 @@ import { isSpaceMembershipsTableMissing } from '../utils/pg-undefined-relation';
 const route = new Hono();
 
 /**
- * Six months back, matching the reading history window.
+ * Six months back — the shared-space floor, and free's floor before the 3.9 history change.
  *
  * The feed is a trail, not an archive: what someone wants from it is the recent shape of
  * their study, and everything older is better reached by searching for it. The window also
- * bounds the work — five queries over an unbounded history would grow with the account.
+ * bounds the work — five queries over an unbounded history would grow with the account. Kept
+ * as the unconditional floor for shared-space rows; the personal sources now use
+ * `FREE_HISTORY_WINDOW_DAYS`/`full_history` instead. See the file doc comment.
  */
 const FEED_WINDOW_DAYS = 180;
+const DAY_MS = 24 * 60 * 60 * 1000;
 /** Per source, before collapsing. Generous enough that a heavy day never truncates mid-page. */
 const SOURCE_ROW_CAP = 300;
 const DEFAULT_LIMIT = 40;
@@ -117,6 +131,44 @@ async function source<T>(
   }
 }
 
+/**
+ * Does a free account have personal study older than its floor? One cheap existence check per
+ * table, `userId`-indexed (`Notes_userIdIndex`, `NoteVersions_authorId_createdAtIndex`) and
+ * short-circuited on the first hit — not a third full source fan-out. Called only once the
+ * trail has already run out, so this never runs on a page that still has more to give up.
+ */
+async function hasOlderPersonalStudyFeedHistory(userId: string, before: Date): Promise<boolean> {
+  const noteHit = await source(
+    () =>
+      db
+        .select({ id: Notes.id })
+        .from(Notes)
+        .where(and(eq(Notes.userId, userId), lt(Notes.createdAt, before)))
+        .limit(1),
+    () => false,
+    'older notes probe',
+  );
+  if (noteHit.length > 0) return true;
+
+  const versionHit = await source(
+    () =>
+      db
+        .select({ id: NoteVersions.id })
+        .from(NoteVersions)
+        .where(
+          and(
+            eq(NoteVersions.authorId, userId),
+            eq(NoteVersions.source, 'save'),
+            lt(NoteVersions.createdAt, before),
+          ),
+        )
+        .limit(1),
+    () => false,
+    'older versions probe',
+  );
+  return versionHit.length > 0;
+}
+
 route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -130,7 +182,16 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
     const beforeDate = beforeRaw ? new Date(beforeRaw) : null;
     const before = beforeDate && !Number.isNaN(beforeDate.getTime()) ? beforeDate : null;
 
-    const windowStart = new Date(Date.now() - FEED_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    /*
+     * A hot read path (Home mounts this on every load), so the entitlement check is the same
+     * throttled reconcile `GET /api/subscription/status` uses rather than a full Polar
+     * round-trip per request — see `syncEntitlementsFromProvider`'s doc comment.
+     */
+    const hasFullHistory = await hasFeatureWithReconcile(auth, 'full_history', { throttle: true });
+    const personalFloor = hasFullHistory
+      ? null
+      : new Date(Date.now() - FREE_HISTORY_WINDOW_DAYS * DAY_MS);
+    const sharedFloor = new Date(Date.now() - FEED_WINDOW_DAYS * DAY_MS);
 
     /*
      * Scope decides which halves of the trail run, not how they are filtered afterwards.
@@ -145,9 +206,19 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
      * Every source is windowed and cursored the same way. A collapsed bucket that straddles
      * the cursor re-emits on the next page with a different span; item ids are derived from
      * the bucket start, so the client replaces rather than duplicates it.
+     *
+     * Two floors, never mixed: `personalWindowed` is the reader's own plan (no floor at all
+     * once they hold `full_history`); `sharedWindowed` is the flat, plan-independent floor
+     * every room uses regardless of who is looking at it.
      */
-    const windowed = <C extends { createdAt: unknown }>(column: C['createdAt']) => {
-      const bounds = [gte(column as never, windowStart)];
+    const personalWindowed = <C extends { createdAt: unknown }>(column: C['createdAt']) => {
+      const bounds: SQL[] = [];
+      if (personalFloor) bounds.push(gte(column as never, personalFloor));
+      if (before) bounds.push(lt(column as never, before));
+      return bounds;
+    };
+    const sharedWindowed = <C extends { createdAt: unknown }>(column: C['createdAt']) => {
+      const bounds: SQL[] = [gte(column as never, sharedFloor)];
       if (before) bounds.push(lt(column as never, before));
       return bounds;
     };
@@ -174,7 +245,7 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
             createdAt: Notes.createdAt,
           })
           .from(Notes)
-          .where(and(eq(Notes.userId, auth.userId), ...windowed(Notes.createdAt)))
+          .where(and(eq(Notes.userId, auth.userId), ...personalWindowed(Notes.createdAt)))
           .orderBy(desc(Notes.createdAt))
           .limit(SOURCE_ROW_CAP),
       () => false,
@@ -196,7 +267,7 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
             and(
               eq(NoteVersions.authorId, auth.userId),
               eq(NoteVersions.source, 'save'),
-              ...windowed(NoteVersions.createdAt),
+              ...personalWindowed(NoteVersions.createdAt),
             ),
           )
           .orderBy(desc(NoteVersions.createdAt))
@@ -225,7 +296,7 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
             and(
               eq(StudyThreadEntries.userId, auth.userId),
               eq(StudyThreadEntries.isArchived, false),
-              ...windowed(StudyThreadEntries.createdAt),
+              ...personalWindowed(StudyThreadEntries.createdAt),
             ),
           )
           .orderBy(desc(StudyThreadEntries.createdAt))
@@ -247,7 +318,7 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
             createdAt: ReadingEvents.createdAt,
           })
           .from(ReadingEvents)
-          .where(and(eq(ReadingEvents.userId, auth.userId), ...windowed(ReadingEvents.createdAt)))
+          .where(and(eq(ReadingEvents.userId, auth.userId), ...personalWindowed(ReadingEvents.createdAt)))
           .orderBy(desc(ReadingEvents.createdAt))
           .limit(SOURCE_ROW_CAP),
       isReadingEventsTableMissing,
@@ -265,7 +336,7 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
           })
           .from(NoteVisitEvents)
           .where(
-            and(eq(NoteVisitEvents.userId, auth.userId), ...windowed(NoteVisitEvents.createdAt)),
+            and(eq(NoteVisitEvents.userId, auth.userId), ...personalWindowed(NoteVisitEvents.createdAt)),
           )
           .orderBy(desc(NoteVisitEvents.createdAt))
           .limit(SOURCE_ROW_CAP),
@@ -337,8 +408,18 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
               inArray(SpaceNotes.spaceId, [...spaceById.keys()]),
               isNull(SpaceNotes.removedAt),
               eq(Notes.contentEncrypted, false),
-              ne(Notes.userId, auth.userId),
-              ...windowed(Notes.updatedAt),
+              /*
+               * Your own notes come out of this half only while the *own* half is running, and
+               * then only to avoid printing them twice: an unscoped feed already has them,
+               * untagged, from the personal sources above.
+               *
+               * Narrowed to a single space there is no own half — `wantsOwn` is false — so the
+               * guard had nothing left to de-duplicate against and was simply deleting you from
+               * your own trail. A space where only you had written came back empty, which is the
+               * one thing the space scope exists to show. Activity is a trail, not an inbox.
+               */
+              ...(wantsOwn ? [ne(Notes.userId, auth.userId)] : []),
+              ...sharedWindowed(Notes.updatedAt),
             ),
           )
           .orderBy(desc(Notes.updatedAt))
@@ -373,9 +454,13 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
           profileImageUrl: author?.profileImageUrl ?? null,
         },
         space: { id: space.spaceId, title: space.title, color: space.color },
-        isNewSinceVisit: watermark
-          ? new Date(at).getTime() > new Date(watermark).getTime()
-          : false,
+        /* Never your own: nothing you wrote is news to you, however long since you last
+           opened the space. Only reachable under a space scope, which is the one case where
+           this half returns your notes at all. */
+        isNewSinceVisit:
+          watermark && row.authorUserId !== auth.userId
+            ? new Date(at).getTime() > new Date(watermark).getTime()
+            : false,
       });
     }
 
@@ -507,7 +592,7 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
             and(
               eq(ReviewEvents.userId, auth.userId),
               inArray(ReviewEvents.action, [...REVIEW_OUTCOMES]),
-              ...windowed(ReviewEvents.createdAt),
+              ...personalWindowed(ReviewEvents.createdAt),
             ),
           )
           .limit(REVIEW_ANSWER_LIMIT),
@@ -515,10 +600,25 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
       'review answers',
     );
 
+    /*
+     * The Plus upsell only fires once the trail is genuinely exhausted for this request — not
+     * at the 90-day mark itself, since under `all`/`home` scope a still-flowing shared-space
+     * source can hold `nextCursor` open well past it. That is a real but harmless imprecision:
+     * the edge appears a little later than the earliest correct moment, never earlier, and
+     * never for a scope with no personal floor to hit (`wantsOwn` false, or already Plus).
+     * One cheap probe, only when the page actually asks for it.
+     */
+    let lockedBefore: string | null = null;
+    if (wantsOwn && personalFloor && nextCursor === null) {
+      const older = await hasOlderPersonalStudyFeedHistory(auth.userId, personalFloor);
+      if (older) lockedBefore = personalFloor.toISOString();
+    }
+
     const body: StudyFeedResponse = {
       success: true,
       items: page,
       nextCursor,
+      lockedBefore,
       reviewAnswers: reviewAnswers.map((row) => ({
         at: row.at.toISOString(),
         held: row.action === 'recalled',

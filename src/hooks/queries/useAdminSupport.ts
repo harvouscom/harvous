@@ -74,7 +74,8 @@ export type SupportTicketDetail = SupportTicketListItem & {
   adminReadAt: string | null;
   repliedAt: string | null;
   closedAt: string | null;
-  userTier: string | null;
+  /** Features this account can actually use. Empty means no paid access. */
+  userFeatures: string[];
   userAccountCreatedAt: string | null;
   notes: SupportTicketNote[];
 };

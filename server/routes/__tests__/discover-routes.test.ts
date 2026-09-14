@@ -66,6 +66,14 @@ describe('discover routes', () => {
     expect(body).not.toContain('serializeMine');
   });
 
+  it('hands the listings cursor to the query as a string, not a Date', () => {
+    // A value inside a raw `sql` fragment goes to the driver untouched, and the driver only takes
+    // strings there. Passing the parsed Date 500'd every page after the first — so the app,
+    // reading page by page, never saw the templates listed before the newest 24.
+    const body = handlerBody(routes(), "app.get('/api/discover/listings',");
+    expect(body).toContain('cursorListedAt.toISOString()');
+  });
+
   it('treats a missing catalog table as empty, not a 500', () => {
     // Same seam as Review: the tables land in db:push after the code, and the
     // window between them must not surface as "A database error occurred" on Home.
@@ -331,6 +339,24 @@ describe('discover routes', () => {
     expect(body).toContain('payload: snapshot.payload');
     expect(body).not.toContain('body.payload');
     expect(body).not.toContain('body.content');
+  });
+
+  it('shares a personal Thread by walking the notes connected to it, the way the app shows it', () => {
+    // A Thread on My Home is a cluster of connected notes addressed by its main note, not a
+    // `Threads` row — so a pack sent from the Library panel or the Thread popover carries a note
+    // id, and has to be walked the way GET /api/notes/:id/thread walks it.
+    const text = snapshot();
+    expect(text).toContain('snapshotThreadClusterPack');
+    expect(text).toContain('collectStudyThreadGraphForScope');
+    expect(text).toContain("sourceId.startsWith('note_')");
+    expect(text).toContain('Connect at least one more note before sharing this Thread.');
+  });
+
+  it('counts a note and its Thread as different things to have already shared', () => {
+    // They share an id — a Thread is addressed by its main note — so the duplicate check has to
+    // ask about the kind too, or sharing a note blocks sharing the Thread it anchors.
+    const body = handlerBody(routes(), "app.post('/api/discover/submit'");
+    expect(body).toContain('eq(DiscoverListings.kind, kind)');
   });
 
   it('passes the frozen byline into copy attribution — the first caller that does', () => {

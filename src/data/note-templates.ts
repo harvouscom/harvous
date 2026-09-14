@@ -62,7 +62,7 @@ export const BUILT_IN_TEMPLATES: NoteTemplate[] = [
     estimatedMinutes: '20–60 min',
     level: 'Beginner–Intermediate',
     titleTemplate: '',
-    content: `<h2>Topic</h2><p>[Your topic or theme]</p><p><br></p><h2>Key Verses</h2><p>List relevant verses from across Scripture.</p><p><br></p><h2>Insights</h2><p>What patterns or themes emerge?</p><p><br></p><h2>Application</h2><p>How does this theme apply today?</p>`,
+    content: `<h2>Topic</h2><p>[Your topic or theme]</p><p><br></p><h2>Key Verses</h2><p>List relevant verses from across Scripture.</p><p><br></p><h2>Patterns</h2><p>What patterns or themes emerge?</p><p><br></p><h2>Application</h2><p>How does this theme apply today?</p>`,
     noteType: 'default',
     iconColor: 'green',
   },
@@ -84,7 +84,7 @@ export const BUILT_IN_TEMPLATES: NoteTemplate[] = [
     estimatedMinutes: '20–60 min',
     level: 'Intermediate',
     titleTemplate: '',
-    content: `<h2>Comparison Focus</h2><p>[What are you comparing? Translations, parallel passages, etc.]</p><p><br></p><h2>Version A</h2><p>Observations and notes.</p><p><br></p><h2>Version B</h2><p>Observations and notes.</p><p><br></p><h2>Key Differences</h2><p>What stands out in comparison?</p><p><br></p><h2>Insights</h2><p>What do the differences reveal?</p>`,
+    content: `<h2>Comparison Focus</h2><p>[What are you comparing? Translations, parallel passages, etc.]</p><p><br></p><h2>Version A</h2><p>Observations and notes.</p><p><br></p><h2>Version B</h2><p>Observations and notes.</p><p><br></p><h2>Key Differences</h2><p>What stands out in comparison?</p><p><br></p><h2>What it shows</h2><p>What do the differences reveal?</p>`,
     noteType: 'default',
     iconColor: 'yellow',
   }

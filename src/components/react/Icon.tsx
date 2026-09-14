@@ -57,6 +57,8 @@ import circleCheckSvg from '@fortawesome/fontawesome-free/svgs/solid/circle-chec
 import ellipsisVerticalSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis-vertical.svg?raw';
 import ellipsisSvg from '@fortawesome/fontawesome-free/svgs/solid/ellipsis.svg?raw';
 import thumbtackSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbtack.svg?raw';
+import thumbsUpSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbs-up.svg?raw';
+import thumbsDownSvg from '@fortawesome/fontawesome-free/svgs/solid/thumbs-down.svg?raw';
 import trashCanSvg from '@fortawesome/fontawesome-free/svgs/solid/trash-can.svg?raw';
 import penSvg from '@fortawesome/fontawesome-free/svgs/solid/pen.svg?raw';
 import linkSvg from '@fortawesome/fontawesome-free/svgs/solid/link.svg?raw';
@@ -143,6 +145,9 @@ import minusSvg from '@fortawesome/fontawesome-free/svgs/solid/minus.svg?raw';
 import wandMagicSparklesSvg from '@fortawesome/fontawesome-free/svgs/solid/wand-magic-sparkles.svg?raw';
 import wrenchSvg from '@fortawesome/fontawesome-free/svgs/solid/wrench.svg?raw';
 import rotateLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/rotate-left.svg?raw';
+import tagsSvg from '@fortawesome/fontawesome-free/svgs/solid/tags.svg?raw';
+import glassesSvg from '@fortawesome/fontawesome-free/svgs/solid/glasses.svg?raw';
+import playSvg from '@fortawesome/fontawesome-free/svgs/solid/play.svg?raw';
 
 function withCurrentColor(svg: string): string {
   return svg.includes('fill="currentColor"') ? svg : svg.replace(/<path /, '<path fill="currentColor" ');
@@ -194,6 +199,11 @@ const icons = {
   'person': withCurrentColor(personSvg),
   'book-open': svgRootCurrentColor(bookOpenSvg),
   'book-open-reader': svgRootCurrentColor(bookOpenReaderSvg),
+  /* Discover's topic and resource glyphs that nothing else drew yet — harvous.com's, so the
+     catalog wears the same marks on both surfaces (see `discover-display`). */
+  tags: svgRootCurrentColor(tagsSvg),
+  glasses: svgRootCurrentColor(glassesSvg),
+  play: svgRootCurrentColor(playSvg),
   'id-card-clip': svgRootCurrentColor(idCardClipSvg),
   'lines-leaning': withCurrentColor(linesLeaningSvg),
   'location-dot': svgRootCurrentColor(locationDotSvg),
@@ -233,6 +243,10 @@ const icons = {
   'ellipsis-vertical': svgRootCurrentColor(ellipsisVerticalSvg),
   ellipsis: svgRootCurrentColor(ellipsisSvg),
   thumbtack: svgRootCurrentColor(thumbtackSvg),
+  /* Review's question feedback. Solid, like every other glyph here — the pressed state is
+     carried by colour, not by swapping in the regular weight. */
+  'thumbs-up': withCurrentColor(thumbsUpSvg),
+  'thumbs-down': withCurrentColor(thumbsDownSvg),
   gear: withCurrentColor(gearSvg),
   key: withCurrentColor(keySvg),
   keyboard: withCurrentColor(keyboardSvg),

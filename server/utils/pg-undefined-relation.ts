@@ -131,6 +131,15 @@ export function isReviewTableMissing(error: unknown): boolean {
   );
 }
 
+/**
+ * Entitlements is the paid source of truth, read by the admin Usage board's paid split.
+ * An unmigrated database is "nobody is paid", not a broken dashboard — the same trade every
+ * guard in this file makes.
+ */
+export function isEntitlementsTableMissing(error: unknown): boolean {
+  return isPgUndefinedRelation(error, 'Entitlements');
+}
+
 export function isSupportTicketsTableMissing(error: unknown): boolean {
   return isPgUndefinedRelation(error, 'SupportTickets');
 }
@@ -203,4 +212,14 @@ export function isPrototypeFolderStatsColumnMissing(error: unknown): boolean {
     isPgUndefinedColumn(error, 'secondaryCollections') ||
     isPgUndefinedColumn(error, 'prototypeEmptyFolderLabels')
   );
+}
+
+/**
+ * `UserMetadata.reviewExerciseSettings`, on a database that predates it.
+ *
+ * Named so the route that writes it can say what is missing instead of a bare 500, and so the fix
+ * is a command rather than an investigation: `npm run review-exercises:schema:apply`.
+ */
+export function isReviewExerciseSettingsColumnMissing(error: unknown): boolean {
+  return isPgUndefinedColumn(error, 'reviewExerciseSettings');
 }

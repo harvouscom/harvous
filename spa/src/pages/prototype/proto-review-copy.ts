@@ -40,6 +40,7 @@ export const reviewSetAsideCopy = (count: number) =>
 export const reviewComingBackCopy = (count: number) =>
   count === 1 ? '1 coming back later' : `${count} coming back later`;
 export const REVIEW_REMOVE_COPY = 'Remove from Review';
+
 export const REVIEW_MORE_COPY = 'More';
 
 /**
@@ -71,6 +72,35 @@ export const REVIEW_PAUSE_FAILED_TOAST = "Couldn't change that — try again";
 export const REVIEW_DEFER_FAILED_TOAST = "Couldn't put that off — try again";
 
 /**
+ * And for the answer itself, which had none.
+ *
+ * The worst of the silent failures: the question stayed on screen exactly as it was, so a lost
+ * answer and an unregistered tap looked the same. The card keeps the question up and says this,
+ * rather than advancing to a result that was never recorded.
+ */
+export const REVIEW_OUTCOME_FAILED_TOAST = "Couldn't save that answer — try once more";
+export const REVIEW_STEP_BACK_FAILED_TOAST = "Couldn't change how this is asked — try again";
+
+/** The reveal is the question on a graded rung, so failing to load it is a question with no body. */
+export const REVIEW_REVEAL_FAILED_COPY = "This one didn't load.";
+export const REVIEW_REVEAL_RETRY_COPY = 'Try again';
+
+/**
+ * What the reader is given after a miss, while the question is still in front of them.
+ *
+ * Offered, not announced: "it goes on", not "the answer is". The rung is still theirs to finish,
+ * and the vocabulary rule at the top of this file applies here more than anywhere — a line that
+ * arrives after a wrong answer is the easiest place in the feature to sound disappointed.
+ *
+ * No counting either. "One of the words" rather than "1 of 3 left": a number about what remains
+ * is the thing this feature does not say.
+ */
+export const reviewHintLeadCopy = (text: string) => `It goes on: “${text}…”`;
+export const reviewHintWordCopy = (word: string) => `One of the words is “${word}”.`;
+export const reviewHintLetterCopy = (letter: string) =>
+  `One of the words starts with ${letter.toUpperCase()}.`;
+
+/**
  * The section heading on Activity.
  *
  * It was "Study Inbox" for its first week and the word was wrong twice over. An inbox is
@@ -78,7 +108,7 @@ export const REVIEW_DEFER_FAILED_TOAST = "Couldn't put that off — try again";
  * back. And the file directly above forbids exactly this vocabulary — nothing here says
  * "due" or "remaining" for the same reason nothing should say "inbox".
  */
-export const REVIEW_SECTION_TITLE = 'Review';
+export const REVIEW_SECTION_TITLE = 'Review exercises';
 
 /**
  * Shown when a Plus reader has an empty queue.
@@ -153,6 +183,38 @@ export const REVIEW_ALTERED_CAPTION = 'One word here is not what it says';
 
 /** Said plainly above the restored verse, so the correction is unmistakable. */
 export const REVIEW_TRUTH_LABEL = 'As it actually reads';
+
+/**
+ * The block on the result card that says where the question came from.
+ *
+ * The point of the whole feature is that these questions are about the reader's own study, and
+ * the card that closes a question was the one surface that never said so. "From your Harvous"
+ * rather than "Source" or "Context": it names whose study it is, which is the claim being made.
+ *
+ * The two ways back are offered, never taken — the reader has just finished answering and may
+ * well want to sit with the result. A card that navigated on its own would be the queue
+ * advancing itself, which this feature does not do.
+ */
+export const REVIEW_CONTEXT_LABEL = 'From your Harvous';
+
+/**
+ * Right and wrong, for the reader who cannot see the colour.
+ *
+ * The echo marks each part with a colour and an underline and nothing else, which fails the
+ * "not by colour alone" rule outright — and the reader it fails is the one with the least other
+ * way to tell how their answer went. Read out beside each part, never shown.
+ *
+ * Still no "wrong": the vocabulary rule at the top of this file holds for text a screen reader
+ * speaks exactly as it holds for text on the card.
+ */
+export const REVIEW_PART_STATE_LABEL: Record<'right' | 'wrong', string> = {
+  right: 'correct',
+  wrong: 'not this one',
+};
+export const REVIEW_CONTEXT_MARKED_LABEL = 'What you marked';
+export const REVIEW_CONTEXT_WROTE_LABEL = 'What you wrote';
+export const REVIEW_CONTEXT_OPEN_NOTE_COPY = 'Open the note';
+export const REVIEW_CONTEXT_OPEN_READER_COPY = 'Read it in context';
 export const REVIEW_SEE_LESS_COPY = 'Show fewer';
 
 /* The note's ⋯ menu is the one place this is offered. The Review card briefly carried a `+`
@@ -192,6 +254,61 @@ export const REVIEW_OUTCOME_ACK_COPY: Record<'recalled' | 'almost' | 'revealed',
   almost: 'Got there.',
   revealed: 'Not this time.',
 };
+
+/**
+ * What the reader thought of the QUESTION, which is a third thing.
+ *
+ * The three answers above describe a memory — "I recalled it" — and the outcome line describes
+ * how it went. Neither says anything about the exercise the app chose, so a rung that keeps
+ * landing badly had nowhere to be reported. These two are about that, and about nothing else:
+ * they never grade the reader, and like everything else here they say nothing about wrong, fail
+ * or mistake, because a miss on a verse is none of those.
+ *
+ * Both carry a word beside the glyph. A bare icon was tried once in this very feature and
+ * removed — see REVIEW_ADD_COPY — and a glyph meaning "fewer of these" has no settled shape at
+ * all, so an unlabelled one would be a question the reader has to answer before they can answer
+ * the question.
+ *
+ * "Not helpful" is the reader's own phrase for this, and it deliberately avoids "Show fewer",
+ * which is already the Activity fold's toggle a few lines above.
+ */
+/* Names the subject, so two blocks under a verdict line cannot be read as being about the
+   memory that was just described. Four words, in the caption size. */
+export const REVIEW_FEEDBACK_PROMPT_COPY = 'This kind of question';
+export const REVIEW_FEEDBACK_UP_COPY = 'Good question';
+export const REVIEW_FEEDBACK_DOWN_COPY = 'Not helpful';
+
+/** The full sentence for the accessible name; the family is what is actually being rated. */
+export const reviewFeedbackUpAria = (family: string) => `Good question — more ${family}`;
+export const reviewFeedbackDownAria = (family: string) => `Not helpful — fewer ${family}`;
+
+/**
+ * Said back, and nothing more.
+ *
+ * Never "you will see fewer of these". The engine leans away where the step has somewhere else
+ * to go, and on a note with nothing but a body it must still fall back to the rung just marked
+ * unhelpful. A card that promised otherwise would be the lie `review-exercise-settings.ts`
+ * names, moved from a settings row onto a study card.
+ */
+export const REVIEW_FEEDBACK_ACK_COPY = 'Noted.';
+
+/**
+ * The third time, for a family Settings can actually lean away from.
+ *
+ * Offered once — a fourth and a fifth say "Noted." like the rest, because an offer repeated is a
+ * nag — and never for a family with no control, where naming one would promise something the
+ * engine is entitled to ignore.
+ *
+ * "Ask for less", never "turn off". Less is the most the page offers, and it is a lean: the family
+ * still comes round where its step has nothing else to ask. The label is quoted because it is a
+ * name — "Who", "Put in order" — and no article reads right in front of all of them.
+ */
+export const REVIEW_FEEDBACK_SETTINGS_LINK_COPY = 'Review exercises';
+export const reviewFeedbackOfferCopy = (family: string) =>
+  `Noted. You can ask for less of “${family}” in`;
+
+/** A vote is a log line, not a setting; losing one is not worth interrupting a sitting for. */
+export const REVIEW_FEEDBACK_FAILED_TOAST = "Couldn't note that";
 
 /** The graded rungs: the reader has arranged or chosen, and asks the app to mark it. */
 export const REVIEW_CHECK_COPY = 'Check it';

@@ -2,8 +2,34 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { createRequire } from 'module';
+import { resolveBuildId } from './scripts/build-id.js';
 const require = createRequire(import.meta.url);
 const pkg = require('./package.json');
+
+const BUILD_ID = resolveBuildId();
+
+/**
+ * Publish this build's identity next to the bundle, so a running client can ask whether it is
+ * still the deploy the server is serving.
+ *
+ * It cannot ask the API instead: the SPA deploys to Cloudflare and the API to Fly,
+ * independently, so they have no build id in common. And `__APP_VERSION__` is package.json's
+ * version, which does not move between two deploys on the same version — the same reason
+ * scripts/inject-sw-cache-version.js appends a build id to CACHE_NAME.
+ */
+function emitBuildId(): Plugin {
+  return {
+    name: 'harvous-emit-build-id',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'build-id.json',
+        source: JSON.stringify({ buildId: BUILD_ID, version: pkg.version }),
+      });
+    },
+  };
+}
 
 /**
  * Dev only: hook modules are invisible to React Fast Refresh, so hot-patch them and the
@@ -47,7 +73,7 @@ function fullReloadOnHookModuleEdit(): Plugin {
 // The Hono server (server/dev.ts on port 3001) handles all API routes.
 // This builds spa/ → dist-spa/ which Capacitor bundles into the native app.
 export default defineConfig({
-  plugins: [react(), fullReloadOnHookModuleEdit()],
+  plugins: [react(), fullReloadOnHookModuleEdit(), emitBuildId()],
   root: 'spa',
   // Serve public assets (fonts, icons, manifest, sw.js) from the project root's public/
   publicDir: path.resolve(__dirname, 'public'),
@@ -85,6 +111,7 @@ export default defineConfig({
   },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
   resolve: {
     alias: {

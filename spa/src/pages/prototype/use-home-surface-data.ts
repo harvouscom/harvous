@@ -52,6 +52,7 @@ import {
   useReviewAccessSettled,
   useReviewInbox,
   useReviewItemsSummary,
+  useReviewSession,
 } from '../../hooks/queries/useReview';
 import { useHomeChallenges } from '../../hooks/queries/useChallenges';
 import { useReadingPlans } from '../../hooks/queries/useReadingPlans';
@@ -330,6 +331,19 @@ export function useHomeSurfaceData({
    * was 3.4s of Home's first paint spent on work nothing displayed.
    */
   const activeReviewItems = useReviewItemsSummary('active');
+  /*
+   * The sitting, in flight with everything else on Home.
+   *
+   * It was fetched when the dock opened, which is to say when the reader had just tapped a row
+   * and was now looking at loading dots for as long as the server took to compose eight
+   * questions. Nothing about that wait was necessary: Home already knows Review has work — that
+   * is what the rows are — and the sitting is deterministic for a given moment. Fetched here it
+   * lands while the reader is still reading the page, and the tap opens a card that is already
+   * full. Same query key as the dock's, so the dock finds it warm rather than fetching twice.
+   *
+   * Nothing on Home reads the result. The hook is called for its fetch.
+   */
+  useReviewSession();
   const challengesQuery = useHomeChallenges();
   const readingPlansQuery = useReadingPlans();
   const { hydrated: onboardingHydrated } = useOnboardingState();

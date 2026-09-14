@@ -41,6 +41,14 @@ export const REVIEW_EVENT_ACTIONS = [
   'paused',
   'resumed',
   'archived',
+  /*
+   * What the reader thought of the question, as distinct from how the recall went. Appended
+   * after the eight above, because this list's order is its identity on rows already written.
+   * Nothing that reads the log for scheduling should count these: `study-feed.ts` filters on
+   * `REVIEW_OUTCOMES`, which is the narrower list on purpose.
+   */
+  'liked',
+  'disliked',
 ] as const;
 
 export type ReviewEventAction = (typeof REVIEW_EVENT_ACTIONS)[number];

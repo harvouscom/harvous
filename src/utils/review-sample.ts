@@ -138,6 +138,13 @@ export function buildSampleExercise(
     return { kind, cloze: clozeSegments(cloze), blankCount: cloze.blanks.length };
   }
   if (kind === 'letters') {
+    /*
+     * The whole-verse form, deliberately, and the only place in the feature that still asks for
+     * it cold. The sample is a showcase a visitor picks from a menu of four, not a scheduled
+     * review of their own study — nobody is being asked to hold this verse next week — and it is
+     * already tuned by its own knobs rather than by the ladder's (`SAMPLE_CLOZE_RATIO`). Passing
+     * no share keeps it at tier 2, which is what it has always shown.
+     */
     const built = buildVerseInitials(text);
     return built ? { kind, initials: built.initials, wordCount: built.wordCount } : null;
   }

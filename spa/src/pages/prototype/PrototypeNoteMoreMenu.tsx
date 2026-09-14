@@ -80,6 +80,8 @@ export interface PrototypeNoteMoreMenuProps {
   canPin?: boolean;
   onFind?: () => void;
   onShare?: () => void;
+  /** Opens version history; only passed for the note's author on a saved, unlocked note. */
+  onHistory?: () => void;
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
 }
 
@@ -97,6 +99,7 @@ export default function PrototypeNoteMoreMenu({
   canPin = true,
   onFind,
   onShare,
+  onHistory,
   menuButtonRef,
 }: PrototypeNoteMoreMenuProps) {
   const { isGuest } = useHarvousIdentity();
@@ -361,6 +364,22 @@ export default function PrototypeNoteMoreMenu({
                 </>
               ) : (
                 <>
+              {onHistory ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="proto-menu-item"
+                  onClick={() => {
+                    setOpen(false);
+                    onHistory();
+                  }}
+                >
+                  <span className="proto-menu-item__icon" aria-hidden>
+                    <Icon name="clock-rotate-left" size={iconSize} />
+                  </span>
+                  <span className="proto-menu-item__label">History</span>
+                </button>
+              ) : null}
               {canPin ? <button type="button" role="menuitem" className="proto-menu-item" disabled={pinNote.isPending} onClick={onPin}>
                 <span className="proto-menu-item__icon" aria-hidden>
                   <Icon name="thumbtack" size={iconSize} />

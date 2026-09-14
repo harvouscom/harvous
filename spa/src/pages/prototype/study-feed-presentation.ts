@@ -165,6 +165,54 @@ export function studyFeedEmptyDayCopy(isToday: boolean): string {
     : 'A quiet day. Rest counts too.';
 }
 
+/**
+ * The same silence, said about a room rather than about the reader.
+ *
+ * The copy above is in the second person — "whatever you read", "rest counts too" — which is
+ * right on your own day and wrong on a space's. Told over a quiet room it reads as a remark
+ * about how little *you* have done, when the sheet is not about you at all.
+ *
+ * `neverAnything` separates the two silences worth telling apart: a room that has had nothing
+ * in it yet, which is a fact about the room, and a room that simply had a quiet Tuesday.
+ */
+export function studyFeedScopedEmptyCopy(spaceTitle: string, neverAnything: boolean): string {
+  return neverAnything
+    ? `Nothing in ${spaceTitle} yet. What gets shared there stacks up here by day.`
+    : `A quiet day in ${spaceTitle}.`;
+}
+
+/**
+ * The bottom edge when the trail is not actually over, only hidden from a free plan.
+ *
+ * An edge carries one short caption — "Earlier", a day name — not a sentence, so this stays
+ * the same shape rather than explaining itself in place. The full explanation is the standard
+ * Plus row wherever that already lives (Settings, `/upgrade`); this is a door to it, not a
+ * second copy of the pitch.
+ */
+export const STUDY_FEED_LOCKED_EDGE_LABEL = 'Earlier study · Plus';
+export const STUDY_FEED_LOCKED_EDGE_ARIA_LABEL = 'See earlier study with Harvous Plus';
+
+/** What the bottom of the pile shows, once there are no day edges left stacked ahead of it. */
+export type StudyFeedTrailEndEdge = 'fetch' | 'locked' | 'origin' | null;
+
+/**
+ * Three ways a pile can end, and they are mutually exclusive by construction: more is only
+ * ever fetchable when the server has not said the trail stopped (`hasNextPage`), and a stop is
+ * a lock only when the server found something a free plan is hiding (`lockedBefore`).
+ *
+ * `hasEdgesAhead` is `edges.length > 0` at the call site — a day is already stacked between
+ * here and the bottom, so none of these three apply yet.
+ */
+export function studyFeedTrailEndEdge(input: {
+  hasEdgesAhead: boolean;
+  hasNextPage: boolean;
+  lockedBefore: string | null;
+}): StudyFeedTrailEndEdge {
+  if (input.hasEdgesAhead) return null;
+  if (input.hasNextPage) return 'fetch';
+  return input.lockedBefore ? 'locked' : 'origin';
+}
+
 /** Clock time on the right edge of a moment — 9:14 PM, in the reader's locale. */
 export function studyFeedClockTime(iso: string): string {
   const date = new Date(iso);

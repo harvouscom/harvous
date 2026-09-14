@@ -5,6 +5,7 @@ import {
   formatChapterRange,
   studyFeedItemIcon,
   studyFeedRowCopy,
+  studyFeedTrailEndEdge,
   summarizeStudyFeedDay,
 } from '../study-feed-presentation';
 
@@ -142,5 +143,38 @@ describe('a day of reviews and nothing else', () => {
   it('stays silent on a day with neither', () => {
     expect(summarizeStudyFeedDay([], { isToday: true, partsCount: 0, revisited: null })).toBeNull();
     expect(summarizeStudyFeedDay([], { isToday: true, partsCount: 0 })).toBeNull();
+  });
+});
+
+describe('studyFeedTrailEndEdge', () => {
+  it('shows nothing while a day is still stacked ahead of the bottom', () => {
+    expect(
+      studyFeedTrailEndEdge({ hasEdgesAhead: true, hasNextPage: true, lockedBefore: null }),
+    ).toBeNull();
+    expect(
+      studyFeedTrailEndEdge({ hasEdgesAhead: true, hasNextPage: false, lockedBefore: '2026-01-01' }),
+    ).toBeNull();
+  });
+
+  it('offers to fetch whenever the server has more, locked or not', () => {
+    expect(
+      studyFeedTrailEndEdge({ hasEdgesAhead: false, hasNextPage: true, lockedBefore: null }),
+    ).toBe('fetch');
+    // Still more to page through before the free floor is even reached.
+    expect(
+      studyFeedTrailEndEdge({ hasEdgesAhead: false, hasNextPage: true, lockedBefore: '2026-01-01' }),
+    ).toBe('fetch');
+  });
+
+  it('is the true origin only once nothing is left and nothing is hidden', () => {
+    expect(
+      studyFeedTrailEndEdge({ hasEdgesAhead: false, hasNextPage: false, lockedBefore: null }),
+    ).toBe('origin');
+  });
+
+  it('is locked once nothing is left to fetch but the server found older history', () => {
+    expect(
+      studyFeedTrailEndEdge({ hasEdgesAhead: false, hasNextPage: false, lockedBefore: '2026-01-01' }),
+    ).toBe('locked');
   });
 });

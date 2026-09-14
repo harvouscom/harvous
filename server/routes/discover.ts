@@ -287,8 +287,12 @@ app.get('/api/discover/listings', rateLimit('read'), async (c) => {
       const cursorListedAt = new Date(decoded.slice(0, separator));
       const cursorId = decoded.slice(separator + 1);
       if (separator > 0 && !Number.isNaN(cursorListedAt.getTime())) {
+        /* As an ISO string, not the Date. A value in a raw `sql` fragment reaches the driver
+           untouched — Drizzle only maps a Date when a column like `lt()` tells it how — and the
+           driver takes strings there, so every page after the first 500'd. `listedAt` is
+           timestamptz, which reads the `Z` and compares exactly. */
         conditions.push(
-          sql`(${DiscoverListings.listedAt}, ${DiscoverListings.id}) < (${cursorListedAt}, ${cursorId})`,
+          sql`(${DiscoverListings.listedAt}, ${DiscoverListings.id}) < (${cursorListedAt.toISOString()}, ${cursorId})`,
         );
       }
     }
@@ -480,6 +484,10 @@ app.post('/api/discover/submit', requireAuth, rateLimit('write'), async (c) => {
         .where(
           and(
             eq(DiscoverListings.sourceId, sourceId),
+            /* The kind too, not just the id. A personal Thread is addressed by its main note,
+               so a note and the Thread it anchors carry the same `sourceId` — without this,
+               sharing the note first would refuse the Thread as "already shared". */
+            eq(DiscoverListings.kind, kind),
             eq(DiscoverListings.submittedByUserId, auth.userId),
             or(eq(DiscoverListings.status, 'submitted'), eq(DiscoverListings.status, 'listed')),
           ),

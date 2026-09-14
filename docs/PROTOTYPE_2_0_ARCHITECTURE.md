@@ -49,7 +49,9 @@ Spaces. Create, join, people, about, and settings flows stay inside the native-l
 - Sidebar: mobile drawer vs pinned column; desktop collapse (`proto-shell--sidebar-collapsed`).
 - **Active context:** `null` for My Home or an owned/joined shared-space ID.
 - **List modes:** `notes` | `folders` | `highlights` | `scripture` | `threads`.
-- **Visible list scope inside shared shell:** `This space` or `My Home` without changing the active shell context.
+- **Visible list scope inside shared shell:** the Library panel's "<space> | My Home" switch shows either
+  library without changing the active shell context. It opens on the space every time and is not persisted;
+  the organize host follows it (`resolveLibraryListScope`), and opening a Home item moves the shell to My Home.
 - **Compose target:** My Home creates privately; This space creates canonically in My Home plus a space
   association.
 - **Standalone scripture passage** — `openStandaloneScripturePassage` drives the main pane on home: `PrototypeStandaloneScripturePassagePane` inside `PrototypeMainPaneShell`.

@@ -1,8 +1,7 @@
 /**
  * The Library panel — the browse surface that took over from the left sidebar.
  *
- * It morphs out of the toolbar's center chip: the chip names your context, and expanding
- * it shows you that context's contents. On desktop it is a centered panel hanging from
+ * It morphs out of the toolbar's center chip. On desktop it is a centered panel hanging from
  * the toolbar; on mobile it is a full-height sheet, because a 880px centered panel on a
  * phone is just a worse sheet.
  *
@@ -12,10 +11,10 @@
  * something you dip into and out of while the note underneath stays mounted; a modal
  * would say "finish this and get out", which is the wrong posture for rediscovery.
  *
- * One structural difference from that panel: this one holds the space switcher in its
- * header. Switching space here re-scopes the panel rather than closing it (see the
- * `setLocation` rule in proto-shell-context), because the reader is steering this
- * surface, not leaving it.
+ * One structural difference from that panel: a space switch under it re-scopes it rather
+ * than closing it (see the `setLocation` rule in proto-shell-context), because the reader is
+ * steering this surface, not leaving it. Inside a shared space its header also carries the
+ * "<space> | My Home" switch — your own library, reachable without leaving the room.
  */
 import { useEffect, useRef, type ReactNode } from 'react';
 import Icon from '@/components/react/Icon';
@@ -43,7 +42,7 @@ export default function PrototypeLibraryPanel({
   tabs,
   selectBar,
   bulkBar,
-  spaceSwitcher,
+  scopeSwitch,
   children,
 }: {
   view: LibraryPanelView;
@@ -70,7 +69,14 @@ export default function PrototypeLibraryPanel({
    * bar holds, so the two surfaces put the answer in the same corner.
    */
   bulkBar?: ReactNode;
-  spaceSwitcher?: ReactNode;
+  /**
+   * The "<space> | My Home" switch, inside a shared space only.
+   *
+   * A row of its own across the header rather than a neighbour of the kind picker: the picker
+   * says what kind of thing you are looking through, this says whose shelf it is, and two
+   * controls answering different questions in one cell read as one control.
+   */
+  scopeSwitch?: ReactNode;
   children: ReactNode;
 }) {
   /*
@@ -131,7 +137,10 @@ export default function PrototypeLibraryPanel({
       if (
         event.target instanceof Element &&
         event.target.closest(
-          '[role="menu"], [role="dialog"], .proto-menu__popover, .proto-popover-shell',
+          /* A dialog's scrim too. It is a bare button with no dialog role, so pressing it to
+             close a sheet opened from inside the panel — "Share with others" on a Thread —
+             closed the panel underneath in the same gesture. */
+          '[role="menu"], [role="dialog"], .proto-menu__popover, .proto-popover-shell, .proto-dialog-backdrop, .proto-connect-note-sheet-overlay',
         )
       ) {
         return;
@@ -189,10 +198,10 @@ export default function PrototypeLibraryPanel({
         <div className="proto-library-panel__search">{search}</div>
         {/* The kind picker sits in the row with the field: what you are looking through,
             beside what you are looking for. */}
-        <div className="proto-library-panel__actions">
-          {tabs}
-          {spaceSwitcher}
-        </div>
+        <div className="proto-library-panel__actions">{tabs}</div>
+        {/* Inside the header rather than under it, so it arrives with the header's fade and
+            takes the sheet's header treatment without rules of its own. */}
+        {scopeSwitch ? <div className="proto-library-panel__scope">{scopeSwitch}</div> : null}
       </div>
       {/*
         * Where you are, and the way back out of it — the sidebar's own back row, borrowed

@@ -1,5 +1,5 @@
 import { generateTimestampId } from '@/utils/ids';
-import { db, Notes, NoteVersions, SpaceNotes, StudyThreadEntries, and, desc, eq, first, inArray, isNull } from '../db';
+import { db, Notes, NoteVersions, SpaceNotes, StudyThreadEntries, and, asc, desc, eq, first, gt, inArray, isNull, lt, or } from '../db';
 import {
   NoteVersionAccessError,
   assertCanAccessNoteVersions,
@@ -17,26 +17,17 @@ import {
   isRawListPreviewWrite,
   isSuspiciousNoteShrink,
 } from '@/utils/note-truncated-write-guard';
+import {
+  NOTE_VERSION_RETENTION_LATEST_COUNT,
+  NOTE_VERSION_RETENTION_MAX_AGE_MS,
+  NOTE_VERSION_THIN_DELETE_LIMIT,
+  NOTE_VERSION_THIN_SCAN_LIMIT,
+  planNoteVersionThinning,
+  startsNewEditingSession,
+} from './note-version-thinning';
+import { isReplacedBeforeWindow } from './note-history-visibility';
 
 type Transaction = any;
-
-export const NOTE_VERSION_RETENTION_LATEST_COUNT = 100;
-export const NOTE_VERSION_RETENTION_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
-
-export function isProtectedNoteVersion(input: {
-  id: string;
-  version: number;
-  source: string | null;
-  currentVersionId: string | null;
-  referencedVersionIds: Set<string>;
-}): boolean {
-  return (
-    input.id === input.currentVersionId ||
-    input.version === 1 ||
-    input.source === 'restore' ||
-    input.referencedVersionIds.has(input.id)
-  );
-}
 
 export function shouldAdvanceCanonicalVersion(input: {
   current: NoteVersionContent;
@@ -51,44 +42,81 @@ export function shouldAdvanceCanonicalVersion(input: {
   );
 }
 
-export async function pruneCanonicalNoteVersionsInTransaction(
+export async function thinCanonicalNoteVersionsInTransaction(
   tx: Transaction,
   input: { noteId: string; currentVersionId: string | null; now: Date },
 ): Promise<string[]> {
+  const floor = first(
+    await tx
+      .select({ version: NoteVersions.version })
+      .from(NoteVersions)
+      .where(eq(NoteVersions.noteId, input.noteId))
+      .orderBy(desc(NoteVersions.version))
+      .offset(NOTE_VERSION_RETENTION_LATEST_COUNT - 1)
+      .limit(1),
+  ) as { version: number } | undefined;
+  if (!floor) return [];
+
   const cutoff = new Date(input.now.getTime() - NOTE_VERSION_RETENTION_MAX_AGE_MS);
-  const outsideLatest = await tx
+  const rows = (await tx
     .select({
       id: NoteVersions.id,
       version: NoteVersions.version,
       source: NoteVersions.source,
       createdAt: NoteVersions.createdAt,
+      editedBy: NoteVersions.editedBy,
+      authorId: NoteVersions.authorId,
     })
     .from(NoteVersions)
-    .where(eq(NoteVersions.noteId, input.noteId))
+    .where(and(eq(NoteVersions.noteId, input.noteId), lt(NoteVersions.createdAt, cutoff)))
     .orderBy(desc(NoteVersions.version))
-    .offset(NOTE_VERSION_RETENTION_LATEST_COUNT);
-  const candidates = outsideLatest.filter(
-    (row: { createdAt: Date }) => row.createdAt < cutoff,
-  );
-  if (candidates.length === 0) return [];
-  const candidateIds = candidates.map((row: { id: string }) => row.id);
-  const referencedRows = await tx
-    .select({ id: StudyThreadEntries.noteVersionId })
+    .limit(NOTE_VERSION_THIN_SCAN_LIMIT)) as Array<{
+    id: string;
+    version: number;
+    source: string | null;
+    createdAt: Date;
+    editedBy: string | null;
+    authorId: string;
+  }>;
+  const versionRows = rows.map((row) => ({
+    id: row.id,
+    version: row.version,
+    source: row.source,
+    createdAt: row.createdAt,
+    editorId: row.editedBy ?? row.authorId,
+  }));
+  const plan = (referencedVersionIds: ReadonlySet<string>, limit?: number) =>
+    planNoteVersionThinning({
+      rows: versionRows,
+      now: input.now,
+      currentVersionId: input.currentVersionId,
+      oldestProtectedVersion: floor.version,
+      referencedVersionIds,
+      limit,
+    });
+
+  const candidateIds = plan(new Set());
+  if (candidateIds.length === 0) return [];
+
+  const references = (await tx
+    .select({
+      noteVersionId: StudyThreadEntries.noteVersionId,
+      resolvedVersionId: StudyThreadEntries.resolvedVersionId,
+    })
     .from(StudyThreadEntries)
-    .where(inArray(StudyThreadEntries.noteVersionId, candidateIds));
+    .where(
+      or(
+        inArray(StudyThreadEntries.noteVersionId, candidateIds),
+        inArray(StudyThreadEntries.resolvedVersionId, candidateIds),
+      ),
+    )) as Array<{ noteVersionId: string | null; resolvedVersionId: string | null }>;
   const referencedVersionIds = new Set(
-    referencedRows.map((row: { id: string | null }) => row.id).filter(Boolean) as string[],
+    references
+      .flatMap((row) => [row.noteVersionId, row.resolvedVersionId])
+      .filter((id): id is string => Boolean(id)),
   );
-  const removableIds = candidates
-    .filter(
-      (row: { id: string; version: number; source: string | null }) =>
-        !isProtectedNoteVersion({
-          ...row,
-          currentVersionId: input.currentVersionId,
-          referencedVersionIds,
-        }),
-    )
-    .map((row: { id: string }) => row.id);
+
+  const removableIds = plan(referencedVersionIds, NOTE_VERSION_THIN_DELETE_LIMIT);
   if (removableIds.length > 0) {
     await tx.delete(NoteVersions).where(inArray(NoteVersions.id, removableIds));
   }
@@ -186,6 +214,32 @@ export class NoteVersionNotFoundError extends Error {
     super('Note version not found');
     this.name = 'NoteVersionNotFoundError';
   }
+}
+
+export class NoteHistoryLockedError extends Error {
+  readonly code = 'NOTE_HISTORY_LOCKED';
+
+  constructor() {
+    super('This version is outside your history window');
+    this.name = 'NoteHistoryLockedError';
+  }
+}
+
+/** When the version after this one was written; null for the newest version. */
+export async function loadNoteVersionReplacedAt(
+  executor: Transaction,
+  noteId: string,
+  version: number,
+): Promise<Date | null> {
+  const successor = first(
+    await executor
+      .select({ createdAt: NoteVersions.createdAt })
+      .from(NoteVersions)
+      .where(and(eq(NoteVersions.noteId, noteId), gt(NoteVersions.version, version)))
+      .orderBy(asc(NoteVersions.version))
+      .limit(1),
+  ) as { createdAt: Date } | undefined;
+  return successor?.createdAt ?? null;
 }
 
 export class ActiveSharedAssociationEncryptionError extends Error {
@@ -321,18 +375,13 @@ export async function createInitialNoteVersion(
     .where(and(eq(Notes.id, input.noteId), eq(Notes.userId, input.noteAuthorId)))
     .returning({ id: Notes.id });
   if (bound.length !== 1) throw new Error('Failed to bind initial note version');
-  await pruneCanonicalNoteVersionsInTransaction(tx, {
-    noteId: input.noteId,
-    currentVersionId: created.id,
-    now: input.createdAt,
-  });
   return created;
 }
 
 /**
- * Response anchors must bind to the exact current body, even when a recent
- * author save was coalesced. This creates an immutable system checkpoint; it
- * does not grant the responder history access or permission to change content.
+ * Response anchors must bind to the exact current body. This creates an immutable
+ * system checkpoint; it does not grant the responder history access or permission
+ * to change content.
  */
 export async function ensureAnchorableCurrentNoteVersion(
   tx: Transaction,
@@ -382,7 +431,7 @@ export async function ensureAnchorableCurrentNoteVersion(
     .update(Notes)
     .set({ currentVersionId: created.id })
     .where(and(eq(Notes.id, input.note.id), eq(Notes.userId, input.note.userId)));
-  await pruneCanonicalNoteVersionsInTransaction(tx, {
+  await thinCanonicalNoteVersionsInTransaction(tx, {
     noteId: input.note.id,
     currentVersionId: created.id,
     now: input.now,
@@ -579,11 +628,26 @@ export async function updateCanonicalNoteInTransaction(
       resolvedVersionId: nextVersion.id,
       now: input.now,
     });
-    await pruneCanonicalNoteVersionsInTransaction(tx, {
-      noteId: note.id,
-      currentVersionId: nextVersion.id,
-      now: input.now,
+    const startsSession = startsNewEditingSession({
+      previous: {
+        source: latest.source,
+        createdAt: latest.createdAt,
+        editorId: latest.editedBy ?? latest.authorId,
+      },
+      next: {
+        source: nextVersion.source,
+        createdAt: nextVersion.createdAt,
+        editorId: nextVersion.editedBy ?? nextVersion.authorId,
+      },
     });
+    // Autosaves inside a session add nothing thinnable, so only the first save of a session scans.
+    if (startsSession) {
+      await thinCanonicalNoteVersionsInTransaction(tx, {
+        noteId: note.id,
+        currentVersionId: nextVersion.id,
+        now: input.now,
+      });
+    }
   }
 
   return { note: updated, currentVersion: nextVersion, createdVersion: shouldCheckpoint };
@@ -597,6 +661,8 @@ export async function restoreCanonicalNoteVersionInTransaction(
     actorId: string;
     expectedVersion?: number;
     now: Date;
+    /** From `resolveHistoryVisibleSince`; null or absent means no window. */
+    visibleSince?: Date | null;
   },
 ): Promise<CanonicalNoteMutationResult> {
   const historical = first(
@@ -608,6 +674,15 @@ export async function restoreCanonicalNoteVersionInTransaction(
   ) as typeof NoteVersions.$inferSelect | undefined;
   if (!historical) throw new NoteVersionNotFoundError();
   assertCanAccessNoteVersions(historical.authorId, input.actorId);
+  if (
+    input.visibleSince &&
+    isReplacedBeforeWindow(
+      await loadNoteVersionReplacedAt(tx, input.noteId, historical.version),
+      input.visibleSince,
+    )
+  ) {
+    throw new NoteHistoryLockedError();
+  }
 
   return updateCanonicalNoteInTransaction(tx, {
     noteId: input.noteId,

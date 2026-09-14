@@ -391,6 +391,37 @@
   overflow: hidden;
 }
 
+/* Comparing two versions on a phone (ds-24-reader-compare-chips).
+ *
+ * The width IS the fixture. The marking that says which version is on screen lives in a
+ * `@container pds-reader-scroll (max-width: 900px)` block, so a stage wide enough to be
+ * comfortable renders the wide state and covers nothing — the failure the scope-chip scene
+ * already taught this gallery, where a scene stayed green for 91 runs while the real control
+ * drew an empty pill. 380px is a phone, which is the only place this state exists.
+ *
+ * Two stages side by side rather than one with a toggle: the whole question is which of the two
+ * chips reads as current, and that is a comparison, not a state you step through. */
+.pds-gallery-reader-compare-stages {
+  display: flex;
+  gap: var(--pds-space-5);
+  flex-wrap: wrap;
+}
+
+.pds-gallery-reader-compare-stage {
+  flex: 0 0 auto;
+  width: 380px;
+  max-width: 100%;
+}
+
+.pds-gallery-reader-compare-stage > .pds-reader {
+  /* Tall enough to scroll, which is the point: the heading pins while comparing at this width,
+     and a stage that fits the whole passage would show it sitting still. */
+  height: 300px;
+  border: 0.5px solid var(--pds-border);
+  border-radius: var(--pds-radius-card);
+  overflow: hidden;
+}
+
 .pds-gallery-reader-markers {
   display: flex;
   gap: var(--pds-space-5);

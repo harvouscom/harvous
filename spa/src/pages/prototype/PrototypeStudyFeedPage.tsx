@@ -41,7 +41,15 @@ import ProtoSpaceMenuIcon from './ProtoSpaceMenuIcon';
 import { noteParamSlug } from './proto-route-slugs';
 import ProtoSpaceLoading from './ProtoSpaceLoading';
 import PrototypeStudyFeedPart from './PrototypeStudyFeedPart';
-import { studyFeedEmptyDayCopy, summarizeStudyFeedDay } from './study-feed-presentation';
+import PrototypeListEmptyState from './PrototypeListEmptyState';
+import {
+  STUDY_FEED_LOCKED_EDGE_ARIA_LABEL,
+  STUDY_FEED_LOCKED_EDGE_LABEL,
+  studyFeedEmptyDayCopy,
+  studyFeedScopedEmptyCopy,
+  studyFeedTrailEndEdge,
+  summarizeStudyFeedDay,
+} from './study-feed-presentation';
 import { canonicalBookOrderMap } from '@/utils/scripture-passage-drill';
 import type { LibraryTab } from './library-panel/library-panel-view';
 import PrototypeHomeGreeting from './PrototypeHomeGreeting';
@@ -110,8 +118,15 @@ export default function PrototypeStudyFeedPage() {
     [navigate],
   );
   const [scope, setScope] = useState<StudyFeedScope>(STUDY_FEED_SCOPE_ALL);
-  const { items, reviewAnswers, isPending, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useStudyFeed(scope);
+  const {
+    items,
+    reviewAnswers,
+    isPending,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    lockedBefore,
+  } = useStudyFeed(scope);
 
   const libraryNav = useLibraryPanelNav();
   const { openLibraryPanel, setSidebarThreadProposal } = useProtoShell();
@@ -269,12 +284,38 @@ export default function PrototypeStudyFeedPage() {
 
   /** Index into `days`, newest first. 0 is today. */
   const [index, setIndex] = useState(0);
+  /** Set when a space scope is picked, so the jump can wait for that scope's days. */
+  const pendingScopeJump = useRef(false);
 
   /* A narrower scope has fewer days in it, so the sheet you were on is not the sheet that
      index now points at. Going back to today is the only answer that is never surprising. */
   useEffect(() => {
     setIndex(0);
+    /*
+     * ...except for a space, where today is usually a rest day and going there says nothing.
+     *
+     * "All" and "My home" always have today's own study on them, so landing on today shows the
+     * change immediately. A room's last note might be a fortnight back — so picking one landed
+     * on an empty sheet, which is indistinguishable from the filter having done nothing at all.
+     * Jump to the newest day the space actually has something on instead. Deferred rather than
+     * done here because the items for the new scope have not arrived yet.
+     */
+    pendingScopeJump.current = scope.kind === 'space';
   }, [scope]);
+
+  /* The deferred half of the jump above, run once this scope's days have arrived. Cleared
+     either way once the fetch settles, so a space with nothing in it simply stays on today
+     rather than leaving the jump armed for the next unrelated change. */
+  useEffect(() => {
+    if (!pendingScopeJump.current) return;
+    const firstWithItems = days.findIndex((day) => !day.isEmpty);
+    if (firstWithItems > 0) {
+      pendingScopeJump.current = false;
+      setIndex(firstWithItems);
+      return;
+    }
+    if (!isPending && !isFetchingNextPage) pendingScopeJump.current = false;
+  }, [days, isPending, isFetchingNextPage]);
   const safeIndex = Math.min(index, Math.max(0, days.length - 1));
   const day = days[safeIndex];
 
@@ -461,7 +502,22 @@ export default function PrototypeStudyFeedPage() {
     partsCount: day.parts.length,
     revisited: reviewSubjectsForDay.get(day.dayKey) ?? null,
   });
-  const showGreeting = safeIndex === 0 && greeting.ready && home.countForLogic > 0;
+  /*
+   * The room this sheet is of, when it is of one.
+   *
+   * Everything below keyed off it is the same idea: under a space scope this sheet belongs to
+   * the space, so the surfaces that are about *you* step aside. The greeting, Home's own
+   * sections and the getting-started dock are all personal — printed under "Family" they read
+   * as the filter having been ignored, which is precisely how this looked before.
+   */
+  const scopedSpace =
+    scope.kind === 'space'
+      ? sharedSpaces.find((space) => space.id === scope.spaceId) ?? null
+      : null;
+  /** Not one day empty but the whole room — a fact about the space, not about a Tuesday. */
+  const scopeNeverHadAnything = Boolean(scopedSpace) && days.every((d) => d.isEmpty);
+  const showGreeting =
+    safeIndex === 0 && greeting.ready && home.countForLogic > 0 && !scopedSpace;
 
 
 
@@ -572,24 +628,20 @@ export default function PrototypeStudyFeedPage() {
 
   const edges = days.slice(safeIndex + 1, safeIndex + 1 + MAX_EDGES);
   /*
-   * The edges are the way back now, so they carry what the "Earlier" button used to: at the
-   * oldest loaded day there is nothing to slice, and without a page of its own the stack
-   * would end in a wall with older study visibly behind it. One more edge, which fetches.
-   */
-  const showFetchEdge = edges.length === 0 && hasNextPage;
-  /*
-   * The bottom of the pile, once there is nothing left to fetch.
+   * The edges are the way back now, so the bottom of the pile carries what the "Earlier"
+   * button used to, plus two ways a pile can genuinely end — see `studyFeedTrailEndEdge`.
    *
-   * The stack used to simply stop here: the oldest sheet with blank paper above it and no
-   * indication that you had reached anything, which reads as a page that failed to load more
-   * rather than as a beginning. A study has a first day, and after a year of use it is the one
-   * day in the stack you cannot get to any other way.
-   *
-   * Not a button. Every other edge is somewhere to go; this one is the fact that there is
-   * nowhere further, and a control that does nothing when pressed is a worse answer than a
-   * label that never invited the press.
+   * The origin edge is a real beginning: not a button, since there is nowhere further to go
+   * and a control that does nothing when pressed is a worse answer than a label that never
+   * invited the press. The locked edge is not a beginning at all — study happened before it,
+   * kept, just not shown — so it gets a door rather than a fact, in the origin edge's exact
+   * slot, so the stack's shape never tells the reader in advance which one they are about to
+   * meet.
    */
-  const showOriginEdge = edges.length === 0 && !hasNextPage;
+  const trailEndEdge = studyFeedTrailEndEdge({ hasEdgesAhead: edges.length > 0, hasNextPage, lockedBefore });
+  const showFetchEdge = trailEndEdge === 'fetch';
+  const showOriginEdge = trailEndEdge === 'origin';
+  const showLockedEdge = trailEndEdge === 'locked';
 
 
   return (
@@ -635,6 +687,19 @@ export default function PrototypeStudyFeedPage() {
                 Your study begins here · {day.dateLabel}
               </span>
             </div>
+          ) : null}
+          {showLockedEdge ? (
+            <button
+              type="button"
+              className="proto-feed-stack__edge proto-feed-stack__edge--locked"
+              style={{ '--edge-depth': 1 } as CSSProperties}
+              onClick={() => navigate({ to: '/upgrade' })}
+              aria-label={STUDY_FEED_LOCKED_EDGE_ARIA_LABEL}
+            >
+              <span className="pds-caption proto-feed-stack__edge-label">
+                {STUDY_FEED_LOCKED_EDGE_LABEL}
+              </span>
+            </button>
           ) : null}
         </div>
 
@@ -783,18 +848,35 @@ export default function PrototypeStudyFeedPage() {
 
             {/* Home's own order: what you were doing, then what is coming, then what is
                 offered, and only then the record of the day itself. */}
-            {safeIndex === 0 && greeting.ready ? (
+            {safeIndex === 0 && greeting.ready && !scopedSpace ? (
               <PrototypeStudyFeedToday
                 notes={greeting.notes}
                 home={home}
               />
             ) : null}
 
-            {onboardingLeads ? null : onboardingDock}
+            {onboardingLeads || scopedSpace ? null : onboardingDock}
 
-            {day.isEmpty ? (
+            {day.isEmpty && scopedSpace && scopeNeverHadAnything ? (
+              /*
+               * A room that has never had anything in it is not a quiet Tuesday, and a single
+               * grey line in the middle of an empty sheet reads as a page that failed to load.
+               * The app's own empty state says what the surface is for. No action beside it:
+               * `space/$spaceId` is a legacy route that redirects to Home, so the obvious button
+               * would land the reader somewhere that is not the space it named.
+               */
+              <PrototypeListEmptyState
+                iconName="user-group"
+                title={`Nothing in ${scopedSpace.title} yet`}
+                description="What gets shared there stacks up here, a day at a time."
+              />
+            ) : day.isEmpty ? (
+              /* A quiet day inside a room that does have a trail stays a quiet line: the day
+                 nav is right there, and a block this size on every rest day would be furniture. */
               <p className="proto-feed-sheet__rest">
-                {studyFeedEmptyDayCopy(safeIndex === 0)}
+                {scopedSpace
+                  ? studyFeedScopedEmptyCopy(scopedSpace.title, false)
+                  : studyFeedEmptyDayCopy(safeIndex === 0)}
               </p>
             ) : (
               day.parts.map((group) => (

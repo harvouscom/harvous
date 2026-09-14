@@ -485,8 +485,10 @@ function SpaToaster() {
       return;
     }
     const update = () => {
-      const px = getMobileChipBottomInsetPx();
-      document.documentElement.style.setProperty(HARVOUS_TOASTER_MOBILE_BOTTOM_VAR, `${px}px`);
+      document.documentElement.style.setProperty(
+        HARVOUS_TOASTER_MOBILE_BOTTOM_VAR,
+        getMobileChipBottomInsetPx(),
+      );
     };
     update();
     const ro = new ResizeObserver(() => update());
@@ -502,11 +504,23 @@ function SpaToaster() {
       update();
       requestAnimationFrame(update);
     });
+    /* `pickAddNoteAnchor()` is a fresh DOM query every call, but nothing here re-ran it on its
+       own: a client-side route change doesn't resize or scroll anything, and this effect is keyed
+       only on `isMobile`. A toast fired right after navigating (e.g. the Discover install bridge)
+       inherited whatever the *previous* page's anchor produced — 100px, the "no anchor found"
+       fallback, on a public page with no compose button — and kept it, because nothing told this
+       effect the page underneath had changed. Same settle delay as the initial mount: the new
+       route's anchor isn't necessarily laid out synchronously at `onResolved`. */
+    const unsubscribeResolved = router.subscribe('onResolved', () => {
+      update();
+      requestAnimationFrame(update);
+    });
     return () => {
       ro.disconnect();
       scrollRoots.forEach((el) => el.removeEventListener('scroll', onScroll));
       window.removeEventListener('resize', update);
       cancelAnimationFrame(raf1);
+      unsubscribeResolved();
       document.documentElement.style.removeProperty(HARVOUS_TOASTER_MOBILE_BOTTOM_VAR);
     };
   }, [isMobile]);

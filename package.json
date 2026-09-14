@@ -1,7 +1,7 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "3.10.0",
+  "version": "3.10.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/harvouscom/harvous.git"
@@ -83,10 +83,15 @@
     "fingerprints:backfill": "tsx server/scripts/backfill-note-fingerprints.ts",
     "study-bible:backfill": "tsx server/scripts/backfill-study-bible-layer.ts",
     "study-bible:notes": "tsx server/scripts/backfill-note-written-nodes.ts",
+    "paid:census": "tsx server/scripts/paid-entitlement-census.ts",
+    "paid:activation": "tsx server/scripts/paid-feature-activation.ts",
+    "paid:conversion": "tsx server/scripts/paid-conversion-lag.ts",
     "recall:kind-rates": "tsx server/scripts/recall-open-rate-by-kind.ts",
+    "review:ladder": "tsx server/scripts/review-ladder-health.ts",
     "review:schema": "tsx server/scripts/add-review-challenges-schema.ts",
     "review:schema:apply": "tsx server/scripts/add-review-challenges-schema.ts --apply",
     "entitlement:grant": "tsx server/scripts/grant-entitlement.ts",
+    "entitlement:backfill": "tsx server/scripts/backfill-feature-key.ts",
     "library:schema": "tsx server/scripts/add-resource-library-schema.ts",
     "library:schema:apply": "tsx server/scripts/add-resource-library-schema.ts --apply",
     "channel-links:schema": "tsx server/scripts/add-space-channel-links-schema.ts",
@@ -102,6 +107,8 @@
     "space-suggestions:schema:apply": "tsx server/scripts/add-space-study-suggestions-schema.ts --apply",
     "thread-copy:schema": "tsx server/scripts/add-thread-copy-attribution-schema.ts",
     "thread-copy:schema:apply": "tsx server/scripts/add-thread-copy-attribution-schema.ts --apply",
+    "review-exercises:schema": "tsx server/scripts/add-review-exercise-settings-schema.ts",
+    "review-exercises:schema:apply": "tsx server/scripts/add-review-exercise-settings-schema.ts --apply",
     "series:schema": "tsx server/scripts/add-series-presentation-schema.ts",
     "series:schema:apply": "tsx server/scripts/add-series-presentation-schema.ts --apply",
     "shared-spaces:schema:additive": "tsx server/scripts/add-shared-spaces-schema.ts",

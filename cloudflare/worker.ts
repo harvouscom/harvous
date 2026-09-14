@@ -137,6 +137,10 @@ function legacyRedirect(url: URL): Response | null {
   return null;
 }
 
+/** How long the Worker waits on Fly before answering for it. See the /api/* branch below. */
+const API_UPSTREAM_TIMEOUT_MS = 20_000;
+const OG_UPSTREAM_TIMEOUT_MS = 45_000;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -148,7 +152,37 @@ export default {
     // (/api/og/image/* and /api/*) pointed at the same origin, so one branch covers them.
     if (url.pathname.startsWith('/api/')) {
       const upstream = new URL(url.pathname + url.search, env.API_ORIGIN);
-      return fetch(new Request(upstream.toString(), request));
+      /*
+       * Bounded, and the failure is spelled out.
+       *
+       * Unbounded, whatever Fly does is what the browser sees — and when the single machine
+       * drops a connection mid-request the browser sees Cloudflare's bare 520, which carries
+       * no path, no status and no body for the client to report. A 504 with a JSON body is
+       * something `api.ts` can parse and `reportApiDiagnostic` can file with its apiPath
+       * attached, which is the difference between a diagnosable incident and one open issue
+       * reading "HTTP 520".
+       *
+       * OG image generation gets its own ceiling: it drives Chromium in the API process
+       * (server/fly.ts) and is served to crawlers, which wait more patiently than Home does.
+       */
+      const timeoutMs = url.pathname.startsWith('/api/og/') ? OG_UPSTREAM_TIMEOUT_MS : API_UPSTREAM_TIMEOUT_MS;
+      try {
+        return await fetch(new Request(upstream.toString(), request), {
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch (error) {
+        const timedOut = error instanceof Error && error.name === 'TimeoutError';
+        return new Response(
+          JSON.stringify({
+            error: timedOut ? 'Upstream timed out' : 'Upstream unavailable',
+            code: timedOut ? 'upstream_timeout' : 'upstream_unavailable',
+          }),
+          {
+            status: timedOut ? 504 : 502,
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+          },
+        );
+      }
     }
 
     // ── Crawlers on share URLs get server-rendered OG meta HTML from Fly so unfurls

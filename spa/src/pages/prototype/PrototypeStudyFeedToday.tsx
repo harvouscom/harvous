@@ -83,7 +83,11 @@ export default function PrototypeStudyFeedToday({
   const { state: onboardingState } = useOnboardingState();
   const { isGuest } = useHarvousIdentity();
   const onboardingOwnsImport = onboardingOwnsOffer(onboardingState, 'import', isGuest);
-  const { dismissed: importDismissed, dismiss: dismissImportPrompt } = useDismissibleImportPrompt();
+  const {
+    dismissed: importDismissed,
+    ready: importPromptReady,
+    dismiss: dismissImportPrompt,
+  } = useDismissibleImportPrompt();
 
   const {
     continueNote,
@@ -234,9 +238,10 @@ export default function PrototypeStudyFeedToday({
             *
             * Which makes the dismissal the whole design, not a courtesy. This row has no
             * ending of its own the way "N notes need a folder" does, so without a way to say
-            * no it would be permanent furniture. Saying no is permanent too.
+            * no it would be permanent furniture. Saying no is permanent, and now account-wide:
+            * whether you have notes to bring across is a fact about you, not about this browser.
             */}
-          {!isGuest && !importDismissed && !onboardingOwnsImport ? (
+          {!isGuest && importPromptReady && !importDismissed && !onboardingOwnsImport ? (
             <PrototypeHomeRow
               icon="cloud-arrow-up"
               title="Bring your notes from another app"

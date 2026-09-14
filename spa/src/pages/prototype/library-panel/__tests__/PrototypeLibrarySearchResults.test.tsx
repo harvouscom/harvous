@@ -60,14 +60,39 @@ const state: {
   scriptureBooks: unknown[];
   resources: unknown[];
   ctx: CommandContext | null;
-} = { notes: [], scriptureBooks: [], resources: [], ctx: null };
+  isScopedSharedSpace: boolean;
+  /** The space the panel is showing. */
+  spaceId: string;
+  /** What the unscoped (My Home) note search returns. */
+  homeHits: unknown[];
+  /** Every scope the component searched with, in order. */
+  searchScopes: unknown[];
+} = {
+  notes: [],
+  scriptureBooks: [],
+  resources: [],
+  ctx: null,
+  isScopedSharedSpace: false,
+  spaceId: 'space-1',
+  homeHits: [],
+  searchScopes: [],
+};
 
 const setLibraryPanelView = vi.fn();
 const closeLibraryPanel = vi.fn();
 const run = vi.fn();
+const openHomeNote = vi.fn();
 
+/* Answers by scope, the way the endpoint does: the space-scoped search finds nothing here,
+   and only a query the component actually enabled (non-empty) gets the Home hits. */
 vi.mock('@/hooks/useSearch', () => ({
-  useSearch: () => ({ data: undefined, isLoading: false }),
+  useSearch: (query: string, scope?: { spaceId?: string }) => {
+    state.searchScopes.push(scope);
+    return {
+      data: query && !scope?.spaceId ? { results: state.homeHits } : undefined,
+      isLoading: false,
+    };
+  },
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -84,12 +109,14 @@ vi.mock('../use-library-command-context', () => ({
 
 vi.mock('../library-panel-data', () => ({
   useLibraryPanelData: () => ({
-    spaceId: 'space-1',
-    isScopedSharedSpace: false,
+    spaceId: state.spaceId,
+    isScopedSharedSpace: state.isScopedSharedSpace,
+    homeSpaceId: 'space_home',
     notes: state.notes,
     notesById: new Map(state.notes.map((n) => [n.id, n])),
     activeNoteFullId: undefined,
     openNote: vi.fn(),
+    openHomeNote,
     openHighlight: vi.fn(),
     openResource: vi.fn(),
     resolveDrillNoteRow: (brief: { id: string }) => brief,
@@ -134,7 +161,91 @@ beforeEach(() => {
   state.scriptureBooks = [];
   state.resources = [];
   state.ctx = null;
+  state.isScopedSharedSpace = false;
+  state.spaceId = 'space-1';
+  state.homeHits = [];
+  state.searchScopes = [];
   vi.clearAllMocks();
+});
+
+describe('My Home, searched from inside a shared space', () => {
+  function hit(id: string, title: string, spaceId: string | null) {
+    return {
+      id,
+      type: 'note',
+      title,
+      content: '<p>Grace upon grace.</p>',
+      spaceId,
+      lastUpdated: '2026-08-01T00:00:00.000Z',
+    };
+  }
+
+  beforeEach(() => {
+    state.isScopedSharedSpace = true;
+  });
+
+  it('finds a note that lives in My Home, and opens it as a Home note', () => {
+    // The bug: from a shared space the panel only searched that space, so the notes you
+    // wrote at home could not be found at all.
+    state.homeHits = [hit('h1', 'Grace at home', 'space_home')];
+    renderResults({ query: 'grace', tab: 'all' });
+
+    const home = screen
+      .getByRole('heading', { name: 'My Home' })
+      .closest('.proto-library-results__group');
+    expect(home?.textContent).toContain('Grace at home');
+
+    screen.getByText('Grace at home').click();
+    expect(openHomeNote).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' }));
+  });
+
+  it('matches the Home id with or without its space_ prefix', () => {
+    state.homeHits = [hit('h1', 'Grace at home', 'home')];
+    renderResults({ query: 'grace', tab: 'all' });
+    expect(screen.getByRole('heading', { name: 'My Home' })).toBeTruthy();
+  });
+
+  it('keeps out notes the viewer wrote into other spaces', () => {
+    // The unscoped search returns everything the viewer authored. A note written into some
+    // other shared space is not a Home note, and calling it one would open it in the wrong place.
+    state.homeHits = [hit('s1', 'Grace in the group', 'space_other'), hit('n0', 'Grace loose', null)];
+    renderResults({ query: 'grace', tab: 'all' });
+    expect(screen.queryByRole('heading', { name: 'My Home' })).toBeNull();
+  });
+
+  it('does not repeat a note this space already shows', () => {
+    state.notes = [note('n1', 'Grace abounds')];
+    state.homeHits = [hit('n1', 'Grace abounds', 'space_home')];
+    const { container } = renderResults({ query: 'grace', tab: 'all' });
+
+    expect(screen.queryByRole('heading', { name: 'My Home' })).toBeNull();
+    expect(container.querySelectorAll('.proto-note-list li')).toHaveLength(1);
+  });
+
+  it('is shown under a kind tab too — it is a scope, not a kind', () => {
+    state.homeHits = [hit('h1', 'Grace at home', 'space_home')];
+    renderResults({ query: 'grace', tab: 'folders' });
+    expect(screen.getByRole('heading', { name: 'My Home' })).toBeTruthy();
+  });
+
+  it('is absent in My Home itself, where the search already is Home', () => {
+    state.isScopedSharedSpace = false;
+    state.homeHits = [hit('h1', 'Grace at home', 'space_home')];
+    renderResults({ query: 'grace', tab: 'all' });
+    expect(screen.queryByRole('heading', { name: 'My Home' })).toBeNull();
+  });
+
+  it('stands down while the panel’s switch is on My Home, where the search itself is Home', () => {
+    // The panel reports Home as its space there, so the main search is scoped to it and a
+    // second "My Home" group would only repeat it.
+    state.isScopedSharedSpace = false;
+    state.spaceId = 'space_home';
+    state.homeHits = [hit('h1', 'Grace at home', 'space_home')];
+    renderResults({ query: 'grace', tab: 'all' });
+
+    expect(screen.queryByRole('heading', { name: 'My Home' })).toBeNull();
+    expect(state.searchScopes).toContainEqual(expect.objectContaining({ spaceId: 'space_home' }));
+  });
 });
 
 describe('the tab is the type filter', () => {

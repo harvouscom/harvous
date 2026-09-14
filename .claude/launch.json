@@ -152,6 +152,56 @@
       ],
       "port": 4330,
       "autoPort": false
+    },
+    {
+      "name": "text-clipping-worktree-spa",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/text-clipping-bug-3e60ee && npm run dev:spa -- --port 4333 --strictPort"
+      ],
+      "port": 4333,
+      "autoPort": false
+    },
+    {
+      "name": "discover-feature-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/harvous-discover-feature-c92518 && API_PORT=3010 DB_POOL_MAX=6 VITE_API_PROXY_TARGET=http://localhost:3010 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4340 --strictPort'"
+      ],
+      "port": 4340,
+      "autoPort": false
+    },
+    {
+      "name": "discover-page-ux-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/discover-page-ux-8ac464 && API_PORT=3021 DB_POOL_MAX=4 VITE_API_PROXY_TARGET=http://localhost:3021 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4361 --strictPort'"
+      ],
+      "port": 4361,
+      "autoPort": false
+    },
+    {
+      "name": "harvous-com",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous.com && npm run dev -- --port 4321 --strictPort"
+      ],
+      "port": 4321,
+      "autoPort": false
+    },
+    {
+      "name": "harvous-com-into-discover-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous.com && PUBLIC_APP_ORIGIN=http://localhost:4361 npm run dev -- --port 4370 --strictPort"
+      ],
+      "port": 4370,
+      "autoPort": false
     }
   ]
 }

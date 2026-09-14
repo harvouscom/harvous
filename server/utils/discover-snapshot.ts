@@ -37,6 +37,13 @@ import {
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { resolveNoteTemplateIconColor } from '@/utils/note-template-icon';
 import { findPersonalLibrary } from './ensure-personal-library';
+import { collectStudyThreadGraphForScope } from './study-thread-space';
+import { fetchStudyThreadNoteRows } from './study-thread-note-rows';
+import { resolveStudyThreadClusterNaming } from './study-thread-cluster-naming';
+import {
+  pickStudyThreadRepresentativeNoteId,
+  type StudyThreadSuggestNode,
+} from '@/utils/suggest-study-thread-title';
 
 /**
  * How many notes one pack may carry.
@@ -393,15 +400,132 @@ export async function snapshotNote(noteId: string, userId: string): Promise<Snap
 }
 
 /**
- * A whole thread as one installable pack.
+ * A whole Thread as one installable pack.
  *
- * Mirrors what `/api/shared/add-to-harvous` collects — the thread's own notes
- * plus the scripture notes they reference — so a pack arrives as complete as a
- * shared thread does. The two refusals are the same ones the share path makes:
- * a thread living in a shared space is not the owner's alone to give away, and
- * encrypted notes never leave.
+ * Two kinds of object answer to "Thread", and the id says which. A personal Thread in the app is
+ * a cluster of notes connected to each other, addressed by its main note (`note_…`) — it is what
+ * the Library panel's Threads tab, the note page's Thread popover and the trail all show. A
+ * `Threads` row is the older record that imports, church series and installed packs create. Both
+ * snapshot to the same payload, so the catalog, the site and the install path never need to know
+ * which one a listing came from.
+ *
+ * Either way a pack carries the Thread's notes plus the scripture notes they reference, so it
+ * arrives as complete as a shared thread does, and the refusals are the ones the share path makes:
+ * a Thread in a shared space is not the owner's alone to give away, and encrypted notes never
+ * leave.
  */
-export async function snapshotPack(threadId: string, userId: string): Promise<SnapshotResult> {
+export async function snapshotPack(sourceId: string, userId: string): Promise<SnapshotResult> {
+  return sourceId.startsWith('note_')
+    ? snapshotThreadClusterPack(sourceId, userId)
+    : snapshotThreadRowPack(sourceId, userId);
+}
+
+/**
+ * A personal Thread — notes connected to each other — as a pack.
+ *
+ * Walked the way `GET /api/notes/:id/thread` walks it — same scope rule, same graph, same name —
+ * so what is shared is what the person was looking at when they pressed Share. The graph is capped
+ * one past `MAX_PACK_NOTES`, so an oversized Thread is refused with its size rather than silently
+ * cut down to its first hundred notes.
+ */
+async function snapshotThreadClusterPack(repNoteId: string, userId: string): Promise<SnapshotResult> {
+  const rep = first(
+    await db
+      .select({ id: Notes.id, spaceId: Notes.spaceId })
+      .from(Notes)
+      .where(and(eq(Notes.id, repNoteId), eq(Notes.userId, userId)))
+      .limit(1),
+  );
+  if (!rep) return { ok: false, status: 404, code: 'THREAD_NOT_FOUND', error: 'Thread not found' };
+  if (rep.spaceId) {
+    const space = first(
+      await db
+        .select({ type: Spaces.type, deletedAt: Spaces.deletedAt })
+        .from(Spaces)
+        .where(eq(Spaces.id, rep.spaceId))
+        .limit(1),
+    );
+    if (!space || space.deletedAt || space.type !== 'personal') {
+      return {
+        ok: false,
+        status: 409,
+        code: 'THREAD_IN_SHARED_SPACE',
+        error: 'A thread in a shared space is the room’s, not yours alone to give away.',
+      };
+    }
+  }
+
+  const { graph } = await collectStudyThreadGraphForScope(rep.id, userId, {
+    preferredSpaceId: rep.spaceId,
+    maxNodes: MAX_PACK_NOTES + 1,
+  });
+  /* One note is a note, and has its own way to be shared. */
+  if (graph.nodeIds.length < 2) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'EMPTY_PACK',
+      error: 'Connect at least one more note before sharing this Thread.',
+    };
+  }
+
+  /* The name, resolved as the Thread endpoint resolves it — a manual title if one was set, the
+     suggestion from its notes otherwise — so the listing is called what the app calls it. */
+  const namingRows = await fetchStudyThreadNoteRows(graph.nodeIds, userId);
+  const resourceIds = namingRows.filter((n) => n.noteType === 'resource').map((n) => n.id);
+  const resourceText = new Map<string, { sourceTitle: string | null; sourceDescription: string | null }>();
+  if (resourceIds.length > 0) {
+    const rows = await db
+      .select({
+        noteId: ResourceMetadata.noteId,
+        sourceTitle: ResourceMetadata.sourceTitle,
+        sourceDescription: ResourceMetadata.sourceDescription,
+      })
+      .from(ResourceMetadata)
+      .where(inArray(ResourceMetadata.noteId, resourceIds));
+    for (const row of rows) resourceText.set(row.noteId, row);
+  }
+  const suggestNodes: StudyThreadSuggestNode[] = namingRows.map((n) => ({
+    id: n.id,
+    title: n.title,
+    content: n.content,
+    noteType: n.noteType,
+    resourceTitle: resourceText.get(n.id)?.sourceTitle ?? null,
+    resourceDescription: resourceText.get(n.id)?.sourceDescription ?? null,
+    updatedAt: n.updatedAt ? n.updatedAt.toISOString() : null,
+  }));
+  const namingRepId =
+    pickStudyThreadRepresentativeNoteId(graph.degreeMap.keys(), graph.degreeMap) ?? rep.id;
+  const naming = resolveStudyThreadClusterNaming(namingRows, suggestNodes, namingRepId);
+  const title = naming.threadTitle?.trim() || naming.suggestedTitle?.trim() || 'Untitled Thread';
+
+  /* In the graph's own order, the order the walk reached them. */
+  const order = new Map(graph.nodeIds.map((id, index) => [id, index]));
+  const members = (
+    await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        noteType: Notes.noteType,
+        userId: Notes.userId,
+        currentVersionId: Notes.currentVersionId,
+      })
+      .from(Notes)
+      .where(
+        and(
+          inArray(Notes.id, graph.nodeIds),
+          eq(Notes.userId, userId),
+          eq(Notes.contentEncrypted, false),
+        ),
+      )
+  ).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+
+  return buildPackSnapshot({ title, subtitle: null, color: 'paper' }, members, userId);
+}
+
+/** A `Threads` row as a pack — the older record, found by its own id. */
+async function snapshotThreadRowPack(threadId: string, userId: string): Promise<SnapshotResult> {
   const thread = first(
     await db
       .select({
@@ -425,10 +549,11 @@ export async function snapshotPack(threadId: string, userId: string): Promise<Sn
      surface calls it, so requiring it here would be a door with no handle —
      packs would be unsubmittable by anyone, including over the API.
 
-     The gates that actually protect a pack are the ones below and above:
-     ownership, not-in-a-shared-space, encrypted notes excluded, the size caps,
-     and the review queue. If thread sharing ever ships a UI, add the same
-     `isPublic` check here and the asymmetry goes away. */
+     And a personal Thread — the connected-notes kind the app shares from — has no
+     public flag at all, so the asymmetry is now permanent rather than pending a UI.
+     The gates that protect a pack are ownership, not-in-a-shared-space, encrypted
+     notes excluded, the size caps, the sheet saying the name goes with it before
+     the button, and the review queue. */
   if (thread.spaceId) {
     const space = first(
       await db
@@ -467,6 +592,31 @@ export async function snapshotPack(threadId: string, userId: string): Promise<Sn
       asc(Notes.id),
     );
 
+  return buildPackSnapshot(
+    { title: thread.title, subtitle: thread.subtitle ?? null, color: thread.color || 'paper' },
+    junctionNotes,
+    thread.userId,
+  );
+}
+
+type PackSourceNote = {
+  id: string;
+  title: string | null;
+  content: string | null;
+  noteType: string | null;
+  userId: string;
+  currentVersionId: string | null;
+};
+
+/**
+ * Everything both kinds of Thread share once their notes are known: the scripture notes those
+ * notes reference, the caps, the payload and the preview.
+ */
+async function buildPackSnapshot(
+  thread: PackPayload['thread'],
+  junctionNotes: PackSourceNote[],
+  ownerUserId: string,
+): Promise<SnapshotResult> {
   const junctionIds = junctionNotes.map((n) => n.id).filter(Boolean);
   let referencedScripture: typeof junctionNotes = [];
   if (junctionIds.length > 0) {
@@ -477,7 +627,7 @@ export async function snapshotPack(threadId: string, userId: string): Promise<Sn
       .where(
         and(
           inArray(NoteScriptureReferences.noteId, junctionIds),
-          eq(Notes.userId, thread.userId),
+          eq(Notes.userId, ownerUserId),
           eq(Notes.noteType, 'scripture'),
         ),
       );
@@ -497,7 +647,7 @@ export async function snapshotPack(threadId: string, userId: string): Promise<Sn
         .where(
           and(
             inArray(Notes.id, extra),
-            eq(Notes.userId, thread.userId),
+            eq(Notes.userId, ownerUserId),
             eq(Notes.noteType, 'scripture'),
             eq(Notes.contentEncrypted, false),
           ),

@@ -5,6 +5,7 @@ import { useAuthReady } from '../useAuthReady';
 import {
   mergeStudyFeedPages,
   mergeStudyFeedReviewAnswers,
+  resolveStudyFeedLockedBefore,
   serializeStudyFeedScope,
   studyFeedItemNoteId,
   STUDY_FEED_SCOPE_ALL,
@@ -61,6 +62,9 @@ export function useStudyFeed(scope: StudyFeedScope = STUDY_FEED_SCOPE_ALL) {
   const reviewAnswers = mergeStudyFeedReviewAnswers(
     query.data?.pages.map((page) => page.reviewAnswers) ?? [],
   );
+  const lockedBefore = resolveStudyFeedLockedBefore(
+    query.data?.pages.map((page) => page.lockedBefore),
+  );
 
-  return { ...query, items, reviewAnswers };
+  return { ...query, items, reviewAnswers, lockedBefore };
 }

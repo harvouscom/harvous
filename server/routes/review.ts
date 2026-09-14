@@ -37,6 +37,8 @@ import {
   type ReviewOutcome,
 } from '@/utils/review-item-kinds';
 import { describeNextReturn } from '@/utils/review-scheduling';
+import { describeDislike } from '@/utils/review-exercise-feedback';
+import { REVIEW_EXERCISE_FAMILIES } from '@/utils/review-exercise-families';
 import {
   applyReviewOutcome,
   chapterTruthFor,
@@ -55,6 +57,7 @@ import {
   listReviewItems,
   nextScheduledReviewAt,
   recordReviewEvent,
+  reviewDislikeRowsFor,
   setReviewItemStatus,
   stepBackReviewItem,
   buildReviewSample,
@@ -223,7 +226,17 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
   try {
     const auth = getAuthenticatedAuth(c);
     const now = new Date();
-    await refillReviewQueue(auth.userId, now);
+    /*
+     * The engine tops up beside this read, not in front of it.
+     *
+     * Refill was awaited first, which put half a second of engine work between the reader and a
+     * sitting that, nine times in ten, it changed nothing about — it is capped at a handful a day
+     * and most opens find the cap already spent. What it *does* add is not lost: the inbox read
+     * still awaits it, Home loads before the dock opens, and anything it creates during this
+     * read is in the next sitting. A sitting is a fixed set on purpose; one composed a beat before
+     * the engine finished is the same thing it always was.
+     */
+    void refillReviewQueue(auth.userId, now).catch(() => {});
     const [due, upcoming] = await Promise.all([
       listDueReviewItems(auth.userId, REVIEW_SESSION_CAP + REVIEW_INBOX_UNASKABLE_SLACK, now),
       listUpcomingReviewItems(auth.userId, REVIEW_SESSION_CAP, now),
@@ -242,30 +255,51 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
       REVIEW_SESSION_CAP,
       now,
     );
-    const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
+    /*
+     * The first question's exercise, built *beside* the views rather than after them.
+     *
+     * The reveal stays its own request for the rungs where fetching it *is* the signal "I need
+     * to see it" — but on a marked rung the payload is the exercise, without which there is
+     * nothing to answer, and the page asks for it the instant it renders. It used to be built
+     * once the views were done, which was the two longest phases of this route run end to end:
+     * ~750ms of views, then ~700ms of reveal, for a reader looking at loading dots.
+     *
+     * Both load the same material, and the material is memoised for a few seconds, so running
+     * them together costs one flight rather than two — the reveal's loads join the views' rather
+     * than repeating them. Built speculatively for the head of the sitting: the views can drop
+     * an unaskable row, so if the first *view* turns out not to be the first *row* the reveal is
+     * simply discarded and the page fetches its own, as it always could.
+     */
+    const headRow = rows[0] ?? null;
+    const [items, speculativeReveal] = await Promise.all([
+      buildReviewItemViews(auth.userId, rows, { dropUnaskable: true }),
+      headRow ? buildReviewReveal(auth.userId, headRow).catch(() => null) : Promise.resolve(null),
+    ]);
     /*
      * Bookkeeping, so it happens beside the response rather than in front of it. These were
      * awaited one row at a time, which put a write per item between the reader and their
      * question — the same pattern `recordReviewOutcomeNodes` already avoids.
-     */
-    void Promise.all(rows.map((row) => recordReviewEvent(auth.userId, row, 'shown'))).catch(
-      () => {},
-    );
-
-    /*
-     * The first question's exercise, sent with the question.
      *
-     * The reveal stays its own request for the rungs where fetching it *is* the signal "I need
-     * to see it" — but on a marked rung the payload is the exercise, without which there is
-     * nothing to answer, and the page asks for it the instant it renders. Two sequential trips
-     * meant the prompt appeared and its options arrived a second later. Only the first: the
-     * rest are prefetched as the sitting moves.
+     * Driven by `items` rather than `rows`, and carrying the rung, because this log is the only
+     * denominator a per-rung rate can have. `rows` includes candidates that
+     * `buildReviewItemViews` then dropped as unaskable, so writing one `shown` per row counted
+     * questions nobody was ever asked; and a `shown` with a null rung cannot be divided into at
+     * all, which is why "asked" could only ever be counted from outcomes.
      */
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+    void Promise.all(
+      items.map((item) => {
+        const row = rowById.get(item.id);
+        return row
+          ? recordReviewEvent(auth.userId, row, 'shown', { rungKey: item.promptKey })
+          : Promise.resolve();
+      }),
+    ).catch(() => {});
+
     const first = items[0];
-    const firstRow = first ? rows.find((row) => row.id === first.id) : null;
     const firstReveal =
-      firstRow && reviewRungIsGraded(first!)
-        ? await buildReviewReveal(auth.userId, firstRow).catch(() => null)
+      first && headRow && first.id === headRow.id && reviewRungIsGraded(first)
+        ? speculativeReveal
         : null;
 
     /*
@@ -444,6 +478,18 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         // reader's own submission; nothing here names anything they did not write.
         ...(graded.parts ? { parts: graded.parts } : {}),
         ...(graded.reached ? { reached: graded.reached } : {}),
+        /*
+         * And one thing to go on, **only while there is a go left**.
+         *
+         * A retry that repeats the identical question with no new information is a second chance
+         * to make the same mistake. This is the only branch a hint may appear in: the finalized
+         * response below carries the answer itself, so a hint there would be a worse version of
+         * something the reader is about to be shown anyway.
+         *
+         * It cannot buy the long interval — every second-or-later attempt already maps to
+         * `almost` a few lines down, so the most a hinted answer earns is a few days.
+         */
+        ...(graded.hint ? { hint: graded.hint } : {}),
       });
     }
 
@@ -455,7 +501,7 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
         : 'revealed'
       : null;
 
-    const { item: updated, nextReturnDays, leech, stalled } = await applyReviewOutcome(
+    const { item: applied, nextReturnDays, leech, stalled } = await applyReviewOutcome(
       auth.userId,
       item,
       verdict ?? outcome,
@@ -463,7 +509,28 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       new Date(),
       // The rung that was asked, resolved the way the list resolved it — not the client's claim.
       askedKey,
+      /*
+       * How it was reached, so the log can tell "wrong twice" from "gave up on the first go".
+       * `graded != null` is the marked/self-judged split: a rung with no answer key produces no
+       * grading result at all, and false would claim it was marked and failed.
+       */
+      { attemptNumber, graded: graded != null },
     );
+
+    /*
+     * Difficulty goes down on its own, the way it goes up on its own.
+     *
+     * A miss that made the item a leech — four lapses, or never once recalled — used to hand the
+     * reader a card saying "This way of asking is not landing. Try a different one?" with a
+     * "Make it easier" button. That is the engine asking permission to do its job. The whole
+     * point of a ladder that climbs on clean recalls is that it should also step back on
+     * repeated misses without being told; a reader who has just got something wrong four times
+     * is the last person who should be handed a decision about it.
+     *
+     * So the step back is applied here, silently, and the next asking is simply easier. The
+     * flags still go out so the card can say nothing about it on purpose rather than by accident.
+     */
+    const updated = leech ? (await stepBackReviewItem(auth.userId, applied)) ?? applied : applied;
 
     /*
      * The verse a rung withheld, handed back now that the question is answered. Read from the
@@ -520,6 +587,53 @@ route.post('/api/review/items/:id/defer', requireAuth, rateLimit('write'), requi
     return c.json({ success: true, dueAt: updated.dueAt.toISOString() });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/defer', action: 'review_defer' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/**
+ * What the reader thought of the question, as distinct from how the recall went.
+ *
+ * Filed against `ReviewItems.lastRungKey` rather than a fresh resolution. `applyReviewOutcome`
+ * writes that column moments earlier, and the vote is only ever cast from the result card — so
+ * the column names the question the reader actually saw, while re-resolving would name whatever
+ * the *current* preferences produce. That distinction is the whole point of the write: a vote
+ * recorded against the wrong rung would quiet a family the reader never complained about.
+ *
+ * Nothing here invalidates a query. The sitting is a fixed set of questions on purpose, and
+ * quieting takes effect the next time one is composed.
+ */
+route.post('/api/review/items/:id/feedback', requireAuth, rateLimit('write'), requireFeature('review'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const item = await getReviewItem(auth.userId, c.req.param('id') ?? '');
+    if (!item) return c.json({ error: 'Review item not found', code: 'REVIEW_ITEM_NOT_FOUND' }, 404);
+
+    const body = await c.req.json();
+    const vote = typeof body?.vote === 'string' ? body.vote : '';
+    if (vote !== 'liked' && vote !== 'disliked') {
+      return c.json({ error: 'Unknown vote', code: 'REVIEW_FEEDBACK_INVALID' }, 400);
+    }
+
+    const rungKey = item.lastRungKey ?? null;
+    await recordReviewEvent(auth.userId, item, vote, { rungKey });
+
+    if (vote !== 'disliked') return c.json({ success: true, offerSettings: false, family: null });
+
+    /*
+     * Re-read past the per-request memo, since the row we just wrote is the one that might have
+     * reached the threshold. Repeat votes on one item cannot inflate the count — it is distinct
+     * review items that are counted — so no idempotency guard is needed for correctness.
+     */
+    const rows = await reviewDislikeRowsFor(auth.userId);
+    const { family, offerSettings } = describeDislike(rungKey, rows);
+    return c.json({
+      success: true,
+      offerSettings,
+      family: family ? { id: family, label: REVIEW_EXERCISE_FAMILIES[family].label } : null,
+    });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/review/items/:id/feedback', action: 'review_feedback' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

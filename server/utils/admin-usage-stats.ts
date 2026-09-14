@@ -41,9 +41,11 @@ import {
   isPrototypeFolderStatsColumnMissing,
   isPgUndefinedColumn,
   isPgUndefinedRelation,
+  isEntitlementsTableMissing,
 } from './pg-undefined-relation';
 import { fetchVotdPassageEngagementMetrics, type VotdPassageEngagementMetrics } from './admin-votd-passage-metrics';
 import { getAdminPulseXp, type PulseXpSummary } from './admin-pulse-xp-stats';
+import { grantedAccounts, nonWithheldFeatureKeys } from './admin-paid-stats';
 import { adminWindowSince, adminWindowPreviousRange, clampAdminDays } from './admin-time-window';
 import { recallKindDisplayLabel } from '@/utils/recall-opportunity-kinds';
 import type { AdminMonthlyReportUsage } from './admin-report-types';
@@ -59,8 +61,17 @@ export type UsageOverview = {
     /** Clerk user count for the API's CLERK_SECRET_KEY env (may differ locally). */
     clerkAccounts: number | null;
     withContent: number;
-    freeTier: number;
-    unlimitedTier: number;
+    /**
+     * Accounts holding at least one active, non-withheld entitlement — the same rule the
+     * feature gates apply. Replaced the old `UserMetadata.tier` split, which was a retired
+     * notes-quota label and had stopped tracking who actually pays.
+     */
+    paidAccounts: number;
+    /** Of those, the ones that came from a payment. Split out so a comp never reads as revenue. */
+    billingAccounts: number;
+    /** paidAccounts − billingAccounts: admin grants, church seats, trials. */
+    grantedAccounts: number;
+    freeAccounts: number;
     /** All-time: users with notes ÷ total accounts. */
     activationRate: number;
     /** Selected window. */
@@ -138,6 +149,34 @@ export type UsageDiscovery = {
   themes: DiscoveryRankItem[];
   tones: DiscoveryRankItem[];
 };
+
+/**
+ * Accounts with paid access, and how many of those actually paid.
+ *
+ * One round trip with two FILTERed aggregates rather than two queries: this runs inside the
+ * twelve-task `runBounded` fan-out below, and the pool is ten connections wide.
+ *
+ * Counts distinct users, never lists them — the admin payload carries totals only.
+ */
+async function fetchPaidAccountCounts(): Promise<{ paid: number; billing: number }> {
+  const keys = nonWithheldFeatureKeys();
+  if (keys.length === 0) return { paid: 0, billing: 0 };
+  try {
+    const rows = await db.execute<{ paid: number; billing: number }>(sql`
+      SELECT
+        COUNT(DISTINCT "userId") AS paid,
+        COUNT(DISTINCT "userId") FILTER (WHERE "source" = 'billing') AS billing
+      FROM "Entitlements"
+      WHERE "status" = 'active'
+        AND "featureKey" IN (${sql.join(keys.map((k) => sql`${k}`), sql`, `)})
+    `);
+    const row = rows[0];
+    return { paid: Number(row?.paid ?? 0), billing: Number(row?.billing ?? 0) };
+  } catch (error) {
+    if (isEntitlementsTableMissing(error)) return { paid: 0, billing: 0 };
+    throw error;
+  }
+}
 
 async function getClerkTotalUserCount(): Promise<number | null> {
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
@@ -817,7 +856,7 @@ export async function getUsageOverview(daysParam: number): Promise<UsageOverview
   const [
     clerkTotal,
     contentRows,
-    tierRows,
+    paidCounts,
     noteTypeRows,
     threadLinksCreated,
     foldersActive,
@@ -848,11 +887,7 @@ export async function getUsageOverview(daysParam: number): Promise<UsageOverview
       (SELECT COUNT(DISTINCT "userId") FROM "Notes" WHERE COALESCE("updatedAt", "createdAt") >= ${sinceIso} AND ${COUNTABLE_USER_NOTES_SQL}) AS active_users,
       (SELECT COUNT(*) FROM "Notes" WHERE "updatedAt" >= ${sinceIso} AND "updatedAt" > "createdAt" AND ${COUNTABLE_USER_NOTES_SQL}) AS notes_edited
   `),
-    () =>
-      db
-        .select({ tier: UserMetadata.tier, count: sql<number>`COUNT(*)`.as('count') })
-        .from(UserMetadata)
-        .groupBy(UserMetadata.tier),
+    () => fetchPaidAccountCounts(),
     () =>
       db
         .select({ noteType: Notes.noteType, count: sql<number>`COUNT(*)`.as('count') })
@@ -887,12 +922,6 @@ export async function getUsageOverview(daysParam: number): Promise<UsageOverview
     if (t in notesByType) notesByType[t] = Number(typeRow.count);
   }
 
-  let freeTier = 0;
-  let unlimitedTier = 0;
-  for (const tierRow of tierRows) {
-    if (tierRow.tier === 'unlimited') unlimitedTier = Number(tierRow.count);
-    else freeTier += Number(tierRow.count);
-  }
 
   const totalAccounts = Number(row?.total_accounts ?? 0);
   const usersWithContent = Number(row?.users_with_content ?? 0);
@@ -924,8 +953,10 @@ export async function getUsageOverview(daysParam: number): Promise<UsageOverview
       total: totalAccounts,
       clerkAccounts: clerkTotal,
       withContent: usersWithContent,
-      freeTier,
-      unlimitedTier,
+      paidAccounts: paidCounts.paid,
+      billingAccounts: paidCounts.billing,
+      grantedAccounts: grantedAccounts(paidCounts.paid, paidCounts.billing),
+      freeAccounts: Math.max(0, totalAccounts - paidCounts.paid),
       activationRate,
       signups,
       activeRatePct,

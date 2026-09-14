@@ -751,6 +751,20 @@
   /* Prototype shell viewport frame (web — Figma outer padding + shell radius) */
   --pds-shell-frame-inset: 14px;
   --pds-shell-frame-radius: 18px;
+  /*
+   * How far the shell's own contents sit from the frame's inner edge.
+   *
+   * The toolbar sets the line: its button groups are the first thing inside the frame, and
+   * every surface below them is read against that edge. On a phone the paper underneath used
+   * its own 20px and came out 14px narrower on each side than the toolbar above it — two
+   * different left edges in a window only 359px wide, which reads as the sheet being
+   * indented rather than as the page being the page. One number, so they cannot drift.
+   *
+   * The phone value is at the foot of this file rather than beside the toolbar rule it came
+   * from: Vite injects these stylesheets in an order that does not follow their imports, so
+   * a `:root` override living in prototype-components.css loses to this declaration.
+   */
+  --pds-shell-gutter: 10px;
 
   /* Bible reader canvas — mirrors HarvousReaderLayout / ReaderTextSize (Swift).
      Font size + line height are re-set by the reader inspector's text-size control;
@@ -1741,4 +1755,18 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   font-size: 0.6875rem;
   font-weight: 400;
   color: var(--pds-text-secondary);
+}
+
+/*
+ * Phones: the shell's gutter tightens, and the toolbar and the paper tighten together.
+ *
+ * Deliberately at the end of this file. It has to out-cascade the `:root` block at the top,
+ * and it cannot live beside the toolbar rule it belongs to — Vite injects prototype-tokens
+ * after prototype-components in dev, so the same declaration over there loses to the base
+ * value here and the paper quietly went back to the wider gutter.
+ */
+@media (max-width: 600px) {
+  :root {
+    --pds-shell-gutter: 6px;
+  }
 }

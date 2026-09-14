@@ -1,5 +1,5 @@
 import { type QueryClient } from '@tanstack/react-query';
-import type { FeatureKey, PlanKey, PlanLimits } from '@/lib/billing-plans';
+import { limitsForFeatures, type FeatureKey, type PlanKey, type PlanLimits } from '@/lib/billing-plans';
 import {
   SHARED_SPACES_ENTITLEMENT_SYNCED_EVENT,
   type SharedSpacesEntitlementSyncedDetail
@@ -41,7 +41,11 @@ export function patchSubscriptionStatusCache(
         hasSharedSpaces,
         entitlements: resolvedEntitlements,
         planKey: null,
-        limits: { ownedSpaces: sharedSpacesOwnedLimit, membersPerSpace: DEFAULT_MEMBERS_PER_SPACE },
+        limits: {
+          ownedSpaces: sharedSpacesOwnedLimit,
+          membersPerSpace: DEFAULT_MEMBERS_PER_SPACE,
+          historyWindowDays: limitsForFeatures(resolvedEntitlements).historyWindowDays,
+        },
         currentCount: 0,
         limit: null,
         sharedSpacesOwnedCount: 0,

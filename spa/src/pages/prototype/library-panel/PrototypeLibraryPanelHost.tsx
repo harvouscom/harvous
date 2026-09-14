@@ -10,7 +10,7 @@
  * rather than inside the panel is what lets the field live in the header and the results
  * in the body without those two components knowing about each other.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '@/components/react/Icon';
 import PrototypeLibraryRecentSearches, {
@@ -22,12 +22,14 @@ import { useProtoAnchoredPopoverPosition } from '../useProtoAnchoredPopoverPosit
 import { useDismissOnOutside } from '../../../hooks/usePopoverDismiss';
 import PrototypeSearchInput from '../components/PrototypeSearchInput';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
+import { useCoarsePointer } from '../../../lib/use-coarse-pointer';
 import PrototypeLibraryPanel from './PrototypeLibraryPanel';
 import PrototypeLibraryBody from './PrototypeLibraryBody';
 import PrototypeLibraryTabs from './PrototypeLibraryTabs';
 import PrototypeLibrarySearchResults, {
   type LibraryNavigationItem,
 } from './PrototypeLibrarySearchResults';
+import { shouldAutoFocusLibrarySearch } from './library-panel-view';
 import { useLibraryPanelSearch } from './use-library-panel-search';
 import { useLibraryPanelData } from './library-panel-data';
 import { useLibrarySearchHistory } from './use-library-search-history';
@@ -36,6 +38,10 @@ import { useLibraryTabRows } from './use-library-tab-rows';
 import PrototypeLibraryBulkBar from './PrototypeLibraryBulkBar';
 import PrototypeLibraryCreateFooter from './PrototypeLibraryCreateFooter';
 import PrototypeLibrarySelectToggle from './PrototypeLibrarySelectToggle';
+import PrototypeLibrarySegmented, { type LibrarySegmentedOption } from './PrototypeLibrarySegmented';
+import { useWarmLibraryHome } from './use-warm-library-home';
+import { useLibraryDrillSubject } from './use-library-drill-subject';
+import type { SidebarListSpaceScope } from '../../../lib/shared-space-capabilities';
 
 export default function PrototypeLibraryPanelHost({
   /** "Go to" destinations for the results. Optional: the panel is useful without them. */
@@ -50,6 +56,15 @@ export default function PrototypeLibraryPanelHost({
     closeLibraryPanel,
     isMobileSidebar,
   } = useProtoShell();
+
+  /*
+   * Whether a caret is welcome, asked of the input device rather than the layout.
+   *
+   * `isMobileSidebar` is a breakpoint, and the two disagree on the case that matters: an
+   * iPad at a desktop width still has no keyboard but the one that slides up over the
+   * results. The device decides.
+   */
+  const isCoarsePointer = useCoarsePointer();
 
   /* During the exit morph the view is still set; this only covers the frame after the
      timer clears it, by which point the host is unmounted anyway. */
@@ -71,6 +86,32 @@ export default function PrototypeLibraryPanelHost({
    * and a second instance of the hook would publish a second command context.
    */
   const data = useLibraryPanelData();
+
+  /*
+   * Whose shelf, inside a shared space: the room's, or your own.
+   *
+   * The panel opens on the room, because that is where you are standing. My Home is the other
+   * segment rather than a section under the room's list: every tab and drill then shows one
+   * space, whole, instead of each list splitting into two with rows that act on different
+   * spaces. The warm-up below is what keeps the other segment one tap and not one wait away.
+   */
+  const scopeOptions = useMemo<LibrarySegmentedOption<SidebarListSpaceScope>[]>(
+    () => [
+      { id: 'space', label: data.sharedSpaceTitle ?? 'This space' },
+      /* No glyph: the house is a component, not an `Icon` name the switch can draw, and two
+         plain labels read as the pair they are. */
+      { id: 'my-home', label: 'My Home' },
+    ],
+    [data.sharedSpaceTitle],
+  );
+  useWarmLibraryHome(
+    data.shellIsSharedSpace &&
+      !data.viewingHome &&
+      data.homeSpaceId &&
+      data.homeSpaceId !== data.spaceId
+      ? data.homeSpaceId
+      : undefined,
+  );
 
   /*
    * Remembering what was searched for.
@@ -131,6 +172,9 @@ export default function PrototypeLibraryPanelHost({
     return () => cancelAnimationFrame(raf);
   }, [recentsOpen, syncRecentsPosition]);
 
+  /* The drilled Thread's name for the back row — a Thread drill carries only its id. */
+  const subject = useLibraryDrillSubject(view, data.spaceId);
+
   const tabRows = useLibraryTabRows(view.tab);
   const selection = useLibrarySelection({
     tab: view.tab,
@@ -162,6 +206,7 @@ export default function PrototypeLibraryPanelHost({
   return (
     <PrototypeLibraryPanel
       view={view}
+      subject={subject}
       exiting={libraryPanelExiting}
       isMobile={isMobileSidebar}
       onClose={() => closeLibraryPanel()}
@@ -173,17 +218,15 @@ export default function PrototypeLibraryPanelHost({
           id="proto-library-search-input"
           /*
            * The field takes focus as the panel opens, so ⇧K lands ready to type and
-           * the chip — which now says "Search" — does what it advertises. Declarative
+           * the chip — which says "Search" — does what it advertises. Declarative
            * rather than a `querySelector` after a frame: the panel is a lazy chunk, and on
            * the first open of a session that element does not exist yet when the frame
            * fires, so the one-shot focus silently found nothing.
            *
-           * Desktop only. On a phone this is a bottom sheet, and stealing focus there
-           * raises the keyboard over the very list you opened it to browse.
+           * The opener only asks; `shouldAutoFocusLibrarySearch` decides, and refuses on a
+           * finger.
            */
-          /* Only when the opener asked — see `autoFocusSearch`. Mobile never takes it:
-             a caret there raises the on-screen keyboard over the results. */
-          autoFocus={!isMobileSidebar && Boolean(view.autoFocusSearch)}
+          autoFocus={shouldAutoFocusLibrarySearch({ view, isMobileSidebar, isCoarsePointer })}
           value={search.input}
           onChange={search.setInput}
           onClear={search.clear}
@@ -233,6 +276,21 @@ export default function PrototypeLibraryPanelHost({
           />
         </>
       }
+      /* Shown while searching and while drilled too: the scope applies to results, and a
+         switch clears the drill, which belongs to one space. */
+      scopeSwitch={
+        data.shellIsSharedSpace && data.homeSpaceId ? (
+          <PrototypeLibrarySegmented
+            label="Library scope"
+            options={scopeOptions}
+            value={data.listScope}
+            onChange={(next) => {
+              setRecentsOpen(false);
+              data.setListScope(next);
+            }}
+          />
+        ) : null
+      }
       selectBar={<PrototypeLibrarySelectToggle selection={selection} />}
       /* One corner, two jobs, never both: while a selection stands it says what can be done
          with it, and otherwise it offers to start another one of whatever the tab lists. */
@@ -240,7 +298,11 @@ export default function PrototypeLibraryPanelHost({
         selection.active && selection.selectedIds.length > 0 ? (
           <PrototypeLibraryBulkBar selection={selection} />
         ) : view.drill ? null : (
-          <PrototypeLibraryCreateFooter tab={view.tab} searching={Boolean(query.trim())} />
+          <PrototypeLibraryCreateFooter
+            tab={view.tab}
+            searching={Boolean(query.trim())}
+            homeSpaceId={data.viewingHome ? data.homeSpaceId : null}
+          />
         )
       }
     >

@@ -20,6 +20,49 @@ const NONE: NoteMaterial = { canRecognize: false, canPassage: false, canConnect:
 const BODY =
   'God chose us before the foundation of the world, not because we had done anything to deserve it but because it pleased him to do so, and that is the whole ground of adoption.';
 
+describe('a preference can never be the reason a note goes unasked', () => {
+  /*
+   * The fall-forward invariant, at the one walk that used to break it. `verseRungFor` ends on
+   * `members[0]` whatever the material says; this walk returned null when `skip` removed the last
+   * buildable rung, and null means `dropUnaskable` takes the note out of the queue altogether.
+   * Turning "ask me this less" into "never show me this note" is the failure being pinned here.
+   */
+  it('still resolves when the only buildable rung is skipped', () => {
+    const onlyRecognize: NoteMaterial = {
+      canRecognize: true,
+      canPassage: false,
+      canConnect: false,
+      canAnnotation: false,
+      skip: new Set(['note.recognize' as const]),
+    };
+    expect(resolveNoteRung(0, onlyRecognize, 'seed')).toBe('note.recognize');
+  });
+
+  it('still resolves when every rung the note has is skipped', () => {
+    const allSkipped: NoteMaterial = {
+      ...ALL,
+      skip: new Set(['note.recognize', 'note.passage', 'note.connect', 'note.annotation'] as const),
+    };
+    expect(resolveNoteRung(0, allSkipped, 'seed')).not.toBeNull();
+  });
+
+  it('prefers an unskipped rung over the skipped one when the note has both', () => {
+    const both: NoteMaterial = {
+      canRecognize: true,
+      canPassage: true,
+      canConnect: false,
+      canAnnotation: false,
+      skip: new Set(['note.recognize' as const]),
+    };
+    expect(resolveNoteRung(0, both, 'seed')).toBe('note.passage');
+  });
+
+  it('still returns null when the note has no buildable rung at all', () => {
+    // No material is a different thing from a preference, and it must keep its old answer.
+    expect(resolveNoteRung(0, NONE, 'seed')).toBeNull();
+  });
+});
+
 describe('resolveNoteRung', () => {
   it('asks the rung the note has climbed to when it can answer it', () => {
     expect(resolveNoteRung(0, ALL)).toBe('note.recognize');

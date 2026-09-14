@@ -212,6 +212,18 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     // Interactive (text-size + verse-number controls write real prefs).
   },
   {
+    id: 'ds-24-reader-compare-chips',
+    title: 'Compare chips (phone)',
+    phase: 'Patterns',
+    editFiles: [
+      'spa/src/pages/prototype/PrototypeBibleReaderPane.tsx',
+      'spa/src/styles/prototype-components.css',
+      'spa/src/styles/prototype-design-gallery.css',
+    ],
+    screenshotSlug: 'ds-24-reader-compare-chips',
+    // Interactive (both chips are live ProtoSelectMenus) — not a stable visual baseline.
+  },
+  {
     id: 'ds-18-translation-row',
     title: 'Translation row',
     phase: 'Patterns',
@@ -252,6 +264,7 @@ export const DESIGN_SYSTEM_CORE_SCENES: DesignSystemScene[] = [
     phase: 'Patterns',
     editFiles: [
       'spa/src/pages/prototype/PrototypeReviewDock.tsx',
+      'spa/src/pages/prototype/ProtoIconBlock.tsx',
       'spa/src/styles/prototype-components.css',
     ],
     screenshotSlug: 'ds-21-review-verdicts',

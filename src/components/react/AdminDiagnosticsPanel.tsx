@@ -24,6 +24,25 @@ function statusLabel(status: DiagnosticTriageStatus): string {
   return 'Open';
 }
 
+/**
+ * Which script threw, and where. The single most useful line for telling one of our own
+ * crashes from a browser extension's -- ingest stores at most 200 chars of it.
+ */
+function scriptOrigin(metadata: string | null): string | null {
+  if (!metadata) return null;
+  try {
+    const parsed = JSON.parse(metadata) as Record<string, unknown>;
+    const file = typeof parsed.scriptFilename === 'string' ? parsed.scriptFilename : null;
+    if (!file) return null;
+    const line = typeof parsed.scriptLineno === 'number' ? parsed.scriptLineno : null;
+    const col = typeof parsed.scriptColno === 'number' ? parsed.scriptColno : null;
+    if (line == null) return file;
+    return col == null ? `${file}:${line}` : `${file}:${line}:${col}`;
+  } catch {
+    return null;
+  }
+}
+
 function IssueRow({ issue }: { issue: DiagnosticIssueSummary }) {
   const [expanded, setExpanded] = useState(false);
   const events = useAdminDiagnosticIssueEvents(expanded ? issue.issueSignature : null);
@@ -107,8 +126,11 @@ function IssueRow({ issue }: { issue: DiagnosticIssueSummary }) {
                 <span>{formatWhen(ev.createdAt)}</span>
               </div>
               {ev.route ? <div className="admin-diagnostics__sample-route">{ev.route}</div> : null}
+              {scriptOrigin(ev.metadata) ? (
+                <div className="admin-diagnostics__sample-route">{scriptOrigin(ev.metadata)}</div>
+              ) : null}
               {ev.manualNote ? <div className="admin-diagnostics__sample-note">{ev.manualNote}</div> : null}
-              {ev.stack ? <pre className="admin-diagnostics__sample-stack">{ev.stack.slice(0, 600)}</pre> : null}
+              {ev.stack ? <pre className="admin-diagnostics__sample-stack">{ev.stack}</pre> : null}
             </div>
           ))}
         </div>

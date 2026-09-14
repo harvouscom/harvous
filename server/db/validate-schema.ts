@@ -150,6 +150,8 @@ export const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
     'reminderSettings',
     'lastActiveAt',
     'lastReminderSentOn',
+    // Review exercise emphasis — `npm run review-exercises:schema:apply` on an older database.
+    'reviewExerciseSettings',
   ],
   PushSubscriptions: ['id', 'userId', 'endpoint', 'p256dh', 'auth', 'userAgent', 'createdAt', 'lastSuccessAt', 'failCount'],
   ReminderDeliveries: [
