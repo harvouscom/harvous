@@ -92,12 +92,18 @@ body. Interpreting the columns:
 
 ## Recovering a clobbered note
 
-`NoteVersions` checkpoints every content change. Retention is latest-100 **and** 90 days
-(both must be exceeded before pruning), so recent history is safe.
+`NoteVersions` checkpoints every content change. The newest 100 checkpoints, and every checkpoint
+replaced in the last 90 days, are always kept, so recent history is safe. Older than that, each
+editing session (checkpoints under five minutes apart by one editor) keeps its last checkpoint, and
+non-save checkpoints such as `restore` and `import` are never thinned
+(`server/utils/note-version-thinning.ts`).
 
 1. **Close the note on every other device and tab first.** An open editor will flush its
    stale body over the restore on unmount.
-2. `GET /api/notes/<noteId>/versions` — metadata only, newest first.
+2. The note's ⋯ menu › **History** lists editing sessions and restores one. A session shows only
+   its last checkpoint, and a truncation bug's bad body is usually exactly that, so for recovery
+   use `GET /api/notes/<noteId>/versions?raw=1` — every row, metadata only, newest first; page
+   with `&before=<version>`.
 3. `GET /api/notes/<noteId>/versions/<versionId>` — returns the full row including `content`.
    Walk back to the last version with the long body.
 4. From the DevTools console on the same origin:
@@ -113,7 +119,11 @@ restore is recorded with `source: 'restore'` and is protected from pruning; the 
 version stays in history.
 
 `requireAuth` accepts the session cookie, so a logged-in browser tab needs no extra setup.
-There is no UI for version history yet.
+
+**Free accounts see only versions replaced in the last 90 days** (`FREE_HISTORY_WINDOW_DAYS`); older
+ones return 403 `FEATURE_REQUIRED`. Nothing is deleted, so to recover one for a free account, grant
+the key, restore, then revoke: `npm run entitlement:grant -- <userId> full_history`, then the same
+command with `--revoke`.
 
 ## Related
 

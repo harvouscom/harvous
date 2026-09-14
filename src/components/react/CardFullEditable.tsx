@@ -12,7 +12,7 @@ import { safeRenderHtml } from '@/utils/content-renderer';
 import { validateResourceUrl } from '@/utils/validation';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import { getTranslation, getTranslationAbbreviationDisplay } from '@/data/translations';
-import { withScripturePillDisplayLabels, repairScripturePillTranslationsInHtml, sanitizeScripturePillHtml, repairCorruptedScriptureQuoteAttributes } from '@/utils/scripture-pill-display';
+import { repairScripturePillTranslationsInHtml, sanitizeScripturePillHtml, repairCorruptedScriptureQuoteAttributes } from '@/utils/scripture-pill-display';
 import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
@@ -100,7 +100,7 @@ import {
   normalizeEmptyBodyHtmlForEditor,
 } from '@/utils/prototype-note-empty';
 import { canonicalizeNoteHtmlLineBreaks } from '@/utils/note-html-linebreaks';
-import { stripStudyHighlightMarkInlineBackground } from '@/utils/note-html-highlight-marks';
+import { prepareReadOnlyNoteBodyHtml } from '@/utils/note-read-only-html';
 import { shouldInjectProcessedNoteContent } from '@/utils/prototype-editor-save';
 import { contentSyncWouldClobberScripturePillAccent } from '@/utils/scripture-pill-accent-sync';
 import {
@@ -135,15 +135,6 @@ function repairHtmlForEditor(html: string): string {
     sanitizeScripturePillHtml(
       repairScripturePillTranslationsInHtml(sanitized, getEffectiveDefaultTranslation()),
     ),
-  );
-}
-
-/** Read-only note body HTML — canonicalize blank lines before pill labels / highlight strip. */
-function prepareReadOnlyNoteBodyHtml(html: string): string {
-  // Sanitize before pill DOM transforms; callers may safeRenderHtml again (idempotent).
-  const sanitized = safeRenderHtml(repairCorruptedScriptureQuoteAttributes(html));
-  return stripStudyHighlightMarkInlineBackground(
-    withScripturePillDisplayLabels(canonicalizeNoteHtmlLineBreaks(sanitized)),
   );
 }
 

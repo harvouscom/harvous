@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { limitsForFeatures, isUnlimited, UNLIMITED } from '@/lib/billing-plans';
+import { FREE_HISTORY_WINDOW_DAYS, limitsForFeatures, isUnlimited, UNLIMITED } from '@/lib/billing-plans';
 
 describe('never-evict downgrade semantics (limits)', () => {
   it('free tier is strictly private — no owned spaces (gate uses ownedSpaces=0)', () => {
@@ -28,5 +28,16 @@ describe('never-evict downgrade semantics (limits)', () => {
     // feature-key union used when both rows are active.
     const features = ['shared_spaces'] as const;
     expect(isUnlimited(limitsForFeatures(features).ownedSpaces)).toBe(true);
+  });
+
+  it('free sees a 90-day history window and full_history lifts it', () => {
+    expect(limitsForFeatures([]).historyWindowDays).toBe(FREE_HISTORY_WINDOW_DAYS);
+    expect(isUnlimited(limitsForFeatures(['full_history']).historyWindowDays)).toBe(true);
+  });
+
+  it('each key lifts only its own limit', () => {
+    expect(limitsForFeatures(['shared_spaces']).historyWindowDays).toBe(FREE_HISTORY_WINDOW_DAYS);
+    expect(limitsForFeatures(['full_history']).ownedSpaces).toBe(0);
+    expect(limitsForFeatures(['connector']).historyWindowDays).toBe(FREE_HISTORY_WINDOW_DAYS);
   });
 });

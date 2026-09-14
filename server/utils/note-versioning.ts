@@ -1,5 +1,4 @@
-export const NOTE_VERSION_MAX_RECENT = 100;
-export const NOTE_VERSION_MIN_RETENTION_DAYS = 90;
+/** Checkpoints closer together than this, by the same editor, form one editing session. */
 export const NOTE_VERSION_SAVE_COALESCE_MS = 5 * 60 * 1000;
 
 export type NoteVersionContent = {
@@ -45,39 +44,6 @@ export function nextNoteVersionNumber(versions: Array<Pick<NoteVersionRecord, 'v
     0,
   );
   return currentMax + 1;
-}
-
-export function sameNoteVersionContent(
-  left: NoteVersionContent | null | undefined,
-  right: NoteVersionContent,
-): boolean {
-  return (
-    left != null &&
-    left.title === right.title &&
-    left.content === right.content &&
-    left.contentEncrypted === right.contentEncrypted
-  );
-}
-
-/**
- * Meaningful saves create immutable checkpoints at most once per coalescing window.
- * Restore/copy/migration checkpoints are explicit and bypass save coalescing.
- */
-export function shouldCreateNoteVersionCheckpoint(input: {
-  latest: NoteVersionRecord | null;
-  next: NoteVersionContent;
-  now: Date;
-  source?: string;
-  coalesceWithinMs?: number;
-}): boolean {
-  if (!input.latest) return true;
-  if (sameNoteVersionContent(input.latest, input.next)) return false;
-
-  const source = input.source ?? 'save';
-  if (source !== 'save') return true;
-
-  const coalesceWithinMs = input.coalesceWithinMs ?? NOTE_VERSION_SAVE_COALESCE_MS;
-  return input.now.getTime() - input.latest.createdAt.getTime() >= Math.max(0, coalesceWithinMs);
 }
 
 export function buildNoteVersionSnapshot(input: {
@@ -134,33 +100,6 @@ export function buildMigrationBaselineVersion(input: {
     source: 'migration-baseline',
     createdAt: input.migrationTime,
   });
-}
-
-/**
- * Retain the newest 100 snapshots plus every snapshot no older than 90 days.
- * The union means high-frequency recent history is not prematurely discarded.
- */
-export function partitionNoteVersionsForRetention<T extends Pick<NoteVersionRecord, 'id' | 'version' | 'createdAt'>>(
-  versions: T[],
-  now: Date,
-  options?: { maxRecent?: number; minRetentionDays?: number },
-): { retained: T[]; prunable: T[] } {
-  const maxRecent = Math.max(0, options?.maxRecent ?? NOTE_VERSION_MAX_RECENT);
-  const minRetentionDays = Math.max(0, options?.minRetentionDays ?? NOTE_VERSION_MIN_RETENTION_DAYS);
-  const cutoff = now.getTime() - minRetentionDays * 24 * 60 * 60 * 1000;
-  const sorted = [...versions].sort(
-    (left, right) => right.version - left.version || right.createdAt.getTime() - left.createdAt.getTime(),
-  );
-  const retainedIds = new Set(
-    sorted
-      .filter((row, index) => index < maxRecent || row.createdAt.getTime() >= cutoff)
-      .map((row) => row.id),
-  );
-
-  return {
-    retained: sorted.filter((row) => retainedIds.has(row.id)),
-    prunable: sorted.filter((row) => !retainedIds.has(row.id)),
-  };
 }
 
 /** Durable lineage fields for a non-live, independently owned copy. */

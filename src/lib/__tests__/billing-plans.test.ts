@@ -5,6 +5,7 @@ import {
   WITHHELD_FEATURES,
   FEATURE_KEYS,
   FOUNDING_CAP,
+  FREE_HISTORY_WINDOW_DAYS,
   UNLIMITED,
   featuresForProductId,
   foundingOffer,
@@ -29,14 +30,34 @@ describe('billing-plans registry', () => {
   });
 
   it('resolves free limits when no features', () => {
-    expect(limitsForFeatures([])).toEqual({ ownedSpaces: 0, membersPerSpace: 12 });
+    expect(limitsForFeatures([])).toEqual({
+      ownedSpaces: 0,
+      membersPerSpace: 12,
+      historyWindowDays: FREE_HISTORY_WINDOW_DAYS,
+    });
   });
 
-  it('resolves Plus limits for shared_spaces', () => {
+  it('resolves hosting limits for shared_spaces alone', () => {
     expect(limitsForFeatures(['shared_spaces'])).toEqual({
       ownedSpaces: UNLIMITED,
       membersPerSpace: 12,
+      historyWindowDays: FREE_HISTORY_WINDOW_DAYS,
     });
+  });
+
+  it('resolves full Plus limits from every Plus key', () => {
+    const plus = getPlans().find((p) => p.key === 'plus')!;
+    expect(limitsForFeatures(plus.features)).toEqual({
+      ownedSpaces: UNLIMITED,
+      membersPerSpace: 12,
+      historyWindowDays: UNLIMITED,
+    });
+  });
+
+  it('shows free accounts 90 days of history, and full_history is a live key', () => {
+    expect(FREE_HISTORY_WINDOW_DAYS).toBe(90);
+    expect(isFeatureKey('full_history')).toBe(true);
+    expect(isFeatureWithheld('full_history')).toBe(false);
   });
 
   it('returns empty features for unknown product ids', () => {
@@ -120,7 +141,7 @@ describe('pricing model', () => {
 
   it('Plus grants every consumer feature; Connector grants only its own', () => {
     expect(plus('month')?.features).toEqual(
-      expect.arrayContaining(['shared_spaces', 'review', 'challenges']),
+      expect.arrayContaining(['shared_spaces', 'review', 'challenges', 'full_history']),
     );
     expect(connector('month')?.features).toEqual(['connector']);
     expect(connector('month')?.features).not.toContain('shared_spaces');

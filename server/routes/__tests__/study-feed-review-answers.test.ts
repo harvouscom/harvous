@@ -55,7 +55,7 @@ describe('the review aggregate on the study feed', () => {
   it('is scoped to the reader and the feed window, and bounded', () => {
     const block = answersBlock();
     expect(block).toContain('eq(ReviewEvents.userId, auth.userId)');
-    expect(block).toContain('...windowed(ReviewEvents.createdAt)');
+    expect(block).toContain('...personalWindowed(ReviewEvents.createdAt)');
     expect(block).toContain('.limit(REVIEW_ANSWER_LIMIT)');
   });
 

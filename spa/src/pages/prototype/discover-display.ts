@@ -61,3 +61,42 @@ export const DISCOVER_RESOURCE_TYPE_ICON: Partial<Record<CuratedResourceType, Ic
   /* A curriculum worked through over weeks — a stack, not a page. */
   series: 'layer-group',
 };
+
+/**
+ * The generated background art a card without a picture of its own wears —
+ * `DOCUMENT_ART` in harvous.com's `discover-data.ts`, same four images the
+ * site's own auth-hero background already uses. Hotlinked rather than
+ * mirrored: these are already public and stable, and nothing on this page
+ * persists the URL anywhere a later site reshuffle would corrupt — unlike
+ * `LibraryItems.sourceImage`, which deliberately never points here.
+ */
+const DISCOVER_DOCUMENT_ART = [
+  'https://harvous.com/images/auth-hero/ai_bg_046.webp',
+  'https://harvous.com/images/auth-hero/ai_bg_059.webp',
+  'https://harvous.com/images/auth-hero/ai_bg_072.webp',
+  'https://harvous.com/images/auth-hero/ai_bg_077.webp',
+];
+
+/** Site's own slug hash (`discoverDocumentArt` / `discoverArtPosition`), factored out here only
+ *  because both read it — the site computes it fresh in each function instead. */
+function discoverArtHash(slug: string | null | undefined): number {
+  let h = 0;
+  const s = slug ?? '';
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** Deterministic per slug, so a listing wears the same art on both products. */
+export function discoverDocumentArt(slug: string | null | undefined): string {
+  return DISCOVER_DOCUMENT_ART[discoverArtHash(slug) % DISCOVER_DOCUMENT_ART.length];
+}
+
+/** Where the art is cropped — deterministic per slug, matching the site's own, so two cards
+ *  under the same picture are not the same crop twice and a listing crops the same way here as
+ *  there. */
+export function discoverArtPosition(slug: string | null | undefined): string {
+  const h = discoverArtHash(slug);
+  const x = [12, 30, 50, 70, 88][h % 5];
+  const y = [22, 42, 58, 78][(h >> 3) % 4];
+  return `${x}% ${y}%`;
+}
