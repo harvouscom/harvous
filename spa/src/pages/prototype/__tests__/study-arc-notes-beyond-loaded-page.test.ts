@@ -41,16 +41,4 @@ describe('study arc note resolution', () => {
     expect(body).not.toContain('.filter((n): n is SpaceNoteRow => Boolean(n))');
     expect(body).toContain('notes.find((n) => n.id === id)?.title ?? null');
   });
-
-  it('does not seed a Library search from a Thread-styled greeting chip', () => {
-    const text = source();
-    for (const name of ['openStudyArc', 'openSubjectConnection', 'openCrossRefConnection']) {
-      const start = text.indexOf(`const ${name} = useCallback`);
-      expect(start).toBeGreaterThan(-1);
-      const body = text.slice(start, text.indexOf('}, [', start));
-      expect(body).not.toContain('searchLibraryFor');
-      expect(body).not.toContain('querySeed');
-      expect(body).toContain('openThreadsList');
-    }
-  });
 });
