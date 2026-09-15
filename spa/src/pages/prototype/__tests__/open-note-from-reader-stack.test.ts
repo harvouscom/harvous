@@ -6,13 +6,9 @@ import {
 import type { PaperStackOrigin, PaperStackState } from '../../../layouts/proto-shell-context';
 
 /**
- * Opening an existing note from the reader used to stamp the note id onto the stack
- * while the URL was still `/read/...`. Teardown treats that snapshot as "a chapter
- * opened while the note was up" and clears the stack in the same frame — the note
- * paper flashes, then you are back on the chapter.
- *
- * Compose already avoids this: it stacks without an id, and teardown adopts when
- * `/{noteId}` lands. Opening a margin note has to use that same shape.
+ * Opening an existing note from the reader stamps the note id onto the stack while the URL
+ * is still `/read/...`. That snapshot used to clear as "a chapter opened while the note was
+ * up". The origin chapter now keeps the stack so the note route can land and adopt.
  */
 
 const helpers: PaperStackPathHelpers = {
@@ -40,38 +36,28 @@ const stacked = (noteId?: string): PaperStackState => ({
   open: true,
 });
 
-describe('opening a margin note from the reader',
-  () => {
-    it('clears if the note id is stamped while still on the chapter — that is the flash',
-      () => {
-        expect(
-          resolvePaperStackAfterNavigation(stacked('n1'), '/read/exodus/5', helpers),
-        ).toBe('clear');
-      },
-    );
+describe('opening a margin note from the reader', () => {
+  it('keeps the stack if the note id is stamped while still on the origin chapter', () => {
+    expect(
+      resolvePaperStackAfterNavigation(stacked('n1'), '/read/exodus/5', helpers),
+    ).toBe('keep');
+  });
 
-    it('keeps the stack on the chapter when the id is not stamped yet',
-      () => {
-        expect(
-          resolvePaperStackAfterNavigation(stacked(), '/read/exodus/5', helpers),
-        ).toBe('keep');
-      },
-    );
+  it('keeps the stack on the chapter when the id is not stamped yet', () => {
+    expect(
+      resolvePaperStackAfterNavigation(stacked(), '/read/exodus/5', helpers),
+    ).toBe('keep');
+  });
 
-    it('adopts the id once the note route lands',
-      () => {
-        expect(
-          resolvePaperStackAfterNavigation(stacked(), '/note-n1', helpers),
-        ).toEqual({ adoptNoteId: 'n1' });
-      },
-    );
+  it('adopts the id once the note route lands', () => {
+    expect(
+      resolvePaperStackAfterNavigation(stacked(), '/note-n1', helpers),
+    ).toEqual({ adoptNoteId: 'n1' });
+  });
 
-    it('then keeps the stacked note',
-      () => {
-        expect(
-          resolvePaperStackAfterNavigation(stacked('n1'), '/note-n1', helpers),
-        ).toBe('keep');
-      },
-    );
-  },
-);
+  it('then keeps the stacked note', () => {
+    expect(
+      resolvePaperStackAfterNavigation(stacked('n1'), '/note-n1', helpers),
+    ).toBe('keep');
+  });
+});

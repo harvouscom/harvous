@@ -100,15 +100,22 @@ describe('resolvePaperStackAfterNavigation', () => {
     });
 
     /**
-     * The one that costs something to get wrong.
-     *
-     * The sheet renders whatever the route is, so keeping the stack here swapped the note for
-     * a second reader — two chapters stacked on each other, and the draft the stack existed to
-     * hold unmounted with the note. A chapter opened while the note is UP is leaving the note.
+     * A *different* chapter while the note is up is leaving the note. The sheet would become
+     * that chapter — two readers, and the note unmounts.
      */
-    it('clears when a chapter opens while the note is still up', () => {
-      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/read/John/15', helpers)).toBe(
+    it('clears when a different chapter opens while the note is still up', () => {
+      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/read/John/17', helpers)).toBe(
         'clear',
+      );
+    });
+
+    /**
+     * The origin chapter with a note id is the margin-bar open frame: stackNote stamps the
+     * id, navigate has not landed yet. Clearing that frame is the flash-and-bounce.
+     */
+    it('keeps the stack on the origin chapter even with a note id — margin-note open frame', () => {
+      expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/read/John/15', helpers)).toBe(
+        'keep',
       );
     });
 
@@ -117,15 +124,6 @@ describe('resolvePaperStackAfterNavigation', () => {
       expect(resolvePaperStackAfterNavigation(stacked(readerOrigin, 'n1'), '/settings', helpers)).toBe('clear');
     });
 
-    /**
-     * An unsaved compose draft is still a stack that can be walked away from.
-     *
-     * The layout used to exempt exactly this shape — a draft with no note id yet — from the
-     * whole check whenever the path was not a note path, which meant a draft started from
-     * the reader pinned the chapter behind Settings, behind Home, behind everything. The
-     * resolver never needed that exemption: it keeps the stack on read paths and adopts on
-     * the save navigation, and the case below is why it must be allowed to answer at all.
-     */
     it('clears an unsaved compose draft that walks off to somewhere unrelated', () => {
       expect(resolvePaperStackAfterNavigation(stacked(readerOrigin), '/settings/account', helpers)).toBe(
         'clear',
@@ -137,7 +135,6 @@ describe('resolvePaperStackAfterNavigation', () => {
       expect(resolvePaperStackAfterNavigation(stacked(readerOrigin), '/read/John/15', helpers)).toBe('keep');
     });
 
-    /** ...but a draft carried off to another chapter has left too. */
     it('clears an unsaved compose draft once another chapter opens', () => {
       expect(resolvePaperStackAfterNavigation(stacked(readerOrigin), '/read/John/17', helpers)).toBe(
         'clear',
@@ -167,9 +164,6 @@ describe('resolvePaperStackAfterNavigation', () => {
     });
 
     it('keeps the edge over the chapter when the card is the one that opened it', () => {
-      // The rule above holds because a chapter usually has nothing to do with the card. A
-      // passage card is the case where it has everything to do with it: the chapter under the
-      // edge is what the card promised, and it is the only thing saying why it is open.
       const passageOrigin: PaperStackOrigin = { ...homeOrigin, cardKind: 'passage' };
 
       expect(resolvePaperStackAfterNavigation(stacked(passageOrigin), '/read/John/3', helpers)).toBe('keep');
@@ -225,12 +219,6 @@ describe('reviewCard', () => {
   });
 
   it('does not adopt an unresolvable note path the way a draft origin would', () => {
-    /*
-     * The generic branch keeps on a note path with no id so a saving compose draft can adopt it.
-     * A review card only ever stacks a note that already exists, so an unresolvable path means
-     * the reader has gone somewhere else — and a verdict edge over an unrelated page is worse
-     * than no edge, because it invites an answer to a question about something off screen.
-     */
     const draftLike: PaperStackPathHelpers = { ...helpers, noteIdAt: () => null };
     expect(resolvePaperStackAfterNavigation(stack('a'), '/note-a', draftLike)).toBe('clear');
   });
