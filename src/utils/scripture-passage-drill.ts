@@ -51,6 +51,27 @@ export function canonicalBookOrderMap(): Map<string, number> {
   return m;
 }
 
+let orderToTitleCache: Map<number, string> | null = null;
+
+/**
+ * The canonical book name for a 0-based drill `bookOrder`, or null when the number is not a book.
+ *
+ * Greeting chips and the study-feed focus chip open a Scripture drill with only the ordinal —
+ * they do not carry the title. Without this the library back-row falls through to the kind
+ * name and reads "Scripture" over a book of Scripture, the same empty heading a Thread drill
+ * used to wear before its subject was resolved.
+ */
+export function canonicalBookTitle(bookOrder: number): string | null {
+  if (!orderToTitleCache) {
+    const titles = new Map<number, string>();
+    for (const [book, order] of canonicalBookOrderMap()) {
+      if (!titles.has(order)) titles.set(order, book);
+    }
+    orderToTitleCache = titles;
+  }
+  return orderToTitleCache.get(bookOrder) ?? null;
+}
+
 function computePassageKey(reference: string): ScripturePassageDrillTarget | null {
   const norm = normalizeScriptureReference(reference.trim()) ?? reference.trim();
   const parsed = parseScriptureReference(norm);
