@@ -8,20 +8,20 @@ describe('returning-to chip appearance', () => {
       resolve(process.cwd(), 'spa/src/pages/prototype/PrototypeHomeGreeting.tsx'),
       'utf8',
     );
-    const start = greeting.indexOf('const isPassage = trend.kind === \'passage\'');
+    const start = greeting.indexOf("const isPassage = trend.kind === 'passage'");
     expect(start).toBeGreaterThan(-1);
     const body = greeting.slice(start, greeting.indexOf('return (', start));
-    expect(body).not.toContain("proto-home-greeting__chip--thread");
+    expect(body).not.toContain('proto-home-greeting__chip--thread');
     expect(body).toContain('recallKindIcon(trend.kind)');
   });
 
-  it('gives arcs the return glyph instead of the Thread glyph', () => {
+  it('gives arcs the search glyph because the chip opens search', () => {
     const icons = readFileSync(
       resolve(process.cwd(), 'spa/src/pages/prototype/recall-kind-icons.ts'),
       'utf8',
     );
-    expect(icons).toMatch(/arc:\s*'arrow-rotate-left'/);
-    expect(icons).toMatch(/subject:\s*'arrow-rotate-left'/);
+    expect(icons).toMatch(/arc:\s*'magnifying-glass'/);
+    expect(icons).toMatch(/subject:\s*'magnifying-glass'/);
     expect(icons).toMatch(/reflectThread:\s*'arrow-right-arrow-left'/);
   });
 });
