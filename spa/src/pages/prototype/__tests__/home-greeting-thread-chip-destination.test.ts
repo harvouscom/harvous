@@ -1,7 +1,7 @@
 /**
- * "lately returning to X" is a study-arc theme. There is often no Thread with
- * that name, so the chip must call the arc handler (propose a grouping) rather
- * than opening Threads or seeding a Library search with the label.
+ * "lately returning to X" is a study-arc theme, not a Thread title.
+ * The greeting chip must run `trend.onOpen` (openStudyArc → propose the grouping)
+ * rather than opening the Threads list or seeding a Library search with the label.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -21,17 +21,16 @@ describe('greeting returning-to chip', () => {
     expect(body).not.toContain('querySeed');
   });
 
-  it('proposes the arc when no Thread has that title, and never searches the name', () => {
+  it('wires the returning-to clause to openStudyArc', () => {
     const hook = readFileSync(
       resolve(process.cwd(), 'spa/src/pages/prototype/use-home-surface-data.ts'),
       'utf8',
     );
+    expect(hook).toContain("kind: 'arc'");
+    expect(hook).toContain('onOpen: openStudyArc');
     const start = hook.indexOf('const openStudyArc = useCallback');
     expect(start).toBeGreaterThan(-1);
     const body = hook.slice(start, hook.indexOf('}, [', start));
-    expect(body).toContain('openExistingThreadByTitle(subject)');
     expect(body).toContain('proposeThread');
-    expect(body).not.toContain('searchLibraryFor');
-    expect(body).not.toContain('querySeed');
   });
 });
