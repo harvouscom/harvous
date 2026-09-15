@@ -16,6 +16,7 @@ import {
 } from '@/utils/scripture-detector';
 import { db, first, VerseTextCache, BibleVerses, eq, and, gte, lte, warmPostgresConnection } from '../db';
 import { nowISO } from '../db/dates';
+import { repairGluedVerseText } from '@/utils/repair-glued-verse-text';
 
 interface DbVerse {
   verse: number;
@@ -107,12 +108,12 @@ async function fetchVerseTextUncached(reference: string, translation: string): P
       (cached.content.includes('passage-chapter-heading') &&
         cached.content.includes('scripture-pill-chrome__trans-chip')))
   ) {
-    return cached.content;
+    return repairGluedVerseText(cached.content);
   }
 
   // Render one verse as a superscript number + text (shared markup).
   const verseSpan = (verse: number, text: string) =>
-    `<sup class="verse-num" style="font-size:0.55em; line-height:0; vertical-align:super;">${verse}</sup>${text}`;
+    `<sup class="verse-num" style="font-size:0.55em; line-height:0; vertical-align:super;">${verse}</sup>${repairGluedVerseText(text)}`;
   const chapterDivider = '<hr class="passage-chapter-divider" />';
 
   // Persist the formatted result to VerseTextCache and return it.
