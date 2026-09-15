@@ -16,12 +16,11 @@ export const RECALL_KIND_ICONS: Record<RecallOpportunityKind, IconName> = {
   revisitNote: 'arrow-rotate-left',
 
   /*
-   * An arc or shared theme is something you keep returning to. It may become a Thread;
-   * it is not one yet. The thread glyph is reserved for Threads that already exist —
-   * wearing it here made the greeting chip read as an existing Thread named after the theme.
+   * An arc or shared theme is not a Thread. Tapping the greeting chip searches the library
+   * for that name, so it wears the same magnifying glass as every other search door.
    */
-  arc: 'arrow-rotate-left',
-  subject: 'arrow-rotate-left',
+  arc: 'magnifying-glass',
+  subject: 'magnifying-glass',
   searchGap: 'magnifying-glass',
   /* Two notes to join — that one really is a Thread being made. */
   connectNotes: 'arrow-right-arrow-left',
