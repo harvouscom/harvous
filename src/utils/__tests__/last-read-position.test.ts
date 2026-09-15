@@ -1,112 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import {
-  lastReadPositionReference,
-  parseLastReadPosition,
-  serializeLastReadPosition,
-  validateLastReadPositionInput,
-} from '../last-read-position';
+import { preferFresherLastRead, type LastReadPosition } from '../last-read-position';
 
-describe('validateLastReadPositionInput', () => {
-  it('accepts a chapter and derives its book order', () => {
-    expect(
-      validateLastReadPositionInput({ book: 'John', chapter: 15, translation: 'nlt' }),
-    ).toEqual({ book: 'John', bookOrder: 42, chapter: 15, translation: 'NLT' });
-  });
-
-  it('carries a verse anchor when the surface tracks one', () => {
-    expect(
-      validateLastReadPositionInput({ book: 'John', chapter: 15, translation: 'ESV', verse: 5 }),
-    ).toMatchObject({ verse: 5 });
-  });
-
-  it('omits the verse rather than inventing one', () => {
-    const position = validateLastReadPositionInput({
-      book: 'John',
-      chapter: 15,
-      translation: 'ESV',
-    });
-
-    expect(position).not.toHaveProperty('verse');
-  });
-
-  it('rejects a bad verse instead of quietly dropping it', () => {
-    const base = { book: 'John', chapter: 15, translation: 'ESV' };
-    expect(validateLastReadPositionInput({ ...base, verse: 0 })).toBeNull();
-    expect(validateLastReadPositionInput({ ...base, verse: 1.5 })).toBeNull();
-    expect(validateLastReadPositionInput({ ...base, verse: 'five' })).toBeNull();
-  });
-
-  it('rejects a chapter outside the book and a book outside the canon', () => {
-    expect(validateLastReadPositionInput({ book: 'Jude', chapter: 2, translation: 'ESV' })).toBeNull();
-    expect(validateLastReadPositionInput({ book: 'Hezekiah', chapter: 1, translation: 'ESV' })).toBeNull();
-  });
+const at = (iso: string, extra: Partial<LastReadPosition> = {}): LastReadPosition => ({
+  book: 'Exodus',
+  bookOrder: 2,
+  chapter: 5,
+  translation: 'NLT',
+  readAt: iso,
+  ...extra,
 });
 
-describe('parseLastReadPosition', () => {
-  it('round-trips what it stored', () => {
-    const input = validateLastReadPositionInput({ book: 'Romans', chapter: 8, translation: 'ESV' });
-    const raw = serializeLastReadPosition(input!, '2026-08-14T10:00:00.000Z');
-
-    expect(parseLastReadPosition(raw)).toEqual({
-      book: 'Romans',
-      bookOrder: 44,
-      chapter: 8,
-      translation: 'ESV',
-      readAt: '2026-08-14T10:00:00.000Z',
-    });
+describe('preferFresherLastRead', () => {
+  it('keeps the locally newer chapter when a refetch is behind', () => {
+    const local = at('2026-09-15T20:40:00.000Z', { chapter: 12, verse: 8 });
+    const server = at('2026-09-15T20:30:00.000Z', { chapter: 5 });
+    expect(preferFresherLastRead(local, server)).toEqual(local);
   });
 
-  it('degrades to no saved position rather than throwing', () => {
-    expect(parseLastReadPosition(null)).toBeNull();
-    expect(parseLastReadPosition('')).toBeNull();
-    expect(parseLastReadPosition('not json')).toBeNull();
-    expect(parseLastReadPosition('"a string"')).toBeNull();
-    expect(parseLastReadPosition('{}')).toBeNull();
+  it('takes the server when it is actually newer', () => {
+    const local = at('2026-09-15T20:30:00.000Z', { chapter: 5 });
+    const server = at('2026-09-15T20:40:00.000Z', { chapter: 12, verse: 8 });
+    expect(preferFresherLastRead(local, server)).toEqual(server);
   });
 
-  it('rejects a stored value whose chapter no longer resolves', () => {
-    const raw = JSON.stringify({
-      book: 'Jude',
-      bookOrder: 64,
-      chapter: 7,
-      translation: 'ESV',
-      readAt: '2026-08-14T10:00:00.000Z',
-    });
-
-    expect(parseLastReadPosition(raw)).toBeNull();
-  });
-
-  it('rejects a missing or unparseable timestamp', () => {
-    const withReadAt = (readAt: unknown) =>
-      JSON.stringify({ book: 'John', bookOrder: 42, chapter: 15, translation: 'ESV', readAt });
-
-    expect(parseLastReadPosition(withReadAt(undefined))).toBeNull();
-    expect(parseLastReadPosition(withReadAt('whenever'))).toBeNull();
-    expect(parseLastReadPosition(withReadAt(1786723674651))).toBeNull();
-  });
-
-  it('ignores a book order stored alongside a book it does not match', () => {
-    const raw = JSON.stringify({
-      book: 'John',
-      bookOrder: 999,
-      chapter: 15,
-      translation: 'ESV',
-      readAt: '2026-08-14T10:00:00.000Z',
-    });
-
-    expect(parseLastReadPosition(raw)?.bookOrder).toBe(42);
-  });
-});
-
-describe('lastReadPositionReference', () => {
-  it('names the chapter to open', () => {
-    const position = parseLastReadPosition(
-      serializeLastReadPosition(
-        validateLastReadPositionInput({ book: 'Psalms', chapter: 23, translation: 'NLT' })!,
-        '2026-08-14T10:00:00.000Z',
-      ),
-    );
-
-    expect(lastReadPositionReference(position!)).toBe('Psalms 23');
+  it('prefers a verse when the timestamps match', () => {
+    const without = at('2026-09-15T20:40:00.000Z', { chapter: 12 });
+    const withVerse = at('2026-09-15T20:40:00.000Z', { chapter: 12, verse: 8 });
+    expect(preferFresherLastRead(without, withVerse)?.verse).toBe(8);
   });
 });
