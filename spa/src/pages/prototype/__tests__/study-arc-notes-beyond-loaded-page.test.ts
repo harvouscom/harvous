@@ -42,3 +42,18 @@ describe('study arc note resolution', () => {
     expect(body).toContain('notes.find((n) => n.id === id)?.title ?? null');
   });
 });
+
+describe('thread-named chips', () => {
+  it('opens an existing Thread by title instead of seeding Library search', () => {
+    const text = source();
+    expect(text).toContain('openExistingThreadByTitle');
+    const start = text.indexOf('const openStudyArc = useCallback');
+    expect(start).toBeGreaterThan(-1);
+    const body = text.slice(start, text.indexOf('proposeThread({', start + 200));
+    expect(body).toContain('openExistingThreadByTitle(subject)');
+    const subjectStart = text.indexOf('const openSubjectConnection = useCallback');
+    expect(subjectStart).toBeGreaterThan(-1);
+    const subjectBody = text.slice(subjectStart, text.indexOf('proposeThread({', subjectStart));
+    expect(subjectBody).toContain('openExistingThreadByTitle(subjectConnection.subject)');
+  });
+});
