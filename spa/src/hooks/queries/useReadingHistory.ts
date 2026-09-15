@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAuthReady } from '../useAuthReady';
@@ -20,7 +21,7 @@ export interface ReadingHistoryChapter {
   lastReadAt?: string | null;
 }
 
-interface ReadingHistoryResponse {
+export interface ReadingHistoryResponse {
   success: boolean;
   /** Where the reader was last, already parsed server-side. Null until something is read. */
   lastRead: LastReadPosition | null;
@@ -28,6 +29,33 @@ interface ReadingHistoryResponse {
 }
 
 export const readingHistoryQueryKey = ['reading', 'recent'] as const;
+
+export const STUDY_FEED_QUERY_KEY = ['study-feed'] as const;
+
+/**
+ * Paint the new position onto Home / Activity before the server round-trip returns.
+ *
+ * `useReadingHistory` holds for five minutes. Invalidating only after `/api/user/update-last-read`
+ * succeeds leaves a window where going back to Activity still shows the chapter the session
+ * started on. The continue card reads this cache, so writing the position here is what makes
+ * "where you left off" match the chapter that just opened.
+ */
+export function patchReadingHistoryLastRead(
+  queryClient: QueryClient,
+  lastRead: LastReadPosition,
+): void {
+  queryClient.setQueryData<ReadingHistoryResponse>(readingHistoryQueryKey, (current) => ({
+    success: true,
+    lastRead,
+    chapters: current?.chapters ?? [],
+  }));
+}
+
+/** Mark Home's continue card and Activity's trail stale after a reading write lands. */
+export function invalidateReadingSurfaces(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: readingHistoryQueryKey });
+  void queryClient.invalidateQueries({ queryKey: STUDY_FEED_QUERY_KEY });
+}
 
 /**
  * Which chapters this user has been through, collapsed to one entry each.
@@ -44,7 +72,8 @@ export function useReadingHistory() {
     queryFn: () => api.get<ReadingHistoryResponse>('/api/reading/recent'),
     enabled: authReady,
     // Reading history changes only when someone finishes a chapter, and a stale read costs
-    // at most one card pointing a chapter behind.
+    // at most one card pointing a chapter behind — unless we patch / invalidate explicitly
+    // after a session, which useReadingSession now does.
     staleTime: 5 * 60_000,
   });
 }
