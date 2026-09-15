@@ -26,6 +26,14 @@ export type PaperStackPathHelpers = {
   isHomePath: (pathname: string) => boolean;
 };
 
+function sameReaderChapter(
+  at: { book: string; chapter: number } | null,
+  base: { book: string; chapter: number } | null,
+): boolean {
+  if (!at || !base) return false;
+  return at.chapter === base.chapter && at.book.toLowerCase() === base.book.toLowerCase();
+}
+
 /**
  * Decide what a navigation to `pathname` means for the stack.
  *
@@ -33,13 +41,12 @@ export type PaperStackPathHelpers = {
  * that rather than special-casing surfaces:
  *
  * - `reader` (reader is the base, a note is the sheet): the note's own path keeps it. A
- *   chapter keeps it only while the note is PARKED — flipping down and reading on a few
- *   chapters before flipping back up is exactly what the stack exists for. With the note
- *   still UP, a chapter means you have left the note behind, so the stack goes with it. That
- *   distinction was missing, and the cost was not a stale breadcrumb: the sheet renders the
- *   route, so keeping the stack swapped your note for a second reader — two chapters, one
- *   behind the other, and the draft the stack had promised to hold simply unmounted.
- *   A *different* note clears it: that is a new document, and it did not come from here.
+ *   chapter keeps it while the note is PARKED — flipping down and reading on a few chapters
+ *   before flipping back up is exactly what the stack exists for. With the note still UP, a
+ *   *different* chapter means you have left the note, so the stack goes with it. The origin
+ *   chapter does not: that is also the frame between stacking a margin note and the note
+ *   route landing, and clearing it is the flash-and-bounce. A *different* note clears it:
+ *   that is a new document, and it did not come from here.
  * - `homeCard` (a Home card is the origin, a note is the sheet): the note keeps it, Home
  *   keeps it (that is where flip-down goes), everything else clears it. Notably a chapter
  *   clears it — the reader is its own base, not something Home stands behind.
@@ -93,17 +100,21 @@ export function resolvePaperStackAfterNavigation(
     // Parked, the base IS the reader being browsed, so any chapter is the same session.
     if (!open) return 'keep';
     /*
-     * Still up, and the sheet renders the route — so a read path here would put a chapter
-     * where the note is. Exactly one shape survives that: a compose draft that has not moved.
-     * A draft started from a verse opens on the reader's own address and never navigates, so
-     * it has no note id yet and it is still on the origin's chapter. Anything else — a saved
-     * note, or a draft carried to another chapter — is a real navigation away from the note.
+     * Still up, and the sheet renders the route — so a *different* chapter here would put
+     * that chapter where the note is (two readers, and the note unmounts).
+     *
+     * The origin chapter is different. Two arrivals look the same to the resolver:
+     *   1. Opening an existing note from the margin bar: stackNote stamps the id, then
+     *      navigate. For one frame the URL is still this chapter. Clearing that frame is
+     *      the flash-and-bounce.
+     *   2. Leaving the note for this same chapter (browser back, a same-chapter land).
+     * Compose already survives (1) by stacking with no id. Margin notes now survive it
+     * even with an id, because the path has not actually left the origin. A different
+     * chapter still clears.
      */
-    if (noteId) return 'clear';
     const at = helpers.readTargetAt(pathname);
     const base = origin.base.type === 'reader' ? origin.base : null;
-    if (!at || !base) return 'clear';
-    return at.book === base.book && at.chapter === base.chapter ? 'keep' : 'clear';
+    return sameReaderChapter(at, base) ? 'keep' : 'clear';
   }
 
   // homeCard
