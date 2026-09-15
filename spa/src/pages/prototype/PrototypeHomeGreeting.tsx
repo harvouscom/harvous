@@ -134,7 +134,18 @@ export default function PrototypeHomeGreeting({
                 type="button"
                 className={chipClass}
                 aria-label={`Open ${label}`}
-                onClick={trend.onOpen}
+                onClick={() => {
+                  /*
+                   * Thread-styled chips (subject, arc, cross-ref) used to fall through to a
+                   * Library search seeded with the label. They look like Threads, so they
+                   * open Threads — the same kind of door a folder chip uses for Folders.
+                   */
+                  if (trend.kind === 'passage' || trend.kind === 'referenceWord') {
+                    trend.onOpen();
+                    return;
+                  }
+                  nav.openList('threads');
+                }}
               >
                 <Icon name={iconName} size={iconSize} aria-hidden />
                 <span>{label}</span>
@@ -220,10 +231,10 @@ export default function PrototypeHomeGreeting({
         onClick={onOpenTodaysPassage}
       >
         <Icon name="book" size={11} aria-hidden />
-        <span>Today&apos;s Passage</span>
+        <span>Today's Passage</span>
       </button>
     ) : (
-      <>Today&apos;s Passage</>
+      <>Today's Passage</>
     );
 
     return (
