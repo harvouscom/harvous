@@ -1,8 +1,10 @@
 /**
  * The name a drilled-into Thread goes by, for the panel's back row.
  *
- * A folder drill carries its own name (`folderKey`) and a scripture drill carries its book or
- * passage, so the header could always say where you are. A Thread drill carries only an id —
+ * A folder drill carries its own name (`folderKey`). A scripture drill often carries only
+ * a book ordinal — greeting chips and the study-feed focus chip open that way — so without
+ * looking the name up the back row read "Scripture" over "Scripture". A Thread drill carries
+ * only an id —
  * every way in (a Thread card, the All tab, a search result, a mention pill) knows the id and
  * not necessarily the name — so without this the back row read "Thread" over "Thread", naming
  * the kind twice and the Thread not at all.
@@ -18,6 +20,7 @@
 import { isSharedSpaceThreadDrillId } from '../shared-space-thread-list';
 import { usePrototypeStudyThread } from '../../../hooks/queries/usePrototypeStudyThread';
 import { useSpaceGroupThreads } from '../../../hooks/queries/useSpaceGroupThreads';
+import { canonicalBookTitle } from '@/utils/scripture-passage-drill';
 import type { LibraryPanelView } from './library-panel-view';
 
 /** The display name, or null while there is none worth saying — the header then says "Thread". */
@@ -42,6 +45,17 @@ export function useLibraryDrillSubject(
 
   const personalQuery = usePrototypeStudyThread(threadId && !shared ? threadId : undefined, spaceId);
   const groupQuery = useSpaceGroupThreads(threadId && shared ? spaceId ?? undefined : undefined);
+
+  if (view.drill?.kind === 'scripture') {
+    const drill = view.drill.drill;
+    if (drill.level === 'passages') {
+      return drill.bookTitle?.trim() || canonicalBookTitle(drill.bookOrder);
+    }
+    if (drill.level === 'notes') {
+      return drill.passageTitle?.trim() || null;
+    }
+    return null;
+  }
 
   if (!threadId) return null;
   if (shared) {

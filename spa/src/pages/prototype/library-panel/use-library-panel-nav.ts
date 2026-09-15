@@ -15,6 +15,7 @@ import { useMemo } from 'react';
 import { useProtoShell } from '../../../layouts/proto-shell-context';
 import type { HomeGreetingNav } from '../PrototypeHomeGreeting';
 import type { LibraryTab } from './library-panel-view';
+import { canonicalBookTitle } from '@/utils/scripture-passage-drill';
 
 /** The sidebar's list modes, mapped onto the panel's tabs. */
 function tabForListMode(mode: string): LibraryTab {
@@ -66,7 +67,14 @@ export function useLibraryPanelNav(): HomeGreetingNav {
       openScriptureBook: (bookOrder) =>
         openLibraryPanel({
           tab: 'scripture',
-          drill: { kind: 'scripture', drill: { level: 'passages', bookOrder } },
+          drill: {
+            kind: 'scripture',
+            drill: {
+              level: 'passages',
+              bookOrder,
+              bookTitle: canonicalBookTitle(bookOrder) ?? undefined,
+            },
+          },
         }),
     }),
     [openLibraryPanel],
