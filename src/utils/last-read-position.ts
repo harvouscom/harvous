@@ -17,14 +17,13 @@ import {
 
 export type LastReadPosition = ScriptureChapterTarget & {
   translation: string;
-  /** Verse the reader was on, when the surface tracks one. Chapter-level surfaces omit it. */
   verse?: number;
-  /** ISO timestamp of when this position was recorded. */
   readAt: string;
 };
 
-/** The client-supplied half — the server stamps `readAt` itself. */
 export type LastReadPositionInput = Omit<LastReadPosition, 'readAt'>;
+
+const LOCAL_LAST_READ_KEY = 'harvous.lastReadPosition';
 
 export function validateLastReadPositionInput(body: unknown): LastReadPositionInput | null {
   if (!body || typeof body !== 'object') return null;
@@ -36,8 +35,6 @@ export function validateLastReadPositionInput(body: unknown): LastReadPositionIn
   const translationCode = normalizeTranslationCode(translation);
   if (!translationCode) return null;
 
-  // A verse is optional, but a nonsense one is rejected rather than dropped: silently
-  // storing the chapter would send the reader back to the top of it with no explanation.
   if (verse !== undefined && verse !== null) {
     if (typeof verse !== 'number' || !Number.isInteger(verse) || verse < 1) return null;
     return { ...target, translation: translationCode, verse };
@@ -46,13 +43,6 @@ export function validateLastReadPositionInput(body: unknown): LastReadPositionIn
   return { ...target, translation: translationCode };
 }
 
-/**
- * Read the stored JSON back, or null when there is nothing usable there.
- *
- * Tolerant on purpose: this column is read on every profile load, and a value written by
- * an older or newer client should degrade to "no saved position" rather than break the
- * surface asking for it.
- */
 export function parseLastReadPosition(raw: string | null | undefined): LastReadPosition | null {
   if (!raw || typeof raw !== 'string') return null;
 
@@ -82,7 +72,39 @@ export function serializeLastReadPosition(
   return JSON.stringify(position);
 }
 
-/** The reference to open when someone continues reading, e.g. "John 15". */
 export function lastReadPositionReference(position: LastReadPosition): string {
   return `${position.book} ${position.chapter}`;
+}
+
+export function readLocalLastRead(): LastReadPosition | null {
+  if (typeof sessionStorage === 'undefined') return null;
+  try {
+    return parseLastReadPosition(sessionStorage.getItem(LOCAL_LAST_READ_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export function writeLocalLastRead(position: LastReadPosition): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(LOCAL_LAST_READ_KEY, serializeLastReadPosition(position, position.readAt));
+  } catch {
+    // private mode / quota — memory cache still holds the patch
+  }
+}
+
+/** Keep the position that was recorded later. Ties prefer the one that named a verse. */
+export function preferFresherLastRead(
+  current: LastReadPosition | null | undefined,
+  incoming: LastReadPosition | null | undefined,
+): LastReadPosition | null {
+  if (!current) return incoming ?? null;
+  if (!incoming) return current;
+  const currentAt = Date.parse(current.readAt);
+  const incomingAt = Date.parse(incoming.readAt);
+  if (incomingAt > currentAt) return incoming;
+  if (currentAt > incomingAt) return current;
+  if (incoming.verse != null && current.verse == null) return incoming;
+  return current;
 }
