@@ -22,6 +22,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { db, BibleVerses, VerseTextCache, eq } from '../server/db';
+import { repairGluedVerseText } from '../src/utils/repair-glued-verse-text';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,19 +48,7 @@ const MANUAL_FIXES: Record<string, Record<string, string>> = {
 };
 
 function fixSpaces(text: string): string {
-  let prev = '';
-  let current = text;
-  // Iterate until no more changes (handles cascading fixes like ".In" → ". In")
-  while (current !== prev) {
-    prev = current;
-    // Pattern 1: sentence-ending punctuation followed directly by a letter
-    current = current.replace(/([.!?])([A-Za-z])/g, '$1 $2');
-    // Pattern 2: list/clause punctuation followed directly by a letter
-    current = current.replace(/([,;:])([A-Za-z])/g, '$1 $2');
-    // Pattern 3: lowercase→uppercase transition (camelCase-style join)
-    current = current.replace(/([a-z])([A-Z])/g, '$1 $2');
-  }
-  return current;
+  return repairGluedVerseText(text);
 }
 
 interface VerseEntry {
