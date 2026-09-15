@@ -24,6 +24,9 @@ describe('repairGluedVerseText', () => {
     expect(repairGluedVerseText('because he has heardmy voice')).toBe(
       'because he has heard my voice',
     );
+    expect(repairGluedVerseText('the water under skyfrom the water above')).toBe(
+      'the water under sky from the water above',
+    );
   });
 
   it('leaves already-spaced scripture alone', () => {
