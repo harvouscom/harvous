@@ -12,9 +12,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { parseScriptureReference } from '@/utils/scripture-detector';
+import { resolveScriptureChapterTarget } from '@/utils/scripture-chapter-target';
 import { nextReadingDwellReport, type ReadingDwellBucket } from '@/utils/reading-event-kinds';
 import { recordLastReadPosition, recordReadingEvent } from '../pages/prototype/proto-reading-events';
-import { readingHistoryQueryKey } from './queries/useReadingHistory';
+import {
+  invalidateReadingSurfaces,
+  patchReadingHistoryLastRead,
+} from './queries/useReadingHistory';
 
 type ReadingSession = {
   book: string;
@@ -54,13 +58,31 @@ export function useReadingSession({
   getVerseRef.current = getVerse;
 
   /**
-   * Home reads this log to decide what to offer next, and its query is deliberately slow to
-   * go stale. Without this, finishing a chapter would leave Home offering that same chapter
-   * for another five minutes — the card would be wrong exactly when someone just acted on it.
+   * Home / Activity read this log to decide what to offer next. Reading history holds for
+   * five minutes and the study feed for one; neither was invalidated after a chapter was
+   * actually read, so coming back from the reader showed the chapter the sitting started on
+   * until a full refresh.
    */
-  const refreshReadingHistory = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: readingHistoryQueryKey });
+  const refreshReadingSurfaces = useCallback(() => {
+    invalidateReadingSurfaces(queryClient);
   }, [queryClient]);
+
+  const markLocalPosition = useCallback(
+    (input: { book: string; chapter: number; translation: string; verse?: number }) => {
+      const target = resolveScriptureChapterTarget(input.book, input.chapter);
+      if (!target) return;
+      patchReadingHistoryLastRead(queryClient, {
+        ...target,
+        translation: input.translation,
+        ...(input.verse !== undefined ? { verse: input.verse } : {}),
+        readAt: new Date().toISOString(),
+      });
+      // Mark Activity stale now, not only after the POST. Returning to Home inside the
+      // feed's 60s staleTime would otherwise keep painting the sitting you left.
+      void queryClient.invalidateQueries({ queryKey: ['study-feed'] });
+    },
+    [queryClient],
+  );
 
   useEffect(() => {
     if (!enabled || !canonicalReference || !translationCode) return;
@@ -80,11 +102,16 @@ export function useReadingSession({
 
     // Position is marked at the start of the session and the event is logged at the end,
     // so a read that never finishes still leaves somewhere to continue from.
+    markLocalPosition({
+      book: parsed.book,
+      chapter: parsed.chapter,
+      translation: translationCode,
+    });
     recordLastReadPosition({
       book: parsed.book,
       chapter: parsed.chapter,
       translation: translationCode,
-      onSynced: refreshReadingHistory,
+      onSynced: refreshReadingSurfaces,
     });
 
     /**
@@ -100,12 +127,18 @@ export function useReadingSession({
       const verse = getVerseRef.current?.();
       if (verse === undefined || verse === session.reportedVerse) return;
       session.reportedVerse = verse;
+      markLocalPosition({
+        book: session.book,
+        chapter: session.chapter,
+        translation: session.translation,
+        verse,
+      });
       recordLastReadPosition({
         book: session.book,
         chapter: session.chapter,
         translation: session.translation,
         verse,
-        onSynced: refreshReadingHistory,
+        onSynced: refreshReadingSurfaces,
       });
     };
 
@@ -123,7 +156,7 @@ export function useReadingSession({
         chapter: session.chapter,
         translation: session.translation,
         dwellBucket: bucket,
-        onSynced: refreshReadingHistory,
+        onSynced: refreshReadingSurfaces,
       });
     };
 
@@ -150,5 +183,5 @@ export function useReadingSession({
       markVerseReached();
       sessionRef.current = null;
     };
-  }, [canonicalReference, translationCode, enabled, refreshReadingHistory]);
+  }, [canonicalReference, translationCode, enabled, refreshReadingSurfaces, markLocalPosition]);
 }
