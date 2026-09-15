@@ -111,12 +111,14 @@ export default function PrototypeHomeGreeting({
       {trend.parts.prefix}
       {trend.parts.labels.map((label, i) => {
         const isPassage = trend.kind === 'passage';
+        /*
+         * The Thread class and Thread glyph belong to a Thread that already exists (the lead
+         * chip). "lately returning to X" is a theme, so it wears the return glyph and the
+         * default chip — same words, not the same thing.
+         */
         const chipClass = isPassage
           ? 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--passage'
-          : 'proto-glass-surface proto-home-greeting__chip proto-home-greeting__chip--thread';
-        /* Passage chips keep `book`: at 11px the shelf's scroll glyph is a smudge. Every other
-           kind takes the shelf's own icon, so a cross-reference named in the greeting and one
-           sitting in the list below it are the same thing to look at. */
+          : 'proto-glass-surface proto-home-greeting__chip';
         const iconName: IconName = isPassage ? 'book' : recallKindIcon(trend.kind);
         const iconSize = isPassage ? 11 : 10;
         return (

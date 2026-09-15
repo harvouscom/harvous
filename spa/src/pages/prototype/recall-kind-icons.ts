@@ -16,13 +16,14 @@ export const RECALL_KIND_ICONS: Record<RecallOpportunityKind, IconName> = {
   revisitNote: 'arrow-rotate-left',
 
   /*
-   * `arrow-right-arrow-left` is the thread glyph everywhere else in the app — the sidebar's
-   * thread list, thread rows, the thread trail, search results. These three keep it because
-   * what they propose genuinely is a thread: an arc, a shared theme, or two notes to join.
+   * An arc or shared theme is something you keep returning to. It may become a Thread;
+   * it is not one yet. The thread glyph is reserved for Threads that already exist —
+   * wearing it here made the greeting chip read as an existing Thread named after the theme.
    */
-  arc: 'arrow-right-arrow-left',
-  subject: 'arrow-right-arrow-left',
+  arc: 'arrow-rotate-left',
+  subject: 'arrow-rotate-left',
   searchGap: 'magnifying-glass',
+  /* Two notes to join — that one really is a Thread being made. */
   connectNotes: 'arrow-right-arrow-left',
 
   /*
