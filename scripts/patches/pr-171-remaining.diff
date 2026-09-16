@@ -1,0 +1,186 @@
+diff --git a/server/routes/review.ts b/server/routes/review.ts
+index 4212bf7..334238f 100644
+--- a/server/routes/review.ts
++++ b/server/routes/review.ts
+@@ -11,6 +11,7 @@
+  */
+ 
+ import { reviewRungIsGraded, type ReviewPromptKey } from '@/utils/review-prompts';
++import { reviewPromptIsNamelessWrite } from '@/utils/review-nameless-write';
+ import { TRANSLATION_ORDER } from '@/data/translations';
+ import {
+   DEFAULT_SAMPLE_EXERCISE,
+@@ -62,11 +63,23 @@ import {
+   stepBackReviewItem,
+   buildReviewSample,
+   gradeReviewSample,
++  type ReviewItemView,
+ } from '../utils/review-service';
+ import { engineColdStartFor, refillReviewQueue } from '../utils/review-opportunities';
+ 
+ const route = new Hono();
+ 
++function withoutNamelessWrites(items: ReviewItemView[]): ReviewItemView[] {
++  return items.filter((item) => {
++    if (item.kind === 'verse' && !item.scriptureReference?.trim()) return false;
++    return !reviewPromptIsNamelessWrite(item.promptKey as ReviewPromptKey, {
++      reference: item.scriptureReference,
++      noteTitle: item.noteTitle,
++    });
++  });
++}
++
++
+ /** The longest a free-text attempt may be. Generous for a paragraph, bounded against abuse. */
+ /** No verse this app shows runs past a couple of hundred words. */
+ const MAX_WORD_INDEX = 400;
+@@ -138,7 +151,7 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
+       REVIEW_INBOX_MAX_ROWS,
+       now,
+     );
+-    const built = await buildReviewItemViews(auth.userId, ordered, { dropUnaskable: true });
++    const built = withoutNamelessWrites(await buildReviewItemViews(auth.userId, ordered, { dropUnaskable: true }));
+     const items = built.slice(0, REVIEW_INBOX_MAX_ROWS);
+     const shownIds = new Set(items.map((item) => item.id));
+ 
+@@ -206,7 +219,7 @@ route.get('/api/review/items', requireAuth, rateLimit('read'), requireFeature('r
+       const items = await buildReviewItemSummaries(auth.userId, rows, { dropUnaskable: true });
+       return c.json({ success: true, items });
+     }
+-    const items = await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true });
++    const items = withoutNamelessWrites(await buildReviewItemViews(auth.userId, rows, { dropUnaskable: true }));
+     return c.json({ success: true, items });
+   } catch (error) {
+     if (isReviewTableMissing(error)) return c.json({ success: true, items: [] });
+@@ -272,7 +285,7 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
+      */
+     const headRow = rows[0] ?? null;
+     const [items, speculativeReveal] = await Promise.all([
+-      buildReviewItemViews(auth.userId, rows, { dropUnaskable: true }),
++      buildReviewItemViews(auth.userId, rows, { dropUnaskable: true }).then(withoutNamelessWrites),
+       headRow ? buildReviewReveal(auth.userId, headRow).catch(() => null) : Promise.resolve(null),
+     ]);
+     /*
+diff --git a/spa/src/pages/prototype/PrototypeReviewDock.tsx b/spa/src/pages/prototype/PrototypeReviewDock.tsx
+index 75c25ff..dc5deb8 100644
+--- a/spa/src/pages/prototype/PrototypeReviewDock.tsx
++++ b/spa/src/pages/prototype/PrototypeReviewDock.tsx
+@@ -45,7 +45,7 @@ import {
+   shouldReleaseHeldItem,
+   sittingIsStale,
+ } from '@/utils/review-dock-state';
+-import { reviewRowSubtitle } from '@/utils/review-row-subtitle';
++import { reviewDockAnchor, reviewPromptNamesAnchor, reviewRowSubtitle } from '@/utils/review-row-subtitle';
+ import { noteParamSlug } from './proto-route-slugs';
+ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
+ import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
+@@ -1111,9 +1111,13 @@ export default function PrototypeReviewDock() {
+ 
+   const answeringOnNote = paperStack?.origin.review?.itemId === item?.id && Boolean(item);
+   const isVerse = item?.kind === 'verse';
+-  // `reviewRowSubtitle` suppresses itself on a graded rung — see its docblock.
+-  // What this is to the reader, else which thing is being asked about.
+-  const subtitle = item ? (item.framing ? fillFraming(item.framing) : reviewRowSubtitle(item)) : null;
++  // Framing says why it is here. The anchor says *which* passage. Framing used to win, so a
++  // write-from-memory card could sit under "You keep coming back to this one." and name no verse.
++  const anchor = item ? reviewDockAnchor(item) : null;
++  const framingLine = item?.framing ? fillFraming(item.framing) : null;
++  const namedInPrompt = item ? reviewPromptNamesAnchor(item.prompt, anchor) : false;
++  const subtitle =
++    anchor && !namedInPrompt ? anchor : framingLine ?? (item ? reviewRowSubtitle(item) : null);
+   const canJudge = canJudgeRecall({ attempt });
+ 
+   const verdictRow = (
+@@ -1961,6 +1965,22 @@ export default function PrototypeReviewDock() {
+               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
+             />
+           </>
++        ) : FREE_RECALL_RUNGS.has(item.promptKey) &&
++          (reveal.isPending || reveal.isFetching) &&
++          !recallExercise ? (
++          /*
++           * The finish / lead-in tiers put verse text above the box. Until that payload lands
++           * the card used to render the empty writer anyway — "write this verse from memory"
++           * over a blank, even when the question was "finish it." Hold the box until we know
++           * which of those it is.
++           */
++          <>
++            <p className="proto-review-dock__prompt">{item.prompt}</p>
++            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
++            <div className="proto-review-dock__loading">
++              <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
++            </div>
++          </>
+         ) : FREE_RECALL_RUNGS.has(item.promptKey) ? (
+           /*
+            * Write the verse out, and have it marked. Forgivingly — content words, in order,
+diff --git a/src/utils/__tests__/review-row-subtitle.test.ts b/src/utils/__tests__/review-row-subtitle.test.ts
+index 88bd82a..92bd7f5 100644
+--- a/src/utils/__tests__/review-row-subtitle.test.ts
++++ b/src/utils/__tests__/review-row-subtitle.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, it, expect } from 'vitest';
+-import { reviewRowSource, reviewRowSubtitle, writtenAtLabel, reviewRowSubject } from '@/utils/review-row-subtitle';
++import { reviewDockAnchor, reviewPromptNamesAnchor, reviewRowSource, reviewRowSubtitle, writtenAtLabel, reviewRowSubject } from '@/utils/review-row-subtitle';
+ import { VERSE_LOCATE_STEP, VERSE_SEQUENCE_STEP } from '@/utils/review-prompts';
+ import { reviewRowRecallLabel, rungIdentityIsTheAnswer } from '@/utils/review-row-subtitle';
+ 
+@@ -284,3 +284,34 @@ describe('reviewRowRecallLabel', () => {
+     ).toBe('You have this');
+   });
+ });
++
++describe('reviewDockAnchor', () => {
++  it('keeps the passage on a write card even when a framing line exists', () => {
++    expect(
++      reviewDockAnchor({
++        prompt: 'Write this verse from memory.',
++        kind: 'verse',
++        scriptureReference: 'John 15:5',
++        ladderStep: 2,
++        promptKey: 'verse.recall',
++      }),
++    ).toBe('John 15:5');
++  });
++
++  it('hides the reference where the reference is the answer', () => {
++    expect(
++      reviewDockAnchor({
++        prompt: 'Say where this is from.',
++        kind: 'verse',
++        scriptureReference: 'John 15:5',
++        ladderStep: VERSE_LOCATE_STEP,
++        promptKey: 'verse.locate',
++      }),
++    ).toBeNull();
++  });
++
++  it('knows when the prompt already named the passage', () => {
++    expect(reviewPromptNamesAnchor('Write John 15:5 from memory.', 'John 15:5 · ESV')).toBe(true);
++    expect(reviewPromptNamesAnchor('Write this verse from memory.', 'John 15:5')).toBe(false);
++  });
++});
+diff --git a/src/utils/verse-ladder-exercises.ts b/src/utils/verse-ladder-exercises.ts
+index 6745988..fa20bb0 100644
+--- a/src/utils/verse-ladder-exercises.ts
++++ b/src/utils/verse-ladder-exercises.ts
+@@ -649,7 +649,18 @@ export function buildVerseRecall(text: string, mode: VerseRecallMode): VerseReca
+   const tokens = clean.split(' ').filter(Boolean);
+ 
+   if (mode === 'leadIn') {
+-    if (tokens.length <= RECALL_LEAD_IN_WORDS + 1) return { shown: null, hiddenText: clean, mode };
++    /*
++     * A short verse used to collapse to `shown: null` — the same empty box as the top tier,
++     * under a prompt that still said "carry on from the opening." Keep the first word as the
++     * handle so the card is never a blank page about an unnamed remainder.
++     */
++    if (tokens.length <= RECALL_LEAD_IN_WORDS + 1) {
++      return {
++        shown: tokens[0] ?? null,
++        hiddenText: tokens.slice(1).join(' ') || clean,
++        mode,
++      };
++    }
+     return {
+       shown: tokens.slice(0, RECALL_LEAD_IN_WORDS).join(' '),
+       hiddenText: tokens.slice(RECALL_LEAD_IN_WORDS).join(' '),
