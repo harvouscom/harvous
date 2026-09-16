@@ -144,6 +144,12 @@ describe('every rung is gentle at tier 0 and hardest at tier 2', () => {
     expect(bare.hiddenText).toBe(JOHN.replace(/\s+/g, ' ').trim());
   });
 
+  it('keeps a handle on a short verse instead of collapsing to a blank page', () => {
+    const short = buildVerseRecall('Jesus wept.', 'leadIn');
+    expect(short.shown).toBe('Jesus');
+    expect(short.hiddenText).toBe('wept.');
+  });
+
   it('asks for fewer words before more', () => {
     expect(verseKeywordsCount(0)).toBe(VERSE_KEYWORDS_MIN_COUNT);
     expect(verseKeywordsCount(0)).toBeLessThan(verseKeywordsCount(1));
