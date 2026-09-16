@@ -11,6 +11,8 @@ import {
   isVotdPassageCardDismissedToday,
   recordVotdEngagement,
   setVotdDismissedToday,
+  shouldForceShowTodaysPassage,
+  clearForcedTodaysPassage,
   type VotdToday,
 } from '../../lib/votd-today';
 import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
@@ -37,7 +39,7 @@ export default function PrototypeDailyPassagePill({
 
   const afterNav = useCallback(() => {
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-  }, [closeDrawer, isMobileSidebar]);
+    }, [closeDrawer, isMobileSidebar]);
 
   const openNote = useCallback(
     (noteId: string) => {
@@ -57,15 +59,6 @@ export default function PrototypeDailyPassagePill({
     }
   }, [homeSpaceId, queryClient]);
 
-  /**
-   * Opens the editor on the passage immediately.
-   *
-   * This used to `createNote.mutate` and wait for `onSuccess` to learn a note id before it
-   * could navigate — so the tap disabled the button and then sat there for a full round trip,
-   * which on a phone is most of a second of nothing happening. The compose session is
-   * synchronous: seed it with the passage, land on the editor, and let `persistDraftNote`
-   * create the row in the background. Same path the "New note" button has always used.
-   */
   const studyNow = useCallback(
     (v: VotdToday) => {
       if (!homeSpaceId) return;
@@ -78,10 +71,6 @@ export default function PrototypeDailyPassagePill({
       invalidateScriptureIndex();
       beginPrototypeComposeSession({
         targetSpaceId: homeSpaceId,
-        // The account's default, not `v.translation` — that field is whatever the VOTD API
-        // happened to attach (an admin-authored fallback for automatically-picked days is
-        // 'NET' regardless of who's reading), not necessarily the translation this reader
-        // actually reads in.
         seed: { contentHtml: buildVotdScripturePillHtml(v.reference, getEffectiveDefaultTranslation()) },
       });
       afterNav();
@@ -98,69 +87,27 @@ export default function PrototypeDailyPassagePill({
     ],
   );
 
-  /**
-   * Today's passage opens in the reader, at the verse, in the account's default translation.
-   *
-   * It used to open a sheet holding the verse text — which was the right answer when a
-   * passage had nowhere else to go. There is a whole reader now: the chapter around the
-   * verse, the margin bars showing where this passage already appears in your notes, the
-   * dock, highlighting. A sheet that shows two verses and nothing else is a smaller room
-   * than the one next door.
-   *
-   * The verse arrives as `?v=`, which is the reader's existing deep-link — the same one a
-   * scripture pill uses — so it lands focused on the verse rather than at the top of the
-   * chapter. An unparseable reference does nothing rather than navigating somewhere wrong.
-   *
-   * `getEffectiveDefaultTranslation()`, not `votd.translation` — the reader treats the URL's
-   * `t=` as authoritative (so a shared link keeps the translation it was shared in), and
-   * `votd.translation` is whatever the VOTD API attached, which for an automatically-picked
-   * day is a fixed admin fallback ('NET') unrelated to the reader's own account setting. This
-   * is the same call every other "open a passage" path in the app makes — see
-   * `openPassageConnection` in `PrototypeSidebarHomeView.tsx`.
-   *
-   * Nothing is recorded here. `recordVotdEngagement` only knows dismiss and add-note, and
-   * opening the reader is already a read: the reading session on that route logs it, with
-   * the chapter and the time spent, which is more than a "viewed" ping would have said.
-   */
   const openInReader = useCallback(() => {
-    // `readerRouteForReference` rather than a hand-rolled route: it is the one place that
-    // knows a passage can be a range, so today's passage lands on all of it.
     const route = readerRouteForReference(votd.reference, getEffectiveDefaultTranslation());
     if (!route) return;
     afterNav();
-    // Stamped, so asking for today's passage again lands on the verse again even when the
-    // reader is already open on it and the verse was clicked away. See `landAgain`.
     navigate(landAgain(route));
   }, [afterNav, navigate, votd.reference]);
 
   const handleDismiss = useCallback(() => {
+    clearForcedTodaysPassage();
     setVotdDismissedToday();
     setDismissedToday(true);
     recordVotdEngagement('dismiss');
   }, []);
 
-  if (!homeSpaceId || dismissedToday) {
+  if (!homeSpaceId || (dismissedToday && !shouldForceShowTodaysPassage())) {
     return null;
   }
 
   return (
     <>
-      {/* A row of the Suggested group. Tapping the row opens the passage; the trailing
-          controls are the one action worth a button — write about it — and the dismiss.
-          Same shape as every other row on Home.
-
-          Buttons rather than the overflow the suggestion rows use. The write action is why
-          you would come to this row at all, and putting the day's one invitation to study
-          behind a menu is a tap charged for the thing the row exists to offer. The
-          suggestion rows earn their menu because their answers differ by forever and need
-          words; these two are the new-note glyph and a cross, and mean what they look like.
-
-          Always the compose action, never a second "view notes on this passage" branch
-          that used to show once any note referencing this verse existed: it opened
-          whatever note the scripture index turned up — a past, possibly unrelated one if
-          today's passage happened to recur — instead of today's invitation. `studyNow`
-          already resumes a note started earlier today rather than duplicating it; an old
-          note on the same verse from a different day is not that note. */}
+      <div id="todays-passage">
       <PrototypeHomeRow
         icon="scroll"
         title={votd.reference}
@@ -190,7 +137,7 @@ export default function PrototypeDailyPassagePill({
           </>
         }
       />
-
+      </div>
     </>
   );
 }

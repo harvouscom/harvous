@@ -20,6 +20,7 @@
  *      `onmessage` or calling `startMessages()` does, per spec.
  */
 import { readServiceWorkerContainer } from '@/utils/storage-security';
+import { forceShowTodaysPassageToday, TODAYS_PASSAGE_FOCUS } from './votd-today';
 
 export const NOTIFICATION_NAVIGATE_MESSAGE = 'HARVOUS_NOTIFICATION_NAVIGATE';
 
@@ -94,7 +95,6 @@ export async function peekPendingNavigation(): Promise<string | null> {
     const payload = (await response.json()) as { url?: unknown; at?: unknown };
     if (typeof payload.url !== 'string') return null;
     if (!isPendingNavigationFresh(payload.at)) {
-      // Expired: clear it so it cannot be re-read on every future check.
       await cache.delete(PENDING_NAV_KEY);
       return null;
     }
@@ -122,15 +122,16 @@ export async function consumePendingNavigation(): Promise<string | null> {
 }
 
 function goTo(path: string): void {
+  if (path.includes(`focus=${TODAYS_PASSAGE_FOCUS}`)) {
+    forceShowTodaysPassageToday();
+  }
+
   if (!routerReady) {
-    // Held, not dropped, and deliberately not cleared — the parked copy is the only record
-    // until something actually navigates.
     queuedPath = path;
     return;
   }
 
   if (`${window.location.pathname}${window.location.search}` === path) {
-    // Arrived on its own, which is what `openWindow` does. Nothing to do but tidy up.
     void clearPendingNavigation();
     return;
   }
@@ -141,19 +142,6 @@ function goTo(path: string): void {
   }
   lastHandled = { path, at: now };
 
-  /*
-   * Imported here rather than at the top, to break a cycle.
-   *
-   * The router imports this module for its readiness signal, and the navigate shim reads
-   * `router` at its own module top — so a static import here closes the loop
-   * router → notification-navigation → shim → router. The bytes that buys back are trivial;
-   * what it removes is an initialisation-order hazard. This module is imported by main.tsx
-   * before render, so under a static import the shim could evaluate while router.tsx is
-   * still initialising and capture an undefined `router`.
-   *
-   * Nothing is fetched at this point: `routerReady` is true, which means the router and its
-   * shim are already loaded, so this resolves from memory one microtask later.
-   */
   void import('../shims/app-navigate').then((mod) => mod.navigate(path));
   void clearPendingNavigation();
 }
@@ -164,12 +152,6 @@ function checkPending(): void {
   });
 }
 
-/**
- * The router has mounted and can be navigated.
- *
- * Called from the root route's component, which mounts once after the first match resolves.
- * The timeout puts the drain strictly after TanStack's own mount effects.
- */
 export function markNotificationNavigationReady(): void {
   if (routerReady) return;
   routerReady = true;
@@ -180,12 +162,10 @@ export function markNotificationNavigationReady(): void {
       goTo(path);
       return;
     }
-    // Covers a destination parked between boot and readiness, which no listener saw.
     checkPending();
   }, 0);
 }
 
-/** Listen for taps, and check for one that happened before we were listening. */
 export function initNotificationNavigation(): () => void {
   if (typeof window === 'undefined') return () => {};
 
@@ -201,8 +181,6 @@ export function initNotificationNavigation(): () => void {
 
   const serviceWorker = readServiceWorkerContainer();
   serviceWorker?.addEventListener('message', onMessage);
-  // Starts the client message queue, which addEventListener alone does not, and flushes
-  // anything the worker posted before this listener existed.
   serviceWorker?.startMessages?.();
   document.addEventListener('visibilitychange', onVisible);
   checkPending();
@@ -213,7 +191,6 @@ export function initNotificationNavigation(): () => void {
   };
 }
 
-/** Test seam: the module holds cross-call state by design. */
 export function resetNotificationNavigationForTests(): void {
   routerReady = false;
   queuedPath = null;

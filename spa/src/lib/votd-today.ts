@@ -30,6 +30,36 @@ export function todayCalendarDayKey(now: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Query value on `/?focus=` that a reminder uses to open Activity on today's passage. */
+export const TODAYS_PASSAGE_FOCUS = 'todays-passage';
+
+const VOTD_FORCE_SHOW_DAY_KEY = 'votd_passage_card_force_show_day';
+
+/** Keep today's passage visible on Activity for the rest of this local day. */
+export function forceShowTodaysPassageToday(): void {
+  try {
+    sessionStorage.setItem(VOTD_FORCE_SHOW_DAY_KEY, todayCalendarDayKey());
+  } catch {
+    /* private browsing */
+  }
+}
+
+export function shouldForceShowTodaysPassage(): boolean {
+  try {
+    return sessionStorage.getItem(VOTD_FORCE_SHOW_DAY_KEY) === todayCalendarDayKey();
+  } catch {
+    return false;
+  }
+}
+
+export function clearForcedTodaysPassage(): void {
+  try {
+    sessionStorage.removeItem(VOTD_FORCE_SHOW_DAY_KEY);
+  } catch {
+    /* private browsing */
+  }
+}
+
 export function getVotdDismissedDay(): string {
   try {
     return localStorage.getItem(VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY) ?? '';

@@ -31,9 +31,11 @@ export default function PrototypeReadTodayPage() {
   useEffect(() => {
     if (isPending) return;
     const reference = (!isError && data?.reference) || FALLBACK_REFERENCE;
+    const translation =
+      (!isError && data?.translation?.trim()) || getEffectiveDefaultTranslation();
     const route =
-      readerRouteForReference(reference, getEffectiveDefaultTranslation()) ??
-      readerRouteForReference(FALLBACK_REFERENCE, getEffectiveDefaultTranslation());
+      readerRouteForReference(reference, translation) ??
+      readerRouteForReference(FALLBACK_REFERENCE, translation);
     if (!route) return;
     // `replace`, so Back from the reader leaves the app rather than bouncing through a
     // redirect that would immediately send them forward again.
