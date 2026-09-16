@@ -15,6 +15,7 @@ import { parseLastReadPosition, lastReadPositionReference } from '@/utils/last-r
 import { plainExcerpt } from './plain-excerpt';
 import { getLocalCalendarDateString } from './votd-local-date';
 import { resolveVotdForLocalDate } from './votd-today-public';
+import { fetchVerseText } from './fetch-verse-text';
 import type { ReminderNotificationPayload } from './web-push-client';
 
 export type ReminderKind = 'sunday' | 'midweek' | 'daily' | 'test';
@@ -142,13 +143,37 @@ function readerUrl(book: string, chapter: number, translation: string): string {
   return `/read/${encodeURIComponent(book)}/${chapter}?t=${encodeURIComponent(translation)}`;
 }
 
-/** The verse text for a local day, or null when nothing is published yet. */
-async function loadVerseContent(localDate: string): Promise<VerseContent | null> {
+/** Deep link that opens Activity with today's passage in view. */
+export const TODAYS_PASSAGE_FOCUS = 'todays-passage';
+
+function todaysPassageActivityUrl(): string {
+  return `/?focus=${TODAYS_PASSAGE_FOCUS}`;
+}
+
+/**
+ * The verse text for a local day, or null when nothing is published yet.
+ *
+ * Translation follows the account default. Catalog HTML is only a fallback when the preferred
+ * rendering is missing — otherwise a reminder would quote NET (or whatever the publish job
+ * stored) to someone who reads ESV.
+ */
+async function loadVerseContent(
+  localDate: string,
+  preferredTranslation?: string | null,
+): Promise<VerseContent | null> {
   const votd = await resolveVotdForLocalDate(localDate, 'push-reminders');
   if (!votd) return null;
 
+  const translation = preferredTranslation?.trim() || votd.translation?.trim() || 'NET';
   let quote = '';
-  if (votd.featuredItemId) {
+
+  try {
+    quote = await fetchVerseText(votd.reference, translation);
+  } catch {
+    /* fall through to the catalog blob */
+  }
+
+  if (!quote.trim() && votd.featuredItemId) {
     const item = first(
       await db
         .select({ metadata: FeaturedItems.metadata })
@@ -166,7 +191,7 @@ async function loadVerseContent(localDate: string): Promise<VerseContent | null>
     }
   }
 
-  return { quote, reference: votd.reference, translation: votd.translation };
+  return { quote, reference: votd.reference, translation };
 }
 
 /**
@@ -214,7 +239,7 @@ export async function buildReminderPayload(
   const localDate = getLocalCalendarDateString(timeZone, now);
 
   const position = parseLastReadPosition(meta?.lastReadPosition ?? null);
-  const verse = await loadVerseContent(localDate).catch(() => null);
+  const verse = await loadVerseContent(localDate, meta?.defaultTranslation).catch(() => null);
 
   const wantsPickup = preferVariant === 'pickup' && position && !prefersVerse(kind);
   let variant: ReminderVariant;
@@ -226,7 +251,7 @@ export async function buildReminderPayload(
     variant = 'verse';
     title = verseTitle(kind);
     body = verseBody(verse);
-    url = '/read/today';
+    url = todaysPassageActivityUrl();
   } else if (position) {
     const reference = lastReadPositionReference(position);
     variant = 'pickup';
