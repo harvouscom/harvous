@@ -85,6 +85,34 @@ export function formatReviewCue(cue: string | null | undefined): string | null {
   return `“${inner}”`;
 }
 
+/**
+ * The name the dock must keep on screen for a write box.
+ *
+ * Framing says why the item is here. It must not replace the passage. The Activity row already
+ * leads with `reviewRowSubject`; the dock used framing instead, so a "write this from memory"
+ * card could sit under "You keep coming back to this one." and name no verse at all.
+ *
+ * Locate / book / recognize still return null — the quoted cue is the handle there, and printing
+ * the reference would be the answer.
+ */
+export function reviewDockAnchor(
+  item: ReviewRowSubtitleInput & { kind?: string | null },
+): string | null {
+  if (rungIdentityIsTheAnswer(item)) return null;
+  const reference = item.scriptureReference?.trim() || null;
+  if ((item.kind === 'verse' || item.kind === 'chapter') && reference) {
+    const version = item.translation?.trim();
+    return version ? `${reference} · ${version}` : reference;
+  }
+  return item.noteLabel?.trim() || item.noteTitle?.trim() || reference || null;
+}
+
+/** True when the prompt sentence already carries the anchor, so the line under it would repeat. */
+export function reviewPromptNamesAnchor(prompt: string, anchor: string | null | undefined): boolean {
+  const name = anchor?.split(' · ')[0]?.trim();
+  return Boolean(name && prompt.includes(name));
+}
+
 export function reviewRowSubject(
   item: ReviewRowSubtitleInput & { kind?: string | null },
   now: Date = new Date(),
