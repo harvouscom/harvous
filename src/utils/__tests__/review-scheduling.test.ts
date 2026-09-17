@@ -9,6 +9,8 @@ import {
   lapseDamping,
   rungWeight,
   stepBackRung,
+  shouldEaseRung,
+  ladderStepAfterOutcome,
   STREAK_MULTIPLIER,
   STREAK_MULTIPLIER_FROM,
   addDays,
@@ -353,5 +355,117 @@ describe('the way out of an item that has stopped working', () => {
   it('forgives the lapses either way, because the point is a fresh start', () => {
     expect(stepBackRung({ ladderStep: 0, reviewCount: 34, successStreak: 0, kind: 'verse' }).lapseCount).toBe(0);
     expect(stepBackRung({ ladderStep: 5, reviewCount: 9, successStreak: 0, kind: 'verse' }).lapseCount).toBe(0);
+  });
+});
+
+describe('learning steps, before anything has been held once', () => {
+  const now = new Date('2026-09-17T12:00:00Z');
+  const fresh = { intervalDays: 0, successStreak: 0, reviewCount: 0, everRecalled: false };
+
+  it('gives a first clean recall two days, not a fortnight', () => {
+    /*
+     * The full schedule is for something known. Applied to something met once, it made the
+     * first sight after a successful recall a blank two weeks later.
+     */
+    const next = nextReviewAfter('recalled', fresh, now);
+    expect(next.intervalDays).toBe(2);
+    expect(next.successStreak).toBe(1);
+  });
+
+  it('keeps a miss on a short step too', () => {
+    expect(nextReviewAfter('almost', fresh, now).intervalDays).toBe(1);
+    expect(nextReviewAfter('revealed', fresh, now).intervalDays).toBe(1);
+  });
+
+  it('hands over the full schedule once it has been held', () => {
+    const graduated = { intervalDays: 2, successStreak: 1, reviewCount: 1, everRecalled: true };
+    expect(nextReviewAfter('recalled', graduated, now).intervalDays).toBe(
+      REVIEW_INTERVAL_DAYS.recalled,
+    );
+  });
+
+  it('leaves every existing caller exactly where it was', () => {
+    /* `everRecalled` defaults to true, so a state that does not mention it is unchanged. */
+    const unchanged = { intervalDays: 0, successStreak: 0, reviewCount: 0 };
+    expect(nextReviewAfter('recalled', unchanged, now).intervalDays).toBe(
+      REVIEW_INTERVAL_DAYS.recalled,
+    );
+  });
+
+  it('does not advance the ladder on the graduating recall', () => {
+    /* Held once is worth a longer interval, not yet a harder question. */
+    expect(
+      ladderStepAfterOutcome({
+        kind: 'verse',
+        ladderStep: 0,
+        reviewCount: 0,
+        successStreak: 0,
+        outcome: 'recalled',
+        ease: false,
+        learning: true,
+      }),
+    ).toBe(0);
+  });
+});
+
+describe('easing after a run of near-misses', () => {
+  const base = {
+    ladderStep: 3,
+    previousOutcome: 'almost' as const,
+    previousRungKey: 'verse.rebuild',
+    outcome: 'almost' as const,
+    rungKey: 'verse.rebuild',
+    leech: false,
+  };
+
+  it('eases on two non-clean answers in the same family', () => {
+    expect(shouldEaseRung(base)).toBe(true);
+    expect(shouldEaseRung({ ...base, previousOutcome: 'revealed', outcome: 'revealed' })).toBe(true);
+  });
+
+  it('does not ease on a single miss', () => {
+    expect(shouldEaseRung({ ...base, previousOutcome: 'recalled' })).toBe(false);
+    expect(shouldEaseRung({ ...base, previousOutcome: null })).toBe(false);
+  });
+
+  it('does not ease a clean recall', () => {
+    expect(shouldEaseRung({ ...base, outcome: 'recalled' })).toBe(false);
+  });
+
+  it('leaves the leech path to move its own rung', () => {
+    /* Both firing would step an item back two rungs for one answer. */
+    expect(shouldEaseRung({ ...base, leech: true })).toBe(false);
+  });
+
+  it('never eases at the foot of the ladder', () => {
+    /* There is no easier rung below step 0 — only sideways, which the stall path owns. */
+    expect(shouldEaseRung({ ...base, ladderStep: 0 })).toBe(false);
+  });
+
+  it('does not ease on a rung where a miss is a disagreement with the index', () => {
+    expect(
+      shouldEaseRung({ ...base, rungKey: 'verse.theme', previousRungKey: 'verse.theme' }),
+    ).toBe(false);
+  });
+
+  it('wants the same family twice, not two unrelated misses', () => {
+    expect(shouldEaseRung({ ...base, previousRungKey: 'chapter.order' })).toBe(false);
+  });
+
+  it('starts counting again after it has eased', () => {
+    /*
+     * How the run resets with no column to store it in: easing moves the item to a different
+     * family, so the next miss cannot be the second of this pair.
+     */
+    const eased = ladderStepAfterOutcome({
+      kind: 'verse',
+      ladderStep: 3,
+      reviewCount: 4,
+      successStreak: 0,
+      outcome: 'almost',
+      ease: true,
+      learning: false,
+    });
+    expect(eased).toBe(2);
   });
 });

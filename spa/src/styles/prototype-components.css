@@ -24102,6 +24102,41 @@ button.proto-feed-sheet__stat:hover {
  * as a task the app is setting, and this feature's vocabulary avoids counting what is owed. A
  * dot that has gone out says "that one is used" and says nothing else.
  */
+/*
+ * How far through the sitting — a bar, with no numerals anywhere near it.
+ *
+ * That is what lets it exist at all: this feature forbids any surface from printing a count of
+ * work not yet done, and a fill says "you are getting somewhere" without naming what is left.
+ * The reader who needs it most is the one halfway through, and a queue with no visible end is
+ * the thing people give up in the middle of.
+ *
+ * Scaled rather than sized, so it animates on the compositor and never lays anything out again.
+ */
+.proto-review-dock__progress {
+  height: 2px;
+  width: 100%;
+  background: var(--pds-bg-control);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.proto-review-dock__progress-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: var(--pds-accent);
+  transition: transform var(--pds-duration-segment) var(--pds-ease-emphasized);
+}
+
+/* A bar that jumps to its new width is still readable; one that animates past a reader who
+   asked for stillness is not. */
+@media (prefers-reduced-motion: reduce) {
+  .proto-review-dock__progress-fill {
+    transition: none;
+  }
+}
+
 .proto-review-dock__goes {
   display: inline-flex;
   align-items: center;

@@ -29,6 +29,7 @@ import {
 } from '../../pages/prototype/proto-review-copy';
 import type { ReviewItemKind, ReviewItemStatus, ReviewOutcome } from '@/utils/review-item-kinds';
 import { invalidateStudyFeed } from '@/utils/study-feed-invalidation';
+import { shouldReaskInSitting } from '@/utils/review-dock-state';
 
 export interface AddReviewItemInput {
   kind: ReviewItemKind;
@@ -54,6 +55,8 @@ export interface ReviewOutcomeInput {
   attemptNumber?: number;
   itemId: string;
   outcome: ReviewOutcome;
+  /** This is the second look at something missed — marked, and changing no schedule. */
+  practice?: boolean;
   attempt?: string;
   answer?: {
     order?: number[];
@@ -70,6 +73,8 @@ export interface ReviewOutcomeResponse {
   outcome?: 'recalled' | 'almost' | 'revealed';
   correct?: boolean;
   finalized?: boolean;
+  /** Set when this was the second look: nothing about the item's schedule moved. */
+  practice?: boolean;
   attemptsLeft?: number;
   attempts?: { used: number; total: number };
   correctAnswer?: string;
@@ -87,7 +92,8 @@ export interface ReviewOutcomeResponse {
   leech?: boolean;
   /** The item has never once been recalled; the offer is worded for that. */
   stalled?: boolean;
-  item: ReviewItemView;
+  /** Absent on a practice answer, which builds no new view because nothing about the item moved. */
+  item?: ReviewItemView;
   next: { intervalDays: number; dueAt: string; recallState: string; label: string };
   truth?: { verseText: string } | null;
 }
@@ -95,12 +101,13 @@ export interface ReviewOutcomeResponse {
 export function useReviewOutcome() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ itemId, outcome, attempt, attemptNumber, answer }: ReviewOutcomeInput) =>
+    mutationFn: ({ itemId, outcome, attempt, attemptNumber, answer, practice }: ReviewOutcomeInput) =>
       api.post<ReviewOutcomeResponse>(`/api/review/items/${encodeURIComponent(itemId)}/outcome`, {
         outcome,
         attempt,
         attemptNumber,
         answer,
+        ...(practice ? { practice: true } : {}),
       }),
     onMutate: async ({ itemId }) => {
       await queryClient.cancelQueries({ queryKey: reviewSessionQueryKey });
@@ -127,7 +134,7 @@ export function useReviewOutcome() {
       if (context?.previous) queryClient.setQueryData(reviewSessionQueryKey, context.previous);
       toastError(error, REVIEW_OUTCOME_FAILED_TOAST, { scope: 'review-outcome' });
     },
-    onSuccess: (data, _input, context) => {
+    onSuccess: (data, input, context) => {
       if (data.finalized === false && context?.previous) {
         queryClient.setQueryData(reviewSessionQueryKey, context.previous);
         return;
@@ -138,6 +145,46 @@ export function useReviewOutcome() {
        * nothing for the feed to show and the refetch would be pure churn mid-question.
        */
       invalidateStudyFeed(queryClient);
+
+      /*
+       * Something missed comes back once, at the tail of the same sitting.
+       *
+       * Retrieval practice's strongest single finding, and the engine had nothing of it: a miss
+       * left the queue and returned tomorrow, so the sitting in which the reader actually read
+       * the answer never once asked them to produce it.
+       *
+       * Appended by hand rather than refetched, because the session is `staleTime: Infinity` by
+       * design — refetching would reshuffle the whole queue under someone mid-sitting. The
+       * response already carries the item built from the post-answer row, which is the fresh
+       * question: `reviewSeed` includes `reviewCount`, so the second asking is a different
+       * variant of the same rung rather than the identical card again.
+       */
+      if (
+        !shouldReaskInSitting({
+          outcome: data.outcome ?? '',
+          practice: Boolean(data.practice) || Boolean(input.practice),
+          graded: data.correct !== undefined,
+          finalized: data.finalized !== false,
+        }) ||
+        !data.item
+      ) {
+        return;
+      }
+      /* The cached reveal is the question that was just answered, and it is held for five
+         minutes — without this the re-ask would serve the same exercise it already showed. */
+      queryClient.removeQueries({ queryKey: ['review', 'reveal', input.itemId] });
+      const reasked = data.item;
+      queryClient.setQueryData<{ items: ReviewItemView[] }>(reviewSessionQueryKey, (current) =>
+        current
+          ? {
+              ...current,
+              items: [
+                ...current.items.filter((i) => i.id !== reasked.id),
+                { ...reasked, practice: true },
+              ],
+            }
+          : current,
+      );
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['review', 'inbox'] });

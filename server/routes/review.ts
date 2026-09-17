@@ -90,6 +90,15 @@ const MAX_ATTEMPT_LENGTH = 4000;
  */
 const MAX_DAY_START_AGE_MS = 26 * 60 * 60 * 1000;
 
+/**
+ * How long after a real answer a second look is still part of the same sitting.
+ *
+ * Generous, because a sitting is not timed and a reader may leave the dock open over lunch. It
+ * is a bound on a free marking route rather than a definition of a sitting: past it the item is
+ * simply asked again for real.
+ */
+const REVIEW_PRACTICE_WINDOW_MS = 12 * 60 * 60 * 1000;
+
 function readerDayStart(c: Context, now: Date): Date | null {
   const raw = c.req.query('dayStart');
   if (!raw) return null;
@@ -396,6 +405,9 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       ? Math.max(1, Math.min(REVIEW_MAX_ATTEMPTS, body.attemptNumber))
       : 1;
 
+    /** A second look at something missed, which is marked and then changes nothing. */
+    const practice = body?.practice === true;
+
     /*
      * Two rungs of the verse ladder have a right answer, and on those the reader's own verdict
      * is not the input — the arrangement or the option they chose is. Marked here rather than
@@ -498,6 +510,66 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
           : 'recalled'
         : 'revealed'
       : null;
+
+    /*
+     * One more look at something missed, which changes nothing about when it comes back.
+     *
+     * The sitting asks a missed item again before it ends — the strongest lever there is, and
+     * the one the engine had none of: a miss left the queue and returned tomorrow, so the
+     * sitting in which the reader actually saw the answer never once asked them to produce it.
+     *
+     * It must not touch `ReviewItems`, and that is the whole of the design. The schedule for a
+     * missed item is already set — tomorrow — and grading this as an outcome would overwrite the
+     * one-day interval with a fortnight on the strength of an answer given a minute after seeing
+     * the answer. It would also count a second `reviewCount`, move the ladder, and let a rehearsal
+     * graduate an item off its learning steps. So: mark it, say how it went, write one event for
+     * the record, and leave the row exactly as the real answer left it.
+     *
+     * Guarded rather than trusted, because the client asks for it: only an item answered within
+     * the last few hours and not answered *well* can be practised. Otherwise it is a free way to
+     * be marked with no consequence, which is a different feature and not this one.
+     */
+    if (practice) {
+      const recent =
+        item.lastReviewedAt != null &&
+        Date.now() - item.lastReviewedAt.getTime() <= REVIEW_PRACTICE_WINDOW_MS;
+      if (!recent || item.lastOutcome === 'recalled') {
+        return c.json({ error: 'Not offered', code: 'REVIEW_PRACTICE_NOT_OFFERED' }, 409);
+      }
+
+      await recordReviewEvent(auth.userId, item, 'practiced', {
+        attempt,
+        rungKey: askedKey,
+        attemptNumber,
+        graded: graded != null,
+      });
+
+      const practiceTruth =
+        (await verseTruthFor(item, auth.userId)) ?? (await chapterTruthFor(item, auth.userId));
+
+      return c.json({
+        success: true,
+        practice: true,
+        outcome: verdict ?? outcome,
+        correct: graded ? graded.correct : undefined,
+        finalized: true,
+        ...(graded && !graded.correct && graded.correctAnswer
+          ? { correctAnswer: graded.correctAnswer }
+          : {}),
+        ...(graded?.parts ? { parts: graded.parts } : {}),
+        ...(graded?.reached ? { reached: graded.reached } : {}),
+        attempts: { used: attemptNumber, total: maxAttempts },
+        ...(practiceTruth ? { truth: { verseText: practiceTruth } } : {}),
+        /* The schedule the real answer set, unchanged and restated — so the card can say when
+           this comes back without implying that the rehearsal moved it. */
+        next: {
+          intervalDays: item.intervalDays,
+          dueAt: item.dueAt.toISOString(),
+          recallState: item.recallState,
+          label: describeNextReturn(item.intervalDays),
+        },
+      });
+    }
 
     const { item: applied, nextReturnDays, leech, stalled } = await applyReviewOutcome(
       auth.userId,

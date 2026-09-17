@@ -246,18 +246,41 @@ describe('answering an item', () => {
     expect(block).toContain("outcome === 'recalled'");
   });
 
-  it('advances a ladder only on a clean recall', () => {
+  it('decides the ladder in one place, from the answer alone', () => {
     /*
      * Half-remembering something is not a reason to be asked a harder question about it next
-     * time. Notes climb as well as verses now, so this asserts the rule rather than the shape
-     * it used to have — `nextLadderStep` is the one place that knows which kinds have a ladder.
+     * time — and a run of near-misses is now a reason to be asked an easier one. Three branches
+     * rather than two, so the rule lives in `ladderStepAfterOutcome` and this asserts that the
+     * service defers to it rather than keeping a copy of the old conditional.
      */
     const block = text.slice(
       text.indexOf('export async function applyReviewOutcome'),
       text.indexOf('export async function deferReviewItem'),
     );
-    expect(block).toMatch(/outcome === 'recalled'\s*\?\s*nextLadderStep\(/);
-    expect(block).toContain(': item.ladderStep');
+    expect(block).toContain('ladderStepAfterOutcome({');
+    expect(block).toContain('shouldEaseRung({');
+    expect(block).not.toMatch(/outcome === 'recalled'\s*\?\s*nextLadderStep\(/);
+  });
+
+  it('eases and steps back from outcomes, never from a prompt', () => {
+    /*
+     * Derek's rule: difficulty moves on what the reader did, and is never offered as a choice.
+     * A "make this easier" control asks them to judge their own memory, which is a judgement
+     * they have no way to make and will answer according to their mood.
+     */
+    const scheduling = source('src/utils/review-scheduling.ts');
+    const ease = scheduling.slice(scheduling.indexOf('export function shouldEaseRung'));
+    expect(ease).toContain('if (state.leech) return false;');
+    /* Not at the foot: there is no easier rung there, only a sideways move the stall owns. */
+    expect(ease).toContain('if (Math.trunc(state.ladderStep) <= 0) return false;');
+    expect(ease).toContain('NEVER_LAPSES.has');
+  });
+
+  it('gives a never-recalled item a short step before the full schedule', () => {
+    const scheduling = source('src/utils/review-scheduling.ts');
+    expect(scheduling).toContain('REVIEW_LEARNING_INTERVAL_DAYS');
+    const block = text.slice(text.indexOf('export async function applyReviewOutcome'));
+    expect(block).toContain('everRecalled');
   });
 
   it('asks a note the rung it can answer, not the rung it has reached', () => {
@@ -433,15 +456,41 @@ describe('the ladder wrap and the truth restore', () => {
   });
 
   it('reads the truth from the item as it was asked, not as the outcome left it', () => {
-    // `applyReviewOutcome` has already advanced the rung; the verse owed is the one just
-    // answered about.
+    /*
+     * `applyReviewOutcome` advances the rung, so the verse owed is the one just answered about
+     * rather than the one that will be asked next. Every call in this route passes `item` — the
+     * row as it was asked — and the practice branch, which changes nothing at all, passes the
+     * same one. Asserted as the rule rather than as a position: the ordering used to stand in
+     * for it, and stopped being able to the moment a second branch read the truth too.
+     */
     const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
     const outcome = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
-    // The user goes along so the truth resolves the same family member the reveal did.
-    const call = outcome.indexOf('verseTruthFor(item, auth.userId)');
-    expect(call).toBeGreaterThan(-1);
-    expect(outcome.slice(0, call)).toContain('applyReviewOutcome');
+    const calls = outcome.match(/(?:verse|chapter)TruthFor\([^)]*\)/g) ?? [];
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call).toContain('item, auth.userId');
+    }
     expect(outcome).not.toContain('verseTruthFor(updated');
+  });
+
+  it('marks a second look without letting it move the schedule', () => {
+    /*
+     * The whole design of the re-ask. A missed item's schedule is already set — tomorrow — and
+     * grading a practice pass as an outcome would overwrite that one-day interval with a
+     * fortnight, on the strength of an answer given a minute after the answer was shown. It
+     * would also bump `reviewCount`, move the ladder, and let a rehearsal graduate an item off
+     * its learning steps.
+     */
+    const route = readFileSync(resolve(process.cwd(), 'server/routes/review.ts'), 'utf8');
+    const outcome = route.slice(route.indexOf("'/api/review/items/:id/outcome'"));
+    const branch = outcome.slice(outcome.indexOf('if (practice) {'), outcome.indexOf('const { item: applied'));
+    expect(branch).toContain("'practiced'");
+    expect(branch).not.toContain('applyReviewOutcome');
+    expect(branch).not.toContain('stepBackReviewItem');
+    expect(branch).not.toContain('recordNoteRecallEngaged');
+    /* Guarded, because the client asks for it: only something answered, recently, and not well. */
+    expect(branch).toContain('REVIEW_PRACTICE_NOT_OFFERED');
+    expect(branch).toContain('REVIEW_PRACTICE_WINDOW_MS');
   });
 });
 

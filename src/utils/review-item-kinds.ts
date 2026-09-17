@@ -49,6 +49,16 @@ export const REVIEW_EVENT_ACTIONS = [
    */
   'liked',
   'disliked',
+  /*
+   * A second look at something missed, in the same sitting, which changes no schedule.
+   *
+   * Appended for the same reason as the two above. Deliberately not one of `REVIEW_OUTCOMES`:
+   * the schedule for a missed item is already set — tomorrow — and a practice answer recorded as
+   * an outcome would overwrite that one-day interval with a fortnight on the strength of an
+   * answer given sixty seconds after seeing the answer. It is a rehearsal, and it is logged so
+   * that a per-rung recall rate can exclude it rather than be flattered by it.
+   */
+  'practiced',
 ] as const;
 
 export type ReviewEventAction = (typeof REVIEW_EVENT_ACTIONS)[number];

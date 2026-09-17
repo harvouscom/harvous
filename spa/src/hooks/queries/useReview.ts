@@ -54,6 +54,14 @@ export interface ReviewItemView {
    * one from the profile.
    */
   translation: string;
+  /**
+   * Client-only: this copy of the item is the second look at something missed.
+   *
+   * Set when the outcome mutation appends a missed item back onto the sitting. It rides on the
+   * cached view rather than coming from the server, because the server's row is unchanged — a
+   * practice pass deliberately moves nothing — so there is nothing there to carry it.
+   */
+  practice?: boolean;
 }
 
 export interface ReviewItemSummary {

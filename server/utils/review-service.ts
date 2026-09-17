@@ -72,8 +72,10 @@ import {
   deferReview,
   firstDueAt,
   firstDueAtFor,
+  ladderStepAfterOutcome,
   nextReviewAfter,
   reviewHasStalled,
+  shouldEaseRung,
   stepBackRung,
 } from '@/utils/review-scheduling';
 import {
@@ -1856,6 +1858,43 @@ export interface ReviewOutcomeResult {
  * "worth another look" card on Home. Without it the two surfaces would compete over the same
  * note — one because it is due, the other because it looks neglected.
  */
+/**
+ * Has this item ever been recalled cleanly, once?
+ *
+ * Decides whether it is still on the learning steps. Two of the three answers are free: a live
+ * streak means yes, and a row that has never been answered at all means no. A lapse also means
+ * yes — a lapse is by definition something held and then lost.
+ *
+ * The query is the remaining case: an item answered before but not currently on a streak, where
+ * the row alone cannot tell "held it once in March" from "has never once had it". Practice
+ * passes are a different action and cannot answer this, which is the point of giving them one.
+ */
+async function itemHasCleanRecall(userId: string, item: ReviewItemRow): Promise<boolean> {
+  if (item.successStreak > 0) return true;
+  if ((item.lapseCount ?? 0) > 0) return true;
+  if (item.reviewCount <= 0) return false;
+  try {
+    const rows = await db
+      .select({ id: ReviewEvents.id })
+      .from(ReviewEvents)
+      .where(
+        and(
+          eq(ReviewEvents.userId, userId),
+          eq(ReviewEvents.reviewItemId, item.id),
+          eq(ReviewEvents.action, 'recalled'),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  } catch (error) {
+    /* An events table that is not there yet cannot prove a recall never happened, and treating
+       a long-standing item as brand new would shorten its interval on the strength of a missing
+       table. The old behaviour is the safe answer. */
+    if (isReviewTableMissing(error)) return true;
+    throw error;
+  }
+}
+
 export async function applyReviewOutcome(
   userId: string,
   item: ReviewItemRow,
@@ -1870,6 +1909,7 @@ export async function applyReviewOutcome(
    */
   answered: { attemptNumber?: number | null; graded?: boolean | null } = {},
 ): Promise<ReviewOutcomeResult> {
+  const everRecalled = await itemHasCleanRecall(userId, item);
   const next = nextReviewAfter(
     outcome,
     {
@@ -1879,17 +1919,37 @@ export async function applyReviewOutcome(
       lastOutcome: (item.lastOutcome as ReviewOutcome | null) ?? null,
       lapseCount: item.lapseCount ?? 0,
       rungKey,
+      everRecalled,
     },
     now,
   );
 
-  // A ladder only advances on a clean recall — half-remembering something is not a reason to be
-  // asked a harder question about it next time. Notes climb now too; `nextLadderStep` knows
-  // which kinds have a ladder and how far each one goes.
-  const ladderStep =
-    outcome === 'recalled'
-      ? nextLadderStep(item.kind as ReviewItemKind, item.ladderStep)
-      : item.ladderStep;
+  /*
+   * Where the ladder stands afterwards — climb on a clean recall, ease on a run of near-misses,
+   * otherwise stay. One function rather than a conditional here, because the rule now has three
+   * branches and the third (a graduating recall keeps its rung) is easy to lose sight of: an
+   * item held for the first time has earned a longer interval, not a harder question.
+   *
+   * Nothing about the ease reaches the client. It is a change in how the reader is asked, made
+   * from their answers — see `shouldEaseRung`.
+   */
+  const ease = shouldEaseRung({
+    ladderStep: item.ladderStep,
+    previousOutcome: (item.lastOutcome as ReviewOutcome | null) ?? null,
+    previousRungKey: item.lastRungKey ?? null,
+    outcome,
+    rungKey,
+    leech: next.leech,
+  });
+  const ladderStep = ladderStepAfterOutcome({
+    kind: item.kind as ReviewItemKind,
+    ladderStep: item.ladderStep,
+    reviewCount: item.reviewCount,
+    successStreak: item.successStreak,
+    outcome,
+    ease,
+    learning: !everRecalled,
+  });
 
   const updated = first(
     await db

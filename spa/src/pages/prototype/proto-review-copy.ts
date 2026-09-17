@@ -133,6 +133,21 @@ export const REVIEW_EMPTY_COPY = 'Nothing waiting. Keep studying.';
  * come from and one for when, and the pair fits in two lines.
  */
 export const REVIEW_EMPTY_UP_TO_DATE_TITLE = 'You are up to date';
+
+/**
+ * The end of a sitting someone actually worked through.
+ *
+ * Distinct from "You are up to date", which is what a dock opened onto nothing says. Read after
+ * eight questions, that sentence makes the work just done sound like a state they happened to
+ * already be in; this one names it as a thing finished.
+ */
+export const REVIEW_SITTING_DONE_TITLE = "That's today's sitting";
+
+/** Said on the second look at something missed, so it does not read as the same card repeating. */
+export const REVIEW_PRACTICE_LABEL = 'One more look';
+
+/** The progress bar's accessible name; the bar shows no numerals of its own. */
+export const REVIEW_SITTING_PROGRESS_LABEL = 'Progress through this sitting';
 export const REVIEW_EMPTY_NOTHING_YET_TITLE = 'Nothing to review yet';
 export const REVIEW_EMPTY_NOTHING_YET_BODY = 'Reviews come from your own study.';
 export const REVIEW_EMPTY_SETTLED_BODY = 'Nothing waiting right now.';
