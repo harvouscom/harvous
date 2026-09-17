@@ -9,7 +9,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 
-const post = vi.fn(() => Promise.resolve({}));
+/* Takes a rest parameter: the mock below forwards the call's arguments into it, and a zero-arg
+   implementation makes that spread a type error. */
+const post = vi.fn((..._args: unknown[]) => Promise.resolve({}));
 const profile: { data: { reviewExerciseSettings?: string | null } | undefined } = { data: undefined };
 
 vi.mock('@clerk/clerk-react', () => ({ useAuth: () => ({ userId: 'user_1' }) }));
