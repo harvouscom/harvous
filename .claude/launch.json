@@ -222,6 +222,16 @@
       ],
       "port": 4370,
       "autoPort": false
+    },
+    {
+      "name": "review-translation-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/review-exercises-harvous-content-c12503 && API_PORT=3006 DB_POOL_MAX=4 VITE_API_PROXY_TARGET=http://localhost:3006 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js && npm run dev:spa -- --port 4334 --strictPort'"
+      ],
+      "port": 4334,
+      "autoPort": false
     }
   ]
 }
