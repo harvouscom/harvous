@@ -746,15 +746,49 @@ describe('a scheduler that remembers', () => {
   });
 
   it('orders the sitting rather than serving it by the clock', () => {
-    const session = route().slice(route().indexOf("'/api/review/session'"));
-    const listAt = session.indexOf('listDueReviewItems');
-    const orderAt = session.indexOf('composeSitting');
-    expect(orderAt).toBeGreaterThan(-1);
-    expect(session).toContain('listUpcomingReviewItems');
-    // Ordered before the views are built, so what is dropped as unaskable does not reshuffle it.
-    expect(orderAt).toBeLessThan(session.indexOf('buildReviewItemViews'));
+    /*
+     * The composition moved into `composeTodaySittingFor`, so this reads the service. It is the
+     * same rule it always pinned — list, then order, and only then build views, so a row dropped
+     * as unaskable cannot reshuffle what is left — and one copy of it now instead of the two the
+     * inbox and the session route each kept.
+     */
+    const service = source('server/utils/review-service.ts');
+    const compose = service.slice(service.indexOf('export async function composeTodaySittingFor'));
+    const listAt = compose.indexOf('listDueReviewItems');
+    const orderAt = Math.min(
+      ...[compose.indexOf('composeSitting('), compose.indexOf('todaySitting(')].filter((i) => i > -1),
+    );
     expect(listAt).toBeGreaterThan(-1);
-    expect(listAt).toBeLessThan(orderAt);
+    expect(orderAt).toBeGreaterThan(listAt);
+    expect(compose).toContain('listUpcomingReviewItems');
+
+    for (const handler of ["'/api/review/session'", "'/api/review/inbox'"]) {
+      const block = route().slice(route().indexOf(handler));
+      const composeAt = block.indexOf('composeTodaySittingFor');
+      expect(composeAt).toBeGreaterThan(-1);
+      expect(composeAt).toBeLessThan(block.indexOf('buildReviewItemViews'));
+    }
+  });
+
+  it('measures the day from the reader’s own midnight, and distrusts it', () => {
+    /*
+     * There is no per-user timezone worth reading on this end — the column exists for reminders
+     * and is null for most accounts — so the client sends the instant. Being client-supplied, it
+     * decides how much of the day counts as done, and an unclamped value would let a sitting be
+     * emptied by a wrong clock.
+     */
+    const block = route().slice(route().indexOf('function readerDayStart'));
+    expect(block).toContain("c.req.query('dayStart')");
+    expect(block).toContain('MAX_DAY_START_AGE_MS');
+    expect(block).toMatch(/at\.getTime\(\) > now\.getTime\(\)/);
+  });
+
+  it('sends progress through a sitting, never a backlog', () => {
+    const inbox = route().slice(route().indexOf("'/api/review/inbox'"));
+    const upTo = inbox.slice(0, inbox.indexOf('route.', 1));
+    /* The named failure mode is an escalating "27 due". `goal` is capped at one sitting. */
+    expect(upTo).not.toMatch(/dueCount|totalDue|overdue/);
+    expect(upTo).toContain('Math.min(REVIEW_INBOX_MAX_ROWS, sitting.answered + items.length)');
   });
 });
 

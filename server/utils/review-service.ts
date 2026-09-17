@@ -63,7 +63,10 @@ import {
   type ReviewOutcome,
   type RecallState,
   isReviewAskableKind,
+  REVIEW_OUTCOMES,
 } from '@/utils/review-item-kinds';
+import { composeSitting, sessionGroupKeyFor, todaySitting } from '@/utils/review-session-order';
+import { isReviewTableMissing } from './pg-undefined-relation';
 import {
   REVIEW_LEECH_LAPSES,
   deferReview,
@@ -1448,6 +1451,94 @@ export async function listUpcomingReviewItems(
     )
     .orderBy(ReviewItems.dueAt)
     .limit(limit)) as ReviewItemRow[];
+}
+
+/**
+ * How many distinct items were answered since `since` — the reader's local midnight.
+ *
+ * Distinct, not events: an item answered on its second go writes one outcome row, but a practice
+ * pass or a re-ask would write another, and a day that counted those twice would claim a sitting
+ * of eight had been finished after six.
+ *
+ * Only the three outcomes count. `shown` is not an answer.
+ */
+export async function countReviewedSince(userId: string, since: Date): Promise<number> {
+  try {
+    const rows = await db
+      .selectDistinct({ id: ReviewEvents.reviewItemId })
+      .from(ReviewEvents)
+      .where(
+        and(
+          eq(ReviewEvents.userId, userId),
+          gte(ReviewEvents.createdAt, since),
+          inArray(ReviewEvents.action, [...REVIEW_OUTCOMES]),
+        ),
+      );
+    return rows.length;
+  } catch (error) {
+    /* A database without the events table yet is a day with nothing answered, not a broken
+       Activity page — the same rule the inbox route applies to a missing ReviewItems. */
+    if (isReviewTableMissing(error)) return 0;
+    throw error;
+  }
+}
+
+/**
+ * Today's sitting, composed once for both surfaces that ask for one.
+ *
+ * The inbox and the session route each built this themselves, in the same four steps, and the
+ * ordering of those steps is load-bearing in a way that reads as an optimisation waiting to
+ * happen: fetch, then drop the unaskable, then cut to the cap, and only then build. Cutting
+ * before building looked equivalent once and was not — a chapter whose text cannot be fetched is
+ * only discoverable during the build, so a late drop ate a visible row instead of a spare one,
+ * and the Review section rendered nothing at all in production. One function, so there is one
+ * copy of that order rather than two that can drift apart.
+ */
+export async function composeTodaySittingFor(
+  userId: string,
+  options: { since: Date | null; cap: number; slack: number; now: Date },
+): Promise<{
+  rows: ReviewItemRow[];
+  answered: number;
+  /** Every askable due row, so a caller can answer "is there more" against what it showed. */
+  askableDue: ReviewItemRow[];
+  /** The due query came back full, so there is more behind it than was fetched. */
+  dueHitLimit: boolean;
+}> {
+  const { since, cap, slack, now } = options;
+  const answered = since ? await countReviewedSince(userId, since) : 0;
+
+  const dueLimit = cap + 1 + slack;
+  const [due, upcoming] = await Promise.all([
+    listDueReviewItems(userId, dueLimit, now),
+    listUpcomingReviewItems(userId, cap, now),
+  ]);
+  const [askableDue, askableUpcoming] = await Promise.all([
+    filterAskableReviewRows(userId, due, { dropUnaskable: true }),
+    filterAskableReviewRows(userId, upcoming, { dropUnaskable: true }),
+  ]);
+  const withKey = (row: ReviewItemRow) => ({ ...row, groupKey: sessionGroupKeyFor(row) });
+  const common = { answered, askableDue, dueHitLimit: due.length >= dueLimit };
+
+  /* Without a trustworthy local midnight there is no day to measure, so this behaves exactly as
+     it did before: compose the mix, and report no progress rather than a wrong one. */
+  if (!since) {
+    return {
+      ...common,
+      rows: composeSitting(askableDue.map(withKey), askableUpcoming.map(withKey), cap, now),
+      answered: 0,
+    };
+  }
+
+  const { rows } = todaySitting(
+    askableDue.map(withKey),
+    askableUpcoming.map(withKey),
+    answered,
+    since,
+    cap,
+    now,
+  );
+  return { ...common, rows };
 }
 
 export async function listReviewItems(

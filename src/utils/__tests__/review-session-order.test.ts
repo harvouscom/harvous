@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composeSitting, sessionGroupKeyFor } from '../review-session-order';
+import { composeSitting, sessionGroupKeyFor, todaySitting } from '../review-session-order';
 
 const now = new Date('2026-09-08T12:00:00Z');
 
@@ -50,5 +50,64 @@ describe('composeSitting variety', () => {
     ];
     const sitting = composeSitting(due, upcoming, 8, now);
     expect(sitting.some((row) => row.kind === 'note')).toBe(true);
+  });
+});
+
+describe('a sitting that can actually finish', () => {
+  const dayStart = new Date('2026-09-08T05:00:00Z');
+  const CAP = 8;
+
+  function dueItem(id: string, over: { lastReviewedAt?: Date | null; kind?: string } = {}) {
+    return { ...item({ id, kind: over.kind }), lastReviewedAt: over.lastReviewedAt ?? null };
+  }
+
+  it('asks for fewer as the day is worked through', () => {
+    const due = Array.from({ length: 12 }, (_, i) => dueItem(String(i + 1)));
+    expect(todaySitting(due, [], 0, dayStart, CAP, now).rows).toHaveLength(8);
+    expect(todaySitting(due, [], 3, dayStart, CAP, now).rows).toHaveLength(5);
+    expect(todaySitting(due, [], 8, dayStart, CAP, now).rows).toHaveLength(0);
+  });
+
+  /*
+   * The bug this was written for. Answering sets an item due in a day, which is inside the
+   * two-day window `composeSitting` backfills from — so the queue refilled with the very items
+   * just answered and "N more" never moved.
+   */
+  it('does not offer back an item answered earlier today', () => {
+    const answered = dueItem('1', {
+      lastReviewedAt: new Date('2026-09-08T09:00:00Z'),
+      kind: 'note',
+    });
+    const upcoming = [{ ...answered, dueAt: new Date('2026-09-09T09:00:00Z') }];
+    const fresh = dueItem('2');
+    const rows = todaySitting([fresh], upcoming, 1, dayStart, CAP, now).rows;
+    expect(rows.map((r) => r.id)).toEqual(['2']);
+  });
+
+  it('still offers one answered before today', () => {
+    const yesterday = dueItem('1', { lastReviewedAt: new Date('2026-09-07T09:00:00Z') });
+    const rows = todaySitting([yesterday], [], 0, dayStart, CAP, now).rows;
+    expect(rows.map((r) => r.id)).toEqual(['1']);
+  });
+
+  it('holds the goal steady as the sitting is worked', () => {
+    /* Five due and none answered, then one answered and four left: the same five-question day,
+       so the label counts towards the same number rather than moving under the reader. */
+    const due = Array.from({ length: 5 }, (_, i) => dueItem(String(i + 1)));
+    expect(todaySitting(due, [], 0, dayStart, CAP, now).goal).toBe(5);
+    expect(todaySitting(due.slice(1), [], 1, dayStart, CAP, now).goal).toBe(5);
+  });
+
+  it('never sets a goal beyond one sitting, however much is waiting', () => {
+    const due = Array.from({ length: 40 }, (_, i) => dueItem(String(i + 1)));
+    expect(todaySitting(due, [], 0, dayStart, CAP, now).goal).toBe(CAP);
+    expect(todaySitting(due, [], 6, dayStart, CAP, now).goal).toBe(CAP);
+  });
+
+  it('reports the day as done rather than going negative', () => {
+    const due = [dueItem('1')];
+    const result = todaySitting(due, [], 12, dayStart, CAP, now);
+    expect(result.rows).toHaveLength(0);
+    expect(result.goal).toBe(CAP);
   });
 });

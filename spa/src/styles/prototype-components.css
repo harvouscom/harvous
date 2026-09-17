@@ -23284,6 +23284,49 @@ button.proto-feed-sheet__stat:hover {
   gap: var(--pds-space-2);
 }
 
+/*
+ * The two groups inside the opened fold — what is coming back, and what was set aside.
+ *
+ * Headings, not buttons. They were two more fold bars stacked under the first one, so a lane
+ * offering two rows of study carried three controls; opened, this is one list with its parts
+ * named. Quiet enough to read as a divider rather than as a row that can be pressed, which is
+ * what the rows beneath it are for.
+ */
+.proto-review-section__subhead {
+  margin: 0;
+  padding: var(--pds-space-3) var(--pds-space-3) var(--pds-space-1);
+  border-top: 0.5px solid var(--pds-border-control);
+  color: var(--pds-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The day's full stop. A statement, so it is not a row and cannot be pressed. */
+.proto-review-section__done {
+  margin: 0;
+  padding: var(--pds-space-3);
+  color: var(--pds-text-secondary);
+  font-size: 13px;
+}
+
+/*
+ * The same progress the fold's label carries, for when there is no fold to carry it.
+ *
+ * Deliberately shaped like the bar it stands in for — same border, same centring, same size —
+ * so the lane does not appear to gain a row as the day's last questions are answered. It is a
+ * `p`, not a button: there is nothing behind it to open.
+ */
+.proto-review-section__progress {
+  margin: 0;
+  border-top: 0.5px solid var(--pds-border-control);
+  padding: var(--pds-space-2);
+  text-align: center;
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+}
+
 /* ─── Review dock ────────────────────────────────────────────────────────────
  *
  * Review used to be a page; it is a card in the study-dock band now. What survives from the

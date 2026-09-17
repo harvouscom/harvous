@@ -19,26 +19,13 @@ export const REVIEW_DEFER_COPY = 'Not now';
 export const REVIEW_PAUSE_COPY = 'Pause this';
 export const REVIEW_RESUME_COPY = 'Start again';
 
-/**
- * The fold over what the reader put aside, on Home.
- *
- * "Paused" and "put down" are two different acts — a season, and a decision — but one drawer:
- * both are things taken out of the queue, and both are picked back up the same way. Naming the
- * count is the point of the fold, since a drawer you cannot see into is one you never open.
+/*
+ * `reviewSetAsideCopy` and `reviewComingBackCopy` were the labels on two of the three fold bars
+ * the shelf used to stack. Both counted, and the counting was the problem: "18 coming back
+ * later" climbed with every answer, sitting directly under a "N more" that never moved. The two
+ * groups are headings inside the one fold now — see `REVIEW_COMING_BACK_HEADING` below — so
+ * neither needs a number to justify a control of its own.
  */
-export const reviewSetAsideCopy = (count: number) =>
-  count === 1 ? '1 you put aside' : `${count} you put aside`;
-
-/**
- * The fold over what is scheduled but not due.
- *
- * Named by when rather than by count alone — "3 coming back later" is a fact about the queue's
- * shape, not a debt. It is the one group Home hid entirely: with nothing due the section used
- * to disappear, taking every scheduled item with it, and the page that used to list them is
- * gone.
- */
-export const reviewComingBackCopy = (count: number) =>
-  count === 1 ? '1 coming back later' : `${count} coming back later`;
 export const REVIEW_REMOVE_COPY = 'Remove from Review';
 
 export const REVIEW_MORE_COPY = 'More';
@@ -52,7 +39,7 @@ export const REVIEW_MORE_COPY = 'More';
  * took its place, and nothing said which had happened. These confirm the act.
  *
  * Still no counting and no blame, per the note at the top of this file — "Removed from Review",
- * not "1 removed", and "Coming back later" echoes `reviewComingBackCopy` rather than naming a
+ * not "1 removed", and "Coming back later" echoes the heading rather than naming a
  * date the reader did not choose.
  */
 export const REVIEW_REMOVED_TOAST = 'Removed from Review';
@@ -168,6 +155,27 @@ export const reviewColdStartOpensCopy = (when: string) => `The first ones should
  * destination you have to come back from. It opens the rest of the list where it already is.
  */
 export const REVIEW_SEE_ALL_COPY = 'See all';
+
+/**
+ * How far through today, on the shelf's one fold.
+ *
+ * "3 of 8 today" and not "5 left": a count of what is *done* is a record of work, and a count of
+ * what remains is a debt — the whole reason this file bans a due count. It is also finite and it
+ * ends, which the number it replaces never did. Both halves are bounded by a single sitting, so
+ * this can never grow into the escalating badge the strategy doc names.
+ */
+export const reviewTodayProgressCopy = (answered: number, goal: number) =>
+  `${Math.min(answered, goal)} of ${goal} today`;
+
+/** Said when the day's sitting is finished — a full stop, not a score. */
+export const REVIEW_TODAY_DONE_COPY = 'Done for today.';
+
+/** And what happens next, so "done" is not a dead end. `when` comes from `describeNextDue`. */
+export const reviewNextReturnCopy = (when: string) => `More ${when.toLowerCase()}.`;
+
+/** Headings inside the opened fold — parts of one list, not three separate places. */
+export const REVIEW_COMING_BACK_HEADING = 'Coming back later';
+export const REVIEW_SET_ASIDE_HEADING = 'Set aside';
 
 /**
  * The caption on the altered block itself.

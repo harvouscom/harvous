@@ -69,6 +69,15 @@ export interface ReviewItemSummary {
 export interface ReviewInboxResponse {
   items: ReviewItemView[];
   hasMore: boolean;
+  /**
+   * How far through today's sitting the reader is — answered, out of a goal.
+   *
+   * Not a backlog. `goal` is what they have answered plus what is actually on offer, capped at
+   * one sitting, so it cannot climb past the day's ceiling however much is waiting behind it.
+   * Null when the request carried no trustworthy local midnight, in which case the shelf says
+   * "See all" exactly as it always did.
+   */
+  today?: { answered: number; goal: number } | null;
   coldStart: {
     ready: number;
     needed: number;
@@ -135,6 +144,27 @@ export interface ReviewRevealResponse {
 export const reviewQueryKey = ['review'] as const;
 export const reviewInboxQueryKey = ['review', 'inbox'] as const;
 export const reviewSessionQueryKey = ['review', 'session'] as const;
+
+/**
+ * The reader's own midnight, as an instant, for the two reads that measure a day.
+ *
+ * Sent by the client because it is the only end that knows it: there is no per-user timezone on
+ * the server worth trusting, and an instant needs no IANA arithmetic there. Rounded to the day
+ * rather than sent as "now" so it is stable across a sitting — every request in one day sends
+ * the same value, which keeps it out of the cache key's way.
+ */
+export function readerDayStartISO(now: Date = new Date()): string {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  return midnight.toISOString();
+}
+
+/** The day a cached sitting belongs to, so yesterday's does not survive into this morning. */
+export function reviewDayKey(now: Date = new Date()): string {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  return `${midnight.getFullYear()}-${midnight.getMonth() + 1}-${midnight.getDate()}`;
+}
 export const reviewItemsQueryKey = (status?: ReviewItemStatus, view: 'full' | 'summary' = 'full') =>
   ['review', 'items', status ?? 'all', view] as const;
 
@@ -176,7 +206,10 @@ export function useReviewInbox() {
   const query = useQuery({
     queryKey: reviewInboxQueryKey,
     enabled,
-    queryFn: () => api.get<ReviewInboxResponse>('/api/review/inbox'),
+    queryFn: () =>
+      api.get<ReviewInboxResponse>(
+        `/api/review/inbox?dayStart=${encodeURIComponent(readerDayStartISO())}`,
+      ),
     staleTime: 60_000,
   });
   return {
@@ -243,9 +276,15 @@ export function useReviewSession(options?: { enabled?: boolean }) {
         items: ReviewItemView[];
         firstReveal?: ReviewRevealResponse;
         nextDueAt?: string | null;
-      }>('/api/review/session');
+      }>(`/api/review/session?dayStart=${encodeURIComponent(readerDayStartISO())}`);
       if (data.firstReveal && data.items[0]) {
-        queryClient.setQueryData(reviewRevealQueryKey(data.items[0].id), data.firstReveal);
+        /* Keyed with the item's own translation, which is what the card reads with. Seeded
+           under the bare key, this warm copy sat beside the one being looked for and every
+           graded question paid a round trip for an answer already in the cache. */
+        queryClient.setQueryData(
+          reviewRevealQueryKey(data.items[0].id, data.items[0].translation ?? undefined),
+          data.firstReveal,
+        );
       }
       return data;
     },
@@ -276,14 +315,21 @@ const REVEAL_PREFETCH_CONCURRENCY = 2;
  * next question is still the first thing in line.
  */
 export function usePrefetchReviewReveals(
-  items: readonly { id: string; kind: string; ladderStep?: number | null; promptKey?: string | null }[],
+  items: readonly {
+    id: string;
+    kind: string;
+    ladderStep?: number | null;
+    promptKey?: string | null;
+    /* Part of the key the card reads with — warming without it fills a neighbouring slot. */
+    translation?: string | null;
+  }[],
 ) {
   const queryClient = useQueryClient();
   const authReady = useAuthReady();
   const access = useReviewAccess();
   const ids = items
     .filter((item) => reviewRungIsGraded(item))
-    .map((item) => item.id)
+    .map((item) => `${item.id}::${item.translation ?? ''}`)
     .join('|');
   useEffect(() => {
     if (!ids || !authReady || !access) return;
@@ -291,8 +337,8 @@ export function usePrefetchReviewReveals(
     const queue = ids.split('|');
     const next = async (): Promise<void> => {
       while (!cancelled && queue.length) {
-        const itemId = queue.shift()!;
-        const key = reviewRevealQueryKey(itemId);
+        const [itemId, itemTranslation] = queue.shift()!.split('::');
+        const key = reviewRevealQueryKey(itemId, itemTranslation || undefined);
         const state = queryClient.getQueryState(key);
         if (state?.data && Date.now() - state.dataUpdatedAt < REVEAL_STALE_MS) continue;
         await queryClient
