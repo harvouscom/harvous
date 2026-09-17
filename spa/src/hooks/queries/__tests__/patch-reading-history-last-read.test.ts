@@ -67,7 +67,7 @@ describe('patchReadingHistoryLastRead', () => {
 });
 
 describe('invalidateReadingSurfaces', () => {
-  it('marks reading history and the study feed stale', () => {
+  it('marks the study feed stale but leaves the patched last-read alone', () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(readingHistoryQueryKey, history());
     queryClient.setQueryData(['study-feed', 'all'], { items: [] });
@@ -76,7 +76,8 @@ describe('invalidateReadingSurfaces', () => {
 
     const readingState = queryClient.getQueryState(readingHistoryQueryKey);
     const feedState = queryClient.getQueryState(['study-feed', 'all']);
-    expect(readingState?.isInvalidated).toBe(true);
+    // Refetching reading history here would let a GET that left before the patch roll it back.
+    expect(readingState?.isInvalidated).toBe(false);
     expect(feedState?.isInvalidated).toBe(true);
   });
 });

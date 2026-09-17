@@ -58,6 +58,8 @@ describe('landAgain', () => {
     const route = readerRouteForReference('John 3:16-18', 'NET')!;
     const stamped = landAgain(route);
     expect((stamped as { params?: unknown }).params).toEqual(route.params);
+    // No stacked note is open here, so landAgain must hand back the reader route, not bounce to one.
+    if (!('v' in stamped.search)) throw new Error('landAgain left the reader route');
     expect(stamped.search.v).toBe('16');
     expect(stamped.search.vEnd).toBe('18');
     expect(stamped.search.t).toBe('NET');

@@ -5,7 +5,9 @@ describe('highlightPassageRoute', () => {
   it('lands on the verse and does not put it in ?ref=', () => {
     const route = highlightPassageRoute('Ecclesiastes 4:3');
     expect(route?.params).toEqual({ book: 'ecclesiastes', chapter: '4' });
-    expect(route?.search.v).toBe('3');
+    // No stacked note is open here, so the route keeps the verse rather than bouncing to a note.
+    if (!route || !('v' in route.search)) throw new Error('highlightPassageRoute left the reader route');
+    expect(route.search.v).toBe('3');
     /*
      * Read through a widened type on purpose. The search type no longer declares `ref` at all,
      * so `route.search.ref` stopped compiling — but deleting the assertion would remove the

@@ -47,7 +47,10 @@ describe('useLibraryPanelNav', () => {
     act(() => h.current.nav.openScriptureBook(45));
     expect(h.current.shell.libraryPanelView).toEqual({
       tab: 'scripture',
-      drill: { kind: 'scripture', drill: { level: 'passages', bookOrder: 45 } },
+      drill: {
+        kind: 'scripture',
+        drill: { level: 'passages', bookOrder: 45, bookTitle: '1 Corinthians' },
+      },
     });
   });
 
