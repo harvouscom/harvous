@@ -28,6 +28,7 @@ import {
   REVIEW_STEP_BACK_FAILED_TOAST,
 } from '../../pages/prototype/proto-review-copy';
 import type { ReviewItemKind, ReviewItemStatus, ReviewOutcome } from '@/utils/review-item-kinds';
+import { invalidateStudyFeed } from '@/utils/study-feed-invalidation';
 
 export interface AddReviewItemInput {
   kind: ReviewItemKind;
@@ -105,7 +106,10 @@ export function useReviewOutcome() {
       await queryClient.cancelQueries({ queryKey: reviewSessionQueryKey });
       const previous = queryClient.getQueryData<{ items: ReviewItemView[] }>(reviewSessionQueryKey);
       if (previous) {
+        /* Spread, not `{ items }`: the session response carries `nextDueAt` and `firstReveal`
+           beside the queue, and rebuilding the object around one field dropped both. */
         queryClient.setQueryData(reviewSessionQueryKey, {
+          ...previous,
           items: previous.items.filter((i) => i.id !== itemId),
         });
       }
@@ -126,7 +130,14 @@ export function useReviewOutcome() {
     onSuccess: (data, _input, context) => {
       if (data.finalized === false && context?.previous) {
         queryClient.setQueryData(reviewSessionQueryKey, context.previous);
+        return;
       }
+      /*
+       * A finalized answer writes a `ReviewEvents` row, and Activity prints the day's answers
+       * from it. Only on the finalized one: a wrong first go records nothing, so there would be
+       * nothing for the feed to show and the refetch would be pure churn mid-question.
+       */
+      invalidateStudyFeed(queryClient);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['review', 'inbox'] });

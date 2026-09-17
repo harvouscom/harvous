@@ -9,6 +9,7 @@ import {
 } from '../../lib/note-tags-cache';
 import { getNoteQueryOptions, type NoteDetail } from '../queries/useNote';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
+import { invalidateStudyFeed } from '@/utils/study-feed-invalidation';
 import { isOfflineError, runOfflineFirst } from './withOfflineQueue';
 import { updateNoteOffline } from '@/utils/offline-mutations';
 
@@ -651,6 +652,9 @@ export function useUpdateNote() {
         }
         queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
         invalidatePrototypeSpaceDerivedQueries(queryClient, affectedSpaceId);
+        /* A save writes a note version, which is one of Activity's six sources. Inside the
+           `queuedOffline` guard with the rest: offline there is nothing to refetch from. */
+        invalidateStudyFeed(queryClient);
       }
       window.dispatchEvent(
         new CustomEvent('noteUpdated', { detail: { noteId: variables.noteId, source: 'autosave' } }),

@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { invalidateStudyFeed } from './study-feed-invalidation';
 
 export const STUDY_THREAD_LIST_CHANGED_EVENT = 'studyThreadListChanged';
 
@@ -53,13 +54,8 @@ export function invalidatePrototypeStudyThreadListQueries(
    * as gone, then actually erased.
    */
   queryClient.invalidateQueries({ queryKey: ['prototype', 'scripture-highlights'] });
-  /*
-   * Activity is its own query (`['study-feed', scope]`), with a 60s staleTime and a comment
-   * that "everything they do here invalidates it explicitly". Nothing did. A highlight made
-   * in the reader, or a note erased from Continue, sat invisible until a full refresh.
-   * Prefix-match every scope.
-   */
-  queryClient.invalidateQueries({ queryKey: ['study-feed'] });
+  /* A highlight made in the reader, or a note erased from Continue, is a row Activity reads. */
+  invalidateStudyFeed(queryClient);
 }
 
 /**

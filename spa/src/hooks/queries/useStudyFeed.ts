@@ -44,8 +44,12 @@ export function useStudyFeed(scope: StudyFeedScope = STUDY_FEED_SCOPE_ALL) {
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: authReady,
-    // The feed only changes when the reader does something, and everything they do here
-    // invalidates it explicitly. A minute keeps a tab switch from refetching the trail.
+    /*
+     * A minute keeps a tab switch from refetching the trail. It is only safe because writes
+     * invalidate this key through `invalidateStudyFeed`, which is enforced by
+     * `study-feed-invalidation.test.ts` — the comment that used to sit here asserted the same
+     * thing on trust, and was wrong for four of the six sources the server builds the feed from.
+     */
     staleTime: 60_000,
   });
 

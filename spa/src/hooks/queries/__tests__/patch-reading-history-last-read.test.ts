@@ -67,7 +67,16 @@ describe('patchReadingHistoryLastRead', () => {
 });
 
 describe('invalidateReadingSurfaces', () => {
-  it('marks reading history and the study feed stale', () => {
+  /*
+   * Activity yes, last-read no — and the "no" is the half worth asserting.
+   *
+   * This case used to expect both, which had been true once and stopped being true when the
+   * last-read cache was patched directly instead: a GET that left before the patch landed came
+   * back with the older chapter and rolled the cache back until a full refresh. The assertion
+   * outlived the behaviour and sat red, so it now states the rule the function documents rather
+   * than the one it used to follow.
+   */
+  it('refreshes the study feed and leaves the patched last-read alone', () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(readingHistoryQueryKey, history());
     queryClient.setQueryData(['study-feed', 'all'], { items: [] });
@@ -76,7 +85,7 @@ describe('invalidateReadingSurfaces', () => {
 
     const readingState = queryClient.getQueryState(readingHistoryQueryKey);
     const feedState = queryClient.getQueryState(['study-feed', 'all']);
-    expect(readingState?.isInvalidated).toBe(true);
     expect(feedState?.isInvalidated).toBe(true);
+    expect(readingState?.isInvalidated).toBe(false);
   });
 });

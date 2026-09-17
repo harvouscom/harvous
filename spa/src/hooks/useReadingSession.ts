@@ -19,6 +19,7 @@ import {
   invalidateReadingSurfaces,
   patchReadingHistoryLastRead,
 } from './queries/useReadingHistory';
+import { invalidateStudyFeed } from '@/utils/study-feed-invalidation';
 
 type ReadingSession = {
   book: string;
@@ -79,7 +80,7 @@ export function useReadingSession({
       });
       // Mark Activity stale now, not only after the POST. Returning to Home inside the
       // feed's 60s staleTime would otherwise keep painting the sitting you left.
-      void queryClient.invalidateQueries({ queryKey: ['study-feed'] });
+      invalidateStudyFeed(queryClient);
     },
     [queryClient],
   );
