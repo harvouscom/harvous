@@ -17362,6 +17362,53 @@ html.harvous-prototype-route
 
 /* Field-shaped, because it sits in forms where a text input sits — but it is a
    menu trigger, so it carries a caret rather than OS select chrome. */
+/*
+ * Settings → Review exercises: twelve families you can compare at a glance.
+ *
+ * Each row carried a full-width three-segment bar under its description, which made the page a
+ * scroll of identical controls three rows tall on a phone — so comparing "how often do I want
+ * this one against that one" meant remembering your answer while you scrolled to it. The choice
+ * is a narrow picker on the row's own line now, and the row is about half the height.
+ */
+.proto-exercise-row {
+  align-items: center;
+  padding: var(--pds-space-2) var(--pds-space-3);
+}
+
+/* One line, clipped. A description that wraps to three lines undoes the height just saved —
+   the full sentence is on the element's `title`. */
+.proto-exercise-row__desc {
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sized to its own words rather than the row, which is what keeps the name beside it readable. */
+.proto-exercise-choice.proto-select-menu__trigger {
+  width: auto;
+  min-width: 92px;
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+/* A choice away from Normal reads at full strength: the page is defaults with a few deliberate
+   exceptions, and the exceptions are the thing worth finding again. */
+.proto-exercise-choice--set.proto-select-menu__trigger {
+  color: var(--pds-text-primary);
+  font-weight: 600;
+}
+
+/* The row's own glyph tile, scaled to a row half the height it used to be. */
+.proto-settings-list-row__leading--compact {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
 .proto-select-menu__trigger {
   display: inline-flex;
   align-items: center;
