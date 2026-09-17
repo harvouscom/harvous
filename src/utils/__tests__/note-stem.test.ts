@@ -5,6 +5,7 @@ import {
   noteStemBlocks,
   noteStemCandidates,
   pickNoteStem,
+  sentenceAroundQuote,
   splitSentences,
 } from '@/utils/note-stem';
 
@@ -169,5 +170,52 @@ describe('noteProseText', () => {
     expect(prose).toContain('God chose us');
     expect(prose).not.toContain('holy and blameless');
     expect(prose).not.toContain('Ephesians 1 and the ground');
+  });
+});
+
+describe('sentenceAroundQuote', () => {
+  it('gives back the whole sentence a highlight sits inside', () => {
+    const embedded = sentenceAroundQuote(NOTE, 'because it pleased him');
+    expect(embedded).not.toBeNull();
+    expect(embedded!.quote).toBe('because it pleased him');
+    expect(embedded!.before).toBe('God chose us before the foundation of the world');
+    expect(embedded!.after).toBe('to do so.');
+    /* Nothing was dropped, so nothing claims to have been. */
+    expect(embedded!.leading).toBe(false);
+    expect(embedded!.trailing).toBe(false);
+  });
+
+  it('finds a quote that opens its sentence, and says so', () => {
+    const embedded = sentenceAroundQuote(NOTE, 'God chose us');
+    expect(embedded!.before).toBe('');
+    expect(embedded!.leading).toBe(false);
+  });
+
+  it('cuts a long sentence back around the quote and marks both ends', () => {
+    const long =
+      '<p>Writing this out slowly, because I keep forgetting it, and the thing that struck me ' +
+      'hardest this morning was the order of it, which is that he chose first and we answered ' +
+      'after, and that order is the whole of the comfort here, or so it seems to me tonight.</p>';
+    const embedded = sentenceAroundQuote(long, 'he chose first and we answered after');
+    expect(embedded).not.toBeNull();
+    expect(embedded!.quote).toBe('he chose first and we answered after');
+    expect(embedded!.leading).toBe(true);
+    expect(embedded!.trailing).toBe(true);
+    expect(embedded!.before.split(/\s+/).length).toBeLessThanOrEqual(10);
+    expect(embedded!.after.split(/\s+/).length).toBeLessThanOrEqual(10);
+  });
+
+  it('will not find a quote inside a passage the reader pasted', () => {
+    /* Those are words they did not write, and the anchor context is the right fallback. */
+    expect(sentenceAroundQuote(NOTE, 'holy and blameless')).toBeNull();
+  });
+
+  it('is null when the note no longer contains the quote', () => {
+    expect(sentenceAroundQuote(NOTE, 'a sentence that was edited away')).toBeNull();
+  });
+
+  it('matches across curly and straight quotation marks', () => {
+    const html = '<p>He said it plainly: don’t look away from this one.</p>';
+    expect(sentenceAroundQuote(html, "don't look away")).not.toBeNull();
   });
 });

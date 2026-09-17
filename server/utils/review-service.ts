@@ -133,6 +133,7 @@ import {
   markVerseRecall,
   markVerseSequence,
   readerSpanFragment,
+  verseLocateStem,
   type VerseNextExercise,
   verseRecallCoverage,
 } from '@/utils/verse-ladder-exercises';
@@ -2039,8 +2040,20 @@ export interface ReviewRevealPayload {
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
   /** The ordering puzzle, without its answer key — see verse-ladder-exercises.ts. */
   sequence?: { phrases: string[] } | null;
-  /** The four references, without which one is right. */
-  locate?: { phrase: string; options: string[] } | null;
+  /**
+   * The four references, without which one is right.
+   *
+   * `leading` / `trailing` say whether the quoted phrase actually has verse either side of it.
+   * The card printed a trailing ellipsis unconditionally and never a leading one, so a phrase
+   * deliberately starting at the third word read as the verse's opening, and one running to the
+   * end claimed there was more. Optional, so a payload built before this still renders.
+   */
+  locate?: {
+    phrase: string;
+    options: string[];
+    leading?: boolean;
+    trailing?: boolean;
+  } | null;
   /**
    * A note rung: the question's own material and its four options, never which is right.
    *
@@ -2049,15 +2062,31 @@ export interface ReviewRevealPayload {
    */
   noteChoice?: {
     fragment: string | null;
-    /** Present when the stem is a span the reader marked: the quote, and the words either side. */
-    span?: { before: string; quote: string; after: string } | null;
+    /**
+     * Present when the stem is a span the reader marked: the quote, and the words either side.
+     *
+     * The words either side are now the rest of the sentence the quote was highlighted inside,
+     * taken from the note itself. They used to come from the anchor's stored prefix and suffix,
+     * which are nullable and usually absent — which is why a marked-span question so often
+     * showed a bold clause floating on its own. `leading` / `trailing` mark where the sentence
+     * was cut back, and only where it actually was.
+     */
+    span?: {
+      before: string;
+      quote: string;
+      after: string;
+      leading?: boolean;
+      trailing?: boolean;
+    } | null;
     /**
      * The stem is a clause, not a whole sentence.
      *
      * The card quotes the fragment, and a quotation that reads as a complete sentence when it is
      * half of one is a small lie about the reader's own writing. An ellipsis says where it stops.
+     * `leading` is its twin, for a stem that does not begin where its sentence does.
      */
     truncated?: boolean;
+    leading?: boolean;
     options: string[];
   } | null;
   /**
@@ -2811,13 +2840,8 @@ async function loadReaderSpan(userId: string, reference: string): Promise<string
   return readerSpansByReference(marks).get(reference.trim().toLowerCase()) ?? null;
 }
 
-/** The same middle fragment locate shows, so the book rung reads as its easier twin. */
-function locateFragmentOf(text: string): string {
-  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  if (words.length < 6) return words.join(' ');
-  const start = Math.min(2, Math.max(0, words.length - 8));
-  return words.slice(start, start + 8).join(' ');
-}
+/* The book rung's stem is `verseLocateStem`, imported — it used to be a second copy of it here,
+   which is how the two rungs could drift into quoting the same verse differently. */
 
 // ─── The chapter rungs ────────────────────────────────────────────────────────
 
@@ -3590,7 +3614,7 @@ function noteStemFor(input: {
   spans: readonly NoteSpan[];
   seed: string;
   ownLabel: string | null;
-}): { fragment: string; span: NoteSpan | null; truncated: boolean } | null {
+}): { fragment: string; span: NoteSpan | null; truncated: boolean; leading?: boolean } | null {
   if (input.contentEncrypted) return null;
   return chooseNoteStem({
     html: input.content ?? '',
@@ -3679,6 +3703,8 @@ async function buildNoteExercise(
   span: NoteSpan | null;
   /** The stem is a clause cut out of a longer sentence, so the card may show it as partial. */
   truncated?: boolean;
+  /** And the same at the front, for a stem that does not begin where its sentence does. */
+  leading?: boolean;
   acceptable: string[];
 } | null> {
   if (item.kind !== 'note' || !item.noteId) return null;
@@ -3726,13 +3752,23 @@ async function buildNoteExercise(
       fallbackLabels: labels.close.length ? labels.rest : undefined,
       seed,
     });
+    /*
+     * The exercise's span, not the one handed in.
+     *
+     * `buildNoteRecognize` may narrow the context, or drop it entirely, when an option label
+     * turns out to be hiding in it. Returning the span we passed *in* would undo that silently
+     * and print the leaked words after all — the check would have run, found the problem, and
+     * been overruled by this line.
+     */
+    const shownSpan = exercise?.span ?? null;
     return exercise
       ? {
           rung,
           exercise,
           fragment: exercise.fragment,
-          span: span ?? null,
-          truncated: stem.truncated,
+          span: shownSpan,
+          truncated: shownSpan ? Boolean(shownSpan.trailing) : stem.truncated,
+          leading: shownSpan ? Boolean(shownSpan.leading) : stem.leading,
           acceptable: [labels.own],
         }
       : null;
@@ -4081,14 +4117,23 @@ export async function buildReviewReveal(
             poolBooks: booksOf(await listUserVerseReferences(userId, item.scriptureReference)),
             seed,
           });
-          payload.locate = exercise
-            ? {
-                phrase:
-                  readerSpanFragment(await loadReaderSpan(userId, item.scriptureReference), text) ??
-                  locateFragmentOf(text),
-                options: exercise.options,
-              }
-            : null;
+          if (exercise) {
+            const marked = readerSpanFragment(
+              await loadReaderSpan(userId, item.scriptureReference),
+              text,
+            );
+            const stem = verseLocateStem(text, marked);
+            payload.locate = stem
+              ? {
+                  phrase: stem.phrase,
+                  options: exercise.options,
+                  leading: stem.leading,
+                  trailing: stem.trailing,
+                }
+              : null;
+          } else {
+            payload.locate = null;
+          }
           payload.verseText = null;
         }
         if (rung.key === 'verse.rebuild') {
@@ -4152,7 +4197,14 @@ export async function buildReviewReveal(
             readerSpanFragment(await loadReaderSpan(userId, item.scriptureReference), text),
             close.length ? rest : undefined,
           );
-          payload.locate = exercise ? { phrase: exercise.phrase, options: exercise.options } : null;
+          payload.locate = exercise
+            ? {
+                phrase: exercise.phrase,
+                options: exercise.options,
+                leading: exercise.leading,
+                trailing: exercise.trailing,
+              }
+            : null;
           // The verse text itself would give the answer away on this rung.
           payload.verseText = null;
         }
@@ -4212,6 +4264,7 @@ export async function buildReviewReveal(
           // `span` only where the reader marked one; `answerIndex` never.
           span: built.span,
           truncated: built.truncated ?? false,
+          leading: built.leading ?? false,
           options: built.exercise.options,
         }
       : null;

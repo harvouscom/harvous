@@ -82,12 +82,31 @@ export interface ReviewRevealResponse {
   verseText?: string | null;
   cloze?: { segments: string[]; blankLengths: number[] } | null;
   sequence?: { phrases: string[] } | null;
-  locate?: { phrase: string; options: string[] } | null;
+  /**
+   * `leading` / `trailing` say whether there is really more verse either side of the phrase.
+   * Both optional: a payload built before they existed renders as it always did, which for
+   * `trailing` means the ellipsis the card used to print unconditionally.
+   */
+  locate?: {
+    phrase: string;
+    options: string[];
+    leading?: boolean;
+    trailing?: boolean;
+  } | null;
   noteChoice?: {
     fragment: string | null;
-    span?: { before: string; quote: string; after: string } | null;
+    /** The quote, and the rest of the sentence it was highlighted inside. */
+    span?: {
+      before: string;
+      quote: string;
+      after: string;
+      leading?: boolean;
+      trailing?: boolean;
+    } | null;
     /** The stem is a clause cut from a longer sentence; the card marks it as partial. */
     truncated?: boolean;
+    /** And the same at the front, for a stem that does not begin where its sentence does. */
+    leading?: boolean;
     options: string[];
   } | null;
   next?: { options: string[] } | null;

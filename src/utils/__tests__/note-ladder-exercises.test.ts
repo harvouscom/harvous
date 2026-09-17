@@ -10,6 +10,8 @@ import {
   buildNoteSpan,
   buildNoteAnnotation,
   chooseNoteStem,
+  noteFragmentWindow,
+  noteSpanText,
   NOTE_SPAN_MIN_WORDS,
 } from '@/utils/note-ladder-exercises';
 import { hashSeed } from '@/utils/verse-cloze';
@@ -303,10 +305,19 @@ describe('buildNoteSpan', () => {
 describe('buildNoteRecognize with a marked span', () => {
   const poolLabels = ['Adoption, not slavery', 'Covenant and kingship', 'Ruth 3', 'Acts 2'];
 
-  it('checks the whole stem for its own answer, not just the quote', () => {
+  it('drops the run-up rather than the question when an option hides in it', () => {
     /*
      * The context either side is on screen too, so an option hiding in the run-up answers the
      * question just as surely as one hiding in the quote.
+     *
+     * This used to return null, which was the safe half of the rule and not the whole of it: a
+     * stem that gives its answer away should not be *shown*, and that is not the same as the
+     * note losing its rung. Now that a span arrives wrapped in its whole sentence there is more
+     * text on screen and more chance of a leak, so the context is narrowed and then dropped
+     * before giving up — each step showing less of the reader's own sentence, and only the last
+     * one, the words they highlighted, being something they would notice.
+     *
+     * The invariant is what is asserted: no option appears anywhere in what is printed.
      */
     const span = buildNoteSpan({
       quote: 'not because we had done anything',
@@ -320,7 +331,29 @@ describe('buildNoteRecognize with a marked span', () => {
       poolLabels: ['Covenant and kingship', 'Ruth 3', 'Acts 2'],
       seed: 'a',
     });
-    expect(ex).toBeNull();
+    expect(ex).not.toBeNull();
+    const shown = noteSpanText(ex!.span!).toLowerCase();
+    for (const option of ex!.options) {
+      expect(shown).not.toContain(option.toLowerCase());
+    }
+    expect(ex!.span!.quote).toBe('not because we had done anything');
+  });
+
+  it('gives up only when the quote itself names an option', () => {
+    const span = buildNoteSpan({
+      quote: 'Covenant and kingship run together here',
+      prefix: 'I wrote that',
+      suffix: 'all the way through',
+    })!;
+    expect(
+      buildNoteRecognize({
+        fragment: span.quote,
+        span,
+        answerLabel: 'The ground of adoption',
+        poolLabels: ['Covenant and kingship', 'Ruth 3', 'Acts 2'],
+        seed: 'a',
+      }),
+    ).toBeNull();
   });
 
   it('carries the span through when nothing gives the answer away', () => {
@@ -439,5 +472,80 @@ describe('chooseNoteStem', () => {
 
   it('has nothing to offer when the note is only a heading', () => {
     expect(chooseNoteStem({ html: '<h1>Only this</h1>', spans: [], seed: 's' })).toBeNull();
+  });
+});
+
+describe('a marked span reaches the card inside its sentence', () => {
+  const HTML =
+    '<p>God chose us before the foundation of the world because it pleased him to do so.</p>';
+
+  it('takes the sentence from the note rather than the anchor, which is usually empty', () => {
+    /*
+     * The case the complaint came from: a highlight made by a path that recorded no anchor
+     * context at all. The span arrives with nothing either side, and what the reader used to
+     * see was a bold clause on its own line.
+     */
+    const span = buildNoteSpan({ quote: 'because it pleased him', prefix: null, suffix: null })!;
+    expect(span.before).toBe('');
+    expect(span.after).toBe('');
+
+    const chosen = chooseNoteStem({ html: HTML, spans: [span], seed: 'item:0' })!;
+    expect(chosen.span!.before).toBe('God chose us before the foundation of the world');
+    expect(chosen.span!.after).toBe('to do so.');
+    expect(chosen.span!.leading).toBe(false);
+    expect(chosen.span!.trailing).toBe(false);
+    /* The fragment stays the quote, so the shelf row is unchanged. */
+    expect(chosen.fragment).toBe('because it pleased him');
+  });
+
+  it('keeps the anchor context, honestly marked, when the note no longer has the quote', () => {
+    const span = buildNoteSpan({
+      quote: 'a line since edited away',
+      prefix: 'something before it',
+      suffix: 'and something after',
+    })!;
+    const chosen = chooseNoteStem({ html: HTML, spans: [span], seed: 'item:0' })!;
+    expect(chosen.span!.before).toBe('something before it');
+    /* It does not start like a sentence or end like one, and now says as much. */
+    expect(chosen.span!.leading).toBe(true);
+    expect(chosen.span!.trailing).toBe(true);
+  });
+
+  it('draws the same span from the same seed as before', () => {
+    const spans = [
+      buildNoteSpan({ quote: 'because it pleased him' })!,
+      buildNoteSpan({ quote: 'before the foundation' })!,
+    ];
+    const drawn = chooseNoteStem({ html: HTML, spans, seed: 'item:3' })!;
+    expect(drawn.fragment).toBe(spans[hashSeed('item:3') % spans.length].quote);
+  });
+
+});
+
+describe('noteFragmentWindow', () => {
+  /*
+   * The last-resort branch, and the only one guaranteed to hand back a fragment: twelve words
+   * from the middle of the note, beginning and ending mid-clause by construction. It was also
+   * the one branch that reported itself whole, so the card printed it in quotation marks with
+   * no ellipsis at either end — the clearest case of the thing being fixed here.
+   */
+  it('says a middle window was cut at both ends', () => {
+    const long = Array.from({ length: 40 }, (_, i) => `word${i}`).join(' ');
+    const window = noteFragmentWindow(long, 'a')!;
+    expect(window.text.split(' ')).toHaveLength(12);
+    expect(window.leading).toBe(true);
+    expect(window.trailing).toBe(true);
+  });
+
+  it('claims nothing was cut from a body it quotes whole', () => {
+    const short = 'the ground of adoption is his good pleasure';
+    const window = noteFragmentWindow(short, 'a')!;
+    expect(window.text).toBe(short);
+    expect(window.leading).toBe(false);
+    expect(window.trailing).toBe(false);
+  });
+
+  it('is the same window the old helper returns, for the same seed', () => {
+    expect(noteFragmentWindow(BODY, 'c')!.text).toBe(noteFragment(BODY, 'c'));
   });
 });

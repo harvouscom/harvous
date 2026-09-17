@@ -1560,18 +1560,25 @@ export default function PrototypeReviewDock() {
                 that answers "which note?" for a nameless one. */}
             {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
             {noteChoice.span ? (
-              /* The span the reader marked, with the words either side of it. The run-up is
-                 what stops a quote that begins mid-clause reading as a grammar puzzle; the
-                 marked words stay the emphasis. */
+              /*
+               * The span the reader marked, inside the sentence they marked it in. The sentence
+               * is what stops a bold clause reading as a grammar puzzle before it reads as a
+               * question about their study; the marked words stay the emphasis.
+               *
+               * Ellipses only where the server says something was actually dropped. They used
+               * to be absent entirely here, so a fragment was printed as though it were whole.
+               */
               <p className="proto-review-dock__verse">
+                {noteChoice.span.leading ? <span>… </span> : null}
                 {noteChoice.span.before ? <span>{noteChoice.span.before} </span> : null}
                 <strong>{noteChoice.span.quote}</strong>
                 {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
+                {noteChoice.span.trailing ? <span>…</span> : null}
               </p>
             ) : noteChoice.fragment ? (
-              /* An ellipsis where the sentence was cut, so a clause is not passed off as one. */
+              /* An ellipsis at each end that was cut, so a clause is not passed off as one. */
               <p className="proto-review-dock__verse">
-                “{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
+                “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
               </p>
             ) : null}
             {retryLine}
@@ -1951,7 +1958,14 @@ export default function PrototypeReviewDock() {
         ) : locateExercise ? (
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
-            <p className="proto-review-dock__verse proto-review-dock__verse--scripture">“{locateExercise.phrase}…”</p>
+            {/* The trailing ellipsis was hardcoded, so a phrase running to the end of the verse
+                claimed there was more; there was never a leading one, so a phrase deliberately
+                starting past the opening read as the opening. `trailing !== false` keeps a
+                payload built before this rendering exactly as it did. */}
+            <p className="proto-review-dock__verse proto-review-dock__verse--scripture">
+              “{locateExercise.leading ? '…' : ''}{locateExercise.phrase}
+              {locateExercise.trailing !== false ? '…' : ''}”
+            </p>
             {retryLine}
             <ReviewChoiceChips
               options={locateExercise.options}

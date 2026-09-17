@@ -22,7 +22,13 @@
 
 import { buildChoiceExercise, gradeChoiceExercise, type ChoiceExercise } from '@/utils/choice-exercise';
 import { hashSeed, mulberry32, seededIndex } from '@/utils/verse-cloze';
-import { noteProseText, pickNoteStem } from '@/utils/note-stem';
+import {
+  endsLikeSentence,
+  noteProseText,
+  pickNoteStem,
+  sentenceAroundQuote,
+  startsLikeSentence,
+} from '@/utils/note-stem';
 import type { ReviewPromptKey } from '@/utils/review-prompts';
 import { NOTE_LADDER, emphasisDraw } from '@/utils/review-prompts';
 
@@ -137,16 +143,39 @@ const FRAGMENT_WORDS = 12;
  * and `noteOptionLabel` below falls back to that same opening line for an untitled note.
  */
 export function noteFragment(text: string, seed: string): string | null {
+  return noteFragmentWindow(text, seed)?.text ?? null;
+}
+
+/**
+ * The same window, saying where it was cut.
+ *
+ * This branch is the one place in the feature that is *guaranteed* to hand back a fragment — a
+ * random twelve words out of the middle of the note, by construction beginning and ending
+ * mid-clause — and it was the one branch that declared itself whole, so the card printed it in
+ * quotation marks with no ellipsis at either end. It only runs on a note with no sentence in it
+ * at all (an unpunctuated wall of text, a dump of bullets), which is common enough to matter.
+ */
+export function noteFragmentWindow(
+  text: string,
+  seed: string,
+): { text: string; leading: boolean; trailing: boolean } | null {
   const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
   if (words.length < MIN_FRAGMENT_WORDS) return null;
-  if (words.length <= FRAGMENT_WORDS) return words.join(' ');
+  if (words.length <= FRAGMENT_WORDS) {
+    return { text: words.join(' '), leading: false, trailing: false };
+  }
 
   const random = mulberry32(hashSeed(seed));
   // Start past the opening, and leave a whole fragment's worth before the end.
   const latest = words.length - FRAGMENT_WORDS;
   const earliest = Math.min(3, latest);
   const start = earliest + Math.floor(random() * Math.max(1, latest - earliest + 1));
-  return words.slice(start, start + FRAGMENT_WORDS).join(' ');
+  const end = start + FRAGMENT_WORDS;
+  return {
+    text: words.slice(start, end).join(' '),
+    leading: start > 0,
+    trailing: end < words.length,
+  };
 }
 
 /**
@@ -216,16 +245,58 @@ export function buildNoteRecognize(input: {
   /*
    * Everything the stem puts on screen, not just the quote: the context either side is shown
    * too, and an option hiding in the run-up answers the question just as well.
+   *
+   * Narrow the context before giving up. Now that a span carries its whole sentence rather than
+   * eight words of anchor, there is more text on screen and so more chance an option label is
+   * somewhere in it — and returning null here does not produce a better question, it produces
+   * no question, which costs the note its rung. Each step shows less of the reader's own
+   * sentence, and only the last resort — the quote alone, which they did highlight — is one
+   * they would notice.
    */
-  const shown = input.span ? noteSpanText(input.span) : fragment;
-  const haystack = shown.toLowerCase().replace(/\s+/g, ' ');
-  const selfAnswering = choice.options.some((option) => {
-    const needle = option.toLowerCase().replace(/\s+/g, ' ').trim();
-    return needle.length > 0 && (haystack.includes(needle) || needle.includes(haystack));
-  });
-  if (selfAnswering) return null;
+  const attempts: (NoteSpan | null)[] = input.span
+    ? [input.span, narrowSpanContext(input.span), bareSpan(input.span)]
+    : [null];
 
-  return { ...choice, fragment, ...(input.span ? { span: input.span } : {}) };
+  for (const span of attempts) {
+    const shown = span ? noteSpanText(span) : fragment;
+    const haystack = shown.toLowerCase().replace(/\s+/g, ' ');
+    const selfAnswering = choice.options.some((option) => {
+      const needle = option.toLowerCase().replace(/\s+/g, ' ').trim();
+      return needle.length > 0 && (haystack.includes(needle) || needle.includes(haystack));
+    });
+    if (selfAnswering) continue;
+    return { ...choice, fragment, ...(span ? { span } : {}) };
+  }
+  /* The quote itself gives the answer away. Nothing left to narrow. */
+  return null;
+}
+
+/** Words nearest the quote on each side, for a second try at a stem that leaked. */
+const NARROW_CONTEXT_WORDS = 5;
+
+function narrowSpanContext(span: NoteSpan): NoteSpan {
+  const before = span.before.split(/\s+/).filter(Boolean);
+  const after = span.after.split(/\s+/).filter(Boolean);
+  const keptBefore = before.slice(-NARROW_CONTEXT_WORDS);
+  const keptAfter = after.slice(0, NARROW_CONTEXT_WORDS);
+  return {
+    before: keptBefore.join(' '),
+    quote: span.quote,
+    after: keptAfter.join(' '),
+    /* True only where this step actually dropped something, or the span arrived cut already. */
+    leading: Boolean(span.leading) || keptBefore.length < before.length,
+    trailing: Boolean(span.trailing) || keptAfter.length < after.length,
+  };
+}
+
+function bareSpan(span: NoteSpan): NoteSpan {
+  return {
+    before: '',
+    quote: span.quote,
+    after: '',
+    leading: Boolean(span.leading) || Boolean(span.before),
+    trailing: Boolean(span.trailing) || Boolean(span.after),
+  };
 }
 
 /**
@@ -243,6 +314,9 @@ export interface NoteSpan {
   before: string;
   quote: string;
   after: string;
+  /** Words were dropped at this end, so the surface should print an ellipsis there. */
+  leading?: boolean;
+  trailing?: boolean;
 }
 
 const SPAN_CONTEXT_WORDS = 8;
@@ -389,16 +463,53 @@ export function chooseNoteStem(input: {
   spans: readonly NoteSpan[];
   seed: string;
   avoid?: readonly string[];
-}): { fragment: string; span: NoteSpan | null; truncated: boolean } | null {
+}): {
+  fragment: string;
+  span: NoteSpan | null;
+  truncated: boolean;
+  /** Words were dropped before the stem, so it should open with an ellipsis. */
+  leading?: boolean;
+} | null {
   const spans = input.spans.filter(Boolean);
   if (spans.length) {
     const span = spans[hashSeed(input.seed) % spans.length];
-    return { fragment: span.quote, span, truncated: false };
+    /*
+     * The sentence the reader highlighted inside, not the eight words the anchor happened to
+     * store. Falls back to the stored context when the quote cannot be found in the note — an
+     * edited note, or a span over a pasted passage — and in that case says honestly whether
+     * what it has starts and ends like a whole sentence, instead of assuming it does.
+     */
+    const embedded = sentenceAroundQuote(input.html, span.quote);
+    if (embedded) {
+      return {
+        fragment: span.quote,
+        span: {
+          before: embedded.before,
+          quote: embedded.quote,
+          after: embedded.after,
+          leading: embedded.leading,
+          trailing: embedded.trailing,
+        },
+        truncated: embedded.trailing,
+      };
+    }
+    const shown = noteSpanText(span);
+    return {
+      fragment: span.quote,
+      span: {
+        ...span,
+        leading: Boolean(span.before) && !startsLikeSentence(shown),
+        trailing: Boolean(span.after) && !endsLikeSentence(shown),
+      },
+      truncated: Boolean(span.after) && !endsLikeSentence(shown),
+    };
   }
 
   const picked = pickNoteStem(input.html, input.seed, { avoid: input.avoid });
   if (picked) return { fragment: picked.text, span: null, truncated: picked.truncated };
 
-  const fragment = noteFragment(noteProseText(input.html), input.seed);
-  return fragment ? { fragment, span: null, truncated: false } : null;
+  const window = noteFragmentWindow(noteProseText(input.html), input.seed);
+  return window
+    ? { fragment: window.text, span: null, truncated: window.trailing, leading: window.leading }
+    : null;
 }

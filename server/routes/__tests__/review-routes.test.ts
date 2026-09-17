@@ -929,3 +929,31 @@ describe('the dislike tally', () => {
   });
 });
 
+
+describe('one stem, quoted the same way by both rungs that use it', () => {
+  /*
+   * `locate` and its easier twin `book` quote the same verse the same way, and used to do it
+   * through two separate copies of the same eight-word slice — one in `verse-ladder-exercises`,
+   * one here. Two copies of a stem rule is how the note side ended up with the shelf row and the
+   * dock card quoting different lines of the same note, which is the drift `chooseNoteStem`
+   * exists to prevent. This keeps the verse side from re-growing its own version.
+   */
+  it('has no second copy of the locate fragment in the service', () => {
+    const service = source('server/utils/review-service.ts');
+    expect(service).not.toContain('function locateFragmentOf');
+    expect(service).toContain('verseLocateStem(');
+  });
+
+  it('sends where the phrase was cut, rather than letting the card assume', () => {
+    const service = source('server/utils/review-service.ts');
+    const locateBlocks = service.split('payload.locate =').slice(1);
+    expect(locateBlocks.length).toBeGreaterThanOrEqual(2);
+    for (const block of locateBlocks) {
+      const head = block.slice(0, 400);
+      /* A null assignment carries nothing to describe. */
+      if (head.trimStart().startsWith('null')) continue;
+      expect(head).toContain('leading');
+      expect(head).toContain('trailing');
+    }
+  });
+});
