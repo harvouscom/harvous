@@ -649,10 +649,12 @@ export function buildVerseRecall(text: string, mode: VerseRecallMode): VerseReca
   const tokens = clean.split(' ').filter(Boolean);
 
   if (mode === 'leadIn') {
-    if (tokens.length <= RECALL_LEAD_IN_WORDS + 1) return { shown: null, hiddenText: clean, mode };
+    // A short verse still gets a handle: shorten the lead-in rather than hide the whole verse.
+    const lead = Math.min(RECALL_LEAD_IN_WORDS, tokens.length - 1);
+    if (lead < 1) return { shown: null, hiddenText: clean, mode };
     return {
-      shown: tokens.slice(0, RECALL_LEAD_IN_WORDS).join(' '),
-      hiddenText: tokens.slice(RECALL_LEAD_IN_WORDS).join(' '),
+      shown: tokens.slice(0, lead).join(' '),
+      hiddenText: tokens.slice(lead).join(' '),
       mode,
     };
   }
