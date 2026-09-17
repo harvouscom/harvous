@@ -663,20 +663,9 @@ export function buildVerseRecall(text: string, mode: VerseRecallMode): VerseReca
   const tokens = clean.split(' ').filter(Boolean);
 
   if (mode === 'leadIn') {
-    /*
-     * A short verse gets a shorter handle, not none at all.
-     *
-     * Anything of five words or fewer used to fall through to `shown: null`, which is the bare
-     * reference over an empty box — the hardest question in the feature, handed out on the rung
-     * whose whole job is to be easier than that, and only ever to the shortest verses. "Jesus
-     * wept" asked for nothing and gave nothing back. Half the words, rounded down, so there is
-     * always something left to write.
-     */
-    if (tokens.length < 2) return { shown: null, hiddenText: clean, mode };
-    const lead =
-      tokens.length > RECALL_LEAD_IN_WORDS + 1
-        ? RECALL_LEAD_IN_WORDS
-        : Math.max(1, Math.floor(tokens.length / 2));
+    // A short verse still gets a handle: shorten the lead-in rather than hide the whole verse.
+    const lead = Math.min(RECALL_LEAD_IN_WORDS, tokens.length - 1);
+    if (lead < 1) return { shown: null, hiddenText: clean, mode };
     return {
       shown: tokens.slice(0, lead).join(' '),
       hiddenText: tokens.slice(lead).join(' '),
