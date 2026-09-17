@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { markNotesDeleted, unmarkNotesDeleted } from '../../pages/prototype/proto-deleted-notes';
+import { invalidateStudyFeed } from '@/utils/study-feed-invalidation';
 
 interface DeleteNotesBatchResponse {
   success?: boolean;
@@ -42,7 +43,7 @@ export function useDeleteNotesBatch() {
       void queryClient.invalidateQueries({ queryKey: ['note-fingerprints'] });
       void queryClient.invalidateQueries({ queryKey: ['note-connect-suggestions'] });
       void queryClient.invalidateQueries({ queryKey: ['note-crossref-gaps'] });
-      void queryClient.invalidateQueries({ queryKey: ['study-feed'] });
+      invalidateStudyFeed(queryClient);
     },
   });
 }

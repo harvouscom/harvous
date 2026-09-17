@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import type { StudyThreadEntryDetail } from '../queries/useNote';
 import type { StudyThreadEntryKind } from './useCreateHighlight';
 import { withStudyThreadContext } from '@/utils/study-dock-stack';
+import { invalidatePrototypeStudyThreadListQueries } from '@/utils/prototype-study-thread-list-sync';
 import { useHarvousIdentity } from '../useHarvousIdentity';
 import { updateGuestHighlight } from '../../lib/guest-store';
 import { markOnboardingStep } from '../../lib/proto-onboarding-sync';
@@ -78,16 +78,14 @@ export function useUpdateHighlight() {
       const request = buildUpdateHighlightRequest(input);
       return api.patch<UpdateHighlightResponse>(request.url, request.body);
     },
+    /* The shared helper rather than a copy of its keys — see `useCreateHighlight`. */
     onSuccess: (_data, variables) => {
-      const sid = normalizePrototypeApiSpaceId(variables.spaceId);
-      queryClient.invalidateQueries({
-        queryKey: ['prototype', 'space', sid, 'study-thread-highlights'],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['prototype', 'space', sid, 'study-threads-by-scripture'],
-      });
+      invalidatePrototypeStudyThreadListQueries(
+        queryClient,
+        variables.spaceId,
+        variables.parentNoteId,
+      );
       if (variables.parentNoteId) {
-        queryClient.invalidateQueries({ queryKey: ['note', variables.parentNoteId] });
         queryClient.invalidateQueries({
           queryKey: ['noteActivity', variables.parentNoteId, variables.contextSpaceId?.trim() || null],
         });

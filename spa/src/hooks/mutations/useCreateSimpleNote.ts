@@ -10,6 +10,7 @@ import {
   type SpaceNotesPage,
 } from '../../lib/space-notes-cache';
 import { invalidatePrototypeSpaceDerivedQueries } from '../../lib/prototype-space-query-keys';
+import { invalidateStudyFeed } from '@/utils/study-feed-invalidation';
 import {
   getNoteIdFromCreateResponse,
   seedNoteFromCreateResponse,
@@ -322,6 +323,12 @@ export function useCreateSimpleNote() {
         invalidatePrototypeSpaceDerivedQueries(queryClient, targetSpaceId);
       }
       queryClient.invalidateQueries({ queryKey: [...navigationQueryKeyPrefix] });
+      /*
+       * Activity's trail, which lists notes as they are written. Not to be confused with
+       * `['space', sid, 'activity-preview']` below: that is the shared space dashboard's
+       * "recently updated", a different surface with a confusingly similar name.
+       */
+      invalidateStudyFeed(queryClient);
       if (variables.contextSpaceId) {
         queryClient.invalidateQueries({ queryKey: ['space', sid, 'activity-preview'] });
         queryClient.invalidateQueries({ queryKey: ['space', sid, 'group-threads'] });

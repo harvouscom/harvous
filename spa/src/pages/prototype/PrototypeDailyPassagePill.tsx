@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useAuth } from '@clerk/clerk-react';
 import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { useQueryClient } from '@tanstack/react-query';
 import PrototypeHomeRow from './PrototypeHomeRow';
@@ -12,6 +13,7 @@ import {
   recordVotdEngagement,
   setVotdDismissedToday,
   shouldForceShowTodaysPassage,
+  subscribeForcedTodaysPassage,
   clearForcedTodaysPassage,
   type VotdToday,
 } from '../../lib/votd-today';
@@ -34,12 +36,26 @@ export default function PrototypeDailyPassagePill({
 }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { userId } = useAuth();
   const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
-  const [dismissedToday, setDismissedToday] = useState(isVotdPassageCardDismissedToday);
+  const [dismissedToday, setDismissedToday] = useState(() =>
+    isVotdPassageCardDismissedToday(userId),
+  );
+  /*
+   * Subscribed, not read during render. A reminder tap sets this at the end of a promise chain
+   * that can land well after this row has already mounted and decided to render nothing — and
+   * with the dismissal frozen in `useState`, nothing would ever ask again. This is the whole
+   * reason "we fixed it and the passage still is not there" kept coming back.
+   */
+  const forceShow = useSyncExternalStore(
+    subscribeForcedTodaysPassage,
+    shouldForceShowTodaysPassage,
+    () => false,
+  );
 
   const afterNav = useCallback(() => {
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    }, [closeDrawer, isMobileSidebar]);
+  }, [closeDrawer, isMobileSidebar]);
 
   const openNote = useCallback(
     (noteId: string) => {
@@ -96,12 +112,12 @@ export default function PrototypeDailyPassagePill({
 
   const handleDismiss = useCallback(() => {
     clearForcedTodaysPassage();
-    setVotdDismissedToday();
+    setVotdDismissedToday(userId);
     setDismissedToday(true);
     recordVotdEngagement('dismiss');
-  }, []);
+  }, [userId]);
 
-  if (!homeSpaceId || (dismissedToday && !shouldForceShowTodaysPassage())) {
+  if (!homeSpaceId || (dismissedToday && !forceShow)) {
     return null;
   }
 

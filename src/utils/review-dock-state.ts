@@ -112,3 +112,83 @@ export function sittingIsStale(fetchedAt: number | null | undefined, now: number
   if (now - fetchedAt >= SITTING_STALE_MS) return true;
   return new Date(fetchedAt).toDateString() !== new Date(now).toDateString();
 }
+
+// ─── One more look, in the same sitting ──────────────────────────────────────
+
+/**
+ * Which outcomes come back once before the sitting ends.
+ *
+ * Only `revealed` — the ones that ran out of goes and had to be shown. An `almost` was already
+ * retried on the same card seconds earlier, and once learning steps are in it returns tomorrow
+ * anyway; asking again now would be massed repetition wearing a spaced-repetition hat.
+ *
+ * A set rather than a literal so widening it later is a one-line change with a test to match.
+ */
+export const REVIEW_REASK_OUTCOMES: ReadonlySet<string> = new Set(['revealed']);
+
+/**
+ * Should this answer bring the item back at the tail of the sitting?
+ *
+ * The strongest single lever in the retrieval-practice literature, and the one thing the engine
+ * had nothing of: a missed item left the queue and came back tomorrow, so the sitting in which
+ * the reader actually saw the answer never once asked them to produce it. Duolingo's whole loop
+ * is this — the thing you got wrong returns before you are finished.
+ *
+ * Never on a practice answer, which is what makes "once" structural rather than a counter: the
+ * re-ask is itself a practice answer, and a practice answer cannot spawn another.
+ */
+export function shouldReaskInSitting(state: {
+  outcome: string;
+  /** True when this answer was itself the second look. */
+  practice: boolean;
+  /** An ungraded answer is a self-judgement; there is nothing to have got wrong. */
+  graded: boolean;
+  finalized: boolean;
+}): boolean {
+  if (state.practice) return false;
+  if (!state.finalized) return false;
+  if (!state.graded) return false;
+  return REVIEW_REASK_OUTCOMES.has(state.outcome);
+}
+
+/**
+ * What identifies *the question*, as opposed to the item.
+ *
+ * The dock resets its per-question state on the item's id, which is right until the same item is
+ * asked twice in one sitting — then the re-ask inherits the previous question's typed answer,
+ * its verdict and its revealed truth. The seed that builds a question is `${id}:${step}` plus
+ * the review count, so those three are what makes one question distinct from another.
+ */
+export function reviewQuestionKey(
+  item: { id: string; ladderStep?: number | null; reviewCount?: number | null } | null | undefined,
+): string {
+  if (!item) return 'none';
+  return `${item.id}:${item.ladderStep ?? 0}:${item.reviewCount ?? 0}`;
+}
+
+/**
+ * How far through the sitting, counting the second looks it grew.
+ *
+ * `total` is derived rather than captured at the start, because a sitting is not a fixed length
+ * any more: a missed question adds one to both halves. Capturing the initial length would leave
+ * the bar at "8 of 8" with two questions still on screen.
+ */
+export interface SittingTally {
+  answered: number;
+  holding: number;
+  practiced: number;
+}
+
+export function sittingProgress(
+  tally: SittingTally,
+  remaining: number,
+): { done: number; total: number; fraction: number; complete: boolean } {
+  const done = Math.max(0, tally.answered) + Math.max(0, tally.practiced);
+  const total = done + Math.max(0, remaining);
+  return {
+    done,
+    total,
+    fraction: total > 0 ? Math.min(1, done / total) : 0,
+    complete: total > 0 && done >= total,
+  };
+}

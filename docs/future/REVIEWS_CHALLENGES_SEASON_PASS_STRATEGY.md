@@ -265,6 +265,34 @@ The actual schedule should be adjustable and should prevent backlog anxiety:
 - Avoid aggressive overdue counts and guilt language.
 - Use review activity to adjust suggested session length.
 
+**As built (September 2026), four things sit on top of the rules above.**
+
+*Learning steps.* Until an item has been recalled cleanly once, it is not on the 1/4/14
+schedule at all: a miss returns in a day and the first clean recall returns in two, with no rung
+weight and no compounding. The full schedule begins on the second recall. Opening at fourteen
+days meant the first sight of a verse after the first time it was ever held was a blank a
+fortnight later — the schedule for something known, applied to something met once.
+
+*Easing after two.* The ladder descended only at four lapses or four attempts with nothing
+recalled. An `almost` is not a lapse — something was retrieved — so an item the reader kept
+nearly getting could sit on too hard a rung for weeks. Two non-clean answers in a row on the
+same family now eases it. Silent, from outcomes only, and never offered as a choice: a prompt
+asking whether to make something easier hands the reader a judgement about their own memory that
+they have no way to make.
+
+*One more look.* A missed item comes back once at the tail of the same sitting, as a *practice*
+pass — marked, and changing nothing. It writes a `practiced` event and never touches
+`ReviewItems`: the schedule for a missed item is already set, and grading a rehearsal as an
+outcome would overwrite tomorrow with a fortnight on the strength of an answer given a minute
+after the answer was shown. Re-presenting missed material inside the session is the strongest
+single finding in the retrieval-practice literature, and the engine previously had none of it.
+
+*A sitting that ends.* A day has a budget — the session cap, less what has been answered today —
+and nothing answered today is offered back. Before this the queue refilled from the items just
+answered, so the fold's count could not move. Progress is shown as "3 of 8 today" and as a bar
+on the card: a count of what is *done*, bounded by one sitting, which is the opposite of the
+escalating "27 due" this section exists to prevent.
+
 ### Review progression
 
 The exercise should become more meaningful as the user demonstrates familiarity.

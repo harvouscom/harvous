@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
-import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
 import type { StudyThreadEntryDetail } from '../queries/useNote';
 import { withStudyThreadContext } from '@/utils/study-dock-stack';
+import { invalidatePrototypeStudyThreadListQueries } from '@/utils/prototype-study-thread-list-sync';
 
 export type StudyThreadEntryKind =
   | 'workspace'
@@ -56,15 +56,19 @@ export function useCreateHighlight() {
       const request = buildCreateHighlightRequest(input);
       return api.post<CreateHighlightResponse>(request.url, request.body);
     },
+    /*
+     * The shared helper, not a copy of its key list. This hook and `useUpdateHighlight` each
+     * spelled out four of its keys by hand and so missed the two it grew later — the painted
+     * chapter and Activity — while `useDeleteHighlight` called the helper and got both. Erasing
+     * a highlight refreshed Activity and making one did not, which is the shape a hand-copied
+     * key list always drifts into.
+     */
     onSuccess: (_data, variables) => {
-      const sid = normalizePrototypeApiSpaceId(variables.spaceId);
-      queryClient.invalidateQueries({
-        queryKey: ['prototype', 'space', sid, 'study-thread-highlights'],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['prototype', 'space', sid, 'study-threads-by-scripture'],
-      });
-      queryClient.invalidateQueries({ queryKey: ['note', variables.parentNoteId] });
+      invalidatePrototypeStudyThreadListQueries(
+        queryClient,
+        variables.spaceId,
+        variables.parentNoteId,
+      );
       queryClient.invalidateQueries({
         queryKey: ['noteActivity', variables.parentNoteId, variables.contextSpaceId?.trim() || null],
       });

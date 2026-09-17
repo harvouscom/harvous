@@ -8,6 +8,7 @@ import {
   HARVOUS_STUDY_DOCK_STACK_PREFIX,
   HARVOUS_USER_COLOR_KEY,
   HARVOUS_XP_CACHE_KEY,
+  VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY,
 } from '@/utils/user-cache-keys';
 
 /**
@@ -55,6 +56,23 @@ export function clearUserClientStorageCaches() {
   }
   try {
     localStorage.removeItem(HARVOUS_USER_COLOR_KEY);
+  } catch {
+    /* ignore */
+  }
+  /*
+   * "Not today" on today's passage, including the legacy unscoped key.
+   *
+   * It is now written per user, but nothing had ever cleared the old global one — so a dismissal
+   * made on one account hid the row on the next account signed in on the same browser until
+   * local midnight. Both go, by prefix, so an account switch starts the day fresh.
+   */
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY)) keys.push(key);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }

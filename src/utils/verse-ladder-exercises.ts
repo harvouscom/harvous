@@ -158,6 +158,14 @@ export interface VerseLocateExercise {
   options: string[];
   /** Index into `options` of the correct reference. Never sent to the client. */
   answerIndex: number;
+  /**
+   * Whether the phrase actually has verse either side of it.
+   *
+   * Optional so a payload built before this shipped still renders: the card treats a missing
+   * `trailing` as true, which is the ellipsis it used to print unconditionally.
+   */
+  leading?: boolean;
+  trailing?: boolean;
 }
 
 const LOCATE_OPTION_COUNT = 4;
@@ -316,8 +324,8 @@ export function buildVerseLocate(
   /** Same-book passages first; the canned list is always last. */
   fallbackPool: readonly string[] = FALLBACK_REFERENCES,
 ): VerseLocateExercise | null {
-  const phrase = readerPhrase ?? locatePhrase(text);
-  if (!phrase) return null;
+  const stem = verseLocateStem(text, readerPhrase);
+  if (!stem) return null;
 
   const answer = reference.trim();
   if (!answer) return null;
@@ -331,7 +339,13 @@ export function buildVerseLocate(
   });
   if (!choice) return null;
 
-  return { phrase, options: choice.options, answerIndex: choice.answerIndex };
+  return {
+    phrase: stem.phrase,
+    options: choice.options,
+    answerIndex: choice.answerIndex,
+    leading: stem.leading,
+    trailing: stem.trailing,
+  };
 }
 
 /** "What comes after this?" — the options are openings, not whole verses. */
@@ -846,12 +860,96 @@ export function buildVerseBook(input: {
   });
 }
 
-/** A middle fragment, so the opening words do not give the reference away. */
-function locatePhrase(text: string): string | null {
+/**
+ * The line "which passage is this from?" quotes, and where it was cut.
+ *
+ * Deliberately not the verse's opening words, because those often name the thing the question is
+ * asking about. But it used to start at word three come what may, and the card printed it with a
+ * hardcoded trailing "…" and nothing at the front — so a phrase that skips the first two words
+ * read as though it *were* the opening, and one that ran to the end of the verse claimed there
+ * was more after it. Both ends are answered honestly now, and the start prefers a clause
+ * boundary, so the quote opens where the reader would have paused rather than mid-phrase.
+ *
+ * One function, used by both the locate rung and its easier twin. There were two copies of this
+ * — one here, one in the review service for the book rung — and a stem the two surfaces disagree
+ * about is the bug the shared `chooseNoteStem` was written to end on the note side.
+ */
+export interface VerseStem {
+  phrase: string;
+  leading: boolean;
+  trailing: boolean;
+}
+
+/** Below this there is no middle to take, so the verse is quoted whole. */
+const LOCATE_MIN_WORDS = 6;
+const LOCATE_PHRASE_WORDS = 8;
+const LOCATE_PHRASE_MAX_WORDS = 12;
+
+export function verseLocateStem(
+  text: string,
+  readerPhrase?: string | null,
+): VerseStem | null {
   const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  if (words.length < 6) return null;
-  const start = Math.min(2, Math.max(0, words.length - 8));
-  return words.slice(start, start + 8).join(' ');
+  if (!words.length) return null;
+
+  const marked = (readerPhrase ?? '').replace(/\s+/g, ' ').trim();
+  if (marked) {
+    /* The reader's own span: find it so the ellipses can describe where it actually sits. */
+    const at = indexOfWordRun(words, marked.split(' ').filter(Boolean));
+    if (at < 0) return { phrase: marked, leading: true, trailing: true };
+    const end = at + marked.split(' ').filter(Boolean).length;
+    return { phrase: marked, leading: at > 0, trailing: end < words.length };
+  }
+
+  /* A verse with nothing to spare is shown whole — an ellipsis either side would be a lie. */
+  if (words.length < LOCATE_MIN_WORDS) {
+    return { phrase: words.join(' '), leading: false, trailing: false };
+  }
+
+  const start = locateStartIndex(words);
+  const end = Math.min(words.length, start + LOCATE_PHRASE_WORDS);
+  const extended = extendToBoundary(words, start, end);
+  return {
+    phrase: words.slice(start, extended).join(' ').replace(/[,;:—–]$/, ''),
+    leading: start > 0,
+    trailing: extended < words.length,
+  };
+}
+
+/** The first word after a clause break, when one leaves enough verse to quote; else word three. */
+function locateStartIndex(words: readonly string[]): number {
+  const fallback = Math.min(2, Math.max(0, words.length - LOCATE_PHRASE_WORDS));
+  for (let i = 0; i < words.length - LOCATE_MIN_WORDS; i++) {
+    if (i > 0 && /[,;:—–.]$/.test(words[i - 1])) return i;
+  }
+  return fallback;
+}
+
+/** Run on to a clause break if one is close, so the quote ends where a reader would stop. */
+function extendToBoundary(words: readonly string[], start: number, end: number): number {
+  if (end >= words.length) return words.length;
+  const limit = Math.min(words.length, start + LOCATE_PHRASE_MAX_WORDS);
+  for (let i = end - 1; i < limit; i++) {
+    if (/[,;:—–.]$/.test(words[i])) return i + 1;
+  }
+  return end;
+}
+
+/** Where a run of words begins in another, by word rather than by character. */
+function indexOfWordRun(haystack: readonly string[], needle: readonly string[]): number {
+  if (!needle.length) return -1;
+  const norm = (w: string) => w.replace(/[^\w']/g, '').toLowerCase();
+  for (let i = 0; i + needle.length <= haystack.length; i++) {
+    let hit = true;
+    for (let j = 0; j < needle.length; j++) {
+      if (norm(haystack[i + j]) !== norm(needle[j])) {
+        hit = false;
+        break;
+      }
+    }
+    if (hit) return i;
+  }
+  return -1;
 }
 
 /** True when the reader picked the right reference. Compared loosely — it is a display string. */

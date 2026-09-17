@@ -18,8 +18,7 @@ import {
   type SampleAnswer,
   type SampleExercise,
 } from '@/utils/review-sample';
-import { composeSitting, sessionGroupKeyFor } from '@/utils/review-session-order';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { requireFeature } from '../middleware/require-feature';
 import { rateLimit } from '@/utils/rate-limit';
@@ -45,15 +44,13 @@ import {
   gradeAnswerFor,
   verseTruthFor,
   buildReviewItemSummaries,
-  filterAskableReviewRows,
   askedRungFor,
   buildReviewItemViews,
   buildReviewReveal,
   createReviewItem,
   deferReviewItem,
   getReviewItem,
-  listDueReviewItems,
-  listUpcomingReviewItems,
+  composeTodaySittingFor,
   listReviewItems,
   nextScheduledReviewAt,
   recordReviewEvent,
@@ -78,6 +75,41 @@ const MAX_CLOZE_WORD_LENGTH = 40;
 const MAX_ATTEMPT_LENGTH = 4000;
 
 /**
+ * The reader's own midnight, sent by the client as `?dayStart=<ISO>`.
+ *
+ * The client is the only end that knows it. There is no trustworthy per-user timezone here —
+ * `UserMetadata.timezone` exists for reminders and is null for most accounts, and the study-feed
+ * route refuses to guess one for exactly this reason. An instant is also better than a zone: no
+ * IANA arithmetic on this end, and a reader who travels is simply in a different day the moment
+ * their device says so.
+ *
+ * Clamped, because it decides how much of today's work is counted as done. Twenty-six hours
+ * covers every real offset including the odd ones; anything outside it is a clock that is wrong
+ * or a value that was tampered with, and both get the old behaviour — no day, no progress shown
+ * — rather than a sitting that has been quietly emptied.
+ */
+const MAX_DAY_START_AGE_MS = 26 * 60 * 60 * 1000;
+
+/**
+ * How long after a real answer a second look is still part of the same sitting.
+ *
+ * Generous, because a sitting is not timed and a reader may leave the dock open over lunch. It
+ * is a bound on a free marking route rather than a definition of a sitting: past it the item is
+ * simply asked again for real.
+ */
+const REVIEW_PRACTICE_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+function readerDayStart(c: Context, now: Date): Date | null {
+  const raw = c.req.query('dayStart');
+  if (!raw) return null;
+  const at = new Date(raw);
+  if (Number.isNaN(at.getTime())) return null;
+  if (at.getTime() > now.getTime()) return null;
+  if (now.getTime() - at.getTime() > MAX_DAY_START_AGE_MS) return null;
+  return at;
+}
+
+/**
  * The inbox — at most three rows, and never a count of what is not shown.
  *
  * `hasMore` is a boolean rather than a number on purpose. The strategy doc's named failure
@@ -94,53 +126,31 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
     await refillReviewQueue(auth.userId, now);
 
     /*
-     * Fetch, then drop, then cut — in that order, and only then build.
-     *
-     * A note item the resolver can ask nothing about is dropped while views are built, so cutting
-     * to three rows first means a dropped item costs a slot. It showed one question with three
-     * due, because two rows ahead of it were legacy notes with nothing to ask. The slack is the
-     * same trick `review-opportunities.ts` uses when the floor turns a candidate away.
-     *
-     * One extra row beyond the cut, purely to answer `hasMore` without a second count query.
-     *
-     * `filterAskableReviewRows` first, so the build is not handed rows already known to be
-     * unaskable — but the cut still happens *after* the build, and that ordering is not an
-     * oversight to optimise away later.
-     *
-     * It was optimised away once. Cutting to three before building looked equivalent, because
-     * the filter was believed to apply every drop rule the build applies. It applied two of
-     * three: a chapter whose text cannot be fetched is only discoverable once that text has been
-     * asked for. So a chapter in the top three was dropped during the build, the inbox came back
-     * short, short enough came back empty, and the Review section rendered nothing at all in
-     * production. The slack listed beyond the three rows exists precisely so a late drop costs a
-     * row from the tail rather than from what is shown, and cutting first threw that away.
+     * Fetch, then drop, then cut — in that order, and only then build. That order lives in
+     * `composeTodaySittingFor` now, with the story of why cutting first broke production; the
+     * session route composes through the same function so the two cannot drift.
      */
-    const dueLimit = REVIEW_INBOX_MAX_ROWS + 1 + REVIEW_INBOX_UNASKABLE_SLACK;
-    const [due, upcoming] = await Promise.all([
-      listDueReviewItems(auth.userId, dueLimit, now),
-      listUpcomingReviewItems(auth.userId, REVIEW_INBOX_MAX_ROWS, now),
-    ]);
-    const [askableDue, askableUpcoming] = await Promise.all([
-      filterAskableReviewRows(auth.userId, due, { dropUnaskable: true }),
-      filterAskableReviewRows(auth.userId, upcoming, { dropUnaskable: true }),
-    ]);
-    const withKey = <T extends { scriptureReference?: string | null; noteId?: string | null }>(row: T) => ({
-      ...row,
-      groupKey: sessionGroupKeyFor(row),
-    });
-    /*
-     * Mix the two halves of a sitting. Five due notes with verses coming back tomorrow used
-     * to render as five copies of the same card; the verses sat in "coming back later".
-     */
-    const ordered = composeSitting(
-      askableDue.map(withKey),
-      askableUpcoming.map(withKey),
-      REVIEW_INBOX_MAX_ROWS,
+    const since = readerDayStart(c, now);
+    const sitting = await composeTodaySittingFor(auth.userId, {
+      since,
+      cap: REVIEW_INBOX_MAX_ROWS,
+      slack: REVIEW_INBOX_UNASKABLE_SLACK,
       now,
-    );
-    const built = await buildReviewItemViews(auth.userId, ordered, { dropUnaskable: true });
+    });
+    const built = await buildReviewItemViews(auth.userId, sitting.rows, { dropUnaskable: true });
     const items = built.slice(0, REVIEW_INBOX_MAX_ROWS);
     const shownIds = new Set(items.map((item) => item.id));
+    /*
+     * How far through today's sitting the reader is.
+     *
+     * Not a backlog, and the distinction is the whole design: `goal` is what they have answered
+     * plus what is actually on offer, capped at one sitting, so it cannot climb past eight
+     * however much is waiting behind it. The named failure mode is an escalating "27 due", and a
+     * number that never exceeds a single sitting is not that number. Measured from the built
+     * rows rather than the composed ones, so a row dropped during the build does not leave a
+     * goal the reader can never reach.
+     */
+    const today = since ? { answered: sitting.answered, goal: Math.min(REVIEW_INBOX_MAX_ROWS, sitting.answered + items.length) } : null;
 
     /*
      * Why there is nothing, when there is nothing.
@@ -158,7 +168,8 @@ route.get('/api/review/inbox', requireAuth, rateLimit('read'), requireFeature('r
       items,
       /* `built`, not `askable`: the build applies one drop rule the filter cannot, so the count
          that answers "is there more" has to be the built one. See the note above the cut. */
-      hasMore: askableDue.some((row) => !shownIds.has(row.id)) || due.length >= dueLimit,
+      hasMore: sitting.askableDue.some((row) => !shownIds.has(row.id)) || sitting.dueHitLimit,
+      today,
       coldStart: coldStart
         ? { ready: coldStart.ready, needed: coldStart.needed, opensAt: coldStart.opensAt?.toISOString() ?? null }
         : null,
@@ -237,24 +248,20 @@ route.get('/api/review/session', requireAuth, rateLimit('read'), requireFeature(
      * the engine finished is the same thing it always was.
      */
     void refillReviewQueue(auth.userId, now).catch(() => {});
-    const [due, upcoming] = await Promise.all([
-      listDueReviewItems(auth.userId, REVIEW_SESSION_CAP + REVIEW_INBOX_UNASKABLE_SLACK, now),
-      listUpcomingReviewItems(auth.userId, REVIEW_SESSION_CAP, now),
-    ]);
-    const [askableDue, askableUpcoming] = await Promise.all([
-      filterAskableReviewRows(auth.userId, due, { dropUnaskable: true }),
-      filterAskableReviewRows(auth.userId, upcoming, { dropUnaskable: true }),
-    ]);
-    const withKey = <T extends { scriptureReference?: string | null; noteId?: string | null }>(row: T) => ({
-      ...row,
-      groupKey: sessionGroupKeyFor(row),
-    });
-    const rows = composeSitting(
-      askableDue.map(withKey),
-      askableUpcoming.map(withKey),
-      REVIEW_SESSION_CAP,
+    /*
+     * Composed exactly as the inbox is, through the same function — including the day's budget,
+     * which is what makes a sitting able to end. Without it the dock refilled from the same pool
+     * that had just been answered, so eight questions became another eight, and the shelf's
+     * count sat still while the reader worked.
+     */
+    const since = readerDayStart(c, now);
+    const sitting = await composeTodaySittingFor(auth.userId, {
+      since,
+      cap: REVIEW_SESSION_CAP,
+      slack: REVIEW_INBOX_UNASKABLE_SLACK,
       now,
-    );
+    });
+    const rows = sitting.rows;
     /*
      * The first question's exercise, built *beside* the views rather than after them.
      *
@@ -398,6 +405,9 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
       ? Math.max(1, Math.min(REVIEW_MAX_ATTEMPTS, body.attemptNumber))
       : 1;
 
+    /** A second look at something missed, which is marked and then changes nothing. */
+    const practice = body?.practice === true;
+
     /*
      * Two rungs of the verse ladder have a right answer, and on those the reader's own verdict
      * is not the input — the arrangement or the option they chose is. Marked here rather than
@@ -500,6 +510,66 @@ route.post('/api/review/items/:id/outcome', requireAuth, rateLimit('write'), req
           : 'recalled'
         : 'revealed'
       : null;
+
+    /*
+     * One more look at something missed, which changes nothing about when it comes back.
+     *
+     * The sitting asks a missed item again before it ends — the strongest lever there is, and
+     * the one the engine had none of: a miss left the queue and returned tomorrow, so the
+     * sitting in which the reader actually saw the answer never once asked them to produce it.
+     *
+     * It must not touch `ReviewItems`, and that is the whole of the design. The schedule for a
+     * missed item is already set — tomorrow — and grading this as an outcome would overwrite the
+     * one-day interval with a fortnight on the strength of an answer given a minute after seeing
+     * the answer. It would also count a second `reviewCount`, move the ladder, and let a rehearsal
+     * graduate an item off its learning steps. So: mark it, say how it went, write one event for
+     * the record, and leave the row exactly as the real answer left it.
+     *
+     * Guarded rather than trusted, because the client asks for it: only an item answered within
+     * the last few hours and not answered *well* can be practised. Otherwise it is a free way to
+     * be marked with no consequence, which is a different feature and not this one.
+     */
+    if (practice) {
+      const recent =
+        item.lastReviewedAt != null &&
+        Date.now() - item.lastReviewedAt.getTime() <= REVIEW_PRACTICE_WINDOW_MS;
+      if (!recent || item.lastOutcome === 'recalled') {
+        return c.json({ error: 'Not offered', code: 'REVIEW_PRACTICE_NOT_OFFERED' }, 409);
+      }
+
+      await recordReviewEvent(auth.userId, item, 'practiced', {
+        attempt,
+        rungKey: askedKey,
+        attemptNumber,
+        graded: graded != null,
+      });
+
+      const practiceTruth =
+        (await verseTruthFor(item, auth.userId)) ?? (await chapterTruthFor(item, auth.userId));
+
+      return c.json({
+        success: true,
+        practice: true,
+        outcome: verdict ?? outcome,
+        correct: graded ? graded.correct : undefined,
+        finalized: true,
+        ...(graded && !graded.correct && graded.correctAnswer
+          ? { correctAnswer: graded.correctAnswer }
+          : {}),
+        ...(graded?.parts ? { parts: graded.parts } : {}),
+        ...(graded?.reached ? { reached: graded.reached } : {}),
+        attempts: { used: attemptNumber, total: maxAttempts },
+        ...(practiceTruth ? { truth: { verseText: practiceTruth } } : {}),
+        /* The schedule the real answer set, unchanged and restated — so the card can say when
+           this comes back without implying that the rehearsal moved it. */
+        next: {
+          intervalDays: item.intervalDays,
+          dueAt: item.dueAt.toISOString(),
+          recallState: item.recallState,
+          label: describeNextReturn(item.intervalDays),
+        },
+      });
+    }
 
     const { item: applied, nextReturnDays, leech, stalled } = await applyReviewOutcome(
       auth.userId,

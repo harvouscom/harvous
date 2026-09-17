@@ -26,6 +26,8 @@ const inbox = {
     | {
         items: unknown[];
         hasMore: boolean;
+        /** How far through today's sitting — see `ReviewInboxResponse`. */
+        today?: { answered: number; goal: number } | null;
         coldStart?: { ready: number; needed: number; opensAt: string | null } | null;
       },
 };
@@ -260,35 +262,74 @@ describe('what it shows a subscriber', () => {
   });
 
   /*
-   * The fold names what pressing it will actually open (#112) — `items.length` minus the rows
-   * already on screen, both of which the closed section is holding. It does not need the built
-   * list, which is only fetched on expand.
+   * The fold counts the day, not the pile.
    *
-   * This pair used to encode the older rule, where a closed section could not count at all and
-   * said "See all", and then a version that counted every due row off the summary. Both printed
-   * a number that did not match what opening produced, which is the failure #112 named.
+   * It used to name how many rows pressing it would open, which was `min(8, rows) - 2` — and
+   * could not move, because the inbox refilled to eight on every read including with the items
+   * just answered. Progress through a sitting instead: finite, and it ends.
    */
-  it('names how many rows the fold will open, from what it already has', () => {
-    // `allItems` stays undefined (reset in beforeEach): nothing is expanded, so the server was
-    // never asked to build a question, and the count is right anyway.
+  it('says how far through today the reader is', () => {
+    inbox.data = {
+      items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)),
+      hasMore: true,
+      today: { answered: 2, goal: 5 },
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText('2 of 5 today')).toBeInTheDocument();
+  });
+
+  it('climbs as questions are answered', () => {
+    inbox.data = {
+      items: ['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)),
+      hasMore: false,
+      today: { answered: 3, goal: 5 },
+    };
+    render(<PrototypeReviewSection />);
+    expect(screen.getByText('3 of 5 today')).toBeInTheDocument();
+  });
+
+  it('falls back to the old label when the server sent no day', () => {
     inbox.data = {
       items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)),
       hasMore: true,
     };
     render(<PrototypeReviewSection />);
-    // Three due, two shown closed — one more to open.
-    expect(screen.getByText('1 more')).toBeInTheDocument();
+    expect(screen.getByText('See all')).toBeInTheDocument();
   });
 
-  it('does not count rows the fold will not open', () => {
-    // Both due rows are already on screen, so opening reveals nothing and there is no fold —
-    // even though the summary knows about a third. Counting the summary here said "1 more" and
-    // opened onto the same two rows.
-    inbox.data = { items: ['a', 'b'].map((id) => reviewItem(id, `Question ${id}`)), hasMore: false };
-    summaryItems.data = { items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)) };
+  it('says the day is finished rather than rendering nothing at all', () => {
+    /* The state the shelf could never reach: a sitting that refilled itself had no end, and
+       an empty one returned null rather than saying so. */
+    inbox.data = { items: [], hasMore: false, today: { answered: 5, goal: 5 } };
     render(<PrototypeReviewSection />);
-    expect(screen.queryByText(/\d+ more/)).not.toBeInTheDocument();
-    expect(screen.queryByText('See all')).not.toBeInTheDocument();
+    expect(screen.getByText(/Done for today/)).toBeInTheDocument();
+  });
+
+  it('offers one fold, not a stack of them', () => {
+    /* Three bars — "N more", "N coming back later", "N set aside" — under two rows of study. */
+    inbox.data = {
+      items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)),
+      hasMore: true,
+      today: { answered: 1, goal: 4 },
+    };
+    summaryItems.data = {
+      items: [
+        ...['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)),
+        { ...reviewItem('later', 'Later'), dueAt: new Date(Date.now() + 86_400_000).toISOString() },
+      ],
+    };
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container.querySelectorAll('.proto-feed-part__more')).toHaveLength(1);
+  });
+
+  it('keeps the later groups inside the fold rather than beside it', () => {
+    inbox.data = {
+      items: ['a', 'b', 'c'].map((id) => reviewItem(id, `Question ${id}`)),
+      hasMore: true,
+      today: { answered: 0, goal: 3 },
+    };
+    const { container } = render(<PrototypeReviewSection />);
+    expect(container.querySelectorAll('.proto-review-section__subhead')).toHaveLength(0);
   });
 
   it('says where a challenge is as a position, never as a count of what is left', () => {

@@ -24,6 +24,7 @@ import {
   buildVerseRecognize,
   buildVerseMarked,
   gradeVerseMarked,
+  verseLocateStem,
 } from '@/utils/verse-ladder-exercises';
 
 const JOHN_15_5 =
@@ -534,5 +535,46 @@ describe('verse.marked', () => {
         seed: 'item:6',
       })!;
     expect(build().options).toEqual(build().options);
+  });
+});
+
+describe('verseLocateStem', () => {
+  const VERSE =
+    'For God so loved the world, that he gave his one and only Son, so that everyone who believes in him will not perish but have eternal life.';
+
+  it('starts after a clause break rather than mid-phrase', () => {
+    const stem = verseLocateStem(VERSE)!;
+    expect(stem.phrase.startsWith('that he gave')).toBe(true);
+    /* There is verse on both sides of it, and both ends say so. */
+    expect(stem.leading).toBe(true);
+    expect(stem.trailing).toBe(true);
+  });
+
+  it('quotes a short verse whole, and claims nothing either side', () => {
+    const stem = verseLocateStem('Jesus wept.')!;
+    expect(stem.phrase).toBe('Jesus wept.');
+    expect(stem.leading).toBe(false);
+    expect(stem.trailing).toBe(false);
+  });
+
+  it('marks a reader span at the end of a verse as having nothing after it', () => {
+    const stem = verseLocateStem(VERSE, 'but have eternal life.')!;
+    expect(stem.phrase).toBe('but have eternal life.');
+    expect(stem.leading).toBe(true);
+    expect(stem.trailing).toBe(false);
+  });
+
+  it('marks a reader span at the start as having nothing before it', () => {
+    const stem = verseLocateStem(VERSE, 'For God so loved')!;
+    expect(stem.leading).toBe(false);
+    expect(stem.trailing).toBe(true);
+  });
+
+  it('is the same stem the locate exercise carries', () => {
+    const built = buildVerseLocate('John 3:16', VERSE, ['Romans 8:28', 'Acts 2:38', 'Ruth 1:16'], 's');
+    const stem = verseLocateStem(VERSE)!;
+    expect(built!.phrase).toBe(stem.phrase);
+    expect(built!.leading).toBe(stem.leading);
+    expect(built!.trailing).toBe(stem.trailing);
   });
 });

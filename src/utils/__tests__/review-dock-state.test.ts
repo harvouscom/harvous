@@ -3,8 +3,11 @@ import {
   SITTING_STALE_MS,
   canJudgeRecall,
   resolveReviewDockItem,
+  reviewQuestionKey,
+  shouldReaskInSitting,
   shouldReleaseHeldItem,
   sittingIsStale,
+  sittingProgress,
 } from '../review-dock-state';
 
 const item = (id: string) => ({ id });
@@ -128,5 +131,73 @@ describe('sittingIsStale', () => {
   it('says nothing about a sitting that has never been fetched', () => {
     expect(sittingIsStale(null, noon)).toBe(false);
     expect(sittingIsStale(0, noon)).toBe(false);
+  });
+});
+
+describe('one more look at something missed', () => {
+  const base = { outcome: 'revealed', practice: false, graded: true, finalized: true };
+
+  it('brings back a question that ran out of goes', () => {
+    expect(shouldReaskInSitting(base)).toBe(true);
+  });
+
+  it('leaves an almost alone', () => {
+    /* It was already retried on the same card seconds ago, and it returns tomorrow anyway —
+       asking again now is massed repetition wearing a spaced-repetition hat. */
+    expect(shouldReaskInSitting({ ...base, outcome: 'almost' })).toBe(false);
+    expect(shouldReaskInSitting({ ...base, outcome: 'recalled' })).toBe(false);
+  });
+
+  it('never re-asks a re-ask', () => {
+    /* How "once" is structural rather than a counter: the second look is itself a practice
+       answer, and a practice answer cannot spawn another. */
+    expect(shouldReaskInSitting({ ...base, practice: true })).toBe(false);
+  });
+
+  it('wants a marked answer and a finished one', () => {
+    expect(shouldReaskInSitting({ ...base, graded: false })).toBe(false);
+    expect(shouldReaskInSitting({ ...base, finalized: false })).toBe(false);
+  });
+});
+
+describe('reviewQuestionKey', () => {
+  it('changes when the same item is asked again', () => {
+    /* The dock resets its typed answer, verdict and revealed truth on this. Keyed on the id
+       alone, a re-ask inherited all three from the question it was repeating. */
+    const first = { id: 'r1', ladderStep: 2, reviewCount: 4 };
+    expect(reviewQuestionKey(first)).not.toBe(reviewQuestionKey({ ...first, reviewCount: 5 }));
+    expect(reviewQuestionKey(first)).not.toBe(reviewQuestionKey({ ...first, ladderStep: 3 }));
+    expect(reviewQuestionKey(first)).toBe(reviewQuestionKey({ ...first }));
+  });
+
+  it('answers for nothing at all', () => {
+    expect(reviewQuestionKey(null)).toBe('none');
+  });
+});
+
+describe('sittingProgress', () => {
+  const tally = (answered: number, practiced = 0) => ({ answered, holding: 0, practiced });
+
+  it('counts what is done against what is done plus what is left', () => {
+    const progress = sittingProgress(tally(3), 5);
+    expect(progress).toMatchObject({ done: 3, total: 8, complete: false });
+    expect(progress.fraction).toBeCloseTo(3 / 8);
+  });
+
+  it('grows the total when a missed question comes back', () => {
+    /* Captured at the start, the bar would read "8 of 8" with two questions still on screen. */
+    expect(sittingProgress(tally(8), 1).total).toBe(9);
+  });
+
+  it('counts a second look as work done', () => {
+    expect(sittingProgress(tally(3, 1), 2)).toMatchObject({ done: 4, total: 6 });
+  });
+
+  it('is complete when the queue empties', () => {
+    expect(sittingProgress(tally(6), 0).complete).toBe(true);
+  });
+
+  it('says nothing about an empty sitting', () => {
+    expect(sittingProgress(tally(0), 0)).toMatchObject({ total: 0, fraction: 0, complete: false });
   });
 });

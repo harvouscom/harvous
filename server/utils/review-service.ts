@@ -63,14 +63,19 @@ import {
   type ReviewOutcome,
   type RecallState,
   isReviewAskableKind,
+  REVIEW_OUTCOMES,
 } from '@/utils/review-item-kinds';
+import { composeSitting, sessionGroupKeyFor, todaySitting } from '@/utils/review-session-order';
+import { isReviewTableMissing } from './pg-undefined-relation';
 import {
   REVIEW_LEECH_LAPSES,
   deferReview,
   firstDueAt,
   firstDueAtFor,
+  ladderStepAfterOutcome,
   nextReviewAfter,
   reviewHasStalled,
+  shouldEaseRung,
   stepBackRung,
 } from '@/utils/review-scheduling';
 import {
@@ -133,6 +138,7 @@ import {
   markVerseRecall,
   markVerseSequence,
   readerSpanFragment,
+  verseLocateStem,
   type VerseNextExercise,
   verseRecallCoverage,
 } from '@/utils/verse-ladder-exercises';
@@ -1449,6 +1455,94 @@ export async function listUpcomingReviewItems(
     .limit(limit)) as ReviewItemRow[];
 }
 
+/**
+ * How many distinct items were answered since `since` — the reader's local midnight.
+ *
+ * Distinct, not events: an item answered on its second go writes one outcome row, but a practice
+ * pass or a re-ask would write another, and a day that counted those twice would claim a sitting
+ * of eight had been finished after six.
+ *
+ * Only the three outcomes count. `shown` is not an answer.
+ */
+export async function countReviewedSince(userId: string, since: Date): Promise<number> {
+  try {
+    const rows = await db
+      .selectDistinct({ id: ReviewEvents.reviewItemId })
+      .from(ReviewEvents)
+      .where(
+        and(
+          eq(ReviewEvents.userId, userId),
+          gte(ReviewEvents.createdAt, since),
+          inArray(ReviewEvents.action, [...REVIEW_OUTCOMES]),
+        ),
+      );
+    return rows.length;
+  } catch (error) {
+    /* A database without the events table yet is a day with nothing answered, not a broken
+       Activity page — the same rule the inbox route applies to a missing ReviewItems. */
+    if (isReviewTableMissing(error)) return 0;
+    throw error;
+  }
+}
+
+/**
+ * Today's sitting, composed once for both surfaces that ask for one.
+ *
+ * The inbox and the session route each built this themselves, in the same four steps, and the
+ * ordering of those steps is load-bearing in a way that reads as an optimisation waiting to
+ * happen: fetch, then drop the unaskable, then cut to the cap, and only then build. Cutting
+ * before building looked equivalent once and was not — a chapter whose text cannot be fetched is
+ * only discoverable during the build, so a late drop ate a visible row instead of a spare one,
+ * and the Review section rendered nothing at all in production. One function, so there is one
+ * copy of that order rather than two that can drift apart.
+ */
+export async function composeTodaySittingFor(
+  userId: string,
+  options: { since: Date | null; cap: number; slack: number; now: Date },
+): Promise<{
+  rows: ReviewItemRow[];
+  answered: number;
+  /** Every askable due row, so a caller can answer "is there more" against what it showed. */
+  askableDue: ReviewItemRow[];
+  /** The due query came back full, so there is more behind it than was fetched. */
+  dueHitLimit: boolean;
+}> {
+  const { since, cap, slack, now } = options;
+  const answered = since ? await countReviewedSince(userId, since) : 0;
+
+  const dueLimit = cap + 1 + slack;
+  const [due, upcoming] = await Promise.all([
+    listDueReviewItems(userId, dueLimit, now),
+    listUpcomingReviewItems(userId, cap, now),
+  ]);
+  const [askableDue, askableUpcoming] = await Promise.all([
+    filterAskableReviewRows(userId, due, { dropUnaskable: true }),
+    filterAskableReviewRows(userId, upcoming, { dropUnaskable: true }),
+  ]);
+  const withKey = (row: ReviewItemRow) => ({ ...row, groupKey: sessionGroupKeyFor(row) });
+  const common = { answered, askableDue, dueHitLimit: due.length >= dueLimit };
+
+  /* Without a trustworthy local midnight there is no day to measure, so this behaves exactly as
+     it did before: compose the mix, and report no progress rather than a wrong one. */
+  if (!since) {
+    return {
+      ...common,
+      rows: composeSitting(askableDue.map(withKey), askableUpcoming.map(withKey), cap, now),
+      answered: 0,
+    };
+  }
+
+  const { rows } = todaySitting(
+    askableDue.map(withKey),
+    askableUpcoming.map(withKey),
+    answered,
+    since,
+    cap,
+    now,
+  );
+  return { ...common, rows };
+}
+
 export async function listReviewItems(
   userId: string,
   status?: ReviewItemStatus,
@@ -1764,6 +1858,43 @@ export interface ReviewOutcomeResult {
  * "worth another look" card on Home. Without it the two surfaces would compete over the same
  * note — one because it is due, the other because it looks neglected.
  */
+/**
+ * Has this item ever been recalled cleanly, once?
+ *
+ * Decides whether it is still on the learning steps. Two of the three answers are free: a live
+ * streak means yes, and a row that has never been answered at all means no. A lapse also means
+ * yes — a lapse is by definition something held and then lost.
+ *
+ * The query is the remaining case: an item answered before but not currently on a streak, where
+ * the row alone cannot tell "held it once in March" from "has never once had it". Practice
+ * passes are a different action and cannot answer this, which is the point of giving them one.
+ */
+async function itemHasCleanRecall(userId: string, item: ReviewItemRow): Promise<boolean> {
+  if (item.successStreak > 0) return true;
+  if ((item.lapseCount ?? 0) > 0) return true;
+  if (item.reviewCount <= 0) return false;
+  try {
+    const rows = await db
+      .select({ id: ReviewEvents.id })
+      .from(ReviewEvents)
+      .where(
+        and(
+          eq(ReviewEvents.userId, userId),
+          eq(ReviewEvents.reviewItemId, item.id),
+          eq(ReviewEvents.action, 'recalled'),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  } catch (error) {
+    /* An events table that is not there yet cannot prove a recall never happened, and treating
+       a long-standing item as brand new would shorten its interval on the strength of a missing
+       table. The old behaviour is the safe answer. */
+    if (isReviewTableMissing(error)) return true;
+    throw error;
+  }
+}
+
 export async function applyReviewOutcome(
   userId: string,
   item: ReviewItemRow,
@@ -1778,6 +1909,7 @@ export async function applyReviewOutcome(
    */
   answered: { attemptNumber?: number | null; graded?: boolean | null } = {},
 ): Promise<ReviewOutcomeResult> {
+  const everRecalled = await itemHasCleanRecall(userId, item);
   const next = nextReviewAfter(
     outcome,
     {
@@ -1787,17 +1919,37 @@ export async function applyReviewOutcome(
       lastOutcome: (item.lastOutcome as ReviewOutcome | null) ?? null,
       lapseCount: item.lapseCount ?? 0,
       rungKey,
+      everRecalled,
     },
     now,
   );
 
-  // A ladder only advances on a clean recall — half-remembering something is not a reason to be
-  // asked a harder question about it next time. Notes climb now too; `nextLadderStep` knows
-  // which kinds have a ladder and how far each one goes.
-  const ladderStep =
-    outcome === 'recalled'
-      ? nextLadderStep(item.kind as ReviewItemKind, item.ladderStep)
-      : item.ladderStep;
+  /*
+   * Where the ladder stands afterwards — climb on a clean recall, ease on a run of near-misses,
+   * otherwise stay. One function rather than a conditional here, because the rule now has three
+   * branches and the third (a graduating recall keeps its rung) is easy to lose sight of: an
+   * item held for the first time has earned a longer interval, not a harder question.
+   *
+   * Nothing about the ease reaches the client. It is a change in how the reader is asked, made
+   * from their answers — see `shouldEaseRung`.
+   */
+  const ease = shouldEaseRung({
+    ladderStep: item.ladderStep,
+    previousOutcome: (item.lastOutcome as ReviewOutcome | null) ?? null,
+    previousRungKey: item.lastRungKey ?? null,
+    outcome,
+    rungKey,
+    leech: next.leech,
+  });
+  const ladderStep = ladderStepAfterOutcome({
+    kind: item.kind as ReviewItemKind,
+    ladderStep: item.ladderStep,
+    reviewCount: item.reviewCount,
+    successStreak: item.successStreak,
+    outcome,
+    ease,
+    learning: !everRecalled,
+  });
 
   const updated = first(
     await db
@@ -2039,8 +2191,20 @@ export interface ReviewRevealPayload {
   thread?: { title: string | null; members: { id: string; title: string | null }[] } | null;
   /** The ordering puzzle, without its answer key — see verse-ladder-exercises.ts. */
   sequence?: { phrases: string[] } | null;
-  /** The four references, without which one is right. */
-  locate?: { phrase: string; options: string[] } | null;
+  /**
+   * The four references, without which one is right.
+   *
+   * `leading` / `trailing` say whether the quoted phrase actually has verse either side of it.
+   * The card printed a trailing ellipsis unconditionally and never a leading one, so a phrase
+   * deliberately starting at the third word read as the verse's opening, and one running to the
+   * end claimed there was more. Optional, so a payload built before this still renders.
+   */
+  locate?: {
+    phrase: string;
+    options: string[];
+    leading?: boolean;
+    trailing?: boolean;
+  } | null;
   /**
    * A note rung: the question's own material and its four options, never which is right.
    *
@@ -2049,15 +2213,31 @@ export interface ReviewRevealPayload {
    */
   noteChoice?: {
     fragment: string | null;
-    /** Present when the stem is a span the reader marked: the quote, and the words either side. */
-    span?: { before: string; quote: string; after: string } | null;
+    /**
+     * Present when the stem is a span the reader marked: the quote, and the words either side.
+     *
+     * The words either side are now the rest of the sentence the quote was highlighted inside,
+     * taken from the note itself. They used to come from the anchor's stored prefix and suffix,
+     * which are nullable and usually absent — which is why a marked-span question so often
+     * showed a bold clause floating on its own. `leading` / `trailing` mark where the sentence
+     * was cut back, and only where it actually was.
+     */
+    span?: {
+      before: string;
+      quote: string;
+      after: string;
+      leading?: boolean;
+      trailing?: boolean;
+    } | null;
     /**
      * The stem is a clause, not a whole sentence.
      *
      * The card quotes the fragment, and a quotation that reads as a complete sentence when it is
      * half of one is a small lie about the reader's own writing. An ellipsis says where it stops.
+     * `leading` is its twin, for a stem that does not begin where its sentence does.
      */
     truncated?: boolean;
+    leading?: boolean;
     options: string[];
   } | null;
   /**
@@ -2811,13 +2991,8 @@ async function loadReaderSpan(userId: string, reference: string): Promise<string
   return readerSpansByReference(marks).get(reference.trim().toLowerCase()) ?? null;
 }
 
-/** The same middle fragment locate shows, so the book rung reads as its easier twin. */
-function locateFragmentOf(text: string): string {
-  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  if (words.length < 6) return words.join(' ');
-  const start = Math.min(2, Math.max(0, words.length - 8));
-  return words.slice(start, start + 8).join(' ');
-}
+/* The book rung's stem is `verseLocateStem`, imported — it used to be a second copy of it here,
+   which is how the two rungs could drift into quoting the same verse differently. */
 
 // ─── The chapter rungs ────────────────────────────────────────────────────────
 
@@ -3590,7 +3765,7 @@ function noteStemFor(input: {
   spans: readonly NoteSpan[];
   seed: string;
   ownLabel: string | null;
-}): { fragment: string; span: NoteSpan | null; truncated: boolean } | null {
+}): { fragment: string; span: NoteSpan | null; truncated: boolean; leading?: boolean } | null {
   if (input.contentEncrypted) return null;
   return chooseNoteStem({
     html: input.content ?? '',
@@ -3679,6 +3854,8 @@ async function buildNoteExercise(
   span: NoteSpan | null;
   /** The stem is a clause cut out of a longer sentence, so the card may show it as partial. */
   truncated?: boolean;
+  /** And the same at the front, for a stem that does not begin where its sentence does. */
+  leading?: boolean;
   acceptable: string[];
 } | null> {
   if (item.kind !== 'note' || !item.noteId) return null;
@@ -3726,13 +3903,23 @@ async function buildNoteExercise(
       fallbackLabels: labels.close.length ? labels.rest : undefined,
       seed,
     });
+    /*
+     * The exercise's span, not the one handed in.
+     *
+     * `buildNoteRecognize` may narrow the context, or drop it entirely, when an option label
+     * turns out to be hiding in it. Returning the span we passed *in* would undo that silently
+     * and print the leaked words after all — the check would have run, found the problem, and
+     * been overruled by this line.
+     */
+    const shownSpan = exercise?.span ?? null;
     return exercise
       ? {
           rung,
           exercise,
           fragment: exercise.fragment,
-          span: span ?? null,
-          truncated: stem.truncated,
+          span: shownSpan,
+          truncated: shownSpan ? Boolean(shownSpan.trailing) : stem.truncated,
+          leading: shownSpan ? Boolean(shownSpan.leading) : stem.leading,
           acceptable: [labels.own],
         }
       : null;
@@ -4081,14 +4268,23 @@ export async function buildReviewReveal(
             poolBooks: booksOf(await listUserVerseReferences(userId, item.scriptureReference)),
             seed,
           });
-          payload.locate = exercise
-            ? {
-                phrase:
-                  readerSpanFragment(await loadReaderSpan(userId, item.scriptureReference), text) ??
-                  locateFragmentOf(text),
-                options: exercise.options,
-              }
-            : null;
+          if (exercise) {
+            const marked = readerSpanFragment(
+              await loadReaderSpan(userId, item.scriptureReference),
+              text,
+            );
+            const stem = verseLocateStem(text, marked);
+            payload.locate = stem
+              ? {
+                  phrase: stem.phrase,
+                  options: exercise.options,
+                  leading: stem.leading,
+                  trailing: stem.trailing,
+                }
+              : null;
+          } else {
+            payload.locate = null;
+          }
           payload.verseText = null;
         }
         if (rung.key === 'verse.rebuild') {
@@ -4152,7 +4348,14 @@ export async function buildReviewReveal(
             readerSpanFragment(await loadReaderSpan(userId, item.scriptureReference), text),
             close.length ? rest : undefined,
           );
-          payload.locate = exercise ? { phrase: exercise.phrase, options: exercise.options } : null;
+          payload.locate = exercise
+            ? {
+                phrase: exercise.phrase,
+                options: exercise.options,
+                leading: exercise.leading,
+                trailing: exercise.trailing,
+              }
+            : null;
           // The verse text itself would give the answer away on this rung.
           payload.verseText = null;
         }
@@ -4212,6 +4415,7 @@ export async function buildReviewReveal(
           // `span` only where the reader marked one; `answerIndex` never.
           span: built.span,
           truncated: built.truncated ?? false,
+          leading: built.leading ?? false,
           options: built.exercise.options,
         }
       : null;

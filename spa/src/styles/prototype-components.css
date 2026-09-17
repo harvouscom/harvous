@@ -17362,6 +17362,53 @@ html.harvous-prototype-route
 
 /* Field-shaped, because it sits in forms where a text input sits — but it is a
    menu trigger, so it carries a caret rather than OS select chrome. */
+/*
+ * Settings → Review exercises: twelve families you can compare at a glance.
+ *
+ * Each row carried a full-width three-segment bar under its description, which made the page a
+ * scroll of identical controls three rows tall on a phone — so comparing "how often do I want
+ * this one against that one" meant remembering your answer while you scrolled to it. The choice
+ * is a narrow picker on the row's own line now, and the row is about half the height.
+ */
+.proto-exercise-row {
+  align-items: center;
+  padding: var(--pds-space-2) var(--pds-space-3);
+}
+
+/* One line, clipped. A description that wraps to three lines undoes the height just saved —
+   the full sentence is on the element's `title`. */
+.proto-exercise-row__desc {
+  display: block;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sized to its own words rather than the row, which is what keeps the name beside it readable. */
+.proto-exercise-choice.proto-select-menu__trigger {
+  width: auto;
+  min-width: 92px;
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--pds-text-secondary);
+}
+
+/* A choice away from Normal reads at full strength: the page is defaults with a few deliberate
+   exceptions, and the exceptions are the thing worth finding again. */
+.proto-exercise-choice--set.proto-select-menu__trigger {
+  color: var(--pds-text-primary);
+  font-weight: 600;
+}
+
+/* The row's own glyph tile, scaled to a row half the height it used to be. */
+.proto-settings-list-row__leading--compact {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
 .proto-select-menu__trigger {
   display: inline-flex;
   align-items: center;
@@ -23284,6 +23331,49 @@ button.proto-feed-sheet__stat:hover {
   gap: var(--pds-space-2);
 }
 
+/*
+ * The two groups inside the opened fold — what is coming back, and what was set aside.
+ *
+ * Headings, not buttons. They were two more fold bars stacked under the first one, so a lane
+ * offering two rows of study carried three controls; opened, this is one list with its parts
+ * named. Quiet enough to read as a divider rather than as a row that can be pressed, which is
+ * what the rows beneath it are for.
+ */
+.proto-review-section__subhead {
+  margin: 0;
+  padding: var(--pds-space-3) var(--pds-space-3) var(--pds-space-1);
+  border-top: 0.5px solid var(--pds-border-control);
+  color: var(--pds-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The day's full stop. A statement, so it is not a row and cannot be pressed. */
+.proto-review-section__done {
+  margin: 0;
+  padding: var(--pds-space-3);
+  color: var(--pds-text-secondary);
+  font-size: 13px;
+}
+
+/*
+ * The same progress the fold's label carries, for when there is no fold to carry it.
+ *
+ * Deliberately shaped like the bar it stands in for — same border, same centring, same size —
+ * so the lane does not appear to gain a row as the day's last questions are answered. It is a
+ * `p`, not a button: there is nothing behind it to open.
+ */
+.proto-review-section__progress {
+  margin: 0;
+  border-top: 0.5px solid var(--pds-border-control);
+  padding: var(--pds-space-2);
+  text-align: center;
+  color: var(--pds-text-secondary);
+  font-size: 12px;
+}
+
 /* ─── Review dock ────────────────────────────────────────────────────────────
  *
  * Review used to be a page; it is a card in the study-dock band now. What survives from the
@@ -24059,6 +24149,41 @@ button.proto-feed-sheet__stat:hover {
  * as a task the app is setting, and this feature's vocabulary avoids counting what is owed. A
  * dot that has gone out says "that one is used" and says nothing else.
  */
+/*
+ * How far through the sitting — a bar, with no numerals anywhere near it.
+ *
+ * That is what lets it exist at all: this feature forbids any surface from printing a count of
+ * work not yet done, and a fill says "you are getting somewhere" without naming what is left.
+ * The reader who needs it most is the one halfway through, and a queue with no visible end is
+ * the thing people give up in the middle of.
+ *
+ * Scaled rather than sized, so it animates on the compositor and never lays anything out again.
+ */
+.proto-review-dock__progress {
+  height: 2px;
+  width: 100%;
+  background: var(--pds-bg-control);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.proto-review-dock__progress-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  transform-origin: left center;
+  background: var(--pds-accent);
+  transition: transform var(--pds-duration-segment) var(--pds-ease-emphasized);
+}
+
+/* A bar that jumps to its new width is still readable; one that animates past a reader who
+   asked for stillness is not. */
+@media (prefers-reduced-motion: reduce) {
+  .proto-review-dock__progress-fill {
+    transition: none;
+  }
+}
+
 .proto-review-dock__goes {
   display: inline-flex;
   align-items: center;

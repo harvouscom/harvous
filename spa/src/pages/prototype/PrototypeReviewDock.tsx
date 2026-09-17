@@ -42,8 +42,10 @@ import StudyDockCardShell from '@/components/react/StudyDockCardShell';
 import {
   canJudgeRecall,
   resolveReviewDockItem,
+  reviewQuestionKey,
   shouldReleaseHeldItem,
   sittingIsStale,
+  sittingProgress,
 } from '@/utils/review-dock-state';
 import { reviewRowSubtitle } from '@/utils/review-row-subtitle';
 import { noteParamSlug } from './proto-route-slugs';
@@ -87,6 +89,9 @@ import {
   REVIEW_EMPTY_NOTHING_YET_BODY,
   REVIEW_EMPTY_NOTHING_YET_TITLE,
   REVIEW_EMPTY_UP_TO_DATE_TITLE,
+  REVIEW_SITTING_DONE_TITLE,
+  REVIEW_PRACTICE_LABEL,
+  REVIEW_SITTING_PROGRESS_LABEL,
   reviewNextDueCopy,
   REVIEW_ALMOST_COPY,
   REVIEW_ATTEMPT_PLACEHOLDER,
@@ -463,7 +468,7 @@ export default function PrototypeReviewDock() {
    * cure is that no surface anywhere is able to say a number about work not yet done. This is
    * the opposite number: what you did.
    */
-  const [sitting, setSitting] = useState({ answered: 0, holding: 0 });
+  const [sitting, setSitting] = useState({ answered: 0, holding: 0, practiced: 0 });
 
   /*
    * A graded rung fetches without being revealed, because on those the puzzle *is* the question
@@ -471,6 +476,18 @@ export default function PrototypeReviewDock() {
    * deliberately withholds the verse text as well.
    */
   const isGradedRung = item ? reviewRungIsGraded(item) : false;
+  /* What identifies the question rather than the item — see `reviewQuestionKey`. */
+  const questionKey = reviewQuestionKey(item);
+  /* This copy of the item is the second look at something missed, appended by the mutation. */
+  const isPractice = item?.practice === true;
+  /*
+   * Derived from what is still in the queue, not captured when the sitting opened.
+   *
+   * A sitting is no longer a fixed length: a missed question comes back once, which adds to both
+   * halves. A total captured at the start would sit at "8 of 8" with two questions still on the
+   * card.
+   */
+  const progress = sittingProgress(sitting, sessionItems.length);
   /*
    * Keyed by the wording too. The key has carried a translation slot since it was written and
    * nothing ever filled it, so a reader who changed their default mid-session would have been
@@ -761,7 +778,15 @@ export default function PrototypeReviewDock() {
     setVerdict(null);
     setAttemptsTotal(null);
     setHints([]);
-  }, [item?.id]);
+    /*
+     * Keyed on the *question*, not the item.
+     *
+     * A missed item comes back once at the tail of the same sitting, so the same id can be asked
+     * twice — and on an id-keyed reset the second asking inherited the first's typed answer, its
+     * verdict and the truth it had already revealed. `reviewQuestionKey` carries the rung and the
+     * review count, which is what the seed builds a question from.
+     */
+  }, [questionKey]);
 
   /*
    * Let go of the pinned question once it is no longer the one being looked at.
@@ -794,7 +819,7 @@ export default function PrototypeReviewDock() {
    * make the closing line describe two sittings as one.
    */
   useEffect(() => {
-    if (!open) setSitting({ answered: 0, holding: 0 });
+    if (!open) setSitting({ answered: 0, holding: 0, practiced: 0 });
   }, [open]);
 
   /*
@@ -902,6 +927,9 @@ export default function PrototypeReviewDock() {
           attempt: attempt.trim() || undefined,
           // On a graded rung the server decides; `value` is only the fallback if it cannot.
           answer: graded,
+          /* A second look changes nothing about the schedule — see the practice branch in the
+             outcome route. The server guards it; this only declares what the card is doing. */
+          practice: isPractice,
         },
         {
           onSuccess: (data) => {
@@ -1003,10 +1031,23 @@ export default function PrototypeReviewDock() {
                 itemId: item.id,
                 at: Date.now(),
               });
-              setSitting((current) => ({
-                answered: current.answered + 1,
-                holding: current.holding + (data.next.recallState === 'durable' ? 1 : 0),
-              }));
+              /*
+               * A second look counts as work done, and not as an answer.
+               *
+               * `answered` is what the closing line reports, and a practice pass is the same
+               * question a second time — counting it there would tell someone who answered six
+               * questions that they answered seven. It still moves the progress bar, because it
+               * is a thing they did and a thing that is no longer ahead of them.
+               */
+              setSitting((current) =>
+                isPractice
+                  ? { ...current, practiced: current.practiced + 1 }
+                  : {
+                      ...current,
+                      answered: current.answered + 1,
+                      holding: current.holding + (data.next.recallState === 'durable' ? 1 : 0),
+                    },
+              );
               /*
                * Hand the dock back to the queue rather than leaving it pointed at what was just
                * answered.
@@ -1277,7 +1318,13 @@ export default function PrototypeReviewDock() {
             */}
           {item ? (
             <span className="proto-review-dock__header-prompt">
-              {reviewDock.expanded ? item.exercise?.label ?? null : item.prompt}
+              {/* A second look says so, quietly, so the same question coming round again reads
+                  as deliberate rather than as the card repeating itself. */}
+              {isPractice
+                ? REVIEW_PRACTICE_LABEL
+                : reviewDock.expanded
+                  ? item.exercise?.label ?? null
+                  : item.prompt}
             </span>
           ) : null}
           {/*
@@ -1312,8 +1359,36 @@ export default function PrototypeReviewDock() {
         </span>
       }
     >
+      {/*
+        * How far through the sitting, as a bar and nothing else.
+        *
+        * No numerals, which is the whole reason it can exist here at all: the vocabulary rule
+        * bars any surface from printing a count of work not yet done, and a bar that fills says
+        * "you are getting somewhere" without naming what is left. The evidence for short
+        * sessions is really evidence for *visibly finite* ones — a queue with no visible end is
+        * the thing a reader gives up in the middle of.
+        *
+        * Hidden for a sitting of one, where a bar would be a full-width way of saying "this is
+        * the only question".
+        */}
+      {progress.total > 1 ? (
+        <div
+          className="proto-review-dock__progress"
+          role="progressbar"
+          aria-label={REVIEW_SITTING_PROGRESS_LABEL}
+          aria-valuemin={0}
+          aria-valuemax={progress.total}
+          aria-valuenow={progress.done}
+          aria-valuetext={`${progress.done} of ${progress.total}`}
+        >
+          <span
+            className="proto-review-dock__progress-fill"
+            style={{ transform: `scaleX(${progress.fraction})` }}
+          />
+        </div>
+      ) : null}
       {/* Keyed on the question, so each new one plays its own entrance. */}
-      <div className="proto-review-dock__body" key={item?.id ?? 'empty'}>
+      <div className="proto-review-dock__body" key={questionKey}>
         {lastResult ? (
           /*
            * The moment after an answer, and the thing the first preview had nothing of: a
@@ -1523,9 +1598,21 @@ export default function PrototypeReviewDock() {
              * title and a line saying what happens next — so "Nothing waiting" read as much
              * like a fault as like a rest.
              */
+            /*
+             * Three endings, not two. An empty dock someone just worked through is a finish and
+             * should say so — "You are up to date" is what a dock opened onto nothing says, and
+             * reading it after eight questions makes the work you just did sound like a state
+             * you happened to already be in.
+             */
             <PrototypeListEmptyState
-              iconName={nextDue ? 'circle-check' : 'seedling'}
-              title={nextDue ? REVIEW_EMPTY_UP_TO_DATE_TITLE : REVIEW_EMPTY_NOTHING_YET_TITLE}
+              iconName={sitting.answered > 0 || nextDue ? 'circle-check' : 'seedling'}
+              title={
+                sitting.answered > 0
+                  ? REVIEW_SITTING_DONE_TITLE
+                  : nextDue
+                    ? REVIEW_EMPTY_UP_TO_DATE_TITLE
+                    : REVIEW_EMPTY_NOTHING_YET_TITLE
+              }
               description={
                 <>
                   {nextDue ? (
@@ -1560,18 +1647,25 @@ export default function PrototypeReviewDock() {
                 that answers "which note?" for a nameless one. */}
             {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
             {noteChoice.span ? (
-              /* The span the reader marked, with the words either side of it. The run-up is
-                 what stops a quote that begins mid-clause reading as a grammar puzzle; the
-                 marked words stay the emphasis. */
+              /*
+               * The span the reader marked, inside the sentence they marked it in. The sentence
+               * is what stops a bold clause reading as a grammar puzzle before it reads as a
+               * question about their study; the marked words stay the emphasis.
+               *
+               * Ellipses only where the server says something was actually dropped. They used
+               * to be absent entirely here, so a fragment was printed as though it were whole.
+               */
               <p className="proto-review-dock__verse">
+                {noteChoice.span.leading ? <span>… </span> : null}
                 {noteChoice.span.before ? <span>{noteChoice.span.before} </span> : null}
                 <strong>{noteChoice.span.quote}</strong>
                 {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
+                {noteChoice.span.trailing ? <span>…</span> : null}
               </p>
             ) : noteChoice.fragment ? (
-              /* An ellipsis where the sentence was cut, so a clause is not passed off as one. */
+              /* An ellipsis at each end that was cut, so a clause is not passed off as one. */
               <p className="proto-review-dock__verse">
-                “{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
+                “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
               </p>
             ) : null}
             {retryLine}
@@ -1951,7 +2045,14 @@ export default function PrototypeReviewDock() {
         ) : locateExercise ? (
           <>
             <p className="proto-review-dock__prompt">{item.prompt}</p>
-            <p className="proto-review-dock__verse proto-review-dock__verse--scripture">“{locateExercise.phrase}…”</p>
+            {/* The trailing ellipsis was hardcoded, so a phrase running to the end of the verse
+                claimed there was more; there was never a leading one, so a phrase deliberately
+                starting past the opening read as the opening. `trailing !== false` keeps a
+                payload built before this rendering exactly as it did. */}
+            <p className="proto-review-dock__verse proto-review-dock__verse--scripture">
+              “{locateExercise.leading ? '…' : ''}{locateExercise.phrase}
+              {locateExercise.trailing !== false ? '…' : ''}”
+            </p>
             {retryLine}
             <ReviewChoiceChips
               options={locateExercise.options}

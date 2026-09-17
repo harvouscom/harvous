@@ -625,7 +625,20 @@ route.get('/api/study-feed', requireAuth, rateLimit('read'), async (c) => {
         label: row.reference?.trim() || row.noteTitle?.trim() || null,
       })),
     };
-    return c.json(body);
+    /*
+     * Never the app-wide GET default.
+     *
+     * `server/app.ts` gives any GET without a header of its own
+     * `private, max-age=30, stale-while-revalidate=60`, and the SPA client deliberately does not
+     * send `cache: 'no-store'` so those headers can work. For this route that turns a correct
+     * invalidation into a lie: the refetch fired the instant a note is saved is inside the
+     * thirty seconds, so the browser answers it from its own cache with the body from before
+     * the write, and serves that for another minute while it revalidates. Only a full reload
+     * looked right, which is exactly how this was reported. The service worker hides it —
+     * it forces `no-store` on `/api/` — so it only bites where the SW is not in control: a
+     * first load before it claims the page, the native WebView, and dev.
+     */
+    return c.json(body, 200, { 'Cache-Control': 'private, no-store' });
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/study-feed',

@@ -20,7 +20,7 @@ import {
   type ReviewItemOrigin,
   type ReviewOutcome,
 } from './review-item-kinds';
-import { openingStepsFor, type ReviewPromptKey } from './review-prompts';
+import { nextLadderStep, openingStepsFor, type ReviewPromptKey } from './review-prompts';
 
 /**
  * The three base intervals.
@@ -196,6 +196,114 @@ export interface ReviewScheduleState {
   lapseCount?: number;
   /** The rung that was actually answered — decides the weight, and whether a miss can lapse. */
   rungKey?: ReviewPromptKey | string | null;
+  /**
+   * Has this item ever once been recalled cleanly?
+   *
+   * Defaults to true, which is the behaviour every caller had before this existed. When it is
+   * false the item is still *learning* — see `REVIEW_LEARNING_INTERVAL_DAYS`.
+   */
+  everRecalled?: boolean;
+}
+
+/**
+ * Before anything has been recalled once, days — not a fortnight.
+ *
+ * A brand-new item went straight onto the full 1/4/14 schedule, so the first time a verse was
+ * ever held it disappeared for two weeks, and the first sight of it after that was very often a
+ * blank. That is the schedule for something known, applied to something met once. The evidence
+ * for spacing is that intervals should *expand from* successful retrieval, not open at their
+ * full width; a short step first is what makes the fortnight afterwards worth having.
+ *
+ * Deliberately two days rather than the same day. Massed repetition inside one sitting is the
+ * thing retrieval practice is contrasted against, and the card already retries within the
+ * question. This is the next-day step that turns a lucky first answer into a second one.
+ */
+export const REVIEW_LEARNING_INTERVAL_DAYS: Record<ReviewOutcome, number> = {
+  revealed: 1,
+  almost: 1,
+  recalled: 2,
+};
+
+/**
+ * Two non-clean answers in a row on the same family, and the rung eases.
+ *
+ * The ladder only ever descended at four lapses, or four attempts with nothing recalled — so an
+ * item the reader kept *almost* getting sat on a rung too hard for it for weeks, being missed
+ * politely. `almost` does not even count as a lapse (something was retrieved), so the leech path
+ * could never catch this at all.
+ *
+ * Silent, and from outcomes only. Nothing is shown, nothing is offered: a prompt asking whether
+ * to make it easier hands the reader a judgement about their own memory that they have no way to
+ * make, and the answer they give is about their mood.
+ */
+export const REVIEW_EASE_AFTER = 2;
+
+export function shouldEaseRung(state: {
+  ladderStep: number;
+  previousOutcome?: ReviewOutcome | null;
+  previousRungKey?: ReviewPromptKey | string | null;
+  outcome: ReviewOutcome;
+  rungKey?: ReviewPromptKey | string | null;
+  /** The leech path owns its own step back; easing as well would move two rungs at once. */
+  leech: boolean;
+}): boolean {
+  if (state.leech) return false;
+  if (state.outcome === 'recalled') return false;
+  if (!state.previousOutcome || state.previousOutcome === 'recalled') return false;
+  /* At the foot there is no easier rung, only a sideways move — which is the stall path's job. */
+  if (Math.trunc(state.ladderStep) <= 0) return false;
+  /* On an index-keyed rung a miss is a disagreement with the index, not a memory failing. */
+  if (NEVER_LAPSES.has(state.rungKey as ReviewPromptKey)) return false;
+  if (NEVER_LAPSES.has(state.previousRungKey as ReviewPromptKey)) return false;
+  /*
+   * Same family both times, which is what makes this a run rather than a coincidence — and what
+   * resets the count without a column to store it in: easing moves the item to a different
+   * family, so the next miss cannot be the second of this pair.
+   */
+  const family = ladderFamilyOf(state.rungKey);
+  return Boolean(family) && family === ladderFamilyOf(state.previousRungKey);
+}
+
+/** The family half of a rung key: `verse.locate` and `verse.book` are both `verse`. */
+function ladderFamilyOf(key: ReviewPromptKey | string | null | undefined): string | null {
+  const value = (key ?? '').trim();
+  if (!value) return null;
+  return value.includes('.') ? value : null;
+}
+
+/**
+ * Where the ladder stands after an answer — the one place that decides.
+ *
+ * It climbs on a clean recall, eases on a run of near-misses, and otherwise stays. The one
+ * exception is a graduating recall while still learning: the item has been held once, which is
+ * worth a longer interval and not yet a harder question.
+ */
+export function ladderStepAfterOutcome(state: {
+  kind: ReviewItemKind;
+  ladderStep: number;
+  reviewCount: number;
+  successStreak: number;
+  outcome: ReviewOutcome;
+  ease: boolean;
+  learning: boolean;
+}): number {
+  if (state.outcome === 'recalled') {
+    return state.learning ? state.ladderStep : nextLadderStep(state.kind, state.ladderStep);
+  }
+  if (state.ease) return steppedBackLadderStep(state);
+  return state.ladderStep;
+}
+
+/** The step a step-back lands on, without the lapse reset that goes with a leech. */
+export function steppedBackLadderStep(state: {
+  ladderStep: number;
+  reviewCount: number;
+  kind?: ReviewItemKind | null;
+}): number {
+  const current = Math.max(0, Math.trunc(state.ladderStep));
+  return current > 0
+    ? current - 1
+    : otherOpeningStep(state.kind ?? 'verse', current, state.reviewCount);
 }
 
 export interface ReviewScheduleResult {
@@ -257,8 +365,11 @@ export function nextReviewAfter(
   const reviewCount = Math.max(0, state.reviewCount) + 1;
   const priorLapses = Math.max(0, state.lapseCount ?? 0);
 
+  /* Still learning until it has been held once — see `REVIEW_LEARNING_INTERVAL_DAYS`. */
+  const learning = state.everRecalled === false;
+
   if (outcome !== 'recalled') {
-    const base = REVIEW_INTERVAL_DAYS[outcome];
+    const base = learning ? REVIEW_LEARNING_INTERVAL_DAYS[outcome] : REVIEW_INTERVAL_DAYS[outcome];
     // Losing something held the last time it was asked. "Almost" is not a lapse: something was
     // retrieved. And on the index-keyed rung, a miss is a disagreement, never forgetting.
     const lapsed =
@@ -299,7 +410,14 @@ export function nextReviewAfter(
   const grown = successStreak >= STREAK_MULTIPLIER_FROM
     ? Math.max(base, previous) * STREAK_MULTIPLIER * lapseDamping(priorLapses)
     : base;
-  const intervalDays = Math.min(MAX_REVIEW_INTERVAL_DAYS, Math.round(grown * 10) / 10);
+  /*
+   * The graduating recall takes the short step, not the fortnight — no rung weight, no
+   * compounding. Holding something for the first time earns another look in two days; what it
+   * buys is the *right* to the full schedule, which begins on the recall after this one.
+   */
+  const intervalDays = learning
+    ? REVIEW_LEARNING_INTERVAL_DAYS.recalled
+    : Math.min(MAX_REVIEW_INTERVAL_DAYS, Math.round(grown * 10) / 10);
 
   return {
     intervalDays,
@@ -339,11 +457,8 @@ export function stepBackRung(state: {
   lapseCount: number;
   recallState: RecallState;
 } {
-  const current = Math.max(0, Math.trunc(state.ladderStep));
-  const ladderStep =
-    current > 0 ? current - 1 : otherOpeningStep(state.kind ?? 'verse', current, state.reviewCount);
   return {
-    ladderStep,
+    ladderStep: steppedBackLadderStep(state),
     lapseCount: 0,
     recallState: deriveRecallState({ ...state, lapseCount: 0 }),
   };

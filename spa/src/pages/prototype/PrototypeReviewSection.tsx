@@ -35,8 +35,11 @@ import {
   REVIEW_SEE_ALL_COPY,
   REVIEW_RESUME_COPY,
   REVIEW_SEE_LESS_COPY,
-  reviewComingBackCopy,
-  reviewSetAsideCopy,
+  REVIEW_COMING_BACK_HEADING,
+  REVIEW_SET_ASIDE_HEADING,
+  REVIEW_TODAY_DONE_COPY,
+  reviewNextReturnCopy,
+  reviewTodayProgressCopy,
   REVIEW_SECTION_TITLE,
   REVIEW_EMPTY_NOTHING_YET_TITLE,
   REVIEW_EMPTY_NOTHING_YET_BODY,
@@ -49,13 +52,24 @@ import { reviewRowSource, reviewRowSubject } from '@/utils/review-row-subtitle';
 import { reviewKindIcon } from './review-kind-icons';
 import { describeNextDue } from '@/utils/review-scheduling';
 import { recallChip } from './PrototypeRecallStateChip';
-import { reviewFoldRemainder } from './review-fold-remainder';
 import { collapsedReviewRows } from './review-collapsed-rows';
 import { useDismissiblePlusPrompt } from './use-dismissible-plus-prompt';
 import { useDismissibleReviewSample } from './use-dismissible-review-sample';
 
-function foldedLabel(folded: number | null): string {
-  return folded !== null && folded > 0 ? `${folded} more` : REVIEW_SEE_ALL_COPY;
+/**
+ * What the one fold says when it is closed.
+ *
+ * It used to read "N more", which was `min(8, rows) - 2` and could not move: the inbox refilled
+ * to eight on every read, including with the items just answered. So the number stood still
+ * while the reader worked, directly above "18 coming back later", which climbed as they did.
+ * Between them they said, accurately, that nothing you do here makes any difference.
+ *
+ * Progress through today's sitting instead — a finite thing that ends. Falls back to "See all"
+ * when the server sent no day, which is the label it always had.
+ */
+function foldedLabel(today: { answered: number; goal: number } | null): string {
+  if (!today || today.goal <= 0) return REVIEW_SEE_ALL_COPY;
+  return reviewTodayProgressCopy(today.answered, today.goal);
 }
 
 /**
@@ -90,16 +104,21 @@ export default function PrototypeReviewSection() {
   const { dismissed: plusPromptDismissed, dismiss: dismissPlusPrompt } = useDismissiblePlusPrompt();
   const { dismissed: sampleDismissed, dismiss: dismissSample } = useDismissibleReviewSample();
 
+  /*
+   * One fold, not three. "N more", "18 coming back later" and "2 set aside" were three bars
+   * stacked under two rows of content, each opening a list of its own — a lane whose controls
+   * outnumbered the thing it was offering. Opened, this one shows the rest of today first and
+   * then the other two as quiet headings inside the same list, which is where they belong: they
+   * are parts of the same queue, not separate places.
+   */
   const [expanded, setExpanded] = useState(false);
-  const [setAsideOpen, setSetAsideOpen] = useState(false);
-  const [comingBackOpen, setComingBackOpen] = useState(false);
   const inboxQuery = useReviewInbox();
   const activeSummaryQuery = useReviewItemsSummary('active');
-  const activeBuiltQuery = useReviewItems('active', { enabled: expanded || comingBackOpen });
+  const activeBuiltQuery = useReviewItems('active', { enabled: expanded });
   const nothingActive =
     activeSummaryQuery.isFetched && (activeSummaryQuery.data?.items?.length ?? 0) === 0;
   const allQuery = useReviewItems(undefined, {
-    enabled: expanded || setAsideOpen || nothingActive,
+    enabled: expanded || nothingActive,
   });
   const challengesQuery = useHomeChallenges();
   const hasAnyFeature = review.has || challengesFeature.has;
@@ -199,11 +218,23 @@ export default function PrototypeReviewSection() {
 
   const challengeRow = activeChallenges[0];
   const reviewRows = expanded ? items : collapsedReviewRows(items);
-  const folded = expanded ? 0 : reviewFoldRemainder(items.length, reviewRows.length);
-  const moreThanShown = folded > 0;
+  const today = inboxQuery.data?.today ?? null;
+  const moreThanShown = items.length > reviewRows.length;
+  /* The bar opens the other two sections as well, so it shows whenever any of the three has
+     something in it — including when today is finished and only the later ones remain. */
+  const canExpand =
+    moreThanShown || expanded || comingBackCount > 0 || setAside.length > 0;
 
   const hasRows =
     reviewRows.length > 0 || Boolean(challengeRow) || comingBackCount > 0 || setAside.length > 0;
+
+  /*
+   * Today is finished — the one state the shelf could never reach, because a sitting that
+   * refilled itself had no end and `!hasRows` returned null rather than saying so.
+   */
+  const doneForToday = Boolean(
+    today && today.goal > 0 && today.answered >= today.goal && reviewRows.length === 0,
+  );
 
   const coldStart = inboxQuery.data?.coldStart ?? null;
   if (!hasRows && coldStart) {
@@ -226,12 +257,22 @@ export default function PrototypeReviewSection() {
     );
   }
 
-  if (!hasRows) return null;
+  if (!hasRows && !doneForToday) return null;
 
   const openInDock = (itemId: string) => openReviewDock(itemId);
 
+  const nextUp = comingBack.length ? describeNextDue(comingBack[0].dueAt) : null;
+
   return (
     <PrototypeHomeSection title={REVIEW_SECTION_TITLE}>
+      {doneForToday ? (
+        /* Said once, quietly, and not as a row that can be pressed — there is nothing to press.
+           The next return is named because "done" without "and then?" is a dead end. */
+        <p className="proto-review-section__done">
+          {REVIEW_TODAY_DONE_COPY}
+          {nextUp ? ` ${reviewNextReturnCopy(nextUp)}` : ''}
+        </p>
+      ) : null}
       {reviewRows.map((item) => (
         <PrototypeReviewRow
           key={item.id}
@@ -265,7 +306,20 @@ export default function PrototypeReviewSection() {
         />
       ) : null}
 
-      {(moreThanShown || expanded) && reviewRows.length > 0 ? (
+      {/*
+        * Progress lives in the lane, not on the control.
+        *
+        * The fold only exists when there is something behind it, and the day's progress has to
+        * outlast that: answer down to the last two questions and there is nothing left to open,
+        * which is exactly the moment a reader most wants to see how close they are. Same slot,
+        * never both at once — a statement when there is nothing to open, the fold's own label
+        * when there is, so the lane never carries two things saying the same thing.
+        */}
+      {!canExpand && !doneForToday && today && today.goal > 0 ? (
+        <p className="proto-review-section__progress">{foldedLabel(today)}</p>
+      ) : null}
+
+      {canExpand ? (
         <button
           type="button"
           className="proto-feed-part__more"
@@ -278,62 +332,50 @@ export default function PrototypeReviewSection() {
             setExpanded((open) => !open);
           }}
         >
-          <span>{expanded ? REVIEW_SEE_LESS_COPY : foldedLabel(folded)}</span>
+          <span>{expanded ? REVIEW_SEE_LESS_COPY : foldedLabel(today)}</span>
           <Icon name={expanded ? 'caret-up' : 'caret-down'} size={10} />
         </button>
       ) : null}
 
-      {comingBackCount > 0 ? (
+      {/*
+        * Opened, the lane reads as one list: the rest of today, then what is coming back, then
+        * what has been set aside. Headings rather than three more buttons — these are parts of
+        * the same queue, and pressing a second control to reach the second part of a list you
+        * have already opened is a control that earns nothing.
+        */}
+      {expanded && comingBack.length > 0 ? (
         <>
-          <button
-            type="button"
-            className="proto-feed-part__more"
-            onClick={() => setComingBackOpen((open) => !open)}
-          >
-            <span>{reviewComingBackCopy(comingBackCount)}</span>
-            <Icon name={comingBackOpen ? 'caret-up' : 'caret-down'} size={10} />
-          </button>
-          {comingBackOpen
-            ? comingBack.slice(0, REVIEW_INBOX_MAX_ROWS).map((item) => (
-                <PrototypeReviewRow
-                  key={item.id}
-                  icon={reviewKindIcon(item.kind)}
-                  title={reviewRowSubject(item)}
-                  meta={[reviewRowTask(item), describeNextDue(item.dueAt)]}
-                  titleTrailing={recallChip(item)}
-                  onOpen={() => openInDock(item.id)}
-                  actions={reviewRowActions({
-                    onDefer: () => defer.mutate(item.id),
-                    onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
-                    onRemove: () => setStatus.mutate({ itemId: item.id, status: 'archived' }),
-                  })}
-                />
-              ))
-            : null}
+          <p className="proto-review-section__subhead">{REVIEW_COMING_BACK_HEADING}</p>
+          {comingBack.slice(0, REVIEW_INBOX_MAX_ROWS).map((item) => (
+            <PrototypeReviewRow
+              key={item.id}
+              icon={reviewKindIcon(item.kind)}
+              title={reviewRowSubject(item)}
+              meta={[reviewRowTask(item), describeNextDue(item.dueAt)]}
+              titleTrailing={recallChip(item)}
+              onOpen={() => openInDock(item.id)}
+              actions={reviewRowActions({
+                onDefer: () => defer.mutate(item.id),
+                onPause: () => setStatus.mutate({ itemId: item.id, status: 'paused' }),
+                onRemove: () => setStatus.mutate({ itemId: item.id, status: 'archived' }),
+              })}
+            />
+          ))}
         </>
       ) : null}
 
-      {setAside.length > 0 ? (
+      {expanded && setAside.length > 0 ? (
         <>
-          <button
-            type="button"
-            className="proto-feed-part__more"
-            onClick={() => setSetAsideOpen((open) => !open)}
-          >
-            <span>{reviewSetAsideCopy(setAside.length)}</span>
-            <Icon name={setAsideOpen ? 'caret-up' : 'caret-down'} size={10} />
-          </button>
-          {setAsideOpen
-            ? setAside.slice(0, REVIEW_INBOX_MAX_ROWS).map((item) => (
-                <PrototypeHomeRow
-                  key={item.id}
-                  icon={item.status === 'paused' ? 'circle-minus' : 'eye-slash'}
-                  title={reviewRowSubject(item)}
-                  meta={[REVIEW_RESUME_COPY]}
-                  onClick={() => setStatus.mutate({ itemId: item.id, status: 'active' })}
-                />
-              ))
-            : null}
+          <p className="proto-review-section__subhead">{REVIEW_SET_ASIDE_HEADING}</p>
+          {setAside.slice(0, REVIEW_INBOX_MAX_ROWS).map((item) => (
+            <PrototypeHomeRow
+              key={item.id}
+              icon={item.status === 'paused' ? 'circle-minus' : 'eye-slash'}
+              title={reviewRowSubject(item)}
+              meta={[REVIEW_RESUME_COPY]}
+              onClick={() => setStatus.mutate({ itemId: item.id, status: 'active' })}
+            />
+          ))}
         </>
       ) : null}
     </PrototypeHomeSection>

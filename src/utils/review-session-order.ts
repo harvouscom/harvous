@@ -133,3 +133,49 @@ export function composeSitting<T extends SessionOrderInput>(
 
   return interleaveSession(picked, now);
 }
+
+/**
+ * Today's sitting: what is left to ask, and how long it was.
+ *
+ * A sitting could not finish. `composeSitting` backfills from what is coming up — anything due
+ * inside two days, and any note at all to meet the mix quota — and answering an item sets it due
+ * in one day, which is inside that window. So the queue refilled with the very items just
+ * answered, the shelf's "N more" was `min(8, rows) - 2` for ever, and it sat directly above
+ * "18 coming back later", which climbs as you work. Two numbers, pulling opposite ways, and
+ * between them the honest impression that nothing you did made any difference.
+ *
+ * Two changes, both here:
+ *
+ * 1. **Anything answered since `since` is not eligible to come back today.** Tomorrow is soon
+ *    enough; that is what the interval means.
+ * 2. **The day has a budget.** Eight questions, less what has already been answered, so the
+ *    sitting shrinks as it is worked and reaches zero.
+ *
+ * `goal` is what the progress label counts towards. It is deliberately not a backlog: it is
+ * what has been answered plus what is actually on offer, capped at the day's ceiling, so it can
+ * never climb past eight however much is waiting. The failure mode the whole feature is designed
+ * against is an escalating "27 due", and a number that cannot exceed a single sitting is not
+ * that number.
+ */
+export function todaySitting<T extends SessionOrderInput & { lastReviewedAt?: Date | null }>(
+  due: readonly T[],
+  upcoming: readonly T[],
+  answeredToday: number,
+  since: Date,
+  cap: number,
+  now: Date = new Date(),
+): { rows: T[]; goal: number } {
+  const budget = Math.max(0, cap - Math.max(0, answeredToday));
+  if (budget === 0) return { rows: [], goal: Math.min(cap, Math.max(0, answeredToday)) };
+
+  const seenToday = (item: T): boolean =>
+    Boolean(item.lastReviewedAt && item.lastReviewedAt.getTime() >= since.getTime());
+
+  const rows = composeSitting(
+    due.filter((item) => !seenToday(item)),
+    upcoming.filter((item) => !seenToday(item)),
+    budget,
+    now,
+  );
+  return { rows, goal: Math.min(cap, Math.max(0, answeredToday) + rows.length) };
+}
