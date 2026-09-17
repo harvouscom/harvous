@@ -20,7 +20,11 @@
  *      `onmessage` or calling `startMessages()` does, per spec.
  */
 import { readServiceWorkerContainer } from '@/utils/storage-security';
-import { forceShowTodaysPassageToday, TODAYS_PASSAGE_FOCUS } from './votd-today';
+import {
+  forceShowTodaysPassageToday,
+  scrollToTodaysPassage,
+  TODAYS_PASSAGE_FOCUS,
+} from './votd-today';
 
 export const NOTIFICATION_NAVIGATE_MESSAGE = 'HARVOUS_NOTIFICATION_NAVIGATE';
 
@@ -132,6 +136,14 @@ function goTo(path: string): void {
   }
 
   if (`${window.location.pathname}${window.location.search}` === path) {
+    /*
+     * Already here, so there is no navigation to carry the reveal — and a tap that appears to do
+     * nothing is the report this whole path exists to answer. The flag above has made the row
+     * render; take them to it, on the next frame so that render has happened first.
+     */
+    if (path.includes(`focus=${TODAYS_PASSAGE_FOCUS}`)) {
+      requestAnimationFrame(() => scrollToTodaysPassage());
+    }
     void clearPendingNavigation();
     return;
   }

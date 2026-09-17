@@ -55,6 +55,7 @@ import type { LibraryTab } from './library-panel/library-panel-view';
 import PrototypeHomeGreeting from './PrototypeHomeGreeting';
 import { useHomeNotes } from './useHomeNotes';
 import { useHomeSurfaceData } from './use-home-surface-data';
+import { useTodaysPassageFocus } from './use-todays-passage-focus';
 import { usePrototypeHomeSpaceId } from '../../hooks/usePrototypeHomeSpaceId';
 import { usePrototypeSpaceScriptureIndex } from '../../hooks/queries/usePrototypeSpaceScriptureIndex';
 import PrototypeStudyFeedToday from './PrototypeStudyFeedToday';
@@ -318,6 +319,18 @@ export default function PrototypeStudyFeedPage() {
   }, [days, isPending, isFetchingNextPage]);
   const safeIndex = Math.min(index, Math.max(0, days.length - 1));
   const day = days[safeIndex];
+
+  /*
+   * A reminder tap names the row it is about, and this surface has to be showing the sheet that
+   * holds it. Both, together: the Suggested band lives on today's sheet with no space scope, so
+   * arriving from the notification while paged back — or narrowed to a shared space — would land
+   * on a page that has no passage row to reveal.
+   */
+  const showToday = useCallback(() => {
+    setIndex(0);
+    setScope(STUDY_FEED_SCOPE_ALL);
+  }, []);
+  useTodaysPassageFocus({ ready: !isPending && home.contentReady, showToday });
 
   const goBack = useCallback(() => {
     setIndex((i) => {

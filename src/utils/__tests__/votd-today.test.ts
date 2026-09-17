@@ -1,11 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
+  clearForcedTodaysPassage,
   findPersistedDailyPassageNote,
+  forceShowTodaysPassageToday,
   getVotdDismissedDay,
   isPersistedNoteId,
   isVotdPassageCardDismissedToday,
   noteMatchesDailyPassage,
   setVotdDismissedToday,
+  shouldForceShowTodaysPassage,
+  subscribeForcedTodaysPassage,
   todayCalendarDayKey,
   VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY,
 } from '../../../spa/src/lib/votd-today';
@@ -52,6 +56,65 @@ describe('votd passage card dismiss', () => {
   it('is not dismissed when stored day differs from today', () => {
     localStorage.setItem(VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY, '2026-06-25');
     expect(isVotdPassageCardDismissedToday()).toBe(false);
+  });
+
+  /* One browser, two accounts: "not today" is a thing a person said, not a thing the device
+     knows. Unscoped, one reader's dismissal hid the row for the next until local midnight. */
+  it('keeps one reader’s dismissal off another reader’s row', () => {
+    setVotdDismissedToday('user_a');
+    expect(isVotdPassageCardDismissedToday('user_a')).toBe(true);
+    expect(isVotdPassageCardDismissedToday('user_b')).toBe(false);
+  });
+
+  it('honours a dismissal made before the key was scoped', () => {
+    localStorage.setItem(VOTD_PASSAGE_CARD_DISMISSED_DAY_KEY, todayCalendarDayKey());
+    expect(isVotdPassageCardDismissedToday('user_a')).toBe(true);
+  });
+});
+
+describe('force-show today’s passage', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-26T15:00:00-05:00'));
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    sessionStorage.clear();
+  });
+
+  it('is off until something asks for it', () => {
+    expect(shouldForceShowTodaysPassage()).toBe(false);
+  });
+
+  /*
+   * The subscription is the fix, not the flag. The flag existed already and was read once during
+   * render, before the promise chain behind a notification tap had set it — so the row that had
+   * decided to hide stayed hidden with nothing to tell it otherwise.
+   */
+  it('tells a subscriber when a reminder asks for the row', () => {
+    const seen: boolean[] = [];
+    const unsubscribe = subscribeForcedTodaysPassage(() =>
+      seen.push(shouldForceShowTodaysPassage()),
+    );
+
+    forceShowTodaysPassageToday();
+    expect(seen).toEqual([true]);
+    expect(shouldForceShowTodaysPassage()).toBe(true);
+
+    clearForcedTodaysPassage();
+    expect(seen).toEqual([true, false]);
+
+    unsubscribe();
+    forceShowTodaysPassageToday();
+    expect(seen).toHaveLength(2);
+  });
+
+  it('does not carry yesterday’s request into today', () => {
+    forceShowTodaysPassageToday();
+    vi.setSystemTime(new Date('2026-06-27T15:00:00-05:00'));
+    expect(shouldForceShowTodaysPassage()).toBe(false);
   });
 });
 

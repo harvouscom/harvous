@@ -98,7 +98,16 @@ export async function votdTodayPublicHandler(c: Context) {
 
     return c.json(row ? { reference: row.reference, translation } : { reference: null });
   } catch {
-    c.res.headers.set('Cache-Control', 'public, max-age=60');
+    /*
+     * Never cache the failure, and never cache it publicly.
+     *
+     * This answered `public, max-age=60`, so one blip — a pool timeout, a redeploy — was handed
+     * to every reader who asked in the following minute, and to any shared cache in between. The
+     * client holds a passage for an hour, so a body saying "no passage today" arriving during
+     * that minute meant no passage row until the tab was reloaded. A momentary fault should cost
+     * the request it happened on and nothing else.
+     */
+    c.res.headers.set('Cache-Control', 'private, no-store');
     return c.json({ reference: null });
   }
 }
