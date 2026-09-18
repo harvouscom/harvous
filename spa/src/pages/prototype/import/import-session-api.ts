@@ -107,8 +107,16 @@ export function setImportItemsIncluded(
   return api.post(`/api/user/import/session/${sessionId}/exclude`, { itemIds, included });
 }
 
-export function commitImportItems(sessionId: string, itemIds: string[]): Promise<CommitResponse> {
-  return api.post<CommitResponse>(`/api/user/import/session/${sessionId}/commit`, { itemIds });
+export function commitImportItems(
+  sessionId: string,
+  itemIds: string[],
+  /** Also put these notes in a space the importer authors in; omit for My Home only. */
+  targetSpaceId?: string | null,
+): Promise<CommitResponse> {
+  return api.post<CommitResponse>(`/api/user/import/session/${sessionId}/commit`, {
+    itemIds,
+    ...(targetSpaceId ? { targetSpaceId } : {}),
+  });
 }
 
 export function enrichImportItems(sessionId: string, itemIds: string[]): Promise<EnrichResponse> {
