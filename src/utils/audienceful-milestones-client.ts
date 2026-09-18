@@ -2,6 +2,7 @@
  * Fire-and-forget Audienceful product milestones (client-only signals).
  * Server merges monotonic boolean flags; never send content or IDs here.
  */
+import { isGuestModeActive } from '../../spa/src/lib/guest-session';
 
 export type AudiencefulMilestone = 'note_opened' | 'upgrade_viewed' | 'checkout_started';
 
@@ -39,6 +40,12 @@ export function recordAudiencefulMilestoneOnce(
   options?: { userScope?: string },
 ): void {
   if (typeof window === 'undefined') return;
+  /*
+   * A guest has no account for the milestone to land on — the route is `requireAuth`, so every
+   * guest note open was a guaranteed 401. Checked before the session flag is set, so the same
+   * tab still records it once they have signed up and open a note as themselves.
+   */
+  if (isGuestModeActive()) return;
   const key = sessionKey(milestone, options?.userScope);
   try {
     if (sessionStorage.getItem(key) === '1') return;

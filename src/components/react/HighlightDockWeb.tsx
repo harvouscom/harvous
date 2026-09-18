@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isGuestModeActive } from '../../../spa/src/lib/guest-session';
 import { updateGuestHighlight } from '../../../spa/src/lib/guest-store';
+import { offerGuestAccount } from '../../../spa/src/lib/guest-gate';
 import { markOnboardingStep } from '../../../spa/src/lib/proto-onboarding-sync';
 import { api } from '../../../spa/src/lib/api';
 import { toastError } from '../../../spa/src/lib/error-copy';
@@ -47,6 +48,16 @@ export interface HighlightDockWebProps {
   isOwnHighlight?: boolean;
   /** Explicit read-only policy for another member's Activity entry. */
   readOnly?: boolean;
+  /**
+   * A guest's highlight inside their own note: the colour and remove work (they edit the mark,
+   * which the note body keeps), but a title or a note has nowhere on the device to go.
+   *
+   * The reader's dock needs none of this — there a guest's highlight is a guest-store row with
+   * a note field of its own, which `patchStudyThread` writes. In a note the highlight has no
+   * row, so words typed into the field used to live only in the open card and vanish when it
+   * closed. The fields stay on screen and answer a press with the account offer instead.
+   */
+  annotationNeedsAccount?: boolean;
   contextSpaceId?: string | null;
   /** When false, skips remote thread hydration (inactive carousel card). Default true. */
   interactionActive?: boolean;
@@ -145,6 +156,7 @@ export default function HighlightDockWeb({
   authorDisplayName = null,
   isOwnHighlight,
   readOnly = false,
+  annotationNeedsAccount = false,
   contextSpaceId = null,
   interactionActive = true,
   animateEnter = true,
@@ -423,7 +435,8 @@ export default function HighlightDockWeb({
       return;
     }
     if (autoFocusedMiniNoteRef.current) return;
-    if (readOnly || !showsMiniNote) {
+    // Declined for a locked field too: focusing it offers an account, and nobody pressed it.
+    if (readOnly || !showsMiniNote || annotationNeedsAccount) {
       autoFocusedMiniNoteRef.current = true;
       onMiniNoteFocusedRef.current?.();
       return;
@@ -455,11 +468,25 @@ export default function HighlightDockWeb({
       /* a missed caret is not worth breaking the card over */
     }
     onMiniNoteFocusedRef.current?.();
-  }, [autoFocusMiniNote, isExpanded, isControlledExpanded, onExpandedChange, readOnly, showsMiniNote]);
+  }, [
+    annotationNeedsAccount,
+    autoFocusMiniNote,
+    isExpanded,
+    isControlledExpanded,
+    onExpandedChange,
+    readOnly,
+    showsMiniNote,
+  ]);
 
   const titlePlaceholder = 'Highlight';
   const headerTitleText = focusTitle.trim() || deriveHighlightFocusTitle(excerpt);
   const showAuthorAttribution = Boolean(authorDisplayName && isOwnHighlight === false);
+  /* Editable-looking, pressable, and honest about why nothing types — see the prop. Focus
+     rather than click, so a keyboard arrival gets the same answer and a second click on a
+     field that already said so does not stack another toast. */
+  const fieldsWritable = !readOnly && !annotationNeedsAccount;
+  const offerAccountOnFocus = (what: string) =>
+    annotationNeedsAccount && !readOnly ? () => offerGuestAccount(what) : undefined;
 
   return (
     <StudyDockCardShell
@@ -476,12 +503,13 @@ export default function HighlightDockWeb({
           type="text"
           className="highlight-dock-web__title-input study-dock-card__header-primary-text"
           value={headerTitleText}
-          readOnly={readOnly || !isExpanded}
+          readOnly={!fieldsWritable || !isExpanded}
           disabled={readOnly}
           tabIndex={isExpanded && !readOnly ? 0 : -1}
           placeholder={titlePlaceholder}
           aria-label="Highlight title"
-          onChange={isExpanded && !readOnly ? handleTitleChange : undefined}
+          onChange={isExpanded && fieldsWritable ? handleTitleChange : undefined}
+          onFocus={isExpanded ? offerAccountOnFocus('Naming this highlight') : undefined}
           onMouseDown={(e) => {
             if (isExpanded && !readOnly) e.stopPropagation();
           }}
@@ -523,9 +551,10 @@ export default function HighlightDockWeb({
             placeholder="Note (optional)…"
             aria-label="Highlight note"
             rows={2}
-            readOnly={readOnly}
+            readOnly={!fieldsWritable}
             disabled={readOnly}
-            onChange={readOnly ? undefined : handleMiniNoteChange}
+            onChange={fieldsWritable ? handleMiniNoteChange : undefined}
+            onFocus={offerAccountOnFocus('Adding a note to this highlight')}
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
@@ -535,7 +564,7 @@ export default function HighlightDockWeb({
         ) : null}
       </div>
 
-      {!readOnly && HIGHLIGHT_DOCK_RESPOND_ENABLED && prompts.length > 0 ? (
+      {fieldsWritable && HIGHLIGHT_DOCK_RESPOND_ENABLED && prompts.length > 0 ? (
         <div className="highlight-dock-web__respond" ref={respondRef}>
           <button
             type="button"

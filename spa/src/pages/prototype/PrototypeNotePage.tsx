@@ -1452,7 +1452,29 @@ export default function PrototypeNotePage() {
   // localStorage; the prototype doesn't mount BottomSheet/CreateNoteButton so we wire
   // it up here directly.
   useEffect(() => {
+    const clearNewNoteHandoff = () => {
+      // Clean up so a repeated open doesn't replay stale data.
+      ['newNoteTitle', 'newNoteContent', 'newNoteSourceNoteId',
+       'newNoteSourceSelectionFrom', 'newNoteSourceSelectionTo',
+       'newNoteSourceSelectionPlainText', 'newNoteContentEmptyFromSelection',
+       'showNewNotePanel'].forEach((k) => localStorage.removeItem(k));
+    };
+
     const handler = async () => {
+      /*
+       * A guest has no space, so the check below returned before anything was read — the
+       * selection bar's New note did nothing, and left its handoff sitting in localStorage.
+       * Their notes are made on the device, the same way their compose saves one.
+       */
+      if (isGuest) {
+        const title = localStorage.getItem('newNoteTitle') ?? '';
+        const content = localStorage.getItem('newNoteContent') ?? '';
+        clearNewNoteHandoff();
+        const created = addGuestNote({ title, contentHtml: content || '<p></p>' });
+        navigate({ to: prototypeNoteRouteTo(), params: { noteId: noteParamSlug(created.id) } });
+        return;
+      }
+
       const spaceId = composeTargetSpaceId || effectiveSpaceIdRef.current;
       if (!spaceId) return;
 
@@ -1460,11 +1482,7 @@ export default function PrototypeNotePage() {
       const content = localStorage.getItem('newNoteContent') ?? '';
       const linkedFromNoteId = localStorage.getItem('newNoteSourceNoteId') || undefined;
 
-      // Clean up so a repeated open doesn't replay stale data.
-      ['newNoteTitle', 'newNoteContent', 'newNoteSourceNoteId',
-       'newNoteSourceSelectionFrom', 'newNoteSourceSelectionTo',
-       'newNoteSourceSelectionPlainText', 'newNoteContentEmptyFromSelection',
-       'showNewNotePanel'].forEach((k) => localStorage.removeItem(k));
+      clearNewNoteHandoff();
 
       try {
         const res = await createNoteMutationRef.current.mutateAsync({
@@ -1501,7 +1519,7 @@ export default function PrototypeNotePage() {
 
     window.addEventListener('openNewNotePanel', handler);
     return () => window.removeEventListener('openNewNotePanel', handler);
-  }, [composeTargetSpaceId, contextSpaceId, personalHomeSpaceId, navigate]);
+  }, [composeTargetSpaceId, contextSpaceId, isGuest, personalHomeSpaceId, navigate]);
 
   const liveFolderLabelRef = useRef<string | null>(null);
 
