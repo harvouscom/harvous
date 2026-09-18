@@ -66,18 +66,11 @@ Unattacked as of this baseline, in rough order of size:
 From an app-wide design and performance audit. The quick wins shipped (see "Fixed"); these
 are what it found and left, largest felt payoff first. Each was verified by reading the code.
 
-1. **Lazy `PrototypeNotePage`.** `SimplifiedPrototypeLayout.tsx` imports it statically, which is
-   the whole reason TipTap (118 KB gz, 11% of the payload) is preloaded before sign-in paints.
-   `lazy()` plus an idle prefetch, copying `prefetch-library-panel-chunk.ts`, keeps the
-   "one instance, no remount" contract — `lazy` caches the module.
-2. **Subset `GoogleSansFlex-Variable.woff2`** (1.4 MB, preloaded at top priority). A Latin
-   subset keeping the `wght`/`ROND` axes should land near 100–150 KB; first check that no
-   Greek or Hebrew needs the UI face.
-3. **Route CSS out of the entry stylesheet.** `main.tsx` imports ~180 KB raw for routes that are
+1–4 of the original list are done (see "Fixed"): the lazy note page, the font, and optimistic
+highlights. Route CSS out of the entry stylesheet is still open:
+
+1. **Route CSS out of the entry stylesheet.** `main.tsx` imports ~180 KB raw for routes that are
    already lazy (`upgrade-page.css` is free) or trivially could be (auth, shared, join pages).
-4. **Note-level highlight create/delete are not optimistic** (`useCreateHighlight`,
-   `useDeleteHighlight`): two round trips before the dock shows it. The reader's own path
-   already does this right — `usePrototypeChapterHighlights.ts` is the model.
 5. **Full-document `editor.getHTML()` on every keystroke** (`TiptapEditor.tsx` `onUpdate`), plus
    two whole-string regex passes, then the same canonicalisation again in
    `CardFullEditable.handleContentChange`. The rAF below it coalesces the parent render, not
@@ -130,6 +123,19 @@ outstanding.
 ---
 
 ## Fixed
+
+### The three largest follow-ups — 2026-09-18
+
+- **Initial payload 1073.8 → 840.9 KB gzipped (−22%).** TipTap and the editor were in the
+  entry through four static imports, found by tracing from `main.tsx`: the shell's
+  `PrototypeNotePage` (now lazy, warmed on idle), the public shared-note route (now
+  `lazyRouteComponent`), and two pure-helper imports from TipTap modules by the reader and Home
+  (split into `reference-suggestion-text.ts` and `scripture-quote-values.ts`). Baseline lowered.
+- **UI font 1.4 MB → 171 KB.** Already Latin-only, so a character subset would have saved
+  nothing; the weight was six variation axes. Pinned the three nothing uses (wdth, slnt, GRAD)
+  with `scripts/build-web-font.py`; outlines within 0.42/2000 em, advances identical.
+- **Highlights paint on tap.** The mark carries a client-proposed id from its first frame; the
+  create route accepts it idempotently. Library highlight deletes are optimistic.
 
 ### Quick-win pass — 2026-09-18
 
