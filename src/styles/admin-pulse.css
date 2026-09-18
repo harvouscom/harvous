@@ -146,7 +146,7 @@
     color-mix(
       in srgb,
       var(--canon-violet) calc(8% + var(--canon-heat) * 56%),
-      var(--pds-bg-control-strong, var(--pds-fill-tertiary))
+      var(--pds-bg-control-strong)
     );
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 58%, transparent),
@@ -177,7 +177,7 @@
   border-color: var(--pds-border);
   background:
     linear-gradient(168deg, color-mix(in srgb, #fff 34%, transparent) 0%, transparent 55%),
-    var(--pds-fill-tertiary);
+    var(--pds-bg-control);
   box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 42%, transparent);
 }
 

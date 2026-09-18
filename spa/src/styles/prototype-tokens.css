@@ -1504,6 +1504,26 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   text-decoration: none;
 }
 
+/*
+ * Selection outside the editor. global.css and typography.css paint a fixed 40% yellow
+ * (`rgba(255, 235, 59, 0.4)`), which on the dark canvas is a muddy olive; the editor already
+ * used this token, with a real dark value. Scoped to the route rather than `.proto-theme` so
+ * portaled popovers and sheets get it too.
+ */
+html.harvous-prototype-route ::selection {
+  background: var(--pds-selection-bg);
+  color: inherit;
+}
+
+/*
+ * No grey tap rectangle on the shell's controls. It ignores border-radius and reads as a web
+ * page rather than an app; the legacy global.css rule suppressed it for its own class list, but
+ * a plain <button> was never on it. Rows and controls carry :active press states instead.
+ */
+.proto-theme :where(button, a, [role='button']) {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ─── Typography classes ─────────────────────────────────────────────────── */
 
 /* HarvousTypography.largeTitle — 34pt / 620 / rounded */
@@ -1515,6 +1535,7 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   letter-spacing: -0.025em;
   line-height: 1.1;
   color: var(--pds-text-primary);
+  text-wrap: balance;
 }
 
 /* HarvousTypography.title — 20pt / 580 / rounded (section headers) */
@@ -1526,6 +1547,7 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   letter-spacing: -0.018em;
   line-height: 1.2;
   color: var(--pds-text-primary);
+  text-wrap: balance;
 }
 
 /* HarvousTypography.composeTitleField — 22pt / 600 / rounded */
@@ -1552,6 +1574,7 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   font-weight: 400;
   line-height: 1.5;
   color: var(--pds-text-primary);
+  text-wrap: pretty;
 }
 
 /* HarvousTypography.noteListTitle — 15pt / 500 */
@@ -1628,6 +1651,7 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   font-variation-settings: var(--pds-font-reading-variation);
   line-height: var(--pds-reader-line-height);
   color: var(--pds-text-primary);
+  text-wrap: pretty;
 }
 
 /* The reading face has to be handed down explicitly.
@@ -1669,6 +1693,7 @@ html.harvous-prototype-route [data-sonner-toast] [data-description] {
   font-variation-settings: "ROND" 100, "wght" 600;
   line-height: 1.2;
   color: var(--pds-text-primary);
+  text-wrap: balance;
 }
 
 /* HarvousTypography.caption — 13pt / 500 */

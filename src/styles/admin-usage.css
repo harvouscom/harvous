@@ -121,7 +121,7 @@
 }
 
 .proto-admin-toolbar__back:hover {
-  background: var(--pds-fill-tertiary);
+  background: var(--pds-bg-control);
   color: var(--pds-text-primary);
 }
 
@@ -280,7 +280,7 @@
   padding: 18px 18px 16px;
   border: 0.5px solid var(--pds-border);
   border-radius: var(--pds-radius-menu);
-  background: var(--pds-bg-secondary);
+  background: var(--pds-bg-subtle);
 }
 
 .admin-usage__hero-value {
@@ -328,7 +328,7 @@
   padding: 20px;
   border: 0.5px solid var(--pds-border);
   border-radius: var(--pds-radius-menu);
-  background: var(--pds-bg-secondary);
+  background: var(--pds-bg-subtle);
 }
 
 .admin-usage__stack {
@@ -577,7 +577,7 @@
   display: inline-flex;
   padding: 5px 10px;
   border-radius: var(--pds-radius-pill);
-  background: var(--pds-fill-tertiary);
+  background: var(--pds-bg-control);
   font: var(--pds-font-body);
   font-size: 12px;
   font-weight: 500;
@@ -585,32 +585,32 @@
 }
 
 .admin-usage__chip--notes {
-  background: color-mix(in srgb, var(--usage-notes) 12%, var(--pds-fill-tertiary));
+  background: color-mix(in srgb, var(--usage-notes) 12%, var(--pds-bg-control));
   color: color-mix(in srgb, var(--usage-notes) 72%, var(--pds-text-secondary));
 }
 
 .admin-usage__chip--threads {
-  background: color-mix(in srgb, var(--usage-threads) 12%, var(--pds-fill-tertiary));
+  background: color-mix(in srgb, var(--usage-threads) 12%, var(--pds-bg-control));
   color: color-mix(in srgb, var(--usage-threads) 72%, var(--pds-text-secondary));
 }
 
 .admin-usage__chip--highlights {
-  background: color-mix(in srgb, var(--usage-highlights) 14%, var(--pds-fill-tertiary));
+  background: color-mix(in srgb, var(--usage-highlights) 14%, var(--pds-bg-control));
   color: color-mix(in srgb, var(--usage-highlights) 72%, var(--pds-text-secondary));
 }
 
 .admin-usage__chip--scripture {
-  background: color-mix(in srgb, var(--usage-scripture) 12%, var(--pds-fill-tertiary));
+  background: color-mix(in srgb, var(--usage-scripture) 12%, var(--pds-bg-control));
   color: color-mix(in srgb, var(--usage-scripture) 72%, var(--pds-text-secondary));
 }
 
 .admin-usage__chip--folders {
-  background: color-mix(in srgb, var(--usage-folders) 12%, var(--pds-fill-tertiary));
+  background: color-mix(in srgb, var(--usage-folders) 12%, var(--pds-bg-control));
   color: color-mix(in srgb, var(--usage-folders) 72%, var(--pds-text-secondary));
 }
 
 .admin-usage__chip--recall {
-  background: color-mix(in srgb, var(--usage-recall) 12%, var(--pds-fill-tertiary));
+  background: color-mix(in srgb, var(--usage-recall) 12%, var(--pds-bg-control));
   color: color-mix(in srgb, var(--usage-recall) 72%, var(--pds-text-secondary));
 }
 
@@ -1357,7 +1357,7 @@ button.admin-usage__window-chip--active:active {
   padding: 6px 12px;
   border: 0.5px solid var(--pds-border);
   border-radius: var(--pds-radius-pill);
-  background: var(--pds-bg-secondary);
+  background: var(--pds-bg-subtle);
   font: var(--pds-font-body);
   font-size: 12px;
   font-weight: 500;
@@ -1523,7 +1523,7 @@ button.admin-usage__window-chip--active:active {
   justify-content: center;
   gap: 6px;
   border: 0.5px solid var(--pds-border, var(--color-fog-white));
-  border-radius: var(--pds-radius-md, 10px);
+  border-radius: 10px;
   /*
    * `--pds-bg-secondary` and `--pds-fill-tertiary` were never defined tokens,
    * so the hardcoded light fallbacks won in every theme — white button, white
@@ -1566,5 +1566,5 @@ button.admin-usage__window-chip--active:active {
 */
 .proto-admin-discover__flag {
   margin: 0 0 6px;
-  color: var(--pds-text-warning, var(--pds-text-primary));
+  color: var(--pds-text-primary);
 }

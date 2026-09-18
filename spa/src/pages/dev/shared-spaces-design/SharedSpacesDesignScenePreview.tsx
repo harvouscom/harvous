@@ -64,7 +64,7 @@ function ProtoChrome({ children, width = 360 }: { children: ReactNode; width?: n
         <aside style={{ background: 'var(--pds-bg-sidebar)', borderRight: '0.5px solid var(--pds-border)' }}>
           {children}
         </aside>
-        <main style={{ background: 'var(--pds-bg-canvas)', padding: 24, color: 'var(--pds-text-secondary)', fontSize: 13 }}>
+        <main style={{ background: 'var(--pds-canvas-default)', padding: 24, color: 'var(--pds-text-secondary)', fontSize: 13 }}>
           Main column preview
         </main>
       </div>

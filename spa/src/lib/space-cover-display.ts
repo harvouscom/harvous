@@ -99,7 +99,7 @@ export function resolveJoinHeroPlaceholder(
   mode: 'light' | 'dark',
 ): CSSProperties {
   if (!space) {
-    return { background: 'var(--site-paper, var(--pds-bg-canvas, #fcfbf7))' };
+    return { background: 'var(--site-paper, #fcfbf7)' };
   }
   const { bandStyle, accentCss, isImage } = resolveJoinCoverDisplay(space, mode);
   if (bandStyle.background) return bandStyle;

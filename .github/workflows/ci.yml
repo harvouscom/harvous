@@ -52,6 +52,11 @@ jobs:
       - name: Typecheck ratchet
         run: npm run typecheck:ratchet
 
+      # Every var(--pds-*) must name a token that exists. An undefined one is dropped
+      # silently by CSS, and 31 of them had shipped. See scripts/check-pds-tokens.mjs.
+      - name: Design token references
+        run: npm run check:pds-tokens
+
   # Separate job because it needs a real build, and dist-spa/ is gitignored. Every step in
   # `npm run precommit` is fast and build-free, so this belongs here rather than there.
   #

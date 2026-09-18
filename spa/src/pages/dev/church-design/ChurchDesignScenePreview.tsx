@@ -44,7 +44,7 @@ function AdminChrome({ children }: { children: ReactNode }) {
     <div className="proto-theme" style={{ maxWidth: 720, margin: '0 auto' }}>
       <div
         style={{
-          background: 'var(--pds-bg-canvas)',
+          background: 'var(--pds-canvas-default)',
           border: '0.5px solid var(--pds-border)',
           borderRadius: 16,
           padding: 20,
@@ -70,7 +70,7 @@ function PhoneChrome({ children }: { children: ReactNode }) {
     <div className="proto-theme" style={{ width: 380, maxWidth: '100%', margin: '0 auto' }}>
       <div
         style={{
-          background: 'var(--pds-bg-canvas)',
+          background: 'var(--pds-canvas-default)',
           border: '0.5px solid var(--pds-border)',
           borderRadius: 20,
           overflowX: 'hidden',
@@ -367,7 +367,7 @@ function ConnectPromptScene() {
           borderRadius: 16,
           padding: 18,
           border: '0.5px solid var(--pds-border)',
-          background: 'var(--pds-bg-canvas)',
+          background: 'var(--pds-canvas-default)',
         }}
       >
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>

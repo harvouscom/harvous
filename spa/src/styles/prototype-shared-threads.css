@@ -272,7 +272,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--pds-bg-surface-raised, rgb(0 0 0 / 6%));
+  background: rgb(0 0 0 / 6%);
   color: var(--pds-text-tertiary);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
@@ -281,7 +281,7 @@
 
 .proto-shared-thread-step--current .proto-shared-thread-step__badge {
   background: var(--pds-bg-accent-button);
-  color: var(--pds-text-on-accent, #fff);
+  color: #fff;
 }
 
 .proto-shared-thread-step--ahead .proto-thread-trail__step-main {
@@ -320,7 +320,7 @@
 
 @media (prefers-reduced-transparency: reduce) {
   .proto-shared-thread-action {
-    background: var(--pds-bg-surface);
+    background: var(--pds-bg-popover-solid);
   }
 
   .proto-shared-thread-action--primary {
