@@ -10,9 +10,12 @@
  * `--font-mono` to `--pds-*` stacks so embedded React surfaces never resolve Reddit Sans.
  */
 
+/* Three of the font's six axes (opsz, wght, ROND) — the ones anything here uses. Built by
+   scripts/build-web-font.py: 171 KB instead of 1.4 MB, rendering identically. A new CSS use
+   of font-stretch, a real oblique, or "GRAD" needs that axis kept there first. */
 @font-face {
   font-family: "Google Sans Flex";
-  src: url("/fonts/google-sans-flex/GoogleSansFlex-Variable.woff2")
+  src: url("/fonts/google-sans-flex/GoogleSansFlex-opsz-wght-ROND.woff2")
     format("woff2-variations");
   font-weight: 1 1000;
   font-style: normal;
