@@ -66,7 +66,6 @@
   "src/utils/keyboard-navigation-helpers.ts": 1,
   "src/utils/orphan-highlight-backfill.ts": 1,
   "src/utils/portable-ingest.ts": 2,
-  "src/utils/posthog.ts": 1,
   "src/utils/prototype-folder-auto-assign.ts": 1,
   "src/utils/prototype-format-toolbar-selection.ts": 2,
   "src/utils/prototype-home-trends.ts": 1,

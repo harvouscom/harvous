@@ -8,6 +8,7 @@ import {
   useSyncChurchStaff,
   useSetChurchActive,
   useSetChurchPilot,
+  useSetChurchManualBilling,
   useUpdateAdminChurch,
   useRefreshAdminChurchHmc,
   searchAdminHmcChurches,
@@ -457,6 +458,17 @@ function ChurchRow({ church }: { church: AdminChurch }) {
   const sync = useSyncChurchStaff(church.id);
   const setActive = useSetChurchActive(church.id);
   const setPilot = useSetChurchPilot(church.id);
+  const setManualBilling = useSetChurchManualBilling(church.id);
+  const onSetManualBilling = (paid: boolean) => {
+    const prompt = paid
+      ? `Mark ${church.name} as paid (invoice)? It stays sponsored until you clear this.`
+      : `Clear the manual plan for ${church.name}? Writes will stop unless a pilot is running.`;
+    if (!window.confirm(prompt)) return;
+    setManualBilling.mutate(paid, {
+      onSuccess: () => window.toast?.success(paid ? 'Marked as paid' : 'Manual plan cleared'),
+      onError: (err) => window.toast?.error(err.message),
+    });
+  };
 
   const location = [church.city, church.state, church.country].filter(Boolean).join(', ');
 
@@ -570,8 +582,26 @@ function ChurchRow({ church }: { church: AdminChurch }) {
                     End pilot
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  className="admin-action-btn"
+                  onClick={() => onSetManualBilling(true)}
+                  disabled={setManualBilling.isPending}
+                >
+                  Mark paid (invoice)
+                </button>
               </>
             )}
+            {church.billingPlan && church.billingStatus === 'manual' ? (
+              <button
+                type="button"
+                className="admin-action-btn"
+                onClick={() => onSetManualBilling(false)}
+                disabled={setManualBilling.isPending}
+              >
+                Clear manual plan
+              </button>
+            ) : null}
           </div>
           {syncSummary ? (
             <ul style={{ margin: 0, paddingLeft: 18 }}>

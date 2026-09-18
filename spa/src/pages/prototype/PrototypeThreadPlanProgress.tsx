@@ -84,3 +84,68 @@ export default function PrototypeThreadPlanProgress({
     </>
   );
 }
+
+/**
+ * The viewer's standing as a clause for a status line — "Not started", "2 of 8 opened",
+ * "Finished · 2d ago". The drilldown folds it into the line under the title rather than
+ * giving it a row of its own; null when the thread is not a plan with steps.
+ */
+export function threadPlanStatusClause(input: {
+  isSequence: boolean;
+  total: number;
+  viewerOpenedNoteIds: string[];
+  viewerCompletedAt: string | null;
+}): string | null {
+  if (!input.isSequence || input.total <= 0) return null;
+  if (input.viewerCompletedAt) {
+    // "Finished just now", "Finished 2d ago" — one clause, not a second middot.
+    const when = protoRelativeCaption(input.viewerCompletedAt);
+    return `Finished ${/^(Just now|Today|Yesterday)$/.test(when) ? when.toLowerCase() : when}`;
+  }
+  return viewerProgressLabel(input.viewerOpenedNoteIds, input.total) ?? 'Not started';
+}
+
+/**
+ * "Mark finished", at the foot of the steps — where you are when you finish, rather than
+ * a pill in the header competing with the actions. Same claim, same rules as above: open
+ * to everyone, never gated on the run being closed, never inferred from opens.
+ */
+export function PrototypeThreadPlanFinishRow({
+  threadId,
+  isSequence,
+  total,
+  viewerCompletedAt,
+}: {
+  threadId: string;
+  isSequence: boolean;
+  total: number;
+  viewerCompletedAt: string | null;
+}) {
+  const completePlan = useCompleteThreadPlan();
+  const [error, setError] = useState<string | null>(null);
+  if (!isSequence || total <= 0) return null;
+
+  return (
+    <div className="proto-shared-thread-drilldown__finish">
+      <button
+        type="button"
+        className="proto-sheet-quiet-action"
+        disabled={completePlan.isPending}
+        onClick={() => {
+          setError(null);
+          completePlan.mutate(
+            { threadId, completed: !viewerCompletedAt },
+            { onError: (err: any) => setError(err?.message || 'Could not update your progress.') },
+          );
+        }}
+      >
+        {viewerCompletedAt ? 'Mark as not finished' : 'I finished this study'}
+      </button>
+      {error ? (
+        <p className="proto-connect-note-sheet__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}

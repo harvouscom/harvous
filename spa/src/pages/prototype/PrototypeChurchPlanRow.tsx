@@ -1,5 +1,5 @@
 /**
- * Staff-only plan status, as a row inside Church tools.
+ * Admin-only plan status (`manage_billing`), as a row inside Church tools.
  *
  * Was a banner slab at the top of the hub — three stacked paragraphs and a
  * button shouting above the congregation-facing catalog. Plan state is
@@ -15,6 +15,7 @@ import { useState } from 'react';
 import Icon from '@/components/react/Icon';
 import { api } from '../../lib/api';
 import { useChurchBilling } from '../../hooks/queries/useChurchBilling';
+import { FOUNDER_EMAIL } from '@/utils/support-mailto';
 
 /** One line, no trailing period — it sits in a row, not a paragraph. */
 function pilotCopy(daysLeft: number | null): string {
@@ -26,12 +27,13 @@ function pilotCopy(daysLeft: number | null): string {
 
 export default function PrototypeChurchPlanRow({
   orgId,
-  isStaff,
+  canManageBilling,
 }: {
   orgId: string | null;
-  isStaff: boolean;
+  /** `manage_billing` — church admins only; the server refuses everyone else. */
+  canManageBilling: boolean;
 }) {
-  const { data } = useChurchBilling(orgId, { enabled: isStaff });
+  const { data } = useChurchBilling(orgId, { enabled: canManageBilling });
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,8 +72,6 @@ export default function PrototypeChurchPlanRow({
           {lapsed ? 'Plan ended' : pilotCopy(sponsorship.pilotDaysLeft)}
         </span>
         <span className="proto-caption proto-church-tools__row-meta proto-marquee-self">
-          {/* With no Polar products configured there is no button, so the
-              "talk to us" route has to live here or it disappears entirely. */}
           {error
             ? error
             : !monthly
@@ -99,7 +99,16 @@ export default function PrototypeChurchPlanRow({
             {starting ? 'Opening…' : lapsed ? 'Renew' : 'Continue'}
           </span>
         </button>
-      ) : null}
+      ) : (
+        /* No Polar product configured (concierge pilots): the ask still needs somewhere
+           to go, or a lapsed church is told to "contact Harvous" with no way to. */
+        <a
+          className="proto-glass-surface proto-glass-surface--control proto-glass-action"
+          href={`mailto:${FOUNDER_EMAIL}?subject=${encodeURIComponent('Continuing Harvous for our church')}`}
+        >
+          <span className="proto-glass-action__label">Contact</span>
+        </a>
+      )}
     </div>
   );
 }

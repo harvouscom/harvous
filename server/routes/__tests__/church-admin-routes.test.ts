@@ -28,8 +28,9 @@ describe('church admin route contracts', () => {
     // routes. hmc/sync-denorm (get+post) added a cron-callable pair: the gate call is still
     // present, just conditional on a missing/invalid cron secret (see handleHmcSyncDenorm),
     // so it isn't matched by the literal always-runs `gates` regex above — hence the >= below.
-    expect(endpoints.length).toBe(14);
-    expect(gates.length).toBeGreaterThanOrEqual(11);
+    // + /billing (manual invoice plan), gated like /pilot.
+    expect(endpoints.length).toBe(15);
+    expect(gates.length).toBeGreaterThanOrEqual(12);
     expect(route()).not.toContain('requireAuth');
   });
 
@@ -102,5 +103,29 @@ describe('church admin route contracts', () => {
     const app = source('server/app.ts');
     expect(app).toContain("import churches from './routes/churches'");
     expect(app).toContain("app.route('/', churches)");
+  });
+});
+
+describe('manual (invoice) billing', () => {
+  const route = () => {
+    const text = source('server/routes/churches.ts');
+    return text.slice(
+      text.indexOf("'/api/admin/churches/:churchId/billing'"),
+      text.indexOf("'/api/admin/churches/:churchId/spaces'"),
+    );
+  };
+
+  it('is Harvous-admin only', () => {
+    expect(route()).toContain('requireHarvousAdmin(c)');
+  });
+
+  it('never touches a church Polar is billing', () => {
+    expect(route()).toContain('existing.billingSubscriptionId');
+    expect(route()).toContain("code: 'CHURCH_BILLED_BY_POLAR'");
+    expect(route().indexOf('CHURCH_BILLED_BY_POLAR')).toBeLessThan(route().indexOf('.update(Churches)'));
+  });
+
+  it('marks the plan as manual so it reads differently from a pilot or a Polar plan', () => {
+    expect(route()).toContain("billingStatus: body.paid ? 'manual' : null");
   });
 });

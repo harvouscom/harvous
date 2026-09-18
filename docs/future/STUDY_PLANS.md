@@ -5,6 +5,13 @@ feature had shipped across five files and appeared in no document at all — the
 `CHURCH_SPACE_PLANS_AND_SERVICE_TIMES.md` and `CHURCH_STUDY_MATERIAL_LINKING.md` each
 assumed the other covered.
 
+**Sept 2026 additions (church V1):** a *church-plan* series can now be published into a
+ministry channel (`POST /api/church/series/publish-thread` — the pastor picks the channel on
+first publish; one channel per series, never a second pointer), and a channel's study plan can
+be **copied** into a follower's Home or a group they lead
+(`POST /api/church/channels/:spaceId/threads/:threadId/copy`, `server/utils/study-plan-copy.ts`)
+— sequence order kept, one copy per person per plan. See [../CHURCH_V1_SCOPE.md](../CHURCH_V1_SCOPE.md).
+
 A **study plan** is a sequence of steps a room walks together: week one, week two, week
 three. It is the thing a church hands its congregation when a series is more than one
 sermon.

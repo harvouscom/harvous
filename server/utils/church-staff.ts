@@ -113,18 +113,20 @@ async function assertChurchStaffOrgWrite(
   if (!church.isActive) {
     return { ok: false, status: 409, code: 'CHURCH_INACTIVE', error: 'Church is not active' };
   }
-  // Sponsorship (paid or inside the pilot window) gates church-scoped *writes*.
-  // Everything already published stays readable when a church lapses.
-  if (!churchIsSponsored(church)) {
-    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
-  }
-  if (!(await isChurchStaffForOrg(userId, church.orgId))) {
+  // Staff first, then sponsorship — the order `church-org-access.ts` uses. The
+  // reverse told any signed-in stranger whether a given church had lapsed.
+  if (!(await isChurchStaffForChurch(userId, church))) {
     return {
       ok: false,
       status: 403,
       code: 'CHURCH_STAFF_REQUIRED',
       error: staffError,
     };
+  }
+  // Sponsorship (paid or inside the pilot window) gates church-scoped *writes*.
+  // Everything already published stays readable when a church lapses.
+  if (!churchIsSponsored(church)) {
+    return { ok: false, status: 402, code: CHURCH_LAPSED_CODE, error: CHURCH_LAPSED_ERROR };
   }
   return { ok: true, church };
 }

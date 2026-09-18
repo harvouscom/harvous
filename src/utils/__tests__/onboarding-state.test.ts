@@ -299,3 +299,25 @@ describe('customization steps', () => {
     expect(serializeOnboardingState(state).length).toBeLessThan(2048);
   });
 });
+
+describe('church setup dismissal', () => {
+  it('round-trips, and is absent from states that never set it', async () => {
+    const mod = await import('../onboarding-state');
+    const empty = mod.emptyOnboardingState();
+    expect(mod.parseOnboardingState(mod.serializeOnboardingState(empty))).not.toHaveProperty(
+      'churchSetupDismissedAt',
+    );
+    const dismissed = mod.dismissChurchSetup(empty, '2026-09-18T00:00:00.000Z');
+    expect(mod.parseOnboardingState(mod.serializeOnboardingState(dismissed))?.churchSetupDismissedAt).toBe(
+      '2026-09-18T00:00:00.000Z',
+    );
+  });
+
+  it('merges monotonically — dismissed on one device is dismissed everywhere', async () => {
+    const mod = await import('../onboarding-state');
+    const a = mod.emptyOnboardingState();
+    const b = mod.dismissChurchSetup(mod.emptyOnboardingState(), '2026-09-18T00:00:00.000Z');
+    expect(mod.mergeOnboardingStates(a, b).churchSetupDismissedAt).toBe('2026-09-18T00:00:00.000Z');
+    expect(mod.mergeOnboardingStates(b, a).churchSetupDismissedAt).toBe('2026-09-18T00:00:00.000Z');
+  });
+});

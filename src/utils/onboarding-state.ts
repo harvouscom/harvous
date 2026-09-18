@@ -111,6 +111,13 @@ export interface OnboardingState {
   restoredVersion: number;
   completedAt: string | null;
   steps: Record<OnboardingStepId, OnboardingStepState>;
+  /**
+   * When a church staff member put away the hub's "Get your church set up" card.
+   * Separate from the personal checklist: different people, different steps, and a
+   * pastor finishing their own four steps says nothing about their church. Absent until
+   * set, so every state that predates it serializes unchanged.
+   */
+  churchSetupDismissedAt?: string;
 }
 
 export interface OnboardingSignals {
@@ -177,7 +184,19 @@ export function parseOnboardingState(raw: string | null | undefined): Onboarding
     }
   }
 
-  return { version, dismissedVersion, restoredVersion, completedAt, steps };
+  const churchSetupDismissedAt =
+    typeof obj.churchSetupDismissedAt === 'string' && obj.churchSetupDismissedAt
+      ? obj.churchSetupDismissedAt
+      : null;
+
+  return {
+    version,
+    dismissedVersion,
+    restoredVersion,
+    completedAt,
+    steps,
+    ...(churchSetupDismissedAt ? { churchSetupDismissedAt } : {}),
+  };
 }
 
 export function serializeOnboardingState(state: OnboardingState): string {
@@ -202,6 +221,7 @@ function mergeStep(a: OnboardingStepState, b: OnboardingStepState): OnboardingSt
 }
 
 export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): OnboardingState {
+  const churchSetup = earliestIso(a.churchSetupDismissedAt, b.churchSetupDismissedAt);
   const steps = {} as Record<OnboardingStepId, OnboardingStepState>;
   for (const id of ALL_STEP_IDS) steps[id] = mergeStep(a.steps[id], b.steps[id]);
   return {
@@ -210,6 +230,8 @@ export function mergeOnboardingStates(a: OnboardingState, b: OnboardingState): O
     restoredVersion: Math.max(a.restoredVersion, b.restoredVersion),
     completedAt: earliestIso(a.completedAt, b.completedAt),
     steps,
+    // Monotonic like everything else here: put away on any device, put away everywhere.
+    ...(churchSetup ? { churchSetupDismissedAt: churchSetup } : {}),
   };
 }
 
@@ -315,4 +337,10 @@ export function shouldShowOnboarding(state: OnboardingState | null): boolean {
   if (!state) return true;
   if (isOnboardingClusterDismissed(state)) return false;
   return !ONBOARDING_STEP_IDS.every((id) => isStepSettled(state.steps[id]));
+}
+
+/** Put away the church hub's setup card. Idempotent — the first dismissal is the one kept. */
+export function dismissChurchSetup(state: OnboardingState, nowIso: string): OnboardingState {
+  if (state.churchSetupDismissedAt) return state;
+  return { ...state, churchSetupDismissedAt: nowIso };
 }

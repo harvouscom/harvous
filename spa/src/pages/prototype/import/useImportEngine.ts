@@ -69,6 +69,15 @@ export function useImportEngine() {
     };
   }, []);
 
+  /* Where the notes also go, beyond My Home. A ref, not state: it is read inside the commit
+     loop and must not restart it. Fixed once the import starts (the picker hides). */
+  const targetSpaceIdRef = useRef<string | null>(null);
+  const [targetSpaceId, setTargetSpaceIdState] = useState<string | null>(null);
+  const setTargetSpaceId = useCallback((spaceId: string | null) => {
+    targetSpaceIdRef.current = spaceId;
+    setTargetSpaceIdState(spaceId);
+  }, []);
+
   const ensureSession = useCallback(async (): Promise<string> => {
     if (stateRef.current.sessionId) return stateRef.current.sessionId;
     if (sessionPromiseRef.current) return sessionPromiseRef.current;
@@ -205,7 +214,7 @@ export function useImportEngine() {
       if (!inFlightRef.current.has(key)) {
         inFlightRef.current.add(key);
         dispatch({ type: 'commit-start', itemIds: commitBatch });
-        void commitImportItems(state.sessionId, commitBatch)
+        void commitImportItems(state.sessionId, commitBatch, targetSpaceIdRef.current)
           .then((response) =>
             dispatch({
               type: 'commit-result',
@@ -372,5 +381,7 @@ export function useImportEngine() {
     retryRow,
     undoImport,
     reset,
+    targetSpaceId,
+    setTargetSpaceId,
   };
 }
