@@ -2,7 +2,7 @@
 
 Current numbers, how each was measured, and how to reproduce them. Owned by `/engineer`.
 
-**Last measured:** 2026-08-13 (payload) · 2026-09-04 (request count)
+**Last measured:** 2026-08-13 (payload table) · 2026-09-04 (request count) · 2026-09-18 (payload 1073.8 KB gz, `perf:check`)
 
 > Two older documents used to live here and now sit in `docs/archive/`:
 > `PERFORMANCE_OPTIMIZATION_LESSONS.md` and `PWA_INITIAL_LOAD_OPTIMIZATIONS.md`. Both instruct the
@@ -61,6 +61,41 @@ Unattacked as of this baseline, in rough order of size:
    paints, for an editor only note routes use. `docs/route-based-code-splitting.md` Step 2 called
    this out and it was never done.
 
+### Follow-ups ranked — 2026-09-18
+
+From an app-wide design and performance audit. The quick wins shipped (see "Fixed"); these
+are what it found and left, largest felt payoff first. Each was verified by reading the code.
+
+1. **Lazy `PrototypeNotePage`.** `SimplifiedPrototypeLayout.tsx` imports it statically, which is
+   the whole reason TipTap (118 KB gz, 11% of the payload) is preloaded before sign-in paints.
+   `lazy()` plus an idle prefetch, copying `prefetch-library-panel-chunk.ts`, keeps the
+   "one instance, no remount" contract — `lazy` caches the module.
+2. **Subset `GoogleSansFlex-Variable.woff2`** (1.4 MB, preloaded at top priority). A Latin
+   subset keeping the `wght`/`ROND` axes should land near 100–150 KB; first check that no
+   Greek or Hebrew needs the UI face.
+3. **Route CSS out of the entry stylesheet.** `main.tsx` imports ~180 KB raw for routes that are
+   already lazy (`upgrade-page.css` is free) or trivially could be (auth, shared, join pages).
+4. **Note-level highlight create/delete are not optimistic** (`useCreateHighlight`,
+   `useDeleteHighlight`): two round trips before the dock shows it. The reader's own path
+   already does this right — `usePrototypeChapterHighlights.ts` is the model.
+5. **Full-document `editor.getHTML()` on every keystroke** (`TiptapEditor.tsx` `onUpdate`), plus
+   two whole-string regex passes, then the same canonicalisation again in
+   `CardFullEditable.handleContentChange`. The rAF below it coalesces the parent render, not
+   the serialisation.
+6. **Flipping days in Activity refetches `fingerprints`, `crossref-gaps` and
+   `connect-suggestions`** — three requests per flip, none of which depend on the day.
+7. **`SpotlightSearch` + `cmdk` ship in the entry bundle for the classic host only.** On 2.0
+   routes Mod+K opens the Library panel instead; the component still mounts in `App.tsx`.
+8. **`/scripts/*` revalidate on every load.** Not the `_headers` fix it looks like: `sw.js`
+   fetches them `cache: 'no-cache'`, which ignores HTTP caching. Needs a SW strategy that
+   survives a deploy without script/bundle skew.
+9. **Split `proto-shell-context`** (W1 below).
+10. **Design scale codemods**, from the same audit: spacing tokens are at 9% adoption and the
+    scale omits the three most-used values (6/10/14px); ~45 font sizes for a 9-role scale;
+    `cubic-bezier(0.22, 1, 0.36, 1)` is used 23× and is not a token; z-index at 12% adoption
+    with values up to `1000021`. Sub-44px touch targets (toolbar orb 30px, locked) want a
+    coarse-pointer hit-slop rather than a resize.
+
 Runtime headroom is tracked as W1/W2/W8 in
 [`../design-parity/ARCHITECTURE_READINESS_AUDIT.md`](../design-parity/ARCHITECTURE_READINESS_AUDIT.md).
 The largest single lever there: `proto-shell-context.tsx` builds one `useMemo` value with **75
@@ -95,6 +130,30 @@ outstanding.
 ---
 
 ## Fixed
+
+### Quick-win pass — 2026-09-18
+
+Payload unchanged by design (1073.8 KB gz, no baseline change). What changed is what a load
+fetches besides the bundle, and how fast things feel.
+
+- **Favicon was the 1000px master, 795 KB**, also the apple-touch-icon, the SW precache entry
+  and three in-page logos. Now 2 KB / 21 KB / 24 KB derivatives from `generate-pwa-icons.mjs`.
+- **`preconnect` to `clerk.harvous.com`** in both credential modes; cold auth is serial through it.
+- **`GET /api/spaces/:id/notes` read the same `Spaces` row three times, serially**, then ran its
+  `COUNT` after the page query. Now one read (the route passes the row `requireSpaceAccess`
+  already has) and the count runs beside the page. Verified identical output across 48
+  comparisons on real spaces; 17% faster even on a single connection.
+- **Home's Activity rows prefetch the note they open** on hover, focus or press; sidebar rows
+  added pointerdown so touch gets the head start that was desktop-only.
+- **`ProtoSpaceLoading` holds its dots invisible for 150 ms** (CSS), so ~30 surfaces that showed
+  them on the first pending frame stop flashing on fast loads.
+- **Library search holds its full-text matches across keystrokes** instead of dropping and
+  re-adding them per debounced query.
+- **`gcTime` 5 → 30 min** so returning to the PWA shows last-known data revalidating.
+
+The chunk guard below was not actually running. `checkNamedChunks` matched only the object
+form of `manualChunks`, and the same fix that moved the config to the function form left it
+returning early on every build. It now reads both shapes and fails if it finds no names.
 
 ### An Activity load asked for four things twice — 2026-09-04
 
