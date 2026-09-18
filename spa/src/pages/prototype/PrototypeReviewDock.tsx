@@ -53,7 +53,6 @@ import { prototypeNoteRouteTo } from '@/lib/prototype-path';
 import { PROTOTYPE_NOTE_LIST_NAV_SEARCH } from '@/utils/prototype-sidebar-highlight-active';
 import { threadClusterDrillSlug } from '@/utils/thread-cluster-bulk-actions';
 import { useProtoShell } from '../../layouts/proto-shell-context';
-import { isTypingInInput } from '@/utils/keyboard-shortcuts';
 import { reviewRungIsGraded } from '@/utils/review-prompts';
 import { toast } from '@/utils/toast';
 import { fillFraming } from '@/utils/review-framing';
@@ -64,6 +63,9 @@ import { fillFraming } from '@/utils/review-framing';
  * with no reader ever mounted.
  */
 import '@/styles/scripture-pill-chrome.css';
+import '../../styles/review-exercises.css';
+import { ExerciseStage, heroSize } from './review-exercises/ExerciseStage';
+import { ChoiceOptions } from './review-exercises/ChoiceOptions';
 import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
 import { isSubmitKey, isTypingTarget, nextBlankIndex } from './review-dock-keys';
 import { useHarvousIdentity } from '../../hooks/useHarvousIdentity';
@@ -177,19 +179,6 @@ function revealLabelFor(kind: ReviewItemView['kind']): string {
   }
 }
 
-/**
- * The options on a multiple-choice rung.
- *
- * One component for four rungs. It was three copies of the same eleven lines before `verse.next`
- * would have made a fourth, and they had already begun to differ — one passed `promptKey` back
- * with the answer and the others did not.
- *
- * Every rung sends `almost` as its outcome and lets the server decide. The client has no answer
- * key and must not appear to: sending `recalled` here would be the page asserting something it
- * cannot know.
- */
-const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
-
 /** The rungs whose answer key is the curated index rather than the text or the reader. */
 const INDEX_KEYED_RUNGS = new Set([
   'verse.theme',
@@ -201,103 +190,10 @@ const INDEX_KEYED_RUNGS = new Set([
 ]);
 
 /**
- * The options on a multiple-choice rung.
- *
- * One component for four rungs. It was three copies of the same eleven lines before `verse.next`
- * would have made a fourth, and they had already begun to differ — one passed `promptKey` back
- * with the answer and the others did not.
- *
- * Every rung sends `almost` as its outcome and lets the server decide. The client has no answer
- * key and must not appear to: sending `recalled` here would be the page asserting something it
- * cannot know.
- *
- * The letters are real. A keycap that shows "A" and does nothing when you press A is a lie, so
- * the bare letters are bound while a choice is on screen — guarded by `isTypingInInput`, since
- * the dock stays open over a note and a review must never eat a keystroke meant for the page.
- * Bare rather than the toolbar's Cmd+Shift chord: these are the only controls on the card, and
- * a quiz that needs a chord to answer is not a quiz.
- */
-/**
  * The rung that asks for the verse in your own typing. One, now: the first rung asked for it
  * too until it became the recognition tap its name always meant.
  */
 const FREE_RECALL_RUNGS = new Set(['verse.recall']);
-
-function ReviewChoiceChips({
-  options,
-  disabled,
-  onPick,
-  opening = false,
-  missed = [],
-  correct,
-}: {
-  options: readonly string[];
-  disabled: boolean;
-  onPick: (option: string) => void;
-  /** Options already tried and wrong. Marked, and not offered again. */
-  missed?: readonly string[];
-  /**
-   * The option the server just marked right, held for a beat before the result takes the card.
-   *
-   * The page has no answer key, so this is only ever what came back from marking — never a
-   * guess made here.
-   */
-  correct?: string | null;
-  /**
-   * These options are the *first words* of something longer, so they trail off.
-   *
-   * Display only. The value handed back is the option itself — the server rebuilds the same
-   * exercise to mark the tap, and an ellipsis baked into the string would not match.
-   */
-  opening?: boolean;
-}) {
-  const pick = useRef(onPick);
-  pick.current = onPick;
-  const missedRef = useRef(missed);
-  missedRef.current = missed;
-
-  useEffect(() => {
-    if (disabled) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (isTypingInInput()) return;
-      const index = CHOICE_LETTERS.indexOf(
-        event.key.toUpperCase() as (typeof CHOICE_LETTERS)[number],
-      );
-      if (index < 0 || index >= options.length) return;
-      // A key for an option already ruled out does nothing, as its chip does.
-      if (missedRef.current.includes(options[index])) return;
-      event.preventDefault();
-      pick.current(options[index]);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [options, disabled]);
-
-  return (
-    <div className="proto-review-dock__chips">
-      {options.map((option, index) => (
-        <button
-          key={option}
-          type="button"
-          className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
-          data-missed={missed.includes(option) ? '' : undefined}
-          data-correct={correct === option ? '' : undefined}
-          disabled={disabled || missed.includes(option)}
-          onClick={() => pick.current(option)}
-        >
-          {/* aria-hidden: the letter is a way to reach the button, not part of what it says. */}
-          <kbd className="proto-kbd proto-kbd--compact proto-review-dock__choice-key" aria-hidden>
-            {CHOICE_LETTERS[index]}
-          </kbd>
-          <span className="proto-review-dock__choice-label">
-            {opening ? `${option}…` : option}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /**
  * A verse with gaps in it, where the gaps are inputs.
@@ -311,6 +207,7 @@ function ReviewChoiceChips({
  * and leaving it editable invites the reader to retype what they were just handed.
  */
 function GapLine({
+  hero,
   segments,
   blankLengths,
   letters,
@@ -321,6 +218,8 @@ function GapLine({
   onChange,
   onSubmit,
 }: {
+  /** Set on the card stage: the line is the scene, in the reading face at the scene's size. */
+  hero?: ReturnType<typeof heroSize>;
   segments: string[];
   blankLengths: number[];
   letters?: string[];
@@ -333,7 +232,12 @@ function GapLine({
   onSubmit: () => void;
 }) {
   return (
-    <p className="proto-challenge__cloze">
+    <p
+      className={hero ? 'rx-hero' : 'proto-challenge__cloze'}
+      data-size={hero}
+      data-scripture={hero ? '' : undefined}
+      data-gapline=""
+    >
       {segments.map((segment, index) => (
         <Fragment key={index}>
           {segment}
@@ -367,7 +271,7 @@ function GapLine({
                     return;
                   }
                   const inputs = event.currentTarget
-                    .closest('.proto-challenge__cloze')
+                    .closest('[data-gapline]')
                     ?.querySelectorAll<HTMLInputElement>('.proto-review-dock__blank');
                   inputs?.[next]?.focus();
                 }}
@@ -1157,39 +1061,64 @@ export default function PrototypeReviewDock() {
   const subtitle = item ? (item.framing ? fillFraming(item.framing) : reviewRowSubtitle(item)) : null;
   const canJudge = canJudgeRecall({ attempt });
 
-  const verdictRow = (
-    <div className="proto-review-dock__actions">
-      {canJudge ? (
-        <>
-          <button
-            type="button"
-            className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-            disabled={outcome.isPending}
-            onClick={() => answer('almost')}
-          >
-            {REVIEW_ALMOST_COPY}
-          </button>
-          <button
-            type="button"
-            className="proto-settings-btn proto-settings-btn--compact"
-            disabled={outcome.isPending}
-            onClick={() => answer('recalled')}
-          >
-            {REVIEW_RECALLED_COPY}
-          </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          className="proto-settings-btn proto-settings-btn--compact"
-          disabled={outcome.isPending}
-          onClick={() => answer('revealed')}
-        >
-          {REVIEW_REVEALED_ACK_COPY}
-        </button>
-      )}
-    </div>
+  /*
+   * The self-rated verdicts, in the footer where every other card's action is. Only the one
+   * accent button: "I recalled it" where there was an attempt to judge, "I've seen it" where
+   * there was not.
+   */
+  const verdictButtons = canJudge ? (
+    <>
+      <button
+        type="button"
+        className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact rx-primary"
+        disabled={outcome.isPending}
+        onClick={() => answer('almost')}
+      >
+        {REVIEW_ALMOST_COPY}
+      </button>
+      <button
+        type="button"
+        className="proto-settings-btn proto-settings-btn--compact rx-primary"
+        disabled={outcome.isPending}
+        onClick={() => answer('recalled')}
+      >
+        {REVIEW_RECALLED_COPY}
+      </button>
+    </>
+  ) : (
+    <button
+      type="button"
+      className="proto-settings-btn proto-settings-btn--compact rx-primary"
+      disabled={outcome.isPending}
+      onClick={() => answer('revealed')}
+    >
+      {REVIEW_REVEALED_ACK_COPY}
+    </button>
   );
+
+  /* What the card says about the last go, for the stage's footer band. Hint first, then the
+     retry line, so it reads as "here is something" then "have another go". */
+  const say = hintLine || retryLine ? (
+    <>
+      {hintLine}
+      {retryLine}
+    </>
+  ) : null;
+  const missedNow = verdict?.state === 'wrong';
+  /* Only ever what came back from marking — the page holds no answer key. */
+  const correctOption = verdict?.state === 'right' ? verdict.option : null;
+  /* The option on its way to the server, so a tap is seen to land before the reply does. */
+  const pendingOption = outcome.isPending ? (outcome.variables?.answer?.option ?? null) : null;
+  /* Every gap has something in it — the gate on Check and on Enter from the last gap. */
+  const gapsFilled = (total: number) =>
+    Array.from({ length: total }).every((_, i) => Boolean(blanks[i]?.trim()));
+  const submitGaps = (total: number) => {
+    if (!item) return;
+    answer('almost', {
+      words: Array.from({ length: total }, (_, i) => blanks[i] ?? ''),
+      promptKey: item.promptKey,
+    });
+  };
 
   return (
     <StudyDockCardShell
@@ -1633,212 +1562,217 @@ export default function PrototypeReviewDock() {
           /* The question has moved to the stack's edge, at the top of the note. Saying so beats
              repeating the prompt down here, where it would read as a second, separate ask. */
           <p className="proto-review-dock__handoff">Answer at the top of your note.</p>
-        ) : (
-          <>
-            {noteChoice ? (
+        ) : noteChoice ? (
           /*
-           * A note rung. The fragment is the reader's own writing, quoted back — and the
-           * question above already says what is being asked, so this needs no other framing.
+           * A note rung. The fragment is the reader's own writing, quoted back — in the body face,
+           * never the reading face, because it is their prose and not Scripture. The question above
+           * already says what is being asked, so it needs no other framing.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {/* Which note is being asked about. `note.passage` and `note.connect` name it in the
-                sentence when it has a name, and say nothing when it does not — this is the line
-                that answers "which note?" for a nameless one. */}
-            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            {noteChoice.span ? (
-              /*
-               * The span the reader marked, inside the sentence they marked it in. The sentence
-               * is what stops a bold clause reading as a grammar puzzle before it reads as a
-               * question about their study; the marked words stay the emphasis.
-               *
-               * Ellipses only where the server says something was actually dropped. They used
-               * to be absent entirely here, so a fragment was printed as though it were whole.
-               */
-              <p className="proto-review-dock__verse">
-                {noteChoice.span.leading ? <span>… </span> : null}
-                {noteChoice.span.before ? <span>{noteChoice.span.before} </span> : null}
-                <strong>{noteChoice.span.quote}</strong>
-                {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
-                {noteChoice.span.trailing ? <span>…</span> : null}
-              </p>
-            ) : noteChoice.fragment ? (
-              /* An ellipsis at each end that was cut, so a clause is not passed off as one. */
-              <p className="proto-review-dock__verse">
-                “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
-              </p>
-            ) : null}
-            {retryLine}
-            <ReviewChoiceChips
+          <ExerciseStage
+            task={item.prompt}
+            /* Which note is being asked about. `note.passage` and `note.connect` name it in the
+               sentence when it has a name, and say nothing when it does not — this is the line
+               that answers "which note?" for a nameless one. */
+            subject={subtitle}
+            scene={
+              noteChoice.span ? (
+                /*
+                 * The span the reader marked, inside the sentence they marked it in. The sentence
+                 * is what stops a bold clause reading as a grammar puzzle before it reads as a
+                 * question about their study; the marked words stay the emphasis.
+                 *
+                 * Ellipses only where the server says something was actually dropped.
+                 */
+                <p
+                  className="rx-hero"
+                  data-size={heroSize(
+                    `${noteChoice.span.before} ${noteChoice.span.quote} ${noteChoice.span.after}`,
+                  )}
+                >
+                  {noteChoice.span.leading ? <span>… </span> : null}
+                  {noteChoice.span.before ? <span>{noteChoice.span.before} </span> : null}
+                  <strong>{noteChoice.span.quote}</strong>
+                  {noteChoice.span.after ? <span> {noteChoice.span.after}</span> : null}
+                  {noteChoice.span.trailing ? <span>…</span> : null}
+                </p>
+              ) : noteChoice.fragment ? (
+                /* An ellipsis at each end that was cut, so a clause is not passed off as one. */
+                <p className="rx-hero" data-size={heroSize(noteChoice.fragment)}>
+                  “{noteChoice.leading ? '…' : ''}{noteChoice.fragment}{noteChoice.truncated ? '…' : ''}”
+                </p>
+              ) : null
+            }
+            say={say}
+            missed={missedNow}
+          >
+            <ChoiceOptions
               options={noteChoice.options}
               disabled={outcome.isPending}
               missed={missed}
-              correct={verdict?.state === 'right' ? verdict.option : null}
+              correct={correctOption}
+              pending={pendingOption}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
-          </>
+          </ExerciseStage>
         ) : clozeExercise && clozeExercise.blankLengths.length > 0 ? (
           /*
            * Fill in the blanks, in the blanks themselves.
            *
-           * The server has built this cloze since the rung shipped and nothing ever rendered it,
-           * because the rung was not graded and the reveal arrived only after the reader had
-           * already been shown a textarea. It is graded now — and the gaps are inputs rather
-           * than a picture of inputs, so the words go where they belong instead of being retyped
-           * into a box underneath in an order the reader has to keep track of.
-           *
-           * Each input is sized by the word it stands for, which is the same hint the underscore
-           * run always gave — until the top tier, where that hint is withdrawn and every gap is
-           * the same width. See `review-difficulty.ts`.
+           * The gaps are inputs rather than a picture of inputs, so the words go where they belong
+           * instead of being retyped into a box underneath in an order the reader has to keep
+           * track of. Each input is sized by the word it stands for, which is the same hint the
+           * underscore run always gave — until the top tier, where that hint is withdrawn and every
+           * gap is the same width. See `review-difficulty.ts`.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            <GapLine
-              segments={clozeExercise.segments}
-              blankLengths={clozeExercise.blankLengths}
-              values={blanks}
-              given={givenBlanks}
-              partState={partState}
-              disabled={outcome.isPending}
-              onChange={(index, value) => {
-                const next = [...blanks];
-                next[index] = value;
-                setBlanks(next);
-              }}
-              onSubmit={() => {
-                if (outcome.isPending) return;
-                if (clozeExercise.blankLengths.some((_, i) => !blanks[i]?.trim())) return;
-                answer('almost', {
-                  words: clozeExercise.blankLengths.map((_, i) => blanks[i] ?? ''),
-                  promptKey: item.promptKey,
-                });
-              }}
-            />
-            {hintLine}
-            {retryLine}
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                disabled={outcome.isPending || blanks.some((b) => !b?.trim())}
-                onClick={() =>
-                  answer('almost', {
-                    words: clozeExercise.blankLengths.map((_, i) => blanks[i] ?? ''),
-                    promptKey: item.promptKey,
-                  })
-                }
-              >
-                {REVIEW_CHECK_COPY}
-              </button>
-            </div>
-          </>
+          <ExerciseStage
+            task={item.prompt}
+            subject={subtitle}
+            scene={
+              <GapLine
+                hero={heroSize(clozeExercise.segments.join(' '))}
+                segments={clozeExercise.segments}
+                blankLengths={clozeExercise.blankLengths}
+                values={blanks}
+                given={givenBlanks}
+                partState={partState}
+                disabled={outcome.isPending}
+                onChange={(index, value) => {
+                  const next = [...blanks];
+                  next[index] = value;
+                  setBlanks(next);
+                }}
+                onSubmit={() => {
+                  if (outcome.isPending || !gapsFilled(clozeExercise.blankLengths.length)) return;
+                  submitGaps(clozeExercise.blankLengths.length);
+                }}
+              />
+            }
+            say={say}
+            missed={missedNow}
+            primary={{
+              label: REVIEW_CHECK_COPY,
+              disabled: outcome.isPending || !gapsFilled(clozeExercise.blankLengths.length),
+              onClick: () => submitGaps(clozeExercise.blankLengths.length),
+            }}
+          />
         ) : sequenceExercise ? (
           /*
-           * Put the phrases back in order. Tap to place, tap a placed one to take it back —
-           * no drag library, which would be a dependency and a touch-target problem for a
-           * puzzle of four chips.
+           * Put the phrases back in order: the numbered places are the verse being rebuilt, the
+           * tiles under them are what is left to place. Tap a tile to place it, tap a placed one to
+           * take it back — no drag library, which would be a dependency and a touch-target problem
+           * for a puzzle of four pieces.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            <ol className="proto-review-dock__chips proto-review-dock__chips--placed">
-              {placed.map((index, position) => (
-                <li key={`${index}-${position}`}>
-                  {/* The order you built is the answer, so the whole row wears the verdict. */}
-                  <button
-                    type="button"
-                    className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact proto-review-dock__choice"
-                    data-missed={partState(position) === 'wrong' ? '' : undefined}
-                    data-correct={partState(position) === 'right' ? '' : undefined}
-                    disabled={outcome.isPending}
-                    onClick={() => setPlaced((current) => current.filter((_, i) => i !== position))}
-                  >
-                    {sequenceExercise.phrases[index]}
-                  </button>
-                </li>
-              ))}
-            </ol>
-            <div className="proto-review-dock__chips">
-              {sequenceExercise.phrases.map((phrase, index) =>
-                placed.includes(index) ? null : (
-                  <button
-                    key={index}
-                    type="button"
-                    className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                    onClick={() => setPlaced((current) => [...current, index])}
-                  >
-                    {phrase}
-                  </button>
-                ),
-              )}
-            </div>
-            {retryLine}
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--compact"
-                disabled={outcome.isPending || placed.length !== sequenceExercise.phrases.length}
-                onClick={() =>
-                  answer('almost', { order: placed }, null, {
-                    phrases: sequenceExercise.phrases,
-                  })
-                }
-              >
-                {REVIEW_CHECK_COPY}
-              </button>
-            </div>
-          </>
+          <ExerciseStage
+            task={item.prompt}
+            scene={
+              <ol className="rx-slots">
+                {sequenceExercise.phrases.map((_, position) => {
+                  const index = placed[position];
+                  return (
+                    <li key={position}>
+                      {index === undefined ? (
+                        <span className="rx-slot" aria-hidden />
+                      ) : (
+                        /* The order you built is the answer, so each place wears its verdict. */
+                        <button
+                          type="button"
+                          className="rx-slot"
+                          data-filled=""
+                          data-state={partState(position)}
+                          disabled={outcome.isPending}
+                          onClick={() =>
+                            setPlaced((current) => current.filter((_, i) => i !== position))
+                          }
+                        >
+                          {sequenceExercise.phrases[index]}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            }
+            say={say}
+            missed={missedNow}
+            primary={{
+              label: REVIEW_CHECK_COPY,
+              disabled: outcome.isPending || placed.length !== sequenceExercise.phrases.length,
+              onClick: () =>
+                answer('almost', { order: placed }, null, { phrases: sequenceExercise.phrases }),
+            }}
+          >
+            {placed.length < sequenceExercise.phrases.length ? (
+              <div className="rx-tray">
+                {sequenceExercise.phrases.map((phrase, index) =>
+                  placed.includes(index) ? null : (
+                    <button
+                      key={index}
+                      type="button"
+                      className="rx-tile"
+                      disabled={outcome.isPending}
+                      onClick={() => setPlaced((current) => [...current, index])}
+                    >
+                      {phrase}
+                    </button>
+                  ),
+                )}
+              </div>
+            ) : null}
+          </ExerciseStage>
         ) : alteredExercise ? (
           /*
            * The one rung that shows words which are not what the passage says.
            *
-           * The question above states that before the reader reaches the text, and the caption
-           * below repeats it on the block itself — a prompt can be scrolled past, cropped out
-           * of a screenshot or skipped by someone tapping straight at the words, and the
-           * warning has to travel with them. Deliberately not `--scripture`: this is the one
-           * place a line must not be dressed as the real thing.
+           * The question above states that before the reader reaches the text, and the caption on
+           * the scene repeats it — a prompt can be scrolled past, cropped out of a screenshot or
+           * skipped by someone tapping straight at the words, and the warning has to travel with
+           * them. Deliberately not the reading face and not the scripture panel: the scene takes
+           * its dashed, warm `altered` tone so this line is never dressed as the real thing.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            <div className="proto-review-dock__altered">
-              <p className="proto-caption proto-review-dock__altered-caption">
-                {REVIEW_ALTERED_CAPTION}
-              </p>
-              <p className="proto-review-dock__altered-text">
-                {alteredExercise.tokens.map((token, index) => (
-                  /* The space is its own text node, outside the buttons. Without it the words
-                     are separated only by margin: the line looks right and reads as
-                     "Iamthevine" to a screen reader, and copies out that way too. */
-                  <Fragment key={`${index}-${token}`}>
-                    {index > 0 ? ' ' : null}
-                    <button
-                      type="button"
-                      className="proto-review-dock__altered-word"
-                      /* The index identifies the word, so the one just tapped wears the verdict. */
-                      data-answer={
-                        spentWords.includes(index)
-                          ? 'wrong'
-                          : verdict?.option === String(index)
-                            ? verdict.state
-                            : undefined
-                      }
-                      disabled={outcome.isPending || spentWords.includes(index)}
-                      onClick={() =>
-                        answer(
-                          'almost',
-                          { wordIndex: index, promptKey: item.promptKey },
-                          String(index),
-                          { word: token },
-                        )
-                      }
-                    >
-                      {token}
-                    </button>
-                  </Fragment>
-                ))}
-              </p>
-            </div>
-          </>
+          <ExerciseStage
+            task={item.prompt}
+            sceneTone="altered"
+            scene={
+              <>
+                <p className="rx-eyebrow">{REVIEW_ALTERED_CAPTION}</p>
+                <p className="rx-hero" data-size={heroSize(alteredExercise.tokens.join(' '))}>
+                  {alteredExercise.tokens.map((token, index) => (
+                    /* The space is its own text node, outside the buttons. Without it the words
+                       are separated only by margin: the line looks right and reads as
+                       "Iamthevine" to a screen reader, and copies out that way too. */
+                    <Fragment key={`${index}-${token}`}>
+                      {index > 0 ? ' ' : null}
+                      <button
+                        type="button"
+                        className="proto-review-dock__altered-word"
+                        /* The index identifies the word, so the one just tapped wears the verdict. */
+                        data-answer={
+                          spentWords.includes(index)
+                            ? 'wrong'
+                            : verdict?.option === String(index)
+                              ? verdict.state
+                              : undefined
+                        }
+                        disabled={outcome.isPending || spentWords.includes(index)}
+                        onClick={() =>
+                          answer(
+                            'almost',
+                            { wordIndex: index, promptKey: item.promptKey },
+                            String(index),
+                            { word: token },
+                          )
+                        }
+                      >
+                        {token}
+                      </button>
+                    </Fragment>
+                  ))}
+                </p>
+              </>
+            }
+            say={say}
+            missed={missedNow}
+          />
         ) : initialsExercise?.segments && initialsExercise.segments.blankLengths.length > 0 ? (
           /*
            * The staged form: a share of the words standing on their first letter, the rest of the
@@ -1846,65 +1780,69 @@ export default function PrototypeReviewDock() {
            *
            * This rung is on step 1, which is an *opening* step — so before it was staged, roughly
            * half of all new verses met "write the whole thing from its first letters" as the very
-           * first question Review ever asked them, graded on every content word with a single
-           * yes or no at the end. The top tier is still that exercise; this is the way up to it.
+           * first question Review ever asked them. The top tier is still that exercise; this is the
+           * way up to it.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            <GapLine
-              segments={initialsExercise.segments.segments}
-              blankLengths={initialsExercise.segments.blankLengths}
-              letters={initialsExercise.segments.letters}
-              values={blanks}
-              given={givenBlanks}
-              partState={partState}
-              disabled={outcome.isPending}
-              onChange={(index, value) => {
-                const next = [...blanks];
-                next[index] = value;
-                setBlanks(next);
-              }}
-              onSubmit={() => {
-                if (outcome.isPending) return;
-                if (initialsExercise.segments!.blankLengths.some((_, i) => !blanks[i]?.trim())) return;
-                answer('almost', {
-                  words: initialsExercise.segments!.blankLengths.map((_, i) => blanks[i] ?? ''),
-                  promptKey: item.promptKey,
-                });
-              }}
-            />
-            {hintLine}
-            {retryLine}
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                disabled={
-                  outcome.isPending ||
-                  initialsExercise.segments.blankLengths.some((_, i) => !blanks[i]?.trim())
-                }
-                onClick={() =>
-                  answer('almost', {
-                    words: initialsExercise.segments!.blankLengths.map((_, i) => blanks[i] ?? ''),
-                    promptKey: item.promptKey,
-                  })
-                }
-              >
-                {REVIEW_CHECK_COPY}
-              </button>
-            </div>
-          </>
+          <ExerciseStage
+            task={item.prompt}
+            subject={subtitle}
+            scene={
+              <GapLine
+                hero={heroSize(initialsExercise.segments.segments.join(' '))}
+                segments={initialsExercise.segments.segments}
+                blankLengths={initialsExercise.segments.blankLengths}
+                letters={initialsExercise.segments.letters}
+                values={blanks}
+                given={givenBlanks}
+                partState={partState}
+                disabled={outcome.isPending}
+                onChange={(index, value) => {
+                  const next = [...blanks];
+                  next[index] = value;
+                  setBlanks(next);
+                }}
+                onSubmit={() => {
+                  const total = initialsExercise.segments!.blankLengths.length;
+                  if (outcome.isPending || !gapsFilled(total)) return;
+                  submitGaps(total);
+                }}
+              />
+            }
+            say={say}
+            missed={missedNow}
+            primary={{
+              label: REVIEW_CHECK_COPY,
+              disabled:
+                outcome.isPending || !gapsFilled(initialsExercise.segments.blankLengths.length),
+              onClick: () => submitGaps(initialsExercise.segments!.blankLengths.length),
+            }}
+          />
         ) : initialsExercise ? (
           /*
            * The top tier, and what this rung has always been: the first letter of every word, and
            * the reader writes the verse back. Graded on the content words, in order — connectives
            * and case are forgiven, because "the" for "a" is not forgetting.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            <p className="proto-challenge__cloze">{initialsExercise.initials}</p>
+          <ExerciseStage
+            task={item.prompt}
+            subject={subtitle}
+            scene={
+              <p
+                className="rx-hero proto-review-dock__initials"
+                data-scripture=""
+                data-size={heroSize(initialsExercise.initials)}
+              >
+                {initialsExercise.initials}
+              </p>
+            }
+            say={say}
+            missed={missedNow}
+            primary={{
+              label: REVIEW_CHECK_COPY,
+              disabled: outcome.isPending || !attempt.trim(),
+              onClick: () => answer('almost', { text: attempt, promptKey: item.promptKey }),
+            }}
+          >
             <textarea
               className="proto-review-dock__attempt"
               placeholder={REVIEW_INITIALS_PLACEHOLDER}
@@ -1917,24 +1855,21 @@ export default function PrototypeReviewDock() {
               }}
               rows={3}
             />
-            {hintLine}
-            {retryLine}
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                disabled={outcome.isPending || !attempt.trim()}
-                onClick={() => answer('almost', { text: attempt, promptKey: item.promptKey })}
-              >
-                {REVIEW_CHECK_COPY}
-              </button>
-            </div>
-          </>
+          </ExerciseStage>
         ) : keywordsExercise ? (
-          /* Free recall, the lightest rung: any three words that are actually in the verse. */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            <p className="proto-challenge__cloze">
+          /* Free recall, the lightest rung: any three words that are actually in the verse. The
+             verse stays off the card — it is the question — so the boxes are the card. */
+          <ExerciseStage
+            task={item.prompt}
+            say={say}
+            missed={missedNow}
+            primary={{
+              label: REVIEW_CHECK_COPY,
+              disabled: outcome.isPending || !gapsFilled(keywordsExercise.count),
+              onClick: () => submitGaps(keywordsExercise.count),
+            }}
+          >
+            <p className="rx-keywords">
               {Array.from({ length: keywordsExercise.count }, (_, index) => (
                 <Fragment key={index}>
                   {index > 0 ? ' ' : null}
@@ -1942,12 +1877,17 @@ export default function PrototypeReviewDock() {
                     type="text"
                     className="proto-review-dock__blank"
                     data-answer={partState(index)}
-                    style={{ width: '10ch' }}
+                    style={{ width: '9ch' }}
                     value={blanks[index] ?? ''}
                     onChange={(event) => {
                       const next = [...blanks];
                       next[index] = event.target.value;
                       setBlanks(next);
+                    }}
+                    onKeyDown={(event) => {
+                      if (!isSubmitKey(event) || outcome.isPending) return;
+                      event.preventDefault();
+                      if (gapsFilled(keywordsExercise.count)) submitGaps(keywordsExercise.count);
                     }}
                     aria-label={`Word ${index + 1}`}
                     autoComplete="off"
@@ -1957,60 +1897,50 @@ export default function PrototypeReviewDock() {
                 </Fragment>
               ))}
             </p>
-            {retryLine}
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                disabled={
-                  outcome.isPending ||
-                  Array.from({ length: keywordsExercise.count }).some((_, i) => !blanks[i]?.trim())
-                }
-                onClick={() =>
-                  answer('almost', {
-                    words: Array.from({ length: keywordsExercise.count }, (_, i) => blanks[i] ?? ''),
-                    promptKey: item.promptKey,
-                  })
-                }
-              >
-                {REVIEW_CHECK_COPY}
-              </button>
-            </div>
-          </>
+          </ExerciseStage>
         ) : beforeExercise ? (
           /* Two openings from the same chapter; the verse itself is one of them, so it stays off
-             screen. */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {retryLine}
-            <ReviewChoiceChips
+             the card and the two openings are the card. */
+          <ExerciseStage task={item.prompt} say={say} missed={missedNow}>
+            <ChoiceOptions
               options={beforeExercise.options}
               disabled={outcome.isPending}
               missed={missed}
-              correct={verdict?.state === 'right' ? verdict.option : null}
+              correct={correctOption}
+              pending={pendingOption}
               opening
               onPick={(option) =>
                 answer('almost', { option, promptKey: item.promptKey }, option, { opening: true })
               }
             />
-          </>
+          </ExerciseStage>
         ) : contextChoice ? (
           /*
            * The context step: which note cites this, which theme it carries, who it is about,
-           * what it is cross-referenced with. The verse stays on screen — it is the question —
+           * what it is cross-referenced with. The verse stays on the card — it is the question —
            * and the options are the whole exercise.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {verseMarkup ? (
-              <p className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
-            ) : null}
-            {retryLine}
-            <ReviewChoiceChips
+          <ExerciseStage
+            task={item.prompt}
+            scene={
+              verseMarkup ? (
+                <p
+                  className="rx-hero"
+                  data-scripture=""
+                  data-size={heroSize(reveal.data?.verseText)}
+                  dangerouslySetInnerHTML={verseMarkup}
+                />
+              ) : null
+            }
+            say={say}
+            missed={missedNow}
+          >
+            <ChoiceOptions
               options={contextChoice.options}
               disabled={outcome.isPending}
               missed={missed}
-              correct={verdict?.state === 'right' ? verdict.option : null}
+              correct={correctOption}
+              pending={pendingOption}
               opening={contextChoice.opening}
               onPick={(option) =>
                 answer('almost', { option, promptKey: item.promptKey }, option, {
@@ -2018,68 +1948,93 @@ export default function PrototypeReviewDock() {
                 })
               }
             />
-          </>
+          </ExerciseStage>
         ) : nextExercise ? (
           /*
-           * "What comes after this?" — the verse in question stays on screen above the options,
-           * because it is the question. Only the four openings are offered; the next verse's
-           * reference never reaches the page, or the answer would be arithmetic.
+           * "What comes after this?" — the verse in question stays on the card above the options,
+           * because it is the question. Only the openings are offered; the next verse's reference
+           * never reaches the page, or the answer would be arithmetic.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {verseMarkup ? (
-              <p className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
-            ) : null}
-            {retryLine}
-            <ReviewChoiceChips
+          <ExerciseStage
+            task={item.prompt}
+            scene={
+              verseMarkup ? (
+                <p
+                  className="rx-hero"
+                  data-scripture=""
+                  data-size={heroSize(reveal.data?.verseText)}
+                  dangerouslySetInnerHTML={verseMarkup}
+                />
+              ) : null
+            }
+            say={say}
+            missed={missedNow}
+          >
+            <ChoiceOptions
               options={nextExercise.options}
               disabled={outcome.isPending}
               missed={missed}
-              correct={verdict?.state === 'right' ? verdict.option : null}
+              correct={correctOption}
+              pending={pendingOption}
               opening
               onPick={(option) =>
                 answer('almost', { option, promptKey: item.promptKey }, option, { opening: true })
               }
             />
-          </>
+          </ExerciseStage>
         ) : locateExercise ? (
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {/* The trailing ellipsis was hardcoded, so a phrase running to the end of the verse
-                claimed there was more; there was never a leading one, so a phrase deliberately
-                starting past the opening read as the opening. `trailing !== false` keeps a
-                payload built before this rendering exactly as it did. */}
-            <p className="proto-review-dock__verse proto-review-dock__verse--scripture">
-              “{locateExercise.leading ? '…' : ''}{locateExercise.phrase}
-              {locateExercise.trailing !== false ? '…' : ''}”
-            </p>
-            {retryLine}
-            <ReviewChoiceChips
+          <ExerciseStage
+            task={item.prompt}
+            scene={
+              /* The trailing ellipsis was hardcoded, so a phrase running to the end of the verse
+                 claimed there was more; there was never a leading one, so a phrase deliberately
+                 starting past the opening read as the opening. `trailing !== false` keeps a
+                 payload built before this rendering exactly as it did. */
+              <p className="rx-hero" data-scripture="" data-size={heroSize(locateExercise.phrase)}>
+                “{locateExercise.leading ? '…' : ''}{locateExercise.phrase}
+                {locateExercise.trailing !== false ? '…' : ''}”
+              </p>
+            }
+            say={say}
+            missed={missedNow}
+          >
+            <ChoiceOptions
               options={locateExercise.options}
               disabled={outcome.isPending}
               missed={missed}
-              correct={verdict?.state === 'right' ? verdict.option : null}
+              correct={correctOption}
+              pending={pendingOption}
               onPick={(option) => answer('almost', { option, promptKey: item.promptKey })}
             />
-          </>
+          </ExerciseStage>
         ) : FREE_RECALL_RUNGS.has(item.promptKey) ? (
           /*
-           * Write the verse out, and have it marked. Forgivingly — content words, in order,
-           * case and punctuation and the small words all forgiven — because the thing being
-           * tested is the verse, not the typing. What you wrote comes back with the verse.
+           * Write the verse out, and have it marked. Forgivingly — content words, in order, case
+           * and punctuation and the small words all forgiven — because the thing being tested is
+           * the verse, not the typing. What you wrote comes back with the verse.
+           *
+           * The way in, at the tiers that give one, is the scene: most of the verse to finish, or
+           * its opening few words to carry on from. Nothing at the top tier, which is the bare
+           * reference this rung always was, and the writing area is the card.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            {/*
-             * The way in, at the tiers that give one: most of the verse to finish, or its opening
-             * few words to carry on from. Nothing at the top tier, which is the bare reference
-             * this rung always was. The ellipsis is what makes it read as unfinished rather than
-             * as a verse that stops there.
-             */}
-            {recallExercise?.shown ? (
-              <p className="proto-challenge__cloze">{recallExercise.shown} …</p>
-            ) : null}
+          <ExerciseStage
+            task={item.prompt}
+            subject={subtitle}
+            scene={
+              recallExercise?.shown ? (
+                <p className="rx-hero" data-scripture="" data-size={heroSize(recallExercise.shown)}>
+                  {recallExercise.shown} …
+                </p>
+              ) : null
+            }
+            say={say}
+            missed={missedNow}
+            primary={{
+              label: REVIEW_CHECK_COPY,
+              disabled: outcome.isPending || !attempt.trim(),
+              onClick: () => answer('almost', { text: attempt, promptKey: item.promptKey }),
+            }}
+          >
             <textarea
               className="proto-review-dock__attempt"
               data-answer={verdict?.state ?? undefined}
@@ -2095,19 +2050,7 @@ export default function PrototypeReviewDock() {
               rows={3}
               disabled={outcome.isPending}
             />
-            {hintLine}
-            {retryLine}
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--secondary proto-settings-btn--compact"
-                disabled={outcome.isPending || !attempt.trim()}
-                onClick={() => answer('almost', { text: attempt, promptKey: item.promptKey })}
-              >
-                {REVIEW_CHECK_COPY}
-              </button>
-            </div>
-          </>
+          </ExerciseStage>
         ) : isGradedRung && reveal.isError ? (
           /*
            * The reveal *is* the question on a graded rung, so a failed one is a question with no
@@ -2116,91 +2059,83 @@ export default function PrototypeReviewDock() {
            * prevent, except permanent, and with a "check the verse" button that would record an
            * answer to a question the reader was never shown.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            <p className="proto-review-dock__caption">{REVIEW_REVEAL_FAILED_COPY}</p>
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--compact"
-                onClick={() => void reveal.refetch()}
-              >
-                {REVIEW_REVEAL_RETRY_COPY}
-              </button>
-            </div>
-          </>
+          <ExerciseStage
+            task={item.prompt}
+            subject={subtitle}
+            scene={<p className="proto-review-dock__caption">{REVIEW_REVEAL_FAILED_COPY}</p>}
+            primary={{ label: REVIEW_REVEAL_RETRY_COPY, onClick: () => void reveal.refetch() }}
+          />
         ) : isGradedRung && (reveal.isPending || reveal.isFetching) ? (
           /*
            * The question, and dots where its exercise will be.
            *
-           * Every exercise branch above is keyed on a field of the reveal, so until it lands
-           * they are all empty and the chain fell through to the free-text fallback below —
-           * the reader saw a textarea and a "check the verse" button, which then vanished and
-           * became four options. Showing the wrong exercise is worse than showing none, and
-           * the prompt is the part they should be reading first anyway.
+           * Every exercise branch above is keyed on a field of the reveal, so until it lands they
+           * are all empty and the chain fell through to the free-text fallback below — the reader
+           * saw a textarea and a "check the verse" button, which then vanished and became four
+           * options. Showing the wrong exercise is worse than showing none. On the stage, so the
+           * card is already its full size when the exercise lands in it.
            */
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
-            <div className="proto-review-dock__loading">
-              <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
-            </div>
-          </>
+          <ExerciseStage
+            task={item.prompt}
+            subject={subtitle}
+            scene={
+              <div className="proto-review-dock__loading">
+                <ProtoLoadingDots label={REVIEW_LOADING_LABEL} />
+              </div>
+            }
+          />
         ) : !revealed ? (
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {/* Which note is being asked about, when the question does not already say. The
-                row on Activity carries this too, and it is the difference between answering
-                about your note and guessing which note it means. */}
-            {subtitle ? <p className="proto-review-dock__subject">{subtitle}</p> : null}
+          /*
+           * The self-rated kinds: write what you remember, then go and look.
+           *
+           * One action, because there was only ever one. There used to be an "I have it in mind"
+           * beside this, for someone who retrieved the note mentally without typing. Both buttons
+           * revealed; the only difference was an invisible flag deciding which verdicts appeared
+           * afterwards. It also asked the reader to declare a mental state *before* checking it,
+           * which is the same invitation to a comfortable lie that the cold-reveal rule exists to
+           * avoid — writing something is the attempt.
+           */
+          <ExerciseStage
+            task={item.prompt}
+            /* Which note is being asked about, when the question does not already say. */
+            subject={subtitle}
+            say={say}
+            missed={missedNow}
+            primary={{
+              label: revealLabelFor(item.kind),
+              onClick: () => {
+                if (revealsElsewhere(item.kind, item.noteId)) revealElsewhere();
+                else setRevealed(true);
+              },
+            }}
+          >
             <textarea
               className="proto-review-dock__attempt"
               placeholder={REVIEW_ATTEMPT_PLACEHOLDER}
               value={attempt}
               onChange={(event) => setAttempt(event.target.value)}
-              rows={2}
+              rows={3}
             />
-            {/*
-              * One action, because there was only ever one.
-              *
-              * There used to be an "I have it in mind" beside this, for someone who retrieved the
-              * note mentally without typing. Both buttons revealed; the only difference was an
-              * invisible flag deciding which verdicts appeared afterwards, which is why it read
-              * as two ways to do the same thing. It also asked the reader to declare a mental
-              * state *before* checking it, which is the same invitation to a comfortable lie that
-              * the cold-reveal rule exists to avoid — and the strategy doc is explicit that
-              * "whether they attempt recall before revealing a note" is something to infer from
-              * behaviour, not to ask about. Writing something is the attempt.
-              */}
-            {retryLine}
-            <div className="proto-review-dock__actions">
-              <button
-                type="button"
-                className="proto-settings-btn proto-settings-btn--compact"
-                onClick={() => {
-                  if (revealsElsewhere(item.kind, item.noteId)) revealElsewhere();
-                  else setRevealed(true);
-                }}
-              >
-                {revealLabelFor(item.kind)}
-              </button>
-            </div>
-          </>
+          </ExerciseStage>
         ) : (
-          <>
-            <p className="proto-review-dock__prompt">{item.prompt}</p>
-            {item.kind === 'thread' ? (
-              <p className="proto-caption">Your Thread is open beside you.</p>
-            ) : reveal.isPending ? (
-              <p className="proto-caption">Fetching…</p>
-            ) : verseMarkup ? (
-              <div className="proto-review-dock__verse proto-review-dock__verse--scripture" dangerouslySetInnerHTML={verseMarkup} />
-            ) : null}
-            {verdictRow}
-          </>
-            )}
-          </>
+          <ExerciseStage
+            task={item.prompt}
+            scene={
+              item.kind === 'thread' ? (
+                <p className="proto-caption">Your Thread is open beside you.</p>
+              ) : reveal.isPending ? (
+                <p className="proto-caption">Fetching…</p>
+              ) : verseMarkup ? (
+                <div
+                  className="rx-hero"
+                  data-scripture=""
+                  data-size={heroSize(reveal.data?.verseText)}
+                  dangerouslySetInnerHTML={verseMarkup}
+                />
+              ) : null
+            }
+            actions={verdictButtons}
+          />
         )}
       </div>
     </StudyDockCardShell>
