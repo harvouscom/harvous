@@ -363,6 +363,10 @@ app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
         id: Spaces.id,
         title: Spaces.title,
         color: Spaces.color,
+        /* The follower's own "seen up to" mark — the same watermark the switcher's
+           new-note count uses (`shared-space-visit.ts`), so the two never disagree. */
+        lastVisitedAt: SpaceMemberships.lastVisitedAt,
+        joinedAt: SpaceMemberships.joinedAt,
       })
       .from(SpaceMemberships)
       .innerJoin(Spaces, eq(SpaceMemberships.spaceId, Spaces.id))
@@ -419,8 +423,22 @@ app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
     const items = rows.map((row) => {
       const space = spaceById.get(row.spaceId!)!;
       const author = authors[row.authorUserId];
+      const watermark = space.lastVisitedAt ?? space.joinedAt ?? null;
+      const publishedAt = row.addedAt ?? row.createdAt ?? null;
       return {
         noteId: row.noteId,
+        /*
+          Published into the channel since this follower last opened it, by someone
+          else. Keyed on when it reached the channel, not when it was last edited — a
+          typo fix is not news. Clears by visiting the channel, which opening the item
+          does, exactly like every other "new" in the app.
+        */
+        isNew: Boolean(
+          watermark &&
+            publishedAt &&
+            new Date(publishedAt).getTime() > new Date(watermark).getTime() &&
+            row.authorUserId !== auth.userId,
+        ),
         title: row.title,
         excerpt: stripHtmlForCard(row.content ?? '').slice(0, FEED_EXCERPT_LENGTH),
         noteType: row.noteType ?? 'default',
@@ -435,11 +453,16 @@ app.get('/api/church/feed', requireAuth, rateLimit('read'), async (c) => {
       };
     });
 
-    return c.json({
-      connected: true,
-      church: { id: church.id, name: church.name },
-      items,
-    });
+    // Carries per-viewer read state now; a cached copy would resurrect a cleared marker.
+    return c.json(
+      {
+        connected: true,
+        church: { id: church.id, name: church.name },
+        items,
+      },
+      200,
+      { 'Cache-Control': 'private, max-age=0, no-store' },
+    );
   } catch (error) {
     const standardError = handleAPIError(error, {
       endpoint: '/api/church/feed',

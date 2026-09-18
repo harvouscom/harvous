@@ -101,6 +101,9 @@ export function useSharedSpaceVisitStamp(spaceId: string | null) {
       }
       if (userId) setNavSpaceNewNoteCount(queryClient, userId, id, 0);
       void queryClient.invalidateQueries({ queryKey: ['space', id, 'activity-preview'] });
+      /* "From your church" reads the same watermark per channel, so its New marks
+         are stale the moment one is visited. Prefix match: every feed limit. */
+      void queryClient.invalidateQueries({ queryKey: ['church-feed'] });
     },
   });
 
