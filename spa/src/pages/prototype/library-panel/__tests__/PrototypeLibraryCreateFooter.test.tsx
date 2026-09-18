@@ -19,15 +19,18 @@ const organize = {
 };
 const closeLibraryPanel = vi.fn();
 const setActiveSpaceId = vi.fn();
+const ensureSidebarExpanded = vi.fn();
+const openExpandedSidebar = vi.fn();
 
 vi.mock('../../../../lib/prototype-organize-runner-store', () => ({
   useOrganizeApi: () => organize,
 }));
 vi.mock('../../../../layouts/proto-shell-context', () => ({
-  useProtoShell: () => ({ closeLibraryPanel, setActiveSpaceId }),
+  useProtoShell: () => ({ closeLibraryPanel, setActiveSpaceId, ensureSidebarExpanded, openExpandedSidebar }),
 }));
 
 const { default: PrototypeLibraryCreateFooter } = await import('../PrototypeLibraryCreateFooter');
+const { consumePendingDiscoverKind } = await import('../../../../lib/pending-discover-kind');
 
 function footer(tab: string, searching = false) {
   const { container } = render(
@@ -125,5 +128,36 @@ describe('New note from My Home, inside a shared space', () => {
     expect(setActiveSpaceId).not.toHaveBeenCalled();
     expect(seen).toHaveLength(1);
     expect((seen[0] as CustomEvent).detail ?? null).toBeNull();
+  });
+});
+
+describe('the secondary Discover beside a create button', () => {
+  /*
+   * The Notes one did nothing for as long as it existed. Its handler closed over a const
+   * declared below the branch that returned it, so every click threw a TDZ ReferenceError
+   * before reaching the shell — and a render test cannot see that, only a press can.
+   */
+  function pressSecondaryDiscover(tab: 'notes' | 'threads') {
+    render(<PrototypeLibraryCreateFooter tab={tab as never} searching={false} />);
+    screen.getByText('Discover').click();
+  }
+
+  it('opens Discover from Notes, on studies', () => {
+    pressSecondaryDiscover('notes');
+    expect(closeLibraryPanel).toHaveBeenCalled();
+    expect(openExpandedSidebar).toHaveBeenCalledWith('discover');
+    expect(consumePendingDiscoverKind()).toBe('note');
+  });
+
+  it('opens Discover from Threads, on series', () => {
+    pressSecondaryDiscover('threads');
+    expect(openExpandedSidebar).toHaveBeenCalledWith('discover');
+    expect(consumePendingDiscoverKind()).toBe('pack');
+  });
+
+  it('opens Discover from Everything, where it is the primary', () => {
+    render(<PrototypeLibraryCreateFooter tab={'all' as never} searching={false} />);
+    screen.getByText('Discover').click();
+    expect(openExpandedSidebar).toHaveBeenCalledWith('discover');
   });
 });
