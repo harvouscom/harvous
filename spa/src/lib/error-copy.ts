@@ -52,6 +52,8 @@ const CODE_COPY: Record<string, string> = {
   RATE_LIMIT_EXCEEDED: 'Too many changes at once — try again in a moment',
   NOTE_VERSION_CONFLICT: 'This changed somewhere else. Your version is saved as a draft',
   ACTIVE_SHARED_ASSOCIATIONS: 'This note is still shared somewhere, so it can’t be removed yet',
+  CHURCH_NOT_SPONSORED: 'Your church’s Harvous plan has ended. Everything already shared stays readable',
+  CHURCH_INACTIVE: 'This church isn’t active on Harvous right now',
 };
 
 const STATUS_COPY: Record<number, string> = {

@@ -314,6 +314,27 @@ describe('shared panel retry and destination contracts', () => {
     ).toBe('Saving to My Home');
   });
 
+  it('says a draft begun in a ministry channel stays private until published', () => {
+    // Followers see a channel note the moment it exists; the draft waits in My Home.
+    expect(
+      draftSaveDestinationLabel({
+        targetSpaceId: 'space_home',
+        homeSpaceId: 'space_home',
+        targetSpaceTitle: null,
+        heldBackChannelTitle: 'Youth',
+      }),
+    ).toBe('Private until you publish to Youth');
+    // Once the author picks the channel, the draft really is saving there.
+    expect(
+      draftSaveDestinationLabel({
+        targetSpaceId: 'space_youth',
+        homeSpaceId: 'space_home',
+        targetSpaceTitle: 'Youth',
+        heldBackChannelTitle: 'Youth',
+      }),
+    ).toBe('Saving to Youth');
+  });
+
   it('names the resolved Thread in the draft destination once one is attached', () => {
     expect(
       draftSaveDestinationLabel({

@@ -55,6 +55,7 @@ function ChurchFeedCard({
         />
       }
       title={title}
+      titleTrailing={item.isNew ? <span className="proto-feed-said__new">New</span> : null}
       meta={['From your church', item.channel.title, rel, item.excerpt]}
       onClick={() => onOpen(item)}
     />

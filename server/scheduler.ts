@@ -19,6 +19,7 @@
 import { runAudiencefulActivitySync } from './netlify-audienceful-activity-sync';
 import { createPurgeSharedSpacesHandler } from './netlify-purge-shared-spaces';
 import { runReminderTick } from './utils/push-reminders';
+import { runChurchPublishTick } from './utils/church-publish-push';
 
 /** Netlify ran both at 00:00 UTC (`schedule = "@daily"`). Keep that. */
 const DAILY_UTC_HOUR = 0;
@@ -52,6 +53,11 @@ const HOURLY_JOBS: Job[] = [
   {
     name: 'push-reminders',
     run: () => runReminderTick(),
+  },
+  {
+    // After reminders, so a Sunday verse is never queued behind a church digest.
+    name: 'church-updates',
+    run: () => runChurchPublishTick(),
   },
 ];
 

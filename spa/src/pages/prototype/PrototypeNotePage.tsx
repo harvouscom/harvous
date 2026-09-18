@@ -62,6 +62,7 @@ import PrototypeNoteDestinationSheet, {
 import {
   noteDestinationLabel,
   resolveNoteDestinationRows,
+  navNoteCandidateSpaces,
 } from '../../lib/shared-note-membership';
 import {
   useAssociateNoteWithSpace,
@@ -70,6 +71,7 @@ import {
 import { useDismissOnOutside } from '../../hooks/usePopoverDismiss';
 import { toast } from '@/utils/toast';
 import { toastError } from '../../lib/error-copy';
+import { isMinistryBroadcastSpace } from '../../lib/shared-space-capabilities';
 import { dismissPurpose, isPurposeDismissed, notePurposeModel } from '../../lib/compose-purpose';
 import {
   noteAudienceLabel,
@@ -172,6 +174,13 @@ export function draftSaveDestinationLabel(input: {
   threadTitle?: string | null;
   /** A guest's note has no space; it is saved to the browser it was written in. */
   isGuest?: boolean;
+  /**
+   * The ministry channel this draft was started from, when it was held back from it.
+   * A channel's followers see every note in it the moment it exists, and autosave
+   * creates the note on the first pause — so a draft begun in a channel waits in My
+   * Home until its author publishes it there from this same menu.
+   */
+  heldBackChannelTitle?: string | null;
 }): string {
   /*
    * First, because every branch below names a space and a guest has none — this line read
@@ -179,6 +188,8 @@ export function draftSaveDestinationLabel(input: {
    * place in the app that says out loud where writing goes.
    */
   if (input.isGuest) return 'Saving to this device';
+  const heldBack = input.heldBackChannelTitle?.trim();
+  if (heldBack && isDraftSaveDestinationHome(input)) return `Private until you publish to ${heldBack}`;
   if (isDraftSaveDestinationHome(input)) return 'Saving to My Home';
   const spaceTitle = input.targetSpaceTitle?.trim() || 'this space';
   const threadTitle = input.threadTitle?.trim();
@@ -539,11 +550,26 @@ export default function PrototypeNotePage() {
   // shared space the user is composing in. Falls back to My Home when nothing is
   // selected; a stale selection is cleared by useActiveSpace and the server
   // rejects a create into a space you no longer belong to.
+  /*
+    A ministry channel is never an *implicit* compose target. Its followers see a note the
+    moment it exists, and autosave creates it on the first pause — so standing in a channel
+    and pressing New note would broadcast half a sentence to the congregation. The draft
+    waits in My Home and the destination menu offers the channel; picking it there (the
+    override path) is a deliberate publish and is honoured.
+  */
+  const heldBackChannel = useMemo(() => {
+    if (composeTargetSpaceIdOverride || !selectedSpaceId) return null;
+    const selected = selectedSpaceId.startsWith('space_') ? selectedSpaceId : `space_${selectedSpaceId}`;
+    const match = [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])].find(
+      (s) => (s.id.startsWith('space_') ? s.id : `space_${s.id}`) === selected,
+    );
+    return match && isMinistryBroadcastSpace(match) ? { id: selected, title: match.title ?? null } : null;
+  }, [composeTargetSpaceIdOverride, selectedSpaceId, nav?.spaces, nav?.memberOfSpaces]);
   const composeTargetSpaceId = useMemo(() => {
     if (composeTargetSpaceIdOverride) return composeTargetSpaceIdOverride;
-    if (!selectedSpaceId) return personalHomeSpaceId;
+    if (!selectedSpaceId || heldBackChannel) return personalHomeSpaceId;
     return selectedSpaceId.startsWith('space_') ? selectedSpaceId : `space_${selectedSpaceId}`;
-  }, [composeTargetSpaceIdOverride, selectedSpaceId, personalHomeSpaceId]);
+  }, [composeTargetSpaceIdOverride, selectedSpaceId, personalHomeSpaceId, heldBackChannel]);
   const prevComposeSessionEpochRef = useRef(composeSessionEpoch);
 
   /**
@@ -859,7 +885,7 @@ export default function PrototypeNotePage() {
         : []),
     ]);
     return resolveNoteDestinationRows({
-      candidateSpaces: [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
+      candidateSpaces: navNoteCandidateSpaces(nav),
       associatedSpaceIds: associated,
       isOwnNote: viewerIsAuthor,
       contentEncrypted: note?.contentEncrypted === true,
@@ -892,6 +918,7 @@ export default function PrototypeNotePage() {
         targetSpaceTitle: composeTargetTitle,
         threadTitle: composeGroupThreads.find((t) => t.id === resolvedComposeThreadId)?.title,
         isGuest,
+        heldBackChannelTitle: heldBackChannel?.title,
       });
     }
     /* A saved guest note has no space either — the same sentence, in the present tense. */
@@ -907,6 +934,7 @@ export default function PrototypeNotePage() {
     composeGroupThreads,
     resolvedComposeThreadId,
     destinationRows,
+    heldBackChannel,
   ]);
 
   const destinationIsHome = useMemo(

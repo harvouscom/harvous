@@ -2328,9 +2328,9 @@ export const LibraryItems = pgTable(
     fileMime: text('fileMime'),
     fileBytes: integer('fileBytes'),
     /**
-     * 'leaders' | 'members' — dormant until church libraries land. Written with
-     * the default from day one so the church lane needs no backfill on a table
-     * that already holds user data.
+     * 'leaders' | 'members' — who in a church may see the item. Read by the
+     * church and space library routes. Written with the default from day one so
+     * the church lane needed no backfill on a table that already held user data.
      */
     access: text('access').notNull().default('members'),
     createdByUserId: text('createdByUserId').notNull(),

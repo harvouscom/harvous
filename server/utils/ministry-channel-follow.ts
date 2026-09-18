@@ -4,7 +4,7 @@
  * (staff sync owns those). UI can stay dark; connect-accept calls these later.
  */
 
-import { db, first, Spaces, SpaceMemberships, eq, and } from '../db';
+import { db, first, Spaces, SpaceMemberships, eq, and, inArray } from '../db';
 import { nowISO } from '../db/dates';
 import { isMinistryBroadcastSpaceRow } from './channel-publish-cadence';
 
@@ -138,4 +138,49 @@ export async function unfollowMinistryChannel(
       ),
     );
   return { unfollowed: true };
+}
+
+/**
+ * The org a user just left by changing or clearing their home church, or null.
+ * Pure, so "which change reaps follows" is testable without a database.
+ */
+export function orgLeftByChurchChange(
+  previousOrgId: string | null | undefined,
+  nextOrgId: string | null | undefined,
+): string | null {
+  const prev = previousOrgId?.trim() || null;
+  const next = nextOrgId?.trim() || null;
+  return prev && prev !== next ? prev : null;
+}
+
+/**
+ * Drop a user's follows on every channel of a church they have left.
+ *
+ * Following was never a separate subscription — a follow *is* a `member` row on
+ * a channel — so a congregant who moves churches kept reading the old church's
+ * feed forever. Only `member` rows on that org's channels go: a leader row is a
+ * job someone was given and stays until someone takes it back, a church Shared
+ * Space membership is a relationship with a group rather than with the church,
+ * and anything the user copied out was theirs the moment they copied it.
+ */
+export async function releaseChannelFollowsForOrg(userId: string, orgId: string): Promise<number> {
+  const channels = await db
+    .select({ id: Spaces.id })
+    .from(Spaces)
+    .where(and(eq(Spaces.orgId, orgId), eq(Spaces.type, 'public')));
+  if (channels.length === 0) return 0;
+  const removed = await db
+    .delete(SpaceMemberships)
+    .where(
+      and(
+        eq(SpaceMemberships.userId, userId),
+        eq(SpaceMemberships.role, 'member'),
+        inArray(
+          SpaceMemberships.spaceId,
+          channels.map((channel) => channel.id),
+        ),
+      ),
+    )
+    .returning({ id: SpaceMemberships.id });
+  return removed.length;
 }

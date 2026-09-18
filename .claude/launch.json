@@ -234,6 +234,16 @@
       "autoPort": false
     },
     {
+      "name": "church-v1-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/heyderekj/harvous/.claude/worktrees/church-features-v1-scope-b20b41 && API_PORT=3031 DB_POOL_MAX=6 VITE_API_PROXY_TARGET=http://localhost:3031 npx concurrently --names api,spa -c green,yellow 'npm run dev:api' 'node scripts/wait-for-api.js 90 && npm run dev:spa -- --port 4371 --strictPort'"
+      ],
+      "port": 4371,
+      "autoPort": false
+    },
+    {
       "name": "review-translation-worktree",
       "runtimeExecutable": "sh",
       "runtimeArgs": [

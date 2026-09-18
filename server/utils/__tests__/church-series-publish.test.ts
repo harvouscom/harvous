@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { stepNoteSeedContent } from '../church-series-publish';
+import { decideChurchSeriesPublish, stepNoteSeedContent } from '../church-series-publish';
 
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 /** Prose explaining a decision is not the code making it. */
@@ -135,5 +135,78 @@ describe('thread deletion', () => {
     const block = text.slice(text.indexOf('export async function deleteThreadInTransaction'));
     expect(block).toContain('ChurchSeries');
     expect(block).toContain('publishedThreadId: null');
+  });
+});
+
+describe('decideChurchSeriesPublish (church plan → channel)', () => {
+  const base = {
+    churchId: 'chur_1',
+    orgId: 'org_1',
+    series: { churchId: 'chur_1', spaceId: null },
+    channel: { type: 'public', orgId: 'org_1', deletedAt: null },
+    channelSpaceId: 'space_youth',
+    existingThread: null,
+  };
+
+  it('publishes a church-plan series into one of the church’s channels', () => {
+    expect(decideChurchSeriesPublish(base)).toEqual({ ok: true, publishedThreadId: null });
+  });
+
+  it('re-publishes into the same channel by reusing its Thread', () => {
+    expect(
+      decideChurchSeriesPublish({ ...base, existingThread: { id: 'thread_1', spaceId: 'space_youth' } }),
+    ).toEqual({ ok: true, publishedThreadId: 'thread_1' });
+  });
+
+  it('refuses a second channel rather than growing a second pointer', () => {
+    expect(
+      decideChurchSeriesPublish({ ...base, existingThread: { id: 'thread_1', spaceId: 'space_adults' } }),
+    ).toMatchObject({ ok: false, status: 409, code: 'SERIES_PUBLISHED_ELSEWHERE' });
+  });
+
+  it('refuses another church’s series, and a room’s series', () => {
+    expect(
+      decideChurchSeriesPublish({ ...base, series: { churchId: 'chur_2', spaceId: null } }),
+    ).toMatchObject({ status: 404, code: 'SERIES_NOT_FOUND' });
+    expect(decideChurchSeriesPublish({ ...base, series: null })).toMatchObject({ status: 404 });
+    expect(
+      decideChurchSeriesPublish({ ...base, series: { churchId: 'chur_1', spaceId: 'space_group' } }),
+    ).toMatchObject({ status: 409, code: 'SPACE_PLAN_SERIES' });
+  });
+
+  it.each([
+    ['another church’s channel', { type: 'public', orgId: 'org_2', deletedAt: null }],
+    ['a church Shared Space', { type: 'shared', orgId: 'org_1', deletedAt: null }],
+    ['a deleted channel', { type: 'public', orgId: 'org_1', deletedAt: new Date() }],
+    ['a missing space', null],
+  ])('refuses %s as the target', (_label, channel) => {
+    expect(decideChurchSeriesPublish({ ...base, channel })).toMatchObject({
+      ok: false,
+      status: 404,
+      code: 'CHANNEL_NOT_FOUND',
+    });
+  });
+});
+
+describe('church-lane publish route', () => {
+  const route = () =>
+    withoutComments(source('server/routes/church-teaching-plan.ts')).slice(
+      withoutComments(source('server/routes/church-teaching-plan.ts')).indexOf("'/api/church/series/publish-thread'"),
+    );
+
+  it('plans first, then proves the actor holds the channel’s thread structure', () => {
+    const text = route();
+    const plan = text.indexOf('assertCanManageTeachingPlan');
+    const decide = text.indexOf('decideChurchSeriesPublish');
+    const room = text.indexOf('canManageSpaceThreadStructure');
+    const write = text.indexOf('publishSeriesAsStudyPlan');
+    expect(plan).toBeGreaterThan(-1);
+    expect(plan).toBeLessThan(decide);
+    expect(decide).toBeLessThan(room);
+    expect(room).toBeLessThan(write);
+  });
+
+  it('hands the helper the decided pointer, never the raw one', () => {
+    expect(route()).toContain('publishedThreadId: decision.publishedThreadId');
   });
 });

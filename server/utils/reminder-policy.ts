@@ -128,7 +128,7 @@ export function preferredVariant(
 ): ReminderVariant | null {
   const stats = new Map<string, { sent: number; positive: number }>();
   for (const delivery of deliveries) {
-    if (delivery.kind === 'test') continue;
+    if (delivery.kind === 'test' || delivery.kind === 'church') continue;
     const entry = stats.get(delivery.variant) ?? { sent: 0, positive: 0 };
     entry.sent += 1;
     if (isPositive(delivery.outcome)) entry.positive += 1;
@@ -220,7 +220,8 @@ export function shouldRearm(
 
 /** "Opened 3 of the last 5" — the one line the settings page shows about all this. */
 export function summarizeRecentDeliveries(deliveries: readonly DeliveryRecord[]): string | null {
-  const settled = deliveries.filter((d) => d.kind !== 'test' && d.outcome !== null);
+  // Church update pushes ride the same table but are not reminders; the line is about reminders.
+  const settled = deliveries.filter((d) => d.kind !== 'test' && d.kind !== 'church' && d.outcome !== null);
   if (settled.length === 0) return null;
   const recent = settled
     .slice()

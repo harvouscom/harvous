@@ -285,9 +285,20 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     setHistoryOpen(false);
   }, [toolbarNoteId]);
   const sharedSpaceNames = toolbarNote?.spaces?.map((space) => space.title).filter(Boolean) ?? [];
+  /*
+    The space a new note would be started in — resolved from navigation directly, not from
+    `contextualSpaceAccess`, which is note-scoped and null whenever no note is open. Reading
+    that one made every channel look like "not a channel" on the channel's own dashboard.
+  */
+  const { access: composeTargetAccess } = useNavigationSharedSpaceAccess(visibleComposeTarget);
+  const composeTargetIsChannel = isMinistryBroadcastSpace({
+    type: composeTargetAccess?.space.type,
+    orgId: composeTargetAccess?.space.orgId,
+  });
   const canComposeInContext = canComposeInSpace({
-    type: contextualSpaceAccess?.space.type,
-    orgId: contextualSpaceAccess?.space.orgId,
+    type: composeTargetAccess?.space.type ?? contextualSpaceAccess?.space.type,
+    orgId: composeTargetAccess?.space.orgId ?? contextualSpaceAccess?.space.orgId,
+    role: composeTargetAccess?.role ?? contextualSpaceAccess?.role,
   });
   /* The Activity half is the space switcher's trigger here, so the dot that used to live on
      the switcher's own button belongs on it. */
@@ -357,7 +368,12 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     /* `?? undefined` because a guest has no target and the session takes none — the early
        return above used to guarantee this was a string. */
-    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget ?? undefined });
+    /* A ministry channel is never handed over as the target: its followers would see the
+       draft on the first autosave. The note page holds it in My Home and offers the channel
+       as a deliberate publish (see `heldBackChannel` there). */
+    beginPrototypeComposeSession({
+      targetSpaceId: composeTargetIsChannel ? undefined : (visibleComposeTarget ?? undefined),
+    });
     navigate({ to: prototypeHomeRouteTo() });
   };
 

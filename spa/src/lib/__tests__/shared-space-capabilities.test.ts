@@ -20,8 +20,15 @@ describe('isMinistryBroadcastSpace', () => {
 });
 
 describe('canComposeInSpace', () => {
-  it('blocks compose in ministry channels', () => {
+  it('blocks a channel follower, and anyone whose role is unknown', () => {
+    expect(canComposeInSpace({ type: 'public', orgId: 'org_1', role: 'member' })).toBe(false);
     expect(canComposeInSpace({ type: 'public', orgId: 'org_1' })).toBe(false);
+  });
+
+  it('lets a channel’s owner and leaders write straight into it', () => {
+    // Mirrors the server's canAuthorInSpace: public → owner/leader.
+    expect(canComposeInSpace({ type: 'public', orgId: 'org_1', role: 'owner' })).toBe(true);
+    expect(canComposeInSpace({ type: 'public', orgId: 'org_1', role: 'leader' })).toBe(true);
   });
 
   it('allows compose in shared spaces and personal home', () => {
@@ -218,5 +225,18 @@ describe('resolveLibraryListScope', () => {
         listScope: 'my-home',
       }),
     ).toMatchObject({ viewingHome: false, spaceId: 'space_room', isScopedSharedSpace: true });
+  });
+});
+
+describe('navNoteCandidateSpaces', () => {
+  it('lets the owner of a channel post to it from the destination menu', async () => {
+    const { navNoteCandidateSpaces, canAuthorNoteInSpace } = await import('../shared-note-membership');
+    // Owned rows arrive from nav with no role and no ownerId.
+    const [owned, followed] = navNoteCandidateSpaces({
+      spaces: [{ id: 'space_youth', type: 'public', orgId: 'org_1' }],
+      memberOfSpaces: [{ id: 'space_kids', type: 'public', orgId: 'org_1', role: 'member' as const }],
+    });
+    expect(canAuthorNoteInSpace(owned, 'user_1')).toBe(true);
+    expect(canAuthorNoteInSpace(followed, 'user_1')).toBe(false);
   });
 });
