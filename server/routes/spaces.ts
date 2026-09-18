@@ -1070,6 +1070,8 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
     const queryOptions = {
       excludeLegacyScriptureNotes: excludeLegacyScripture,
       sortByLastUpdated,
+      // Already read by requireSpaceAccess; the helpers used to read it twice more.
+      space: accessInfo.space,
     };
     // Shared/public spaces get the merged-author view (owner included);
     // personal spaces keep the owner-scoped path untouched.
