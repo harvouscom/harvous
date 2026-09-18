@@ -55,6 +55,13 @@ export interface ReminderSettings {
     at: string;
     kind: 'sunday' | 'midweek' | 'daily' | 'all';
   } | null;
+  /**
+   * New material from the church channels this person follows, at most once a day. Off unless
+   * chosen — a congregation-wide push is exactly the kind of notification people turn off
+   * the whole app for. Independent of the rhythm above: it says "something arrived", not
+   * "time to read".
+   */
+  churchUpdates?: boolean;
 }
 
 export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
@@ -118,13 +125,23 @@ function parsePaused(raw: unknown): ReminderSettings['pausedByPolicy'] {
  */
 export function validateReminderSettingsInput(body: unknown): ReminderSettings | null {
   if (!body || typeof body !== 'object') return null;
-  const { cadence, sunday, midweek, midweekDay, hour, pausedByPolicy } = body as Record<string, unknown>;
+  const { cadence, sunday, midweek, midweekDay, hour, pausedByPolicy, churchUpdates } =
+    body as Record<string, unknown>;
   if (typeof sunday !== 'boolean' || typeof midweek !== 'boolean') return null;
   if (!isMidweekDay(midweekDay) || !isHour(hour)) return null;
   if (pausedByPolicy !== undefined && pausedByPolicy !== null) return null;
+  if (churchUpdates !== undefined && typeof churchUpdates !== 'boolean') return null;
   // Anything unrecognised falls to twice-weekly rather than being rejected: an older client
   // that does not know about cadence still sends a valid schedule.
-  return { cadence: readCadence(cadence), sunday, midweek, midweekDay, hour, pausedByPolicy: null };
+  return {
+    cadence: readCadence(cadence),
+    sunday,
+    midweek,
+    midweekDay,
+    hour,
+    pausedByPolicy: null,
+    ...(churchUpdates ? { churchUpdates: true } : {}),
+  };
 }
 
 /**
@@ -140,7 +157,8 @@ export function parseReminderSettings(raw: string | null | undefined): ReminderS
     return null;
   }
   if (!parsed || typeof parsed !== 'object') return null;
-  const { cadence, sunday, midweek, midweekDay, hour, pausedByPolicy } = parsed as Record<string, unknown>;
+  const { cadence, sunday, midweek, midweekDay, hour, pausedByPolicy, churchUpdates } =
+    parsed as Record<string, unknown>;
   if (typeof sunday !== 'boolean' || typeof midweek !== 'boolean') return null;
   if (!isMidweekDay(midweekDay) || !isHour(hour)) return null;
   return {
@@ -150,6 +168,7 @@ export function parseReminderSettings(raw: string | null | undefined): ReminderS
     midweekDay,
     hour,
     pausedByPolicy: parsePaused(pausedByPolicy),
+    ...(churchUpdates === true ? { churchUpdates: true } : {}),
   };
 }
 
@@ -161,6 +180,7 @@ export function serializeReminderSettings(settings: ReminderSettings): string {
     midweekDay: settings.midweekDay,
     hour: settings.hour,
     pausedByPolicy: settings.pausedByPolicy ?? null,
+    ...(settings.churchUpdates ? { churchUpdates: true } : {}),
   });
 }
 
