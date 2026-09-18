@@ -7710,8 +7710,12 @@ button.proto-home-card--tappable:hover {
   margin-left: 2px;
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--pds-accent, var(--pds-text-primary));
-  color: var(--pds-bg-page);
+  /* The primary button's gradient, so a count reads as the same blue as the buttons beside it
+     rather than a flat one. Only the inset highlight from its shadow: the drop shadow is sized
+     for a 36px button and would smear around a 16px dot. */
+  background: var(--pds-bg-accent-button);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: var(--pds-on-accent);
   font-size: 0.6875rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
