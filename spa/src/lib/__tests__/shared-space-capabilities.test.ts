@@ -20,8 +20,15 @@ describe('isMinistryBroadcastSpace', () => {
 });
 
 describe('canComposeInSpace', () => {
-  it('blocks compose in ministry channels', () => {
+  it('blocks a channel follower, and anyone whose role is unknown', () => {
+    expect(canComposeInSpace({ type: 'public', orgId: 'org_1', role: 'member' })).toBe(false);
     expect(canComposeInSpace({ type: 'public', orgId: 'org_1' })).toBe(false);
+  });
+
+  it('lets a channel’s owner and leaders write straight into it', () => {
+    // Mirrors the server's canAuthorInSpace: public → owner/leader.
+    expect(canComposeInSpace({ type: 'public', orgId: 'org_1', role: 'owner' })).toBe(true);
+    expect(canComposeInSpace({ type: 'public', orgId: 'org_1', role: 'leader' })).toBe(true);
   });
 
   it('allows compose in shared spaces and personal home', () => {

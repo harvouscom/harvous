@@ -288,6 +288,7 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
   const canComposeInContext = canComposeInSpace({
     type: contextualSpaceAccess?.space.type,
     orgId: contextualSpaceAccess?.space.orgId,
+    role: contextualSpaceAccess?.role,
   });
   /* The Activity half is the space switcher's trigger here, so the dot that used to live on
      the switcher's own button belongs on it. */
@@ -357,7 +358,16 @@ export default function NativeToolbar({ variant = 'detail' }: { variant?: Native
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
     /* `?? undefined` because a guest has no target and the session takes none — the early
        return above used to guarantee this was a string. */
-    beginPrototypeComposeSession({ targetSpaceId: visibleComposeTarget ?? undefined });
+    /* A ministry channel is never handed over as the target: its followers would see the
+       draft on the first autosave. The note page holds it in My Home and offers the channel
+       as a deliberate publish (see `heldBackChannel` there). */
+    const composeIntoChannel = isMinistryBroadcastSpace({
+      type: contextualSpaceAccess?.space.type,
+      orgId: contextualSpaceAccess?.space.orgId,
+    });
+    beginPrototypeComposeSession({
+      targetSpaceId: composeIntoChannel ? undefined : (visibleComposeTarget ?? undefined),
+    });
     navigate({ to: prototypeHomeRouteTo() });
   };
 

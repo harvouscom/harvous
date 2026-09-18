@@ -358,7 +358,6 @@ function PrototypeSpaceHubLive() {
     server allows that arm on its own.
   */
   const { can: canChurchForSpace } = useChurchStaffStatus(ministryMeta.orgId ?? null);
-  const canComposeHere = canComposeInSpace(ministryMeta);
   const churchEyebrow = navSpace?.churchName?.trim() || null;
 
   /*
@@ -384,6 +383,7 @@ function PrototypeSpaceHubLive() {
     navSpace?.role ??
     members.find((m) => m.userId === authUserId)?.role ??
     (isSpaceOwner ? 'owner' : 'member');
+  const canComposeHere = canComposeInSpace({ ...ministryMeta, role: membershipRole });
   const canManageThreads = canManageStudyThreadsInSharedSpace({
     isOwner: isSpaceOwner,
     membershipRole,
@@ -793,7 +793,11 @@ function PrototypeSpaceHubLive() {
   const composeInSharedSpace = (threadId?: string) => {
     if (!activeSpaceId) return;
     if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-    if (threadId) {
+    if (isMinistryChannel) {
+      /* Held in My Home until published — a channel's followers would otherwise see the
+         draft on its first autosave. The note page offers the channel as the publish. */
+      beginPrototypeComposeSession();
+    } else if (threadId) {
       beginComposeInGroupThread(activeSpaceId, threadId, beginPrototypeComposeSession);
     } else {
       beginPrototypeComposeSession({ targetSpaceId: activeSpaceId });
