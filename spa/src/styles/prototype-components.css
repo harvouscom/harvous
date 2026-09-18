@@ -15177,6 +15177,44 @@ html.harvous-prototype-route
   background: transparent !important;
 }
 
+/*
+ * The space switcher scrolls its places and pins its create actions.
+ *
+ * One scroller used to hold both, so a church with a few rooms put "New shared space" and
+ * "New channel" below the fold. The popover becomes a column: the places region takes what
+ * is left and scrolls, the actions keep their height. With the actions always reachable the
+ * cap comes down too — the old 440px existed so a short list never scrolled, which mattered
+ * only while scrolling was the way to the buttons.
+ */
+.proto-menu__popover.proto-space-switcher__popover {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: min(360px, 60vh);
+  max-height: min(360px, 60dvh);
+}
+
+.proto-space-switcher__popover > .proto-popover-shell__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.proto-space-switcher__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.proto-space-switcher__actions {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 0.5px solid var(--pds-border);
+}
+
 .proto-space-switcher__footer {
   padding: 8px 12px 10px;
   border-top: 0.5px solid var(--pds-border);
