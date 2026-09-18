@@ -56,6 +56,38 @@ Shared Space invites and join · public study-plan preview.
 Fixed along the way: the Reminders page never sent `cadence`, so "Every day" was saved as
 twice-weekly.
 
+## Verified on local dev (Sept 18, 2026)
+
+Walked against New Hope Assembly of God (registered to Derek's dev Clerk account, `org:admin`),
+staff side in the browser and congregant side through the real route modules as a synthetic
+user, all test data removed afterwards. 18/18 congregant checks passed; every staff surface
+above was exercised in the UI.
+
+The walk found five bugs, all fixed on this branch:
+
+- New note on a channel's own page still saved straight into the channel. The toolbar decided
+  "is this a channel?" from note-scoped access, which is empty on the dashboard.
+- The destination menu told a channel's owner they could not post to it. Owned rows in
+  navigation carry no role, so owners read as followers (`navNoteCandidateSpaces`).
+- Channel pages hid the current-thread block, so a study plan published into a channel had no
+  door on the channel's page.
+- **Opening any series in the planner crashed the page** ("Rendered more hooks"): two hooks sat
+  after an early return in `PrototypeSeriesSheet`. This one is on `main`.
+- The compact planner never offered "Publish as a study plan", on any plan.
+
+The study-plan header was also rebuilt after review: progress is a clause on the status line,
+there is one action row (compose for staff, "Use this study" for a follower), the handoff for
+staff lives in the ⋯ menu, destinations are an anchored menu, and "I finished this study" sits
+under the last step.
+
+Not verified in a browser: the congregant's view of the New marks and the "Use this study"
+button, since there is only one dev account. Both were checked through the API and unit tests.
+Church push needs a real push subscription, so its gating and copy are unit-tested only.
+
+To run `e2e/church-pilot-loop.spec.ts`, set `TEST_USER_A_EMAIL` and `TEST_USER_B_EMAIL`
+(currently empty) with A as an org admin, plus `E2E_CHURCH_ORG_ID=org_3GyrCAz5YiZK2p2IJPUwJZLGo8p`,
+`E2E_CHURCH_HMC_ID=IA-249480095` and `E2E_CHURCH_CHANNEL_ID=space_1785771736066`.
+
 ## Out of V1
 
 Self-serve church creation and Polar checkout · native church surfaces · multi-church
@@ -68,8 +100,8 @@ sermon-started notes (a privacy decision, not a feature) · `FeaturedItems.conte
 
 ## Before inviting the next pilot
 
-- `npm run church-core:schema` against production in dry-run form, then `:apply` if anything is missing.
-- Confirm the Clerk roles `org:pastor`, `org:coordinator` and `org:teacher` exist in the
-  production instance. A missing role quietly degrades to publish-only.
-- Check pilot windows at `/admin/churches`. New Hope Assembly of God's ran to 2026-09-02.
-- Provision the `E2E_CHURCH_*` fixtures so the pilot-loop spec runs in CI.
+- Done: all four church core tables exist in the database, so `church-core:schema:apply` has
+  nothing to add.
+- Done: the Clerk roles `org:pastor`, `org:coordinator` and `org:teacher` exist (confirmed by Derek).
+- Done: New Hope Assembly of God's pilot was extended to 2026-10-18.
+- Open: two Clerk dev test users for the pilot-loop spec (see above).
