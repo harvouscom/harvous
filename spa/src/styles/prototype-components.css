@@ -24324,6 +24324,19 @@ button.proto-feed-sheet__stat:hover {
   margin: 0;
 }
 
+/*
+ * No inner box for the verse here. `.proto-review-dock__verse` tints its own background because
+ * the review dock floats the card directly over the paper or the shell chrome; this card is
+ * already sitting on the Activity section's own panel (`proto-glass-surface--panel`), so the
+ * same treatment doubled the framing — a card inside a card. Keeps the reading-face typography
+ * (the `--scripture` variant, still applied), drops only the box.
+ */
+.proto-daily-passage .proto-review-dock__verse {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+
 /* The sample: one question in the section, for an account without the feature. */
 .proto-review-sample {
   display: grid;
