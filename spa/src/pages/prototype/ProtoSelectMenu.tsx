@@ -333,7 +333,11 @@ export default function ProtoSelectMenu<T extends string | number>(
                 top: pos?.top ?? -9999,
                 left: pos?.left ?? 0,
                 width,
-                zIndex: 6000,
+                /* Portaled to the body, so it stacks against every overlay rather than its own
+                   surface: at the in-pane popover layer (6000) a picker inside Settings (9950)
+                   opened *under* the modal — the caret flipped and nothing appeared. A menu is
+                   only open because its trigger was just tapped, so above modals is always right. */
+                zIndex: 'var(--pds-z-modal-popover)',
               }}
             >
               {showFilter ? (
