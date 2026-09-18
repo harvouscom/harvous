@@ -477,6 +477,10 @@ export default function PrototypeExpandedPlanner({ exiting, origin, onClose }: E
       }
       exiting={exiting}
       origin={origin}
+      // Centered rather than left-anchored to the sidebar edge — on a wide pane the
+      // left-anchored default left a dead zone the width of the sidebar's absence on the
+      // right. See ProtoSidebarExpandedPanel's `centered` doc.
+      centered
       onClose={onClose}
     >
       {!effectiveCanView ? (

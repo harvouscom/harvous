@@ -145,6 +145,9 @@ export default function PrototypeExpandedLibraryManager({
       }
       exiting={exiting}
       origin={origin}
+      // Centered rather than left-anchored to the sidebar edge — see the planner's own
+      // comment and ProtoSidebarExpandedPanel's `centered` doc.
+      centered
       onClose={onClose}
     >
       {!canBrowse ? (

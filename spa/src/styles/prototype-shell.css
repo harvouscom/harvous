@@ -1260,7 +1260,8 @@ html.harvous-prototype-route .proto-shell__detail-toolbar-cell::after {
 
   /* Centred by margin, the same way `.proto-library-panel` is — not `translateX`, which would
      fight the clip-path grow-from-origin animation below (both would be interpolating the
-     panel's apparent box at once). Discover is the only current caller. */
+     panel's apparent box at once). Every current caller (Discover, Planner, the resource
+     library manager) uses this; see ProtoSidebarExpandedPanel's `centered` doc. */
   .proto-sidebar-expanded-panel--centered {
     left: 0;
     right: 0;
