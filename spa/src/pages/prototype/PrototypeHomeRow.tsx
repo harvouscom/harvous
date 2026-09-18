@@ -45,6 +45,11 @@ export type HomeRowProps = {
   onClick?: MouseEventHandler<HTMLButtonElement>;
   onMouseEnter?: () => void;
   onFocus?: () => void;
+  /**
+   * Intent on touch, where there is no hover: pointerdown lands roughly 100ms before the click,
+   * which is a head start for a prefetch. Pair it with onMouseEnter for the same handler.
+   */
+  onPointerDown?: () => void;
   /** A control on the right in place of the chevron — a dismiss, an action. */
   trailing?: ReactNode;
   /** Suppress the chevron on a plain row (a status line, say). */
@@ -139,6 +144,7 @@ export default function PrototypeHomeRow({
   onClick,
   onMouseEnter,
   onFocus,
+  onPointerDown,
   trailing,
   chevron = true,
   disabled,
@@ -230,6 +236,7 @@ export default function PrototypeHomeRow({
           onMouseEnter={onMouseEnter}
           onPointerEnter={onRowPointerEnter}
           onFocus={onFocus}
+          onPointerDown={onPointerDown}
           disabled={disabled}
           aria-label={ariaLabel}
           title={title_attr}
@@ -249,6 +256,7 @@ export default function PrototypeHomeRow({
       onMouseEnter={onMouseEnter}
       onPointerEnter={onRowPointerEnter}
       onFocus={onFocus}
+      onPointerDown={onPointerDown}
       disabled={disabled}
       aria-label={ariaLabel}
       title={title_attr}

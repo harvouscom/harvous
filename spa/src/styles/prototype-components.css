@@ -2754,6 +2754,12 @@ html.harvous-proto-wallpaper-color .proto-sidebar-search__field:focus-within {
   background: var(--pds-bg-row-hover);
 }
 
+/* Press feedback. Hover is pointer-only (above), so on a phone this is the only sign a tap
+   landed before the route changes. Unguarded on purpose: :active clears on release. */
+.proto-note-row:not(:disabled):not(.proto-note-row--static):active {
+  background: var(--pds-bg-row-selected);
+}
+
 .proto-note-row[data-active='true']:focus-visible {
   background: var(--pds-bg-row-hover);
   box-shadow: none;
@@ -7160,6 +7166,26 @@ html.harvous-prototype-route .proto-list-empty-state h2.proto-list-empty-state__
 @media (prefers-reduced-motion: reduce) {
   .proto-home-loading--leaving {
     transition: none;
+  }
+}
+
+/*
+  Grace (ProtoSpaceLoading's default): invisible for 150ms, then in. A load that resolves
+  inside the window never shows dots at all. The block keeps its place in flow from the first
+  frame, so the arrival moves nothing. 150ms matches LOADER_GRACE_MS (useProtoHomeViewEnter.ts)
+  and PROTO_ROUTE_PENDING_DELAY_MS (proto-motion.ts). Reduced motion zeroes the duration, not
+  the delay — the hold is a wait, not motion.
+*/
+.proto-home-loading--grace {
+  animation: proto-home-loading-grace var(--pds-duration-popover) var(--pds-ease-standard) 150ms both;
+}
+
+@keyframes proto-home-loading-grace {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -12443,10 +12469,20 @@ html.harvous-prototype-route .pds-banner .pds-banner__action > button:disabled,
  *
  * `--status` rows are labels rather than destinations, so they are excluded
  * along with the disabled ones.
+ *
+ * Hover is pointer-only so a tapped row does not stay lit on touch; :active is
+ * the press feedback there.
  */
-.proto-church-tools__row:not(:disabled):not(.proto-church-tools__row--status):hover,
-.proto-list-panel__row:not(:disabled):not(.proto-list-panel__row--status):hover {
-  background: var(--pds-bg-row-hover);
+@media (hover: hover) and (pointer: fine) {
+  .proto-church-tools__row:not(:disabled):not(.proto-church-tools__row--status):hover,
+  .proto-list-panel__row:not(:disabled):not(.proto-list-panel__row--status):hover {
+    background: var(--pds-bg-row-hover);
+  }
+}
+
+.proto-church-tools__row:not(:disabled):not(.proto-church-tools__row--status):active,
+.proto-list-panel__row:not(:disabled):not(.proto-list-panel__row--status):active {
+  background: var(--pds-bg-row-selected);
 }
 
 .proto-church-tools__row:focus-visible,

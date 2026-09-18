@@ -1165,7 +1165,7 @@ function PrototypeSpaceHubLive() {
         <div className={homeViewClassName}>
           {/* Fading out over the dashboard arriving underneath, so the two states overlap
               rather than swapping between frames. Out of flow; costs the layout nothing. */}
-          {showLoader ? <ProtoSpaceLoading label="Loading space" leaving={loaderLeaving} /> : null}
+          {showLoader ? <ProtoSpaceLoading label="Loading space" leaving={loaderLeaving} grace={false} /> : null}
           {bannerNewCount > 0 ? (
             <div className="proto-home-section">
               <p className="proto-home-greeting">

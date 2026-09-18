@@ -265,6 +265,16 @@ export function PrototypeSidebarNoteRow({
       onMouseLeave={cancelHoverPrefetch}
       onFocus={selectMode ? undefined : scheduleHoverPrefetch}
       onBlur={cancelHoverPrefetch}
+      /* Touch has no hover, so without this every prefetch above was desktop-only.
+         pointerdown lands ~100ms before the click; no delay, since a press is intent. */
+      onPointerDown={
+        selectMode
+          ? undefined
+          : () => {
+              cancelHoverPrefetch();
+              prefetchNote(row);
+            }
+      }
     >
       <div className={trailLayout ? 'proto-thread-trail__title-line' : 'proto-note-row__title-line'}>
         {pinned && !trailLayout ? (

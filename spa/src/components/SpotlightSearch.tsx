@@ -125,7 +125,9 @@ export default function SpotlightSearch() {
   }, [query]);
 
   // Search with scope
-  const { data, isLoading } = useSearch(debouncedQuery, scopeInfo?.scope);
+  const { data, isLoading, isPlaceholderData } = useSearch(debouncedQuery, scopeInfo?.scope, 'all', {
+    holdPreviousResults: true,
+  });
   const results: SearchResult[] = data?.results ?? [];
 
   // Record completed searches in global recents only after the user pauses (avoids "ange"/"angel"/"angels").
@@ -134,7 +136,8 @@ export default function SpotlightSearch() {
     const trimmed = debouncedQuery.trim();
     if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) return;
     if (query.trim() !== trimmed) return;
-    if (isLoading) return;
+    // Held results belong to the previous query; recording now would stamp this term with them.
+    if (isLoading || isPlaceholderData) return;
     const resultCount = results.length;
     const timer = window.setTimeout(() => {
       const d = debouncedQueryRef.current.trim();
@@ -150,7 +153,7 @@ export default function SpotlightSearch() {
       });
     }, RECENT_SEARCH_COMMIT_IDLE_MS);
     return () => window.clearTimeout(timer);
-  }, [isOpen, debouncedQuery, query, isLoading, results.length]);
+  }, [isOpen, debouncedQuery, query, isLoading, isPlaceholderData, results.length]);
 
   // Refresh recent searches
   const refreshRecents = useCallback(() => {

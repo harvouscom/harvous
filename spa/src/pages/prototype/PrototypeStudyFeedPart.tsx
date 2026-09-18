@@ -31,8 +31,10 @@ import {
  */
 const SECTION_PREVIEW_ROWS = 4;
 
+type RowHandlers = { onOpen: () => void; onIntent?: () => void };
+
 /** Something made: the words stay on the sheet. */
-function Substance({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void }) {
+function Substance({ item, onOpen, onIntent }: { item: StudyFeedItem } & RowHandlers) {
   if (item.kind === 'highlight-note' || item.kind === 'highlight-scripture') {
     const source = item.reference ?? item.noteTitle?.trim();
     return (
@@ -40,6 +42,9 @@ function Substance({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void }
         type="button"
         className="proto-feed-said"
         onClick={onOpen}
+        onMouseEnter={onIntent}
+        onFocus={onIntent}
+        onPointerDown={onIntent}
         data-feed-accent={item.accent}
       >
         <span className="proto-list-panel__row-icon" aria-hidden>
@@ -76,7 +81,14 @@ function Substance({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void }
    * the snippet: this row keeps its words, the movement rows do not.
    */
   return (
-    <button type="button" className="proto-feed-said proto-feed-said--wrote" onClick={onOpen}>
+    <button
+      type="button"
+      className="proto-feed-said proto-feed-said--wrote"
+      onClick={onOpen}
+      onMouseEnter={onIntent}
+      onFocus={onIntent}
+      onPointerDown={onIntent}
+    >
       <span className="proto-list-panel__row-icon" aria-hidden>
         <Icon name={studyFeedItemIcon(item)} size={13} />
       </span>
@@ -102,7 +114,7 @@ function Substance({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void }
 }
 
 /** Somewhere you went: a row, in the anatomy the rest of the app uses for exactly that. */
-function Movement({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void }) {
+function Movement({ item, onOpen, onIntent }: { item: StudyFeedItem } & RowHandlers) {
   const { title, verb, detail } = studyFeedRowCopy(item);
 
   return (
@@ -111,6 +123,9 @@ function Movement({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void })
       title={title}
       meta={[verb, detail]}
       onClick={onOpen}
+      onMouseEnter={onIntent}
+      onFocus={onIntent}
+      onPointerDown={onIntent}
       chevron={false}
       trailing={<span className="proto-feed-said__time">{studyFeedClockTime(item.at)}</span>}
     />
@@ -120,9 +135,12 @@ function Movement({ item, onOpen }: { item: StudyFeedItem; onOpen: () => void })
 export default function PrototypeStudyFeedPart({
   group,
   onOpen,
+  onIntent,
 }: {
   group: StudyFeedPartGroup;
   onOpen: (item: StudyFeedItem) => void;
+  /** Hover, focus or press on a row — warm whatever it opens before the click lands. */
+  onIntent?: (item: StudyFeedItem) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? group.items : group.items.slice(0, SECTION_PREVIEW_ROWS);
@@ -141,9 +159,9 @@ export default function PrototypeStudyFeedPart({
             data-feed-item-id={item.id}
           >
             {studyFeedIsSubstance(item) ? (
-              <Substance item={item} onOpen={() => onOpen(item)} />
+              <Substance item={item} onOpen={() => onOpen(item)} onIntent={() => onIntent?.(item)} />
             ) : (
-              <Movement item={item} onOpen={() => onOpen(item)} />
+              <Movement item={item} onOpen={() => onOpen(item)} onIntent={() => onIntent?.(item)} />
             )}
           </div>
         ))}

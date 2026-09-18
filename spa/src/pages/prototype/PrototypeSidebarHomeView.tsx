@@ -232,7 +232,7 @@ export default function PrototypeSidebarHomeView({
       {/* Still here for a beat, fading, while the dashboard paints underneath — so the two
           states overlap instead of one replacing the other between frames. Out of flow, so
           it costs the layout below it nothing. */}
-      {showLoader ? <ProtoSpaceLoading label="Loading home" leaving={loaderLeaving} /> : null}
+      {showLoader ? <ProtoSpaceLoading label="Loading home" leaving={loaderLeaving} grace={false} /> : null}
       <div className="proto-home-section">
         <PrototypeHomeGreeting
           notes={notes}
