@@ -1,5 +1,5 @@
 /**
- * Staff-only plan status, as a row inside Church tools.
+ * Admin-only plan status (`manage_billing`), as a row inside Church tools.
  *
  * Was a banner slab at the top of the hub — three stacked paragraphs and a
  * button shouting above the congregation-facing catalog. Plan state is
@@ -26,12 +26,13 @@ function pilotCopy(daysLeft: number | null): string {
 
 export default function PrototypeChurchPlanRow({
   orgId,
-  isStaff,
+  canManageBilling,
 }: {
   orgId: string | null;
-  isStaff: boolean;
+  /** `manage_billing` — church admins only; the server refuses everyone else. */
+  canManageBilling: boolean;
 }) {
-  const { data } = useChurchBilling(orgId, { enabled: isStaff });
+  const { data } = useChurchBilling(orgId, { enabled: canManageBilling });
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

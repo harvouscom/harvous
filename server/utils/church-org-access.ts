@@ -1,15 +1,14 @@
 /**
  * The one ordering every church-org gate composes.
  *
- * Order matters and deliberately differs from `assertChurchStaffOrgWrite` in
- * church-staff.ts, which checks sponsorship *before* staff membership and so
- * tells any signed-in stranger whether a given church has lapsed. That is
- * pre-existing; don't copy it. Here staff membership is proven first, and only
- * a real staff member ever learns the billing state.
+ * Order matters: staff membership is proven first, and only a real staff member
+ * ever learns the billing state. `assertChurchStaffOrgWrite` in church-staff.ts
+ * once checked sponsorship first and so told any signed-in stranger whether a
+ * given church had lapsed (fixed Sept 2026) — keep the two in this order.
  *
- * Written once, deliberately: the teaching plan, church settings, and (later)
- * space plans all need this exact sequence, and it is the kind of order that
- * goes subtly wrong on the second copy — the sibling named above is proof.
+ * Written once, deliberately: the teaching plan, church settings, and space
+ * plans all need this exact sequence, and it is the kind of order that goes
+ * subtly wrong on the second copy — the sibling named above is proof.
  * Callers supply a rule; nobody re-orders.
  */
 import { fetchClerkOrgMemberships } from './clerk-org';
@@ -74,4 +73,21 @@ export async function resolveChurchOrgAccess(
   }
 
   return { ok: true, church };
+}
+
+/**
+ * The one gate for the church's money: staff proof, then `manage_billing`.
+ *
+ * Staff alone used to be enough, which let any volunteer publisher read the
+ * church's billing and open a checkout that bills the whole church. Never
+ * sponsorship-gated — a lapsed church needs its billing page most of all.
+ */
+export function churchBillingRule(staffError: string): ChurchOrgAccessRule {
+  return {
+    capability: 'manage_billing',
+    code: 'CHURCH_BILLING_ROLE_REQUIRED',
+    staffError,
+    roleError: 'Only a church admin can manage billing',
+    sponsorshipGated: false,
+  };
 }

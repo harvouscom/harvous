@@ -245,7 +245,9 @@ export default function PrototypeChurchHub() {
   // Channels the church publishes that the viewer hasn't followed yet. Staff
   // reach their own channels through the lanes above, so they're filtered out.
   const channelsQuery = useChurchChannels();
-  const billingEnabled = canCreateChurchContent;
+  /* The church's money is `manage_billing` (admins) — the server 403s every
+     other staff role, so asking for it would only fetch a refusal. */
+  const billingEnabled = canCreateChurchContent && canChurch('manage_billing');
   const billingQuery = useChurchBilling(orgId, { enabled: billingEnabled });
   const channelsData = channelsQuery.data;
   /**
@@ -731,7 +733,7 @@ export default function PrototypeChurchHub() {
                 <p className="proto-caption proto-home-section__eyebrow">Tools</p>
                 <ProtoToolsRowList rows={churchToolRows} cascade>
                   {/* Silent while the church is paid and healthy. */}
-                  <PrototypeChurchPlanRow orgId={orgId} isStaff={canCreateChurchContent} />
+                  <PrototypeChurchPlanRow orgId={orgId} canManageBilling={billingEnabled} />
                 </ProtoToolsRowList>
               </div>
             ) : null}

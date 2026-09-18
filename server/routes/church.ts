@@ -78,6 +78,7 @@ import {
   type ChurchRow,
 } from '../utils/church-entitlement';
 import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
+import { churchBillingRule, resolveChurchOrgAccess } from '../utils/church-org-access';
 import {
   listServicesForChurch,
   listServicesForViewerSources,
@@ -657,9 +658,9 @@ app.get('/api/church/services', requireAuth, async (c) => {
 
 // ─── GET /api/church/billing ────────────────────────────────────────────────
 /**
- * Staff-only view of where the church stands: pilot countdown, paid state, and
- * the plans they can buy. Congregants get a 403 — how the church pays is not
- * their business, and the hub never renders billing chrome for them.
+ * Where the church stands: pilot countdown, paid state, and the plans it can
+ * buy. Congregants and non-admin staff get a 403 — the hub never renders
+ * billing chrome for them.
  */
 app.get('/api/church/billing', requireAuth, async (c) => {
   try {
@@ -669,9 +670,10 @@ app.get('/api/church/billing', requireAuth, async (c) => {
     const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(auth.userId);
     if (!church) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
 
-    if (!(await isChurchStaffForOrg(auth.userId, church.orgId))) {
-      return c.json({ error: 'Only church staff can view billing', code: 'CHURCH_STAFF_REQUIRED' }, 403);
-    }
+    const access = await resolveChurchOrgAccess(auth.userId, church.orgId, churchBillingRule(
+      'Only church staff can view billing',
+    ));
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
 
     return c.json({
       church: { id: church.id, name: church.name, orgId: church.orgId },
@@ -721,9 +723,10 @@ app.post('/api/church/checkout', requireAuth, rateLimit('write'), async (c) => {
     const church = orgId ? await getActiveChurchByOrgId(orgId) : await getConnectedChurch(auth.userId);
     if (!church) return c.json({ error: 'Church not found', code: 'CHURCH_NOT_FOUND' }, 404);
 
-    if (!(await isChurchStaffForOrg(auth.userId, church.orgId))) {
-      return c.json({ error: 'Only church staff can subscribe', code: 'CHURCH_STAFF_REQUIRED' }, 403);
-    }
+    const access = await resolveChurchOrgAccess(auth.userId, church.orgId, churchBillingRule(
+      'Only church staff can subscribe',
+    ));
+    if (!access.ok) return c.json({ error: access.error, code: access.code }, access.status);
     if (church.billingPlan) {
       return c.json({ error: 'This church already has a plan', code: 'CHURCH_ALREADY_PAID' }, 409);
     }

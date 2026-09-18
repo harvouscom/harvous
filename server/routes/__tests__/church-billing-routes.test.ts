@@ -70,9 +70,15 @@ describe('polar webhook church routing', () => {
 describe('church checkout route contract', () => {
   const route = () => source('server/routes/church.ts');
 
-  it('is staff-gated and stamps the church id into metadata', () => {
-    const checkout = route().slice(route().indexOf("'/api/church/checkout'"));
-    expect(checkout).toContain('isChurchStaffForOrg');
+  it('is gated on manage_billing and stamps the church id into metadata', () => {
+    const checkout = route().slice(
+      route().indexOf("'/api/church/checkout'"),
+      route().indexOf('// ─── Staff roster (church self-serve)'),
+    );
+    // Staff alone is not enough: a volunteer publisher must not open a
+    // checkout that bills the whole church.
+    expect(checkout).toContain('resolveChurchOrgAccess(auth.userId, church.orgId, churchBillingRule(');
+    expect(checkout).not.toContain('isChurchStaffForOrg');
     expect(checkout).toContain('churchId: church.id');
     // The buyer is still the Polar customer — they hold the card.
     expect(checkout).toContain('externalCustomerId: auth.userId');
@@ -83,14 +89,15 @@ describe('church checkout route contract', () => {
     expect(checkout).toContain("code: 'CHURCH_ALREADY_PAID'");
   });
 
-  it('keeps billing status staff-only', () => {
+  it('keeps billing status to manage_billing holders', () => {
     const billing = route().slice(
       route().indexOf("'/api/church/billing'"),
       route().indexOf("'/api/church/checkout'"),
     );
-    expect(billing).toContain('isChurchStaffForOrg');
-    expect(billing).toContain("code: 'CHURCH_STAFF_REQUIRED'");
+    expect(billing).toContain('resolveChurchOrgAccess(auth.userId, church.orgId, churchBillingRule(');
+    expect(billing).not.toContain('isChurchStaffForOrg');
   });
+
 });
 
 describe('pilot backfill safety', () => {
