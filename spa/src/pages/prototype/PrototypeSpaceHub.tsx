@@ -1025,6 +1025,7 @@ function PrototypeSpaceHubLive() {
         /* Same verdict the server enforces: owner or leader, never a channel. */
         canManageStructure={canManageThreads}
         canCompose={canComposeHere}
+        offerCopy={isMinistryChannel}
         backLabel={spaceTitle}
         onBack={() => setDrilledThread(null)}
         onCompose={() => composeInSharedSpace(drilledThread.id)}

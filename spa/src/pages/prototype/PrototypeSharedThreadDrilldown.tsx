@@ -36,6 +36,7 @@ import PrototypeListEmptyState from './PrototypeListEmptyState';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
 import PrototypeThreadPlanProgress from './PrototypeThreadPlanProgress';
+import PrototypeStudyPlanCopyAction from './PrototypeStudyPlanCopyAction';
 import PrototypeSidebarRowMenuPopover, {
   TRIGGER_ANCHOR_MIN_WIDTH,
 } from './PrototypeSidebarRowMenuPopover';
@@ -95,6 +96,7 @@ export default function PrototypeSharedThreadDrilldown({
   isOwner,
   canManageStructure,
   canCompose = true,
+  offerCopy = false,
   backLabel = 'Shared space',
   onBack,
   onCompose,
@@ -114,6 +116,11 @@ export default function PrototypeSharedThreadDrilldown({
   canManageStructure?: boolean;
   /** When false (ministry broadcast channels), hide compose / add-existing. */
   canCompose?: boolean;
+  /**
+   * A ministry channel's study plan: offer "Use this study", the curriculum
+   * handoff into the viewer's Home or a group they lead.
+   */
+  offerCopy?: boolean;
   /** Parent destination for the back control (space title). */
   backLabel?: string;
   /**
@@ -609,6 +616,10 @@ export default function PrototypeSharedThreadDrilldown({
           viewerOpenedNoteIds={viewerOpenedNoteIds}
           viewerCompletedAt={viewerCompletedAt}
         />
+
+        {offerCopy && isSequence && (sequenceInfo?.total ?? 0) > 0 ? (
+          <PrototypeStudyPlanCopyAction channelSpaceId={spaceId} threadId={thread.id} />
+        ) : null}
 
         {showComposeActions ? (
           <div className="proto-shared-thread-drilldown__actions">
