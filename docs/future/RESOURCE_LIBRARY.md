@@ -1,6 +1,6 @@
 # Resource Library
 
-**Status:** v0 building (personal libraries, links only). Church surfaces still design-only.  
+**Status:** personal libraries shipped; church and space libraries shipped too (`server/routes/church-library.ts`, `church-space-library.ts`, library suggestions). The design below predates them — check the routes before relying on a detail here.  
 **Written:** July 2026 · **Revised:** August 2026 (personal library lane, list view, dock chip)  
 **Audience:** Product, sharing-agent, content-agent, editor-agent, data-agent, marketing-agent
 

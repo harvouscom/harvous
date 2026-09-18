@@ -11,7 +11,7 @@
 > [SPACES_PLANNER_AND_GATHERINGS.md](./SPACES_PLANNER_AND_GATHERINGS.md).
 
 **Status:** P1, **P2 and P5 built**, plus **series-as-a-row (§9)** and **aggregate
-engagement (§10)** (Aug 2026); P3–P4 design only. Decided August 2026. Companion to
+engagement (§10)** (Aug 2026); P3–P4 built too (verified Sept 2026 — see their headings). Decided August 2026. Companion to
 [CHURCH_STUDY_MATERIAL_LINKING.md](./CHURCH_STUDY_MATERIAL_LINKING.md),
 [MY_CHURCH_SIDEBAR.md](./MY_CHURCH_SIDEBAR.md), and
 [PASTOR_FEATURES_ROADMAP.md](./PASTOR_FEATURES_ROADMAP.md) (items 7, 9, 10, 11).
@@ -616,7 +616,7 @@ never happen.
 - **Out of scope:** context cards on Home; per-space leaders — church-wide
   `manage_teaching_plan` edits everything, and the UI must say so.
 
-### P3 — Context cards on Home
+### P3 — Context cards on Home ✅ built
 
 *Worth it alone: the youth kid's Wednesday finally reaches Home, without taking anything
 from the church's Sunday.*
@@ -639,7 +639,7 @@ from the church's Sunday.*
 - **Out of scope:** any card showing more than its own next gathering; per-context dismiss
   (see §8 item 4).
 
-### P4 — Material claims the service; `channelSpaceId` dies
+### P4 — Material claims the service; `channelSpaceId` dies ✅ built
 
 Executes [CHURCH_STUDY_MATERIAL_LINKING.md](./CHURCH_STUDY_MATERIAL_LINKING.md) as
 designed — attach-at-publish inside channels, a service → attached-items read path, the
