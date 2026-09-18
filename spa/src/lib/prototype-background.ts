@@ -164,6 +164,20 @@ export function applyColorSchemePreference(pref: ColorSchemePreference): void {
   } else {
     root.removeAttribute('data-color-scheme');
   }
+  syncThemeColorMeta(pref);
+}
+
+/**
+ * index.html carries a `theme-color` pair keyed on the OS scheme. A scheme forced in
+ * Appearance has to win over the OS, or the status bar is a light slab above a dark app —
+ * so a forced scheme writes its canvas into both, and 'system' puts each back. Mirrored in
+ * public/scripts/prototype-route-boot.js for first paint.
+ */
+export function syncThemeColorMeta(pref: ColorSchemePreference): void {
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"][media]').forEach((meta) => {
+    const slot = meta.media.includes('dark') ? 'dark' : 'light';
+    meta.content = canvasDefaultHexForMode(pref === 'system' ? slot : pref);
+  });
 }
 
 export function writeColorSchemePreference(pref: ColorSchemePreference): void {

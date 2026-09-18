@@ -78,7 +78,7 @@ export default function SignUpPage() {
             <div className="auth-page__video-overlay">
               <a href="https://harvous.com" className="auth-page__logo-container">
                 <img
-                  src="/images/harvous-2-icon.png"
+                  src="/images/icons/icon-192.png"
                   alt="Harvous"
                   className="auth-page__logo"
                   width={64}

@@ -13,6 +13,8 @@
  *   badge-96 — Android's status bar draws the badge as a *silhouette*: it keeps the alpha
  *       channel and throws the colours away. A full-colour icon there renders as a grey
  *       blob, so this is the glyph's own shape, white on transparent.
+ *   favicon-32 / favicon-64 / apple-touch-icon-180 — what spa/index.html links. The source is
+ *       1000px and 795 KB; linked directly, every cold load downloaded all of it for a tab glyph.
  *
  * Run after changing public/images/harvous-2-icon.png:
  *
@@ -138,6 +140,9 @@ async function main() {
   await writeMaskableIcon(192, 'icon-192-maskable.png');
   await writeMaskableIcon(512, 'icon-512-maskable.png');
   await writeBadge(96, 'badge-96.png');
+  await writeAnyIcon(32, 'favicon-32.png');
+  await writeAnyIcon(64, 'favicon-64.png');
+  await writeAnyIcon(180, 'apple-touch-icon-180.png');
 }
 
 main().catch((error) => {

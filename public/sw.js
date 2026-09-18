@@ -21,7 +21,7 @@ const PENDING_NAV_KEY = '/__harvous_pending_navigation';
 const PRESERVED_CACHES = [PENDING_NAV_CACHE];
 
 const CRITICAL_ASSETS = [
-  '/images/harvous-2-icon.png',
+  '/images/icons/favicon-32.png',
   '/manifest.json',
   '/scripts/pwa-startup.js',
   // Notification chrome: a reminder can arrive while the device is offline-ish, and an icon
