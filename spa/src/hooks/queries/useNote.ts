@@ -684,7 +684,16 @@ export function useNote(noteId: string, contextSpaceId?: string | null) {
   return useQuery({
     ...options,
     ...(guestDetail !== undefined
-      ? { queryFn: async () => guestDetail, staleTime: 0 as const }
+      ? {
+          /*
+           * Read the store when the fetch runs, not the copy this render took. A guest's saves
+           * never touch this cache, and a refetch on focus runs whichever observer's function
+           * was set last — one captured before the latest edit put the old body back in the
+           * cache under the editor.
+           */
+          queryFn: async () => guestNoteDetail(noteId) ?? guestDetail,
+          staleTime: 0 as const,
+        }
       : {}),
     enabled: (guestDetail !== undefined || authReady) && !!noteId,
     initialData: guestDetail ?? cachedDetail,

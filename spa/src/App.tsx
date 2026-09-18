@@ -16,6 +16,7 @@ import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
 import { router } from './router';
 import { APIError } from './lib/api';
+import { isGuestModeActive } from './lib/guest-session';
 import SpotlightSearch from './components/SpotlightSearch';
 import KeyboardShortcutsInit from '../../src/components/react/KeyboardShortcutsInit';
 import {
@@ -442,6 +443,14 @@ function QueryClient401Redirect() {
       // Clerk may still be restoring session from cookies; avoid bouncing to sign-in.
       if (hasClerkSessionCookieHint()) return;
       if (isSignedInRef.current) return;
+      /*
+       * A guest has no session to have lost. A 401 is the server's honest answer to someone
+       * with no account, and anything a guest can reach that still calls it is a leak to plug
+       * at that call site, not a reason to throw them out of the app. This used to fire on the
+       * open-time scripture pass of a guest's own note, so a note written on a verse sent them
+       * to sign-in the moment they opened it again from Home.
+       */
+      if (isGuestModeActive()) return;
       if (redirecting401) return;
       redirecting401 = true;
       window.location.href = '/sign-in';

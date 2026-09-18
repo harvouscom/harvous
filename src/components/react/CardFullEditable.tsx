@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { isGuestNoteId } from '../../../spa/src/lib/guest-store';
+import { isGuestModeActive } from '../../../spa/src/lib/guest-session';
 import { TextSelection } from '@tiptap/pm/state';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
@@ -2960,6 +2961,38 @@ export default function CardFullEditable({
       // closing the tab while only reading a note can't bump updatedAt via normalization drift.
       if (!userEditedSinceOpenRef.current) return;
 
+      /*
+       * A guest. Nothing below applies: their note has no server row to PUT against (and the
+       * fetch is `keepalive`, so nothing would be left to catch the 401), and the draft is not
+       * that note's storage — it only comes back when the note is opened in the editor again,
+       * while Home's list and sign-up adoption read the guest store.
+       *
+       * Their save is a synchronous localStorage write that the page going away cannot cut off,
+       * so make it here, through the page's own save — the one the autosave calls.
+       *
+       * Ahead of the draft write, not after it. A guest's compose never moves to a real id, so
+       * every hide used to leave the whole note under `note_draft`, and the next page load's
+       * first compose restored it: a new note opened holding the last one, and saved a copy.
+       */
+      if (
+        isGuestNoteId(departingNoteId) ||
+        (departingNoteId === PROTOTYPE_DRAFT_NOTE_ID && isGuestModeActive())
+      ) {
+        const saved = protoLastSavedRef.current;
+        if (!saved || saved.title !== currentTitle || saved.content !== currentContent) {
+          const saveFn =
+            onSaveRef.current ??
+            (window as { noteSaveCallback?: typeof onSaveRef.current }).noteSaveCallback;
+          void saveFn?.(currentTitle, currentContent, undefined, {
+            saveOrigin: `unload#${editorMountIdRef.current}`,
+          });
+        }
+        // The store holds this now. A draft the typing backstop left behind would only be
+        // restored into the next compose as a copy.
+        if (draftKey) clearNoteDraft(draftKey);
+        return;
+      }
+
       // Synchronous local backstop first — localStorage survives unload even when
       // the keepalive PUT below is dropped, and it's the *only* recovery path for
       // a brand-new (note_draft) note, which has no server id to PUT against.
@@ -3009,13 +3042,6 @@ export default function CardFullEditable({
       // the local write above already landed under that real id, so the next open
       // recovers the edit even though this PUT is skipped.
       if (departingNoteId === PROTOTYPE_DRAFT_NOTE_ID) return;
-
-      /*
-       * A guest's note has no server row to PUT against either, and this fetch is `keepalive`
-       * — it outlives the page, so there is nothing left to catch the 401 it would earn. The
-       * local write above already landed, which is the whole of that note's storage.
-       */
-      if (isGuestNoteId(departingNoteId)) return;
 
       try {
         const body = JSON.stringify({

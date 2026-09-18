@@ -108,6 +108,7 @@ import { rangeContainsScripturePillMark, scripturePillSkipLeftTarget } from '@/u
 import { hasBlockGapAfter, hasLostBlockGaps } from '@/utils/scripture-pill-block-gaps';
 import { onProtoViewportSettle } from '@/utils/proto-viewport-settle';
 import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';
+import { isGuestNoteId } from '../../../spa/src/lib/guest-store';
 import {
   ensureScripturePillSpacing,
   rangeCrossesHardBreak,
@@ -4938,8 +4939,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             }
 
             // If editing an existing note, immediately process scripture references
-            // This creates scripture notes instantly without requiring a save
-            if (sourceNoteId && (referencesNeedingPills.length > 0 || references.length > 0)) {
+            // This creates scripture notes instantly without requiring a save.
+            // Not for a guest's note: it has no server row, so this could only 401.
+            if (
+              sourceNoteId &&
+              !isGuestNoteId(sourceNoteId) &&
+              (referencesNeedingPills.length > 0 || references.length > 0)
+            ) {
               try {
                 const currentHtml = editor.getHTML();
                 const currentThreadId = parentThreadId || 'thread_unorganized';

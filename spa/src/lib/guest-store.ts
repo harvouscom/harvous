@@ -91,6 +91,22 @@ const EMPTY: GuestStore = { version: STORE_VERSION, highlights: [], notes: [], p
 let cache: GuestStore | null = null;
 const listeners = new Set<() => void>();
 
+/*
+ * Another tab wrote the store, so the copy held above is out of date.
+ *
+ * Every write here is read-modify-write against that copy, so without this a second tab put its
+ * stale copy back on its next write — one autosave in tab B deleted the note tab A had just
+ * written. The `storage` event fires only in the *other* tabs, which is exactly who needs it.
+ * `null` is `localStorage.clear()`.
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== STORE_KEY && event.key !== null) return;
+    cache = null;
+    for (const listener of listeners) listener();
+  });
+}
+
 function read(): GuestStore {
   if (cache) return cache;
   try {
