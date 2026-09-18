@@ -51,6 +51,12 @@ html.harvous-prototype-route .proto-settings__nav-item[data-active='true'] .prot
   color: #fff !important;
 }
 
+/* A chip's unread count sits on the accent, so it reads in the on-accent colour. The blanket
+   `button[class*='proto-'] span` rule forced it to the text colour: dark numerals on blue. */
+html.harvous-prototype-route button[class*='proto-'] .proto-chip__badge {
+  color: var(--pds-on-accent) !important;
+}
+
 /* On-accent controls — must beat blanket `[class*='proto-'] button` rule above */
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary),
 html.harvous-prototype-route button[class*='proto-'].proto-settings-btn:not(.proto-settings-btn--secondary) *,
