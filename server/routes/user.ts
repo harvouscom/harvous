@@ -74,7 +74,8 @@ import { calculateSessionXP, type SessionData } from '../utils/session-tracker';
 import { canCreateSharedSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { connectionFieldsForHmcChurchId } from '../utils/church-connection';
-import { isChurchStaffForOrg } from '../utils/church-staff';
+import { getActiveChurchByOrgId, isChurchStaffForOrg } from '../utils/church-staff';
+import { orgLeftByChurchChange, releaseChannelFollowsForOrg } from '../utils/ministry-channel-follow';
 import { fetchClerkOrgMemberships } from '../utils/clerk-org';
 import {
   capabilitiesForChurchRole,
@@ -801,6 +802,17 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
       if (hasChurchData) await awardChurchAddedXP(auth.userId);
     }
 
+    /* Moved or left: the old church's channels stop filling this person's feed.
+       After the write, so a failure here never costs them the new connection. */
+    const leftOrgId = orgLeftByChurchChange(existing?.connectedOrgId, connection.connectedOrgId);
+    if (leftOrgId) {
+      try {
+        await releaseChannelFollowsForOrg(auth.userId, leftOrgId);
+      } catch (error) {
+        console.warn('[update-church] could not release old channel follows', { leftOrgId, error });
+      }
+    }
+
     return c.json({
       success: true,
       message: 'Church information updated',
@@ -1075,8 +1087,14 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     } catch (_) { /* non-fatal */ }
 
     let isHomeChurchStaff = false;
+    /* Connected to a church that has since been switched off (or removed). Its
+       published study stays readable, but the person should hear why nothing new
+       arrives, rather than meet a church that simply went quiet. */
+    let connectedChurchInactive = false;
     if (churchData.connectedOrgId) {
       try {
+        const connected = await getActiveChurchByOrgId(churchData.connectedOrgId);
+        connectedChurchInactive = !connected || !connected.isActive;
         isHomeChurchStaff = await isChurchStaffForOrg(auth.userId, churchData.connectedOrgId);
       } catch (_) { /* non-fatal */ }
     }
@@ -1106,6 +1124,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       connectedOrgId: churchData.connectedOrgId,
       connectedChurchAt: churchData.connectedChurchAt,
       isHomeChurchStaff,
+      connectedChurchInactive,
       defaultTranslation,
       appearanceSettings,
       lastReadPosition,
