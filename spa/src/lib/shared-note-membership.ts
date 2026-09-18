@@ -117,6 +117,24 @@ export function canAuthorNoteInSpace(
   }
 }
 
+/**
+ * Every space the viewer could put a note in, with the owner's role made explicit.
+ *
+ * `nav.spaces` is the viewer's *owned* spaces (the server selects them by `Spaces.userId`),
+ * but those rows carry neither `role` nor `ownerId` — so `resolveViewerRole` read a
+ * channel's own owner as a follower, and the destination menu told a pastor they could not
+ * post to the channel they run. Stamp it here, once, for every caller.
+ */
+export function navNoteCandidateSpaces<T extends { role?: 'owner' | 'leader' | 'member' | null }>(nav: {
+  spaces?: readonly T[] | null;
+  memberOfSpaces?: readonly T[] | null;
+} | null | undefined): T[] {
+  return [
+    ...(nav?.spaces ?? []).map((space) => ({ ...space, role: space.role ?? ('owner' as const) })),
+    ...(nav?.memberOfSpaces ?? []),
+  ];
+}
+
 function normalizeSpaceId(spaceId: string): string {
   const trimmed = spaceId.trim();
   return trimmed.startsWith('space_') ? trimmed : `space_${trimmed}`;

@@ -227,3 +227,16 @@ describe('resolveLibraryListScope', () => {
     ).toMatchObject({ viewingHome: false, spaceId: 'space_room', isScopedSharedSpace: true });
   });
 });
+
+describe('navNoteCandidateSpaces', () => {
+  it('lets the owner of a channel post to it from the destination menu', async () => {
+    const { navNoteCandidateSpaces, canAuthorNoteInSpace } = await import('../shared-note-membership');
+    // Owned rows arrive from nav with no role and no ownerId.
+    const [owned, followed] = navNoteCandidateSpaces({
+      spaces: [{ id: 'space_youth', type: 'public', orgId: 'org_1' }],
+      memberOfSpaces: [{ id: 'space_kids', type: 'public', orgId: 'org_1', role: 'member' as const }],
+    });
+    expect(canAuthorNoteInSpace(owned, 'user_1')).toBe(true);
+    expect(canAuthorNoteInSpace(followed, 'user_1')).toBe(false);
+  });
+});

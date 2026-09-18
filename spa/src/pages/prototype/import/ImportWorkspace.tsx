@@ -17,7 +17,7 @@ import ProtoProgressBar from './ProtoProgressBar';
 import { useImportEngine } from './useImportEngine';
 import { useNavigation } from '../../../hooks/queries/useNavigation';
 import { useAuth } from '@clerk/clerk-react';
-import { canAuthorNoteInSpace } from '../../../lib/shared-note-membership';
+import { canAuthorNoteInSpace, navNoteCandidateSpaces } from '../../../lib/shared-note-membership';
 
 /** Rotating status lines, so a long run doesn't feel like a frozen one. */
 const RUNNING_LINES = [
@@ -47,7 +47,7 @@ export default function ImportWorkspace({ onExit, onBusyChange }: ImportWorkspac
      from this person (a channel they run, a group they're in). */
   const importTargets = useMemo(
     () =>
-      [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])].filter(
+      navNoteCandidateSpaces(nav).filter(
         (space) => space.type && space.type !== 'personal' && canAuthorNoteInSpace(space, userId),
       ),
     [nav?.spaces, nav?.memberOfSpaces, userId],

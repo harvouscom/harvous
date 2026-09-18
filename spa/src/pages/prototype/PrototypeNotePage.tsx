@@ -62,6 +62,7 @@ import PrototypeNoteDestinationSheet, {
 import {
   noteDestinationLabel,
   resolveNoteDestinationRows,
+  navNoteCandidateSpaces,
 } from '../../lib/shared-note-membership';
 import {
   useAssociateNoteWithSpace,
@@ -884,7 +885,7 @@ export default function PrototypeNotePage() {
         : []),
     ]);
     return resolveNoteDestinationRows({
-      candidateSpaces: [...(nav?.spaces ?? []), ...(nav?.memberOfSpaces ?? [])],
+      candidateSpaces: navNoteCandidateSpaces(nav),
       associatedSpaceIds: associated,
       isOwnNote: viewerIsAuthor,
       contentEncrypted: note?.contentEncrypted === true,
