@@ -34,7 +34,7 @@ import {
   decoratePassageHtmlWithSavedHighlights,
   type PassageHighlightPaint,
   type ReferenceProvider,
-} from '@/components/react/TiptapReferenceSuggestion';
+} from '@/utils/reference-suggestion-text';
 import { useEastonsSlugIndex } from '../../../spa/src/hooks/useEastonsSlugIndex';
 import { deriveReferenceFromPassageSelection } from '@/utils/derive-passage-selection-reference';
 import { useCoarsePointer } from '../../../spa/src/lib/use-coarse-pointer';

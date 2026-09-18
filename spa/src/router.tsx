@@ -23,7 +23,6 @@ import PrototypeRouteErrorState from './pages/prototype/PrototypeRouteErrorState
 import ProtoRoutePending from './pages/prototype/ProtoRoutePending';
 import { PROTO_ROUTE_PENDING_DELAY_MS, PROTO_ROUTE_PENDING_MIN_MS } from './layouts/proto-motion';
 import PublicJoinSpacePage from './pages/public/PublicJoinSpacePage';
-import PublicSharedNotePage from './pages/public/PublicSharedNotePage';
 import PublicSharedThreadPage from './pages/public/PublicSharedThreadPage';
 import PublicInvitationPage from './pages/public/PublicInvitationPage';
 import { noteParamSlug } from './pages/prototype/proto-route-slugs';
@@ -102,7 +101,9 @@ const joinSpaceRoute = createRoute({
 const sharedNoteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/note/$shareToken',
-  component: PublicSharedNotePage,
+  // Lazy: it renders the note with the full editor, and imported statically it put TipTap
+  // in the initial payload of every route, sign-in included.
+  component: lazyRouteComponent(() => import('./pages/public/PublicSharedNotePage')),
 });
 
 const sharedThreadRoute = createRoute({
