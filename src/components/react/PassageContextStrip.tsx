@@ -29,12 +29,36 @@ interface RelatedNote {
   title: string;
   reason: 'Same passage' | 'Cross-reference' | 'Shared theme';
 }
+interface PassageNote {
+  noteId: string;
+  title: string | null;
+  reference: string;
+  createdAt: string | null;
+}
 interface PassageContext {
   themes: ThemeRef[];
   crossReferences: CrossReference[];
   people: EntityRef[];
   places: EntityRef[];
   relatedNotes: RelatedNote[];
+  /**
+   * Every note of yours on this passage, newest first (`/api/scripture/passage-notes`).
+   * Absent when that request failed or a primed fixture predates it — the strip then falls
+   * back to the related list's capped "Same passage" rows, which is what it showed before.
+   */
+  passageNotes?: PassageNote[];
+  passageNotesTotal?: number;
+}
+
+/** Rows shown before "Show all" — the same five the related list used to cap at. */
+const PASSAGE_NOTES_PREVIEW = 5;
+
+function passageNoteDate(iso: string | null): string | undefined {
+  if (!iso) return undefined;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', year: 'numeric' });
 }
 
 export interface PassageContextStripProps {
@@ -171,6 +195,7 @@ export default function PassageContextStrip({
 }: PassageContextStripProps) {
   const [ctx, setCtx] = useState<PassageContext | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showAllPassageNotes, setShowAllPassageNotes] = useState(false);
   const prevCrossRefsVisibleRef = useRef(false);
 
   useEffect(() => {
@@ -186,13 +211,21 @@ export default function PassageContextStrip({
     }
     let cancelled = false;
     setLoading(true);
+    setShowAllPassageNotes(false);
     void (async () => {
       try {
         const params = new URLSearchParams({ reference, translation });
         if (sourceNoteId) params.set('noteId', sourceNoteId);
-        const res = await fetch(`/api/scripture/passage-context?${params.toString()}`, {
-          credentials: 'include',
-        });
+        /* Passage history rides the same load as the context, never a tap later. Its own
+           failure is not the strip's: the context still renders without it. */
+        const historyParams = new URLSearchParams({ reference });
+        if (sourceNoteId) historyParams.set('noteId', sourceNoteId);
+        const [res, history] = await Promise.all([
+          fetch(`/api/scripture/passage-context?${params.toString()}`, { credentials: 'include' }),
+          fetch(`/api/scripture/passage-notes?${historyParams.toString()}`, { credentials: 'include' })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+        ]);
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (cancelled || !data?.success) return;
@@ -202,6 +235,9 @@ export default function PassageContextStrip({
           people: data.people ?? [],
           places: data.places ?? [],
           relatedNotes: data.relatedNotes ?? [],
+          ...(history?.success
+            ? { passageNotes: history.notes ?? [], passageNotesTotal: history.total ?? 0 }
+            : {}),
         };
         contextCache.set(key, next);
         setCtx(next);
@@ -219,7 +255,17 @@ export default function PassageContextStrip({
   // Computed with null guards so these (and the effect below) stay above the early
   // returns — hooks must run unconditionally on every render (Rules of Hooks).
   const hasCrossRefs = !!ctx && showCrossRefs && ctx.crossReferences.length > 0;
-  const hasNotes = !!ctx && showRelatedNotes && ctx.relatedNotes.length > 0;
+  /* With passage history loaded, "Same passage" lives in its own complete, dated list; the
+     related list keeps only what history can't answer (cross-references, shared themes). */
+  const historyLoaded = !!ctx?.passageNotes;
+  const passageNotes = ctx?.passageNotes ?? [];
+  const otherRelated = ctx
+    ? historyLoaded
+      ? ctx.relatedNotes.filter((n) => n.reason !== 'Same passage')
+      : ctx.relatedNotes
+    : [];
+  const hasPassageNotes = showRelatedNotes && passageNotes.length > 0;
+  const hasNotes = showRelatedNotes && otherRelated.length > 0;
 
   // Fire on every false→true transition of cross-refs visibility, not just once:
   // the strip stays mounted across toggles (only the section inside shows/hides), so a
@@ -236,7 +282,12 @@ export default function PassageContextStrip({
   if (loading && !ctx) return null;
   if (!ctx) return null;
 
-  if (!hasCrossRefs && !hasNotes) return null;
+  if (!hasCrossRefs && !hasNotes && !hasPassageNotes) return null;
+
+  const visiblePassageNotes = showAllPassageNotes
+    ? passageNotes
+    : passageNotes.slice(0, PASSAGE_NOTES_PREVIEW);
+  const passageNotesTotal = ctx.passageNotesTotal ?? passageNotes.length;
 
   return (
     <div className="passage-context-strip" aria-label="Passage connections">
@@ -261,9 +312,37 @@ export default function PassageContextStrip({
           they are worth surfacing — but as the dotted `reference-suggestion` underlines on the
           passage text itself, where a name is answered in the place you met it. Listing them
           again underneath restated the same words as a menu and pushed the passage up the card. */}
+      {hasPassageNotes ? (
+        <Section title="Your notes on this passage">
+          {visiblePassageNotes.map((n) => (
+            <NavRow
+              key={n.noteId}
+              icon="note-sticky"
+              label={n.title?.trim() || n.reference}
+              secondary={passageNoteDate(n.createdAt)}
+              disabled={!onNavigateNote}
+              onClick={() => onNavigateNote?.(n.noteId)}
+            />
+          ))}
+          {!showAllPassageNotes && passageNotes.length > PASSAGE_NOTES_PREVIEW ? (
+            <button
+              type="button"
+              className="passage-context-strip__row"
+              onClick={() => setShowAllPassageNotes(true)}
+            >
+              <span className="passage-context-strip__row-text">
+                <span className="passage-context-strip__row-label">
+                  {`Show all ${passageNotesTotal}`}
+                </span>
+              </span>
+            </button>
+          ) : null}
+        </Section>
+      ) : null}
+
       {hasNotes ? (
-        <Section title="Your notes">
-          {ctx.relatedNotes.map((n) => (
+        <Section title={hasPassageNotes ? 'Connected notes' : 'Your notes'}>
+          {otherRelated.map((n) => (
             <NavRow
               key={n.noteId}
               icon="note-sticky"
