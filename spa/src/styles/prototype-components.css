@@ -24302,6 +24302,28 @@ button.proto-feed-sheet__stat:hover {
   color: var(--pds-text-secondary);
 }
 
+/*
+ * Today's passage as a card at the top of Activity — the sample's recipe below, so a verse on
+ * Home reads the same wherever it appears: caption line, the text in the reading face
+ * (`.proto-review-dock__verse--scripture`), two buttons (`.proto-review-dock__actions`).
+ */
+.proto-daily-passage {
+  display: grid;
+  gap: 8px;
+  padding: var(--pds-space-3) var(--pds-space-3) var(--pds-space-2);
+}
+
+.proto-daily-passage__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pds-space-2);
+}
+
+.proto-daily-passage__eyebrow {
+  margin: 0;
+}
+
 /* The sample: one question in the section, for an account without the feature. */
 .proto-review-sample {
   display: grid;

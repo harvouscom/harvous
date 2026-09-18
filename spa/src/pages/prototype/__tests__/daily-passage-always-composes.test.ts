@@ -7,7 +7,7 @@
  * rotates through a finite pool and a reference can recur). Both were surprises: the reader
  * asked to write about today's reading and instead landed on a list, or on someone else's
  * (their own, but old) writing about the same verse from months back. One action now:
- * `studyNow`, which itself only resumes a note actually started earlier *today*.
+ * `takeNote` (was `studyNow`), which itself only resumes a note actually started earlier *today*.
  *
  * Source-inspected because the seam is which function the button calls and how that function
  * decides "resume vs. new", not a value a snapshot would catch.
@@ -28,12 +28,23 @@ describe("today's passage action", () => {
     expect(text).not.toContain('findMostRecentNoteForScriptureReference');
   });
 
-  it('always calls studyNow, never a library/search drill', () => {
+  it('always calls takeNote, never a library/search drill', () => {
     const text = source();
     const start = text.indexOf('aria-label="Add passage to notes"');
     expect(start).toBeGreaterThan(-1);
     const button = text.slice(start, start + 200);
-    expect(button).toContain('onClick={() => studyNow(votd)}');
+    expect(button).toContain('onClick={takeNote}');
     expect(button).toContain('name="pen-to-square"');
+  });
+
+  it('resumes only a note started today, shared with the card', () => {
+    // The action moved into `useDailyPassageActions` so the Activity card and this row cannot
+    // drift. Its resume rule is still "a note on this passage touched today", nothing wider.
+    const hook = readFileSync(
+      resolve(process.cwd(), 'spa/src/pages/prototype/use-daily-passage-actions.ts'),
+      'utf8',
+    );
+    expect(hook).toContain('findPersistedDailyPassageNote(notes, votd.reference)');
+    expect(hook).not.toContain('findMostRecentNoteForScriptureReference');
   });
 });

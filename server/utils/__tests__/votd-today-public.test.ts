@@ -29,6 +29,15 @@ vi.mock('../votd-user-translation', () => ({
   getUserDefaultTranslation: (...args: unknown[]) => mockGetUserDefaultTranslation(...args),
 }));
 
+const mockFetchVerseText = vi.fn();
+const mockVotdActedOnToday = vi.fn();
+vi.mock('../fetch-verse-text', () => ({
+  fetchVerseText: (...args: unknown[]) => mockFetchVerseText(...args),
+}));
+vi.mock('../votd-record-engagement', () => ({
+  votdActedOnToday: (...args: unknown[]) => mockVotdActedOnToday(...args),
+}));
+
 import { votdTodayPublicHandler } from '../votd-today-public';
 
 function makeContext(query: Record<string, string> = {}): Context {
@@ -63,6 +72,8 @@ describe('votdTodayPublicHandler translation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFirst.mockImplementation((rows: unknown) => (Array.isArray(rows) ? rows[0] : undefined));
+    mockFetchVerseText.mockResolvedValue('');
+    mockVotdActedOnToday.mockResolvedValue(false);
   });
 
   it('returns catalog translation when unauthenticated', async () => {
@@ -80,7 +91,56 @@ describe('votdTodayPublicHandler translation', () => {
     mockExactVotdRow({ reference: 'John 3:16', translation: 'NET' });
 
     const result = await votdTodayPublicHandler(makeContext({ tz: 'UTC' }));
-    expect(result).toEqual({ reference: 'John 3:16', translation: 'ESV' });
+    // No words came back here, so no `textHtml`; `actedToday` is always answered for a member.
+    expect(result).toEqual({ reference: 'John 3:16', translation: 'ESV', actedToday: false });
     expect(mockGetUserDefaultTranslation).toHaveBeenCalledWith('user_abc');
+  });
+});
+
+describe('votdTodayPublicHandler for a member', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFirst.mockImplementation((rows: unknown) => (Array.isArray(rows) ? rows[0] : undefined));
+    mockGetAuth.mockReturnValue({ userId: 'user_abc' });
+    mockGetUserDefaultTranslation.mockResolvedValue('NET');
+  });
+
+  function mockRow() {
+    mockLimit.mockResolvedValueOnce([
+      { reference: 'Psalm 18:1-2', translation: 'NET', featuredItemId: 'votd_fi_1' },
+    ]);
+    mockSelect.mockReturnValueOnce({ from: () => ({ where: () => ({ limit: mockLimit }) }) });
+  }
+
+  it('sends the words and whether they already acted on it', async () => {
+    mockRow();
+    mockFetchVerseText.mockResolvedValue('<sup class="verse-num">1</sup>I love you, LORD');
+    mockVotdActedOnToday.mockResolvedValue(false);
+    const result = await votdTodayPublicHandler(makeContext({ tz: 'UTC' }));
+    expect(result).toEqual({
+      reference: 'Psalm 18:1-2',
+      translation: 'NET',
+      textHtml: '<sup class="verse-num">1</sup>I love you, LORD',
+      actedToday: false,
+    });
+    expect(mockFetchVerseText).toHaveBeenCalledWith('Psalm 18:1-2', 'NET');
+    expect(mockVotdActedOnToday).toHaveBeenCalledWith('user_abc', 'votd_fi_1');
+  });
+
+  it('keeps the reference when the words cannot be fetched', async () => {
+    mockRow();
+    mockFetchVerseText.mockRejectedValue(new Error('pool timeout'));
+    mockVotdActedOnToday.mockResolvedValue(true);
+    const result = await votdTodayPublicHandler(makeContext({ tz: 'UTC' }));
+    // No `textHtml` key at all: the app reads its absence as "show the row".
+    expect(result).toEqual({ reference: 'Psalm 18:1-2', translation: 'NET', actedToday: true });
+  });
+
+  it('sends neither to a signed-out visitor', async () => {
+    mockGetAuth.mockReturnValue({ userId: null });
+    mockRow();
+    const result = await votdTodayPublicHandler(makeContext({ tz: 'UTC' }));
+    expect(result).toEqual({ reference: 'Psalm 18:1-2', translation: 'NET' });
+    expect(mockFetchVerseText).not.toHaveBeenCalled();
   });
 });

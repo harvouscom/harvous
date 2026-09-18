@@ -1,27 +1,17 @@
-import { useCallback, useState, useSyncExternalStore } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@clerk/clerk-react';
-import { prototypeHomeRouteTo, prototypeNoteRouteTo } from '@/lib/prototype-path';
-import { useQueryClient } from '@tanstack/react-query';
+/**
+ * Today's passage as a row in Suggested.
+ *
+ * Its shape once the card at the top of Activity has been acted on (see
+ * `PrototypeDailyPassageCard`), and its only shape when there are no words to show — the card
+ * needs the passage text, and a failed lookup should cost the words, not the passage. The
+ * actions are the card's (`useDailyPassageActions`), at row size: the row opens the reader,
+ * the pencil writes about it, the X is "Not today".
+ */
 import PrototypeHomeRow from './PrototypeHomeRow';
 import Icon from '@/components/react/Icon';
 import type { SpaceNoteRow } from '../../hooks/queries/useSpace';
-import { useProtoShell } from '../../layouts/proto-shell-context';
-import {
-  findPersistedDailyPassageNote,
-  isVotdPassageCardDismissedToday,
-  recordVotdEngagement,
-  setVotdDismissedToday,
-  shouldForceShowTodaysPassage,
-  subscribeForcedTodaysPassage,
-  clearForcedTodaysPassage,
-  type VotdToday,
-} from '../../lib/votd-today';
-import { buildVotdScripturePillHtml } from '../../lib/votd-scripture-pill-html';
-import { normalizePrototypeApiSpaceId } from '../../utils/prototype-space-api-id';
-import { getEffectiveDefaultTranslation } from '@/utils/profile-cache';
-import { landAgain, readerRouteForReference } from '../../utils/reader-nav';
-import { noteParamSlug } from './proto-route-slugs';
+import type { VotdToday } from '../../lib/votd-today';
+import { useDailyPassageActions } from './use-daily-passage-actions';
 
 type Props = {
   homeSpaceId: string | null;
@@ -29,105 +19,21 @@ type Props = {
   votd: VotdToday;
 };
 
-export default function PrototypeDailyPassagePill({
-  homeSpaceId,
-  notes,
-  votd,
-}: Props) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { userId } = useAuth();
-  const { isMobileSidebar, closeDrawer, beginPrototypeComposeSession } = useProtoShell();
-  const [dismissedToday, setDismissedToday] = useState(() =>
-    isVotdPassageCardDismissedToday(userId),
-  );
-  /*
-   * Subscribed, not read during render. A reminder tap sets this at the end of a promise chain
-   * that can land well after this row has already mounted and decided to render nothing — and
-   * with the dismissal frozen in `useState`, nothing would ever ask again. This is the whole
-   * reason "we fixed it and the passage still is not there" kept coming back.
-   */
-  const forceShow = useSyncExternalStore(
-    subscribeForcedTodaysPassage,
-    shouldForceShowTodaysPassage,
-    () => false,
-  );
+export default function PrototypeDailyPassagePill({ homeSpaceId, notes, votd }: Props) {
+  const { hidden, openInReader, takeNote, dismiss } = useDailyPassageActions({
+    homeSpaceId,
+    notes,
+    votd,
+  });
 
-  const afterNav = useCallback(() => {
-    if (isMobileSidebar) closeDrawer({ preserveHistory: true });
-  }, [closeDrawer, isMobileSidebar]);
-
-  const openNote = useCallback(
-    (noteId: string) => {
-      navigate({
-        to: prototypeNoteRouteTo(),
-        params: { noteId: noteParamSlug(noteId) },
-      });
-      afterNav();
-    },
-    [afterNav, navigate],
-  );
-
-  const invalidateScriptureIndex = useCallback(() => {
-    const id = normalizePrototypeApiSpaceId(homeSpaceId ?? undefined);
-    if (id) {
-      void queryClient.invalidateQueries({ queryKey: ['prototype', 'space', id, 'scripture-index'] });
-    }
-  }, [homeSpaceId, queryClient]);
-
-  const studyNow = useCallback(
-    (v: VotdToday) => {
-      if (!homeSpaceId) return;
-      const persisted = findPersistedDailyPassageNote(notes, v.reference);
-      if (persisted) {
-        openNote(persisted.id);
-        return;
-      }
-      recordVotdEngagement('add_note');
-      invalidateScriptureIndex();
-      beginPrototypeComposeSession({
-        targetSpaceId: homeSpaceId,
-        seed: { contentHtml: buildVotdScripturePillHtml(v.reference, getEffectiveDefaultTranslation()) },
-      });
-      afterNav();
-      navigate({ to: prototypeHomeRouteTo() });
-    },
-    [
-      afterNav,
-      beginPrototypeComposeSession,
-      homeSpaceId,
-      invalidateScriptureIndex,
-      navigate,
-      notes,
-      openNote,
-    ],
-  );
-
-  const openInReader = useCallback(() => {
-    const route = readerRouteForReference(votd.reference, getEffectiveDefaultTranslation());
-    if (!route) return;
-    afterNav();
-    navigate(landAgain(route));
-  }, [afterNav, navigate, votd.reference]);
-
-  const handleDismiss = useCallback(() => {
-    clearForcedTodaysPassage();
-    setVotdDismissedToday(userId);
-    setDismissedToday(true);
-    recordVotdEngagement('dismiss');
-  }, [userId]);
-
-  if (!homeSpaceId || (dismissedToday && !forceShow)) {
-    return null;
-  }
+  if (!homeSpaceId || hidden) return null;
 
   return (
-    <>
-      <div id="todays-passage">
+    <div id="todays-passage">
       <PrototypeHomeRow
         icon="scroll"
         title={votd.reference}
-        meta={["Today\u2019s passage"]}
+        meta={['Today\u2019s passage']}
         aria-label="Read today's passage"
         onClick={openInReader}
         trailing={
@@ -137,7 +43,7 @@ export default function PrototypeDailyPassagePill({
               className="proto-side-panel__action-btn"
               aria-label="Add passage to notes"
               title="Add passage to notes"
-              onClick={() => studyNow(votd)}
+              onClick={takeNote}
             >
               <Icon name="pen-to-square" size={12} aria-hidden />
             </button>
@@ -146,14 +52,13 @@ export default function PrototypeDailyPassagePill({
               className="proto-side-panel__action-btn"
               aria-label="Dismiss today's passage"
               title="Not today"
-              onClick={handleDismiss}
+              onClick={dismiss}
             >
               <Icon name="xmark" size={12} aria-hidden />
             </button>
           </>
         }
       />
-      </div>
-    </>
+    </div>
   );
 }

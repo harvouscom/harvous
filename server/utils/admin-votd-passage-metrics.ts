@@ -66,7 +66,9 @@ export async function fetchVotdPassageEngagementMetrics(since: Date): Promise<Vo
       (SELECT COUNT(*)::int FROM "UserFeaturedItems" ufi
         INNER JOIN "FeaturedItems" fi ON fi."id" = ufi."featuredItemId"
         WHERE fi."contentType" = 'votd' AND ufi."status" = 'completed'
-        AND ufi."completedAt" >= ${sinceIso}) AS dismiss_close_events
+        -- dismissedAt since Sept 2026. Before that a dismissal wrote completedAt, the same
+        -- stamp as writing about the passage, so this count mixed the two.
+        AND ufi."dismissedAt" >= ${sinceIso}) AS dismiss_close_events
   `);
 
   const row = rows[0];

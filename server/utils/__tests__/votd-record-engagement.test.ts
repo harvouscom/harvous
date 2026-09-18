@@ -122,6 +122,31 @@ describe('recordVotdEngagement', () => {
     expect(mockInsert).toHaveBeenCalled();
   });
 
+  /*
+   * The split that lets Activity fold the card for readers who acted, and only them: a
+   * dismissal stamps dismissedAt, acting stamps completedAt. Both used to stamp completedAt.
+   */
+  it('dismiss stamps dismissedAt, never completedAt', async () => {
+    mockFeaturedItemLookup('votd_fi_1');
+    await recordVotdEngagement('user_a', 'dismiss', '2026-06-29');
+    const values = mockValues.mock.calls[0][0];
+    expect(values.dismissedAt).toBeInstanceOf(Date);
+    expect(values.completedAt).toBeNull();
+    const set = mockOnConflictDoUpdate.mock.calls[0][0].set;
+    expect(set).toHaveProperty('dismissedAt');
+    expect(set).not.toHaveProperty('completedAt');
+  });
+
+  it('open_reader counts as acting on it, without XP', async () => {
+    mockFeaturedItemLookup('votd_fi_3');
+    const result = await recordVotdEngagement('user_d', 'open_reader', '2026-06-29');
+    expect(result).toEqual({ ok: true, featuredItemId: 'votd_fi_3' });
+    expect(mockAwardVotdEngagementXP).not.toHaveBeenCalled();
+    const values = mockValues.mock.calls[0][0];
+    expect(values.completedAt).toBeInstanceOf(Date);
+    expect(mockOnConflictDoUpdate.mock.calls[0][0].set).not.toHaveProperty('dismissedAt');
+  });
+
   it('returns not_found when no publish exists for the day', async () => {
     setupSelectResults([], []);
 
