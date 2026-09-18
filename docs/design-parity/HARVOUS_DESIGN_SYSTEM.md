@@ -134,6 +134,12 @@ Harvous should feel **quiet, warm, and content-first** — a study desk, not a d
   underneath it: setting `overflow-y: auto` forces `overflow-x` to compute to `auto` as well, so
   a column that only meant to scroll down clips sideways too. The Inputs gallery scene
   (`ds-11-inputs`) reproduces the condition rather than describing it.
+- **A text field's ring is keyboard-only**, unlike the browser default. `:focus-visible` shows a
+  ring on a plain click for `input`/`textarea`/`select` (Chromium's own heuristic — a clicked
+  field is about to receive typing), which reads as unwanted chrome on a tap. Since Sept 2026,
+  `public/scripts/field-focus-modality.js` tracks keyboard vs. pointer and suppresses the ring
+  (inline `outline: none`) only when the field's *own* focus was pointer-triggered; Tab into the
+  next field still rings. See the fuller comment in `src/styles/global.css`.
 - Support `prefers-reduced-motion` and `prefers-reduced-transparency`.
 - Do not put `user-select: none` on editable note content or scripture pill text.
 
