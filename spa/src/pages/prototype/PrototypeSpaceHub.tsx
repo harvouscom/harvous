@@ -1221,7 +1221,9 @@ function PrototypeSpaceHubLive() {
             </div>
           ) : null}
 
-          {!isMinistryChannel && threadDashboard.showCurrentThreadBlock ? (
+          {/* Channels included: a study plan published into a channel is what its
+              followers walk, and this is the only door to it on the channel's page. */}
+          {threadDashboard.showCurrentThreadBlock ? (
             <div className="proto-home-section">
               {/*
                 Current and Available are two views of one list, so they share a

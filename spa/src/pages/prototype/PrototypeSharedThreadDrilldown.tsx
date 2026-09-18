@@ -35,8 +35,11 @@ import PrototypeSidebarToolbar from './PrototypeSidebarToolbar';
 import PrototypeListEmptyState from './PrototypeListEmptyState';
 import SharedSpaceNoteAuthorChip from './SharedSpaceNoteAuthorChip';
 import PrototypeAddNotesSheet from './PrototypeAddNotesSheet';
-import PrototypeThreadPlanProgress from './PrototypeThreadPlanProgress';
-import PrototypeStudyPlanCopyAction from './PrototypeStudyPlanCopyAction';
+import {
+  PrototypeThreadPlanFinishRow,
+  threadPlanStatusClause,
+} from './PrototypeThreadPlanProgress';
+import PrototypeStudyPlanCopyButton, { StudyPlanCopyMenu } from './PrototypeStudyPlanCopyAction';
 import PrototypeSidebarRowMenuPopover, {
   TRIGGER_ANCHOR_MIN_WIDTH,
 } from './PrototypeSidebarRowMenuPopover';
@@ -277,6 +280,17 @@ export default function PrototypeSharedThreadDrilldown({
   const showOwnerMenu =
     (isOwner && (!thread.isPinned || Boolean(onRequestDelete))) || canManageSequence;
   const showComposeActions = thread.isPinned && canCompose;
+  const planStatus = threadPlanStatusClause({
+    isSequence,
+    total: sequenceInfo?.total ?? 0,
+    viewerOpenedNoteIds,
+    viewerCompletedAt,
+  });
+  /* The handoff only exists for a channel's study plan with steps in it. */
+  const canCopyPlan = offerCopy && isSequence && (sequenceInfo?.total ?? 0) > 0;
+  const copyAsRow = canCopyPlan && !showComposeActions;
+  const copyInMenu = canCopyPlan && showComposeActions && showOwnerMenu;
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!isEditingTitle) setTitleDraft(thread.title);
@@ -439,6 +453,9 @@ export default function PrototypeSharedThreadDrilldown({
             <p className="proto-caption proto-shared-thread-drilldown__status">
               {thread.isPinned ? 'Current Thread' : 'Thread'}
               {sequenceLabel ? ` · ${sequenceLabel}` : ''}
+              {/* Your own standing, as one more clause — it used to be a row of its own
+                  with a pill, competing with the actions below. */}
+              {planStatus ? ` · ${planStatus}` : ''}
             </p>
           </div>
           {showOwnerMenu ? (
@@ -574,6 +591,25 @@ export default function PrototypeSharedThreadDrilldown({
                       </span>
                     </button>
                   ) : null}
+                  {/* Staff get the handoff here: their row is Add a note / New note, and a
+                      third button there was the clutter. Followers get it as their row. */}
+                  {copyInMenu ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="proto-menu-item"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpen(false);
+                        setCopyMenuOpen(true);
+                      }}
+                    >
+                      <span className="proto-menu-item__icon" aria-hidden>
+                        <Icon name="copy" size={PROTO_TOOLBAR_ICON_SIZE} />
+                      </span>
+                      <span className="proto-menu-item__label">Use this study…</span>
+                    </button>
+                  ) : null}
                   {onRequestDelete ? (
                     <button
                       type="button"
@@ -593,6 +629,15 @@ export default function PrototypeSharedThreadDrilldown({
                   ) : null}
                 </div>
               </PrototypeSidebarRowMenuPopover>
+              {copyInMenu ? (
+                <StudyPlanCopyMenu
+                  channelSpaceId={spaceId}
+                  threadId={thread.id}
+                  open={copyMenuOpen}
+                  onClose={() => setCopyMenuOpen(false)}
+                  anchorRef={menuRootRef}
+                />
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -604,22 +649,10 @@ export default function PrototypeSharedThreadDrilldown({
         ) : null}
 
         {/*
-          The viewer's own standing in the plan. Above the compose actions, and
-          outside the menu that holds "Close this run" — that one is the room's
-          statement about the study, this one is the reader's about themselves,
-          and an owner legitimately makes both.
+          One action row, never two: whoever can write here gets the compose pair;
+          a channel follower, who cannot, gets the handoff in its place.
         */}
-        <PrototypeThreadPlanProgress
-          threadId={thread.id}
-          isSequence={isSequence}
-          total={sequenceInfo?.total ?? 0}
-          viewerOpenedNoteIds={viewerOpenedNoteIds}
-          viewerCompletedAt={viewerCompletedAt}
-        />
-
-        {offerCopy && isSequence && (sequenceInfo?.total ?? 0) > 0 ? (
-          <PrototypeStudyPlanCopyAction channelSpaceId={spaceId} threadId={thread.id} />
-        ) : null}
+        {copyAsRow ? <PrototypeStudyPlanCopyButton channelSpaceId={spaceId} threadId={thread.id} /> : null}
 
         {showComposeActions ? (
           <div className="proto-shared-thread-drilldown__actions">
@@ -823,6 +856,16 @@ export default function PrototypeSharedThreadDrilldown({
               >
                 {notesQuery.isFetchingNextPage ? 'Loading more…' : 'Load more'}
               </button>
+            ) : null}
+            {/* Under the last step — where you are when you finish. Hidden until the
+                whole plan is loaded, so it never sits above steps still to come. */}
+            {!notesQuery.hasNextPage ? (
+              <PrototypeThreadPlanFinishRow
+                threadId={thread.id}
+                isSequence={isSequence}
+                total={sequenceInfo?.total ?? 0}
+                viewerCompletedAt={viewerCompletedAt}
+              />
             ) : null}
           </>
         ) : null}

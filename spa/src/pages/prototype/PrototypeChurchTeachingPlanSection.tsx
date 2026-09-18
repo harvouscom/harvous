@@ -564,6 +564,21 @@ export default function PrototypeChurchTeachingPlanSection({
           */
           runSeries({ kind: 'series-delete', seriesId: entry.id }, () => setOpenSeries(null));
         }}
+        /* Same as the expanded planner: a room's plan publishes into the room; the church
+           plan picks one of the church's channels on first publish. */
+        onPublishThread={(entry, channelSpaceId) =>
+          runSeries(
+            onSpacePlan
+              ? { kind: 'series-publish-thread', seriesId: entry.id }
+              : { kind: 'series-publish-thread', seriesId: entry.id, channelSpaceId },
+            () => setOpenSeries(null),
+          )
+        }
+        publishChannels={
+          onSpacePlan
+            ? undefined
+            : plannableSpaces.filter((space) => space.ministry).map(({ id, title }) => ({ id, title }))
+        }
         /*
           Extending reuses `repeat`, which already generates exactly the right
           rows: the series' name, the next Sundays, and deliberately no passage

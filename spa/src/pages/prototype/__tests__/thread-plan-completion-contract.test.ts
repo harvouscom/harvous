@@ -37,7 +37,8 @@ describe('finishing a plan is not a manager’s privilege', () => {
 
   it('is not rendered inside the manager’s branch in the drilldown', () => {
     const text = drilldown();
-    const start = text.indexOf('<PrototypeThreadPlanProgress');
+    // The drilldown's finish control is the row at the foot of the steps.
+    const start = text.indexOf('<PrototypeThreadPlanFinishRow');
     expect(start).toBeGreaterThan(-1);
     /* The nearest gate above it must be the sequence/step one, not a role one —
        `canManageSequence` guards the menu that holds "End this study". */

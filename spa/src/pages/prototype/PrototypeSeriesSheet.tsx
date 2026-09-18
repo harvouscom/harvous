@@ -184,6 +184,15 @@ export default function PrototypeSeriesSheet({
 
   useDismissOnOutside(cardRef, () => onOpenChange(false), open && usePopoverPresentation && !pending);
 
+  /* Both confirms live here rather than in the parent: this is where the
+     buttons are, and an anchored confirm needs the rect of the thing that
+     raised it. The parents used to ask with `window.confirm` from inside a
+     callback, which is also why they could not anchor.
+     Above the early return: the sheet mounts with no series, and hooks after
+     it crashed the page ("Rendered more hooks") the moment one was opened. */
+  const [emptyAnchor, setEmptyAnchor] = useState<DOMRect | null>(null);
+  const [deleteAnchor, setDeleteAnchor] = useState<DOMRect | null>(null);
+
   if (!series) return null;
 
   const trimmed = title.trim();
@@ -220,12 +229,6 @@ export default function PrototypeSeriesSheet({
      decision and would quietly shorten somebody else's run. */
   const assignable = planServices.filter((s) => !s.seriesId);
 
-  /* Both confirms live here rather than in the parent: this is where the
-     buttons are, and an anchored confirm needs the rect of the thing that
-     raised it. The parents used to ask with `window.confirm` from inside a
-     callback, which is also why they could not anchor. */
-  const [emptyAnchor, setEmptyAnchor] = useState<DOMRect | null>(null);
-  const [deleteAnchor, setDeleteAnchor] = useState<DOMRect | null>(null);
   const removable = services.filter(
     (s) => !s.reference && s.title.trim() === series.title.trim(),
   );
